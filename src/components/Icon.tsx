@@ -2,20 +2,15 @@
 
 const Icon = () => {
   return (
-    <div
+    <img
+      src="/optimise-rocket-logo-white.webp"
+      alt="Optimise Digital"
       style={{
-        fontWeight: 700,
-        fontSize: "14px",
-        color: "#000",
-        width: 32,
-        height: 32,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        maxWidth: 200,
+        height: "auto",
+        objectFit: "contain",
       }}
-    >
-      OD
-    </div>
+    />
   );
 };
 

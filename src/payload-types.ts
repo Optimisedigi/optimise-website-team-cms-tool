@@ -70,6 +70,8 @@ export interface Config {
     users: User;
     clients: Client;
     'blog-posts': BlogPost;
+    'job-posts': JobPost;
+    'seo-audits': SeoAudit;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -81,6 +83,8 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     clients: ClientsSelect<false> | ClientsSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
+    'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
+    'seo-audits': SeoAuditsSelect<false> | SeoAuditsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -127,9 +131,16 @@ export interface UserAuthOperations {
 export interface User {
   id: number;
   name: string;
-  role: 'admin' | 'editor' | 'writer';
+  role: 'admin' | 'manager' | 'specialist';
+  /**
+   * Whether this user has completed their first-login setup
+   */
+  setupCompleted?: boolean | null;
   updatedAt: string;
   createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
   email: string;
   resetPasswordToken?: string | null;
   resetPasswordExpiration?: string | null;
@@ -174,99 +185,66 @@ export interface Client {
    * Enable/disable content publishing for this client
    */
   isActive?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Create and manage blog posts for clients
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "blog-posts".
- */
-export interface BlogPost {
-  id: number;
   /**
-   * Select which client this blog post belongs to
+   * Goals, notes, and context about this client
    */
-  client: number | Client;
+  notes?: string | null;
   /**
-   * The H1 title. Make it intent-led: describe what the reader will learn + who it's for.
+   * Blog categories for this client (one per line)
    */
-  title: string;
+  blogCategories?: string | null;
   /**
-   * Brief summary for SEO meta description (max 160 characters). This appears in search results.
+   * Available tags for this client (one per line)
    */
-  excerpt: string;
+  blogTags?: string | null;
   /**
-   * Main blog content. Use H2 for main sections, H3 for subsections. See the style guide below.
+   * Author profiles for this client (up to 10)
    */
-  content: {
-    root: {
-      type: string;
-      children: {
-        type: any;
-        version: number;
-        [k: string]: unknown;
-      }[];
-      direction: ('ltr' | 'rtl') | null;
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-      indent: number;
-      version: number;
-    };
-    [k: string]: unknown;
-  };
-  /**
-   * URL slug (e.g., 'how-to-improve-website-speed'). Use hyphens, lowercase, no spaces.
-   */
-  slug: string;
-  /**
-   * SEO title for search results (max 60 chars). Leave blank to use the main title.
-   */
-  metaTitle?: string | null;
-  /**
-   * SEO description. Leave blank to use the excerpt.
-   */
-  metaDescription?: string | null;
-  /**
-   * Only set if this content exists elsewhere and you want to point to the original.
-   */
-  canonicalUrl?: string | null;
-  /**
-   * Main image for the blog post. Will be used as thumbnail and social sharing image.
-   */
-  featuredImage?: (number | null) | Media;
-  /**
-   * Describe the image for accessibility and SEO (e.g., 'Developer working on laptop in office').
-   */
-  featuredImageAlt?: string | null;
-  /**
-   * Add relevant tags for filtering and SEO.
-   */
-  tags?:
+  authors?:
     | {
-        tag: string;
+        /**
+         * Author's display name
+         */
+        name: string;
+        /**
+         * Author's job title (e.g., 'Senior SEO Strategist')
+         */
+        jobTitle?: string | null;
+        /**
+         * Short bio or description of the author
+         */
+        blurb?: string | null;
+        /**
+         * Author's profile photo
+         */
+        image?: (number | null) | Media;
+        /**
+         * Tags highlighting this author's areas of expertise
+         */
+        expertiseTags?:
+          | {
+              tag: string;
+              id?: string | null;
+            }[]
+          | null;
+        /**
+         * Social media and website links
+         */
+        socialLinks?:
+          | {
+              platform: 'website' | 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'youtube';
+              /**
+               * Full URL (e.g., 'https://linkedin.com/in/johndoe')
+               */
+              url: string;
+              id?: string | null;
+            }[]
+          | null;
         id?: string | null;
       }[]
     | null;
-  /**
-   * Primary category for this post.
-   */
-  category?: ('tutorial' | 'guide' | 'news' | 'case-study' | 'industry-insights' | 'how-to') | null;
-  /**
-   * Author name as it should appear on the post.
-   */
-  author: string;
-  /**
-   * Publication date (for display and sorting).
-   */
-  publishedDate: string;
-  /**
-   * Only 'Published' posts appear on the website.
-   */
-  status: 'draft' | 'review' | 'published';
   updatedAt: string;
   createdAt: string;
-  _status?: ('draft' | 'published') | null;
 }
 /**
  * Upload and manage images
@@ -323,6 +301,286 @@ export interface Media {
   };
 }
 /**
+ * Create and manage blog posts for clients
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-posts".
+ */
+export interface BlogPost {
+  id: number;
+  /**
+   * Select which client this blog post belongs to
+   */
+  client: number | Client;
+  /**
+   * The H1 title. Make it intent-led: describe what the reader will learn + who it's for.
+   */
+  title: string;
+  /**
+   * Brief summary for SEO meta description (max 160 characters). This appears in search results.
+   */
+  excerpt: string;
+  /**
+   * Main blog content. Use H2 for main sections, H3 for subsections. See the style guide below.
+   */
+  content: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  /**
+   * Estimated reading time (e.g., '5 min read').
+   */
+  readingTime?: string | null;
+  /**
+   * Raw markdown content. If provided, this will be used instead of the rich text editor on the website.
+   */
+  markdownContent?: string | null;
+  /**
+   * URL slug (e.g., 'how-to-improve-website-speed'). Use hyphens, lowercase, no spaces.
+   */
+  slug: string;
+  /**
+   * SEO title for search results (max 60 chars). Leave blank to use the main title.
+   */
+  metaTitle?: string | null;
+  /**
+   * SEO description. Leave blank to use the excerpt.
+   */
+  metaDescription?: string | null;
+  /**
+   * Only set if this content exists elsewhere and you want to point to the original.
+   */
+  canonicalUrl?: string | null;
+  /**
+   * Main image for the blog post. Will be used as thumbnail and social sharing image.
+   */
+  featuredImage?: (number | null) | Media;
+  /**
+   * Describe the image for accessibility and SEO (e.g., 'Developer working on laptop in office').
+   */
+  featuredImageAlt?: string | null;
+  /**
+   * Primary category for this post.
+   */
+  category?: string | null;
+  /**
+   * Add relevant tags for filtering and SEO.
+   */
+  tags?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Author name as it should appear on the post.
+   */
+  author: string;
+  /**
+   * Publication date (for display and sorting).
+   */
+  publishedDate: string;
+  /**
+   * Only 'Published' posts appear on the website.
+   */
+  status: 'draft' | 'review' | 'published';
+  /**
+   * Paste a full markdown file here (with frontmatter). On save, the frontmatter will auto-populate the fields above and the body will be stored as markdown content.
+   */
+  markdownSource?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * Manage open roles displayed on the careers page
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "job-posts".
+ */
+export interface JobPost {
+  id: number;
+  /**
+   * Select which client this job post belongs to
+   */
+  client: number | Client;
+  /**
+   * Job title as it should appear on the careers page (e.g. 'Senior SEO Specialist').
+   */
+  jobTitle: string;
+  /**
+   * One-liner summary shown in the job card (max 200 characters).
+   */
+  excerpt: string;
+  /**
+   * Full job description — responsibilities, what the role involves, and what success looks like.
+   */
+  description: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  /**
+   * Which department or team this role sits in.
+   */
+  department: 'seo' | 'paid-media' | 'cro' | 'strategy' | 'development' | 'design' | 'operations';
+  /**
+   * Type of employment.
+   */
+  employmentType: 'full-time' | 'part-time' | 'contract' | 'freelance';
+  /**
+   * Where the role is based (e.g. 'Remote', 'Sydney, AU', 'Hybrid — Melbourne').
+   */
+  location: string;
+  /**
+   * URL slug (e.g. 'senior-seo-specialist'). Auto-generated from the job title if left blank.
+   */
+  slug: string;
+  /**
+   * Date this role was posted.
+   */
+  publishedDate: string;
+  /**
+   * Only 'Published' roles appear on the careers page.
+   */
+  status: 'draft' | 'published' | 'closed';
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * Full SEO audit reports from the growth tools
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-audits".
+ */
+export interface SeoAudit {
+  id: number;
+  /**
+   * The URL that was audited
+   */
+  websiteUrl: string;
+  businessType: string;
+  /**
+   * Overall SEO score (0-10)
+   */
+  overallScore: number;
+  /**
+   * Number of pages crawled
+   */
+  pagesAnalyzed?: number | null;
+  /**
+   * Email captured from gated form (if provided)
+   */
+  customerEmail?: string | null;
+  /**
+   * Scores per category (metaData, headingStructure, structuredData, internalLinking, imageOptimization, urlStructure, coreWebVitals, navigationUx, eeat, faqImplementation, contentStructure, serviceCoverage)
+   */
+  categoryScores:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Per-page breakdown — each entry has url, pageType, scores, and findings
+   */
+  pageResults?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Cross-page findings — each entry has category, score, status (good/warning/critical), and message
+   */
+  siteWideFindings?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Prioritised action list — each entry has priority, title, description, impact, and estimatedLift
+   */
+  recommendations?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Technical data — sitemapFound, robotsTxtFound, schemaTypes, totalInternalLinks, totalImages, imagesWithoutAlt
+   */
+  extractedData?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Custom URL slug for the report (e.g. 'acme-corp-feb-2026'). Auto-generated from website URL if left blank.
+   */
+  reportSlug?: string | null;
+  /**
+   * Set a password to protect this report. Share it with the client so they can view the report.
+   */
+  reportPassword?: string | null;
+  /**
+   * Link to existing client (optional)
+   */
+  client?: (number | null) | Client;
+  /**
+   * IP address of the visitor
+   */
+  visitorIp?: string | null;
+  /**
+   * Browser fingerprint hash
+   */
+  visitorFingerprint?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -357,6 +615,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'blog-posts';
         value: number | BlogPost;
+      } | null)
+    | ({
+        relationTo: 'job-posts';
+        value: number | JobPost;
+      } | null)
+    | ({
+        relationTo: 'seo-audits';
+        value: number | SeoAudit;
       } | null)
     | ({
         relationTo: 'media';
@@ -411,8 +677,12 @@ export interface PayloadMigration {
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
   role?: T;
+  setupCompleted?: T;
   updatedAt?: T;
   createdAt?: T;
+  enableAPIKey?: T;
+  apiKey?: T;
+  apiKeyIndex?: T;
   email?: T;
   resetPasswordToken?: T;
   resetPasswordExpiration?: T;
@@ -438,6 +708,31 @@ export interface ClientsSelect<T extends boolean = true> {
   websiteUrl?: T;
   apiKey?: T;
   isActive?: T;
+  notes?: T;
+  blogCategories?: T;
+  blogTags?: T;
+  authors?:
+    | T
+    | {
+        name?: T;
+        jobTitle?: T;
+        blurb?: T;
+        image?: T;
+        expertiseTags?:
+          | T
+          | {
+              tag?: T;
+              id?: T;
+            };
+        socialLinks?:
+          | T
+          | {
+              platform?: T;
+              url?: T;
+              id?: T;
+            };
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -450,25 +745,65 @@ export interface BlogPostsSelect<T extends boolean = true> {
   title?: T;
   excerpt?: T;
   content?: T;
+  readingTime?: T;
+  markdownContent?: T;
   slug?: T;
   metaTitle?: T;
   metaDescription?: T;
   canonicalUrl?: T;
   featuredImage?: T;
   featuredImageAlt?: T;
-  tags?:
-    | T
-    | {
-        tag?: T;
-        id?: T;
-      };
   category?: T;
+  tags?: T;
   author?: T;
+  publishedDate?: T;
+  status?: T;
+  markdownSource?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "job-posts_select".
+ */
+export interface JobPostsSelect<T extends boolean = true> {
+  client?: T;
+  jobTitle?: T;
+  excerpt?: T;
+  description?: T;
+  department?: T;
+  employmentType?: T;
+  location?: T;
+  slug?: T;
   publishedDate?: T;
   status?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-audits_select".
+ */
+export interface SeoAuditsSelect<T extends boolean = true> {
+  websiteUrl?: T;
+  businessType?: T;
+  overallScore?: T;
+  pagesAnalyzed?: T;
+  customerEmail?: T;
+  categoryScores?: T;
+  pageResults?: T;
+  siteWideFindings?: T;
+  recommendations?: T;
+  extractedData?: T;
+  reportSlug?: T;
+  reportPassword?: T;
+  client?: T;
+  visitorIp?: T;
+  visitorFingerprint?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

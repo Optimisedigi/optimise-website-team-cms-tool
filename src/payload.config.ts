@@ -9,11 +9,22 @@ import { Users } from "./collections/Users";
 import { Media } from "./collections/Media";
 import { Clients } from "./collections/Clients";
 import { BlogPosts } from "./collections/BlogPosts";
+import { SeoAudits } from "./collections/SeoAudits";
+import { JobPosts } from "./collections/JobPosts";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
 export default buildConfig({
+  i18n: {
+    translations: {
+      en: {
+        general: {
+          welcome: "Welcome to a new world of growth",
+        },
+      },
+    },
+  },
   admin: {
     user: Users.slug,
     importMap: {
@@ -21,16 +32,18 @@ export default buildConfig({
     },
     meta: {
       titleSuffix: " | Optimise Digital",
-      icons: [{ url: "/logo.png" }],
+      icons: [{ url: "/optimise-digital-favicon.png" }],
     },
     components: {
       graphics: {
         Logo: "./components/Logo",
         Icon: "./components/Icon",
       },
+      providers: ["./components/FirstLoginSetup"],
+      beforeDashboard: ["./components/DashboardWelcome"],
     },
   },
-  collections: [Users, Clients, BlogPosts, Media],
+  collections: [Users, Clients, BlogPosts, JobPosts, SeoAudits, Media],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || "your-super-secret-key-change-in-production",
   typescript: {
@@ -39,6 +52,9 @@ export default buildConfig({
   db: sqliteAdapter({
     client: {
       url: process.env.DATABASE_URL || "file:./content.db",
+      ...(process.env.DATABASE_AUTH_TOKEN
+        ? { authToken: process.env.DATABASE_AUTH_TOKEN }
+        : {}),
     },
   }),
   sharp,

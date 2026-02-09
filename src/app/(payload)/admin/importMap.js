@@ -21,8 +21,14 @@ import { StrikethroughFeatureClient as StrikethroughFeatureClient_e70f5e05f09f93
 import { UnderlineFeatureClient as UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { default as default_7e7701142b7068d2cf11592b7f0f90ce } from '../../../components/ClientCategorySelect'
+import { default as default_944faab4983d5384b5ad76a5dc5c6065 } from '../../../components/ClientTagsSelect'
+import { default as default_3d6cbb93c24934a6d54420e5106bbab0 } from '../../../components/ViewReportLink'
+import { default as default_5ee4907bc6cc2a02fa1a48dea9e62484 } from '../../../components/DownloadMarkdownButton'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
+import { default as default_eee8d15b2609d03b18983f3bc669ce04 } from '../../../components/DashboardWelcome'
+import { default as default_f79b4ca75381164e95f118cd1e894463 } from '../../../components/FirstLoginSetup'
 import { CollectionCards as CollectionCards_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 
 export const importMap = {
@@ -49,7 +55,13 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UnderlineFeatureClient": UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#BoldFeatureClient": BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "./components/ClientCategorySelect#default": default_7e7701142b7068d2cf11592b7f0f90ce,
+  "./components/ClientTagsSelect#default": default_944faab4983d5384b5ad76a5dc5c6065,
+  "./components/ViewReportLink#default": default_3d6cbb93c24934a6d54420e5106bbab0,
+  "./components/DownloadMarkdownButton#default": default_5ee4907bc6cc2a02fa1a48dea9e62484,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
+  "./components/DashboardWelcome#default": default_eee8d15b2609d03b18983f3bc669ce04,
+  "./components/FirstLoginSetup#default": default_f79b4ca75381164e95f118cd1e894463,
   "@payloadcms/ui/rsc#CollectionCards": CollectionCards_ab83ff7e88da8d3530831f296ec4756a
 }

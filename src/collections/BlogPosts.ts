@@ -41,7 +41,7 @@ export const BlogPosts: CollectionConfig = {
           if (frontmatter.slug) data.slug = frontmatter.slug;
 
           if (Array.isArray(frontmatter.tags)) {
-            data.tags = frontmatter.tags.map((tag: string) => ({ tag }));
+            data.tags = frontmatter.tags;
           }
 
           if (body.trim()) {
@@ -101,6 +101,14 @@ export const BlogPosts: CollectionConfig = {
               admin: {
                 description:
                   "Main blog content. Use H2 for main sections, H3 for subsections. See the style guide below.",
+              },
+            },
+            {
+              name: "readingTime",
+              type: "text",
+              admin: {
+                description:
+                  "Estimated reading time (e.g., '5 min read').",
               },
             },
             {
@@ -193,32 +201,23 @@ export const BlogPosts: CollectionConfig = {
           label: "Categorization",
           fields: [
             {
-              name: "tags",
-              type: "array",
-              admin: {
-                description: "Add relevant tags for filtering and SEO.",
-              },
-              fields: [
-                {
-                  name: "tag",
-                  type: "text",
-                  required: true,
-                },
-              ],
-            },
-            {
               name: "category",
-              type: "select",
-              options: [
-                { label: "Tutorial", value: "tutorial" },
-                { label: "Guide", value: "guide" },
-                { label: "News", value: "news" },
-                { label: "Case Study", value: "case-study" },
-                { label: "Industry Insights", value: "industry-insights" },
-                { label: "How-To", value: "how-to" },
-              ],
+              type: "text",
               admin: {
                 description: "Primary category for this post.",
+                components: {
+                  Field: "./components/ClientCategorySelect",
+                },
+              },
+            },
+            {
+              name: "tags",
+              type: "json",
+              admin: {
+                description: "Add relevant tags for filtering and SEO.",
+                components: {
+                  Field: "./components/ClientTagsSelect",
+                },
               },
             },
           ],

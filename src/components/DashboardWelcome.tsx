@@ -1,15 +1,8 @@
 "use client";
 
-const Logo = () => {
+const DashboardWelcome = () => {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "12px",
-      }}
-    >
+    <div style={{ marginBottom: "24px", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "12px" }}>
       <img
         src="/optimise-rocket-logo-black.png"
         alt="Optimise Digital"
@@ -18,18 +11,17 @@ const Logo = () => {
           objectFit: "contain",
         }}
       />
-      <p
+      <h2
         style={{
-          fontSize: "16px",
-          fontWeight: 500,
-          color: "#666",
+          fontSize: "24px",
+          fontWeight: 700,
           margin: 0,
         }}
       >
         Welcome to a new world of growth
-      </p>
+      </h2>
     </div>
   );
 };
 
-export default Logo;
+export default DashboardWelcome;

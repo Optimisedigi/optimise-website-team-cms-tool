@@ -31,11 +31,76 @@ type ExtractedData = {
 }
 
 type Recommendation = {
-  priority?: string
+  priority?: number | string
+  title?: string
+  description?: string
   category?: string
   message?: string
   action?: string
   impact?: string
+  estimatedLift?: string
+}
+
+function formatDomain(url: string): string {
+  try {
+    const hostname = new URL(url.startsWith('http') ? url : `https://${url}`).hostname
+    return hostname.startsWith('www.') ? hostname : `www.${hostname}`
+  } catch {
+    return url.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+  }
+}
+
+function ScoreGauge({ score }: { score: number }) {
+  const cx = 100, cy = 110, r = 80
+  const toRad = (d: number) => (d * Math.PI) / 180
+
+  const segments = [
+    { color: '#ef4444', start: 180, end: 146 },
+    { color: '#f97316', start: 144, end: 110 },
+    { color: '#eab308', start: 108, end: 74 },
+    { color: '#84cc16', start: 72, end: 38 },
+    { color: '#22c55e', start: 36, end: 0 },
+  ]
+
+  const arc = (start: number, end: number) => {
+    const x1 = cx + r * Math.cos(toRad(start))
+    const y1 = cy - r * Math.sin(toRad(start))
+    const x2 = cx + r * Math.cos(toRad(end))
+    const y2 = cy - r * Math.sin(toRad(end))
+    return `M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`
+  }
+
+  const needleDeg = 180 - (score / 10) * 180
+  const needleRad = toRad(needleDeg)
+  const needleLen = r - 16
+  const nx = cx + needleLen * Math.cos(needleRad)
+  const ny = cy - needleLen * Math.sin(needleRad)
+  const bw = 6
+  const perpX = Math.sin(needleRad) * bw
+  const perpY = Math.cos(needleRad) * bw
+
+  const bgPath = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx} ${cy - r} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`
+
+  return (
+    <div className="gauge-wrapper">
+      <svg viewBox="0 0 200 140" className="gauge-svg">
+        <path d={bgPath} fill="none" stroke="#e5e7eb" strokeWidth={20} strokeLinecap="round" />
+        {segments.map((seg, i) => (
+          <path key={i} d={arc(seg.start, seg.end)} fill="none"
+            stroke={seg.color} strokeWidth={18} strokeLinecap="round" />
+        ))}
+        <text x={cx} y={cy - 24} textAnchor="middle" dominantBaseline="auto"
+          className="gauge-number">{score}</text>
+        <circle cx={cx} cy={cy} r={10} fill="#374151" />
+        <polygon
+          points={`${cx + perpX},${cy + perpY} ${cx - perpX},${cy - perpY} ${nx},${ny}`}
+          fill="#374151"
+        />
+        <text x={28} y={cy + 20} textAnchor="middle" className="gauge-end-label">POOR</text>
+        <text x={172} y={cy + 20} textAnchor="middle" className="gauge-end-label">GOOD</text>
+      </svg>
+    </div>
+  )
 }
 
 const categoryLabels: Record<string, string> = {
@@ -69,17 +134,17 @@ function StatusIcon({ status }: { status: string }) {
 }
 
 function ScoreBar({ score, label }: { score: number; label: string }) {
-  const color = score >= 8 ? 'green' : score >= 5 ? 'amber' : 'red'
+  const pct = (score / 10) * 100
   return (
-    <div className="score-bar-row">
-      <span className="score-bar-label">{label}</span>
-      <div className="score-bar-track">
-        <div
-          className={`score-bar-fill score-bar-${color}`}
-          style={{ width: `${score * 10}%` }}
-        />
+    <div className="gradient-bar-row">
+      <span className="gradient-bar-label">{label}</span>
+      <div className="gradient-bar-wrapper">
+        <div className="gradient-bar-track" />
+        <div className="gradient-bar-indicator" style={{ left: `${pct}%` }}>
+          <span className="gradient-bar-arrow">&#9650;</span>
+          <span className="gradient-bar-value">{score}/10</span>
+        </div>
       </div>
-      <span className={`score-bar-value score-text-${color}`}>{score}/10</span>
     </div>
   )
 }
@@ -195,9 +260,6 @@ export default async function AuditPage({ params }: { params: Promise<{ slug: st
     year: 'numeric',
   })
 
-  const overallColor =
-    audit.overallScore >= 8 ? 'green' : audit.overallScore >= 5 ? 'amber' : 'red'
-
   const hasPassword = !!(audit as any).reportPassword
 
   const reportContent = (
@@ -205,14 +267,14 @@ export default async function AuditPage({ params }: { params: Promise<{ slug: st
       {/* Hero */}
       <section className="audit-hero">
         <div className="audit-hero-score">
-          <div className={`overall-score score-ring-${overallColor}`}>
-            <span className="overall-score-number">{audit.overallScore}</span>
-            <span className="overall-score-label">/10</span>
-          </div>
-          <p className="overall-score-text">Overall SEO Score</p>
+          <ScoreGauge score={audit.overallScore} />
         </div>
         <div className="audit-hero-info">
-          <h1>{audit.websiteUrl.replace(/^https?:\/\//, '')}</h1>
+          <h1>
+            <a href={audit.websiteUrl.startsWith('http') ? audit.websiteUrl : `https://${audit.websiteUrl}`} target="_blank" rel="noopener noreferrer" className="audit-website-link">
+              {formatDomain(audit.websiteUrl)}
+            </a>
+          </h1>
           <dl className="audit-meta">
             <div>
               <dt>Business Type</dt>
@@ -273,16 +335,30 @@ export default async function AuditPage({ params }: { params: Promise<{ slug: st
               <span className="tech-card-value">{extractedData.totalInternalLinks ?? 0}</span>
               <span>Internal Links</span>
             </div>
-            {extractedData.schemaTypes && extractedData.schemaTypes.length > 0 && (
-              <div className="tech-card tech-neutral tech-card-wide">
-                <span className="tech-card-label">Schema Types</span>
-                <div className="schema-tags">
-                  {extractedData.schemaTypes.map((type) => (
-                    <span key={type} className="schema-tag">{type}</span>
-                  ))}
+            {(() => {
+              const commonSchemas = ['LocalBusiness', 'Organization', 'WebSite', 'WebPage', 'BreadcrumbList', 'FAQPage', 'Article', 'Product', 'Service', 'Review']
+              const present = extractedData.schemaTypes ?? []
+              const missing = commonSchemas.filter((s) => !present.includes(s))
+              return (
+                <div className="tech-card tech-neutral tech-card-wide">
+                  <span className="tech-card-label">Schema Markup</span>
+                  {present.length > 0 && (
+                    <div className="schema-list">
+                      {present.map((type) => (
+                        <span key={type} className="schema-item schema-present">&#10003; {type}</span>
+                      ))}
+                    </div>
+                  )}
+                  {missing.length > 0 && (
+                    <div className="schema-list">
+                      {missing.map((type) => (
+                        <span key={type} className="schema-item schema-missing">&#10007; {type}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
         </section>
       )}
@@ -306,75 +382,55 @@ export default async function AuditPage({ params }: { params: Promise<{ slug: st
       {pageResults && Array.isArray(pageResults) && pageResults.length > 0 && (
         <section className="audit-section">
           <h2>Page-by-Page Results</h2>
-          {pageResults.map((page, i) => {
-            const pageAvg = Object.values(page.scores).length
-              ? Math.round(
-                  (Object.values(page.scores).reduce((a, b) => a + b, 0) /
-                    Object.values(page.scores).length) *
-                    10
-                ) / 10
-              : 0
-            return (
-              <details key={i} className="page-result">
-                <summary>
-                  <div className="page-result-header">
-                    <div className="page-result-title">
-                      <span className="page-type-badge">{page.pageType}</span>
-                      <span className="page-url">{page.url.replace(/^https?:\/\/[^/]+/, '')  || '/'}</span>
-                    </div>
+          <div className="page-results-grid">
+            {pageResults.map((page, i) => {
+              const pageAvg = Object.values(page.scores).length
+                ? Math.round(
+                    (Object.values(page.scores).reduce((a, b) => a + b, 0) /
+                      Object.values(page.scores).length) *
+                      10
+                  ) / 10
+                : 0
+              return (
+                <div key={i} className="page-card">
+                  <div className="page-card-header">
+                    <span className="page-type-badge">{page.pageType}</span>
                     <ScoreBadge score={pageAvg} />
                   </div>
-                </summary>
-                <div className="page-result-body">
-                  {/* Page scores */}
-                  <div className="page-scores-grid">
-                    {Object.entries(page.scores)
-                      .sort(([, a], [, b]) => b - a)
-                      .map(([key, score]) => (
-                        <div key={key} className="page-score-item">
-                          <span className="page-score-label">{categoryLabels[key] || key}</span>
-                          <ScoreBadge score={score} />
-                        </div>
-                      ))}
-                  </div>
-
-                  {/* Page findings */}
-                  {page.findings && page.findings.length > 0 && (
-                    <ul className="findings-list">
-                      {page.findings.map((finding, j) => (
-                        <li key={j} className={`finding-item finding-${finding.status}`}>
-                          <StatusIcon status={finding.status} />
-                          <div>
-                            <strong>{finding.category}</strong>
-                            <span className="finding-message">{finding.message}</span>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  <span className="page-url">{page.url.replace(/^https?:\/\/[^/]+/, '') || '/'}</span>
                 </div>
-              </details>
-            )
-          })}
+              )
+            })}
+          </div>
         </section>
       )}
 
       {/* Recommendations */}
       {recommendations && Array.isArray(recommendations) && recommendations.length > 0 && (
         <section className="audit-section">
-          <h2>Recommendations</h2>
-          <ol className="recommendations-list">
-            {recommendations.map((rec, i) => (
-              <li key={i} className="recommendation-item">
-                {rec.priority && <span className="rec-priority">{rec.priority}</span>}
-                <div>
-                  {rec.category && <strong>{rec.category}: </strong>}
-                  {rec.message || rec.action || JSON.stringify(rec)}
-                  {rec.impact && <span className="rec-impact">Impact: {rec.impact}</span>}
+          <h2>Top Recommendations</h2>
+          <div className="recommendations-list">
+            {recommendations.slice(0, 5).map((rec, i) => (
+              <div key={i} className="recommendation-card">
+                <div className="rec-header">
+                  {rec.priority != null && <span className="rec-priority-pill">Priority {rec.priority}</span>}
+                  {(rec.title || rec.category) && <span className="rec-category-name">{rec.title || rec.category}</span>}
                 </div>
-              </li>
+                <p className="rec-description">{rec.description || rec.message || rec.action}</p>
+                <div className="rec-pills">
+                  {rec.impact && <span className="rec-pill rec-pill-impact">{rec.impact}</span>}
+                  {rec.estimatedLift && <span className="rec-pill rec-pill-lift">{rec.estimatedLift}</span>}
+                </div>
+              </div>
             ))}
-          </ol>
+          </div>
+          <p className="rec-comprehensive-note">
+            A more detailed report on specific recommendations and fixes will be sent in the comprehensive report by Optimise Digital.
+          </p>
+          <div className="audit-cta">
+            <p className="audit-cta-text">Need help improving your SEO and driving more organic traffic?</p>
+            <a href="https://www.optimisedigital.online/contact" target="_blank" rel="noopener noreferrer" className="audit-cta-button">Get in Touch with Optimise Digital</a>
+          </div>
         </section>
       )}
 
@@ -385,37 +441,36 @@ export default async function AuditPage({ params }: { params: Promise<{ slug: st
         return (
           <section className="audit-section">
             <h2>What to Fix</h2>
-            <div className="auto-recommendations">
-              {[...autoRecs.entries()].map(([category, recs]) => (
-                <div key={category} className="rec-category-group">
-                  <h3>{category}</h3>
-                  <div className="rec-cards">
-                    {recs.map((rec, i) => (
-                      <div key={i} className={`rec-card rec-card-${rec.status}`}>
-                        <span className="rec-card-status">{rec.status}</span>
-                        <p className="rec-card-message">{rec.message}</p>
-                        <p className="rec-card-pages">
-                          <strong>Affected {rec.pages.length === 1 ? 'page' : `pages (${rec.pages.length})`}:</strong>{' '}
-                          {rec.pages.join(', ')}
-                        </p>
-                      </div>
-                    ))}
+            <div className="fix-list">
+              {[...autoRecs.entries()].map(([category, recs]) =>
+                recs.map((rec, i) => (
+                  <div key={`${category}-${i}`} className="fix-row">
+                    <span className={`fix-status fix-status-${rec.status}`}>{rec.status}</span>
+                    <div className="fix-content">
+                      <span className="fix-message">{rec.message}</span>
+                      <span className="fix-pages">{rec.pages.length === 1 ? '1 page' : `${rec.pages.length} pages`}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </section>
         )
       })()}
+
+      <div className="audit-cta">
+        <p className="audit-cta-text">Ready to grow your organic traffic? Let our team help you turn these insights into results.</p>
+        <a href="https://www.optimisedigital.online/contact" target="_blank" rel="noopener noreferrer" className="audit-cta-button">Contact Optimise Digital</a>
+      </div>
 
       <footer className="audit-footer">
         <Image
           alt="Optimise Digital"
           height={30}
           width={140}
-          src="/optimise-rocket-logo-black.webp"
+          src="/optimise-digital-logo-black.webp"
         />
-        <p>Report generated by Optimise Digital Growth Tools</p>
+        <p>Report generated by Optimise Digital</p>
       </footer>
     </>
   )
@@ -423,12 +478,15 @@ export default async function AuditPage({ params }: { params: Promise<{ slug: st
   return (
     <div className="audit-page">
       <header className="audit-header">
-        <Image
-          alt="Optimise Digital"
-          height={40}
-          width={185}
-          src="/optimise-rocket-logo-black.webp"
-        />
+        <a href="https://www.optimisedigital.online" target="_blank" rel="noopener noreferrer">
+          <Image
+            alt="Optimise Digital"
+            height={100}
+            width={460}
+            src="/optimise-digital-logo-black.webp"
+            className="audit-header-logo"
+          />
+        </a>
         <span className="audit-header-label">SEO Audit Report</span>
       </header>
 
