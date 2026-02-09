@@ -20,7 +20,7 @@
     "@payloadcms/ui": "^3.17.0",
     "graphql": "^16.8.1",
     "gray-matter": "^4.0.3",
-    "next": "^15.1.7",
+    "next": "^16.1.6",
     "payload": "^3.17.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
