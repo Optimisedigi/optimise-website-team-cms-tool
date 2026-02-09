@@ -50,8 +50,8 @@ export const Media: CollectionConfig = {
         const file = req.file;
         if (!file) return data;
 
-        const isImage = file.mimeType?.startsWith("image/");
-        const isVideo = file.mimeType?.startsWith("video/");
+        const isImage = file.mimetype?.startsWith("image/");
+        const isVideo = file.mimetype?.startsWith("video/");
         const maxImageSize = 800 * 1024; // 800 KB
         const maxVideoSize = 10 * 1024 * 1024; // 10 MB
 
