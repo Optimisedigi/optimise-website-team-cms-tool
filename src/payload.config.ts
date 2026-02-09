@@ -45,7 +45,11 @@ export default buildConfig({
   },
   collections: [Users, Clients, BlogPosts, JobPosts, SeoAudits, Media],
   editor: lexicalEditor(),
-  secret: process.env.PAYLOAD_SECRET || "your-super-secret-key-change-in-production",
+  secret: (() => {
+    const s = process.env.PAYLOAD_SECRET;
+    if (!s) throw new Error("PAYLOAD_SECRET environment variable is required");
+    return s;
+  })(),
   typescript: {
     outputFile: path.resolve(dirname, "payload-types.ts"),
   },

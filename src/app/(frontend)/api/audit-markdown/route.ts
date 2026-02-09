@@ -291,6 +291,21 @@ export async function GET(req: NextRequest) {
     return new Response('Audit not found', { status: 404 })
   }
 
+  // Block download if report is password-protected (must use authenticated admin dashboard)
+  if (audit.reportPassword) {
+    // Allow if the request comes from an authenticated Payload user (admin dashboard)
+    const authResult = await payload.find({
+      collection: 'users',
+      limit: 1,
+      overrideAccess: false,
+      req: req as unknown as Parameters<typeof payload.find>[0]['req'],
+    }).catch(() => null)
+
+    if (!authResult || authResult.totalDocs === 0) {
+      return new Response('Unauthorized — this report is password-protected', { status: 401 })
+    }
+  }
+
   const markdown = generateMarkdown(audit)
 
   const slug = (audit.reportSlug as string) || id

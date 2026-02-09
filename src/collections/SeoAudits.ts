@@ -1,4 +1,5 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
+import crypto from "crypto";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = ({ data }) => {
   if (data && !data.reportSlug && data.websiteUrl) {
@@ -8,7 +9,8 @@ const autoGenerateSlug: CollectionBeforeChangeHook = ({ data }) => {
       .replace(/[^a-zA-Z0-9.-]/g, "")
       .replace(/\./g, "-");
     const date = new Date().toISOString().slice(0, 10);
-    data.reportSlug = `${domain}-${date}`;
+    const rand = crypto.randomBytes(4).toString("hex");
+    data.reportSlug = `${domain}-${date}-${rand}`;
   }
   return data;
 };
@@ -35,8 +37,17 @@ export const SeoAudits: CollectionConfig = {
       if (!req.user) return false;
       return req.user.role === "admin";
     },
-    // Open create — secured by API key header from growth tools
-    create: () => true,
+    create: ({ req }) => {
+      // Allow authenticated admin/manager users
+      if (req.user) return true;
+      // Allow requests with valid API key header from growth tools
+      const apiKey = req.headers.get?.("x-api-key") || (req.headers as any)?.["x-api-key"];
+      if (!apiKey || !process.env.AUDIT_API_KEY) return false;
+      const expected = Buffer.from(process.env.AUDIT_API_KEY);
+      const provided = Buffer.from(String(apiKey));
+      if (expected.length !== provided.length) return false;
+      return crypto.timingSafeEqual(expected, provided);
+    },
   },
   fields: [
     {

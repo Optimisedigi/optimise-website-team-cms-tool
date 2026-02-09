@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import crypto from "crypto";
 
 /**
  * Clients Collection
@@ -55,7 +56,7 @@ export const Clients: CollectionConfig = {
                 beforeChange: [
                   ({ value, operation }) => {
                     if (operation === "create" && !value) {
-                      return `key_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+                      return `key_${crypto.randomBytes(24).toString("hex")}`;
                     }
                     return value;
                   },
