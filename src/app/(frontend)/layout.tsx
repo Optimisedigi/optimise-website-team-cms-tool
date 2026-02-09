@@ -7,6 +7,10 @@ export const metadata = {
   icons: {
     icon: '/optimise-digital-favicon.png',
   },
+  robots: {
+    index: false,
+    follow: false,
+  },
 }
 
 export default async function RootLayout(props: { children: React.ReactNode }) {
