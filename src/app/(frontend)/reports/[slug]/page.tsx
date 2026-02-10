@@ -89,6 +89,18 @@ function formatDomain(url: string): string {
   }
 }
 
+const businessTypeLabels: Record<string, string> = {
+  trades: 'Trades & Home Services',
+  services: 'Professional Services',
+  ecommerce: 'E-commerce / Retail',
+  healthcare: 'Healthcare',
+  hospitality: 'Hospitality & Food',
+  realestate: 'Real Estate',
+  education: 'Education & Training',
+  saas: 'SaaS / Technology',
+  other: 'Other',
+}
+
 const categoryLabels: Record<string, string> = {
   metaData: 'Meta Data',
   headingStructure: 'Heading Structure',
@@ -317,18 +329,44 @@ export default async function ReportPage({ params }: { params: Promise<{ slug: s
       {/* Title */}
       <section className="report-title-section">
         <h1>{client.name}</h1>
-        {(client as any).websiteUrl && (
+        {client.websiteUrl && (
           <a
-            href={String((client as any).websiteUrl).startsWith('http') ? String((client as any).websiteUrl) : `https://${(client as any).websiteUrl}`}
+            href={client.websiteUrl.startsWith('http') ? client.websiteUrl : `https://${client.websiteUrl}`}
             target="_blank"
             rel="noopener noreferrer"
             className="report-website-link"
           >
-            {formatDomain(String((client as any).websiteUrl))}
+            {formatDomain(client.websiteUrl)}
           </a>
         )}
         <p className="report-date">Report generated {reportDate}</p>
       </section>
+
+      {/* Client Overview — from CMS client record */}
+      {(client.businessType || client.targetLocation || client.clientGoals) && (
+        <section className="client-overview">
+          <div className="client-overview-meta">
+            {client.businessType && (
+              <div className="client-overview-item">
+                <span className="client-overview-label">Business Type</span>
+                <span className="client-overview-value">{businessTypeLabels[client.businessType] || client.businessType}</span>
+              </div>
+            )}
+            {client.targetLocation && (
+              <div className="client-overview-item">
+                <span className="client-overview-label">Target Location</span>
+                <span className="client-overview-value">{client.targetLocation}</span>
+              </div>
+            )}
+          </div>
+          {client.clientGoals && (
+            <div className="client-goals">
+              <span className="client-overview-label">Goals</span>
+              <p className="client-goals-text">{client.clientGoals}</p>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ============================================================ */}
       {/* SEO SECTION */}

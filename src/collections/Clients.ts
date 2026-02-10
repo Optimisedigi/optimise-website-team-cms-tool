@@ -109,6 +109,80 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Analysis",
+          fields: [
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "businessType",
+                  type: "select",
+                  admin: {
+                    description: "Type of business — used for report weighting and presentation",
+                  },
+                  options: [
+                    { label: "Trades & Home Services", value: "trades" },
+                    { label: "Professional Services", value: "services" },
+                    { label: "E-commerce / Retail", value: "ecommerce" },
+                    { label: "Healthcare", value: "healthcare" },
+                    { label: "Hospitality & Food", value: "hospitality" },
+                    { label: "Real Estate", value: "realestate" },
+                    { label: "Education & Training", value: "education" },
+                    { label: "SaaS / Technology", value: "saas" },
+                    { label: "Other", value: "other" },
+                  ],
+                },
+                {
+                  name: "targetLocation",
+                  type: "text",
+                  admin: {
+                    description: "Primary target location for rankings (e.g., 'Sydney, Australia')",
+                  },
+                },
+              ],
+            },
+            {
+              name: "clientGoals",
+              type: "textarea",
+              admin: {
+                description: "Client objectives — what they want to achieve (shown in report intro)",
+              },
+            },
+            {
+              name: "competitors",
+              type: "array",
+              maxRows: 5,
+              admin: {
+                description: "Competitor businesses to benchmark against (up to 5)",
+              },
+              fields: [
+                {
+                  name: "name",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description: "Competitor business name",
+                  },
+                },
+                {
+                  name: "websiteUrl",
+                  type: "text",
+                  admin: {
+                    description: "Competitor website URL",
+                  },
+                },
+                {
+                  name: "googleMapsUrl",
+                  type: "text",
+                  admin: {
+                    description: "Google Maps listing URL for GBP analysis",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        {
           label: "Blog Settings",
           fields: [
             {

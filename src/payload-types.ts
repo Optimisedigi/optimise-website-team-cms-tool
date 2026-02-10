@@ -74,6 +74,7 @@ export interface Config {
     'seo-audits': SeoAudit;
     'cro-audits': CroAudit;
     'keyword-snapshots': KeywordSnapshot;
+    'usage-reports': UsageReport;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -89,6 +90,7 @@ export interface Config {
     'seo-audits': SeoAuditsSelect<false> | SeoAuditsSelect<true>;
     'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
     'keyword-snapshots': KeywordSnapshotsSelect<false> | KeywordSnapshotsSelect<true>;
+    'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -197,6 +199,50 @@ export interface Client {
    * Goals, notes, and context about this client
    */
   notes?: string | null;
+  /**
+   * Type of business — used for report weighting and presentation
+   */
+  businessType?:
+    | (
+        | 'trades'
+        | 'services'
+        | 'ecommerce'
+        | 'healthcare'
+        | 'hospitality'
+        | 'realestate'
+        | 'education'
+        | 'saas'
+        | 'other'
+      )
+    | null;
+  /**
+   * Primary target location for rankings (e.g., 'Sydney, Australia')
+   */
+  targetLocation?: string | null;
+  /**
+   * Client objectives — what they want to achieve (shown in report intro)
+   */
+  clientGoals?: string | null;
+  /**
+   * Competitor businesses to benchmark against (up to 5)
+   */
+  competitors?:
+    | {
+        /**
+         * Competitor business name
+         */
+        name: string;
+        /**
+         * Competitor website URL
+         */
+        websiteUrl?: string | null;
+        /**
+         * Google Maps listing URL for GBP analysis
+         */
+        googleMapsUrl?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Blog categories for this client (one per line)
    */
@@ -751,6 +797,61 @@ export interface KeywordSnapshot {
   createdAt: string;
 }
 /**
+ * Monthly usage and estimated API cost reports from the growth tools
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "usage-reports".
+ */
+export interface UsageReport {
+  id: number;
+  /**
+   * Auto-generated from month/year (e.g. 'February 2026')
+   */
+  label?: string | null;
+  /**
+   * Month (1–12)
+   */
+  month: number;
+  /**
+   * Year (e.g. 2026)
+   */
+  year: number;
+  /**
+   * Total SEO audits this month
+   */
+  seoAudits?: number | null;
+  /**
+   * Total CRO audits this month
+   */
+  croAudits?: number | null;
+  /**
+   * Total keyword snapshots this month
+   */
+  keywordSnapshots?: number | null;
+  /**
+   * Total individual keywords looked up
+   */
+  totalKeywordsTracked?: number | null;
+  /**
+   * Breakdown — { serper, moonshot, postmark, total }
+   */
+  estimatedCosts?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Total estimated cost for the month (AUD)
+   */
+  totalEstimatedCost?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -801,6 +902,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'keyword-snapshots';
         value: number | KeywordSnapshot;
+      } | null)
+    | ({
+        relationTo: 'usage-reports';
+        value: number | UsageReport;
       } | null)
     | ({
         relationTo: 'media';
@@ -888,6 +993,17 @@ export interface ClientsSelect<T extends boolean = true> {
   isActive?: T;
   clientPin?: T;
   notes?: T;
+  businessType?: T;
+  targetLocation?: T;
+  clientGoals?: T;
+  competitors?:
+    | T
+    | {
+        name?: T;
+        websiteUrl?: T;
+        googleMapsUrl?: T;
+        id?: T;
+      };
   blogCategories?: T;
   blogTags?: T;
   authors?:
@@ -1022,6 +1138,23 @@ export interface KeywordSnapshotsSelect<T extends boolean = true> {
   rankingDistribution?: T;
   reportSlug?: T;
   client?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "usage-reports_select".
+ */
+export interface UsageReportsSelect<T extends boolean = true> {
+  label?: T;
+  month?: T;
+  year?: T;
+  seoAudits?: T;
+  croAudits?: T;
+  keywordSnapshots?: T;
+  totalKeywordsTracked?: T;
+  estimatedCosts?: T;
+  totalEstimatedCost?: T;
   updatedAt?: T;
   createdAt?: T;
 }

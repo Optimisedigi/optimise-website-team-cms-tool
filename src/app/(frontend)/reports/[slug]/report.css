@@ -64,6 +64,54 @@
   color: #a1a1aa;
 }
 
+/* Client overview */
+.client-overview {
+  padding: 24px;
+  background: #f4f4f5;
+  border-radius: 12px;
+  margin-bottom: 40px;
+}
+
+.client-overview-meta {
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.client-overview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.client-overview-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a1a1aa;
+  font-weight: 600;
+}
+
+.client-overview-value {
+  font-size: 16px;
+  color: #18181b;
+}
+
+.client-goals {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.client-goals-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #3f3f46;
+  white-space: pre-line;
+}
+
 /* Section dividers */
 .section-divider {
   display: flex;
