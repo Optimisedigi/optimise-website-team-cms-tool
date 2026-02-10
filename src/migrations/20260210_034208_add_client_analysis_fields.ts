@@ -5,19 +5,10 @@ import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-sqlite'
  *
  * Production never had prodMigrations wired up, so several tables/columns
  * created during dev (via schema push) may be missing. Every statement here
- * uses IF NOT EXISTS or a try/catch so it is safe to re-run.
+ * uses IF NOT EXISTS so it is safe to re-run.
  */
-export async function up({ db }: MigrateUpArgs): Promise<void> {
-  // Helper: add a column only if it doesn't already exist
-  async function addColumn(table: string, column: string, type: string) {
-    try {
-      await db.run(sql.raw(`ALTER TABLE \`${table}\` ADD \`${column}\` ${type};`))
-    } catch {
-      // column already exists — ignore
-    }
-  }
-
-  // --- Authors tables (may be missing entirely) ---
+export async function up({ db, payload }: MigrateUpArgs): Promise<void> {
+  // --- Authors tables ---
   await db.run(sql`CREATE TABLE IF NOT EXISTS \`clients_authors\` (
     \`_order\` integer NOT NULL,
     \`_parent_id\` integer NOT NULL,
@@ -67,10 +58,10 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX IF NOT EXISTS \`clients_competitors_order_idx\` ON \`clients_competitors\` (\`_order\`);`)
   await db.run(sql`CREATE INDEX IF NOT EXISTS \`clients_competitors_parent_id_idx\` ON \`clients_competitors\` (\`_parent_id\`);`)
 
-  // --- Client analysis columns ---
-  await addColumn('clients', 'business_type', 'text')
-  await addColumn('clients', 'target_location', 'text')
-  await addColumn('clients', 'client_goals', 'text')
+  // --- Client analysis columns (use try/catch since SQLite has no IF NOT EXISTS for columns) ---
+  try { await db.run(sql`ALTER TABLE \`clients\` ADD \`business_type\` text;`) } catch { /* exists */ }
+  try { await db.run(sql`ALTER TABLE \`clients\` ADD \`target_location\` text;`) } catch { /* exists */ }
+  try { await db.run(sql`ALTER TABLE \`clients\` ADD \`client_goals\` text;`) } catch { /* exists */ }
 
   // --- CRO Audits table ---
   await db.run(sql`CREATE TABLE IF NOT EXISTS \`cro_audits\` (
