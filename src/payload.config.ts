@@ -6,6 +6,7 @@ import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
 
+import { migrations } from "./migrations";
 import { Users } from "./collections/Users";
 import { Media } from "./collections/Media";
 import { Clients } from "./collections/Clients";
@@ -58,6 +59,7 @@ export default buildConfig({
     outputFile: path.resolve(dirname, "payload-types.ts"),
   },
   db: sqliteAdapter({
+    prodMigrations: migrations,
     client: {
       url: process.env.DATABASE_URL || "file:./content.db",
       ...(process.env.DATABASE_AUTH_TOKEN
