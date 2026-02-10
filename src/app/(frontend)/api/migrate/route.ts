@@ -16,17 +16,17 @@ export async function POST(request: NextRequest) {
 
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
-  const db = (payload.db as any).drizzle;
+  const client = (payload.db as any).client;
 
-  if (!db) {
-    return NextResponse.json({ error: "No drizzle instance" }, { status: 500 });
+  if (!client) {
+    return NextResponse.json({ error: "No LibSQL client" }, { status: 500 });
   }
 
   const results: string[] = [];
 
   async function run(label: string, statement: string) {
     try {
-      await db.run({ sql: statement, params: [] });
+      await client.execute(statement);
       results.push(`OK: ${label}`);
     } catch (e: any) {
       const msg = e?.message || String(e);
