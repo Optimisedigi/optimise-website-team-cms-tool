@@ -72,6 +72,34 @@ export const Clients: CollectionConfig = {
               },
             },
             {
+              name: "clientPin",
+              type: "text",
+              unique: true,
+              admin: {
+                position: "sidebar",
+                description:
+                  "4-digit PIN for client hub access (auto-generated)",
+              },
+              validate: (value: string | null | undefined) => {
+                if (!value) return true;
+                if (!/^\d{4}$/.test(value))
+                  return "PIN must be exactly 4 digits";
+                return true;
+              },
+              hooks: {
+                beforeChange: [
+                  ({ value, operation }) => {
+                    if (operation === "create" && !value) {
+                      return String(
+                        Math.floor(1000 + Math.random() * 9000)
+                      );
+                    }
+                    return value;
+                  },
+                ],
+              },
+            },
+            {
               name: "notes",
               type: "textarea",
               admin: {

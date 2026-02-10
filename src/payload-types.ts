@@ -186,6 +186,10 @@ export interface Client {
    */
   isActive?: boolean | null;
   /**
+   * 4-digit PIN for client hub access (auto-generated)
+   */
+  clientPin?: string | null;
+  /**
    * Goals, notes, and context about this client
    */
   notes?: string | null;
@@ -247,7 +251,7 @@ export interface Client {
   createdAt: string;
 }
 /**
- * Upload and manage images
+ * Upload and manage media. Images: max 800 KB. Videos: max 10 MB (no bulk upload).
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media".
@@ -708,6 +712,7 @@ export interface ClientsSelect<T extends boolean = true> {
   websiteUrl?: T;
   apiKey?: T;
   isActive?: T;
+  clientPin?: T;
   notes?: T;
   blogCategories?: T;
   blogTags?: T;
