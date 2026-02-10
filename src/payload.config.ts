@@ -11,6 +11,8 @@ import { Media } from "./collections/Media";
 import { Clients } from "./collections/Clients";
 import { BlogPosts } from "./collections/BlogPosts";
 import { SeoAudits } from "./collections/SeoAudits";
+import { CroAudits } from "./collections/CroAudits";
+import { KeywordSnapshots } from "./collections/KeywordSnapshots";
 import { JobPosts } from "./collections/JobPosts";
 
 const filename = fileURLToPath(import.meta.url);
@@ -44,7 +46,7 @@ export default buildConfig({
       beforeDashboard: ["./components/DashboardWelcome"],
     },
   },
-  collections: [Users, Clients, BlogPosts, JobPosts, SeoAudits, Media],
+  collections: [Users, Clients, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, Media],
   editor: lexicalEditor(),
   secret: (() => {
     const s = process.env.PAYLOAD_SECRET;

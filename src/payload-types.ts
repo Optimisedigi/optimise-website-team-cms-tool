@@ -72,6 +72,8 @@ export interface Config {
     'blog-posts': BlogPost;
     'job-posts': JobPost;
     'seo-audits': SeoAudit;
+    'cro-audits': CroAudit;
+    'keyword-snapshots': KeywordSnapshot;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -85,6 +87,8 @@ export interface Config {
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
     'seo-audits': SeoAuditsSelect<false> | SeoAuditsSelect<true>;
+    'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
+    'keyword-snapshots': KeywordSnapshotsSelect<false> | KeywordSnapshotsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -585,6 +589,168 @@ export interface SeoAudit {
   createdAt: string;
 }
 /**
+ * Conversion rate optimisation audit reports from the growth tools
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cro-audits".
+ */
+export interface CroAudit {
+  id: number;
+  /**
+   * The URL that was audited
+   */
+  websiteUrl: string;
+  /**
+   * Primary conversion goal (e.g. lead generation, e-commerce)
+   */
+  conversionGoal: string;
+  /**
+   * Overall CRO score (0-10)
+   */
+  overallScore?: number | null;
+  /**
+   * Above the fold / trust signals score
+   */
+  aboveFoldScore?: number | null;
+  /**
+   * Call-to-action effectiveness score
+   */
+  ctaScore?: number | null;
+  /**
+   * Navigation clarity score
+   */
+  navigationScore?: number | null;
+  /**
+   * Content structure score
+   */
+  contentScore?: number | null;
+  /**
+   * CRO findings — each entry has category, score, status (good/warning/critical), message, and optional details
+   */
+  findings?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Prioritised recommendations — each entry has priority, title, description, impact, and estimatedLift
+   */
+  recommendations?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Extracted page content — headline, subHeadlines[], navigationItems[], ctaTexts[]
+   */
+  extractedContent?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Unique URL slug for this CRO report. Auto-generated if left blank.
+   */
+  reportSlug?: string | null;
+  /**
+   * Link to existing client (optional)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Email captured from gated form (if provided)
+   */
+  customerEmail?: string | null;
+  /**
+   * IP address of the visitor
+   */
+  visitorIp?: string | null;
+  /**
+   * Browser fingerprint hash
+   */
+  visitorFingerprint?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Keyword ranking snapshots from the growth tools
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "keyword-snapshots".
+ */
+export interface KeywordSnapshot {
+  id: number;
+  /**
+   * The website these keywords were tracked for
+   */
+  websiteUrl: string;
+  /**
+   * Optional label for this snapshot (e.g. 'February 2026')
+   */
+  label?: string | null;
+  /**
+   * Total keywords tracked
+   */
+  totalKeywords?: number | null;
+  /**
+   * Keywords ranking in top 10
+   */
+  top10?: number | null;
+  /**
+   * Average ranking position
+   */
+  avgPosition?: number | null;
+  /**
+   * Number of keyword opportunities
+   */
+  opportunities?: number | null;
+  /**
+   * Keyword data — each entry has keyword, position, previousPosition, searchVolume, opportunity, location, lastUpdated
+   */
+  keywords:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Ranking distribution — { top10, top20, top50, notFound }
+   */
+  rankingDistribution?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Unique URL slug for this keyword snapshot. Auto-generated if left blank.
+   */
+  reportSlug?: string | null;
+  /**
+   * Link to existing client (optional)
+   */
+  client?: (number | null) | Client;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -627,6 +793,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'seo-audits';
         value: number | SeoAudit;
+      } | null)
+    | ({
+        relationTo: 'cro-audits';
+        value: number | CroAudit;
+      } | null)
+    | ({
+        relationTo: 'keyword-snapshots';
+        value: number | KeywordSnapshot;
       } | null)
     | ({
         relationTo: 'media';
@@ -807,6 +981,47 @@ export interface SeoAuditsSelect<T extends boolean = true> {
   client?: T;
   visitorIp?: T;
   visitorFingerprint?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cro-audits_select".
+ */
+export interface CroAuditsSelect<T extends boolean = true> {
+  websiteUrl?: T;
+  conversionGoal?: T;
+  overallScore?: T;
+  aboveFoldScore?: T;
+  ctaScore?: T;
+  navigationScore?: T;
+  contentScore?: T;
+  findings?: T;
+  recommendations?: T;
+  extractedContent?: T;
+  reportSlug?: T;
+  client?: T;
+  customerEmail?: T;
+  visitorIp?: T;
+  visitorFingerprint?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "keyword-snapshots_select".
+ */
+export interface KeywordSnapshotsSelect<T extends boolean = true> {
+  websiteUrl?: T;
+  label?: T;
+  totalKeywords?: T;
+  top10?: T;
+  avgPosition?: T;
+  opportunities?: T;
+  keywords?: T;
+  rankingDistribution?: T;
+  reportSlug?: T;
+  client?: T;
   updatedAt?: T;
   createdAt?: T;
 }

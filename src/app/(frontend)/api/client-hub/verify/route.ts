@@ -91,38 +91,73 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  // Fetch the latest audit for this client
-  const audits = await payload.find({
-    collection: "seo-audits",
-    where: {
-      client: { equals: matchedClientId },
-    },
-    sort: "-createdAt",
-    limit: 1,
-    overrideAccess: true,
-  });
+  // Fetch latest of each report type in parallel
+  const [seoResult, croResult, kwResult] = await Promise.all([
+    payload.find({
+      collection: "seo-audits",
+      where: { client: { equals: matchedClientId } },
+      sort: "-createdAt",
+      limit: 1,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: "cro-audits",
+      where: { client: { equals: matchedClientId } },
+      sort: "-createdAt",
+      limit: 1,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: "keyword-snapshots",
+      where: { client: { equals: matchedClientId } },
+      sort: "-createdAt",
+      limit: 1,
+      overrideAccess: true,
+    }),
+  ]);
 
-  const audit = audits.docs[0];
+  const seoAudit = seoResult.docs[0] ?? null;
+  const croAudit = croResult.docs[0] ?? null;
+  const kwSnapshot = kwResult.docs[0] ?? null;
 
-  if (!audit) {
+  // Only 404 if ALL three are null
+  if (!seoAudit && !croAudit && !kwSnapshot) {
     return NextResponse.json(
       { ok: false, error: "No audit report found." },
       { status: 404 }
     );
   }
 
-  // Strip sensitive fields before returning
-  const {
-    reportPassword: _pw,
-    customerEmail: _email,
-    visitorIp: _ip,
-    visitorFingerprint: _fp,
-    ...safeAudit
-  } = audit as unknown as Record<string, unknown>;
+  // Strip sensitive fields from SEO audit
+  let safeAudit = null;
+  if (seoAudit) {
+    const {
+      reportPassword: _pw,
+      customerEmail: _email,
+      visitorIp: _ip,
+      visitorFingerprint: _fp,
+      ...rest
+    } = seoAudit as unknown as Record<string, unknown>;
+    safeAudit = rest;
+  }
+
+  // Strip sensitive fields from CRO audit
+  let safeCroAudit = null;
+  if (croAudit) {
+    const {
+      customerEmail: _email,
+      visitorIp: _ip,
+      visitorFingerprint: _fp,
+      ...rest
+    } = croAudit as unknown as Record<string, unknown>;
+    safeCroAudit = rest;
+  }
 
   return NextResponse.json({
     ok: true,
     clientName: matchedClientName,
     audit: safeAudit,
+    croAudit: safeCroAudit,
+    keywordSnapshot: kwSnapshot,
   });
 }
