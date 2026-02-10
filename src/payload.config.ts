@@ -14,6 +14,7 @@ import { SeoAudits } from "./collections/SeoAudits";
 import { CroAudits } from "./collections/CroAudits";
 import { KeywordSnapshots } from "./collections/KeywordSnapshots";
 import { JobPosts } from "./collections/JobPosts";
+import { UsageReports } from "./collections/UsageReports";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -46,7 +47,7 @@ export default buildConfig({
       beforeDashboard: ["./components/DashboardWelcome"],
     },
   },
-  collections: [Users, Clients, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, Media],
+  collections: [Users, Clients, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, UsageReports, Media],
   editor: lexicalEditor(),
   secret: (() => {
     const s = process.env.PAYLOAD_SECRET;

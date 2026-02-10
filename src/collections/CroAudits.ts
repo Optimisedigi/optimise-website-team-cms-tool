@@ -1,5 +1,6 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
+import { hasValidApiKey } from "./api-key-access";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = ({ data }) => {
   if (data && !data.reportSlug && data.websiteUrl) {
@@ -31,21 +32,13 @@ export const CroAudits: CollectionConfig = {
     beforeChange: [autoGenerateSlug],
   },
   access: {
-    read: ({ req }) => !!req.user,
+    read: ({ req }) => !!req.user || hasValidApiKey(req),
     update: ({ req }) => !!req.user,
     delete: ({ req }) => {
       if (!req.user) return false;
       return req.user.role === "admin";
     },
-    create: ({ req }) => {
-      if (req.user) return true;
-      const apiKey = req.headers.get?.("x-api-key") || (req.headers as any)?.["x-api-key"];
-      if (!apiKey || !process.env.AUDIT_API_KEY) return false;
-      const expected = Buffer.from(process.env.AUDIT_API_KEY);
-      const provided = Buffer.from(String(apiKey));
-      if (expected.length !== provided.length) return false;
-      return crypto.timingSafeEqual(expected, provided);
-    },
+    create: ({ req }) => !!req.user || hasValidApiKey(req),
   },
   fields: [
     {
