@@ -1,4 +1,38 @@
-import type { CollectionConfig } from "payload";
+import type { CollectionConfig, CollectionAfterChangeHook } from "payload";
+
+const convertToClientHook: CollectionAfterChangeHook = async ({
+  doc,
+  req,
+  previousDoc,
+}) => {
+  if (doc.convertToClient && !previousDoc?.convertToClient) {
+    const payload = req.payload;
+
+    // Create a new Client from the proposal data
+    await payload.create({
+      collection: "clients",
+      data: {
+        name: doc.businessName,
+        slug: doc.slug + "-client",
+        websiteUrl: doc.websiteUrl,
+        businessType: doc.businessType,
+        targetLocation: doc.targetLocation,
+        clientGoals: doc.businessGoals,
+        competitors: doc.competitors,
+        isActive: true,
+        notes: `Converted from proposal: ${doc.businessName}`,
+      },
+    });
+
+    // Reset the toggle so it can't be accidentally triggered again
+    await payload.update({
+      collection: "client-proposals",
+      id: doc.id,
+      data: { convertToClient: false },
+    });
+  }
+  return doc;
+};
 
 /**
  * ClientProposals Collection
@@ -14,7 +48,7 @@ export const ClientProposals: CollectionConfig = {
   },
   admin: {
     useAsTitle: "businessName",
-    group: "Sales",
+    group: "Database",
     description: "Proposals for prospective clients",
   },
   access: {
@@ -403,6 +437,16 @@ export const ClientProposals: CollectionConfig = {
       ],
     },
     {
+      name: "convertToClient",
+      type: "checkbox",
+      defaultValue: false,
+      admin: {
+        position: "sidebar",
+        description:
+          "Toggle on and save to create an active Client from this proposal",
+      },
+    },
+    {
       name: "proposalPin",
       type: "text",
       unique: true,
@@ -429,6 +473,7 @@ export const ClientProposals: CollectionConfig = {
     },
   ],
   hooks: {
+    afterChange: [convertToClientHook],
     beforeChange: [
       ({ data, operation }) => {
         if (data && operation === "create" && data.businessName && !data.slug) {

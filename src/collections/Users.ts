@@ -4,6 +4,7 @@ export const Users: CollectionConfig = {
   slug: "users",
   auth: {
     useAPIKey: true,
+    maxLoginAttempts: 5,
   },
   admin: {
     useAsTitle: "email",

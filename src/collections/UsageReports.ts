@@ -9,7 +9,7 @@ export const UsageReports: CollectionConfig = {
   },
   admin: {
     useAsTitle: "label",
-    group: "Audits",
+    group: "Admin",
     defaultColumns: ["label", "seoAudits", "croAudits", "totalEstimatedCost", "createdAt"],
     description: "Monthly usage and estimated API cost reports from the growth tools",
   },

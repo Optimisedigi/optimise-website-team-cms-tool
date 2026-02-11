@@ -553,6 +553,10 @@ export interface ClientProposal {
    */
   flightPlan?: string | null;
   /**
+   * Toggle on and save to create an active Client from this proposal
+   */
+  convertToClient?: boolean | null;
+  /**
    * 4-digit PIN for prospect report access (auto-generated)
    */
   proposalPin?: string | null;
@@ -1370,6 +1374,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   keywordSnapshot?: T;
   competitorAnalysis?: T;
   flightPlan?: T;
+  convertToClient?: T;
   proposalPin?: T;
   updatedAt?: T;
   createdAt?: T;

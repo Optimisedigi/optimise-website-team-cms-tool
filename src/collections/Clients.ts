@@ -11,7 +11,7 @@ export const Clients: CollectionConfig = {
   slug: "clients",
   admin: {
     useAsTitle: "name",
-    group: "Settings",
+    group: "Database",
     description: "Manage client websites",
   },
   fields: [
