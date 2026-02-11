@@ -9,10 +9,12 @@ import sharp from "sharp";
 import { Users } from "./collections/Users";
 import { Media } from "./collections/Media";
 import { Clients } from "./collections/Clients";
+import { ClientProposals } from "./collections/ClientProposals";
 import { BlogPosts } from "./collections/BlogPosts";
 import { SeoAudits } from "./collections/SeoAudits";
 import { CroAudits } from "./collections/CroAudits";
 import { KeywordSnapshots } from "./collections/KeywordSnapshots";
+import { CompetitorAnalyses } from "./collections/CompetitorAnalyses";
 import { JobPosts } from "./collections/JobPosts";
 import { UsageReports } from "./collections/UsageReports";
 
@@ -47,7 +49,7 @@ export default buildConfig({
       beforeDashboard: ["./components/DashboardWelcome"],
     },
   },
-  collections: [Users, Clients, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, UsageReports, Media],
+  collections: [Users, Clients, ClientProposals, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, UsageReports, Media],
   editor: lexicalEditor(),
   secret: (() => {
     const s = process.env.PAYLOAD_SECRET;

@@ -69,11 +69,13 @@ export interface Config {
   collections: {
     users: User;
     clients: Client;
+    'client-proposals': ClientProposal;
     'blog-posts': BlogPost;
     'job-posts': JobPost;
     'seo-audits': SeoAudit;
     'cro-audits': CroAudit;
     'keyword-snapshots': KeywordSnapshot;
+    'competitor-analyses': CompetitorAnalysis;
     'usage-reports': UsageReport;
     media: Media;
     'payload-kv': PayloadKv;
@@ -85,11 +87,13 @@ export interface Config {
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     clients: ClientsSelect<false> | ClientsSelect<true>;
+    'client-proposals': ClientProposalsSelect<false> | ClientProposalsSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
     'seo-audits': SeoAuditsSelect<false> | SeoAuditsSelect<true>;
     'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
     'keyword-snapshots': KeywordSnapshotsSelect<false> | KeywordSnapshotsSelect<true>;
+    'competitor-analyses': CompetitorAnalysesSelect<false> | CompetitorAnalysesSelect<true>;
     'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
@@ -355,6 +359,560 @@ export interface Media {
   };
 }
 /**
+ * Proposals for prospective clients
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-proposals".
+ */
+export interface ClientProposal {
+  id: number;
+  /**
+   * Prospect business name
+   */
+  businessName: string;
+  /**
+   * URL-friendly identifier (auto-generated from business name)
+   */
+  slug: string;
+  /**
+   * Prospect website URL
+   */
+  websiteUrl: string;
+  /**
+   * Primary contact name
+   */
+  contactName?: string | null;
+  /**
+   * Primary contact email
+   */
+  contactEmail?: string | null;
+  /**
+   * Does this business have physical locations?
+   */
+  hasPhysicalLocations?: boolean | null;
+  /**
+   * Number of physical locations
+   */
+  numberOfLocations?: number | null;
+  /**
+   * Google Maps listing URLs for GBP analysis
+   */
+  googleMapsUrls?:
+    | {
+        /**
+         * Google Maps listing URL
+         */
+        url: string;
+        /**
+         * Location label (e.g. 'Head Office', 'Sydney Branch')
+         */
+        label?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Type of business — used for audit weighting
+   */
+  businessType?:
+    | (
+        | 'trades'
+        | 'services'
+        | 'ecommerce'
+        | 'healthcare'
+        | 'hospitality'
+        | 'realestate'
+        | 'education'
+        | 'saas'
+        | 'other'
+      )
+    | null;
+  /**
+   * Primary conversion goal — used for CRO audit
+   */
+  conversionGoal?:
+    | (
+        | 'lead generation'
+        | 'phone calls'
+        | 'form submissions'
+        | 'e-commerce'
+        | 'bookings'
+        | 'quote requests'
+        | 'email sign-ups'
+        | 'free trial'
+        | 'content downloads'
+        | 'brand awareness'
+      )
+    | null;
+  /**
+   * What the prospect wants to achieve
+   */
+  businessGoals?: string | null;
+  /**
+   * Internal team notes
+   */
+  notes?: string | null;
+  /**
+   * One keyword per line — used for keyword tracking and competitor analysis
+   */
+  keywords?: string | null;
+  /**
+   * Location for keyword tracking and competitor analysis
+   */
+  targetLocation?:
+    | (
+        | 'au'
+        | 'au:sydney'
+        | 'au:melbourne'
+        | 'au:brisbane'
+        | 'au:perth'
+        | 'au:adelaide'
+        | 'au:canberra'
+        | 'au:hobart'
+        | 'au:darwin'
+        | 'nz'
+        | 'nz:auckland'
+        | 'nz:wellington'
+        | 'us'
+        | 'us:new-york'
+        | 'us:los-angeles'
+        | 'us:chicago'
+        | 'us:houston'
+        | 'us:miami'
+        | 'us:atlanta'
+        | 'us:seattle'
+        | 'us:denver'
+        | 'ca'
+        | 'ca:toronto'
+        | 'ca:vancouver'
+        | 'ca:montreal'
+        | 'gb'
+        | 'gb:london'
+        | 'gb:manchester'
+        | 'gb:birmingham'
+        | 'sg'
+      )
+    | null;
+  /**
+   * One idea per line — these will appear at the bottom of the report as potential recommendations for the prospect
+   */
+  suggestions?: string | null;
+  /**
+   * Competitor businesses to benchmark against (up to 5)
+   */
+  competitors?:
+    | {
+        /**
+         * Competitor business name
+         */
+        name: string;
+        /**
+         * Competitor website URL
+         */
+        websiteUrl?: string | null;
+        /**
+         * Google Maps listing URL
+         */
+        googleMapsUrl?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Current audit pipeline status
+   */
+  auditStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
+  /**
+   * When audits were last kicked off
+   */
+  auditStartedAt?: string | null;
+  /**
+   * When audits finished
+   */
+  auditCompletedAt?: string | null;
+  /**
+   * Error details if audits failed
+   */
+  auditError?: string | null;
+  /**
+   * Linked SEO audit
+   */
+  seoAudit?: (number | null) | SeoAudit;
+  /**
+   * Linked CRO audit
+   */
+  croAudit?: (number | null) | CroAudit;
+  /**
+   * Linked keyword snapshot
+   */
+  keywordSnapshot?: (number | null) | KeywordSnapshot;
+  /**
+   * Linked competitor analysis
+   */
+  competitorAnalysis?: (number | null) | CompetitorAnalysis;
+  /**
+   * Editable flight plan content shown at the bottom of the report. One item per line. Falls back to suggestions if empty.
+   */
+  flightPlan?: string | null;
+  /**
+   * 4-digit PIN for prospect report access (auto-generated)
+   */
+  proposalPin?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Full SEO audit reports from the growth tools
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-audits".
+ */
+export interface SeoAudit {
+  id: number;
+  /**
+   * The URL that was audited
+   */
+  websiteUrl: string;
+  businessType: string;
+  /**
+   * Overall SEO score (0-10)
+   */
+  overallScore: number;
+  /**
+   * Number of pages crawled
+   */
+  pagesAnalyzed?: number | null;
+  /**
+   * Email captured from gated form (if provided)
+   */
+  customerEmail?: string | null;
+  /**
+   * Scores per category (metaData, headingStructure, structuredData, internalLinking, imageOptimization, urlStructure, coreWebVitals, navigationUx, eeat, faqImplementation, contentStructure, serviceCoverage)
+   */
+  categoryScores:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Per-page breakdown — each entry has url, pageType, scores, and findings
+   */
+  pageResults?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Cross-page findings — each entry has category, score, status (good/warning/critical), and message
+   */
+  siteWideFindings?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Prioritised action list — each entry has priority, title, description, impact, and estimatedLift
+   */
+  recommendations?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Technical data — sitemapFound, robotsTxtFound, schemaTypes, totalInternalLinks, totalImages, imagesWithoutAlt
+   */
+  extractedData?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Custom URL slug for the report (e.g. 'acme-corp-feb-2026'). Auto-generated from website URL if left blank.
+   */
+  reportSlug?: string | null;
+  /**
+   * Set a password to protect this report. Share it with the client so they can view the report.
+   */
+  reportPassword?: string | null;
+  /**
+   * Link to existing client (optional)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Link to client proposal (optional)
+   */
+  proposal?: (number | null) | ClientProposal;
+  /**
+   * IP address of the visitor
+   */
+  visitorIp?: string | null;
+  /**
+   * Browser fingerprint hash
+   */
+  visitorFingerprint?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Conversion rate optimisation audit reports from the growth tools
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cro-audits".
+ */
+export interface CroAudit {
+  id: number;
+  /**
+   * The URL that was audited
+   */
+  websiteUrl: string;
+  /**
+   * Primary conversion goal (e.g. lead generation, e-commerce)
+   */
+  conversionGoal: string;
+  /**
+   * Overall CRO score (0-10)
+   */
+  overallScore?: number | null;
+  /**
+   * Above the fold / trust signals score
+   */
+  aboveFoldScore?: number | null;
+  /**
+   * Call-to-action effectiveness score
+   */
+  ctaScore?: number | null;
+  /**
+   * Navigation clarity score
+   */
+  navigationScore?: number | null;
+  /**
+   * Content structure score
+   */
+  contentScore?: number | null;
+  /**
+   * CRO findings — each entry has category, score, status (good/warning/critical), message, and optional details
+   */
+  findings?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Prioritised recommendations — each entry has priority, title, description, impact, and estimatedLift
+   */
+  recommendations?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Extracted page content — headline, subHeadlines[], navigationItems[], ctaTexts[]
+   */
+  extractedContent?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Unique URL slug for this CRO report. Auto-generated if left blank.
+   */
+  reportSlug?: string | null;
+  /**
+   * Link to existing client (optional)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Link to client proposal (optional)
+   */
+  proposal?: (number | null) | ClientProposal;
+  /**
+   * Email captured from gated form (if provided)
+   */
+  customerEmail?: string | null;
+  /**
+   * IP address of the visitor
+   */
+  visitorIp?: string | null;
+  /**
+   * Browser fingerprint hash
+   */
+  visitorFingerprint?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Keyword ranking snapshots from the growth tools
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "keyword-snapshots".
+ */
+export interface KeywordSnapshot {
+  id: number;
+  /**
+   * The website these keywords were tracked for
+   */
+  websiteUrl: string;
+  /**
+   * Optional label for this snapshot (e.g. 'February 2026')
+   */
+  label?: string | null;
+  /**
+   * Total keywords tracked
+   */
+  totalKeywords?: number | null;
+  /**
+   * Keywords ranking in top 10
+   */
+  top10?: number | null;
+  /**
+   * Average ranking position
+   */
+  avgPosition?: number | null;
+  /**
+   * Number of keyword opportunities
+   */
+  opportunities?: number | null;
+  /**
+   * Keyword data — each entry has keyword, position, previousPosition, searchVolume, opportunity, location, lastUpdated
+   */
+  keywords:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Ranking distribution — { top10, top20, top50, notFound }
+   */
+  rankingDistribution?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Unique URL slug for this keyword snapshot. Auto-generated if left blank.
+   */
+  reportSlug?: string | null;
+  /**
+   * Link to existing client (optional)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Link to client proposal (optional)
+   */
+  proposal?: (number | null) | ClientProposal;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Competitor analysis reports
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "competitor-analyses".
+ */
+export interface CompetitorAnalysis {
+  id: number;
+  /**
+   * The website that was analyzed
+   */
+  websiteUrl: string;
+  /**
+   * Array of keywords used for the analysis
+   */
+  keywords?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Location used for the analysis
+   */
+  location?: string | null;
+  /**
+   * Number of competitors found
+   */
+  totalCompetitors?: number | null;
+  /**
+   * Your site's competitor profile — domain, avgPosition, keywordsFound, traffic
+   */
+  yourProfile?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Array of competitor profile objects
+   */
+  competitors?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Unique URL slug for this report. Auto-generated if left blank.
+   */
+  reportSlug?: string | null;
+  /**
+   * Link to existing client (optional)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Link to client proposal (optional)
+   */
+  proposal?: (number | null) | ClientProposal;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Create and manage blog posts for clients
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -527,276 +1085,6 @@ export interface JobPost {
   _status?: ('draft' | 'published') | null;
 }
 /**
- * Full SEO audit reports from the growth tools
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "seo-audits".
- */
-export interface SeoAudit {
-  id: number;
-  /**
-   * The URL that was audited
-   */
-  websiteUrl: string;
-  businessType: string;
-  /**
-   * Overall SEO score (0-10)
-   */
-  overallScore: number;
-  /**
-   * Number of pages crawled
-   */
-  pagesAnalyzed?: number | null;
-  /**
-   * Email captured from gated form (if provided)
-   */
-  customerEmail?: string | null;
-  /**
-   * Scores per category (metaData, headingStructure, structuredData, internalLinking, imageOptimization, urlStructure, coreWebVitals, navigationUx, eeat, faqImplementation, contentStructure, serviceCoverage)
-   */
-  categoryScores:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Per-page breakdown — each entry has url, pageType, scores, and findings
-   */
-  pageResults?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Cross-page findings — each entry has category, score, status (good/warning/critical), and message
-   */
-  siteWideFindings?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Prioritised action list — each entry has priority, title, description, impact, and estimatedLift
-   */
-  recommendations?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Technical data — sitemapFound, robotsTxtFound, schemaTypes, totalInternalLinks, totalImages, imagesWithoutAlt
-   */
-  extractedData?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Custom URL slug for the report (e.g. 'acme-corp-feb-2026'). Auto-generated from website URL if left blank.
-   */
-  reportSlug?: string | null;
-  /**
-   * Set a password to protect this report. Share it with the client so they can view the report.
-   */
-  reportPassword?: string | null;
-  /**
-   * Link to existing client (optional)
-   */
-  client?: (number | null) | Client;
-  /**
-   * IP address of the visitor
-   */
-  visitorIp?: string | null;
-  /**
-   * Browser fingerprint hash
-   */
-  visitorFingerprint?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Conversion rate optimisation audit reports from the growth tools
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "cro-audits".
- */
-export interface CroAudit {
-  id: number;
-  /**
-   * The URL that was audited
-   */
-  websiteUrl: string;
-  /**
-   * Primary conversion goal (e.g. lead generation, e-commerce)
-   */
-  conversionGoal: string;
-  /**
-   * Overall CRO score (0-10)
-   */
-  overallScore?: number | null;
-  /**
-   * Above the fold / trust signals score
-   */
-  aboveFoldScore?: number | null;
-  /**
-   * Call-to-action effectiveness score
-   */
-  ctaScore?: number | null;
-  /**
-   * Navigation clarity score
-   */
-  navigationScore?: number | null;
-  /**
-   * Content structure score
-   */
-  contentScore?: number | null;
-  /**
-   * CRO findings — each entry has category, score, status (good/warning/critical), message, and optional details
-   */
-  findings?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Prioritised recommendations — each entry has priority, title, description, impact, and estimatedLift
-   */
-  recommendations?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Extracted page content — headline, subHeadlines[], navigationItems[], ctaTexts[]
-   */
-  extractedContent?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Unique URL slug for this CRO report. Auto-generated if left blank.
-   */
-  reportSlug?: string | null;
-  /**
-   * Link to existing client (optional)
-   */
-  client?: (number | null) | Client;
-  /**
-   * Email captured from gated form (if provided)
-   */
-  customerEmail?: string | null;
-  /**
-   * IP address of the visitor
-   */
-  visitorIp?: string | null;
-  /**
-   * Browser fingerprint hash
-   */
-  visitorFingerprint?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Keyword ranking snapshots from the growth tools
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "keyword-snapshots".
- */
-export interface KeywordSnapshot {
-  id: number;
-  /**
-   * The website these keywords were tracked for
-   */
-  websiteUrl: string;
-  /**
-   * Optional label for this snapshot (e.g. 'February 2026')
-   */
-  label?: string | null;
-  /**
-   * Total keywords tracked
-   */
-  totalKeywords?: number | null;
-  /**
-   * Keywords ranking in top 10
-   */
-  top10?: number | null;
-  /**
-   * Average ranking position
-   */
-  avgPosition?: number | null;
-  /**
-   * Number of keyword opportunities
-   */
-  opportunities?: number | null;
-  /**
-   * Keyword data — each entry has keyword, position, previousPosition, searchVolume, opportunity, location, lastUpdated
-   */
-  keywords:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Ranking distribution — { top10, top20, top50, notFound }
-   */
-  rankingDistribution?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Unique URL slug for this keyword snapshot. Auto-generated if left blank.
-   */
-  reportSlug?: string | null;
-  /**
-   * Link to existing client (optional)
-   */
-  client?: (number | null) | Client;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
  * Monthly usage and estimated API cost reports from the growth tools
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -884,6 +1172,10 @@ export interface PayloadLockedDocument {
         value: number | Client;
       } | null)
     | ({
+        relationTo: 'client-proposals';
+        value: number | ClientProposal;
+      } | null)
+    | ({
         relationTo: 'blog-posts';
         value: number | BlogPost;
       } | null)
@@ -902,6 +1194,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'keyword-snapshots';
         value: number | KeywordSnapshot;
+      } | null)
+    | ({
+        relationTo: 'competitor-analyses';
+        value: number | CompetitorAnalysis;
       } | null)
     | ({
         relationTo: 'usage-reports';
@@ -1033,6 +1329,53 @@ export interface ClientsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-proposals_select".
+ */
+export interface ClientProposalsSelect<T extends boolean = true> {
+  businessName?: T;
+  slug?: T;
+  websiteUrl?: T;
+  contactName?: T;
+  contactEmail?: T;
+  hasPhysicalLocations?: T;
+  numberOfLocations?: T;
+  googleMapsUrls?:
+    | T
+    | {
+        url?: T;
+        label?: T;
+        id?: T;
+      };
+  businessType?: T;
+  conversionGoal?: T;
+  businessGoals?: T;
+  notes?: T;
+  keywords?: T;
+  targetLocation?: T;
+  suggestions?: T;
+  competitors?:
+    | T
+    | {
+        name?: T;
+        websiteUrl?: T;
+        googleMapsUrl?: T;
+        id?: T;
+      };
+  auditStatus?: T;
+  auditStartedAt?: T;
+  auditCompletedAt?: T;
+  auditError?: T;
+  seoAudit?: T;
+  croAudit?: T;
+  keywordSnapshot?: T;
+  competitorAnalysis?: T;
+  flightPlan?: T;
+  proposalPin?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "blog-posts_select".
  */
 export interface BlogPostsSelect<T extends boolean = true> {
@@ -1095,6 +1438,7 @@ export interface SeoAuditsSelect<T extends boolean = true> {
   reportSlug?: T;
   reportPassword?: T;
   client?: T;
+  proposal?: T;
   visitorIp?: T;
   visitorFingerprint?: T;
   updatedAt?: T;
@@ -1117,6 +1461,7 @@ export interface CroAuditsSelect<T extends boolean = true> {
   extractedContent?: T;
   reportSlug?: T;
   client?: T;
+  proposal?: T;
   customerEmail?: T;
   visitorIp?: T;
   visitorFingerprint?: T;
@@ -1138,6 +1483,24 @@ export interface KeywordSnapshotsSelect<T extends boolean = true> {
   rankingDistribution?: T;
   reportSlug?: T;
   client?: T;
+  proposal?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "competitor-analyses_select".
+ */
+export interface CompetitorAnalysesSelect<T extends boolean = true> {
+  websiteUrl?: T;
+  keywords?: T;
+  location?: T;
+  totalCompetitors?: T;
+  yourProfile?: T;
+  competitors?: T;
+  reportSlug?: T;
+  client?: T;
+  proposal?: T;
   updatedAt?: T;
   createdAt?: T;
 }

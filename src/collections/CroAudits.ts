@@ -173,6 +173,15 @@ export const CroAudits: CollectionConfig = {
       },
     },
     {
+      name: "proposal",
+      type: "relationship",
+      relationTo: "client-proposals",
+      admin: {
+        position: "sidebar",
+        description: "Link to client proposal (optional)",
+      },
+    },
+    {
       name: "customerEmail",
       type: "email",
       admin: {

@@ -141,5 +141,14 @@ export const KeywordSnapshots: CollectionConfig = {
         description: "Link to existing client (optional)",
       },
     },
+    {
+      name: "proposal",
+      type: "relationship",
+      relationTo: "client-proposals",
+      admin: {
+        position: "sidebar",
+        description: "Link to client proposal (optional)",
+      },
+    },
   ],
 };
