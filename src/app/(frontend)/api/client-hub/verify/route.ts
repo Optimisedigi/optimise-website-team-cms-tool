@@ -58,22 +58,36 @@ export async function POST(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
-  // Fetch all active clients that have a PIN set
-  const clients = await payload.find({
-    collection: "clients",
-    where: {
-      isActive: { equals: true },
-      clientPin: { exists: true },
-    },
-    limit: 100,
-    overrideAccess: true,
-    select: {
-      name: true,
-      clientPin: true,
-    },
-  });
+  // Fetch all active clients and all proposals with PINs in parallel
+  const [clients, proposals] = await Promise.all([
+    payload.find({
+      collection: "clients",
+      where: {
+        isActive: { equals: true },
+        clientPin: { exists: true },
+      },
+      limit: 100,
+      overrideAccess: true,
+      select: {
+        name: true,
+        clientPin: true,
+      },
+    }),
+    payload.find({
+      collection: "client-proposals",
+      where: {
+        proposalPin: { exists: true },
+      },
+      limit: 100,
+      overrideAccess: true,
+      select: {
+        businessName: true,
+        proposalPin: true,
+      },
+    }),
+  ]);
 
-  // Compare against ALL clients to prevent timing-based enumeration
+  // Check client PINs first (constant-time comparison against ALL to prevent timing attacks)
   let matchedClientId: string | null = null;
   let matchedClientName: string | null = null;
 
@@ -87,77 +101,172 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (!matchedClientId) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+  // Check proposal PINs (always iterate all to prevent timing attacks)
+  let matchedProposalId: string | null = null;
+  let matchedProposalName: string | null = null;
+
+  for (const proposal of proposals.docs) {
+    const storedPin = (proposal as Record<string, unknown>).proposalPin as string;
+    if (!storedPin) continue;
+
+    if (constantTimeCompare(pin, storedPin)) {
+      matchedProposalId = String(proposal.id);
+      matchedProposalName = (proposal as Record<string, unknown>).businessName as string;
+    }
   }
 
-  // Fetch latest of each report type in parallel
-  const [seoResult, croResult, kwResult] = await Promise.all([
-    payload.find({
-      collection: "seo-audits",
-      where: { client: { equals: matchedClientId } },
-      sort: "-createdAt",
-      limit: 1,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: "cro-audits",
-      where: { client: { equals: matchedClientId } },
-      sort: "-createdAt",
-      limit: 1,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: "keyword-snapshots",
-      where: { client: { equals: matchedClientId } },
-      sort: "-createdAt",
-      limit: 1,
-      overrideAccess: true,
-    }),
-  ]);
+  // Client match takes priority
+  if (matchedClientId) {
+    const [seoResult, croResult, kwResult] = await Promise.all([
+      payload.find({
+        collection: "seo-audits",
+        where: { client: { equals: matchedClientId } },
+        sort: "-createdAt",
+        limit: 1,
+        overrideAccess: true,
+      }),
+      payload.find({
+        collection: "cro-audits",
+        where: { client: { equals: matchedClientId } },
+        sort: "-createdAt",
+        limit: 1,
+        overrideAccess: true,
+      }),
+      payload.find({
+        collection: "keyword-snapshots",
+        where: { client: { equals: matchedClientId } },
+        sort: "-createdAt",
+        limit: 1,
+        overrideAccess: true,
+      }),
+    ]);
 
-  const seoAudit = seoResult.docs[0] ?? null;
-  const croAudit = croResult.docs[0] ?? null;
-  const kwSnapshot = kwResult.docs[0] ?? null;
+    const seoAudit = seoResult.docs[0] ?? null;
+    const croAudit = croResult.docs[0] ?? null;
+    const kwSnapshot = kwResult.docs[0] ?? null;
 
-  // Only 404 if ALL three are null
-  if (!seoAudit && !croAudit && !kwSnapshot) {
-    return NextResponse.json(
-      { ok: false, error: "No audit report found." },
-      { status: 404 }
-    );
+    if (!seoAudit && !croAudit && !kwSnapshot) {
+      return NextResponse.json(
+        { ok: false, error: "No audit report found." },
+        { status: 404 }
+      );
+    }
+
+    // Strip sensitive fields from SEO audit
+    let safeAudit = null;
+    if (seoAudit) {
+      const {
+        reportPassword: _pw,
+        customerEmail: _email,
+        visitorIp: _ip,
+        visitorFingerprint: _fp,
+        ...rest
+      } = seoAudit as unknown as Record<string, unknown>;
+      safeAudit = rest;
+    }
+
+    // Strip sensitive fields from CRO audit
+    let safeCroAudit = null;
+    if (croAudit) {
+      const {
+        customerEmail: _email,
+        visitorIp: _ip,
+        visitorFingerprint: _fp,
+        ...rest
+      } = croAudit as unknown as Record<string, unknown>;
+      safeCroAudit = rest;
+    }
+
+    return NextResponse.json({
+      ok: true,
+      clientName: matchedClientName,
+      audit: safeAudit,
+      croAudit: safeCroAudit,
+      keywordSnapshot: kwSnapshot,
+      competitorAnalysis: null,
+    });
   }
 
-  // Strip sensitive fields from SEO audit
-  let safeAudit = null;
-  if (seoAudit) {
-    const {
-      reportPassword: _pw,
-      customerEmail: _email,
-      visitorIp: _ip,
-      visitorFingerprint: _fp,
-      ...rest
-    } = seoAudit as unknown as Record<string, unknown>;
-    safeAudit = rest;
+  // Proposal match
+  if (matchedProposalId) {
+    const [seoResult, croResult, kwResult, compResult] = await Promise.all([
+      payload.find({
+        collection: "seo-audits",
+        where: { proposal: { equals: matchedProposalId } },
+        sort: "-createdAt",
+        limit: 1,
+        overrideAccess: true,
+      }),
+      payload.find({
+        collection: "cro-audits",
+        where: { proposal: { equals: matchedProposalId } },
+        sort: "-createdAt",
+        limit: 1,
+        overrideAccess: true,
+      }),
+      payload.find({
+        collection: "keyword-snapshots",
+        where: { proposal: { equals: matchedProposalId } },
+        sort: "-createdAt",
+        limit: 1,
+        overrideAccess: true,
+      }),
+      payload.find({
+        collection: "competitor-analyses",
+        where: { proposal: { equals: matchedProposalId } },
+        sort: "-createdAt",
+        limit: 1,
+        overrideAccess: true,
+      }),
+    ]);
+
+    const seoAudit = seoResult.docs[0] ?? null;
+    const croAudit = croResult.docs[0] ?? null;
+    const kwSnapshot = kwResult.docs[0] ?? null;
+    const compAnalysis = compResult.docs[0] ?? null;
+
+    if (!seoAudit && !croAudit && !kwSnapshot && !compAnalysis) {
+      return NextResponse.json(
+        { ok: false, error: "No audit report found." },
+        { status: 404 }
+      );
+    }
+
+    // Strip sensitive fields from SEO audit
+    let safeAudit = null;
+    if (seoAudit) {
+      const {
+        reportPassword: _pw,
+        customerEmail: _email,
+        visitorIp: _ip,
+        visitorFingerprint: _fp,
+        ...rest
+      } = seoAudit as unknown as Record<string, unknown>;
+      safeAudit = rest;
+    }
+
+    // Strip sensitive fields from CRO audit
+    let safeCroAudit = null;
+    if (croAudit) {
+      const {
+        customerEmail: _email,
+        visitorIp: _ip,
+        visitorFingerprint: _fp,
+        ...rest
+      } = croAudit as unknown as Record<string, unknown>;
+      safeCroAudit = rest;
+    }
+
+    return NextResponse.json({
+      ok: true,
+      clientName: matchedProposalName,
+      audit: safeAudit,
+      croAudit: safeCroAudit,
+      keywordSnapshot: kwSnapshot,
+      competitorAnalysis: compAnalysis,
+    });
   }
 
-  // Strip sensitive fields from CRO audit
-  let safeCroAudit = null;
-  if (croAudit) {
-    const {
-      customerEmail: _email,
-      visitorIp: _ip,
-      visitorFingerprint: _fp,
-      ...rest
-    } = croAudit as unknown as Record<string, unknown>;
-    safeCroAudit = rest;
-  }
-
-  return NextResponse.json({
-    ok: true,
-    clientName: matchedClientName,
-    audit: safeAudit,
-    croAudit: safeCroAudit,
-    keywordSnapshot: kwSnapshot,
-  });
+  // No match
+  return NextResponse.json({ ok: false }, { status: 401 });
 }
