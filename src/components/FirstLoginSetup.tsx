@@ -17,12 +17,7 @@ const FirstLoginSetup: React.FC<{ children: React.ReactNode }> = ({
     u && u.role !== "admin" && u.setupCompleted === false;
 
   if (!needsSetup) {
-    return (
-      <>
-        <style>{`a[href*="/forgot"] { display: none !important; }`}</style>
-        {children}
-      </>
-    );
+    return <>{children}</>;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
