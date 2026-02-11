@@ -9,19 +9,21 @@ export async function GET() {
     const payloadConfig = await config
     const payload = await getPayload({ config: payloadConfig })
 
-    // Test 1: Fetch current user (id=1)
+    // Test 1: Fetch user with depth (like account page does)
     try {
       const user = await payload.findByID({
         collection: 'users',
         id: 1,
         overrideAccess: true,
+        depth: 2,
       })
-      results['user_fetch'] = `OK - ${user.email} (${user.role})`
+      results['user_fetch_deep'] = `OK - ${JSON.stringify(user).length} chars`
+      results['user_sessions'] = JSON.stringify(user.sessions ?? 'no sessions field')
     } catch (e: any) {
-      results['user_fetch'] = `FAIL - ${e.message}`
+      results['user_fetch_deep'] = `FAIL - ${e.message}\n${e.stack?.slice(0, 500)}`
     }
 
-    // Test 2: Fetch client (id=1)
+    // Test 2: Fetch client with full depth (like edit page does)
     try {
       const client = await payload.findByID({
         collection: 'clients',
@@ -29,54 +31,56 @@ export async function GET() {
         overrideAccess: true,
         depth: 2,
       })
-      results['client_fetch'] = `OK - ${client.name}`
-      results['client_fields'] = JSON.stringify(Object.keys(client))
+      results['client_fetch_deep'] = `OK - ${JSON.stringify(client).length} chars`
+      // Check for any field that might cause serialization issues
+      for (const [key, val] of Object.entries(client)) {
+        if (val !== null && val !== undefined && typeof val === 'object') {
+          try {
+            JSON.stringify(val)
+          } catch {
+            results[`client_bad_field_${key}`] = 'FAIL - not serializable'
+          }
+        }
+      }
     } catch (e: any) {
-      results['client_fetch'] = `FAIL - ${e.message}`
+      results['client_fetch_deep'] = `FAIL - ${e.message}\n${e.stack?.slice(0, 500)}`
     }
 
-    // Test 3: List client-proposals
+    // Test 3: Run raw SQL to check for schema issues
     try {
-      const proposals = await payload.find({
-        collection: 'client-proposals',
-        limit: 1,
-        overrideAccess: true,
+      const tablesResult = await (payload.db as any).drizzle.run({
+        sql: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+        args: [],
       })
-      results['proposals_list'] = `OK - ${proposals.totalDocs} total`
+      results['raw_tables'] = JSON.stringify(tablesResult?.rows?.map((r: any) => r.name ?? r[0]) ?? 'unknown format')
     } catch (e: any) {
-      results['proposals_list'] = `FAIL - ${e.message}`
+      // Try alternative method
+      try {
+        const client = (payload.db as any).client
+        if (client?.execute) {
+          const res = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+          results['raw_tables'] = JSON.stringify(res.rows?.map((r: any) => r.name) ?? 'unknown')
+        } else {
+          results['raw_tables'] = `no execute method - db keys: ${Object.keys(payload.db).join(', ')}`
+        }
+      } catch (e2: any) {
+        results['raw_tables'] = `FAIL both methods - ${e.message} / ${e2.message}`
+      }
     }
 
-    // Test 4: List competitor-analyses
+    // Test 4: Simulate what the admin account page does
     try {
-      const comp = await payload.find({
-        collection: 'competitor-analyses',
-        limit: 1,
-        overrideAccess: true,
-      })
-      results['competitor_list'] = `OK - ${comp.totalDocs} total`
+      // The account page fetches the user and renders a form
+      // Check if Payload can build the admin config for the account page
+      const adminConfig = payloadConfig.admin
+      results['admin_user_slug'] = typeof adminConfig?.user === 'string' ? adminConfig.user : 'object'
+      results['admin_components'] = JSON.stringify(Object.keys(adminConfig?.components ?? {}))
     } catch (e: any) {
-      results['competitor_list'] = `FAIL - ${e.message}`
-    }
-
-    // Test 5: Check users collection fields config
-    try {
-      const usersConfig = payload.collections['users'].config
-      results['users_fields'] = usersConfig.fields.map((f: any) => f.name || f.type).join(', ')
-    } catch (e: any) {
-      results['users_config'] = `FAIL - ${e.message}`
-    }
-
-    // Test 6: Check if user has sessions table
-    try {
-      const db = payload.db
-      results['db_adapter'] = db?.name || 'unknown'
-    } catch (e: any) {
-      results['db_info'] = `FAIL - ${e.message}`
+      results['admin_config'] = `FAIL - ${e.message}`
     }
 
   } catch (e: any) {
-    results['payload_init'] = `FAIL - ${e.message}\n${e.stack}`
+    results['payload_init'] = `FAIL - ${e.message}\n${e.stack?.slice(0, 1000)}`
   }
 
   return NextResponse.json(results, { status: 200 })
