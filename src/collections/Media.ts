@@ -75,7 +75,6 @@ export const Media: CollectionConfig = {
     {
       name: "alt",
       type: "text",
-      required: true,
       admin: {
         description:
           "Describe the image for accessibility and SEO. Be specific (e.g., 'Team meeting in modern office with whiteboard').",

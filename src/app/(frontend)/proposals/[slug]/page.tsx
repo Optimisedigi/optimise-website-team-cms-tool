@@ -4,6 +4,7 @@ import config from '@/payload.config'
 import Image from 'next/image'
 import RocketScroll from '@/components/RocketScroll'
 import KeywordSunburst from '@/components/KeywordSunburst'
+import { RichText } from '@payloadcms/richtext-lexical/react'
 import './report.css'
 
 // ---------------------------------------------------------------------------
@@ -108,8 +109,9 @@ type CompetitorProfile = {
   topKeywords?: { keyword: string; position: number }[]
   traffic?: TrafficData | null
   socialLinks?: Record<string, string | null>
+  websiteScreenshot?: string | null
   metaAds?: { isRunningAds: boolean; activeAdCount: number; adScreenshots: string[] } | null
-  googleAds?: { isRunningAds: boolean; adCount: number; advertiserName: string | null } | null
+  googleAds?: { isRunningAds: boolean; adCount: number; advertiserName: string | null; adScreenshots?: string[] } | null
   googleBusinessProfile?: GoogleBusinessProfile | null
 }
 
@@ -438,10 +440,29 @@ function CompetitorCard({
           )}
         </div>
         <div className="comp-card-thumbnails">
-          <div className="screenshot-placeholder">
-            <span className="screenshot-initial">{domainInitial}</span>
-            <span className="screenshot-domain">{comp.domain}</span>
-          </div>
+          {comp.websiteScreenshot ? (
+            <div className="screenshot-wrap">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={comp.websiteScreenshot.startsWith('data:') ? comp.websiteScreenshot : `data:image/png;base64,${comp.websiteScreenshot}`}
+                alt={`${comp.domain} website fold`}
+                className="screenshot-img"
+              />
+              <div className="screenshot-hover">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={comp.websiteScreenshot.startsWith('data:') ? comp.websiteScreenshot : `data:image/png;base64,${comp.websiteScreenshot}`}
+                  alt={`${comp.domain} website fold expanded`}
+                  className="screenshot-hover-img"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="screenshot-placeholder">
+              <span className="screenshot-initial">{domainInitial}</span>
+              <span className="screenshot-domain">{comp.domain}</span>
+            </div>
+          )}
           {firstAdScreenshot && (
             <div className="ad-thumbnail-wrap">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -478,6 +499,7 @@ async function findProposalBySlug(slug: string) {
   const result = await payload.find({
     collection: 'client-proposals',
     where: { slug: { equals: slug } },
+    depth: 2,
     limit: 1,
     overrideAccess: true,
   })
@@ -640,12 +662,19 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const leadToSaleConversionRate = (proposal as any).leadToSaleConversionRate as number | null
   const averageOrderValue = (proposal as any).averageOrderValue as number | null
 
+  // Mission Brief extras (Slide 5)
+  const hasPhysicalLocations = (proposal as any).hasPhysicalLocations as boolean | null
+  const numberOfLocations = (proposal as any).numberOfLocations as number | null
+
   // Flight Plan images (Slide 12)
   const flightPlanImages = (proposal as any).flightPlanImages as { image: any; caption?: string }[] | null
 
   // Mission Resources (Slide 13) & Launch Requirements (Slide 14)
-  const missionResources = (proposal as any).missionResources as string | null
-  const launchRequirements = (proposal as any).launchRequirements as string | null
+  const missionResourcesRaw = (proposal as any).missionResources
+  const launchRequirementsRaw = (proposal as any).launchRequirements
+
+  // Content Research keyword selection from CMS
+  const contentResearchKeywordsRaw = (proposal as any).contentResearchKeywords as string | null
 
   // Build Mission Control rows: business + competitors
   const missionControlRows: { name: string; monthlyVisits: number; leadConvRate: number; leads: number; leadToSaleRate: number; payingClients: number; returnValue: number; isYou?: boolean }[] = []
@@ -692,19 +721,23 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
       <div className="report-presentation">
 
         {/* ============================================================ */}
-        {/* SLIDE 14 — Launch Requirements                              */}
+        {/* SLIDE 18 — Launch Requirements                              */}
         {/* ============================================================ */}
-        <section className="slide slide-14 slide-expandable">
+        <section className="slide slide-18 slide-expandable">
+          <div className="slide-header slide-header-dark">
+            <h2>11. Launch Requirements</h2>
+            <span>Next Steps</span>
+          </div>
           <div className="slide-content">
-            <div className="slide-header slide-header-dark">
-              <h2>Launch Requirements</h2>
-              <span>What We Need to Get Started</span>
-            </div>
-            {launchRequirements ? (
+            {launchRequirementsRaw ? (
               <div className="cms-copy-block">
-                {launchRequirements.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
-                  <p key={i}>{line}</p>
-                ))}
+                {typeof launchRequirementsRaw === 'object' && launchRequirementsRaw.root ? (
+                  <RichText data={launchRequirementsRaw} />
+                ) : typeof launchRequirementsRaw === 'string' ? (
+                  launchRequirementsRaw.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
+                    <p key={i}>{line}</p>
+                  ))
+                ) : null}
               </div>
             ) : (
               <div className="slide-placeholder-block">
@@ -715,19 +748,23 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         </section>
 
         {/* ============================================================ */}
-        {/* SLIDE 13 — Mission Resources                                */}
+        {/* SLIDE 17 — Mission Resources                                */}
         {/* ============================================================ */}
-        <section className="slide slide-13 slide-expandable">
+        <section className="slide slide-17 slide-expandable">
+          <div className="slide-header">
+            <h2>10. Mission Resources</h2>
+            <span>Commercial Model &amp; Pricing</span>
+          </div>
           <div className="slide-content">
-            <div className="slide-header slide-header-dark">
-              <h2>Mission Resources</h2>
-              <span>Your Investment</span>
-            </div>
-            {missionResources ? (
+            {missionResourcesRaw ? (
               <div className="cms-copy-block">
-                {missionResources.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
-                  <p key={i}>{line}</p>
-                ))}
+                {typeof missionResourcesRaw === 'object' && missionResourcesRaw.root ? (
+                  <RichText data={missionResourcesRaw} />
+                ) : typeof missionResourcesRaw === 'string' ? (
+                  missionResourcesRaw.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
+                    <p key={i}>{line}</p>
+                  ))
+                ) : null}
               </div>
             ) : (
               <div className="slide-placeholder-block">
@@ -738,15 +775,14 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         </section>
 
         {/* ============================================================ */}
-        {/* SLIDE 12 — Flight Plan                                      */}
+        {/* SLIDE 16 — Flight Plan                                      */}
         {/* ============================================================ */}
-        <section className="slide slide-12 slide-expandable">
+        <section className="slide slide-16 slide-expandable">
+          <div className="slide-header">
+            <h2>9. Flight Plan</h2>
+            <span>Roadmap &amp; Timeframes</span>
+          </div>
           <div className="slide-content">
-            <div className="slide-header slide-header-dark">
-              <h2>Flight Plan</h2>
-              <span>Ideas &amp; Opportunities</span>
-            </div>
-
             {flightPlanImages && flightPlanImages.length > 0 && (
               <div className="flight-plan-images">
                 {flightPlanImages.map((item, i) => {
@@ -770,7 +806,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   .map((s: string) => s.trim())
                   .filter(Boolean)
                   .map((line: string, i: number) => (
-                    <div key={i} className="suggestion-item suggestion-item-dark">
+                    <div key={i} className="suggestion-item">
                       <span className="suggestion-bullet">&#x2192;</span>
                       <span>{line}</span>
                     </div>
@@ -778,30 +814,35 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               </div>
             )}
 
-            {/* Static timeline roadmap */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/slides/slide-12.png" alt="Flight Plan Timeline — 1 to 12 months and ongoing" className="flight-plan-timeline-img" />
+            <img src="/slides/slide-12.webp" alt="Flight Plan Timeline — 1 to 12 months and ongoing" className="flight-plan-timeline-img" />
           </div>
         </section>
 
         {/* ============================================================ */}
-        {/* SLIDE 11 — Mission Control                                  */}
+        {/* SLIDE 15 — Mission Control                                  */}
         {/* ============================================================ */}
-        <section className="slide slide-11 slide-expandable">
+        <section className="slide slide-15 slide-expandable">
+          <div className="slide-header">
+            <h2>8. Mission Control</h2>
+            <span>Data &amp; Success Metrics</span>
+          </div>
           <div className="slide-content">
-            <div className="slide-header slide-header-dark">
-              <h2>Mission Control</h2>
-              <span>From Vanity Metrics to Real Business Outcomes</span>
-            </div>
-
-            {/* Funnel illustration */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/slides/slide-11.png" alt="Funnel: Web Traffic → Leads → Paying Clients → Value" className="mission-control-funnel" />
+            <img src="/slides/slide-11.webp" alt="Funnel: Web Traffic → Leads → Paying Clients → Value" className="mission-control-funnel" />
 
-            {/* Data table */}
             {missionControlRows.length > 0 && (
               <div className="mc-table-wrapper">
                 <table className="mc-table">
+                  <colgroup>
+                    <col className="mc-col-business" />
+                    <col className="mc-col-visits" />
+                    <col className="mc-col-lcr" />
+                    <col className="mc-col-leads" />
+                    <col className="mc-col-ltsr" />
+                    <col className="mc-col-clients" />
+                    <col className="mc-col-return" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Business</th>
@@ -832,22 +873,28 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
 
             {missionControlRows.length === 0 && (
               <div className="slide-placeholder-block">
-                <span>Add lead conversion rate, lead-to-sale rate, and average order value in the CMS to populate this data.</span>
+                <span>
+                  {leadConversionRate == null && 'Missing: Lead Conversion Rate. '}
+                  {leadToSaleConversionRate == null && 'Missing: Lead to Sale Rate. '}
+                  {averageOrderValue == null && 'Missing: Average Order Value. '}
+                  {leadConversionRate != null && leadToSaleConversionRate != null && averageOrderValue != null
+                    ? 'Run competitor analysis to populate traffic data.'
+                    : 'Fill in all three fields in the CMS to populate this table.'}
+                </span>
               </div>
             )}
           </div>
         </section>
 
         {/* ============================================================ */}
-        {/* SLIDE 10 — Fuelling the Ship: Competitor Ads                */}
+        {/* SLIDE 14 — Fuelling the Ship: Competitor Ads                */}
         {/* ============================================================ */}
-        <section className="slide slide-10 slide-expandable">
+        <section className="slide slide-14 slide-expandable">
+          <div className="slide-header">
+            <h2>7. Fuelling the Ship</h2>
+            <span>2nd Stage Burn</span>
+          </div>
           <div className="slide-content">
-            <div className="slide-header slide-header-dark">
-              <h2>Fuelling the Ship</h2>
-              <span>Competitor Ads</span>
-            </div>
-
             {(() => {
               const allComps = [...(allCompetitors ?? [])]
               const googleAdsComps = allComps.filter(c => c.googleAds?.isRunningAds)
@@ -862,7 +909,6 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
 
               return (
                 <div className="slide-10-layout">
-                  {/* Google Ads column */}
                   <div className="slide-10-col">
                     <h3>Google Ads</h3>
                     {googleAdsComps.length > 0 ? googleAdsComps.map((comp, i) => (
@@ -874,13 +920,28 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                         {comp.googleAds?.advertiserName && (
                           <span className="ad-comp-advertiser">Advertiser: {comp.googleAds.advertiserName}</span>
                         )}
+                        {comp.googleAds?.adScreenshots && comp.googleAds.adScreenshots.length > 0 && (
+                          <div className="ad-screenshots-grid">
+                            {comp.googleAds.adScreenshots.slice(0, 5).map((url, j) => {
+                              const src = url.startsWith('data:') ? url : (url.startsWith('http') ? url : `data:image/png;base64,${url}`)
+                              return (
+                                <div key={j} className="ad-thumbnail-wrap">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={src} alt={`${comp.domain} Google ad ${j + 1}`} className="ad-screenshot-thumb" />
+                                  <div className="ad-thumbnail-hover">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={src} alt={`${comp.domain} Google ad ${j + 1}`} className="ad-thumbnail-large" />
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     )) : (
                       <div className="slide-10-slot">No competitors running Google Ads</div>
                     )}
                   </div>
-
-                  {/* Meta Ads column */}
                   <div className="slide-10-col">
                     <h3>Meta Ads</h3>
                     {metaAdsComps.length > 0 ? metaAdsComps.map((comp, i) => (
@@ -891,10 +952,19 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                         </div>
                         {comp.metaAds?.adScreenshots && comp.metaAds.adScreenshots.length > 0 && (
                           <div className="ad-screenshots-grid">
-                            {comp.metaAds.adScreenshots.slice(0, 3).map((url, j) => (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img key={j} src={url} alt={`${comp.domain} Meta ad ${j + 1}`} className="ad-screenshot-thumb" />
-                            ))}
+                            {comp.metaAds.adScreenshots.slice(0, 5).map((url, j) => {
+                              const src = url.startsWith('data:') ? url : (url.startsWith('http') ? url : `data:image/png;base64,${url}`)
+                              return (
+                                <div key={j} className="ad-thumbnail-wrap">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={src} alt={`${comp.domain} Meta ad ${j + 1}`} className="ad-screenshot-thumb" />
+                                  <div className="ad-thumbnail-hover">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={src} alt={`${comp.domain} Meta ad ${j + 1}`} className="ad-thumbnail-large" />
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
@@ -909,43 +979,53 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         </section>
 
         {/* ============================================================ */}
-        {/* SLIDE 9 — Fuelling the Ship: Content Research               */}
+        {/* SLIDE 13 — Fuelling the Ship: Content Research              */}
         {/* ============================================================ */}
-        <section className="slide slide-9 slide-expandable">
+        <section className="slide slide-13 slide-expandable">
+          <div className="slide-header">
+            <h2>7. Fuelling the Ship</h2>
+            <span>Propulsion</span>
+          </div>
           <div className="slide-content">
-            <div className="slide-header slide-header-dark">
-              <h2>Fuelling the Ship</h2>
-              <span>Content Research</span>
-            </div>
-
             {contentResearches.length > 0 ? (
               <>
-                {/* Summary stats */}
-                <div className="content-research-stats">
-                  <div className="cr-stat-card">
-                    <span className="cr-stat-value">{contentResearches.length}</span>
-                    <span className="cr-stat-label">Keywords Researched</span>
-                  </div>
-                  <div className="cr-stat-card">
-                    <span className="cr-stat-value">{contentResearches.reduce((sum, cr) => sum + cr.totalQuestions, 0)}</span>
-                    <span className="cr-stat-label">Content Ideas Found</span>
-                  </div>
-                  <div className="cr-stat-card cr-stat-green">
-                    <span className="cr-stat-value">{contentResearches.reduce((sum, cr) => sum + cr.clusters.length, 0)}</span>
-                    <span className="cr-stat-label">Topic Clusters</span>
-                  </div>
+                <div className="cr-intro-copy">
+                  <p className="cr-intro-bold">Is your website answering these questions?</p>
+                  <p className="cr-intro-sub">These are the questions your potential customers are actively searching for. Each sunburst shows the most popular questions grouped by type — the bigger the slice, the more people are searching for it.</p>
                 </div>
+                {(() => {
+                  // If CMS has specific keywords selected, filter to those
+                  const selectedKeywords = contentResearchKeywordsRaw
+                    ? contentResearchKeywordsRaw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)
+                    : null
 
-                {/* Per-keyword sunburst charts */}
-                {contentResearches.map((cr, crIdx) => (
-                  <div key={crIdx} className="cr-sunburst-section">
-                    <h3 className="cr-keyword-title">{cr.keyword}</h3>
-                    <span className="cr-keyword-subtitle">{cr.totalQuestions} content ideas across {cr.clusters.length} clusters</span>
-                    <div className="cr-sunburst-wrap">
-                      <KeywordSunburst keyword={cr.keyword} clusters={cr.clusters} />
+                  let displayCr: ContentResearchResult[]
+                  if (selectedKeywords && selectedKeywords.length > 0) {
+                    displayCr = contentResearches.filter(cr =>
+                      selectedKeywords.includes(cr.keyword.toLowerCase())
+                    ).slice(0, 2)
+                  } else {
+                    // Auto-select top 2 by search volume
+                    const kwVolumeMap = new Map<string, number>()
+                    if (keywords) {
+                      for (const kw of keywords) {
+                        kwVolumeMap.set(kw.keyword.toLowerCase(), kw.searchVolume ?? 0)
+                      }
+                    }
+                    displayCr = [...contentResearches].sort((a, b) => {
+                      const volA = kwVolumeMap.get(a.keyword.toLowerCase()) ?? 0
+                      const volB = kwVolumeMap.get(b.keyword.toLowerCase()) ?? 0
+                      return volB - volA
+                    }).slice(0, 2)
+                  }
+                  return displayCr.map((cr, crIdx) => (
+                    <div key={crIdx} className="cr-sunburst-section">
+                      <div className="cr-sunburst-wrap">
+                        <KeywordSunburst keyword={cr.keyword} clusters={cr.clusters} />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                })()}
               </>
             ) : (
               <div className="slide-placeholder-block">
@@ -956,56 +1036,49 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         </section>
 
         {/* ============================================================ */}
-        {/* SLIDE 8 — Build the Ship: SEO Audit                         */}
+        {/* SLIDE 12 — Building the Ship: SEO Recommendations           */}
         {/* ============================================================ */}
-        {seoAudit && (
-          <section className="slide slide-8 slide-expandable">
+        {seoAudit && seoRecommendations && Array.isArray(seoRecommendations) && seoRecommendations.length > 0 && (
+          <section className="slide slide-12 slide-expandable">
+            <div className="slide-header">
+              <h2>6. Building the Ship</h2>
+              <span>Structural Foundation</span>
+            </div>
             <div className="slide-content">
-              <div className="slide-header">
-                <h2>Build the Ship</h2>
-                <span>SEO Audit</span>
+              <div className="subsection-divider">
+                <h3 className="subsection-divider-title">SEO Recommendations</h3>
               </div>
-
-              <section className="audit-hero">
-                <div className="audit-hero-score">
-                  <ScoreGauge score={seoAudit.overallScore} />
-                </div>
-                <div className="audit-hero-info">
-                  <p className="audit-hero-summary">{getSeoSummary(seoAudit.overallScore)}</p>
-                  <dl className="audit-meta">
-                    <div>
-                      <dt>Business Type</dt>
-                      <dd>{seoAudit.businessType}</dd>
+              <section className="audit-section">
+                <div className="recommendations-list">
+                  {seoRecommendations.slice(0, 5).map((rec, i) => (
+                    <div key={i} className="recommendation-card">
+                      <div className="rec-header">
+                        {rec.priority != null && <span className="rec-priority-pill">Priority {rec.priority}</span>}
+                        {(rec.title || rec.category) && <span className="rec-category-name">{rec.title || rec.category}</span>}
+                      </div>
+                      <p className="rec-description">{rec.description || rec.message || rec.action}</p>
+                      <div className="rec-pills">
+                        {rec.impact && <span className="rec-pill rec-pill-impact">{rec.impact}</span>}
+                        {rec.estimatedLift && <span className="rec-pill rec-pill-lift">{rec.estimatedLift}</span>}
+                      </div>
                     </div>
-                    <div>
-                      <dt>Pages Analyzed</dt>
-                      <dd>{seoAudit.pagesAnalyzed ?? '—'}</dd>
-                    </div>
-                    <div>
-                      <dt>Overall Score</dt>
-                      <dd>{seoAudit.overallScore}/10</dd>
-                    </div>
-                  </dl>
+                  ))}
                 </div>
               </section>
+            </div>
+          </section>
+        )}
 
-              {categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores) && (
-                <>
-                <div className="subsection-divider">
-                  <h3 className="subsection-divider-title">Category Scores</h3>
-                </div>
-                <section className="audit-section">
-                  <div className="score-bars score-bars-3col">
-                    {Object.entries(categoryScores)
-                      .sort(([, a], [, b]) => (b as number) - (a as number))
-                      .map(([key, score]) => (
-                        <ScoreBar key={key} label={categoryLabels[key] || key} score={score as number} />
-                      ))}
-                  </div>
-                </section>
-                </>
-              )}
-
+        {/* ============================================================ */}
+        {/* SLIDE 11 — Building the Ship: Technical + Page Results       */}
+        {/* ============================================================ */}
+        {seoAudit && (
+          <section className="slide slide-11 slide-expandable">
+            <div className="slide-header">
+              <h2>6. Building the Ship</h2>
+              <span>Structural Foundation</span>
+            </div>
+            <div className="slide-content">
               <div className="subsection-divider subsection-divider-row">
                 <h3 className="subsection-divider-title">Technical Overview &amp; Site-Wide Findings</h3>
               </div>
@@ -1111,27 +1184,56 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 </section>
                 </>
               )}
+            </div>
+          </section>
+        )}
 
-              {seoRecommendations && Array.isArray(seoRecommendations) && seoRecommendations.length > 0 && (
+        {/* ============================================================ */}
+        {/* SLIDE 10 — Building the Ship: SEO Overview + Category Scores */}
+        {/* ============================================================ */}
+        {seoAudit && (
+          <section className="slide slide-10 slide-expandable">
+            <div className="slide-header">
+              <h2>6. Building the Ship</h2>
+              <span>Structural Foundation</span>
+            </div>
+            <div className="slide-content">
+              <section className="audit-hero">
+                <div className="audit-hero-score">
+                  <ScoreGauge score={seoAudit.overallScore} />
+                </div>
+                <div className="audit-hero-info">
+                  <h3 className="audit-hero-label">Search Engine Optimisation</h3>
+                  <p className="audit-hero-summary">{getSeoSummary(seoAudit.overallScore)}</p>
+                  <dl className="audit-meta">
+                    <div>
+                      <dt>Business Type</dt>
+                      <dd>{seoAudit.businessType}</dd>
+                    </div>
+                    <div>
+                      <dt>Pages Analyzed</dt>
+                      <dd>{seoAudit.pagesAnalyzed ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Overall Score</dt>
+                      <dd>{seoAudit.overallScore}/10</dd>
+                    </div>
+                  </dl>
+                </div>
+              </section>
+
+              {categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores) && (
                 <>
                 <div className="subsection-divider">
-                  <h3 className="subsection-divider-title">SEO Recommendations</h3>
+                  <h3 className="subsection-divider-title">Category Scores</h3>
                 </div>
                 <section className="audit-section">
-                  <div className="recommendations-list">
-                    {seoRecommendations.slice(0, 5).map((rec, i) => (
-                      <div key={i} className="recommendation-card">
-                        <div className="rec-header">
-                          {rec.priority != null && <span className="rec-priority-pill">Priority {rec.priority}</span>}
-                          {(rec.title || rec.category) && <span className="rec-category-name">{rec.title || rec.category}</span>}
-                        </div>
-                        <p className="rec-description">{rec.description || rec.message || rec.action}</p>
-                        <div className="rec-pills">
-                          {rec.impact && <span className="rec-pill rec-pill-impact">{rec.impact}</span>}
-                          {rec.estimatedLift && <span className="rec-pill rec-pill-lift">{rec.estimatedLift}</span>}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="score-bars score-bars-3col">
+                    {Object.entries(categoryScores)
+                      .sort(([, a], [, b]) => (b as number) - (a as number))
+                      .map(([key, score]) => (
+                        <ScoreBar key={key} label={categoryLabels[key] || key} score={score as number} />
+                      ))}
                   </div>
                 </section>
                 </>
@@ -1141,65 +1243,15 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         )}
 
         {/* ============================================================ */}
-        {/* SLIDE 7 — Mission Priorities: CRO                           */}
+        {/* SLIDE 9 — Mission Priorities: CRO Recommendations           */}
         {/* ============================================================ */}
-        {croAudit && (
-          <section className="slide slide-7 slide-expandable">
+        {croAudit && ((croRecommendations && Array.isArray(croRecommendations) && croRecommendations.length > 0) || croExtracted) && (
+          <section className="slide slide-9 slide-expandable">
+            <div className="slide-header">
+              <h2>5. Mission Priorities</h2>
+              <span>Where to Focus Our Energy</span>
+            </div>
             <div className="slide-content">
-              <div className="slide-header">
-                <h2>Mission Priorities</h2>
-                <span>Conversion Rate Optimisation</span>
-              </div>
-
-              <section className="audit-hero">
-                <div className="audit-hero-score">
-                  <ScoreGauge score={(croAudit as any).overallScore ?? 0} />
-                </div>
-                <div className="audit-hero-info">
-                  <p className="audit-hero-summary">{getCroSummary((croAudit as any).overallScore ?? 0)}</p>
-                  <dl className="audit-meta">
-                    <div>
-                      <dt>Website Conversion Goal</dt>
-                      <dd>{(croAudit as any).conversionGoal}</dd>
-                    </div>
-                    <div>
-                      <dt>Overall Score</dt>
-                      <dd>{(croAudit as any).overallScore ?? 0}/10</dd>
-                    </div>
-                  </dl>
-                </div>
-              </section>
-
-              <div className="subsection-divider">
-                <h3 className="subsection-divider-title">CRO Sub-Scores</h3>
-              </div>
-              <section className="audit-section">
-                <div className="cro-scores-grid">
-                  <ScoreBar score={(croAudit as any).aboveFoldScore ?? 0} label="Above the Fold" />
-                  <ScoreBar score={(croAudit as any).ctaScore ?? 0} label="Call-to-Action" />
-                  <ScoreBar score={(croAudit as any).navigationScore ?? 0} label="Navigation" />
-                  <ScoreBar score={(croAudit as any).contentScore ?? 0} label="Content Structure" />
-                </div>
-              </section>
-
-              {croFindings && Array.isArray(croFindings) && croFindings.length > 0 && (
-                <>
-                <div className="subsection-divider">
-                  <h3 className="subsection-divider-title">CRO Findings</h3>
-                </div>
-                <section className="audit-section">
-                  <ul className="findings-list">
-                    {croFindings.map((finding, i) => (
-                      <li key={i} className={`finding-item finding-${finding.status}`}>
-                        <StatusIcon status={finding.status} />
-                        <span>{finding.message}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-                </>
-              )}
-
               {croRecommendations && Array.isArray(croRecommendations) && croRecommendations.length > 0 && (
                 <>
                 <div className="subsection-divider">
@@ -1276,127 +1328,186 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         )}
 
         {/* ============================================================ */}
-        {/* SLIDE 6 — Pre-flight Check: Keywords + Competitors           */}
+        {/* SLIDE 8 — Mission Priorities: CRO Overview + Findings        */}
         {/* ============================================================ */}
-        {(kwSnapshot || compAnalysis) && (
-          <section className="slide slide-6 slide-expandable">
+        {croAudit && (
+          <section className="slide slide-8 slide-expandable">
+            <div className="slide-header">
+              <h2>5. Mission Priorities</h2>
+              <span>Where to Focus Our Energy</span>
+            </div>
             <div className="slide-content">
-              <div className="slide-header">
-                <h2>Pre-flight Check</h2>
-                <span>Keywords &amp; Competitor Analysis</span>
+              <section className="audit-hero">
+                <div className="audit-hero-score">
+                  <ScoreGauge score={(croAudit as any).overallScore ?? 0} />
+                </div>
+                <div className="audit-hero-info">
+                  <h3 className="audit-hero-label">Conversion Rate Optimisation</h3>
+                  <p className="audit-hero-summary">{getCroSummary((croAudit as any).overallScore ?? 0)}</p>
+                  <dl className="audit-meta">
+                    <div>
+                      <dt>Website Conversion Goal</dt>
+                      <dd>{(croAudit as any).conversionGoal}</dd>
+                    </div>
+                    <div>
+                      <dt>Overall Score</dt>
+                      <dd>{(croAudit as any).overallScore ?? 0}/10</dd>
+                    </div>
+                  </dl>
+                </div>
+              </section>
+
+              <div className="subsection-divider">
+                <h3 className="subsection-divider-title">CRO Sub-Scores</h3>
               </div>
+              <section className="audit-section">
+                <div className="cro-scores-grid">
+                  <ScoreBar score={(croAudit as any).aboveFoldScore ?? 0} label="Above the Fold" />
+                  <ScoreBar score={(croAudit as any).ctaScore ?? 0} label="Call-to-Action" />
+                  <ScoreBar score={(croAudit as any).navigationScore ?? 0} label="Navigation" />
+                  <ScoreBar score={(croAudit as any).contentScore ?? 0} label="Content Structure" />
+                </div>
+              </section>
 
-              {kwSnapshot && keywords && (
+              {croFindings && Array.isArray(croFindings) && croFindings.length > 0 && (
                 <>
-                  <div className="subsection-divider">
-                    <h3 className="subsection-divider-title">Keyword Rankings</h3>
-                  </div>
-
-                  <section className="audit-section">
-                    <div className="kw-table-wrapper">
-                      <table className="kw-table">
-                        <colgroup>
-                          <col className="col-keyword" />
-                          <col className="col-volume" />
-                          <col className="col-competition" />
-                          <col className="col-rank" />
-                          <col className="col-position" />
-                        </colgroup>
-                        <thead>
-                          <tr>
-                            <th>Keyword</th>
-                            <th>Monthly Search Volume</th>
-                            <th>Competition</th>
-                            <th>Do you rank for these keywords?</th>
-                            <th>Avg Position</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {keywords.map((kw, i) => (
-                            <tr key={i}>
-                              <td className="kw-name">{kw.keyword}</td>
-                              <td className="kw-volume">{kw.searchVolume?.toLocaleString() ?? '—'}</td>
-                              <td><CompetitionBadge level={competitionFromOpportunity(kw.opportunity)} /></td>
-                              <td><YesNoBadge value={kw.position != null && kw.position > 0} /></td>
-                              <td className="kw-avg-pos">
-                                {kw.position != null && kw.position > 0 ? (
-                                  <span className={`kw-position ${kw.position <= 10 ? 'kw-top10' : kw.position <= 20 ? 'kw-top20' : kw.position <= 50 ? 'kw-top50' : 'kw-low'}`}>
-                                    #{kw.position}
-                                  </span>
-                                ) : (
-                                  <span className="kw-position kw-not-found">&mdash;</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
+                <div className="subsection-divider">
+                  <h3 className="subsection-divider-title">CRO Findings</h3>
+                </div>
+                <section className="audit-section">
+                  <ul className="findings-list">
+                    {croFindings.map((finding, i) => (
+                      <li key={i} className={`finding-item finding-${finding.status}`}>
+                        <StatusIcon status={finding.status} />
+                        <span>{finding.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
                 </>
               )}
+            </div>
+          </section>
+        )}
 
-              {compAnalysis && (yourProfile || (allCompetitors && allCompetitors.length > 0)) && (
-                <>
-                  <div className="subsection-divider">
-                    <h3 className="subsection-divider-title">Competitor Analysis</h3>
-                  </div>
-
-                  <section className="audit-section">
-                    <div className="comp-cards">
-                      {yourProfile && (
-                        <CompetitorCard
-                          comp={{ ...yourProfile, domain: yourProfile.domain || domainFromUrl(proposal.websiteUrl) }}
-                          index={0}
-                          isYou
-                        />
-                      )}
-                      {displaySearchCompetitors.map((comp, i) => (
-                        <CompetitorCard key={`search-${i}`} comp={comp} index={i + 1} sourceLabel="Search-based" />
-                      ))}
-                      {selectedCompetitors.map((comp, i) => (
-                        <CompetitorCard key={`selected-${i}`} comp={comp} index={displaySearchCompetitors.length + i + 1} sourceLabel="Inputted" />
-                      ))}
-                    </div>
-                  </section>
-
-                  {yourProfile?.topKeywords && yourProfile.topKeywords.length > 0 && (
-                    <>
-                    <div className="subsection-divider">
-                      <h3 className="subsection-divider-title">Your Keyword Positions</h3>
-                    </div>
-                    <section className="audit-section">
-                      <div className="kw-table-wrapper">
-                        <table className="kw-table">
-                          <thead>
-                            <tr>
-                              <th>Keyword</th>
-                              <th>Position</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {yourProfile.topKeywords.map((kw, i) => (
-                              <tr key={i}>
-                                <td className="kw-name">{kw.keyword}</td>
-                                <td>
-                                  {kw.position ? (
-                                    <span className={`kw-position ${kw.position <= 10 ? 'kw-top10' : kw.position <= 20 ? 'kw-top20' : kw.position <= 50 ? 'kw-top50' : 'kw-low'}`}>
-                                      #{kw.position}
-                                    </span>
-                                  ) : (
-                                    <span className="kw-position kw-not-found">&mdash;</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-                    </>
+        {/* ============================================================ */}
+        {/* SLIDE 7 — Pre-flight Check: Competitor Analysis              */}
+        {/* ============================================================ */}
+        {compAnalysis && (yourProfile || (allCompetitors && allCompetitors.length > 0)) && (
+          <section className="slide slide-7 slide-expandable">
+            <div className="slide-header">
+              <h2>4. Pre-flight Check</h2>
+              <span>Competitor Analysis</span>
+            </div>
+            <div className="slide-content">
+              <section className="audit-section">
+                <div className="comp-cards">
+                  {yourProfile && (
+                    <CompetitorCard
+                      comp={{ ...yourProfile, domain: yourProfile.domain || domainFromUrl(proposal.websiteUrl) }}
+                      index={0}
+                      isYou
+                    />
                   )}
+                  {displaySearchCompetitors.map((comp, i) => (
+                    <CompetitorCard key={`search-${i}`} comp={comp} index={i + 1} sourceLabel="Search-based" />
+                  ))}
+                  {selectedCompetitors.map((comp, i) => (
+                    <CompetitorCard key={`selected-${i}`} comp={comp} index={displaySearchCompetitors.length + i + 1} sourceLabel="Inputted" />
+                  ))}
+                </div>
+              </section>
+
+              {yourProfile?.topKeywords && yourProfile.topKeywords.length > 0 && (
+                <>
+                <div className="subsection-divider">
+                  <h3 className="subsection-divider-title">Your Keyword Positions</h3>
+                </div>
+                <section className="audit-section">
+                  <div className="kw-table-wrapper">
+                    <table className="kw-table">
+                      <thead>
+                        <tr>
+                          <th>Keyword</th>
+                          <th>Position</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {yourProfile.topKeywords.map((kw, i) => (
+                          <tr key={i}>
+                            <td className="kw-name">{kw.keyword}</td>
+                            <td>
+                              {kw.position ? (
+                                <span className={`kw-position ${kw.position <= 10 ? 'kw-top10' : kw.position <= 20 ? 'kw-top20' : kw.position <= 50 ? 'kw-top50' : 'kw-low'}`}>
+                                  #{kw.position}
+                                </span>
+                              ) : (
+                                <span className="kw-position kw-not-found">&mdash;</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
                 </>
               )}
+            </div>
+          </section>
+        )}
+
+        {/* ============================================================ */}
+        {/* SLIDE 6 — Pre-flight Check: Keywords Analysis                */}
+        {/* ============================================================ */}
+        {kwSnapshot && keywords && (
+          <section className="slide slide-6 slide-expandable">
+            <div className="slide-header">
+              <h2>4. Pre-flight Check</h2>
+              <span>Keywords Analysis</span>
+            </div>
+            <div className="slide-content">
+              <section className="audit-section">
+                <div className="kw-table-wrapper">
+                  <table className="kw-table">
+                    <colgroup>
+                      <col className="col-keyword" />
+                      <col className="col-volume" />
+                      <col className="col-competition" />
+                      <col className="col-rank" />
+                      <col className="col-position" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>Keyword</th>
+                        <th>Monthly Search Volume</th>
+                        <th>Competition</th>
+                        <th>Do you rank for these keywords?</th>
+                        <th>Avg Position</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {keywords.map((kw, i) => (
+                        <tr key={i}>
+                          <td className="kw-name">{kw.keyword}</td>
+                          <td className="kw-volume">{kw.searchVolume?.toLocaleString() ?? '—'}</td>
+                          <td><CompetitionBadge level={competitionFromOpportunity(kw.opportunity)} /></td>
+                          <td><YesNoBadge value={kw.position != null && kw.position > 0} /></td>
+                          <td className="kw-avg-pos">
+                            {kw.position != null && kw.position > 0 ? (
+                              <span className={`kw-position ${kw.position <= 10 ? 'kw-top10' : kw.position <= 20 ? 'kw-top20' : kw.position <= 50 ? 'kw-top50' : 'kw-low'}`}>
+                                #{kw.position}
+                              </span>
+                            ) : (
+                              <span className="kw-position kw-not-found">&mdash;</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
             </div>
           </section>
         )}
@@ -1405,12 +1516,11 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* SLIDE 5 — Mission Brief: Client Overview + Instrument Panel  */}
         {/* ============================================================ */}
         <section className="slide slide-5 slide-expandable">
+          <div className="slide-header">
+            <h2>3. Mission Brief</h2>
+            <span>Overview</span>
+          </div>
           <div className="slide-content">
-            <div className="slide-header">
-              <h2>Mission Brief</h2>
-              <span>Client Overview</span>
-            </div>
-
             <section className="client-overview">
               <div className="client-overview-header">
                 <h1 className="client-overview-name">{proposal.businessName}</h1>
@@ -1443,6 +1553,34 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 <div className="client-goals">
                   <span className="client-overview-label">Business Goal</span>
                   <p className="client-goals-text">{proposal.businessGoals}</p>
+                </div>
+              )}
+              {(averageOrderValue != null || hasPhysicalLocations || leadConversionRate != null || leadToSaleConversionRate != null) && (
+                <div className="mission-brief-details">
+                  {averageOrderValue != null && (
+                    <div className="mission-brief-detail">
+                      <span className="mission-brief-detail-label">Avg Order Value</span>
+                      <span className="mission-brief-detail-value">${averageOrderValue.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {hasPhysicalLocations && (
+                    <div className="mission-brief-detail">
+                      <span className="mission-brief-detail-label">Physical Locations</span>
+                      <span className="mission-brief-detail-value">{numberOfLocations ?? 'Yes'}</span>
+                    </div>
+                  )}
+                  {leadConversionRate != null && (
+                    <div className="mission-brief-detail">
+                      <span className="mission-brief-detail-label">Lead Conversion Rate</span>
+                      <span className="mission-brief-detail-value">{leadConversionRate}%</span>
+                    </div>
+                  )}
+                  {leadToSaleConversionRate != null && (
+                    <div className="mission-brief-detail">
+                      <span className="mission-brief-detail-label">Lead to Sale Rate</span>
+                      <span className="mission-brief-detail-value">{leadToSaleConversionRate}%</span>
+                    </div>
+                  )}
                 </div>
               )}
               <span className="client-overview-date">Report generated {reportDate}</span>
@@ -1489,24 +1627,35 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* SLIDE 4 — Our Flight Philosophy (chart)                     */}
         {/* ============================================================ */}
         <section className="slide slide-4">
+          <div className="slide-header">
+            <h2>2. Our Flight Philosophy</h2>
+            <span>Build and Fix the Spaceship Before Anything Else</span>
+          </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/slides/slide-4.png" alt="Our Flight Philosophy — chart" className="slide-static-img" />
+          <img src="/slides/slide-4.webp" alt="Our Flight Philosophy — chart" className="slide-static-img" />
         </section>
 
         {/* ============================================================ */}
         {/* SLIDE 3 — Our Flight Philosophy (approach)                  */}
         {/* ============================================================ */}
         <section className="slide slide-3">
+          <div className="slide-header">
+            <h2>2. Our Flight Philosophy</h2>
+            <span>Our Approach</span>
+          </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/slides/slide-3.png" alt="Our Flight Philosophy — approach" className="slide-static-img" />
+          <img src="/slides/slide-3.webp" alt="Our Flight Philosophy — approach" className="slide-static-img" />
         </section>
 
         {/* ============================================================ */}
         {/* SLIDE 2 — What This Covers                                  */}
         {/* ============================================================ */}
         <section className="slide slide-2">
+          <div className="slide-header">
+            <h2>1. What This Covers</h2>
+          </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/slides/slide-2.png" alt="What This Covers" className="slide-static-img" />
+          <img src="/slides/slide-2.webp" alt="What This Covers" className="slide-static-img" />
         </section>
 
         {/* ============================================================ */}

@@ -469,7 +469,7 @@ export const ClientProposals: CollectionConfig = {
           ],
         },
         {
-          label: "Report",
+          label: "Post report input",
           fields: [
             {
               name: "flightPlan",
@@ -504,19 +504,27 @@ export const ClientProposals: CollectionConfig = {
               ],
             },
             {
-              name: "missionResources",
-              type: "textarea",
+              name: "contentResearchKeywords",
+              type: "text",
               admin: {
                 description:
-                  "Content for the Mission Resources slide. Add after the report is created.",
+                  "Comma-separated keywords to show on the Content Research slide. Leave blank to auto-select top 2 by search volume.",
+              },
+            },
+            {
+              name: "missionResources",
+              type: "richText",
+              admin: {
+                description:
+                  "Content for the Mission Resources slide. Supports bold, italic, underline formatting.",
               },
             },
             {
               name: "launchRequirements",
-              type: "textarea",
+              type: "richText",
               admin: {
                 description:
-                  "Content for the Launch Requirements slide. Add after the report is created.",
+                  "Content for the Launch Requirements slide. Supports bold, italic, underline formatting.",
               },
             },
           ],

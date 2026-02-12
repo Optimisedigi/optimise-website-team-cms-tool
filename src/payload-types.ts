@@ -584,13 +584,45 @@ export interface ClientProposal {
       }[]
     | null;
   /**
-   * Content for the Mission Resources slide. Add after the report is created.
+   * Comma-separated keywords to show on the Content Research slide. Leave blank to auto-select top 2 by search volume.
    */
-  missionResources?: string | null;
+  contentResearchKeywords?: string | null;
   /**
-   * Content for the Launch Requirements slide. Add after the report is created.
+   * Content for the Mission Resources slide. Supports bold, italic, underline formatting.
    */
-  launchRequirements?: string | null;
+  missionResources?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Content for the Launch Requirements slide. Supports bold, italic, underline formatting.
+   */
+  launchRequirements?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
   /**
    * Toggle on and save to create an active Client from this proposal
    */
@@ -1471,6 +1503,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         caption?: T;
         id?: T;
       };
+  contentResearchKeywords?: T;
   missionResources?: T;
   launchRequirements?: T;
   convertToClient?: T;

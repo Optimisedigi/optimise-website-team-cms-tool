@@ -122,10 +122,13 @@ export async function POST(
         return res.json();
       }),
 
-      // Competitor analysis (no internal key needed)
+      // Competitor analysis
       fetch(`${GROWTH_TOOLS_URL}/api/competitor-analysis`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-key": INTERNAL_API_KEY,
+        },
         body: JSON.stringify({
           websiteUrl,
           keywords: keywordsCommaSeparated,
@@ -281,6 +284,11 @@ export async function POST(
     if (compResult.status === "fulfilled") {
       try {
         const comp = compResult.value;
+        // Debug: check if screenshots are in the API response
+        const firstComp = comp.competitors?.[0];
+        if (firstComp) {
+          console.log(`[competitor-debug] ${firstComp.domain}: websiteScreenshot=${firstComp.websiteScreenshot ? 'YES (' + String(firstComp.websiteScreenshot).length + ' chars)' : 'NO'}, metaAds.adScreenshots=${firstComp.metaAds?.adScreenshots?.length ?? 0} items`);
+        }
         const created = await payload.create({
           collection: "competitor-analyses",
           data: {
