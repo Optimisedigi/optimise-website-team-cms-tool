@@ -281,6 +281,43 @@ export const ClientProposals: CollectionConfig = {
               },
             },
             {
+              type: "row",
+              fields: [
+                {
+                  name: "leadConversionRate",
+                  type: "number",
+                  min: 0,
+                  max: 100,
+                  admin: {
+                    description:
+                      "Website visitor → lead conversion rate (%). Used for Mission Control slide.",
+                    step: 0.1,
+                  },
+                },
+                {
+                  name: "leadToSaleConversionRate",
+                  type: "number",
+                  min: 0,
+                  max: 100,
+                  admin: {
+                    description:
+                      "Lead → paying client conversion rate (%). Used for Mission Control slide.",
+                    step: 0.1,
+                  },
+                },
+                {
+                  name: "averageOrderValue",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description:
+                      "Average order / client value ($). Used for Mission Control slide.",
+                    step: 1,
+                  },
+                },
+              ],
+            },
+            {
               name: "competitors",
               type: "array",
               maxRows: 5,
@@ -411,6 +448,16 @@ export const ClientProposals: CollectionConfig = {
               ],
             },
             {
+              name: "contentResearch",
+              type: "relationship",
+              relationTo: "content-researches",
+              hasMany: true,
+              admin: {
+                readOnly: true,
+                description: "Linked content research results",
+              },
+            },
+            {
               name: "viewReport",
               type: "ui",
               admin: {
@@ -430,6 +477,46 @@ export const ClientProposals: CollectionConfig = {
               admin: {
                 description:
                   "Editable flight plan content shown at the bottom of the report. One item per line. Falls back to suggestions if empty.",
+              },
+            },
+            {
+              name: "flightPlanImages",
+              type: "array",
+              maxRows: 10,
+              admin: {
+                description:
+                  "Images displayed on the Flight Plan slide above the timeline. Add after the report is created.",
+              },
+              fields: [
+                {
+                  name: "image",
+                  type: "upload",
+                  relationTo: "media",
+                  required: true,
+                },
+                {
+                  name: "caption",
+                  type: "text",
+                  admin: {
+                    description: "Optional caption for this image",
+                  },
+                },
+              ],
+            },
+            {
+              name: "missionResources",
+              type: "textarea",
+              admin: {
+                description:
+                  "Content for the Mission Resources slide. Add after the report is created.",
+              },
+            },
+            {
+              name: "launchRequirements",
+              type: "textarea",
+              admin: {
+                description:
+                  "Content for the Launch Requirements slide. Add after the report is created.",
               },
             },
           ],

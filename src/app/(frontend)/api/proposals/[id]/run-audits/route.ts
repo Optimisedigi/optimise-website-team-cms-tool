@@ -73,8 +73,8 @@ export async function POST(
   const keywordsCommaSeparated = keywordsList.join(",");
 
   try {
-    // Call 4 growth-tools endpoints in parallel
-    const [seoResult, croResult, kwResult, compResult] = await Promise.allSettled([
+    // Call 5 growth-tools endpoints in parallel
+    const [seoResult, croResult, kwResult, compResult, crResult] = await Promise.allSettled([
       // SEO audit
       fetch(`${GROWTH_TOOLS_URL}/api/seo-audits`, {
         method: "POST",
@@ -135,13 +135,38 @@ export async function POST(
         if (!res.ok) throw new Error(`Competitor analysis failed: ${res.status}`);
         return res.json();
       }),
+
+      // Content research — call for each keyword (up to 5)
+      (async () => {
+        const crLocation = targetLocation ? targetLocation.split(":")[0] : "au";
+        const topKeywords = keywordsList.slice(0, 5);
+        const results = await Promise.allSettled(
+          topKeywords.map((keyword: string) =>
+            fetch(`${GROWTH_TOOLS_URL}/api/content-research`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-internal-key": INTERNAL_API_KEY!,
+              },
+              body: JSON.stringify({ keyword, location: crLocation }),
+            }).then(async (res) => {
+              if (!res.ok) throw new Error(`Content research failed for "${keyword}": ${res.status}`);
+              return res.json();
+            })
+          )
+        );
+        return results
+          .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
+          .map((r) => r.value);
+      })(),
     ]);
 
-    const auditIds: Record<string, number | string | null> = {
+    const auditIds: Record<string, number | string | number[] | null> = {
       seoAudit: null,
       croAudit: null,
       keywordSnapshot: null,
       competitorAnalysis: null,
+      contentResearch: null,
     };
 
     const errors: string[] = [];
@@ -277,6 +302,36 @@ export async function POST(
       errors.push(compResult.reason?.message || "Competitor analysis failed");
     }
 
+    // Create content research records (one per keyword)
+    if (crResult.status === "fulfilled") {
+      try {
+        const crResults = crResult.value as any[];
+        const crIds: number[] = [];
+        for (const cr of crResults) {
+          const created = await payload.create({
+            collection: "content-researches",
+            data: {
+              keyword: cr.keyword,
+              location: cr.location || null,
+              totalQuestions: cr.totalQuestions || 0,
+              clusters: cr.clusters || [],
+              externalId: cr.id || null,
+              proposal: proposalId,
+            },
+            overrideAccess: true,
+          });
+          crIds.push(created.id as number);
+        }
+        if (crIds.length > 0) {
+          auditIds.contentResearch = crIds;
+        }
+      } catch (e: any) {
+        errors.push(`Content research record creation failed: ${e.message}`);
+      }
+    } else {
+      errors.push(crResult.reason?.message || "Content research failed");
+    }
+
     // Determine final status
     const anySucceeded = Object.values(auditIds).some((v) => v !== null);
     const allFailed = Object.values(auditIds).every((v) => v === null);
@@ -292,6 +347,7 @@ export async function POST(
         ...(auditIds.croAudit ? { croAudit: auditIds.croAudit } : {}),
         ...(auditIds.keywordSnapshot ? { keywordSnapshot: auditIds.keywordSnapshot } : {}),
         ...(auditIds.competitorAnalysis ? { competitorAnalysis: auditIds.competitorAnalysis } : {}),
+        ...(auditIds.contentResearch ? { contentResearch: auditIds.contentResearch } : {}),
       } as any,
       overrideAccess: true,
     });
