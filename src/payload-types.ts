@@ -76,6 +76,7 @@ export interface Config {
     'cro-audits': CroAudit;
     'keyword-snapshots': KeywordSnapshot;
     'competitor-analyses': CompetitorAnalysis;
+    'content-researches': ContentResearch;
     'usage-reports': UsageReport;
     media: Media;
     'payload-kv': PayloadKv;
@@ -94,6 +95,7 @@ export interface Config {
     'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
     'keyword-snapshots': KeywordSnapshotsSelect<false> | KeywordSnapshotsSelect<true>;
     'competitor-analyses': CompetitorAnalysesSelect<false> | CompetitorAnalysesSelect<true>;
+    'content-researches': ContentResearchesSelect<false> | ContentResearchesSelect<true>;
     'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
@@ -315,7 +317,7 @@ export interface Media {
   /**
    * Describe the image for accessibility and SEO. Be specific (e.g., 'Team meeting in modern office with whiteboard').
    */
-  alt: string;
+  alt?: string | null;
   /**
    * Optional caption to display below the image.
    */
@@ -497,6 +499,18 @@ export interface ClientProposal {
    */
   suggestions?: string | null;
   /**
+   * Website visitor → lead conversion rate (%). Used for Mission Control slide.
+   */
+  leadConversionRate?: number | null;
+  /**
+   * Lead → paying client conversion rate (%). Used for Mission Control slide.
+   */
+  leadToSaleConversionRate?: number | null;
+  /**
+   * Average order / client value ($). Used for Mission Control slide.
+   */
+  averageOrderValue?: number | null;
+  /**
    * Competitor businesses to benchmark against (up to 5)
    */
   competitors?:
@@ -549,9 +563,34 @@ export interface ClientProposal {
    */
   competitorAnalysis?: (number | null) | CompetitorAnalysis;
   /**
+   * Linked content research results
+   */
+  contentResearch?: (number | ContentResearch)[] | null;
+  /**
    * Editable flight plan content shown at the bottom of the report. One item per line. Falls back to suggestions if empty.
    */
   flightPlan?: string | null;
+  /**
+   * Images displayed on the Flight Plan slide above the timeline. Add after the report is created.
+   */
+  flightPlanImages?:
+    | {
+        image: number | Media;
+        /**
+         * Optional caption for this image
+         */
+        caption?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Content for the Mission Resources slide. Add after the report is created.
+   */
+  missionResources?: string | null;
+  /**
+   * Content for the Launch Requirements slide. Add after the report is created.
+   */
+  launchRequirements?: string | null;
   /**
    * Toggle on and save to create an active Client from this proposal
    */
@@ -917,6 +956,49 @@ export interface CompetitorAnalysis {
   createdAt: string;
 }
 /**
+ * Content research results from the growth tools
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-researches".
+ */
+export interface ContentResearch {
+  id: number;
+  /**
+   * The keyword researched
+   */
+  keyword: string;
+  /**
+   * Location used for research (e.g. 'au')
+   */
+  location?: string | null;
+  /**
+   * Total number of questions/topics found
+   */
+  totalQuestions?: number | null;
+  /**
+   * Array of topic clusters — each has label (string) and questions (array of { question, source, modifier, searchVolume })
+   */
+  clusters?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * ID returned by the content research API
+   */
+  externalId?: string | null;
+  /**
+   * Link to client proposal
+   */
+  proposal?: (number | null) | ClientProposal;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Create and manage blog posts for clients
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1204,6 +1286,10 @@ export interface PayloadLockedDocument {
         value: number | CompetitorAnalysis;
       } | null)
     | ({
+        relationTo: 'content-researches';
+        value: number | ContentResearch;
+      } | null)
+    | ({
         relationTo: 'usage-reports';
         value: number | UsageReport;
       } | null)
@@ -1357,6 +1443,9 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   keywords?: T;
   targetLocation?: T;
   suggestions?: T;
+  leadConversionRate?: T;
+  leadToSaleConversionRate?: T;
+  averageOrderValue?: T;
   competitors?:
     | T
     | {
@@ -1373,7 +1462,17 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   croAudit?: T;
   keywordSnapshot?: T;
   competitorAnalysis?: T;
+  contentResearch?: T;
   flightPlan?: T;
+  flightPlanImages?:
+    | T
+    | {
+        image?: T;
+        caption?: T;
+        id?: T;
+      };
+  missionResources?: T;
+  launchRequirements?: T;
   convertToClient?: T;
   proposalPin?: T;
   updatedAt?: T;
@@ -1505,6 +1604,20 @@ export interface CompetitorAnalysesSelect<T extends boolean = true> {
   competitors?: T;
   reportSlug?: T;
   client?: T;
+  proposal?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "content-researches_select".
+ */
+export interface ContentResearchesSelect<T extends boolean = true> {
+  keyword?: T;
+  location?: T;
+  totalQuestions?: T;
+  clusters?: T;
+  externalId?: T;
   proposal?: T;
   updatedAt?: T;
   createdAt?: T;
