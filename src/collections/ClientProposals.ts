@@ -513,18 +513,18 @@ export const ClientProposals: CollectionConfig = {
             },
             {
               name: "missionResources",
-              type: "richText",
+              type: "textarea",
               admin: {
                 description:
-                  "Content for the Mission Resources slide. Supports bold, italic, underline formatting.",
+                  "Content for the Mission Resources slide. Add after the report is created.",
               },
             },
             {
               name: "launchRequirements",
-              type: "richText",
+              type: "textarea",
               admin: {
                 description:
-                  "Content for the Launch Requirements slide. Supports bold, italic, underline formatting.",
+                  "Content for the Launch Requirements slide. Add after the report is created.",
               },
             },
           ],

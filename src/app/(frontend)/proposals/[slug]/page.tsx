@@ -4,7 +4,6 @@ import config from '@/payload.config'
 import Image from 'next/image'
 import RocketScroll from '@/components/RocketScroll'
 import KeywordSunburst from '@/components/KeywordSunburst'
-import { RichText } from '@payloadcms/richtext-lexical/react'
 import './report.css'
 
 // ---------------------------------------------------------------------------
@@ -670,8 +669,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const flightPlanImages = (proposal as any).flightPlanImages as { image: any; caption?: string }[] | null
 
   // Mission Resources (Slide 13) & Launch Requirements (Slide 14)
-  const missionResourcesRaw = (proposal as any).missionResources
-  const launchRequirementsRaw = (proposal as any).launchRequirements
+  const missionResources = (proposal as any).missionResources as string | null
+  const launchRequirements = (proposal as any).launchRequirements as string | null
 
   // Content Research keyword selection from CMS
   const contentResearchKeywordsRaw = (proposal as any).contentResearchKeywords as string | null
@@ -729,15 +728,11 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             <span>Next Steps</span>
           </div>
           <div className="slide-content">
-            {launchRequirementsRaw ? (
+            {launchRequirements ? (
               <div className="cms-copy-block">
-                {typeof launchRequirementsRaw === 'object' && launchRequirementsRaw.root ? (
-                  <RichText data={launchRequirementsRaw} />
-                ) : typeof launchRequirementsRaw === 'string' ? (
-                  launchRequirementsRaw.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
-                    <p key={i}>{line}</p>
-                  ))
-                ) : null}
+                {launchRequirements.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
+                  <p key={i}>{line}</p>
+                ))}
               </div>
             ) : (
               <div className="slide-placeholder-block">
@@ -756,15 +751,11 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             <span>Commercial Model &amp; Pricing</span>
           </div>
           <div className="slide-content">
-            {missionResourcesRaw ? (
+            {missionResources ? (
               <div className="cms-copy-block">
-                {typeof missionResourcesRaw === 'object' && missionResourcesRaw.root ? (
-                  <RichText data={missionResourcesRaw} />
-                ) : typeof missionResourcesRaw === 'string' ? (
-                  missionResourcesRaw.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
-                    <p key={i}>{line}</p>
-                  ))
-                ) : null}
+                {missionResources.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
+                  <p key={i}>{line}</p>
+                ))}
               </div>
             ) : (
               <div className="slide-placeholder-block">
