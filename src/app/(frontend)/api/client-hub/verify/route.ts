@@ -7,8 +7,21 @@ import config from "@/payload.config";
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const MAX_ATTEMPTS = 3;
 const WINDOW_MS = 5 * 60_000;
+const CLEANUP_INTERVAL_MS = 10 * 60_000;
+
+let lastCleanup = Date.now();
+
+function cleanupExpiredEntries() {
+  const now = Date.now();
+  if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
+  lastCleanup = now;
+  for (const [ip, entry] of attempts) {
+    if (now > entry.resetAt) attempts.delete(ip);
+  }
+}
 
 function isRateLimited(ip: string): boolean {
+  cleanupExpiredEntries();
   const now = Date.now();
   const entry = attempts.get(ip);
 
@@ -25,7 +38,9 @@ function constantTimeCompare(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
   if (bufA.length !== bufB.length) {
-    crypto.timingSafeEqual(bufA, bufA);
+    const padded = Buffer.alloc(bufA.length, 0);
+    bufB.copy(padded, 0, 0, Math.min(bufB.length, bufA.length));
+    crypto.timingSafeEqual(bufA, padded);
     return false;
   }
   return crypto.timingSafeEqual(bufA, bufB);
