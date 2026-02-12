@@ -70,6 +70,7 @@ export default buildConfig({
         ? { authToken: process.env.DATABASE_AUTH_TOKEN }
         : {}),
     },
+    push: true,
   }),
   sharp,
   plugins: [
