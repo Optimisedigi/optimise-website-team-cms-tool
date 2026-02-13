@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { captureWebsiteScreenshot } from "@/lib/screenshots";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -308,6 +309,88 @@ export async function POST(
       }
     } else {
       errors.push(compResult.reason?.message || "Competitor analysis failed");
+    }
+
+    // Post-processing: capture website screenshots via Google PageSpeed Insights API
+    // Meta Ads data is kept from growth-tools API response (scraping Facebook is unreliable)
+    // Falls back to existing competitor analysis if the growth-tools API failed this run
+    const compAnalysisId = auditIds.competitorAnalysis ?? proposal.competitorAnalysis?.id ?? proposal.competitorAnalysis;
+    if (compAnalysisId != null) {
+      try {
+        // Load existing record if growth-tools failed this run
+        let compData: any = null;
+        if (compResult.status === "fulfilled") {
+          compData = compResult.value;
+        } else if (typeof compAnalysisId === "number" || typeof compAnalysisId === "string") {
+          const existing = await payload.findByID({
+            collection: "competitor-analyses",
+            id: compAnalysisId as number,
+            overrideAccess: true,
+          });
+          compData = existing;
+        }
+
+        if (compData) {
+          const yourDomain = compData?.yourProfile?.domain || websiteUrl;
+          const competitorDomains: string[] = (compData?.competitors || []).map((c: any) => c.domain).filter(Boolean);
+          const allDomains = [yourDomain, ...competitorDomains];
+
+          console.log(`[screenshots] Starting PageSpeed screenshot capture for ${allDomains.length} domains`);
+
+          // Capture screenshots in parallel via PageSpeed API
+          const captureResults = await Promise.allSettled(
+            allDomains.map(async (domain: string) => {
+              const screenshot = await captureWebsiteScreenshot(domain);
+              return { domain, screenshot };
+            })
+          );
+
+          // Build a lookup map
+          const screenshotMap = new Map<string, string>();
+          for (const result of captureResults) {
+            if (result.status === "fulfilled" && result.value.screenshot) {
+              const cleanDomain = result.value.domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+              screenshotMap.set(cleanDomain, result.value.screenshot);
+            }
+          }
+
+          // Merge screenshots into competitor data (preserve existing metaAds from growth-tools)
+          const enrichedYourProfile = compData?.yourProfile ? { ...compData.yourProfile } : null;
+          if (enrichedYourProfile) {
+            const key = (enrichedYourProfile.domain || yourDomain).replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+            const screenshot = screenshotMap.get(key);
+            if (screenshot) enrichedYourProfile.websiteScreenshot = screenshot;
+          }
+
+          const enrichedCompetitors = (compData?.competitors || []).map((comp: any) => {
+            const key = (comp.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+            const screenshot = screenshotMap.get(key);
+            if (screenshot) {
+              return { ...comp, websiteScreenshot: screenshot };
+            }
+            return comp;
+          });
+
+          const recordId = (auditIds.competitorAnalysis ?? compAnalysisId) as number;
+          // Update the competitor-analyses record with enriched screenshots
+          await payload.update({
+            collection: "competitor-analyses",
+            id: recordId,
+            data: {
+              yourProfile: enrichedYourProfile,
+              competitors: enrichedCompetitors,
+            },
+            overrideAccess: true,
+          });
+
+          const captured = screenshotMap.size;
+          console.log(`[screenshots] Finished: ${captured}/${allDomains.length} domains captured`);
+        }
+      } catch (e: any) {
+        // Non-fatal — log and continue
+        console.error("[screenshots] Post-processing failed:", e.message);
+        errors.push(`Screenshot post-processing failed: ${e.message}`);
+      }
     }
 
     // Create content research records (one per keyword)

@@ -4,6 +4,9 @@ import config from '@/payload.config'
 import Image from 'next/image'
 import RocketScroll from '@/components/RocketScroll'
 import KeywordSunburst from '@/components/KeywordSunburst'
+import StarField from '@/components/StarField'
+import { RichText } from '@payloadcms/richtext-lexical/react'
+import type { SerializedEditorState } from 'lexical'
 import './report.css'
 
 // ---------------------------------------------------------------------------
@@ -135,6 +138,20 @@ type ContentResearchResult = {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function isLexicalData(data: unknown): data is SerializedEditorState {
+  return data != null && typeof data === 'object' && 'root' in (data as any)
+}
+
+function LegacyTextBlock({ text, className }: { text: string; className?: string }) {
+  return (
+    <div className={className}>
+      {text.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
+        <p key={i}>{line}</p>
+      ))}
+    </div>
+  )
+}
 
 function formatDomain(url: string): string {
   try {
@@ -381,7 +398,7 @@ function CompetitorCard({
           </div>
           <div className="comp-card-stats">
             <div className="comp-card-stat">
-              <span className="comp-card-stat-value">{monthlyVisits ? formatTraffic(monthlyVisits) : '—'}</span>
+              <span className="comp-card-stat-value comp-card-stat-value-visits">{monthlyVisits ? formatTraffic(monthlyVisits) : '—'}</span>
               <span className="comp-card-stat-label">Monthly Visits</span>
             </div>
             <div className="comp-card-stat">
@@ -404,38 +421,37 @@ function CompetitorCard({
               </span>
               <span className="comp-card-stat-label">Meta Ads{runsMetaAds && metaAdCount > 0 ? ` (${metaAdCount})` : ''}</span>
             </div>
+            {gbp ? (
+              <>
+                <div className="comp-card-stat comp-card-stat-gbp">
+                  <span className="comp-card-stat-value">
+                    <span className="comp-gbp-rating-inline">
+                      <StarRating rating={gbp.rating} />
+                      <span className="comp-gbp-rating-num">{gbp.rating}</span>
+                    </span>
+                  </span>
+                  <span className="comp-card-stat-label">GBP Rating</span>
+                </div>
+                <div className="comp-card-stat comp-card-stat-gbp">
+                  <span className="comp-card-stat-value">{gbp.reviewCount ?? '—'}</span>
+                  <span className="comp-card-stat-label">Reviews</span>
+                </div>
+                <div className="comp-card-stat comp-card-stat-gbp">
+                  <span className="comp-card-stat-value">
+                    {gbp.responseRate != null ? `${Math.round(gbp.responseRate * 100)}%` : <YesNoBadge value={gbp.respondsToReviews} />}
+                  </span>
+                  <span className="comp-card-stat-label">Response</span>
+                </div>
+              </>
+            ) : (
+              <div className="comp-card-stat comp-card-stat-gbp">
+                <span className="comp-card-stat-value comp-gbp-none-value">—</span>
+                <span className="comp-card-stat-label">GBP</span>
+              </div>
+            )}
           </div>
           {sources && (sources.organicSearch > 0 || sources.paidSearch > 0) && (
             <TrafficBar organic={sources.organicSearch} paid={sources.paidSearch} />
-          )}
-          {/* Google Business Profile */}
-          {gbp ? (
-            <div className="comp-gbp">
-              <div className="comp-gbp-header">
-                <span className="comp-gbp-icon">&#x1F4CD;</span>
-                <span className="comp-gbp-name">{gbp.name}</span>
-                {gbp.category && <span className="comp-gbp-category">{gbp.category}</span>}
-              </div>
-              <div className="comp-gbp-stats">
-                <div className="comp-gbp-rating">
-                  <StarRating rating={gbp.rating} />
-                  <span className="comp-gbp-rating-num">{gbp.rating}</span>
-                  <span className="comp-gbp-reviews">({gbp.reviewCount} reviews)</span>
-                </div>
-                <div className="comp-gbp-response">
-                  <span className="comp-gbp-response-label">Responds to reviews:</span>
-                  <YesNoBadge value={gbp.respondsToReviews} />
-                  {gbp.responseRate != null && (
-                    <span className="comp-gbp-response-rate">{Math.round(gbp.responseRate * 100)}%</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="comp-gbp comp-gbp-none">
-              <span className="comp-gbp-icon">&#x1F4CD;</span>
-              <span className="comp-gbp-no-listing">No Google Business Profile found</span>
-            </div>
           )}
         </div>
         <div className="comp-card-thumbnails">
@@ -462,30 +478,20 @@ function CompetitorCard({
               <span className="screenshot-domain">{comp.domain}</span>
             </div>
           )}
-          {firstAdScreenshot && (
-            <div className="ad-thumbnail-wrap">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={firstAdScreenshot}
-                alt={`Ad by ${comp.domain}`}
-                className="ad-thumbnail"
-              />
-              <div className="ad-thumbnail-hover">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={firstAdScreenshot}
-                  alt={`Ad by ${comp.domain}`}
-                  className="ad-thumbnail-large"
-                />
-              </div>
-              <span className="ad-thumbnail-label">Ad</span>
-            </div>
+          {comp.metaAds?.adScreenshots && comp.metaAds.adScreenshots.length > 0 && (
+            <a href={comp.metaAds.adScreenshots[0]} target="_blank" rel="noopener noreferrer" className="meta-ad-link">
+              View Meta Ad
+            </a>
           )}
         </div>
       </div>
     </div>
   )
 }
+
+// Force dynamic rendering — CMS edits (e.g. content research keyword selection)
+// must reflect immediately without needing a rebuild or cache purge.
+export const dynamic = 'force-dynamic'
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -572,7 +578,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const croAudit = croResult.docs[0] ?? null
   const kwSnapshot = kwResult.docs[0] ?? null
   const compAnalysis = compResult.docs[0] ?? null
-  const contentResearches: ContentResearchResult[] = crResult.docs.map((doc: any) => ({
+  const contentResearches: (ContentResearchResult & { id: number })[] = crResult.docs.map((doc: any) => ({
+    id: doc.id,
     keyword: doc.keyword,
     location: doc.location,
     totalQuestions: doc.totalQuestions,
@@ -654,7 +661,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
     : null
 
   // Flight plan content (CMS-editable field, fallback to suggestions)
-  const flightPlanContent = proposal.flightPlan || proposal.suggestions || null
+  const flightPlanRaw = (proposal as any).flightPlan as SerializedEditorState | string | null
+  const flightPlanContent = flightPlanRaw || proposal.suggestions || null
 
   // Mission Control data (Slide 11)
   const leadConversionRate = (proposal as any).leadConversionRate as number | null
@@ -665,27 +673,34 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const hasPhysicalLocations = (proposal as any).hasPhysicalLocations as boolean | null
   const numberOfLocations = (proposal as any).numberOfLocations as number | null
 
+  // Additional business metrics
+  const annualPurchaseFrequency = (proposal as any).annualPurchaseFrequency as number | null
+  const newCustomersLast12Months = (proposal as any).newCustomersLast12Months as number | null
+
   // Flight Plan images (Slide 12)
   const flightPlanImages = (proposal as any).flightPlanImages as { image: any; caption?: string }[] | null
 
   // Mission Resources (Slide 13) & Launch Requirements (Slide 14)
-  const missionResources = (proposal as any).missionResources as string | null
-  const launchRequirements = (proposal as any).launchRequirements as string | null
+  const missionResources = (proposal as any).missionResources as SerializedEditorState | string | null
+  const launchRequirements = (proposal as any).launchRequirements as SerializedEditorState | string | null
 
-  // Content Research keyword selection from CMS
-  const contentResearchKeywordsRaw = (proposal as any).contentResearchKeywords as string | null
+  // Content Research keyword selection from CMS (relationship IDs or populated docs)
+  const contentResearchKeywordsRaw = (proposal as any).contentResearchKeywords as (number | { id: number; keyword: string; location?: string; totalQuestions?: number; clusters?: ContentCluster[]; externalId?: string })[] | null
 
   // Build Mission Control rows: business + competitors
-  const missionControlRows: { name: string; monthlyVisits: number; leadConvRate: number; leads: number; leadToSaleRate: number; payingClients: number; returnValue: number; isYou?: boolean }[] = []
+  const missionControlRows: { name: string; monthlyVisits: number; leadConvRate: number; leads: number; leadToSaleRate: number; payingClients: number; monthlyReturn: number; annualReturnValue: number | null; isYou?: boolean }[] = []
   if (leadConversionRate != null && leadToSaleConversionRate != null && averageOrderValue != null) {
     const yourVisits = yourProfile?.traffic?.monthlyVisits ?? 0
     const lcr = leadConversionRate / 100
     const ltsr = leadToSaleConversionRate / 100
     const aov = averageOrderValue
+    const apf = annualPurchaseFrequency
 
     // Business row
     const yourLeads = Math.round(yourVisits * lcr)
     const yourClients = Math.round(yourLeads * ltsr)
+    const yourMonthlyReturn = yourClients * aov
+    const yourAnnualReturn = apf != null ? yourClients * aov * apf : null
     missionControlRows.push({
       name: proposal.businessName,
       monthlyVisits: yourVisits,
@@ -693,7 +708,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
       leads: yourLeads,
       leadToSaleRate: leadToSaleConversionRate,
       payingClients: yourClients,
-      returnValue: yourClients * aov,
+      monthlyReturn: yourMonthlyReturn,
+      annualReturnValue: yourAnnualReturn,
       isYou: true,
     })
 
@@ -703,6 +719,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
       const visits = comp.traffic?.monthlyVisits ?? 0
       const compLeads = Math.round(visits * lcr)
       const compClients = Math.round(compLeads * ltsr)
+      const compMonthlyReturn = compClients * aov
+      const compAnnualReturn = apf != null ? compClients * aov * apf : null
       missionControlRows.push({
         name: comp.domain ?? 'Unknown',
         monthlyVisits: visits,
@@ -710,7 +728,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         leads: compLeads,
         leadToSaleRate: leadToSaleConversionRate,
         payingClients: compClients,
-        returnValue: compClients * aov,
+        monthlyReturn: compMonthlyReturn,
+        annualReturnValue: compAnnualReturn,
       })
     }
   }
@@ -723,16 +742,19 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* SLIDE 18 — Launch Requirements                              */}
         {/* ============================================================ */}
         <section className="slide slide-18 slide-expandable">
+          <StarField seed={42} />
           <div className="slide-header slide-header-dark">
-            <h2>11. Launch Requirements</h2>
+            <h2>10. Launch Requirements</h2>
             <span>Next Steps</span>
           </div>
           <div className="slide-content">
             {launchRequirements ? (
               <div className="cms-copy-block">
-                {launchRequirements.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
-                  <p key={i}>{line}</p>
-                ))}
+                {isLexicalData(launchRequirements) ? (
+                  <RichText data={launchRequirements} />
+                ) : (
+                  <LegacyTextBlock text={launchRequirements as string} />
+                )}
               </div>
             ) : (
               <div className="slide-placeholder-block">
@@ -747,15 +769,17 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         <section className="slide slide-17 slide-expandable">
           <div className="slide-header">
-            <h2>10. Mission Resources</h2>
+            <h2>9. Mission Resources</h2>
             <span>Commercial Model &amp; Pricing</span>
           </div>
           <div className="slide-content">
             {missionResources ? (
               <div className="cms-copy-block">
-                {missionResources.split('\n').map((s: string) => s.trim()).filter(Boolean).map((line: string, i: number) => (
-                  <p key={i}>{line}</p>
-                ))}
+                {isLexicalData(missionResources) ? (
+                  <RichText data={missionResources} />
+                ) : (
+                  <LegacyTextBlock text={missionResources as string} />
+                )}
               </div>
             ) : (
               <div className="slide-placeholder-block">
@@ -770,7 +794,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         <section className="slide slide-16 slide-expandable">
           <div className="slide-header">
-            <h2>9. Flight Plan</h2>
+            <h2>8. Flight Plan</h2>
             <span>Roadmap &amp; Timeframes</span>
           </div>
           <div className="slide-content">
@@ -791,18 +815,24 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             )}
 
             {flightPlanContent && (
-              <div className="suggestions-list">
-                {flightPlanContent
-                  .split('\n')
-                  .map((s: string) => s.trim())
-                  .filter(Boolean)
-                  .map((line: string, i: number) => (
-                    <div key={i} className="suggestion-item">
-                      <span className="suggestion-bullet">&#x2192;</span>
-                      <span>{line}</span>
-                    </div>
-                  ))}
-              </div>
+              isLexicalData(flightPlanContent) ? (
+                <div className="cms-copy-block">
+                  <RichText data={flightPlanContent} />
+                </div>
+              ) : (
+                <div className="suggestions-list">
+                  {(flightPlanContent as string)
+                    .split('\n')
+                    .map((s: string) => s.trim())
+                    .filter(Boolean)
+                    .map((line: string, i: number) => (
+                      <div key={i} className="suggestion-item">
+                        <span className="suggestion-bullet">&#x2192;</span>
+                        <span>{line}</span>
+                      </div>
+                    ))}
+                </div>
+              )
             )}
 
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -815,7 +845,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         <section className="slide slide-15 slide-expandable">
           <div className="slide-header">
-            <h2>8. Mission Control</h2>
+            <h2>7. Mission Control</h2>
             <span>Data &amp; Success Metrics</span>
           </div>
           <div className="slide-content">
@@ -823,43 +853,64 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             <img src="/slides/slide-11.webp" alt="Funnel: Web Traffic → Leads → Paying Clients → Value" className="mission-control-funnel" />
 
             {missionControlRows.length > 0 && (
-              <div className="mc-table-wrapper">
-                <table className="mc-table">
-                  <colgroup>
-                    <col className="mc-col-business" />
-                    <col className="mc-col-visits" />
-                    <col className="mc-col-lcr" />
-                    <col className="mc-col-leads" />
-                    <col className="mc-col-ltsr" />
-                    <col className="mc-col-clients" />
-                    <col className="mc-col-return" />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th>Business</th>
-                      <th>Monthly Visits</th>
-                      <th>Lead Conv. Rate</th>
-                      <th>Leads</th>
-                      <th>Lead → Sale Rate</th>
-                      <th>Paying Clients</th>
-                      <th>Return</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {missionControlRows.map((row, i) => (
-                      <tr key={i} className={row.isYou ? 'mc-row-you' : ''}>
-                        <td className="mc-name">{row.name}</td>
-                        <td>{formatTraffic(row.monthlyVisits)}</td>
-                        <td>{row.leadConvRate}%</td>
-                        <td>{row.leads.toLocaleString()}</td>
-                        <td>{row.leadToSaleRate}%</td>
-                        <td>{row.payingClients.toLocaleString()}</td>
-                        <td className="mc-return">${row.returnValue.toLocaleString()}</td>
+              <>
+                <div className="mc-table-wrapper">
+                  <table className="mc-table">
+                    <colgroup>
+                      <col className="mc-col-business" />
+                      <col className="mc-col-visits" />
+                      <col className="mc-col-lcr" />
+                      <col className="mc-col-leads" />
+                      <col className="mc-col-ltsr" />
+                      <col className="mc-col-clients" />
+                      <col className="mc-col-return" />
+                      {missionControlRows[0]?.annualReturnValue != null && <col className="mc-col-annual" />}
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>Business</th>
+                        <th>Monthly Visits</th>
+                        <th>Lead Conv. Rate</th>
+                        <th>Leads</th>
+                        <th>Lead → Sale</th>
+                        <th>Paying Clients</th>
+                        <th>Monthly Return</th>
+                        {missionControlRows[0]?.annualReturnValue != null && <th>Annual Return Value</th>}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {missionControlRows.map((row, i) => (
+                        <tr key={i} className={row.isYou ? 'mc-row-you' : ''}>
+                          <td className="mc-name">{row.name}</td>
+                          <td>{formatTraffic(row.monthlyVisits)}</td>
+                          <td>{row.leadConvRate}%</td>
+                          <td>{row.leads.toLocaleString()}</td>
+                          <td>{row.leadToSaleRate}%</td>
+                          <td>{row.payingClients.toLocaleString()}</td>
+                          <td className="mc-return">${row.monthlyReturn.toLocaleString()}</td>
+                          {row.annualReturnValue != null && <td className="mc-return">${row.annualReturnValue.toLocaleString()}</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mc-notes">
+                  <div className="mc-notes-data">
+                    {averageOrderValue != null && (
+                      <span className="mc-pill">AOV: ${averageOrderValue.toLocaleString()}</span>
+                    )}
+                    {annualPurchaseFrequency != null && (
+                      <span className="mc-pill">Purchase Frequency: {annualPurchaseFrequency}x / year</span>
+                    )}
+                  </div>
+                  <div className="mc-notes-formulas">
+                    <p>Monthly Return = Paying Clients &times; AOV</p>
+                    {missionControlRows[0]?.annualReturnValue != null && (
+                      <p>Annual Return Value = Paying Clients &times; AOV &times; Annual Purchase Frequency</p>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
 
             {missionControlRows.length === 0 && (
@@ -878,11 +929,11 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         </section>
 
         {/* ============================================================ */}
-        {/* SLIDE 14 — Fuelling the Ship: Competitor Ads                */}
+        {/* SLIDE 14 — Fueling the Ship: Competitor Ads                */}
         {/* ============================================================ */}
         <section className="slide slide-14 slide-expandable">
           <div className="slide-header">
-            <h2>7. Fuelling the Ship</h2>
+            <h2>6. Fueling the Ship</h2>
             <span>2nd Stage Burn</span>
           </div>
           <div className="slide-content">
@@ -942,20 +993,12 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                           <span className="ad-comp-count">{comp.metaAds?.activeAdCount ?? 0} active</span>
                         </div>
                         {comp.metaAds?.adScreenshots && comp.metaAds.adScreenshots.length > 0 && (
-                          <div className="ad-screenshots-grid">
-                            {comp.metaAds.adScreenshots.slice(0, 5).map((url, j) => {
-                              const src = url.startsWith('data:') ? url : (url.startsWith('http') ? url : `data:image/png;base64,${url}`)
-                              return (
-                                <div key={j} className="ad-thumbnail-wrap">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={src} alt={`${comp.domain} Meta ad ${j + 1}`} className="ad-screenshot-thumb" />
-                                  <div className="ad-thumbnail-hover">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={src} alt={`${comp.domain} Meta ad ${j + 1}`} className="ad-thumbnail-large" />
-                                  </div>
-                                </div>
-                              )
-                            })}
+                          <div className="meta-ad-links">
+                            {comp.metaAds.adScreenshots.slice(0, 5).map((url, j) => (
+                              <a key={j} href={url} target="_blank" rel="noopener noreferrer" className="meta-ad-link">
+                                View Ad {j + 1}
+                              </a>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -970,11 +1013,11 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         </section>
 
         {/* ============================================================ */}
-        {/* SLIDE 13 — Fuelling the Ship: Content Research              */}
+        {/* SLIDE 13 — Fueling the Ship: Content Research              */}
         {/* ============================================================ */}
         <section className="slide slide-13 slide-expandable">
           <div className="slide-header">
-            <h2>7. Fuelling the Ship</h2>
+            <h2>6. Fueling the Ship</h2>
             <span>Propulsion</span>
           </div>
           <div className="slide-content">
@@ -985,37 +1028,74 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   <p className="cr-intro-sub">These are the questions your potential customers are actively searching for. Each sunburst shows the most popular questions grouped by type — the bigger the slice, the more people are searching for it.</p>
                 </div>
                 {(() => {
-                  // If CMS has specific keywords selected, filter to those
-                  const selectedKeywords = contentResearchKeywordsRaw
-                    ? contentResearchKeywordsRaw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)
-                    : null
+                  // Deduplicate content researches by keyword (keep most recent — array is sorted by -createdAt)
+                  const uniqueCr: (ContentResearchResult & { id: number })[] = []
+                  const seenKeywords = new Set<string>()
+                  for (const cr of contentResearches) {
+                    const key = cr.keyword.toLowerCase()
+                    if (!seenKeywords.has(key)) {
+                      seenKeywords.add(key)
+                      uniqueCr.push(cr)
+                    }
+                  }
+
+                  // Build a lookup by numeric ID for cross-referencing
+                  const crById = new Map<number, ContentResearchResult & { id: number }>()
+                  for (const cr of uniqueCr) crById.set(Number(cr.id), cr)
 
                   let displayCr: ContentResearchResult[]
-                  if (selectedKeywords && selectedKeywords.length > 0) {
-                    displayCr = contentResearches.filter(cr =>
-                      selectedKeywords.includes(cr.keyword.toLowerCase())
-                    ).slice(0, 2)
+
+                  // If CMS has specific content researches selected, show ALL of them (no limit)
+                  if (contentResearchKeywordsRaw && contentResearchKeywordsRaw.length > 0) {
+                    displayCr = []
+                    for (const item of contentResearchKeywordsRaw) {
+                      if (typeof item === 'object' && item != null) {
+                        // Populated doc — check if it has clusters directly
+                        if (Array.isArray(item.clusters) && item.clusters.length > 0) {
+                          displayCr.push({
+                            keyword: item.keyword,
+                            location: item.location || '',
+                            totalQuestions: item.totalQuestions || 0,
+                            clusters: item.clusters,
+                            externalId: item.externalId,
+                          })
+                        } else {
+                          // Populated doc but clusters missing/empty — look up from separate query
+                          const match = crById.get(Number(item.id))
+                          if (match) displayCr.push(match)
+                        }
+                      } else {
+                        // Just an ID (number) — look up from separate query
+                        const match = crById.get(Number(item))
+                        if (match) displayCr.push(match)
+                      }
+                    }
                   } else {
-                    // Auto-select top 2 by search volume
+                    // Auto-select top 4 unique keywords by search volume
                     const kwVolumeMap = new Map<string, number>()
                     if (keywords) {
                       for (const kw of keywords) {
                         kwVolumeMap.set(kw.keyword.toLowerCase(), kw.searchVolume ?? 0)
                       }
                     }
-                    displayCr = [...contentResearches].sort((a, b) => {
+                    displayCr = [...uniqueCr].sort((a, b) => {
                       const volA = kwVolumeMap.get(a.keyword.toLowerCase()) ?? 0
                       const volB = kwVolumeMap.get(b.keyword.toLowerCase()) ?? 0
                       return volB - volA
-                    }).slice(0, 2)
+                    }).slice(0, 4)
                   }
-                  return displayCr.map((cr, crIdx) => (
-                    <div key={crIdx} className="cr-sunburst-section">
-                      <div className="cr-sunburst-wrap">
-                        <KeywordSunburst keyword={cr.keyword} clusters={cr.clusters} />
-                      </div>
+
+                  return (
+                    <div className="cr-sunburst-grid">
+                      {displayCr.map((cr, crIdx) => (
+                        <div key={crIdx} className="cr-sunburst-section">
+                          <div className="cr-sunburst-wrap">
+                            <KeywordSunburst keyword={cr.keyword} clusters={cr.clusters} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))
+                  )
                 })()}
               </>
             ) : (
@@ -1032,7 +1112,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {seoAudit && seoRecommendations && Array.isArray(seoRecommendations) && seoRecommendations.length > 0 && (
           <section className="slide slide-12 slide-expandable">
             <div className="slide-header">
-              <h2>6. Building the Ship</h2>
+              <h2>5. Building the Ship</h2>
               <span>Structural Foundation</span>
             </div>
             <div className="slide-content">
@@ -1066,7 +1146,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {seoAudit && (
           <section className="slide slide-11 slide-expandable">
             <div className="slide-header">
-              <h2>6. Building the Ship</h2>
+              <h2>5. Building the Ship</h2>
               <span>Structural Foundation</span>
             </div>
             <div className="slide-content">
@@ -1121,14 +1201,6 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                         <span>Int. Links</span>
                       </div>
                     </div>
-                    {extractedData.schemaTypes && extractedData.schemaTypes.length > 0 && (
-                      <div className="tech-schema-tags">
-                        <span className="tech-schema-label">Schema types:</span>
-                        {extractedData.schemaTypes.map((type, i) => (
-                          <span key={i} className="tech-schema-tag">{type}</span>
-                        ))}
-                      </div>
-                    )}
                   </section>
                 )}
 
@@ -1143,6 +1215,14 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                         </li>
                       ))}
                     </ul>
+                    {extractedData && typeof extractedData === 'object' && !Array.isArray(extractedData) && extractedData.schemaTypes && extractedData.schemaTypes.length > 0 && (
+                      <div className="tech-schema-tags">
+                        <span className="tech-schema-label">Schema types:</span>
+                        {extractedData.schemaTypes.map((type: string, i: number) => (
+                          <span key={i} className="tech-schema-tag">{type}</span>
+                        ))}
+                      </div>
+                    )}
                   </section>
                 )}
               </div>
@@ -1162,12 +1242,10 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                           ) / 10
                         : 0
                       return (
-                        <div key={i} className="page-card">
-                          <div className="page-card-header">
-                            <span className="page-type-badge">{page.pageType}</span>
-                            <ScoreBadge score={pageAvg} />
-                          </div>
+                        <div key={i} className="page-card page-card-inline">
+                          <span className="page-type-badge">{page.pageType}</span>
                           <span className="page-url">{page.url.replace(/^https?:\/\/[^/]+/, '') || '/'}</span>
+                          <ScoreBadge score={pageAvg} />
                         </div>
                       )
                     })}
@@ -1185,7 +1263,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {seoAudit && (
           <section className="slide slide-10 slide-expandable">
             <div className="slide-header">
-              <h2>6. Building the Ship</h2>
+              <h2>5. Building the Ship</h2>
               <span>Structural Foundation</span>
             </div>
             <div className="slide-content">
@@ -1239,7 +1317,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {croAudit && ((croRecommendations && Array.isArray(croRecommendations) && croRecommendations.length > 0) || croExtracted) && (
           <section className="slide slide-9 slide-expandable">
             <div className="slide-header">
-              <h2>5. Mission Priorities</h2>
+              <h2>4. Mission Priorities</h2>
               <span>Where to Focus Our Energy</span>
             </div>
             <div className="slide-content">
@@ -1324,7 +1402,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {croAudit && (
           <section className="slide slide-8 slide-expandable">
             <div className="slide-header">
-              <h2>5. Mission Priorities</h2>
+              <h2>4. Mission Priorities</h2>
               <span>Where to Focus Our Energy</span>
             </div>
             <div className="slide-content">
@@ -1387,7 +1465,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {compAnalysis && (yourProfile || (allCompetitors && allCompetitors.length > 0)) && (
           <section className="slide slide-7 slide-expandable">
             <div className="slide-header">
-              <h2>4. Pre-flight Check</h2>
+              <h2>3. Pre-flight Check</h2>
               <span>Competitor Analysis</span>
             </div>
             <div className="slide-content">
@@ -1454,7 +1532,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {kwSnapshot && keywords && (
           <section className="slide slide-6 slide-expandable">
             <div className="slide-header">
-              <h2>4. Pre-flight Check</h2>
+              <h2>3. Pre-flight Check</h2>
               <span>Keywords Analysis</span>
             </div>
             <div className="slide-content">
@@ -1508,7 +1586,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         <section className="slide slide-5 slide-expandable">
           <div className="slide-header">
-            <h2>3. Mission Brief</h2>
+            <h2>2. Mission Brief</h2>
             <span>Overview</span>
           </div>
           <div className="slide-content">
@@ -1546,7 +1624,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   <p className="client-goals-text">{proposal.businessGoals}</p>
                 </div>
               )}
-              {(averageOrderValue != null || hasPhysicalLocations || leadConversionRate != null || leadToSaleConversionRate != null) && (
+              {(averageOrderValue != null || hasPhysicalLocations || leadConversionRate != null || leadToSaleConversionRate != null || annualPurchaseFrequency != null || newCustomersLast12Months != null) && (
                 <div className="mission-brief-details">
                   {averageOrderValue != null && (
                     <div className="mission-brief-detail">
@@ -1570,6 +1648,18 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     <div className="mission-brief-detail">
                       <span className="mission-brief-detail-label">Lead to Sale Rate</span>
                       <span className="mission-brief-detail-value">{leadToSaleConversionRate}%</span>
+                    </div>
+                  )}
+                  {annualPurchaseFrequency != null && (
+                    <div className="mission-brief-detail">
+                      <span className="mission-brief-detail-label">Annual Purchase Frequency</span>
+                      <span className="mission-brief-detail-value">{annualPurchaseFrequency}x</span>
+                    </div>
+                  )}
+                  {newCustomersLast12Months != null && (
+                    <div className="mission-brief-detail">
+                      <span className="mission-brief-detail-label">New Customers (12 months)</span>
+                      <span className="mission-brief-detail-value">{newCustomersLast12Months.toLocaleString()}</span>
                     </div>
                   )}
                 </div>
@@ -1619,7 +1709,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         <section className="slide slide-4">
           <div className="slide-header">
-            <h2>2. Our Flight Philosophy</h2>
+            <h2>1. Our Flight Philosophy</h2>
             <span>Build and Fix the Spaceship Before Anything Else</span>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1631,7 +1721,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         <section className="slide slide-3">
           <div className="slide-header">
-            <h2>2. Our Flight Philosophy</h2>
+            <h2>1. Our Flight Philosophy</h2>
             <span>Our Approach</span>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1643,7 +1733,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         <section className="slide slide-2">
           <div className="slide-header">
-            <h2>1. What This Covers</h2>
+            <h2>What This Covers</h2>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/slides/slide-2.webp" alt="What This Covers" className="slide-static-img" />

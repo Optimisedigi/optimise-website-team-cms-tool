@@ -274,6 +274,7 @@ export const ClientProposals: CollectionConfig = {
             },
             {
               name: "suggestions",
+              label: "Pre-Audit Growth Suggestions",
               type: "textarea",
               admin: {
                 description:
@@ -312,6 +313,31 @@ export const ClientProposals: CollectionConfig = {
                   admin: {
                     description:
                       "Average order / client value ($). Used for Mission Control slide.",
+                    step: 1,
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "annualPurchaseFrequency",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description:
+                      "Annual purchase frequency (Total orders in last 12 months ÷ Unique customers in last 12 months). Used for CLTV calculation.",
+                    step: 0.1,
+                  },
+                },
+                {
+                  name: "newCustomersLast12Months",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description:
+                      "Number of new customers acquired in the last 12 months.",
                     step: 1,
                   },
                 },
@@ -473,10 +499,10 @@ export const ClientProposals: CollectionConfig = {
           fields: [
             {
               name: "flightPlan",
-              type: "textarea",
+              type: "richText",
               admin: {
                 description:
-                  "Editable flight plan content shown at the bottom of the report. One item per line. Falls back to suggestions if empty.",
+                  "Editable flight plan content shown on the report. Supports bold, italic, underline, font size formatting. Falls back to suggestions if empty.",
               },
             },
             {
@@ -505,26 +531,31 @@ export const ClientProposals: CollectionConfig = {
             },
             {
               name: "contentResearchKeywords",
-              type: "text",
+              type: "relationship",
+              relationTo: "content-researches",
+              hasMany: true,
+              filterOptions: ({ id }) => ({
+                proposal: { equals: id },
+              }),
               admin: {
                 description:
-                  "Comma-separated keywords to show on the Content Research slide. Leave blank to auto-select top 2 by search volume.",
+                  "Select which content research keywords to show on the report. Leave empty to auto-select top 2 by search volume.",
               },
             },
             {
               name: "missionResources",
-              type: "textarea",
+              type: "richText",
               admin: {
                 description:
-                  "Content for the Mission Resources slide. Add after the report is created.",
+                  "Content for the Mission Resources slide. Supports bold, italic, underline, font size formatting.",
               },
             },
             {
               name: "launchRequirements",
-              type: "textarea",
+              type: "richText",
               admin: {
                 description:
-                  "Content for the Launch Requirements slide. Add after the report is created.",
+                  "Content for the Launch Requirements slide. Supports bold, italic, underline, font size formatting.",
               },
             },
           ],

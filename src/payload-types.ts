@@ -511,6 +511,14 @@ export interface ClientProposal {
    */
   averageOrderValue?: number | null;
   /**
+   * Annual purchase frequency (Total orders in last 12 months ÷ Unique customers in last 12 months). Used for CLTV calculation.
+   */
+  annualPurchaseFrequency?: number | null;
+  /**
+   * Number of new customers acquired in the last 12 months.
+   */
+  newCustomersLast12Months?: number | null;
+  /**
    * Competitor businesses to benchmark against (up to 5)
    */
   competitors?:
@@ -567,9 +575,23 @@ export interface ClientProposal {
    */
   contentResearch?: (number | ContentResearch)[] | null;
   /**
-   * Editable flight plan content shown at the bottom of the report. One item per line. Falls back to suggestions if empty.
+   * Editable flight plan content shown on the report. Supports bold, italic, underline, font size formatting. Falls back to suggestions if empty.
    */
-  flightPlan?: string | null;
+  flightPlan?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
   /**
    * Images displayed on the Flight Plan slide above the timeline. Add after the report is created.
    */
@@ -584,11 +606,11 @@ export interface ClientProposal {
       }[]
     | null;
   /**
-   * Comma-separated keywords to show on the Content Research slide. Leave blank to auto-select top 2 by search volume.
+   * Select which content research keywords to show on the report. Leave empty to auto-select top 2 by search volume.
    */
-  contentResearchKeywords?: string | null;
+  contentResearchKeywords?: (number | ContentResearch)[] | null;
   /**
-   * Content for the Mission Resources slide. Supports bold, italic, underline formatting.
+   * Content for the Mission Resources slide. Supports bold, italic, underline, font size formatting.
    */
   missionResources?: {
     root: {
@@ -606,7 +628,7 @@ export interface ClientProposal {
     [k: string]: unknown;
   } | null;
   /**
-   * Content for the Launch Requirements slide. Supports bold, italic, underline formatting.
+   * Content for the Launch Requirements slide. Supports bold, italic, underline, font size formatting.
    */
   launchRequirements?: {
     root: {
@@ -1478,6 +1500,8 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   leadConversionRate?: T;
   leadToSaleConversionRate?: T;
   averageOrderValue?: T;
+  annualPurchaseFrequency?: T;
+  newCustomersLast12Months?: T;
   competitors?:
     | T
     | {

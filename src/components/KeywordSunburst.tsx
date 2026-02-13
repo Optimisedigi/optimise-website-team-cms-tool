@@ -18,6 +18,7 @@ interface KeywordSunburstProps {
   keyword: string
   clusters: Cluster[]
   maxQuestions?: number
+  hideCenterLabel?: boolean
 }
 
 const CLUSTER_COLORS = [
@@ -38,9 +39,9 @@ const ALLOWED_CATEGORIES = new Set([
 ])
 
 const FALLBACK_QUOTAS: Record<string, number> = {
-  What: 3, How: 2, Which: 2, Can: 2, Who: 1, When: 1,
-  Where: 1, Is: 1, Are: 1, Do: 1, Will: 1, Does: 1,
-  Should: 1, Vs: 1, Best: 1, General: 0,
+  What: 6, How: 4, Which: 4, Can: 4, Who: 2, When: 2,
+  Where: 2, Is: 2, Are: 2, Do: 2, Will: 2, Does: 2,
+  Should: 2, Vs: 2, Best: 2, General: 0,
 }
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
@@ -118,7 +119,7 @@ interface SunburstCluster {
   totalWeight: number
 }
 
-export default function KeywordSunburst({ keyword, clusters, maxQuestions = 20 }: KeywordSunburstProps) {
+export default function KeywordSunburst({ keyword, clusters, maxQuestions = 40, hideCenterLabel = false }: KeywordSunburstProps) {
   const [hoveredSeg, setHoveredSeg] = useState<string | null>(null)
 
   const { sunburstClusters, grandTotal } = useMemo(() => {
@@ -365,24 +366,45 @@ export default function KeywordSunburst({ keyword, clusters, maxQuestions = 20 }
 
       {/* Center circle */}
       <circle cx={cx} cy={cy} r={innerRadius - 2} fill="white" />
-      <text
-        x={cx}
-        y={cy}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fontSize="20"
-        fontWeight="700"
-        fill="#1f2937"
-      >
-        {keyword.length > 25 ? (
-          <>
-            <tspan x={cx} dy="-0.6em">{keyword.slice(0, Math.ceil(keyword.length / 2))}</tspan>
-            <tspan x={cx} dy="1.2em">{keyword.slice(Math.ceil(keyword.length / 2))}</tspan>
-          </>
-        ) : (
-          keyword
-        )}
-      </text>
+      {!hideCenterLabel && (() => {
+        // Split long keywords on word boundaries
+        const centerLines: string[] = []
+        if (keyword.length > 20) {
+          const words = keyword.split(' ')
+          let current = ''
+          for (const word of words) {
+            const test = current ? `${current} ${word}` : word
+            if (test.length > 20 && current) {
+              centerLines.push(current)
+              current = word
+            } else {
+              current = test
+            }
+          }
+          if (current) centerLines.push(current)
+        } else {
+          centerLines.push(keyword)
+        }
+        const lineHeight = 26
+        const totalHeight = centerLines.length * lineHeight
+        const startY = cy - (totalHeight - lineHeight) / 2
+        return (
+          <text
+            x={cx}
+            y={startY}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize="20"
+            fontWeight="700"
+            fill="#1f2937"
+            style={{ textTransform: 'capitalize' }}
+          >
+            {centerLines.map((line, i) => (
+              <tspan key={i} x={cx} dy={i === 0 ? 0 : lineHeight}>{line}</tspan>
+            ))}
+          </text>
+        )
+      })()}
     </svg>
   )
 }
