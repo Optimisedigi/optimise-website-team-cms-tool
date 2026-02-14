@@ -224,7 +224,7 @@ export default function KeywordSunburst({ keyword, clusters, maxQuestions = 40, 
   const midRadius = 210
   const outerRadius = 410
   const gap = 1.5
-  const hoverGrow = 18
+  const hoverGrow = 22
 
   let angle = 0
   const arcs: { cluster: SunburstCluster; start: number; end: number; color: typeof CLUSTER_COLORS[0] }[] = []

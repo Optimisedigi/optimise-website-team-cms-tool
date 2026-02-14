@@ -344,6 +344,41 @@ export const ClientProposals: CollectionConfig = {
               ],
             },
             {
+              type: "row",
+              fields: [
+                {
+                  name: "overrideMonthlyVisits",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description:
+                      "Override monthly visits shown for your business on the report. Leave blank to use API data.",
+                    step: 1,
+                  },
+                },
+                {
+                  name: "overrideAvgPosition",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description:
+                      "Override average keyword position. Leave blank to use API data.",
+                    step: 0.1,
+                  },
+                },
+                {
+                  name: "overrideKeywordsFound",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description:
+                      "Override keywords found count. Leave blank to use API data.",
+                    step: 1,
+                  },
+                },
+              ],
+            },
+            {
               name: "competitors",
               type: "array",
               maxRows: 5,
@@ -371,6 +406,14 @@ export const ClientProposals: CollectionConfig = {
                   type: "text",
                   admin: {
                     description: "Google Maps listing URL",
+                  },
+                },
+                {
+                  name: "hasMetaAds",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Override: mark this competitor as running Meta Ads",
                   },
                 },
               ],

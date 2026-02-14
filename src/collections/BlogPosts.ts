@@ -231,6 +231,9 @@ export const BlogPosts: CollectionConfig = {
               required: true,
               admin: {
                 description: "Author name as it should appear on the post.",
+                components: {
+                  Field: "./components/ClientAuthorSelect",
+                },
               },
             },
             {

@@ -519,6 +519,18 @@ export interface ClientProposal {
    */
   newCustomersLast12Months?: number | null;
   /**
+   * Override monthly visits shown for your business on the report. Leave blank to use API data.
+   */
+  overrideMonthlyVisits?: number | null;
+  /**
+   * Override average keyword position. Leave blank to use API data.
+   */
+  overrideAvgPosition?: number | null;
+  /**
+   * Override keywords found count. Leave blank to use API data.
+   */
+  overrideKeywordsFound?: number | null;
+  /**
    * Competitor businesses to benchmark against (up to 5)
    */
   competitors?:
@@ -535,6 +547,10 @@ export interface ClientProposal {
          * Google Maps listing URL
          */
         googleMapsUrl?: string | null;
+        /**
+         * Override: mark this competitor as running Meta Ads
+         */
+        hasMetaAds?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -1502,12 +1518,16 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   averageOrderValue?: T;
   annualPurchaseFrequency?: T;
   newCustomersLast12Months?: T;
+  overrideMonthlyVisits?: T;
+  overrideAvgPosition?: T;
+  overrideKeywordsFound?: T;
   competitors?:
     | T
     | {
         name?: T;
         websiteUrl?: T;
         googleMapsUrl?: T;
+        hasMetaAds?: T;
         id?: T;
       };
   auditStatus?: T;

@@ -88,6 +88,7 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
           className="rocket-img"
           priority
         />
+        <div className="rocket-flame" aria-hidden="true" />
       </div>
       <div className="flame-trail" aria-hidden="true" />
     </>

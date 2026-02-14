@@ -214,6 +214,12 @@ const businessTypeLabels: Record<string, string> = {
   other: 'Other',
 }
 
+function getCroSubInterpretation(label: string, score: number): string {
+  if (score >= 8) return `Your ${label.toLowerCase()} is strong — keep it up.`
+  if (score >= 5) return `Your ${label.toLowerCase()} has room for improvement — small tweaks could boost conversions.`
+  return `Your ${label.toLowerCase()} needs attention — this is likely costing you leads.`
+}
+
 const categoryLabels: Record<string, string> = {
   metaData: 'Meta Data',
   headingStructure: 'Heading Structure',
@@ -489,6 +495,65 @@ function CompetitorCard({
   )
 }
 
+function deterministicHash(str: string): number {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) & 0x7fffffff
+  }
+  return hash
+}
+
+function SerpMockup({ keyword, domain, position }: { keyword: string; domain: string; position: number | null }) {
+  const displayPos = position ?? 1
+  const resultCount = 100_000 + (deterministicHash(keyword) % 900_000)
+  const formattedCount = resultCount.toLocaleString()
+
+  // Build fake SERP entries — client site at its position, filler for the rest
+  const fillerDomains = ['example.com', 'wikipedia.org', 'reddit.com', 'forbes.com', 'yelp.com']
+  const entries: { title: string; url: string; desc: string; isYou: boolean }[] = []
+  const maxSlots = Math.min(3, Math.max(displayPos, 2))
+  let fillerIdx = 0
+
+  for (let rank = 1; rank <= maxSlots; rank++) {
+    if (rank === displayPos) {
+      entries.push({
+        title: `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} — ${domain}`,
+        url: `https://${domain}`,
+        desc: `Discover the best ${keyword.toLowerCase()} services. Trusted by thousands of customers across Australia.`,
+        isYou: true,
+      })
+    } else {
+      const fd = fillerDomains[fillerIdx % fillerDomains.length]
+      fillerIdx++
+      entries.push({
+        title: `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} — ${fd}`,
+        url: `https://www.${fd}`,
+        desc: `Learn more about ${keyword.toLowerCase()}. Find information, reviews, and resources.`,
+        isYou: false,
+      })
+    }
+  }
+
+  return (
+    <div className="serp-mockup">
+      <div className="serp-search-bar">
+        <span className="serp-google-logo">G</span>
+        <span className="serp-search-text">{keyword}</span>
+      </div>
+      <div className="serp-result-count">About {formattedCount} results</div>
+      <div className="serp-results">
+        {entries.map((entry, i) => (
+          <div key={i} className={`serp-result ${entry.isYou ? 'serp-result-you' : ''}`}>
+            <span className="serp-result-url">{entry.url}</span>
+            <span className="serp-result-title">{entry.title}</span>
+            <span className="serp-result-desc">{entry.desc}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // Force dynamic rendering — CMS edits (e.g. content research keyword selection)
 // must reflect immediately without needing a rebuild or cache purge.
 export const dynamic = 'force-dynamic'
@@ -617,28 +682,102 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const yourProfile = compAnalysis?.yourProfile as CompetitorProfile | null
   const allCompetitors = compAnalysis?.competitors as CompetitorProfile[] | null
 
+  // CMS override fields for your profile
+  const overrideMonthlyVisits = (proposal as any).overrideMonthlyVisits as number | null
+  const overrideAvgPosition = (proposal as any).overrideAvgPosition as number | null
+  const overrideKeywordsFound = (proposal as any).overrideKeywordsFound as number | null
+
+  // Build yourProfileWithOverrides — merge CMS overrides into API data
+  // If no API profile exists but overrides are set, create a stub profile so the card still renders
+  const hasAnyOverride = overrideMonthlyVisits != null || overrideAvgPosition != null || overrideKeywordsFound != null
+  const baseProfile: CompetitorProfile = yourProfile ?? {
+    domain: domainFromUrl(proposal.websiteUrl),
+    traffic: null,
+    websiteScreenshot: null,
+    metaAds: null,
+    googleAds: null,
+    googleBusinessProfile: null,
+  }
+  const yourProfileWithOverrides: CompetitorProfile | null = (yourProfile || hasAnyOverride)
+    ? {
+        ...baseProfile,
+        ...(overrideMonthlyVisits != null
+          ? { traffic: { ...(baseProfile.traffic ?? { monthlyVisits: 0, globalRank: null, sources: { direct: 0, organicSearch: 0, paidSearch: 0, social: 0, email: 0, referrals: 0 } }), monthlyVisits: overrideMonthlyVisits } }
+          : {}),
+        ...(overrideAvgPosition != null ? { avgPosition: overrideAvgPosition, averagePosition: overrideAvgPosition } : {}),
+        ...(overrideKeywordsFound != null ? { keywordsFound: overrideKeywordsFound } : {}),
+      }
+    : null
+
+  // CMS competitor entries (for domain matching and meta ads overrides)
+  const cmsCompetitors = (proposal.competitors ?? []) as { name: string; websiteUrl?: string | null; googleMapsUrl?: string | null; hasMetaAds?: boolean }[]
+
   // Split competitors: CMS-added vs search-discovered
   const cmsCompetitorDomains = new Set(
-    (proposal.competitors ?? [])
-      .map((c: { name: string; websiteUrl?: string | null }) => c.websiteUrl ? domainFromUrl(c.websiteUrl) : null)
+    cmsCompetitors
+      .map((c) => c.websiteUrl ? domainFromUrl(c.websiteUrl) : null)
       .filter(Boolean) as string[]
   )
+
+  // Build meta ads override lookup: domain → true
+  const metaAdsOverrides = new Map<string, boolean>()
+  for (const c of cmsCompetitors) {
+    if (c.hasMetaAds && c.websiteUrl) {
+      metaAdsOverrides.set(domainFromUrl(c.websiteUrl), true)
+    }
+  }
+
+  // Apply meta ads overrides to allCompetitors
+  const allCompetitorsWithOverrides = (allCompetitors ?? []).map((comp) => {
+    const cleanDomain = comp.domain?.replace(/^www\./, '') ?? ''
+    if (metaAdsOverrides.has(cleanDomain)) {
+      return {
+        ...comp,
+        metaAds: comp.metaAds
+          ? { ...comp.metaAds, isRunningAds: true }
+          : { isRunningAds: true, activeAdCount: 0, adScreenshots: [] },
+      }
+    }
+    return comp
+  })
 
   const cmsAddedCount = cmsCompetitorDomains.size
   const searchCompetitorLimit = Math.max(0, 6 - cmsAddedCount)
 
   const selectedCompetitors: CompetitorProfile[] = []
   const searchCompetitors: CompetitorProfile[] = []
+  const matchedCmsDomains = new Set<string>()
 
-  if (allCompetitors) {
-    for (const comp of allCompetitors) {
-      if (comp.domain && cmsCompetitorDomains.has(comp.domain.replace(/^www\./, ''))) {
+  if (allCompetitorsWithOverrides.length > 0) {
+    for (const comp of allCompetitorsWithOverrides) {
+      const cleanDomain = comp.domain?.replace(/^www\./, '') ?? ''
+      if (cleanDomain && cmsCompetitorDomains.has(cleanDomain)) {
         selectedCompetitors.push(comp)
+        matchedCmsDomains.add(cleanDomain)
       } else {
         searchCompetitors.push(comp)
       }
     }
     searchCompetitors.sort((a, b) => (b.traffic?.monthlyVisits ?? 0) - (a.traffic?.monthlyVisits ?? 0))
+  }
+
+  // Create stub CompetitorProfile entries for CMS competitors not matched in API data
+  for (const c of cmsCompetitors) {
+    if (!c.websiteUrl) continue
+    const domain = domainFromUrl(c.websiteUrl)
+    if (!matchedCmsDomains.has(domain)) {
+      const hasMetaOverride = metaAdsOverrides.has(domain)
+      selectedCompetitors.push({
+        domain,
+        traffic: null,
+        avgPosition: undefined,
+        keywordsFound: undefined,
+        websiteScreenshot: null,
+        metaAds: hasMetaOverride ? { isRunningAds: true, activeAdCount: 0, adScreenshots: [] } : null,
+        googleAds: null,
+        googleBusinessProfile: null,
+      })
+    }
   }
 
   const displaySearchCompetitors = searchCompetitors.slice(0, searchCompetitorLimit)
@@ -653,7 +792,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
     : null
 
   // Avg competitor monthly traffic
-  const competitorTrafficValues = (allCompetitors ?? [])
+  const competitorTrafficValues = allCompetitorsWithOverrides
     .map(c => c.traffic?.monthlyVisits)
     .filter((v): v is number => v != null && v > 0)
   const avgCompetitorTraffic = competitorTrafficValues.length > 0
@@ -690,7 +829,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   // Build Mission Control rows: business + competitors
   const missionControlRows: { name: string; monthlyVisits: number; leadConvRate: number; leads: number; leadToSaleRate: number; payingClients: number; monthlyReturn: number; annualReturnValue: number | null; isYou?: boolean }[] = []
   if (leadConversionRate != null && leadToSaleConversionRate != null && averageOrderValue != null) {
-    const yourVisits = yourProfile?.traffic?.monthlyVisits ?? 0
+    const yourVisits = yourProfileWithOverrides?.traffic?.monthlyVisits ?? 0
     const lcr = leadConversionRate / 100
     const ltsr = leadToSaleConversionRate / 100
     const aov = averageOrderValue
@@ -938,7 +1077,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
           </div>
           <div className="slide-content">
             {(() => {
-              const allComps = [...(allCompetitors ?? [])]
+              const allComps = [...allCompetitorsWithOverrides]
               const googleAdsComps = allComps.filter(c => c.googleAds?.isRunningAds)
               const metaAdsComps = allComps.filter(c => c.metaAds?.isRunningAds)
               const hasAnyAds = googleAdsComps.length > 0 || metaAdsComps.length > 0
@@ -1267,7 +1406,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               <span>Structural Foundation</span>
             </div>
             <div className="slide-content">
-              <section className="audit-hero">
+              <section className="audit-hero audit-hero-with-serp">
                 <div className="audit-hero-score">
                   <ScoreGauge score={seoAudit.overallScore} />
                 </div>
@@ -1289,6 +1428,15 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     </div>
                   </dl>
                 </div>
+                {keywords && keywords.length > 0 && (() => {
+                  const firstKw = keywords[0]
+                  const clientDomain = domainFromUrl(proposal.websiteUrl)
+                  return (
+                    <div className="audit-hero-serp">
+                      <SerpMockup keyword={firstKw.keyword} domain={clientDomain} position={firstKw.position} />
+                    </div>
+                  )
+                })()}
               </section>
 
               {categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores) && (
@@ -1431,10 +1579,17 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               </div>
               <section className="audit-section">
                 <div className="cro-scores-grid">
-                  <ScoreBar score={(croAudit as any).aboveFoldScore ?? 0} label="Above the Fold" />
-                  <ScoreBar score={(croAudit as any).ctaScore ?? 0} label="Call-to-Action" />
-                  <ScoreBar score={(croAudit as any).navigationScore ?? 0} label="Navigation" />
-                  <ScoreBar score={(croAudit as any).contentScore ?? 0} label="Content Structure" />
+                  {[
+                    { label: 'Above the Fold', score: (croAudit as any).aboveFoldScore ?? 0 },
+                    { label: 'Call-to-Action', score: (croAudit as any).ctaScore ?? 0 },
+                    { label: 'Navigation', score: (croAudit as any).navigationScore ?? 0 },
+                    { label: 'Content Structure', score: (croAudit as any).contentScore ?? 0 },
+                  ].map(({ label, score }) => (
+                    <div key={label} className="cro-score-with-interpretation">
+                      <ScoreBar score={score} label={label} />
+                      <p className="cro-interpretation">{getCroSubInterpretation(label, score)}</p>
+                    </div>
+                  ))}
                 </div>
               </section>
 
@@ -1462,7 +1617,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 7 — Pre-flight Check: Competitor Analysis              */}
         {/* ============================================================ */}
-        {compAnalysis && (yourProfile || (allCompetitors && allCompetitors.length > 0)) && (
+        {(yourProfileWithOverrides || (allCompetitorsWithOverrides.length > 0)) && (
           <section className="slide slide-7 slide-expandable">
             <div className="slide-header">
               <h2>3. Pre-flight Check</h2>
@@ -1471,9 +1626,9 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             <div className="slide-content">
               <section className="audit-section">
                 <div className="comp-cards">
-                  {yourProfile && (
+                  {yourProfileWithOverrides && (
                     <CompetitorCard
-                      comp={{ ...yourProfile, domain: yourProfile.domain || domainFromUrl(proposal.websiteUrl) }}
+                      comp={{ ...yourProfileWithOverrides, domain: yourProfileWithOverrides.domain || domainFromUrl(proposal.websiteUrl) }}
                       index={0}
                       isYou
                     />
@@ -1487,7 +1642,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 </div>
               </section>
 
-              {yourProfile?.topKeywords && yourProfile.topKeywords.length > 0 && (
+              {yourProfileWithOverrides?.topKeywords && yourProfileWithOverrides.topKeywords.length > 0 && (
                 <>
                 <div className="subsection-divider">
                   <h3 className="subsection-divider-title">Your Keyword Positions</h3>
@@ -1502,7 +1657,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                         </tr>
                       </thead>
                       <tbody>
-                        {yourProfile.topKeywords.map((kw, i) => (
+                        {yourProfileWithOverrides.topKeywords.map((kw, i) => (
                           <tr key={i}>
                             <td className="kw-name">{kw.keyword}</td>
                             <td>

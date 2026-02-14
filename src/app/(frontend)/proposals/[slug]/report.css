@@ -1174,7 +1174,7 @@
 /* Thumbnails column — website + ad */
 .comp-card-thumbnails {
   flex-shrink: 0;
-  width: 304px;
+  width: 243px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1225,11 +1225,11 @@
 }
 
 .screenshot-wrap:hover .screenshot-hover {
-  display: none;
+  display: block;
 }
 
 .screenshot-hover-img {
-  width: 360px;
+  width: 720px;
   max-width: 80vw;
   height: auto;
   border-radius: 8px;
@@ -1945,6 +1945,7 @@ html.scroll-ready .report-presentation {
 .cr-intro-copy {
   max-width: 700px;
   margin-bottom: 16px;
+  padding-top: 10px;
   text-align: center;
   margin-left: auto;
   margin-right: auto;
@@ -2017,6 +2018,186 @@ html.scroll-ready .report-presentation {
   }
   .sunburst-svg {
     max-width: 100%;
+  }
+}
+
+/* SERP Mock-up */
+.serp-mockup {
+  max-width: 600px;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  background: #fff;
+  padding: 20px 24px;
+  font-family: Arial, sans-serif;
+}
+
+.serp-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border: 1px solid #dfe1e5;
+  border-radius: 24px;
+  margin-bottom: 12px;
+}
+
+.serp-google-logo {
+  font-size: 22px;
+  font-weight: 700;
+  color: #4285f4;
+  line-height: 1;
+}
+
+.serp-search-text {
+  font-size: 15px;
+  color: #202124;
+}
+
+.serp-result-count {
+  font-size: 12px;
+  color: #70757a;
+  margin-bottom: 16px;
+}
+
+.serp-results {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.serp-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.serp-result-you {
+  background: rgba(34, 197, 94, 0.06);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: -4px -6px;
+}
+
+.serp-result-url {
+  font-size: 12px;
+  color: #202124;
+  line-height: 1.3;
+}
+
+.serp-result-title {
+  font-size: 18px;
+  color: #1a0dab;
+  line-height: 1.3;
+}
+
+.serp-result-you .serp-result-title {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.serp-result-desc {
+  font-size: 13px;
+  color: #4d5156;
+  line-height: 1.5;
+}
+
+/* ---- CRO Sub-Score Interpretations ---- */
+.cro-score-with-interpretation {
+  display: flex;
+  flex-direction: column;
+}
+
+.cro-interpretation {
+  margin: 2px 0 8px;
+  font-size: 13px;
+  color: #71717a;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* ---- SERP Mockup inside SEO hero box ---- */
+.audit-hero-with-serp {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  padding-bottom: 20px;
+}
+
+.audit-hero-serp {
+  flex: 0 0 260px;
+  min-width: 0;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  transform: scale(0.6);
+  transform-origin: top right;
+  margin-left: -104px;
+}
+
+.audit-hero-serp .serp-mockup {
+  padding: 10px 12px;
+  font-size: 12px;
+  border: none;
+  background: #fff;
+  border-radius: 10px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.audit-hero-serp .serp-search-bar {
+  padding: 5px 10px;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.audit-hero-serp .serp-google-logo {
+  font-size: 14px;
+}
+
+.audit-hero-serp .serp-search-text {
+  font-size: 12px;
+}
+
+.audit-hero-serp .serp-result-count {
+  font-size: 9px;
+  margin-bottom: 6px;
+}
+
+.audit-hero-serp .serp-results {
+  gap: 8px;
+}
+
+.audit-hero-serp .serp-result-url {
+  font-size: 10px;
+}
+
+.audit-hero-serp .serp-result-title {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.audit-hero-serp .serp-result-desc {
+  font-size: 10px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.audit-hero-serp .serp-result-you {
+  padding: 6px 8px;
+  margin: -2px -4px;
+}
+
+@media (max-width: 800px) {
+  .audit-hero-with-serp {
+    flex-wrap: wrap;
+  }
+  .audit-hero-serp {
+    flex: 1 1 100%;
+    max-height: none;
   }
 }
 

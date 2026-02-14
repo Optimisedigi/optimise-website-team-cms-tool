@@ -371,8 +371,73 @@ export async function POST(
             return comp;
           });
 
+          // Capture screenshots for CMS competitors not found in the API response
+          const cmsCompetitors = (proposal.competitors ?? []) as { name: string; websiteUrl?: string | null }[];
+          const apiDomains = new Set(competitorDomains.map((d: string) => d.replace(/^www\./, "")));
+          const missingCmsCompetitors: { name: string; domain: string }[] = [];
+
+          for (const c of cmsCompetitors) {
+            if (!c.websiteUrl) continue;
+            const domain = c.websiteUrl.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+            if (!apiDomains.has(domain)) {
+              missingCmsCompetitors.push({ name: c.name, domain });
+            }
+          }
+
+          if (missingCmsCompetitors.length > 0) {
+            console.log(`[cms-competitors] Fetching data for ${missingCmsCompetitors.length} CMS-only competitors`);
+
+            // Fetch traffic/ads data AND screenshots in parallel for each CMS competitor
+            const cmsDataResults = await Promise.allSettled(
+              missingCmsCompetitors.map(async ({ domain }) => {
+                const domainUrl = domain.startsWith("http") ? domain : `https://${domain}`;
+
+                // Fetch competitor profile data from growth-tools (their profile is returned as "yourProfile")
+                const [profileResult, screenshotResult] = await Promise.allSettled([
+                  fetch(`${GROWTH_TOOLS_URL}/api/competitor-analysis`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "x-internal-key": INTERNAL_API_KEY!,
+                    },
+                    body: JSON.stringify({
+                      websiteUrl: domainUrl,
+                      keywords: keywordsCommaSeparated,
+                      location: targetLocation || undefined,
+                    }),
+                  }).then(async (res) => {
+                    if (!res.ok) return null;
+                    return res.json();
+                  }),
+                  captureWebsiteScreenshot(domain),
+                ]);
+
+                const profile = profileResult.status === "fulfilled" ? profileResult.value?.yourProfile : null;
+                const screenshot = screenshotResult.status === "fulfilled" ? screenshotResult.value : null;
+
+                return { domain, profile, screenshot };
+              })
+            );
+
+            // Append enriched competitor entries
+            for (const result of cmsDataResults) {
+              if (result.status === "fulfilled") {
+                const { domain, profile, screenshot } = result.value;
+                enrichedCompetitors.push({
+                  domain: profile?.domain || domain,
+                  traffic: profile?.traffic || null,
+                  websiteScreenshot: screenshot || profile?.websiteScreenshot || null,
+                  metaAds: profile?.metaAds || null,
+                  googleAds: profile?.googleAds || null,
+                  googleBusinessProfile: profile?.googleBusinessProfile || null,
+                });
+                if (screenshot) screenshotMap.set(domain, screenshot);
+              }
+            }
+          }
+
           const recordId = (auditIds.competitorAnalysis ?? compAnalysisId) as number;
-          // Update the competitor-analyses record with enriched screenshots
+          // Update the competitor-analyses record with enriched screenshots (including CMS stubs)
           await payload.update({
             collection: "competitor-analyses",
             id: recordId,
@@ -384,7 +449,7 @@ export async function POST(
           });
 
           const captured = screenshotMap.size;
-          console.log(`[screenshots] Finished: ${captured}/${allDomains.length} domains captured`);
+          console.log(`[screenshots] Finished: ${captured}/${allDomains.length + missingCmsCompetitors.length} domains captured`);
         }
       } catch (e: any) {
         // Non-fatal — log and continue
