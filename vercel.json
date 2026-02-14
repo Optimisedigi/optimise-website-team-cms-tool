@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/(payload)/admin/[[...segments]]/page.tsx": {
+      "maxDuration": 30
+    },
+    "src/app/(payload)/admin/[[...segments]]/not-found.tsx": {
+      "maxDuration": 30
+    }
+  }
+}
