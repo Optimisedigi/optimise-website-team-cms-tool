@@ -3,10 +3,10 @@
 const Icon = () => {
   return (
     <img
-      src="/optimise-digital-logo-white.png"
+      src="/optimise-rocket-logo-black.png"
       alt="Optimise Digital"
       style={{
-        maxWidth: 180,
+        maxWidth: 25,
         height: "auto",
         objectFit: "contain",
       }}
