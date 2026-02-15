@@ -9,13 +9,13 @@ export async function GET() {
     // Check all tables
     const tables = await payload.db.drizzle.run(
       "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    ) as { rows: unknown[][] }
+    ) as unknown as { rows: unknown[][] }
 
     // Check clients columns
-    const clientsCols = await payload.db.drizzle.run("PRAGMA table_info(clients)") as { rows: unknown[][] }
+    const clientsCols = await payload.db.drizzle.run("PRAGMA table_info(clients)") as unknown as { rows: unknown[][] }
 
     // Check blog_posts columns
-    const blogCols = await payload.db.drizzle.run("PRAGMA table_info(blog_posts)") as { rows: unknown[][] }
+    const blogCols = await payload.db.drizzle.run("PRAGMA table_info(blog_posts)") as unknown as { rows: unknown[][] }
 
     return NextResponse.json({
       tables: tables.rows.map((r: unknown[]) => r[0]),
