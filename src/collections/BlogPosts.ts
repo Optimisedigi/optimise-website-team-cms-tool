@@ -119,6 +119,16 @@ export const BlogPosts: CollectionConfig = {
         position: "sidebar",
       },
     },
+    {
+      name: "clientConfirmed",
+      type: "checkbox",
+      defaultValue: false,
+      admin: {
+        position: "sidebar",
+        description:
+          "Confirm the selected client is correct before saving or publishing",
+      },
+    },
 
     // SEO Tab
     {
@@ -228,6 +238,14 @@ export const BlogPosts: CollectionConfig = {
         {
           label: "Media & Display",
           fields: [
+            {
+              name: "imagePromptOverride",
+              type: "textarea",
+              admin: {
+                description:
+                  "Override the auto-generated image prompt. If filled, the image will be generated from this prompt instead of the title/excerpt. Leave blank to auto-generate from title and excerpt.",
+              },
+            },
             {
               name: "generateImage",
               type: "ui",
