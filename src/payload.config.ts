@@ -18,6 +18,8 @@ import { CompetitorAnalyses } from "./collections/CompetitorAnalyses";
 import { JobPosts } from "./collections/JobPosts";
 import { UsageReports } from "./collections/UsageReports";
 import { ContentResearches } from "./collections/ContentResearches";
+import { GscSnapshots } from "./collections/GscSnapshots";
+import { GscAlerts } from "./collections/GscAlerts";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -48,12 +50,14 @@ export default buildConfig({
       },
       actions: ["./components/UserDisplayName"],
       beforeNavLinks: ["./components/SidebarLogo"],
+      afterNavLinks: [],
       afterLogin: ["./components/ShowPasswordToggle"],
       providers: ["./components/FirstLoginSetup"],
       beforeDashboard: ["./components/DashboardWelcome"],
+      views: {},
     },
   },
-  collections: [Users, Clients, ClientProposals, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, Media],
+  collections: [Users, Clients, ClientProposals, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, Media],
   editor: lexicalEditor(),
   secret: (() => {
     const s = process.env.PAYLOAD_SECRET;
