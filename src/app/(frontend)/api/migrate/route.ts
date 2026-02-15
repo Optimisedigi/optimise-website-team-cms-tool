@@ -207,6 +207,16 @@ export async function POST(request: NextRequest) {
   await run("keyword_snapshots.proposal_id", "ALTER TABLE `keyword_snapshots` ADD `proposal_id` integer REFERENCES `client_proposals`(`id`) ON DELETE set null");
   await run("keyword_snapshots_proposal_idx", "CREATE INDEX IF NOT EXISTS `keyword_snapshots_proposal_idx` ON `keyword_snapshots` (`proposal_id`)");
 
+  // --- Test Items (minimal test collection) ---
+  await run("test_items", `CREATE TABLE IF NOT EXISTS \`test_items\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`title\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("test_items_updated_at_idx", "CREATE INDEX IF NOT EXISTS `test_items_updated_at_idx` ON `test_items` (`updated_at`)");
+  await run("test_items_created_at_idx", "CREATE INDEX IF NOT EXISTS `test_items_created_at_idx` ON `test_items` (`created_at`)");
+
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 
