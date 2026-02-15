@@ -100,18 +100,6 @@ export const Clients: CollectionConfig = {
               },
             },
             {
-              name: "websiteType",
-              type: "select",
-              admin: {
-                description:
-                  "Who built the website — determines whether GSC alerts are actionable (we fix) or advisory (we recommend)",
-              },
-              options: [
-                { label: "Built by Us", value: "built_by_us" },
-                { label: "External CMS / Third Party", value: "external_cms" },
-              ],
-            },
-            {
               name: "notes",
               type: "textarea",
               admin: {
@@ -300,69 +288,6 @@ export const Clients: CollectionConfig = {
                   ],
                 },
               ],
-            },
-          ],
-        },
-        {
-          label: "Search Console",
-          fields: [
-            {
-              name: "gscConnected",
-              type: "checkbox",
-              defaultValue: false,
-              admin: {
-                readOnly: true,
-                description: "Whether Google Search Console is connected",
-              },
-            },
-            {
-              name: "gscPropertyUrl",
-              type: "text",
-              admin: {
-                readOnly: true,
-                description: "The connected GSC property URL",
-              },
-            },
-            {
-              name: "gscAccessToken",
-              type: "text",
-              admin: {
-                disabled: true,
-                hidden: true,
-              },
-            },
-            {
-              name: "gscRefreshToken",
-              type: "text",
-              admin: {
-                disabled: true,
-                hidden: true,
-              },
-            },
-            {
-              name: "gscTokenExpiry",
-              type: "date",
-              admin: {
-                disabled: true,
-                hidden: true,
-              },
-            },
-            {
-              name: "gscLastSync",
-              type: "date",
-              admin: {
-                readOnly: true,
-                description: "Last successful GSC data sync",
-              },
-            },
-            {
-              name: "latestGscSnapshot",
-              type: "relationship",
-              relationTo: "gsc-snapshots",
-              admin: {
-                readOnly: true,
-                description: "Most recent GSC data snapshot",
-              },
             },
           ],
         },
