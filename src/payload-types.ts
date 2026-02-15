@@ -1087,11 +1087,11 @@ export interface BlogPost {
   /**
    * Brief summary for SEO meta description (max 160 characters). This appears in search results.
    */
-  excerpt: string;
+  excerpt?: string | null;
   /**
    * Main blog content. Use H2 for main sections, H3 for subsections. See the style guide below.
    */
-  content: {
+  content?: {
     root: {
       type: string;
       children: {
@@ -1105,7 +1105,7 @@ export interface BlogPost {
       version: number;
     };
     [k: string]: unknown;
-  };
+  } | null;
   /**
    * Estimated reading time (e.g., '5 min read').
    */

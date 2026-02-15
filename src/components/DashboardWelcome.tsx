@@ -2,15 +2,7 @@
 
 const DashboardWelcome = () => {
   return (
-    <div style={{ marginBottom: "24px", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "12px" }}>
-      <img
-        src="/optimise-rocket-logo-black.png"
-        alt="Optimise Digital"
-        style={{
-          height: 50,
-          objectFit: "contain",
-        }}
-      />
+    <div style={{ marginBottom: "24px" }}>
       <h2
         style={{
           fontSize: "24px",

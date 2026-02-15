@@ -37,6 +37,36 @@ export const BlogPosts: CollectionConfig = {
 
           if (body.trim()) {
             data.markdownContent = body.trim();
+
+            // Auto-generate excerpt from body if not in frontmatter
+            if (!data.excerpt) {
+              const plain = body.replace(/[#*_`>\[\]()!|~-]/g, "").trim();
+              const firstParagraph = plain.split(/\n\s*\n/)[0]?.trim() || "";
+              data.excerpt = firstParagraph.slice(0, 157) + (firstParagraph.length > 157 ? "..." : "");
+            }
+
+            // Auto-generate slug from title if not set
+            if (!data.slug && data.title) {
+              data.slug = data.title
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/(^-|-$)/g, "");
+            }
+
+            // Auto-calculate reading time from word count
+            if (!data.readingTime) {
+              const wordCount = body.trim().split(/\s+/).length;
+              const minutes = Math.max(1, Math.ceil(wordCount / 200));
+              data.readingTime = `${minutes} min read`;
+            }
+
+            // Auto-set metaTitle and metaDescription from content if not provided
+            if (!data.metaTitle && data.title) {
+              data.metaTitle = data.title.slice(0, 60);
+            }
+            if (!data.metaDescription && data.excerpt) {
+              data.metaDescription = data.excerpt.slice(0, 160);
+            }
           }
         } catch {
           // If parsing fails, leave fields unchanged
@@ -78,7 +108,6 @@ export const BlogPosts: CollectionConfig = {
             {
               name: "excerpt",
               type: "textarea",
-              required: true,
               maxLength: 160,
               admin: {
                 description:
@@ -88,7 +117,6 @@ export const BlogPosts: CollectionConfig = {
             {
               name: "content",
               type: "richText",
-              required: true,
               admin: {
                 description:
                   "Main blog content. Use H2 for main sections, H3 for subsections. See the style guide below.",

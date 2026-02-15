@@ -93,10 +93,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 4. Link the image to the blog post
+    // 4. Link the image to the blog post (draft mode skips required-field validation)
     await payload.update({
       collection: "blog-posts",
       id: blogPostId,
+      draft: true,
       data: {
         featuredImage: mediaDoc.id,
         featuredImageAlt: `Blog header image for: ${title}`,

@@ -7,17 +7,8 @@ const Logo = () => {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: "12px",
       }}
     >
-      <img
-        src="/optimise-rocket-logo-black.png"
-        alt="Optimise Digital"
-        style={{
-          height: 50,
-          objectFit: "contain",
-        }}
-      />
       <p
         style={{
           fontSize: "16px",

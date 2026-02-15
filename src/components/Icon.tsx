@@ -6,8 +6,8 @@ const Icon = () => {
       src="/optimise-rocket-logo-black.png"
       alt="Optimise Digital"
       style={{
-        maxWidth: 25,
-        height: "auto",
+        width: 20,
+        height: 20,
         objectFit: "contain",
       }}
     />
