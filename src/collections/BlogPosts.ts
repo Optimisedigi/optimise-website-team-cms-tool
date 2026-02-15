@@ -24,16 +24,49 @@ export const BlogPosts: CollectionConfig = {
         if (!data?.markdownSource) return data;
 
         try {
-          const { data: frontmatter, content: body } = matter(
+          const { data: frontmatter, content: rawBody } = matter(
             data.markdownSource
           );
 
-          if (frontmatter.title) data.title = frontmatter.title;
-          if (frontmatter.excerpt) data.excerpt = frontmatter.excerpt;
-          if (frontmatter.readingTime) data.readingTime = frontmatter.readingTime;
-          if (frontmatter.metaTitle) data.metaTitle = frontmatter.metaTitle;
-          if (frontmatter.metaDescription) data.metaDescription = frontmatter.metaDescription;
-          if (frontmatter.status) data.status = frontmatter.status;
+          // Build a case-insensitive lookup for frontmatter keys
+          // Handles: title, Title, meta_title, metaTitle, "Meta title", etc.
+          const fm: Record<string, string> = {};
+          for (const [key, value] of Object.entries(frontmatter)) {
+            if (value != null) {
+              fm[key.toLowerCase().replace(/[\s_-]/g, "")] = String(value);
+            }
+          }
+
+          // If gray-matter found no frontmatter, try parsing "Key: Value" lines from the top
+          let body = rawBody;
+          if (Object.keys(fm).length === 0) {
+            const lines = data.markdownSource.split("\n");
+            const metaLines: string[] = [];
+            for (const line of lines) {
+              const match = line.match(/^([A-Za-z][A-Za-z\s_-]*?):\s*(.+)$/);
+              if (match && metaLines.length < 20) {
+                const key = match[1].toLowerCase().replace(/[\s_-]/g, "");
+                fm[key] = match[2].trim();
+                metaLines.push(line);
+              } else if (line.trim() === "" && metaLines.length > 0) {
+                metaLines.push(line);
+              } else {
+                break;
+              }
+            }
+            // Strip parsed metadata lines from the body
+            if (metaLines.length > 0) {
+              body = lines.slice(metaLines.length).join("\n");
+            }
+          }
+
+          // Map frontmatter to fields (checking multiple key variations)
+          if (fm.title) data.title = fm.title;
+          if (fm.excerpt || fm.description) data.excerpt = fm.excerpt || fm.description;
+          if (fm.readingtime) data.readingTime = fm.readingtime;
+          if (fm.metatitle) data.metaTitle = fm.metatitle;
+          if (fm.metadescription) data.metaDescription = fm.metadescription;
+          if (fm.status) data.status = fm.status;
 
           if (body.trim()) {
             data.markdownContent = body.trim();
@@ -53,16 +86,16 @@ export const BlogPosts: CollectionConfig = {
                 .replace(/(^-|-$)/g, "");
             }
 
-            // Always auto-calculate reading time from word count
+            // Auto-calculate reading time from word count
             const wordCount = body.trim().split(/\s+/).length;
             const minutes = Math.max(1, Math.ceil(wordCount / 200));
             data.readingTime = `${minutes} min read`;
 
-            // Always set metaTitle and metaDescription from content
-            if (data.title) {
+            // Set metaTitle and metaDescription
+            if (!data.metaTitle?.trim() && data.title) {
               data.metaTitle = data.title.slice(0, 60);
             }
-            if (data.excerpt) {
+            if (!data.metaDescription?.trim() && data.excerpt) {
               data.metaDescription = data.excerpt.slice(0, 160);
             }
           }
