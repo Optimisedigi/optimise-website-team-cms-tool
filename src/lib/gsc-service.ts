@@ -348,7 +348,7 @@ export async function fetchCoreWebVitals(
   };
 
   // Try CrUX first, fall back to Lighthouse
-  let [cwvMobile, cwvDesktop] = await Promise.all([
+  let [cwvMobile, cwvDesktop]: [any, any] = await Promise.all([
     fetchCrux("PHONE"),
     fetchCrux("DESKTOP"),
   ]);

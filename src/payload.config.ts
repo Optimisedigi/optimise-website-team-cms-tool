@@ -50,9 +50,17 @@ export default buildConfig({
       },
       actions: ["./components/UserDisplayName"],
       beforeNavLinks: ["./components/SidebarLogo"],
+      afterNavLinks: ["./components/GscDashboardNavLink"],
       afterLogin: ["./components/ShowPasswordToggle"],
       providers: ["./components/FirstLoginSetup"],
       beforeDashboard: ["./components/DashboardWelcome"],
+      views: {
+        gscDashboard: {
+          Component: "./components/GscDashboardView",
+          path: "/gsc-dashboard",
+          exact: true,
+        },
+      },
     },
   },
   collections: [Users, Clients, ClientProposals, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, Media],

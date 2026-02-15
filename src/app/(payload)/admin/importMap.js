@@ -34,9 +34,11 @@ import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../co
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_4a8985253bad55ee72042259cf28f1d7 } from '../../../components/UserDisplayName'
 import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
+import { default as default_acc27d1353a327751e401522a5167436 } from '../../../components/GscDashboardNavLink'
 import { default as default_eee8d15b2609d03b18983f3bc669ce04 } from '../../../components/DashboardWelcome'
 import { default as default_cc474ecbeaf676f497427d66a0f4dd38 } from '../../../components/SidebarLogo'
 import { default as default_f79b4ca75381164e95f118cd1e894463 } from '../../../components/FirstLoginSetup'
+import { default as default_b12a41922bac06ceefcfbb0b793b23f0 } from '../../../components/GscDashboardView'
 import { CollectionCards as CollectionCards_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 
 export const importMap = {
@@ -76,8 +78,10 @@ export const importMap = {
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/UserDisplayName#default": default_4a8985253bad55ee72042259cf28f1d7,
   "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
+  "./components/GscDashboardNavLink#default": default_acc27d1353a327751e401522a5167436,
   "./components/DashboardWelcome#default": default_eee8d15b2609d03b18983f3bc669ce04,
   "./components/SidebarLogo#default": default_cc474ecbeaf676f497427d66a0f4dd38,
   "./components/FirstLoginSetup#default": default_f79b4ca75381164e95f118cd1e894463,
+  "./components/GscDashboardView#default": default_b12a41922bac06ceefcfbb0b793b23f0,
   "@payloadcms/ui/rsc#CollectionCards": CollectionCards_ab83ff7e88da8d3530831f296ec4756a
 }
