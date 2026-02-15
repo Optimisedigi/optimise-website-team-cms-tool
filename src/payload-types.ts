@@ -78,7 +78,6 @@ export interface Config {
     'competitor-analyses': CompetitorAnalysis;
     'content-researches': ContentResearch;
     'usage-reports': UsageReport;
-    'test-items': TestItem;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -98,7 +97,6 @@ export interface Config {
     'competitor-analyses': CompetitorAnalysesSelect<false> | CompetitorAnalysesSelect<true>;
     'content-researches': ContentResearchesSelect<false> | ContentResearchesSelect<true>;
     'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
-    'test-items': TestItemsSelect<false> | TestItemsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -1299,16 +1297,6 @@ export interface UsageReport {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "test-items".
- */
-export interface TestItem {
-  id: number;
-  title?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -1374,10 +1362,6 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'usage-reports';
         value: number | UsageReport;
-      } | null)
-    | ({
-        relationTo: 'test-items';
-        value: number | TestItem;
       } | null)
     | ({
         relationTo: 'media';
@@ -1729,15 +1713,6 @@ export interface UsageReportsSelect<T extends boolean = true> {
   totalKeywordsTracked?: T;
   estimatedCosts?: T;
   totalEstimatedCost?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "test-items_select".
- */
-export interface TestItemsSelect<T extends boolean = true> {
-  title?: T;
   updatedAt?: T;
   createdAt?: T;
 }

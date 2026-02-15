@@ -18,7 +18,6 @@ import { CompetitorAnalyses } from "./collections/CompetitorAnalyses";
 import { JobPosts } from "./collections/JobPosts";
 import { UsageReports } from "./collections/UsageReports";
 import { ContentResearches } from "./collections/ContentResearches";
-import { TestCollection } from "./collections/TestCollection";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -54,7 +53,7 @@ export default buildConfig({
       beforeDashboard: ["./components/DashboardWelcome"],
     },
   },
-  collections: [Users, Clients, ClientProposals, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, TestCollection, Media],
+  collections: [Users, Clients, ClientProposals, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, Media],
   editor: lexicalEditor(),
   secret: (() => {
     const s = process.env.PAYLOAD_SECRET;
