@@ -878,6 +878,14 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
       <div className="report-presentation">
 
         {/* ============================================================ */}
+        {/* SLIDE 19 — Closing / Space Station                          */}
+        {/* ============================================================ */}
+        <section className="slide slide-19">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/slides/Space-station-optimise-digital.png" alt="Optimise Digital — Your Growth Partner" className="slide-full-img" />
+        </section>
+
+        {/* ============================================================ */}
         {/* SLIDE 18 — Launch Requirements                              */}
         {/* ============================================================ */}
         <section className="slide slide-18 slide-expandable">

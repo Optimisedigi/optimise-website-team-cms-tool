@@ -29,20 +29,11 @@ export const BlogPosts: CollectionConfig = {
           );
 
           if (frontmatter.title) data.title = frontmatter.title;
-          if (frontmatter.date) {
-            data.publishedDate =
-              typeof frontmatter.date === "string"
-                ? frontmatter.date
-                : new Date(frontmatter.date).toISOString().split("T")[0];
-          }
-          if (frontmatter.author) data.author = frontmatter.author;
           if (frontmatter.excerpt) data.excerpt = frontmatter.excerpt;
-          if (frontmatter.imageAlt) data.featuredImageAlt = frontmatter.imageAlt;
-          if (frontmatter.slug) data.slug = frontmatter.slug;
-
-          if (Array.isArray(frontmatter.tags)) {
-            data.tags = frontmatter.tags;
-          }
+          if (frontmatter.readingTime) data.readingTime = frontmatter.readingTime;
+          if (frontmatter.metaTitle) data.metaTitle = frontmatter.metaTitle;
+          if (frontmatter.metaDescription) data.metaDescription = frontmatter.metaDescription;
+          if (frontmatter.status) data.status = frontmatter.status;
 
           if (body.trim()) {
             data.markdownContent = body.trim();
@@ -178,6 +169,15 @@ export const BlogPosts: CollectionConfig = {
         {
           label: "Media & Display",
           fields: [
+            {
+              name: "generateImage",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GenerateBlogImageButton",
+                },
+              },
+            },
             {
               name: "featuredImage",
               type: "upload",

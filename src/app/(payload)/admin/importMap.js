@@ -26,6 +26,7 @@ import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0
 import { default as default_7e7701142b7068d2cf11592b7f0f90ce } from '../../../components/ClientCategorySelect'
 import { default as default_944faab4983d5384b5ad76a5dc5c6065 } from '../../../components/ClientTagsSelect'
 import { default as default_cce1b7420de9fe5183217c041b5a6118 } from '../../../components/ClientAuthorSelect'
+import { default as default_a1b2c3d4e5f6789012345678abcdef01 } from '../../../components/GenerateBlogImageButton'
 import { default as default_3d6cbb93c24934a6d54420e5106bbab0 } from '../../../components/ViewReportLink'
 import { default as default_5ee4907bc6cc2a02fa1a48dea9e62484 } from '../../../components/DownloadMarkdownButton'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
@@ -67,6 +68,7 @@ export const importMap = {
   "./components/ClientCategorySelect#default": default_7e7701142b7068d2cf11592b7f0f90ce,
   "./components/ClientTagsSelect#default": default_944faab4983d5384b5ad76a5dc5c6065,
   "./components/ClientAuthorSelect#default": default_cce1b7420de9fe5183217c041b5a6118,
+  "./components/GenerateBlogImageButton#default": default_a1b2c3d4e5f6789012345678abcdef01,
   "./components/ViewReportLink#default": default_3d6cbb93c24934a6d54420e5106bbab0,
   "./components/DownloadMarkdownButton#default": default_5ee4907bc6cc2a02fa1a48dea9e62484,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,

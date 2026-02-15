@@ -14,6 +14,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@google/genai": "^1.41.0",
     "@payloadcms/db-sqlite": "^3.17.0",
     "@payloadcms/next": "^3.17.0",
     "@payloadcms/richtext-lexical": "^3.17.0",
