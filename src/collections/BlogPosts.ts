@@ -38,33 +38,31 @@ export const BlogPosts: CollectionConfig = {
           if (body.trim()) {
             data.markdownContent = body.trim();
 
-            // Auto-generate excerpt from body if not in frontmatter
-            if (!data.excerpt) {
+            // Auto-generate excerpt from body if missing
+            if (!data.excerpt?.trim()) {
               const plain = body.replace(/[#*_`>\[\]()!|~-]/g, "").trim();
               const firstParagraph = plain.split(/\n\s*\n/)[0]?.trim() || "";
               data.excerpt = firstParagraph.slice(0, 157) + (firstParagraph.length > 157 ? "..." : "");
             }
 
-            // Auto-generate slug from title if not set
-            if (!data.slug && data.title) {
+            // Auto-generate slug from title if missing
+            if (!data.slug?.trim() && data.title) {
               data.slug = data.title
                 .toLowerCase()
                 .replace(/[^a-z0-9]+/g, "-")
                 .replace(/(^-|-$)/g, "");
             }
 
-            // Auto-calculate reading time from word count
-            if (!data.readingTime) {
-              const wordCount = body.trim().split(/\s+/).length;
-              const minutes = Math.max(1, Math.ceil(wordCount / 200));
-              data.readingTime = `${minutes} min read`;
-            }
+            // Always auto-calculate reading time from word count
+            const wordCount = body.trim().split(/\s+/).length;
+            const minutes = Math.max(1, Math.ceil(wordCount / 200));
+            data.readingTime = `${minutes} min read`;
 
-            // Auto-set metaTitle and metaDescription from content if not provided
-            if (!data.metaTitle && data.title) {
+            // Always set metaTitle and metaDescription from content
+            if (data.title) {
               data.metaTitle = data.title.slice(0, 60);
             }
-            if (!data.metaDescription && data.excerpt) {
+            if (data.excerpt) {
               data.metaDescription = data.excerpt.slice(0, 160);
             }
           }
