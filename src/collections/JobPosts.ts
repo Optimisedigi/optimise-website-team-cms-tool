@@ -50,16 +50,11 @@ export const JobPosts: CollectionConfig = {
     {
       name: "clientConfirmed",
       type: "checkbox",
-      required: true,
       defaultValue: false,
       admin: {
         position: "sidebar",
         description:
           "Confirm the selected client is correct before saving or publishing",
-      },
-      validate: (value: boolean | null | undefined) => {
-        if (!value) return "You must confirm the client selection before saving";
-        return true;
       },
     },
     {
