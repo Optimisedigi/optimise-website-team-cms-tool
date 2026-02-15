@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 export default function AdminError({
   error,
@@ -9,30 +9,9 @@ export default function AdminError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  const [retried, setRetried] = useState(false)
-
   useEffect(() => {
     console.error('[admin-error]', error)
-
-    // Auto-recover: if this looks like a stale deployment error, reload the page
-    const msg = error.message || ''
-    if (
-      msg.includes('router state') ||
-      msg.includes('could not be parsed') ||
-      msg.includes('Failed to fetch RSC')
-    ) {
-      window.location.reload()
-    }
   }, [error])
-
-  const handleRefresh = () => {
-    window.location.reload()
-  }
-
-  const handleRetry = () => {
-    setRetried(true)
-    reset()
-  }
 
   return (
     <div
@@ -54,38 +33,20 @@ export default function AdminError({
           Error digest: {error.digest}
         </p>
       )}
-      <div style={{ display: 'flex', gap: 8 }}>
-        {!retried && (
-          <button
-            onClick={handleRetry}
-            style={{
-              padding: '8px 16px',
-              background: '#000',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 4,
-              cursor: 'pointer',
-              fontSize: 14,
-            }}
-          >
-            Try again
-          </button>
-        )}
-        <button
-          onClick={handleRefresh}
-          style={{
-            padding: '8px 16px',
-            background: retried ? '#000' : 'transparent',
-            color: retried ? '#fff' : '#000',
-            border: retried ? 'none' : '1px solid #ccc',
-            borderRadius: 4,
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
-        >
-          Refresh page
-        </button>
-      </div>
+      <button
+        onClick={reset}
+        style={{
+          padding: '8px 16px',
+          background: '#000',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 4,
+          cursor: 'pointer',
+          fontSize: 14,
+        }}
+      >
+        Try again
+      </button>
     </div>
   )
 }

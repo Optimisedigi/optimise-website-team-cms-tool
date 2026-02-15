@@ -202,19 +202,6 @@ function getSeoSummary(score: number): string {
   return 'Major SEO gaps requiring immediate attention.'
 }
 
-const conversionGoalLabels: Record<string, string> = {
-  'lead generation': 'Lead Generation',
-  'phone calls': 'Phone Calls',
-  'form submissions': 'Form Submissions',
-  'e-commerce': 'E-commerce Sales',
-  'bookings': 'Bookings / Appointments',
-  'quote requests': 'Quote Requests',
-  'email sign-ups': 'Email Sign-ups',
-  'free trial': 'Free Trial Sign-ups',
-  'content downloads': 'Content Downloads',
-  'brand awareness': 'Brand Awareness',
-}
-
 const businessTypeLabels: Record<string, string> = {
   trades: 'Trades & Home Services',
   services: 'Professional Services',
@@ -775,31 +762,20 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   }
 
   // Create stub CompetitorProfile entries for CMS competitors not matched in API data
-  // Try to find screenshot from API data using fuzzy domain matching
-  const allCompsByDomain = new Map<string, CompetitorProfile>()
-  for (const comp of allCompetitorsWithOverrides) {
-    const key = (comp.domain || '').replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '')
-    if (key) allCompsByDomain.set(key, comp)
-  }
-
   for (const c of cmsCompetitors) {
     if (!c.websiteUrl) continue
     const domain = domainFromUrl(c.websiteUrl)
     if (!matchedCmsDomains.has(domain)) {
       const hasMetaOverride = metaAdsOverrides.has(domain)
-      // Look up partial match in API data (the domain might differ slightly)
-      const apiMatch = allCompsByDomain.get(domain)
       selectedCompetitors.push({
         domain,
-        traffic: apiMatch?.traffic ?? null,
-        avgPosition: apiMatch?.avgPosition ?? undefined,
-        keywordsFound: apiMatch?.keywordsFound ?? undefined,
-        websiteScreenshot: apiMatch?.websiteScreenshot ?? null,
-        metaAds: hasMetaOverride
-          ? { isRunningAds: true, activeAdCount: 0, adScreenshots: [] }
-          : apiMatch?.metaAds ?? null,
-        googleAds: apiMatch?.googleAds ?? null,
-        googleBusinessProfile: apiMatch?.googleBusinessProfile ?? null,
+        traffic: null,
+        avgPosition: undefined,
+        keywordsFound: undefined,
+        websiteScreenshot: null,
+        metaAds: hasMetaOverride ? { isRunningAds: true, activeAdCount: 0, adScreenshots: [] } : null,
+        googleAds: null,
+        googleBusinessProfile: null,
       })
     }
   }
@@ -1596,7 +1572,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   <dl className="audit-meta">
                     <div>
                       <dt>Website Conversion Goal</dt>
-                      <dd>{conversionGoalLabels[(croAudit as any).conversionGoal] || (croAudit as any).conversionGoal}</dd>
+                      <dd>{(croAudit as any).conversionGoal}</dd>
                     </div>
                     <div>
                       <dt>Overall Score</dt>
@@ -1801,7 +1777,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 {proposal.conversionGoal && (
                   <div className="client-overview-item">
                     <span className="client-overview-label">Website Conversion Goal</span>
-                    <span className="client-overview-value">{conversionGoalLabels[proposal.conversionGoal] || proposal.conversionGoal}</span>
+                    <span className="client-overview-value">{proposal.conversionGoal}</span>
                   </div>
                 )}
               </div>

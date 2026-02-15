@@ -48,16 +48,6 @@ export const JobPosts: CollectionConfig = {
       },
     },
     {
-      name: "clientConfirmed",
-      type: "checkbox",
-      defaultValue: false,
-      admin: {
-        position: "sidebar",
-        description:
-          "Confirm the selected client is correct before saving or publishing",
-      },
-    },
-    {
       type: "tabs",
       tabs: [
         {

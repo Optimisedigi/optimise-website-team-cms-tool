@@ -12,14 +12,12 @@ const GenerateBlogImageButton = () => {
 
   const title = fields?.title?.value as string | undefined
   const excerpt = fields?.excerpt?.value as string | undefined
-  const imagePromptOverride = fields?.imagePromptOverride?.value as string | undefined
 
   const notSaved = !id
   const missingFields: string[] = []
   if (!title?.trim()) missingFields.push('Title')
 
   const handleClick = async () => {
-    if (loading) return
     setLoading(true)
     setMessage(null)
     setError(null)
@@ -33,7 +31,6 @@ const GenerateBlogImageButton = () => {
           blogPostId: id,
           title: title?.trim(),
           excerpt: excerpt?.trim(),
-          imagePromptOverride: imagePromptOverride?.trim() || undefined,
         }),
       })
 

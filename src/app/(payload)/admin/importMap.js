@@ -1,4 +1,3 @@
-import { default as default_cad0ddc4379f00906b5d5d07858c266a } from '../../../components/GscConnectButton'
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
 import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../components/ViewProposalReportLink'
 import { RscEntryLexicalCell as RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
@@ -34,17 +33,13 @@ import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../co
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_4a8985253bad55ee72042259cf28f1d7 } from '../../../components/UserDisplayName'
 import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
-import { default as default_acc27d1353a327751e401522a5167436 } from '../../../components/GscDashboardNavLink'
 import { default as default_eee8d15b2609d03b18983f3bc669ce04 } from '../../../components/DashboardWelcome'
 import { default as default_cc474ecbeaf676f497427d66a0f4dd38 } from '../../../components/SidebarLogo'
 import { default as default_f79b4ca75381164e95f118cd1e894463 } from '../../../components/FirstLoginSetup'
-import { default as default_30b462c31bfed4dfe63e7ef34d180475 } from '../../../components/NavigationRecovery'
-import { default as default_b12a41922bac06ceefcfbb0b793b23f0 } from '../../../components/GscDashboardView'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 import { CollectionCards as CollectionCards_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 
 export const importMap = {
-  "./components/GscConnectButton#default": default_cad0ddc4379f00906b5d5d07858c266a,
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
   "./components/ViewProposalReportLink#default": default_5e310d3006558ed2b01fcb80fcc2b97e,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalCell": RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e,
@@ -80,12 +75,9 @@ export const importMap = {
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/UserDisplayName#default": default_4a8985253bad55ee72042259cf28f1d7,
   "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
-  "./components/GscDashboardNavLink#default": default_acc27d1353a327751e401522a5167436,
   "./components/DashboardWelcome#default": default_eee8d15b2609d03b18983f3bc669ce04,
   "./components/SidebarLogo#default": default_cc474ecbeaf676f497427d66a0f4dd38,
   "./components/FirstLoginSetup#default": default_f79b4ca75381164e95f118cd1e894463,
-  "./components/NavigationRecovery#default": default_30b462c31bfed4dfe63e7ef34d180475,
-  "./components/GscDashboardView#default": default_b12a41922bac06ceefcfbb0b793b23f0,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
   "@payloadcms/ui/rsc#CollectionCards": CollectionCards_ab83ff7e88da8d3530831f296ec4756a
 }
