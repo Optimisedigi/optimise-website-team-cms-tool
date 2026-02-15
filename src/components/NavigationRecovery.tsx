@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import React, { useEffect } from 'react'
 
 /**
  * Intercepts failed RSC navigations (500 errors) and forces a full page reload.
@@ -12,7 +12,7 @@ import { useEffect } from 'react'
  * This provider monkey-patches `fetch` to detect these failures and auto-recover
  * by reloading the page. Uses sessionStorage to prevent infinite reload loops.
  */
-const NavigationRecovery = () => {
+const NavigationRecovery: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     const originalFetch = window.fetch
 
@@ -37,7 +37,6 @@ const NavigationRecovery = () => {
         const isAdmin = url.includes('/admin')
 
         if (isRSC && isAdmin) {
-          // Prevent infinite reload loops: only auto-reload once per URL
           const key = `nav-recovery:${url}`
           const lastReload = sessionStorage.getItem(key)
           const now = Date.now()
@@ -58,7 +57,7 @@ const NavigationRecovery = () => {
     }
   }, [])
 
-  return null
+  return <>{children}</>
 }
 
 export default NavigationRecovery
