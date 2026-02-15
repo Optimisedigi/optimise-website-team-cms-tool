@@ -52,7 +52,7 @@ export default buildConfig({
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/GscDashboardNavLink"],
       afterLogin: ["./components/ShowPasswordToggle"],
-      providers: ["./components/FirstLoginSetup"],
+      providers: ["./components/FirstLoginSetup", "./components/NavigationRecovery"],
       beforeDashboard: ["./components/DashboardWelcome"],
       views: {
         gscDashboard: {
