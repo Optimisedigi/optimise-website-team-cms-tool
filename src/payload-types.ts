@@ -1249,7 +1249,7 @@ export interface BlogPost {
   /**
    * Confirm the selected client is correct before saving or publishing
    */
-  clientConfirmed: boolean;
+  clientConfirmed?: boolean | null;
   /**
    * The H1 title. Make it intent-led: describe what the reader will learn + who it's for.
    */
@@ -1363,7 +1363,7 @@ export interface JobPost {
   /**
    * Confirm the selected client is correct before saving or publishing
    */
-  clientConfirmed: boolean;
+  clientConfirmed?: boolean | null;
   /**
    * Job title as it should appear on the careers page (e.g. 'Senior SEO Specialist').
    */

@@ -23,20 +23,30 @@ const NavigationRecovery: React.FC<{ children: React.ReactNode }> = ({ children 
       const response = await originalFetch.call(window, input, init)
 
       if (response.status === 500) {
-        const headers = init?.headers
-        const isRSC =
-          headers instanceof Headers
-            ? headers.get('RSC') === '1'
-            : Array.isArray(headers)
-              ? headers.some(([k, v]) => k === 'RSC' && v === '1')
-              : typeof headers === 'object' && headers !== null
-                ? (headers as Record<string, string>)['RSC'] === '1'
-                : false
-
         const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
         const isAdmin = url.includes('/admin')
 
-        if (isRSC && isAdmin) {
+        // Check RSC header in both Request object headers AND init.headers
+        let isRSC = false
+        if (input instanceof Request) {
+          isRSC = input.headers.get('RSC') === '1'
+        }
+        if (!isRSC && init?.headers) {
+          const headers = init.headers
+          isRSC =
+            headers instanceof Headers
+              ? headers.get('RSC') === '1'
+              : Array.isArray(headers)
+                ? headers.some(([k, v]) => k === 'RSC' && v === '1')
+                : typeof headers === 'object' && headers !== null
+                  ? (headers as Record<string, string>)['RSC'] === '1'
+                  : false
+        }
+        // Fallback: any non-JSON 500 on admin routes is likely a broken RSC response
+        const contentType = response.headers.get('content-type') || ''
+        const isNonJsonError = !contentType.includes('application/json')
+
+        if ((isRSC || isNonJsonError) && isAdmin) {
           const key = `nav-recovery:${url}`
           const lastReload = sessionStorage.getItem(key)
           const now = Date.now()
