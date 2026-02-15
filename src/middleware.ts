@@ -7,9 +7,8 @@ import { NextRequest, NextResponse } from "next/server";
  * cached Next-Router-State-Tree header becomes stale and can't be parsed
  * by the new deployment, causing 500 errors on all admin navigations.
  *
- * This middleware detects deployment mismatches and responds with a 200
- * containing a script that forces a full page reload, bypassing the stale
- * router state entirely.
+ * This middleware detects deployment mismatches and returns a non-RSC
+ * response that forces the client-side router to do a full page reload.
  */
 
 const BUILD_ID =
@@ -40,18 +39,20 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Deployment mismatch (or first visit after deploy) — force MPA navigation.
-  // We can't strip the header (Next.js reads it before our modification applies),
-  // so we redirect to the same URL. The redirect causes a full page load
-  // which won't send the stale RSC headers.
-  const url = request.nextUrl.clone();
-  const response = NextResponse.redirect(url, { status: 307 });
-  response.cookies.set("__deploy_id", BUILD_ID, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-  });
-  return response;
+  // Deployment mismatch (or first visit after deploy).
+  // Return a non-RSC response so the client falls back to MPA navigation.
+  // The client checks: if (!isFlightResponse || !res.ok) → doMpaNavigation()
+  const url = request.nextUrl.pathname + request.nextUrl.search;
+  return new Response(
+    `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${url}"></head><body><script>window.location.replace(${JSON.stringify(url)})</script></body></html>`,
+    {
+      status: 200,
+      headers: {
+        "content-type": "text/html",
+        "set-cookie": `__deploy_id=${BUILD_ID}; Path=/; HttpOnly; SameSite=Lax`,
+      },
+    },
+  );
 }
 
 export const config = {
