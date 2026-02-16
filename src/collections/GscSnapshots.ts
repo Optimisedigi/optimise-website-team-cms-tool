@@ -224,7 +224,15 @@ export const GscSnapshots: CollectionConfig = {
                 },
               ],
             },
-            // previousSnapshot self-reference temporarily removed for debugging
+            {
+              name: "previousSnapshot",
+              type: "relationship",
+              relationTo: "gsc-snapshots",
+              admin: {
+                readOnly: true,
+                description: "Previous snapshot for comparison",
+              },
+            },
           ],
         },
       ],

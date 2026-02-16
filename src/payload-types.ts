@@ -519,6 +519,10 @@ export interface GscSnapshot {
    * Position change vs previous period (negative = improved)
    */
   positionChange?: number | null;
+  /**
+   * Previous snapshot for comparison
+   */
+  previousSnapshot?: (number | null) | GscSnapshot;
   updatedAt: string;
   createdAt: string;
 }
@@ -1984,6 +1988,7 @@ export interface GscSnapshotsSelect<T extends boolean = true> {
   clicksChange?: T;
   impressionsChange?: T;
   positionChange?: T;
+  previousSnapshot?: T;
   updatedAt?: T;
   createdAt?: T;
 }
