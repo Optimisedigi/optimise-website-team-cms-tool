@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       results.push(`OK: ${label}`);
     } catch (e: any) {
       const msg = e?.message || String(e);
-      if (msg.includes("already exists")) {
+      if (msg.includes("already exists") || msg.includes("duplicate column")) {
         results.push(`SKIP: ${label} (already exists)`);
       } else {
         results.push(`ERROR: ${label} — ${msg}`);
