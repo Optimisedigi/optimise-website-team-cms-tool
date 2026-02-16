@@ -6,11 +6,5 @@
     "src/app/(payload)/admin/[[...segments]]/not-found.tsx": {
       "maxDuration": 30
     }
-  },
-  "crons": [
-    {
-      "path": "/api/gsc/cron",
-      "schedule": "0 6 1 * *"
-    }
-  ]
+  }
 }
