@@ -307,6 +307,15 @@ export const Clients: CollectionConfig = {
           label: "Search Console",
           fields: [
             {
+              name: "gscConnect",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GscConnectButton",
+                },
+              },
+            },
+            {
               name: "gscConnected",
               type: "checkbox",
               defaultValue: false,

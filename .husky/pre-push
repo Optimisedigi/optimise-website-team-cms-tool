@@ -5,3 +5,15 @@ echo "🔨 Running build..."
 npm run build || exit 1
 
 echo "✅ Pre-push checks passed"
+
+# Check if any collection files changed — remind to run migrations
+COLLECTION_CHANGES=$(git diff --name-only origin/main...HEAD -- 'src/collections/' 'src/app/(frontend)/api/migrate/' 2>/dev/null || true)
+if [ -n "$COLLECTION_CHANGES" ]; then
+  echo ""
+  echo "⚠️  Schema-related files changed:"
+  echo "$COLLECTION_CHANGES"
+  echo ""
+  echo "👉 After Vercel deploys, run the migration against production:"
+  echo "   curl -X POST https://cms.optimisedigital.online/api/migrate -H 'x-api-key: \$AUDIT_API_KEY'"
+  echo ""
+fi
