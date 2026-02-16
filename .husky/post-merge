@@ -1,4 +1,4 @@
-MERGED_BRANCH=$(git reflog -1 | grep -oP "merge \K[^:]+")
+MERGED_BRANCH=$(git reflog -1 | sed -n 's/.*merge \([^:]*\).*/\1/p')
 if [ -n "$MERGED_BRANCH" ] && [ "$MERGED_BRANCH" != "main" ]; then
   git branch -d "$MERGED_BRANCH" 2>/dev/null && echo "Cleaned up branch: $MERGED_BRANCH"
 fi
