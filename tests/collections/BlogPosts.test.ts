@@ -51,7 +51,7 @@ describe("BlogPosts Collection", () => {
       );
       expect(statusField).toBeDefined();
       if (statusField && "options" in statusField) {
-        const values = statusField.options?.map((o: { value: string }) => o.value);
+        const values = statusField.options?.map((o) => typeof o === "string" ? o : o.value);
         expect(values).toContain("draft");
         expect(values).toContain("review");
         expect(values).toContain("published");

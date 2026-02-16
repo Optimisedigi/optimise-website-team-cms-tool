@@ -1,0 +1,7 @@
+echo "🔍 Running type check..."
+npx tsc --noEmit || exit 1
+
+echo "🔨 Running build..."
+npm run build || exit 1
+
+echo "✅ Pre-push checks passed"

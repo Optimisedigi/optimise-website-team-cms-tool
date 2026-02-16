@@ -34,7 +34,7 @@ describe("Users Collection", () => {
     expect(roleField).toBeDefined();
     expect(roleField).toHaveProperty("type", "select");
     if (roleField && "options" in roleField) {
-      const values = roleField.options?.map((o: { value: string }) => o.value);
+      const values = roleField.options?.map((o) => typeof o === "string" ? o : o.value);
       expect(values).toContain("admin");
       expect(values).toContain("editor");
       expect(values).toContain("writer");
