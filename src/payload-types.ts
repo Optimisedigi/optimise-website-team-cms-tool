@@ -78,6 +78,8 @@ export interface Config {
     'competitor-analyses': CompetitorAnalysis;
     'content-researches': ContentResearch;
     'usage-reports': UsageReport;
+    'gsc-snapshots': GscSnapshot;
+    'gsc-alerts': GscAlert;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -97,6 +99,8 @@ export interface Config {
     'competitor-analyses': CompetitorAnalysesSelect<false> | CompetitorAnalysesSelect<true>;
     'content-researches': ContentResearchesSelect<false> | ContentResearchesSelect<true>;
     'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
+    'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
+    'gsc-alerts': GscAlertsSelect<false> | GscAlertsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -202,6 +206,10 @@ export interface Client {
    */
   clientPin?: string | null;
   /**
+   * Who built the website — determines whether GSC alerts are actionable (we fix) or advisory (we recommend)
+   */
+  websiteType?: ('built_by_us' | 'external_cms') | null;
+  /**
    * Goals, notes, and context about this client
    */
   notes?: string | null;
@@ -303,6 +311,25 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Whether Google Search Console is connected
+   */
+  gscConnected?: boolean | null;
+  /**
+   * The connected GSC property URL
+   */
+  gscPropertyUrl?: string | null;
+  gscAccessToken?: string | null;
+  gscRefreshToken?: string | null;
+  gscTokenExpiry?: string | null;
+  /**
+   * Last successful GSC data sync
+   */
+  gscLastSync?: string | null;
+  /**
+   * Most recent GSC data snapshot
+   */
+  latestGscSnapshot?: (number | null) | GscSnapshot;
   updatedAt: string;
   createdAt: string;
 }
@@ -359,6 +386,141 @@ export interface Media {
       filename?: string | null;
     };
   };
+}
+/**
+ * Monthly Google Search Console data snapshots
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-snapshots".
+ */
+export interface GscSnapshot {
+  id: number;
+  /**
+   * The client this snapshot belongs to
+   */
+  client: number | Client;
+  /**
+   * Date this snapshot was taken
+   */
+  snapshotDate: string;
+  /**
+   * Start of the reporting period
+   */
+  periodStart: string;
+  /**
+   * End of the reporting period
+   */
+  periodEnd: string;
+  /**
+   * Total clicks from search
+   */
+  totalClicks?: number | null;
+  /**
+   * Total search impressions
+   */
+  totalImpressions?: number | null;
+  /**
+   * Average click-through rate (%)
+   */
+  avgCtr?: number | null;
+  /**
+   * Average search position
+   */
+  avgPosition?: number | null;
+  /**
+   * Top keywords — array of {keyword, clicks, impressions, ctr, position}
+   */
+  topKeywords?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Top pages — array of {page, clicks, impressions, ctr, position}
+   */
+  topPages?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Number of indexed pages
+   */
+  indexedPages?: number | null;
+  /**
+   * Number of pages not indexed
+   */
+  notIndexedPages?: number | null;
+  /**
+   * Indexing issues — array of {reason, count, urls}
+   */
+  indexingIssues?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Sitemaps — array of {url, lastSubmitted, isPending, warnings, errors}
+   */
+  sitemaps?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Mobile CWV — {lcp, fid, cls, status} where status is GOOD/NEEDS_IMPROVEMENT/POOR
+   */
+  cwvMobile?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Desktop CWV — {lcp, fid, cls, status}
+   */
+  cwvDesktop?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Clicks change vs previous period (%)
+   */
+  clicksChange?: number | null;
+  /**
+   * Impressions change vs previous period (%)
+   */
+  impressionsChange?: number | null;
+  /**
+   * Position change vs previous period (negative = improved)
+   */
+  positionChange?: number | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Proposals for prospective clients
@@ -1081,6 +1243,10 @@ export interface BlogPost {
    */
   client: number | Client;
   /**
+   * Confirm the selected client is correct before saving or publishing
+   */
+  clientConfirmed?: boolean | null;
+  /**
    * The H1 title. Make it intent-led: describe what the reader will learn + who it's for.
    */
   title: string;
@@ -1130,6 +1296,10 @@ export interface BlogPost {
    * Only set if this content exists elsewhere and you want to point to the original.
    */
   canonicalUrl?: string | null;
+  /**
+   * Override the auto-generated image prompt. If filled, the image will be generated from this prompt instead of the title/excerpt. Leave blank to auto-generate from title and excerpt.
+   */
+  imagePromptOverride?: string | null;
   /**
    * Main image for the blog post. Will be used as thumbnail and social sharing image.
    */
@@ -1186,6 +1356,10 @@ export interface JobPost {
    * Select which client this job post belongs to
    */
   client: number | Client;
+  /**
+   * Confirm the selected client is correct before saving or publishing
+   */
+  clientConfirmed?: boolean | null;
   /**
    * Job title as it should appear on the careers page (e.g. 'Senior SEO Specialist').
    */
@@ -1296,6 +1470,57 @@ export interface UsageReport {
   createdAt: string;
 }
 /**
+ * Alerts triggered by GSC snapshot comparisons
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-alerts".
+ */
+export interface GscAlert {
+  id: number;
+  /**
+   * The client this alert belongs to
+   */
+  client: number | Client;
+  /**
+   * The snapshot that triggered this alert
+   */
+  snapshot: number | GscSnapshot;
+  /**
+   * Alert severity level
+   */
+  severity: 'critical' | 'warning' | 'info';
+  /**
+   * Alert category
+   */
+  category: 'indexing' | 'performance' | 'cwv' | 'keyword' | 'sitemap';
+  /**
+   * Short alert title (e.g., "Indexing dropped 15%")
+   */
+  title: string;
+  /**
+   * Detailed explanation of the issue
+   */
+  description?: string | null;
+  /**
+   * Whether we can directly fix this (true for "built by us" clients)
+   */
+  actionable?: boolean | null;
+  /**
+   * Recommended action to resolve the issue
+   */
+  recommendation?: string | null;
+  /**
+   * Whether this alert has been resolved
+   */
+  resolved?: boolean | null;
+  /**
+   * When the alert was resolved
+   */
+  resolvedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -1362,6 +1587,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'usage-reports';
         value: number | UsageReport;
+      } | null)
+    | ({
+        relationTo: 'gsc-snapshots';
+        value: number | GscSnapshot;
+      } | null)
+    | ({
+        relationTo: 'gsc-alerts';
+        value: number | GscAlert;
       } | null)
     | ({
         relationTo: 'media';
@@ -1448,6 +1681,7 @@ export interface ClientsSelect<T extends boolean = true> {
   apiKey?: T;
   isActive?: T;
   clientPin?: T;
+  websiteType?: T;
   notes?: T;
   businessType?: T;
   targetLocation?: T;
@@ -1484,6 +1718,13 @@ export interface ClientsSelect<T extends boolean = true> {
             };
         id?: T;
       };
+  gscConnected?: T;
+  gscPropertyUrl?: T;
+  gscAccessToken?: T;
+  gscRefreshToken?: T;
+  gscTokenExpiry?: T;
+  gscLastSync?: T;
+  latestGscSnapshot?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1561,6 +1802,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
  */
 export interface BlogPostsSelect<T extends boolean = true> {
   client?: T;
+  clientConfirmed?: T;
   title?: T;
   excerpt?: T;
   content?: T;
@@ -1570,6 +1812,7 @@ export interface BlogPostsSelect<T extends boolean = true> {
   metaTitle?: T;
   metaDescription?: T;
   canonicalUrl?: T;
+  imagePromptOverride?: T;
   featuredImage?: T;
   featuredImageAlt?: T;
   category?: T;
@@ -1588,6 +1831,7 @@ export interface BlogPostsSelect<T extends boolean = true> {
  */
 export interface JobPostsSelect<T extends boolean = true> {
   client?: T;
+  clientConfirmed?: T;
   jobTitle?: T;
   excerpt?: T;
   description?: T;
@@ -1713,6 +1957,51 @@ export interface UsageReportsSelect<T extends boolean = true> {
   totalKeywordsTracked?: T;
   estimatedCosts?: T;
   totalEstimatedCost?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-snapshots_select".
+ */
+export interface GscSnapshotsSelect<T extends boolean = true> {
+  client?: T;
+  snapshotDate?: T;
+  periodStart?: T;
+  periodEnd?: T;
+  totalClicks?: T;
+  totalImpressions?: T;
+  avgCtr?: T;
+  avgPosition?: T;
+  topKeywords?: T;
+  topPages?: T;
+  indexedPages?: T;
+  notIndexedPages?: T;
+  indexingIssues?: T;
+  sitemaps?: T;
+  cwvMobile?: T;
+  cwvDesktop?: T;
+  clicksChange?: T;
+  impressionsChange?: T;
+  positionChange?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-alerts_select".
+ */
+export interface GscAlertsSelect<T extends boolean = true> {
+  client?: T;
+  snapshot?: T;
+  severity?: T;
+  category?: T;
+  title?: T;
+  description?: T;
+  actionable?: T;
+  recommendation?: T;
+  resolved?: T;
+  resolvedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
