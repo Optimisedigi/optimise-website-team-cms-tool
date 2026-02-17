@@ -139,16 +139,22 @@
 
 /* TAM section */
 .tam-section {
-  margin-top: 0;
+  background: #fff;
+  border: 3px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin: 8px 0;
+  color: #18181b;
 }
 
 .tam-copy {
-  color: #f4f4f5;
+  max-width: 700px;
 }
 
 .tam-copy p {
   margin: 4px 0;
   line-height: 1.5;
+  color: #18181b;
 }
 
 /* ============================================================ */
@@ -921,6 +927,15 @@
 /* Keyword Table                                                */
 /* ============================================================ */
 
+.kw-category-heading {
+  font-size: 16px;
+  font-weight: 700;
+  color: #18181b;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #3b82f6;
+}
+
 .kw-table-wrapper {
   overflow-x: auto;
 }
@@ -928,30 +943,30 @@
 .kw-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .kw-table th {
   text-align: left;
-  padding: 8px 10px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #71717a;
-  border-bottom: 2px solid #e4e4e7;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  border-bottom: 1px solid #e5e7eb;
   white-space: normal;
+  line-height: 1.2;
 }
 
-.kw-table colgroup .col-keyword { width: 30%; }
-.kw-table colgroup .col-volume { width: 18%; }
-.kw-table colgroup .col-competition { width: 16%; }
+.kw-table colgroup .col-keyword { width: 38%; }
+.kw-table colgroup .col-volume { width: 22%; }
+.kw-table colgroup .col-competition { width: 20%; }
 .kw-table colgroup .col-rank { width: 20%; }
-.kw-table colgroup .col-position { width: 16%; }
 
 .kw-table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid #f4f4f5;
+  padding: 4px 8px;
+  border-bottom: 1px solid #f3f4f6;
   vertical-align: middle;
+  line-height: 1.2;
 }
 
 .kw-table tbody tr:hover {
@@ -990,11 +1005,10 @@
 /* Yes / No badges */
 .yesno-badge {
   display: inline-block;
-  padding: 3px 12px;
-  border-radius: 6px;
-  font-size: 13px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 10px;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
@@ -1011,9 +1025,9 @@
 /* Competition level badges */
 .competition-badge {
   display: inline-block;
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 9px;
   font-weight: 600;
 }
 
@@ -1136,7 +1150,7 @@
 }
 
 .comp-card-stat-value-visits {
-  font-size: 26px;
+  font-size: 30px;
 }
 
 .comp-card-stat-label {
@@ -1188,7 +1202,7 @@
 /* Thumbnails column — website + ad */
 .comp-card-thumbnails {
   flex-shrink: 0;
-  width: 243px;
+  width: 207px;
   display: flex;
   flex-direction: column;
   gap: 8px;

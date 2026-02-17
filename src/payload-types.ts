@@ -642,7 +642,23 @@ export interface ClientProposal {
    */
   websiteMockupUrl?: string | null;
   /**
-   * One keyword per line — used for keyword tracking and competitor analysis
+   * Up to 6 keyword categories (e.g. by service). Each category becomes a separate table on the report. Keywords from all categories are combined for the audit.
+   */
+  keywordCategories?:
+    | {
+        /**
+         * Category label shown as the table heading (e.g. 'Weight Loss Treatments')
+         */
+        categoryName: string;
+        /**
+         * One keyword per line
+         */
+        keywords: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Legacy single keyword list — use Keyword Categories above instead. Kept for backward compatibility.
    */
   keywords?: string | null;
   /**
@@ -843,6 +859,19 @@ export interface ClientProposal {
    * Select which content research keywords to show on the report. Leave empty to auto-select top 2 by search volume.
    */
   contentResearchKeywords?: (number | ContentResearch)[] | null;
+  /**
+   * Images displayed on the Mission Resources slide. Additional images create extra slides.
+   */
+  missionResourcesImages?:
+    | {
+        image: number | Media;
+        /**
+         * Optional caption for this image
+         */
+        caption?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Content for the Mission Resources slide. Supports bold, italic, underline, font size formatting.
    */
@@ -1809,6 +1838,13 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   notes?: T;
   tam?: T;
   websiteMockupUrl?: T;
+  keywordCategories?:
+    | T
+    | {
+        categoryName?: T;
+        keywords?: T;
+        id?: T;
+      };
   keywords?: T;
   targetLocation?: T;
   suggestions?: T;
@@ -1849,6 +1885,13 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         id?: T;
       };
   contentResearchKeywords?: T;
+  missionResourcesImages?:
+    | T
+    | {
+        image?: T;
+        caption?: T;
+        id?: T;
+      };
   missionResources?: T;
   launchRequirements?: T;
   convertToClient?: T;

@@ -55,8 +55,20 @@ export async function POST(
   }
 
   // Validate required fields
-  const { websiteUrl, businessType, keywords: keywordsRaw, conversionGoal, targetLocation } = proposal;
-  if (!websiteUrl || !businessType || !keywordsRaw?.trim()) {
+  const { websiteUrl, businessType, conversionGoal, targetLocation } = proposal;
+
+  // Build keyword list from categories (preferred) or legacy field
+  const keywordCategories = (proposal as any).keywordCategories as { categoryName: string; keywords: string }[] | null;
+  const legacyKeywordsRaw = (proposal as any).keywords as string | null;
+
+  let keywordsRaw = "";
+  if (keywordCategories && keywordCategories.length > 0) {
+    keywordsRaw = keywordCategories.map((c) => c.keywords || "").join("\n");
+  } else if (legacyKeywordsRaw) {
+    keywordsRaw = legacyKeywordsRaw;
+  }
+
+  if (!websiteUrl || !businessType || !keywordsRaw.trim()) {
     return NextResponse.json(
       { error: "Missing required fields: websiteUrl, businessType, keywords" },
       { status: 400 }
@@ -161,7 +173,30 @@ export async function POST(
 
     const crPromise = (async () => {
       const crLocation = targetLocation ? targetLocation.split(":")[0] : "au";
-      const topKeywords = keywordsList.slice(0, 5);
+
+      // Pick content research keywords distributed across categories
+      let topKeywords: string[];
+      if (keywordCategories && keywordCategories.length > 1) {
+        // Round-robin across categories until we have up to 5
+        const catKeywordLists = keywordCategories.map((c) =>
+          (c.keywords || "").split("\n").map((k: string) => k.trim()).filter(Boolean)
+        );
+        topKeywords = [];
+        let round = 0;
+        while (topKeywords.length < 5) {
+          let added = false;
+          for (const list of catKeywordLists) {
+            if (round < list.length && topKeywords.length < 5) {
+              topKeywords.push(list[round]);
+              added = true;
+            }
+          }
+          if (!added) break;
+          round++;
+        }
+      } else {
+        topKeywords = keywordsList.slice(0, 5);
+      }
       const results = await Promise.allSettled(
         topKeywords.map((keyword: string) =>
           fetch(`${GROWTH_TOOLS_URL}/api/content-research`, {

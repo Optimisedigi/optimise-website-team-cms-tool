@@ -235,10 +235,42 @@ export const ClientProposals: CollectionConfig = {
           label: "Audit Inputs",
           fields: [
             {
+              name: "keywordCategories",
+              type: "array",
+              maxRows: 6,
+              admin: {
+                description:
+                  "Up to 6 keyword categories (e.g. by service). Each category becomes a separate table on the report. Keywords from all categories are combined for the audit.",
+              },
+              fields: [
+                {
+                  name: "categoryName",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description: "Category label shown as the table heading (e.g. 'Weight Loss Treatments')",
+                  },
+                },
+                {
+                  name: "keywords",
+                  type: "textarea",
+                  required: true,
+                  admin: {
+                    description: "One keyword per line",
+                  },
+                },
+              ],
+            },
+            {
               name: "keywords",
               type: "textarea",
               admin: {
-                description: "One keyword per line — used for keyword tracking and competitor analysis",
+                description: "Legacy single keyword list — use Keyword Categories above instead. Kept for backward compatibility.",
+                condition: (data) => {
+                  // Show only if there are no keyword categories but there are legacy keywords
+                  const cats = data?.keywordCategories as any[] | undefined
+                  return (!cats || cats.length === 0) && !!data?.keywords
+                },
               },
             },
             {
@@ -638,6 +670,30 @@ export const ClientProposals: CollectionConfig = {
                 description:
                   "Select which content research keywords to show on the report. Leave empty to auto-select top 2 by search volume.",
               },
+            },
+            {
+              name: "missionResourcesImages",
+              type: "array",
+              maxRows: 10,
+              admin: {
+                description:
+                  "Images displayed on the Mission Resources slide. Additional images create extra slides.",
+              },
+              fields: [
+                {
+                  name: "image",
+                  type: "upload",
+                  relationTo: "media",
+                  required: true,
+                },
+                {
+                  name: "caption",
+                  type: "text",
+                  admin: {
+                    description: "Optional caption for this image",
+                  },
+                },
+              ],
             },
             {
               name: "missionResources",

@@ -864,10 +864,14 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const annualPurchaseFrequency = (proposal as any).annualPurchaseFrequency as number | null
   const newCustomersLast12Months = (proposal as any).newCustomersLast12Months as number | null
 
+  // Keyword categories for grouped display on pre-flight check
+  const keywordCategories = (proposal as any).keywordCategories as { categoryName: string; keywords: string }[] | null
+
   // Flight Plan images (Slide 12)
   const flightPlanImages = (proposal as any).flightPlanImages as { image: any; caption?: string }[] | null
 
   // Mission Resources (Slide 13) & Launch Requirements (Slide 14)
+  const missionResourcesImages = (proposal as any).missionResourcesImages as { image: any; caption?: string }[] | null
   const missionResources = (proposal as any).missionResources as SerializedEditorState | string | null
   const launchRequirements = (proposal as any).launchRequirements as SerializedEditorState | string | null
 
@@ -954,17 +958,13 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             </div>
           )}
           <div className="slide-content">
-            {launchRequirements ? (
+            {launchRequirements && (
               <div className="cms-copy-block">
                 {isLexicalData(launchRequirements) ? (
                   <RichText data={launchRequirements} />
                 ) : (
                   <LegacyTextBlock text={launchRequirements as string} />
                 )}
-              </div>
-            ) : (
-              <div className="slide-placeholder-block">
-                <span>Content will be added after your strategy session.</span>
               </div>
             )}
           </div>
@@ -979,7 +979,21 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             <span>Commercial Model &amp; Pricing</span>
           </div>
           <div className="slide-content">
-            {missionResources ? (
+            {missionResourcesImages && missionResourcesImages.length > 0 && (() => {
+              const firstItem = missionResourcesImages[0]
+              const firstUrl = typeof firstItem.image === 'object' && firstItem.image?.url ? firstItem.image.url : null
+              return firstUrl ? (
+                <div className="flight-plan-images">
+                  <figure className="flight-plan-image-wrap">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={firstUrl} alt={firstItem.caption || 'Mission resources image 1'} className="flight-plan-img" />
+                    {firstItem.caption && <figcaption className="flight-plan-caption">{firstItem.caption}</figcaption>}
+                  </figure>
+                </div>
+              ) : null
+            })()}
+
+            {missionResources && (
               <div className="cms-copy-block">
                 {isLexicalData(missionResources) ? (
                   <RichText data={missionResources} />
@@ -987,13 +1001,32 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   <LegacyTextBlock text={missionResources as string} />
                 )}
               </div>
-            ) : (
-              <div className="slide-placeholder-block">
-                <span>Content will be added after your strategy session.</span>
-              </div>
             )}
           </div>
         </section>}
+
+        {/* Additional Mission Resources slides — one per extra image */}
+        {showSlide(17) && missionResourcesImages && missionResourcesImages.length > 1 && missionResourcesImages.slice(1).map((item, i) => {
+          const imgUrl = typeof item.image === 'object' && item.image?.url ? item.image.url : null
+          if (!imgUrl) return null
+          return (
+            <section key={`mission-resources-extra-${i}`} className="slide slide-17 slide-expandable">
+              <div className="slide-header">
+                <h2>9. Mission Resources</h2>
+                <span>Commercial Model &amp; Pricing</span>
+              </div>
+              <div className="slide-content">
+                <div className="flight-plan-images">
+                  <figure className="flight-plan-image-wrap">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imgUrl} alt={item.caption || `Mission resources image ${i + 2}`} className="flight-plan-img" />
+                    {item.caption && <figcaption className="flight-plan-caption">{item.caption}</figcaption>}
+                  </figure>
+                </div>
+              </div>
+            </section>
+          )
+        })}
 
         {/* ============================================================ */}
         {/* SLIDE 16 — Flight Plan                                      */}
@@ -1004,21 +1037,19 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             <span>Roadmap &amp; Timeframes</span>
           </div>
           <div className="slide-content">
-            {flightPlanImages && flightPlanImages.length > 0 && (
-              <div className="flight-plan-images">
-                {flightPlanImages.map((item, i) => {
-                  const imgUrl = typeof item.image === 'object' && item.image?.url ? item.image.url : null
-                  if (!imgUrl) return null
-                  return (
-                    <figure key={i} className="flight-plan-image-wrap">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={imgUrl} alt={item.caption || `Flight plan image ${i + 1}`} className="flight-plan-img" />
-                      {item.caption && <figcaption className="flight-plan-caption">{item.caption}</figcaption>}
-                    </figure>
-                  )
-                })}
-              </div>
-            )}
+            {flightPlanImages && flightPlanImages.length > 0 && (() => {
+              const firstItem = flightPlanImages[0]
+              const firstUrl = typeof firstItem.image === 'object' && firstItem.image?.url ? firstItem.image.url : null
+              return firstUrl ? (
+                <div className="flight-plan-images">
+                  <figure className="flight-plan-image-wrap">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={firstUrl} alt={firstItem.caption || 'Flight plan image 1'} className="flight-plan-img" />
+                    {firstItem.caption && <figcaption className="flight-plan-caption">{firstItem.caption}</figcaption>}
+                  </figure>
+                </div>
+              ) : null
+            })()}
 
             {flightPlanContent && (
               isLexicalData(flightPlanContent) ? (
@@ -1040,9 +1071,6 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 </div>
               )
             )}
-
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/slides/slide-12.webp" alt="Flight Plan Timeline — 1 to 12 months and ongoing" className="flight-plan-timeline-img" />
 
             {websiteMockupUrl && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '40px' }}>
@@ -1068,6 +1096,29 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             )}
           </div>
         </section>}
+
+        {/* Additional Flight Plan slides — one per extra image */}
+        {showSlide(16) && flightPlanImages && flightPlanImages.length > 1 && flightPlanImages.slice(1).map((item, i) => {
+          const imgUrl = typeof item.image === 'object' && item.image?.url ? item.image.url : null
+          if (!imgUrl) return null
+          return (
+            <section key={`flight-plan-extra-${i}`} className="slide slide-16 slide-expandable">
+              <div className="slide-header">
+                <h2>8. Flight Plan</h2>
+                <span>Roadmap &amp; Timeframes</span>
+              </div>
+              <div className="slide-content">
+                <div className="flight-plan-images">
+                  <figure className="flight-plan-image-wrap">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imgUrl} alt={item.caption || `Flight plan image ${i + 2}`} className="flight-plan-img" />
+                    {item.caption && <figcaption className="flight-plan-caption">{item.caption}</figcaption>}
+                  </figure>
+                </div>
+              </div>
+            </section>
+          )
+        })}
 
         {/* ============================================================ */}
         {/* SLIDE 15 — Mission Control                                  */}
@@ -1300,18 +1351,35 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                       }
                     }
                   } else {
-                    // Auto-select top 4 unique keywords by search volume
+                    // Auto-select sunbursts based on keyword categories
                     const kwVolumeMap = new Map<string, number>()
                     if (keywords) {
                       for (const kw of keywords) {
                         kwVolumeMap.set(kw.keyword.toLowerCase(), kw.searchVolume ?? 0)
                       }
                     }
-                    displayCr = [...uniqueCr].sort((a, b) => {
+
+                    // Sort all content researches by search volume
+                    const sortedCr = [...uniqueCr].sort((a, b) => {
                       const volA = kwVolumeMap.get(a.keyword.toLowerCase()) ?? 0
                       const volB = kwVolumeMap.get(b.keyword.toLowerCase()) ?? 0
                       return volB - volA
-                    }).slice(0, 4)
+                    })
+
+                    if (keywordCategories && keywordCategories.length > 1) {
+                      // Multiple categories: pick top 1 from each category by search volume
+                      displayCr = []
+                      for (const cat of keywordCategories) {
+                        const catKeywords = new Set(
+                          (cat.keywords || '').split('\n').map(k => k.trim().toLowerCase()).filter(Boolean)
+                        )
+                        const match = sortedCr.find(cr => catKeywords.has(cr.keyword.toLowerCase()) && !displayCr.includes(cr))
+                        if (match) displayCr.push(match)
+                      }
+                    } else {
+                      // 0-1 categories: pick top 2 overall
+                      displayCr = sortedCr.slice(0, 2)
+                    }
                   }
 
                   return (
@@ -1724,10 +1792,10 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     />
                   )}
                   {displaySearchCompetitors.map((comp, i) => (
-                    <CompetitorCard key={`search-${i}`} comp={comp} index={i + 1} sourceLabel="Search-based" />
+                    <CompetitorCard key={`search-${i}`} comp={comp} index={i + 1} />
                   ))}
                   {selectedCompetitors.map((comp, i) => (
-                    <CompetitorCard key={`selected-${i}`} comp={comp} index={displaySearchCompetitors.length + i + 1} sourceLabel="Inputted" />
+                    <CompetitorCard key={`selected-${i}`} comp={comp} index={displaySearchCompetitors.length + i + 1} />
                   ))}
                 </div>
               </section>
@@ -1774,57 +1842,79 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 6 — Pre-flight Check: Keywords Analysis                */}
         {/* ============================================================ */}
-        {showSlide(6) && kwSnapshot && keywords && (
-          <section className="slide slide-6 slide-expandable">
-            <div className="slide-header">
-              <h2>3. Pre-flight Check</h2>
-              <span>Keywords Analysis</span>
-            </div>
-            <div className="slide-content">
-              <section className="audit-section">
-                <div className="kw-table-wrapper">
-                  <table className="kw-table">
-                    <colgroup>
-                      <col className="col-keyword" />
-                      <col className="col-volume" />
-                      <col className="col-competition" />
-                      <col className="col-rank" />
-                      <col className="col-position" />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>Keyword</th>
-                        <th>Monthly Search Volume</th>
-                        <th>Competition</th>
-                        <th>Do you rank for these keywords?</th>
-                        <th>Avg Position</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {keywords.map((kw, i) => (
-                        <tr key={i}>
-                          <td className="kw-name">{kw.keyword}</td>
-                          <td className="kw-volume">{kw.searchVolume?.toLocaleString() ?? '—'}</td>
-                          <td><CompetitionBadge level={competitionFromOpportunity(kw.opportunity)} /></td>
-                          <td><YesNoBadge value={kw.position != null && kw.position > 0} /></td>
-                          <td className="kw-avg-pos">
-                            {kw.position != null && kw.position > 0 ? (
-                              <span className={`kw-position ${kw.position <= 10 ? 'kw-top10' : kw.position <= 20 ? 'kw-top20' : kw.position <= 50 ? 'kw-top50' : 'kw-low'}`}>
-                                #{kw.position}
-                              </span>
-                            ) : (
-                              <span className="kw-position kw-not-found">&mdash;</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+        {showSlide(6) && kwSnapshot && keywords && (() => {
+          // Build category groups: match keywords to their category by keyword text
+          const categoryGroups: { name: string; keywords: typeof keywords }[] = []
+
+          if (keywordCategories && keywordCategories.length > 0) {
+            for (const cat of keywordCategories) {
+              const catKeywordNames = (cat.keywords || '')
+                .split('\n')
+                .map(k => k.trim().toLowerCase())
+                .filter(Boolean)
+              const matched = keywords.filter(kw =>
+                catKeywordNames.includes(kw.keyword.toLowerCase())
+              )
+              if (matched.length > 0) {
+                categoryGroups.push({ name: cat.categoryName, keywords: matched })
+              }
+            }
+          }
+
+          // Fallback: if no categories or no matches, show all keywords as one group
+          if (categoryGroups.length === 0) {
+            categoryGroups.push({ name: 'Keywords', keywords })
+          }
+
+          // All category tables on one slide, columns sized to fit
+          const colCount = Math.min(categoryGroups.length, 3)
+
+          return (
+            <section className="slide slide-6 slide-expandable">
+              <div className="slide-header">
+                <h2>3. Pre-flight Check</h2>
+                <span>Keywords Analysis</span>
+              </div>
+              <div className="slide-content">
+                <div className="kw-category-grid" style={{ columns: colCount, columnGap: '24px' }}>
+                  {categoryGroups.map((group, gIdx) => (
+                    <section key={gIdx} className="audit-section" style={{ breakInside: 'avoid', marginBottom: '20px' }}>
+                      <h3 className="kw-category-heading">{group.name}</h3>
+                      <div className="kw-table-wrapper">
+                        <table className="kw-table">
+                          <colgroup>
+                            <col className="col-keyword" />
+                            <col className="col-volume" />
+                            <col className="col-competition" />
+                            <col className="col-rank" />
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th>Keyword</th>
+                              <th>Search Vol.</th>
+                              <th>Competition</th>
+                              <th>Ranking?</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.keywords.map((kw, i) => (
+                              <tr key={i}>
+                                <td className="kw-name">{kw.keyword}</td>
+                                <td className="kw-volume">{kw.searchVolume?.toLocaleString() ?? '—'}</td>
+                                <td><CompetitionBadge level={competitionFromOpportunity(kw.opportunity)} /></td>
+                                <td><YesNoBadge value={kw.position != null && kw.position > 0} /></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  ))}
                 </div>
-              </section>
-            </div>
-          </section>
-        )}
+              </div>
+            </section>
+          )
+        })()}
 
         {/* ============================================================ */}
         {/* SLIDE 5 — Mission Brief: Client Overview + Instrument Panel  */}
