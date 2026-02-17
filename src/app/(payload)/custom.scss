@@ -54,21 +54,16 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-// Move sidebar collapse button to bottom-right of sidebar panel
+// Hide Payload's nav toggler completely — MiniSidebar handles collapse/expand
 .template-default__nav-toggler-wrapper {
-  position: fixed !important;
-  top: auto !important;
-  bottom: 16px !important;
-  left: calc(var(--nav-width, 275px) - 48px) !important;
-  height: auto !important;
-  width: auto !important;
-  z-index: 100;
+  display: none !important;
 }
 
-// When nav is closed, hide the repositioned toggler (the header bar toggler takes over)
-.template-default:not(.template-default--nav-open) .template-default__nav-toggler-wrapper {
-  left: -48px !important;
+// When nav is collapsed, offset content for the 48px mini-sidebar
+.template-default:not(.template-default--nav-open) .template-default__wrap {
+  margin-left: 48px;
 }
+
 
 // Dashboard home button
 .step-nav__home {

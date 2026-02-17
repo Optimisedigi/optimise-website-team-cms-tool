@@ -52,7 +52,7 @@ export default buildConfig({
       actions: ["./components/UserDisplayName"],
       beforeNavLinks: ["./components/SidebarLogo"],
       afterLogin: ["./components/ShowPasswordToggle"],
-      providers: ["./components/FirstLoginSetup", "./components/NavigationRecovery"],
+      providers: ["./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar"],
       beforeDashboard: ["./components/DashboardWelcome"],
     },
   },
