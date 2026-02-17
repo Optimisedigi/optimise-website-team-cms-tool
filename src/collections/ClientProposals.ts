@@ -1,4 +1,52 @@
-import type { CollectionConfig, CollectionAfterChangeHook } from "payload";
+import type {
+  CollectionConfig,
+  CollectionAfterChangeHook,
+  CollectionBeforeChangeHook,
+} from "payload";
+
+const generateUniqueSlug: CollectionBeforeChangeHook = async ({
+  data,
+  operation,
+  req,
+}) => {
+  if (data && operation === "create" && data.businessName && !data.slug) {
+    const baseSlug = data.businessName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    let slug = baseSlug;
+    let suffix = 0;
+
+    while (true) {
+      const existing = await req.payload.find({
+        collection: "client-proposals",
+        where: { slug: { equals: slug } },
+        limit: 1,
+      });
+      if (existing.totalDocs === 0) break;
+      suffix++;
+      slug = `${baseSlug}-${suffix}`;
+    }
+
+    data.slug = slug;
+  }
+  return data;
+};
+
+const generateUniquePin = async (payload: any): Promise<string> => {
+  const maxAttempts = 20;
+  for (let i = 0; i < maxAttempts; i++) {
+    const pin = String(Math.floor(1000 + Math.random() * 9000));
+    const existing = await payload.find({
+      collection: "client-proposals",
+      where: { proposalPin: { equals: pin } },
+      limit: 1,
+    });
+    if (existing.totalDocs === 0) return pin;
+  }
+  throw new Error("Unable to generate a unique proposal PIN after multiple attempts");
+};
 
 const convertToClientHook: CollectionAfterChangeHook = async ({
   doc,
@@ -8,28 +56,43 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
   if (doc.convertToClient && !previousDoc?.convertToClient) {
     const payload = req.payload;
 
-    // Create a new Client from the proposal data
-    await payload.create({
-      collection: "clients",
-      data: {
-        name: doc.businessName,
-        slug: doc.slug + "-client",
-        websiteUrl: doc.websiteUrl,
-        businessType: doc.businessType,
-        targetLocation: doc.targetLocation,
-        clientGoals: doc.businessGoals,
-        competitors: doc.competitors,
-        isActive: true,
-        notes: `Converted from proposal: ${doc.businessName}`,
-      },
-    });
+    try {
+      // Create a new Client from the proposal data
+      await payload.create({
+        collection: "clients",
+        data: {
+          name: doc.businessName,
+          slug: doc.slug + "-client",
+          websiteUrl: doc.websiteUrl,
+          businessType: doc.businessType,
+          targetLocation: doc.targetLocation,
+          clientGoals: doc.businessGoals,
+          competitors: doc.competitors,
+          isActive: true,
+          notes: `Converted from proposal: ${doc.businessName}`,
+        },
+      });
 
-    // Reset the toggle so it can't be accidentally triggered again
-    await payload.update({
-      collection: "client-proposals",
-      id: doc.id,
-      data: { convertToClient: false },
-    });
+      // Reset the toggle so it can't be accidentally triggered again
+      await payload.update({
+        collection: "client-proposals",
+        id: doc.id,
+        data: { convertToClient: false },
+      });
+    } catch (error) {
+      // Reset the toggle so the user can retry
+      await payload.update({
+        collection: "client-proposals",
+        id: doc.id,
+        data: { convertToClient: false },
+      });
+      req.payload.logger.error(
+        `Failed to convert proposal "${doc.businessName}" to client: ${error}`,
+      );
+      throw new Error(
+        `Failed to create client: a client with slug "${doc.slug}-client" may already exist.`,
+      );
+    }
   }
   return doc;
 };
@@ -773,9 +836,9 @@ export const ClientProposals: CollectionConfig = {
       },
       hooks: {
         beforeChange: [
-          ({ value, operation }) => {
+          async ({ value, operation, req }) => {
             if (operation === "create" && !value) {
-              return String(Math.floor(1000 + Math.random() * 9000));
+              return generateUniquePin(req.payload);
             }
             return value;
           },
@@ -785,16 +848,6 @@ export const ClientProposals: CollectionConfig = {
   ],
   hooks: {
     afterChange: [convertToClientHook],
-    beforeChange: [
-      ({ data, operation }) => {
-        if (data && operation === "create" && data.businessName && !data.slug) {
-          data.slug = data.businessName
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-|-$/g, "");
-        }
-        return data;
-      },
-    ],
+    beforeChange: [generateUniqueSlug],
   },
 };
