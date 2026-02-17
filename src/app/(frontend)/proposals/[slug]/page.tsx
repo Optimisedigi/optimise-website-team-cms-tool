@@ -257,6 +257,10 @@ const categoryLabels: Record<string, string> = {
   faqImplementation: 'FAQ Implementation',
   contentStructure: 'Content Structure',
   serviceCoverage: 'Service Coverage',
+  'sitemap/Robots': 'Sitemap / Robots',
+  sitemapRobots: 'Sitemap / Robots',
+  siteHealth: 'Site Health',
+  securityPerformance: 'Security & Performance',
 }
 
 // ---------------------------------------------------------------------------
@@ -740,7 +744,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
     : null
 
   // CMS competitor entries (for domain matching and meta ads overrides)
-  const cmsCompetitors = (proposal.competitors ?? []) as { name: string; websiteUrl?: string | null; googleMapsUrl?: string | null; hasMetaAds?: boolean }[]
+  const cmsCompetitors = (proposal.competitors ?? []) as { name: string; websiteUrl?: string | null; googleMapsUrl?: string | null; hasMetaAds?: boolean; googleAdScreenshots?: { image: any }[]; metaAdScreenshots?: { image: any }[] }[]
 
   // Split competitors: CMS-added vs search-discovered
   const cmsCompetitorDomains = new Set(
@@ -751,24 +755,56 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
 
   // Build meta ads override lookup: domain → true
   const metaAdsOverrides = new Map<string, boolean>()
+  // Build manual ad screenshot overrides: domain → image URLs
+  const manualGoogleAdScreenshots = new Map<string, string[]>()
+  const manualMetaAdScreenshots = new Map<string, string[]>()
   for (const c of cmsCompetitors) {
-    if (c.hasMetaAds && c.websiteUrl) {
-      metaAdsOverrides.set(domainFromUrl(c.websiteUrl), true)
+    if (!c.websiteUrl) continue
+    const domain = domainFromUrl(c.websiteUrl)
+    if (c.hasMetaAds) {
+      metaAdsOverrides.set(domain, true)
+    }
+    if (c.googleAdScreenshots && c.googleAdScreenshots.length > 0) {
+      const urls = c.googleAdScreenshots
+        .map((s) => (typeof s.image === 'object' && s.image?.url ? s.image.url as string : null))
+        .filter(Boolean) as string[]
+      if (urls.length > 0) manualGoogleAdScreenshots.set(domain, urls)
+    }
+    if (c.metaAdScreenshots && c.metaAdScreenshots.length > 0) {
+      const urls = c.metaAdScreenshots
+        .map((s) => (typeof s.image === 'object' && s.image?.url ? s.image.url as string : null))
+        .filter(Boolean) as string[]
+      if (urls.length > 0) manualMetaAdScreenshots.set(domain, urls)
     }
   }
 
-  // Apply meta ads overrides to allCompetitors
+  // Apply meta ads overrides and manual screenshot overrides to allCompetitors
   const allCompetitorsWithOverrides = (allCompetitors ?? []).map((comp) => {
     const cleanDomain = comp.domain?.replace(/^www\./, '') ?? ''
+    let result = { ...comp }
     if (metaAdsOverrides.has(cleanDomain)) {
-      return {
-        ...comp,
-        metaAds: comp.metaAds
-          ? { ...comp.metaAds, isRunningAds: true }
-          : { isRunningAds: true, activeAdCount: 0, adScreenshots: [] },
+      result.metaAds = result.metaAds
+        ? { ...result.metaAds, isRunningAds: true }
+        : { isRunningAds: true, activeAdCount: 0, adScreenshots: [] }
+    }
+    const manualGoogle = manualGoogleAdScreenshots.get(cleanDomain)
+    if (manualGoogle) {
+      result.googleAds = {
+        isRunningAds: true,
+        adCount: manualGoogle.length,
+        advertiserName: result.googleAds?.advertiserName ?? null,
+        adScreenshots: manualGoogle,
       }
     }
-    return comp
+    const manualMeta = manualMetaAdScreenshots.get(cleanDomain)
+    if (manualMeta) {
+      result.metaAds = {
+        isRunningAds: true,
+        activeAdCount: manualMeta.length,
+        adScreenshots: manualMeta,
+      }
+    }
+    return result
   })
 
   const cmsAddedCount = cmsCompetitorDomains.size
@@ -804,6 +840,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
     const domain = domainFromUrl(c.websiteUrl)
     if (!matchedCmsDomains.has(domain)) {
       const hasMetaOverride = metaAdsOverrides.has(domain)
+      const manualGoogle = manualGoogleAdScreenshots.get(domain)
+      const manualMeta = manualMetaAdScreenshots.get(domain)
       // Look up partial match in API data (the domain might differ slightly)
       const apiMatch = allCompsByDomain.get(domain)
       // Build traffic object from estimatedTraffic if traffic is missing
@@ -819,10 +857,14 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         topKeywords: apiMatch?.topKeywords ?? undefined,
         estimatedTraffic: apiMatch?.estimatedTraffic ?? undefined,
         websiteScreenshot: apiMatch?.websiteScreenshot ?? null,
-        metaAds: hasMetaOverride
-          ? { isRunningAds: true, activeAdCount: 0, adScreenshots: [] }
-          : apiMatch?.metaAds ?? null,
-        googleAds: apiMatch?.googleAds ?? null,
+        metaAds: manualMeta
+          ? { isRunningAds: true, activeAdCount: manualMeta.length, adScreenshots: manualMeta }
+          : hasMetaOverride
+            ? { isRunningAds: true, activeAdCount: 0, adScreenshots: [] }
+            : apiMatch?.metaAds ?? null,
+        googleAds: manualGoogle
+          ? { isRunningAds: true, adCount: manualGoogle.length, advertiserName: apiMatch?.googleAds?.advertiserName ?? null, adScreenshots: manualGoogle }
+          : apiMatch?.googleAds ?? null,
         googleBusinessProfile: apiMatch?.googleBusinessProfile ?? null,
       })
     }
@@ -866,6 +908,20 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
 
   // Keyword categories for grouped display on pre-flight check
   const keywordCategories = (proposal as any).keywordCategories as { categoryName: string; keywords: string }[] | null
+
+  // Target location label for keyword slide note
+  const targetLocationValue = (proposal as any).targetLocation as string | null
+  const locationLabels: Record<string, string> = {
+    au: 'Australia', 'au:sydney': 'Sydney, NSW', 'au:melbourne': 'Melbourne, VIC', 'au:brisbane': 'Brisbane, QLD',
+    'au:perth': 'Perth, WA', 'au:adelaide': 'Adelaide, SA', 'au:canberra': 'Canberra, ACT', 'au:hobart': 'Hobart, TAS', 'au:darwin': 'Darwin, NT',
+    nz: 'New Zealand', 'nz:auckland': 'Auckland, NZ', 'nz:wellington': 'Wellington, NZ',
+    us: 'United States', 'us:new-york': 'New York, NY', 'us:los-angeles': 'Los Angeles, CA', 'us:chicago': 'Chicago, IL',
+    'us:houston': 'Houston, TX', 'us:miami': 'Miami, FL', 'us:atlanta': 'Atlanta, GA', 'us:seattle': 'Seattle, WA', 'us:denver': 'Denver, CO',
+    ca: 'Canada', 'ca:toronto': 'Toronto, ON', 'ca:vancouver': 'Vancouver, BC', 'ca:montreal': 'Montreal, QC',
+    gb: 'United Kingdom', 'gb:london': 'London, UK', 'gb:manchester': 'Manchester, UK', 'gb:birmingham': 'Birmingham, UK',
+    sg: 'Singapore',
+  }
+  const targetLocationLabel = targetLocationValue ? (locationLabels[targetLocationValue] || targetLocationValue) : null
 
   // Flight Plan images (Slide 12)
   const flightPlanImages = (proposal as any).flightPlanImages as { image: any; caption?: string }[] | null
@@ -1073,25 +1129,28 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             )}
 
             {websiteMockupUrl && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '40px' }}>
-                <a
-                  href={`/mockup/${proposal.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'inline-block',
-                    padding: '14px 32px',
-                    background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
-                    color: '#fff',
-                    borderRadius: '12px',
-                    textDecoration: 'none',
-                    fontWeight: 600,
-                    fontSize: '16px',
-                    boxShadow: '0 4px 20px rgba(59, 130, 246, 0.4)',
-                  }}
-                >
-                  View Website Mockup
-                </a>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: '40px', gap: '6px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <a
+                    href={`/mockup/${proposal.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-block',
+                      padding: '10px 28px',
+                      background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+                      color: '#fff',
+                      borderRadius: '10px',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      fontSize: '14px',
+                      boxShadow: '0 4px 20px rgba(59, 130, 246, 0.4)',
+                    }}
+                  >
+                    View Website Mockup
+                  </a>
+                  <span style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center', lineHeight: '1.4' }}>Mock-up is one-page;<br />live site will have individual pages</span>
+                </div>
               </div>
             )}
           </div>
@@ -1272,15 +1331,35 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                           <span className="ad-comp-domain">{comp.domain}</span>
                           <span className="ad-comp-count">{comp.metaAds?.activeAdCount ?? 0} active</span>
                         </div>
-                        {comp.metaAds?.adScreenshots && comp.metaAds.adScreenshots.length > 0 && (
-                          <div className="meta-ad-links">
-                            {comp.metaAds.adScreenshots.slice(0, 5).map((url, j) => (
-                              <a key={j} href={url} target="_blank" rel="noopener noreferrer" className="meta-ad-link">
-                                View Ad {j + 1}
-                              </a>
-                            ))}
-                          </div>
-                        )}
+                        {comp.metaAds?.adScreenshots && comp.metaAds.adScreenshots.length > 0 && (() => {
+                          const urls = comp.metaAds!.adScreenshots.slice(0, 5)
+                          const hasImageUrls = urls.some(u => u.startsWith('/') || u.includes('/media/'))
+                          if (hasImageUrls) {
+                            return (
+                              <div className="ad-screenshots-grid">
+                                {urls.map((url, j) => (
+                                  <div key={j} className="ad-thumbnail-wrap">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={url} alt={`${comp.domain} Meta ad ${j + 1}`} className="ad-screenshot-thumb" />
+                                    <div className="ad-thumbnail-hover">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img src={url} alt={`${comp.domain} Meta ad ${j + 1}`} className="ad-thumbnail-large" />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          }
+                          return (
+                            <div className="meta-ad-links">
+                              {urls.map((url, j) => (
+                                <a key={j} href={url} target="_blank" rel="noopener noreferrer" className="meta-ad-link">
+                                  View Ad {j + 1}
+                                </a>
+                              ))}
+                            </div>
+                          )
+                        })()}
                       </div>
                     )) : (
                       <div className="slide-10-slot">No competitors running Meta Ads</div>
@@ -1305,7 +1384,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               <>
                 <div className="cr-intro-copy">
                   <p className="cr-intro-bold">Is your website answering these questions?</p>
-                  <p className="cr-intro-sub">These are the questions your potential customers are actively searching for. Each sunburst shows the most popular questions grouped by type — the bigger the slice, the more people are searching for it.</p>
+                  <p className="cr-intro-sub">These are the exact questions your potential customers are actively searching for—and where your site can establish authority. Each sunburst shows the most popular questions grouped by type — the bigger the slice, the more people are searching for it.</p>
                 </div>
                 {(() => {
                   // Deduplicate content researches by keyword (keep most recent — array is sorted by -createdAt)
@@ -1798,6 +1877,9 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     <CompetitorCard key={`selected-${i}`} comp={comp} index={displaySearchCompetitors.length + i + 1} />
                   ))}
                 </div>
+                {keywordCategories && keywordCategories.length > 0 && (
+                  <p className="kw-location-note">Competitors shown are based on Google rankings for {keywordCategories[0].categoryName} focused keywords</p>
+                )}
               </section>
 
               {yourProfileWithOverrides?.topKeywords && yourProfileWithOverrides.topKeywords.length > 0 && (
@@ -1891,7 +1973,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                           <thead>
                             <tr>
                               <th>Keyword</th>
-                              <th>Search Vol.</th>
+                              <th>Monthly Searches</th>
                               <th>Competition</th>
                               <th>Ranking?</th>
                             </tr>
@@ -1911,6 +1993,9 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     </section>
                   ))}
                 </div>
+                {targetLocationLabel && (
+                  <p className="kw-location-note">Search volume is based on location: {targetLocationLabel}</p>
+                )}
               </div>
             </section>
           )

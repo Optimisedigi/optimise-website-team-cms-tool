@@ -755,6 +755,24 @@ export interface ClientProposal {
          * Override: mark this competitor as running Meta Ads
          */
         hasMetaAds?: boolean | null;
+        /**
+         * Manual Google Ads screenshots (up to 4). Overrides growth tools data.
+         */
+        googleAdScreenshots?:
+          | {
+              image: number | Media;
+              id?: string | null;
+            }[]
+          | null;
+        /**
+         * Manual Meta Ads screenshots (up to 4). Overrides growth tools data.
+         */
+        metaAdScreenshots?:
+          | {
+              image: number | Media;
+              id?: string | null;
+            }[]
+          | null;
         id?: string | null;
       }[]
     | null;
@@ -1863,6 +1881,18 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         websiteUrl?: T;
         googleMapsUrl?: T;
         hasMetaAds?: T;
+        googleAdScreenshots?:
+          | T
+          | {
+              image?: T;
+              id?: T;
+            };
+        metaAdScreenshots?:
+          | T
+          | {
+              image?: T;
+              id?: T;
+            };
         id?: T;
       };
   auditStatus?: T;

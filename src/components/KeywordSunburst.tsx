@@ -217,14 +217,14 @@ export default function KeywordSunburst({ keyword, clusters, maxQuestions = 40, 
 
   if (sunburstClusters.length === 0 || grandTotal === 0) return null
 
-  const size = 900
+  const size = 1000
   const cx = size / 2
   const cy = size / 2
   const innerRadius = 120
   const midRadius = 210
-  const outerRadius = 410
+  const outerRadius = 480
   const gap = 1.5
-  const hoverGrow = 22
+  const hoverGrow = 16
 
   let angle = 0
   const arcs: { cluster: SunburstCluster; start: number; end: number; color: typeof CLUSTER_COLORS[0] }[] = []
@@ -297,8 +297,8 @@ export default function KeywordSunburst({ keyword, clusters, maxQuestions = 40, 
 
             const radialSpace = (isHovered ? displayOuter : outerRadius) - midRadius - 10
             const fontSize = isHovered ? 16 : 14.5
-            const charWidth = fontSize * 0.58
-            const maxChars = Math.max(10, Math.floor(radialSpace / charWidth))
+            const charWidth = fontSize * 0.52
+            const maxChars = Math.max(12, Math.floor(radialSpace / charWidth))
             const lines = wrapText(seg.question, maxChars)
 
             const lineHeight = fontSize * 1.3

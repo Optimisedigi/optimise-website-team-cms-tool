@@ -464,6 +464,38 @@ export const ClientProposals: CollectionConfig = {
                     description: "Override: mark this competitor as running Meta Ads",
                   },
                 },
+                {
+                  name: "googleAdScreenshots",
+                  type: "array",
+                  maxRows: 4,
+                  admin: {
+                    description: "Manual Google Ads screenshots (up to 4). Overrides growth tools data.",
+                  },
+                  fields: [
+                    {
+                      name: "image",
+                      type: "upload",
+                      relationTo: "media",
+                      required: true,
+                    },
+                  ],
+                },
+                {
+                  name: "metaAdScreenshots",
+                  type: "array",
+                  maxRows: 4,
+                  admin: {
+                    description: "Manual Meta Ads screenshots (up to 4). Overrides growth tools data.",
+                  },
+                  fields: [
+                    {
+                      name: "image",
+                      type: "upload",
+                      relationTo: "media",
+                      required: true,
+                    },
+                  ],
+                },
               ],
             },
           ],
