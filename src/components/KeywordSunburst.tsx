@@ -296,7 +296,7 @@ export default function KeywordSunburst({ keyword, clusters, maxQuestions = 40, 
             }
 
             const radialSpace = (isHovered ? displayOuter : outerRadius) - midRadius - 10
-            const fontSize = isHovered ? 14 : 12.5
+            const fontSize = isHovered ? 16 : 14.5
             const charWidth = fontSize * 0.58
             const maxChars = Math.max(10, Math.floor(radialSpace / charWidth))
             const lines = wrapText(seg.question, maxChars)

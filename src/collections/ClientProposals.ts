@@ -213,6 +213,22 @@ export const ClientProposals: CollectionConfig = {
                 description: "Internal team notes",
               },
             },
+            {
+              name: "tam",
+              type: "richText",
+              admin: {
+                description:
+                  "Total Addressable Market data shown on the Mission Brief slide. Leave empty to hide. Supports bold, italic, underline, font size formatting.",
+              },
+            },
+            {
+              name: "websiteMockupUrl",
+              type: "text",
+              admin: {
+                description:
+                  "Path or URL to the HTML mockup for this client (e.g. /mockups/purples/index.html)",
+              },
+            },
           ],
         },
         {
@@ -534,6 +550,36 @@ export const ClientProposals: CollectionConfig = {
                   Field: "./components/ViewProposalReportLink",
                 },
               },
+            },
+            {
+              name: "visibleSlides",
+              type: "select",
+              hasMany: true,
+              admin: {
+                description:
+                  "Select slides to REMOVE from the report. Selected slides will be hidden. Leave empty to show all.",
+              },
+              options: [
+                { label: "Slide 1: Intro", value: "1" },
+                { label: "Slide 2: What This Covers", value: "2" },
+                { label: "Slide 3: Our Approach", value: "3" },
+                { label: "Slide 4: Build & Fix Philosophy", value: "4" },
+                { label: "Slide 5: Mission Brief", value: "5" },
+                { label: "Slide 6: Keywords Analysis", value: "6" },
+                { label: "Slide 7: Competitor Analysis", value: "7" },
+                { label: "Slide 8: CRO Overview", value: "8" },
+                { label: "Slide 9: CRO Recommendations", value: "9" },
+                { label: "Slide 10: SEO Overview", value: "10" },
+                { label: "Slide 11: Technical & Page Results", value: "11" },
+                { label: "Slide 12: SEO Recommendations", value: "12" },
+                { label: "Slide 13: Content Research", value: "13" },
+                { label: "Slide 14: Competitor Ads", value: "14" },
+                { label: "Slide 15: Mission Control", value: "15" },
+                { label: "Slide 16: Flight Plan", value: "16" },
+                { label: "Slide 17: Mission Resources", value: "17" },
+                { label: "Slide 18: Launch Requirements", value: "18" },
+                { label: "Slide 19: Closing", value: "19" },
+              ],
             },
           ],
         },

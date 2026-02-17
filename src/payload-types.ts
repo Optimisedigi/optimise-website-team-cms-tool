@@ -620,6 +620,28 @@ export interface ClientProposal {
    */
   notes?: string | null;
   /**
+   * Total Addressable Market data shown on the Mission Brief slide. Leave empty to hide. Supports bold, italic, underline, font size formatting.
+   */
+  tam?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Path or URL to the HTML mockup for this client (e.g. /mockups/purples/index.html)
+   */
+  websiteMockupUrl?: string | null;
+  /**
    * One keyword per line — used for keyword tracking and competitor analysis
    */
   keywords?: string | null;
@@ -756,6 +778,32 @@ export interface ClientProposal {
    * Linked content research results
    */
   contentResearch?: (number | ContentResearch)[] | null;
+  /**
+   * Select slides to REMOVE from the report. Selected slides will be hidden. Leave empty to show all.
+   */
+  visibleSlides?:
+    | (
+        | '1'
+        | '2'
+        | '3'
+        | '4'
+        | '5'
+        | '6'
+        | '7'
+        | '8'
+        | '9'
+        | '10'
+        | '11'
+        | '12'
+        | '13'
+        | '14'
+        | '15'
+        | '16'
+        | '17'
+        | '18'
+        | '19'
+      )[]
+    | null;
   /**
    * Editable flight plan content shown on the report. Supports bold, italic, underline, font size formatting. Falls back to suggestions if empty.
    */
@@ -1755,6 +1803,8 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   conversionGoal?: T;
   businessGoals?: T;
   notes?: T;
+  tam?: T;
+  websiteMockupUrl?: T;
   keywords?: T;
   targetLocation?: T;
   suggestions?: T;
@@ -1784,6 +1834,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   keywordSnapshot?: T;
   competitorAnalysis?: T;
   contentResearch?: T;
+  visibleSlides?: T;
   flightPlan?: T;
   flightPlanImages?:
     | T

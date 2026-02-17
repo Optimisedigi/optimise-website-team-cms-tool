@@ -98,6 +98,8 @@ export async function POST(req: NextRequest) {
       select: {
         businessName: true,
         proposalPin: true,
+        slug: true,
+        websiteMockupUrl: true,
       },
     }),
   ]);
@@ -107,26 +109,32 @@ export async function POST(req: NextRequest) {
   let matchedClientName: string | null = null;
 
   for (const client of clients.docs) {
-    const storedPin = (client as Record<string, unknown>).clientPin as string;
+    const c = client as any;
+    const storedPin = c.clientPin as string;
     if (!storedPin) continue;
 
     if (constantTimeCompare(pin, storedPin)) {
       matchedClientId = String(client.id);
-      matchedClientName = (client as Record<string, unknown>).name as string;
+      matchedClientName = c.name as string;
     }
   }
 
   // Check proposal PINs (always iterate all to prevent timing attacks)
   let matchedProposalId: string | null = null;
   let matchedProposalName: string | null = null;
+  let matchedProposalSlug: string | null = null;
+  let matchedMockupUrl: string | null = null;
 
   for (const proposal of proposals.docs) {
-    const storedPin = (proposal as Record<string, unknown>).proposalPin as string;
+    const p = proposal as any;
+    const storedPin = p.proposalPin as string;
     if (!storedPin) continue;
 
     if (constantTimeCompare(pin, storedPin)) {
       matchedProposalId = String(proposal.id);
-      matchedProposalName = (proposal as Record<string, unknown>).businessName as string;
+      matchedProposalName = p.businessName as string;
+      matchedProposalSlug = (p.slug as string) || null;
+      matchedMockupUrl = (p.websiteMockupUrl as string) || null;
     }
   }
 
@@ -240,7 +248,7 @@ export async function POST(req: NextRequest) {
     const kwSnapshot = kwResult.docs[0] ?? null;
     const compAnalysis = compResult.docs[0] ?? null;
 
-    if (!seoAudit && !croAudit && !kwSnapshot && !compAnalysis) {
+    if (!seoAudit && !croAudit && !kwSnapshot && !compAnalysis && !matchedMockupUrl) {
       return NextResponse.json(
         { ok: false, error: "No audit report found." },
         { status: 404 }
@@ -275,6 +283,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       clientName: matchedProposalName,
+      proposalSlug: matchedProposalSlug,
+      websiteMockupUrl: matchedMockupUrl,
       audit: safeAudit,
       croAudit: safeCroAudit,
       keywordSnapshot: kwSnapshot,

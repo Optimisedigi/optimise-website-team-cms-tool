@@ -40,11 +40,11 @@
 /* ============================================================ */
 
 .client-overview {
-  padding: 28px 28px 24px;
-  background: linear-gradient(180deg, #0f1e36 0%, #162c4e 40%, #1a3358 100%);
+  padding: 18px 28px 24px;
+  background: #0b1120;
   border-radius: 12px;
-  margin: 24px 0 32px;
-  border: 3px solid #2a4a6e;
+  margin: 8px 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #f4f4f5;
 }
 
@@ -83,19 +83,19 @@
 .client-overview-date {
   font-size: 13px;
   color: rgba(255,255,255,0.45);
-  margin-top: 12px;
-  padding-top: 8px;
+  margin-top: 8px;
+  padding-top: 6px;
   border-top: 1px solid rgba(255,255,255,0.12);
   display: block;
   text-align: right;
-  margin-bottom: -4px;
+  margin-bottom: -12px;
 }
 
 .client-overview-meta {
   display: flex;
-  gap: 40px;
+  gap: 32px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
   justify-content: center;
 }
 
@@ -103,15 +103,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 
 .client-overview-label {
-  font-size: 15px;
+  font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.35);
   font-weight: 600;
+  line-height: 1.1;
+  margin-bottom: 0;
 }
 
 .client-overview-value {
@@ -123,16 +125,30 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 1px;
 }
 
 .client-goals-text {
   margin: 0;
-  font-size: 18px;
-  line-height: 1.6;
-  color: rgba(255,255,255,0.75);
+  font-size: 19px;
+  line-height: 1.4;
+  color: #f4f4f5;
   white-space: pre-line;
   text-align: center;
+}
+
+/* TAM section */
+.tam-section {
+  margin-top: 0;
+}
+
+.tam-copy {
+  color: #f4f4f5;
+}
+
+.tam-copy p {
+  margin: 4px 0;
+  line-height: 1.5;
 }
 
 /* ============================================================ */
@@ -140,14 +156,12 @@
 /* ============================================================ */
 
 .instrument-panel {
-  margin-bottom: 40px;
-  background: linear-gradient(180deg, #0f1e36 0%, #162c4e 40%, #1a3358 100%);
+  margin-bottom: 8px;
+  background: #0b1120;
   border-radius: 16px;
   padding: 20px 0;
-  border: 3px solid #2a4a6e;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    0 4px 20px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
   position: relative;
 }
@@ -158,8 +172,8 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #2a4a6e, #d4a44a, #2a4a6e);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
 }
 
 .instrument-panel-cards {
@@ -182,8 +196,8 @@
 }
 
 .instrument-panel .overview-score-card {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
 }
 
@@ -1598,7 +1612,7 @@ html.scroll-ready .report-presentation {
   background: #fff;
 }
 
-/* ---- Slide 5 — Mission Brief (enhanced white) ---- */
+/* ---- Slide 5 — Mission Brief ---- */
 .slide-5 {
   background: #fff;
   padding-bottom: 140px;
@@ -1689,14 +1703,23 @@ html.scroll-ready .report-presentation {
   color: rgba(244, 244, 245, 0.8);
 }
 
-/* ---- Slide 19 — Closing / Space Station ---- */
-.slide-19 {
-  background: #0b1120;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  overflow: hidden;
+/* ---- Space Station image inside Slide 18 ---- */
+.slide-18 {
+  position: relative;
+}
+
+.slide-18-station {
+  position: absolute;
+  top: 170px;
+  right: 24px;
+  width: 35%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.slide-18-station img {
+  width: 100%;
+  height: auto;
 }
 
 .slide-full-img {
@@ -2371,13 +2394,15 @@ html.scroll-ready .report-presentation {
 .rocket-fixed {
   position: fixed;
   right: 42px;
-  bottom: calc(5.5% - 26px + var(--scroll-progress, 0) * 70%);
+  bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70%), calc(65% - 25px));
   z-index: 2147483647;
   display: flex;
   flex-direction: column;
   align-items: center;
-  transition: bottom 0.05s linear;
+  transition: bottom 0.05s linear, transform 0.05s linear;
   cursor: pointer;
+  transform: scale(clamp(0.2, 1 - (var(--scroll-progress, 0) - 0.98) * 40, 1));
+  transform-origin: center bottom;
 }
 
 .rocket-img {
@@ -2413,12 +2438,13 @@ html.scroll-ready .report-presentation {
   right: 68px;
   bottom: 0;
   width: 4px;
-  height: calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 21px);
+  height: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 21px), calc(65% - 25px + 21px));
   background: linear-gradient(to top, transparent, rgba(255, 165, 0, 0.15) 20%, rgba(255, 165, 0, 0.4) 60%, rgba(255, 100, 0, 0.6));
   z-index: 2147483646;
   pointer-events: none;
-  transition: height 0.05s linear;
+  transition: height 0.05s linear, opacity 0.05s linear;
   border-radius: 2px;
+  opacity: clamp(0, 1 - (var(--scroll-progress, 0) - 0.98) * 50, 1);
 }
 
 /* ============================================================ */

@@ -412,10 +412,33 @@ export async function POST(
                   captureWebsiteScreenshot(domain),
                 ]);
 
-                const profile = profileResult.status === "fulfilled" ? profileResult.value?.yourProfile : null;
+                const rawResponse = profileResult.status === "fulfilled" ? profileResult.value : null;
+                const profile = rawResponse?.yourProfile || null;
                 const screenshot = screenshotResult.status === "fulfilled" ? screenshotResult.value : null;
 
-                return { domain, profile, screenshot };
+                // Log what the API returned so we can debug data gaps
+                console.log(`[cms-competitors] ${domain} — yourProfile keys:`, profile ? Object.keys(profile) : 'null');
+                console.log(`[cms-competitors] ${domain} — traffic:`, profile?.traffic ? JSON.stringify(profile.traffic).slice(0, 200) : 'null');
+                console.log(`[cms-competitors] ${domain} — competitors count:`, rawResponse?.competitors?.length ?? 0);
+
+                // If yourProfile has no traffic data, check if this domain appears in the competitors array
+                // (the API may return richer data for competitors than for yourProfile)
+                let enrichedProfile = profile;
+                if (rawResponse?.competitors?.length > 0 && (!profile?.traffic || !profile?.keywordsFound)) {
+                  const selfInCompetitors = rawResponse.competitors.find(
+                    (c: any) => (c.domain || '').replace(/^www\./, '') === domain.replace(/^www\./, '')
+                  );
+                  if (selfInCompetitors) {
+                    console.log(`[cms-competitors] ${domain} — found richer data in competitors array`);
+                    enrichedProfile = { ...selfInCompetitors, ...(profile || {}) };
+                    // Prefer competitor array values for fields missing from yourProfile
+                    if (!enrichedProfile.traffic && selfInCompetitors.traffic) enrichedProfile.traffic = selfInCompetitors.traffic;
+                    if (!enrichedProfile.keywordsFound && selfInCompetitors.keywordsFound) enrichedProfile.keywordsFound = selfInCompetitors.keywordsFound;
+                    if (!enrichedProfile.avgPosition && selfInCompetitors.avgPosition) enrichedProfile.avgPosition = selfInCompetitors.avgPosition;
+                  }
+                }
+
+                return { domain, profile: enrichedProfile, screenshot };
               })
             );
 
@@ -426,6 +449,10 @@ export async function POST(
                 enrichedCompetitors.push({
                   domain: profile?.domain || domain,
                   traffic: profile?.traffic || null,
+                  avgPosition: profile?.avgPosition ?? profile?.averagePosition ?? undefined,
+                  keywordsFound: profile?.keywordsFound ?? undefined,
+                  topKeywords: profile?.topKeywords ?? undefined,
+                  estimatedTraffic: profile?.estimatedTraffic ?? undefined,
                   websiteScreenshot: screenshot || profile?.websiteScreenshot || null,
                   metaAds: profile?.metaAds || null,
                   googleAds: profile?.googleAds || null,
@@ -492,21 +519,36 @@ export async function POST(
     const anySucceeded = Object.values(auditIds).some((v) => v !== null);
     const allFailed = Object.values(auditIds).every((v) => v === null);
 
-    await payload.update({
-      collection: "client-proposals",
-      id,
-      data: {
-        auditStatus: allFailed ? "failed" : "completed",
-        auditCompletedAt: new Date().toISOString(),
-        auditError: errors.length > 0 ? errors.join("\n") : null,
-        ...(auditIds.seoAudit ? { seoAudit: auditIds.seoAudit } : {}),
-        ...(auditIds.croAudit ? { croAudit: auditIds.croAudit } : {}),
-        ...(auditIds.keywordSnapshot ? { keywordSnapshot: auditIds.keywordSnapshot } : {}),
-        ...(auditIds.competitorAnalysis ? { competitorAnalysis: auditIds.competitorAnalysis } : {}),
-        ...(auditIds.contentResearch ? { contentResearch: auditIds.contentResearch } : {}),
-      } as any,
-      overrideAccess: true,
-    });
+    try {
+      await payload.update({
+        collection: "client-proposals",
+        id,
+        data: {
+          auditStatus: allFailed ? "failed" : "completed",
+          auditCompletedAt: new Date().toISOString(),
+          auditError: errors.length > 0 ? errors.join("\n") : null,
+          ...(auditIds.seoAudit ? { seoAudit: auditIds.seoAudit } : {}),
+          ...(auditIds.croAudit ? { croAudit: auditIds.croAudit } : {}),
+          ...(auditIds.keywordSnapshot ? { keywordSnapshot: auditIds.keywordSnapshot } : {}),
+          ...(auditIds.competitorAnalysis ? { competitorAnalysis: auditIds.competitorAnalysis } : {}),
+          ...(auditIds.contentResearch ? { contentResearch: auditIds.contentResearch } : {}),
+        } as any,
+        overrideAccess: true,
+      });
+    } catch (updateErr: any) {
+      // If the final status update fails (e.g. missing migration table), fall back to raw SQL
+      console.error("[run-audits] Final status update via Payload failed, falling back to raw SQL:", updateErr.message);
+      try {
+        const db = (payload.db as any).drizzle;
+        if (db) {
+          await db.run(
+            `UPDATE client_proposals SET audit_status = '${allFailed ? "failed" : "completed"}', audit_completed_at = '${new Date().toISOString()}'${auditIds.seoAudit ? `, seo_audit_id = ${auditIds.seoAudit}` : ""}${auditIds.croAudit ? `, cro_audit_id = ${auditIds.croAudit}` : ""}${auditIds.keywordSnapshot ? `, keyword_snapshot_id = ${auditIds.keywordSnapshot}` : ""}${auditIds.competitorAnalysis ? `, competitor_analysis_id = ${auditIds.competitorAnalysis}` : ""} WHERE id = ${id}`
+          );
+        }
+      } catch (sqlErr: any) {
+        console.error("[run-audits] Raw SQL fallback also failed:", sqlErr.message);
+      }
+    }
 
     return NextResponse.json({
       ok: anySucceeded,

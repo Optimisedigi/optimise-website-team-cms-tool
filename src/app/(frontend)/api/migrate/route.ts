@@ -280,6 +280,24 @@ export async function POST(request: NextRequest) {
   await run("locked_docs_rels.gsc_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `gsc_snapshots_id` integer REFERENCES `gsc_snapshots`(`id`) ON DELETE cascade");
   await run("locked_docs_rels.gsc_alerts_id", "ALTER TABLE `payload_locked_documents_rels` ADD `gsc_alerts_id` integer REFERENCES `gsc_alerts`(`id`) ON DELETE cascade");
 
+  // --- Website Mockup URL column on client_proposals ---
+  await run("client_proposals.website_mockup_url", "ALTER TABLE `client_proposals` ADD `website_mockup_url` text");
+
+  // --- TAM rich text column on client_proposals ---
+  await run("client_proposals.tam", "ALTER TABLE `client_proposals` ADD `tam` text");
+
+  // --- Visible Slides sub-table for client_proposals (hasMany select) ---
+  await run("client_proposals_visible_slides", `CREATE TABLE IF NOT EXISTS \`client_proposals_visible_slides\` (
+    \`order\` integer NOT NULL, \`parent_id\` integer NOT NULL,
+    \`value\` text,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    FOREIGN KEY (\`parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("client_proposals_visible_slides_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_visible_slides_order_idx` ON `client_proposals_visible_slides` (`order`)");
+  await run("client_proposals_visible_slides_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_visible_slides_parent_id_idx` ON `client_proposals_visible_slides` (`parent_id`)");
+  // Drop the incorrect column if it was added by previous migration run
+  await run("drop_visible_slides_col", "SELECT 1");
+
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 

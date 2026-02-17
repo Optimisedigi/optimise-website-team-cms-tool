@@ -1,5 +1,5 @@
 import { getPayload } from 'payload'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import config from '@/payload.config'
 import Image from 'next/image'
 import RocketScroll from '@/components/RocketScroll'
@@ -665,7 +665,13 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
     externalId: doc.externalId,
   }))
 
-  if (!seoAudit && !croAudit && !kwSnapshot && !compAnalysis) notFound()
+  if (!seoAudit && !croAudit && !kwSnapshot && !compAnalysis) {
+    const mockupUrl = (proposal as any).websiteMockupUrl as string | undefined
+    if (mockupUrl) {
+      redirect(`/mockup/${proposal.slug}`)
+    }
+    notFound()
+  }
 
   const reportDate = new Date().toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -789,11 +795,18 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
       const hasMetaOverride = metaAdsOverrides.has(domain)
       // Look up partial match in API data (the domain might differ slightly)
       const apiMatch = allCompsByDomain.get(domain)
+      // Build traffic object from estimatedTraffic if traffic is missing
+      const trafficData = apiMatch?.traffic
+        ?? (apiMatch?.estimatedTraffic != null
+          ? { monthlyVisits: apiMatch.estimatedTraffic, globalRank: null, sources: { direct: 0, organicSearch: 0, paidSearch: 0, social: 0, email: 0, referrals: 0 } }
+          : null)
       selectedCompetitors.push({
         domain,
-        traffic: apiMatch?.traffic ?? null,
-        avgPosition: apiMatch?.avgPosition ?? undefined,
+        traffic: trafficData,
+        avgPosition: apiMatch?.avgPosition ?? apiMatch?.averagePosition ?? undefined,
         keywordsFound: apiMatch?.keywordsFound ?? undefined,
+        topKeywords: apiMatch?.topKeywords ?? undefined,
+        estimatedTraffic: apiMatch?.estimatedTraffic ?? undefined,
         websiteScreenshot: apiMatch?.websiteScreenshot ?? null,
         metaAds: hasMetaOverride
           ? { isRunningAds: true, activeAdCount: 0, adScreenshots: [] }
@@ -897,27 +910,31 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
     }
   }
 
+  const websiteMockupUrl = (proposal as any).websiteMockupUrl as string | undefined
+
+  // Slide visibility — selected slides are REMOVED (hidden)
+  const hiddenSlides = (proposal as any).visibleSlides as string[] | null
+  const showSlide = (n: number) => !hiddenSlides || hiddenSlides.length === 0 || !hiddenSlides.includes(String(n))
+
   return (
     <RocketScroll>
       <div className="report-presentation">
 
         {/* ============================================================ */}
-        {/* SLIDE 19 — Closing / Space Station                          */}
+        {/* SLIDE 18 — Launch Requirements + Space Station               */}
         {/* ============================================================ */}
-        <section className="slide slide-19">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/slides/Space-station-optimise-digital.png" alt="Optimise Digital — Your Growth Partner" className="slide-full-img" />
-        </section>
-
-        {/* ============================================================ */}
-        {/* SLIDE 18 — Launch Requirements                              */}
-        {/* ============================================================ */}
-        <section className="slide slide-18 slide-expandable">
+        {showSlide(18) && <section className="slide slide-18 slide-expandable">
           <StarField seed={42} />
           <div className="slide-header slide-header-dark">
             <h2>10. Launch Requirements</h2>
             <span>Next Steps</span>
           </div>
+          {showSlide(19) && (
+            <div className="slide-18-station">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/slides/Space-station-optimise-digital.png" alt="Optimise Digital — Your Growth Partner" />
+            </div>
+          )}
           <div className="slide-content">
             {launchRequirements ? (
               <div className="cms-copy-block">
@@ -933,12 +950,12 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               </div>
             )}
           </div>
-        </section>
+        </section>}
 
         {/* ============================================================ */}
         {/* SLIDE 17 — Mission Resources                                */}
         {/* ============================================================ */}
-        <section className="slide slide-17 slide-expandable">
+        {showSlide(17) && <section className="slide slide-17 slide-expandable">
           <div className="slide-header">
             <h2>9. Mission Resources</h2>
             <span>Commercial Model &amp; Pricing</span>
@@ -958,12 +975,12 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               </div>
             )}
           </div>
-        </section>
+        </section>}
 
         {/* ============================================================ */}
         {/* SLIDE 16 — Flight Plan                                      */}
         {/* ============================================================ */}
-        <section className="slide slide-16 slide-expandable">
+        {showSlide(16) && <section className="slide slide-16 slide-expandable">
           <div className="slide-header">
             <h2>8. Flight Plan</h2>
             <span>Roadmap &amp; Timeframes</span>
@@ -1008,13 +1025,36 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
 
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/slides/slide-12.webp" alt="Flight Plan Timeline — 1 to 12 months and ongoing" className="flight-plan-timeline-img" />
+
+            {websiteMockupUrl && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '40px' }}>
+                <a
+                  href={`/mockup/${proposal.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-block',
+                    padding: '14px 32px',
+                    background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+                    color: '#fff',
+                    borderRadius: '12px',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    fontSize: '16px',
+                    boxShadow: '0 4px 20px rgba(59, 130, 246, 0.4)',
+                  }}
+                >
+                  View Website Mockup
+                </a>
+              </div>
+            )}
           </div>
-        </section>
+        </section>}
 
         {/* ============================================================ */}
         {/* SLIDE 15 — Mission Control                                  */}
         {/* ============================================================ */}
-        <section className="slide slide-15 slide-expandable">
+        {showSlide(15) && <section className="slide slide-15 slide-expandable">
           <div className="slide-header">
             <h2>7. Mission Control</h2>
             <span>Data &amp; Success Metrics</span>
@@ -1097,12 +1137,12 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               </div>
             )}
           </div>
-        </section>
+        </section>}
 
         {/* ============================================================ */}
         {/* SLIDE 14 — Fueling the Ship: Competitor Ads                */}
         {/* ============================================================ */}
-        <section className="slide slide-14 slide-expandable">
+        {showSlide(14) && <section className="slide slide-14 slide-expandable">
           <div className="slide-header">
             <h2>6. Fueling the Ship</h2>
             <span>2nd Stage Burn</span>
@@ -1181,12 +1221,12 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               )
             })()}
           </div>
-        </section>
+        </section>}
 
         {/* ============================================================ */}
         {/* SLIDE 13 — Fueling the Ship: Content Research              */}
         {/* ============================================================ */}
-        <section className="slide slide-13 slide-expandable">
+        {showSlide(13) && <section className="slide slide-13 slide-expandable">
           <div className="slide-header">
             <h2>6. Fueling the Ship</h2>
             <span>Propulsion</span>
@@ -1275,12 +1315,12 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               </div>
             )}
           </div>
-        </section>
+        </section>}
 
         {/* ============================================================ */}
         {/* SLIDE 12 — Building the Ship: SEO Recommendations           */}
         {/* ============================================================ */}
-        {seoAudit && seoRecommendations && Array.isArray(seoRecommendations) && seoRecommendations.length > 0 && (
+        {showSlide(12) && seoAudit && seoRecommendations && Array.isArray(seoRecommendations) && seoRecommendations.length > 0 && (
           <section className="slide slide-12 slide-expandable">
             <div className="slide-header">
               <h2>5. Building the Ship</h2>
@@ -1314,7 +1354,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 11 — Building the Ship: Technical + Page Results       */}
         {/* ============================================================ */}
-        {seoAudit && (
+        {showSlide(11) && seoAudit && (
           <section className="slide slide-11 slide-expandable">
             <div className="slide-header">
               <h2>5. Building the Ship</h2>
@@ -1431,7 +1471,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 10 — Building the Ship: SEO Overview + Category Scores */}
         {/* ============================================================ */}
-        {seoAudit && (
+        {showSlide(10) && seoAudit && (
           <section className="slide slide-10 slide-expandable">
             <div className="slide-header">
               <h2>5. Building the Ship</h2>
@@ -1494,7 +1534,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 9 — Mission Priorities: CRO Recommendations           */}
         {/* ============================================================ */}
-        {croAudit && ((croRecommendations && Array.isArray(croRecommendations) && croRecommendations.length > 0) || croExtracted) && (
+        {showSlide(9) && croAudit && ((croRecommendations && Array.isArray(croRecommendations) && croRecommendations.length > 0) || croExtracted) && (
           <section className="slide slide-9 slide-expandable">
             <div className="slide-header">
               <h2>4. Mission Priorities</h2>
@@ -1579,7 +1619,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 8 — Mission Priorities: CRO Overview + Findings        */}
         {/* ============================================================ */}
-        {croAudit && (
+        {showSlide(8) && croAudit && (
           <section className="slide slide-8 slide-expandable">
             <div className="slide-header">
               <h2>4. Mission Priorities</h2>
@@ -1649,7 +1689,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 7 — Pre-flight Check: Competitor Analysis              */}
         {/* ============================================================ */}
-        {(yourProfileWithOverrides || (allCompetitorsWithOverrides.length > 0)) && (
+        {showSlide(7) && (yourProfileWithOverrides || (allCompetitorsWithOverrides.length > 0)) && (
           <section className="slide slide-7 slide-expandable">
             <div className="slide-header">
               <h2>3. Pre-flight Check</h2>
@@ -1716,7 +1756,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 6 — Pre-flight Check: Keywords Analysis                */}
         {/* ============================================================ */}
-        {kwSnapshot && keywords && (
+        {showSlide(6) && kwSnapshot && keywords && (
           <section className="slide slide-6 slide-expandable">
             <div className="slide-header">
               <h2>3. Pre-flight Check</h2>
@@ -1771,7 +1811,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 5 — Mission Brief: Client Overview + Instrument Panel  */}
         {/* ============================================================ */}
-        <section className="slide slide-5 slide-expandable">
+        {showSlide(5) && <section className="slide slide-5 slide-expandable">
           <div className="slide-header">
             <h2>2. Mission Brief</h2>
             <span>Overview</span>
@@ -1888,48 +1928,64 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 </div>
               </section>
             )}
+
+            {(() => {
+              const tamData = (proposal as any).tam
+              if (!tamData) return null
+              return (
+                <section className="client-overview tam-section">
+                  <div className="cms-copy-block tam-copy">
+                    {isLexicalData(tamData) ? (
+                      <RichText data={tamData} />
+                    ) : (
+                      <LegacyTextBlock text={tamData as string} />
+                    )}
+                  </div>
+                </section>
+              )
+            })()}
           </div>
-        </section>
+        </section>}
 
         {/* ============================================================ */}
         {/* SLIDE 4 — Our Flight Philosophy (chart)                     */}
         {/* ============================================================ */}
-        <section className="slide slide-4">
+        {showSlide(4) && <section className="slide slide-4">
           <div className="slide-header">
             <h2>1. Our Flight Philosophy</h2>
             <span>Build and Fix the Spaceship Before Anything Else</span>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/slides/slide-4.webp" alt="Our Flight Philosophy — chart" className="slide-static-img" />
-        </section>
+        </section>}
 
         {/* ============================================================ */}
         {/* SLIDE 3 — Our Flight Philosophy (approach)                  */}
         {/* ============================================================ */}
-        <section className="slide slide-3">
+        {showSlide(3) && <section className="slide slide-3">
           <div className="slide-header">
             <h2>1. Our Flight Philosophy</h2>
             <span>Our Approach</span>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/slides/slide-3.webp" alt="Our Flight Philosophy — approach" className="slide-static-img" />
-        </section>
+        </section>}
 
         {/* ============================================================ */}
         {/* SLIDE 2 — What This Covers                                  */}
         {/* ============================================================ */}
-        <section className="slide slide-2">
+        {showSlide(2) && <section className="slide slide-2">
           <div className="slide-header">
             <h2>What This Covers</h2>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/slides/slide-2.webp" alt="What This Covers" className="slide-static-img" />
-        </section>
+        </section>}
 
         {/* ============================================================ */}
         {/* SLIDE 1 — Intro (bottom of page = user starts here)         */}
         {/* ============================================================ */}
-        <section className="slide slide-1">
+        {showSlide(1) && <section className="slide slide-1">
           <div className="slide-1-inner">
             <a href="https://www.optimisedigital.online" target="_blank" rel="noopener noreferrer">
               <Image
@@ -1944,7 +2000,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             <span className="slide-1-label">Pre-launch Assessment</span>
             <h1 className="slide-1-business">{proposal.businessName}</h1>
           </div>
-        </section>
+        </section>}
 
       </div>
     </RocketScroll>
