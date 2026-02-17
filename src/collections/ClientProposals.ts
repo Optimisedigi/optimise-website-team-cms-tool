@@ -463,6 +463,14 @@ export const ClientProposals: CollectionConfig = {
               ],
             },
             {
+              name: "auditProgress",
+              type: "text",
+              admin: {
+                readOnly: true,
+                description: "Current stage of the audit pipeline (e.g. 'seo_done|40')",
+              },
+            },
+            {
               name: "auditStartedAt",
               type: "date",
               admin: {

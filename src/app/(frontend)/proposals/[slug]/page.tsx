@@ -87,9 +87,20 @@ type TrafficSources = {
 }
 
 type TrafficData = {
-  monthlyVisits: number
+  monthlyVisits: number | any[] | any
   globalRank: number | null
   sources: TrafficSources
+}
+
+// Traffic endpoint may return monthlyVisits as an array of {month, visits} objects.
+// Normalize to a single number.
+function normalizeMonthlyVisits(v: unknown): number {
+  if (typeof v === 'number') return v
+  if (Array.isArray(v) && v.length > 0) {
+    const last = v[v.length - 1]
+    return typeof last === 'number' ? last : (last?.visits ?? 0)
+  }
+  return 0
 }
 
 type GoogleBusinessProfile = {
@@ -391,7 +402,7 @@ function CompetitorCard({
   isYou?: boolean
   sourceLabel?: string
 }) {
-  const monthlyVisits = comp.traffic?.monthlyVisits
+  const monthlyVisits = normalizeMonthlyVisits(comp.traffic?.monthlyVisits)
   const sources = comp.traffic?.sources
   const avgPos = comp.averagePosition ?? comp.avgPosition
   const runsGoogleAds = comp.googleAds?.isRunningAds ?? false
@@ -777,7 +788,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         searchCompetitors.push(comp)
       }
     }
-    searchCompetitors.sort((a, b) => (b.traffic?.monthlyVisits ?? 0) - (a.traffic?.monthlyVisits ?? 0))
+    searchCompetitors.sort((a, b) => normalizeMonthlyVisits(b.traffic?.monthlyVisits) - normalizeMonthlyVisits(a.traffic?.monthlyVisits))
   }
 
   // Create stub CompetitorProfile entries for CMS competitors not matched in API data
@@ -830,7 +841,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
 
   // Avg competitor monthly traffic
   const competitorTrafficValues = allCompetitorsWithOverrides
-    .map(c => c.traffic?.monthlyVisits)
+    .map(c => normalizeMonthlyVisits(c.traffic?.monthlyVisits))
     .filter((v): v is number => v != null && v > 0)
   const avgCompetitorTraffic = competitorTrafficValues.length > 0
     ? Math.round(competitorTrafficValues.reduce((a, b) => a + b, 0) / competitorTrafficValues.length)
@@ -866,7 +877,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   // Build Mission Control rows: business + competitors
   const missionControlRows: { name: string; monthlyVisits: number; leadConvRate: number; leads: number; leadToSaleRate: number; payingClients: number; monthlyReturn: number; annualReturnValue: number | null; isYou?: boolean }[] = []
   if (leadConversionRate != null && leadToSaleConversionRate != null && averageOrderValue != null) {
-    const yourVisits = yourProfileWithOverrides?.traffic?.monthlyVisits ?? 0
+    const yourVisits = normalizeMonthlyVisits(yourProfileWithOverrides?.traffic?.monthlyVisits)
     const lcr = leadConversionRate / 100
     const ltsr = leadToSaleConversionRate / 100
     const aov = averageOrderValue
@@ -892,7 +903,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
     // Competitor rows
     const allComps = [...selectedCompetitors, ...displaySearchCompetitors]
     for (const comp of allComps) {
-      const visits = comp.traffic?.monthlyVisits ?? 0
+      const visits = normalizeMonthlyVisits(comp.traffic?.monthlyVisits)
       const compLeads = Math.round(visits * lcr)
       const compClients = Math.round(compLeads * ltsr)
       const compMonthlyReturn = compClients * aov
@@ -908,6 +919,13 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         annualReturnValue: compAnnualReturn,
       })
     }
+
+    // Sort competitor rows by monthly visits (descending), keep "you" row first
+    missionControlRows.sort((a, b) => {
+      if (a.isYou) return -1
+      if (b.isYou) return 1
+      return b.monthlyVisits - a.monthlyVisits
+    })
   }
 
   const websiteMockupUrl = (proposal as any).websiteMockupUrl as string | undefined

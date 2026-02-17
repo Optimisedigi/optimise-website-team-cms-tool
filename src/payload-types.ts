@@ -747,6 +747,10 @@ export interface ClientProposal {
    */
   auditStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
   /**
+   * Current stage of the audit pipeline (e.g. 'seo_done|40')
+   */
+  auditProgress?: string | null;
+  /**
    * When audits were last kicked off
    */
   auditStartedAt?: string | null;
@@ -1826,6 +1830,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         id?: T;
       };
   auditStatus?: T;
+  auditProgress?: T;
   auditStartedAt?: T;
   auditCompletedAt?: T;
   auditError?: T;

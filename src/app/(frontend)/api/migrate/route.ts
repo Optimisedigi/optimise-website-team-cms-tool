@@ -298,6 +298,9 @@ export async function POST(request: NextRequest) {
   // Drop the incorrect column if it was added by previous migration run
   await run("drop_visible_slides_col", "SELECT 1");
 
+  // --- Audit progress text column on client_proposals ---
+  await run("client_proposals.audit_progress", "ALTER TABLE `client_proposals` ADD `audit_progress` text");
+
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 

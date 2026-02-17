@@ -6,6 +6,20 @@ import { captureWebsiteScreenshot } from "@/lib/screenshots";
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
+// Traffic endpoint returns monthlyVisits as an array of {month, visits} objects.
+// Extract the latest month's visits, or fall back to averageMonthlyVisits.
+function extractMonthlyVisits(td: any): number | null {
+  if (!td) return null;
+  if (typeof td.averageMonthlyVisits === "number") return td.averageMonthlyVisits;
+  if (Array.isArray(td.monthlyVisits) && td.monthlyVisits.length > 0) {
+    const last = td.monthlyVisits[td.monthlyVisits.length - 1];
+    return typeof last === "number" ? last : last?.visits ?? null;
+  }
+  if (typeof td.monthlyVisits === "number") return td.monthlyVisits;
+  if (typeof td.estimatedMonthlyVisits === "number") return td.estimatedMonthlyVisits;
+  return null;
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -55,12 +69,22 @@ export async function POST(
     id,
     data: {
       auditStatus: "running",
+      auditProgress: "Starting audits|0",
       auditStartedAt: new Date().toISOString(),
       auditCompletedAt: null,
       auditError: null,
     } as any,
     overrideAccess: true,
   });
+
+  // Helper to update progress stage (non-blocking, best-effort)
+  const updateProgress = (stage: string, percent: number) =>
+    payload.update({
+      collection: "client-proposals",
+      id,
+      data: { auditProgress: `${stage}|${percent}` } as any,
+      overrideAccess: true,
+    }).catch(() => {});
 
   const proposalId = Number(id);
 
@@ -73,96 +97,91 @@ export async function POST(
   const keywordsNewlineSeparated = keywordsList.join("\n");
   const keywordsCommaSeparated = keywordsList.join(",");
 
+  // Return immediately — run the audit work in the background
+  // (the frontend polls /api/proposals/[id]/audit-status for progress)
+  const auditWork = async () => {
+
   try {
-    // Call 5 growth-tools endpoints in parallel
+    await updateProgress("Running SEO, CRO, keywords, competitors & content research", 5);
+
+    // Track individual completions for progress updates
+    let completed = 0;
+    const totalSteps = 5;
+    const stepLabels = ["SEO audit", "CRO audit", "Keyword tracking", "Competitor analysis", "Content research"];
+    const onStepDone = async (index: number) => {
+      completed++;
+      const percent = Math.round((completed / totalSteps) * 60); // 0-60% for API calls
+      await updateProgress(`${stepLabels[index]} complete (${completed}/${totalSteps})`, percent);
+    };
+
+    // Call 5 growth-tools endpoints in parallel, tracking progress
+    const seoPromise = fetch(`${GROWTH_TOOLS_URL}/api/seo-audits`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY },
+      body: JSON.stringify({ websiteUrl, businessType }),
+    }).then(async (res) => {
+      if (!res.ok) throw new Error(`SEO audit failed: ${res.status}`);
+      const data = await res.json();
+      await onStepDone(0);
+      return data;
+    });
+
+    const croPromise = fetch(`${GROWTH_TOOLS_URL}/api/audits`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY },
+      body: JSON.stringify({ websiteUrl, conversionGoal: conversionGoal || "lead generation", businessType }),
+    }).then(async (res) => {
+      if (!res.ok) throw new Error(`CRO audit failed: ${res.status}`);
+      const data = await res.json();
+      await onStepDone(1);
+      return data;
+    });
+
+    const kwPromise = fetch(`${GROWTH_TOOLS_URL}/api/track-keywords`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY },
+      body: JSON.stringify({ website: websiteUrl, keywords: keywordsNewlineSeparated, location: targetLocation || undefined }),
+    }).then(async (res) => {
+      if (!res.ok) throw new Error(`Keywords failed: ${res.status}`);
+      const data = await res.json();
+      await onStepDone(2);
+      return data;
+    });
+
+    const compPromise = fetch(`${GROWTH_TOOLS_URL}/api/competitor-analysis`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY },
+      body: JSON.stringify({ websiteUrl, keywords: keywordsCommaSeparated, location: targetLocation || undefined }),
+    }).then(async (res) => {
+      if (!res.ok) throw new Error(`Competitor analysis failed: ${res.status}`);
+      const data = await res.json();
+      await onStepDone(3);
+      return data;
+    });
+
+    const crPromise = (async () => {
+      const crLocation = targetLocation ? targetLocation.split(":")[0] : "au";
+      const topKeywords = keywordsList.slice(0, 5);
+      const results = await Promise.allSettled(
+        topKeywords.map((keyword: string) =>
+          fetch(`${GROWTH_TOOLS_URL}/api/content-research`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY! },
+            body: JSON.stringify({ keyword, location: crLocation }),
+          }).then(async (res) => {
+            if (!res.ok) throw new Error(`Content research failed for "${keyword}": ${res.status}`);
+            return res.json();
+          })
+        )
+      );
+      await onStepDone(4);
+      return results
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
+        .map((r) => r.value);
+    })();
+
     const [seoResult, croResult, kwResult, compResult, crResult] = await Promise.allSettled([
-      // SEO audit
-      fetch(`${GROWTH_TOOLS_URL}/api/seo-audits`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-internal-key": INTERNAL_API_KEY,
-        },
-        body: JSON.stringify({ websiteUrl, businessType }),
-      }).then(async (res) => {
-        if (!res.ok) throw new Error(`SEO audit failed: ${res.status}`);
-        return res.json();
-      }),
-
-      // CRO audit
-      fetch(`${GROWTH_TOOLS_URL}/api/audits`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-internal-key": INTERNAL_API_KEY,
-        },
-        body: JSON.stringify({
-          websiteUrl,
-          conversionGoal: conversionGoal || "lead generation",
-          businessType,
-        }),
-      }).then(async (res) => {
-        if (!res.ok) throw new Error(`CRO audit failed: ${res.status}`);
-        return res.json();
-      }),
-
-      // Keyword tracking
-      fetch(`${GROWTH_TOOLS_URL}/api/track-keywords`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-internal-key": INTERNAL_API_KEY,
-        },
-        body: JSON.stringify({
-          website: websiteUrl,
-          keywords: keywordsNewlineSeparated,
-          location: targetLocation || undefined,
-        }),
-      }).then(async (res) => {
-        if (!res.ok) throw new Error(`Keywords failed: ${res.status}`);
-        return res.json();
-      }),
-
-      // Competitor analysis
-      fetch(`${GROWTH_TOOLS_URL}/api/competitor-analysis`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-internal-key": INTERNAL_API_KEY,
-        },
-        body: JSON.stringify({
-          websiteUrl,
-          keywords: keywordsCommaSeparated,
-          location: targetLocation || undefined,
-        }),
-      }).then(async (res) => {
-        if (!res.ok) throw new Error(`Competitor analysis failed: ${res.status}`);
-        return res.json();
-      }),
-
-      // Content research — call for each keyword (up to 5)
-      (async () => {
-        const crLocation = targetLocation ? targetLocation.split(":")[0] : "au";
-        const topKeywords = keywordsList.slice(0, 5);
-        const results = await Promise.allSettled(
-          topKeywords.map((keyword: string) =>
-            fetch(`${GROWTH_TOOLS_URL}/api/content-research`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-internal-key": INTERNAL_API_KEY!,
-              },
-              body: JSON.stringify({ keyword, location: crLocation }),
-            }).then(async (res) => {
-              if (!res.ok) throw new Error(`Content research failed for "${keyword}": ${res.status}`);
-              return res.json();
-            })
-          )
-        );
-        return results
-          .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
-          .map((r) => r.value);
-      })(),
+      seoPromise, croPromise, kwPromise, compPromise, crPromise,
     ]);
 
     const auditIds: Record<string, number | string | number[] | null> = {
@@ -331,6 +350,7 @@ export async function POST(
         }
 
         if (compData) {
+          await updateProgress("Capturing website screenshots", 65);
           const yourDomain = compData?.yourProfile?.domain || websiteUrl;
           const competitorDomains: string[] = (compData?.competitors || []).map((c: any) => c.domain).filter(Boolean);
           const allDomains = [yourDomain, ...competitorDomains];
@@ -385,26 +405,18 @@ export async function POST(
           }
 
           if (missingCmsCompetitors.length > 0) {
+            await updateProgress("Fetching CMS competitor data", 75);
             console.log(`[cms-competitors] Fetching data for ${missingCmsCompetitors.length} CMS-only competitors`);
 
-            // Fetch traffic/ads data AND screenshots in parallel for each CMS competitor
+            // Fetch traffic data (SimilarWeb) AND screenshots in parallel for each CMS competitor
+            // Uses the lightweight /api/traffic endpoint instead of full competitor-analysis
             const cmsDataResults = await Promise.allSettled(
               missingCmsCompetitors.map(async ({ domain }) => {
-                const domainUrl = domain.startsWith("http") ? domain : `https://${domain}`;
+                const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
 
-                // Fetch competitor profile data from growth-tools (their profile is returned as "yourProfile")
-                const [profileResult, screenshotResult] = await Promise.allSettled([
-                  fetch(`${GROWTH_TOOLS_URL}/api/competitor-analysis`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "x-internal-key": INTERNAL_API_KEY!,
-                    },
-                    body: JSON.stringify({
-                      websiteUrl: domainUrl,
-                      keywords: keywordsCommaSeparated,
-                      location: targetLocation || undefined,
-                    }),
+                const [trafficResult, screenshotResult] = await Promise.allSettled([
+                  fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(cleanDomain)}`, {
+                    headers: { "x-internal-key": INTERNAL_API_KEY! },
                   }).then(async (res) => {
                     if (!res.ok) return null;
                     return res.json();
@@ -412,54 +424,96 @@ export async function POST(
                   captureWebsiteScreenshot(domain),
                 ]);
 
-                const rawResponse = profileResult.status === "fulfilled" ? profileResult.value : null;
-                const profile = rawResponse?.yourProfile || null;
+                const trafficData = trafficResult.status === "fulfilled" ? trafficResult.value : null;
                 const screenshot = screenshotResult.status === "fulfilled" ? screenshotResult.value : null;
 
-                // Log what the API returned so we can debug data gaps
-                console.log(`[cms-competitors] ${domain} — yourProfile keys:`, profile ? Object.keys(profile) : 'null');
-                console.log(`[cms-competitors] ${domain} — traffic:`, profile?.traffic ? JSON.stringify(profile.traffic).slice(0, 200) : 'null');
-                console.log(`[cms-competitors] ${domain} — competitors count:`, rawResponse?.competitors?.length ?? 0);
+                console.log(`[cms-competitors] ${domain} — traffic endpoint:`, trafficData ? JSON.stringify(trafficData).slice(0, 300) : 'null');
 
-                // If yourProfile has no traffic data, check if this domain appears in the competitors array
-                // (the API may return richer data for competitors than for yourProfile)
-                let enrichedProfile = profile;
-                if (rawResponse?.competitors?.length > 0 && (!profile?.traffic || !profile?.keywordsFound)) {
-                  const selfInCompetitors = rawResponse.competitors.find(
-                    (c: any) => (c.domain || '').replace(/^www\./, '') === domain.replace(/^www\./, '')
-                  );
-                  if (selfInCompetitors) {
-                    console.log(`[cms-competitors] ${domain} — found richer data in competitors array`);
-                    enrichedProfile = { ...selfInCompetitors, ...(profile || {}) };
-                    // Prefer competitor array values for fields missing from yourProfile
-                    if (!enrichedProfile.traffic && selfInCompetitors.traffic) enrichedProfile.traffic = selfInCompetitors.traffic;
-                    if (!enrichedProfile.keywordsFound && selfInCompetitors.keywordsFound) enrichedProfile.keywordsFound = selfInCompetitors.keywordsFound;
-                    if (!enrichedProfile.avgPosition && selfInCompetitors.avgPosition) enrichedProfile.avgPosition = selfInCompetitors.avgPosition;
-                  }
-                }
-
-                return { domain, profile: enrichedProfile, screenshot };
+                return { domain, trafficData, screenshot };
               })
             );
 
-            // Append enriched competitor entries
+            // Append enriched competitor entries using traffic endpoint data
             for (const result of cmsDataResults) {
               if (result.status === "fulfilled") {
-                const { domain, profile, screenshot } = result.value;
+                const { domain, trafficData, screenshot } = result.value;
+                // Traffic endpoint returns: { monthlyVisits, globalRank, categoryRank, sources, ... }
+                const traffic = trafficData ? {
+                  monthlyVisits: extractMonthlyVisits(trafficData),
+                  globalRank: trafficData.globalRank ?? null,
+                  categoryRank: trafficData.categoryRank ?? null,
+                  sources: trafficData.sources ?? trafficData.trafficSources ?? null,
+                } : null;
                 enrichedCompetitors.push({
-                  domain: profile?.domain || domain,
-                  traffic: profile?.traffic || null,
-                  avgPosition: profile?.avgPosition ?? profile?.averagePosition ?? undefined,
-                  keywordsFound: profile?.keywordsFound ?? undefined,
-                  topKeywords: profile?.topKeywords ?? undefined,
-                  estimatedTraffic: profile?.estimatedTraffic ?? undefined,
-                  websiteScreenshot: screenshot || profile?.websiteScreenshot || null,
-                  metaAds: profile?.metaAds || null,
-                  googleAds: profile?.googleAds || null,
-                  googleBusinessProfile: profile?.googleBusinessProfile || null,
+                  domain,
+                  traffic,
+                  websiteScreenshot: screenshot || null,
+                  metaAds: null,
+                  googleAds: null,
+                  googleBusinessProfile: null,
                 });
                 if (screenshot) screenshotMap.set(domain, screenshot);
               }
+            }
+          }
+
+          // Backfill traffic via /api/traffic for any competitor (API-discovered or CMS) missing valid traffic data
+          const noTrafficComps = enrichedCompetitors.filter((c: any) =>
+            !c.traffic || typeof c.traffic.monthlyVisits !== "number"
+          );
+          if (noTrafficComps.length > 0) {
+            await updateProgress("Backfilling traffic data", 85);
+            console.log(`[traffic-backfill] Fetching traffic for ${noTrafficComps.length} competitors with null traffic`);
+            const trafficResults = await Promise.allSettled(
+              noTrafficComps.map(async (comp: any) => {
+                const cleanDomain = (comp.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+                const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(cleanDomain)}`, {
+                  headers: { "x-internal-key": INTERNAL_API_KEY! },
+                });
+                if (!res.ok) return { domain: comp.domain, trafficData: null };
+                const trafficData = await res.json();
+                console.log(`[traffic-backfill] ${cleanDomain}:`, trafficData ? JSON.stringify(trafficData).slice(0, 300) : 'null');
+                return { domain: comp.domain, trafficData };
+              })
+            );
+            const trafficMap = new Map<string, any>();
+            for (const r of trafficResults) {
+              if (r.status === "fulfilled" && r.value.trafficData) {
+                trafficMap.set(r.value.domain, r.value.trafficData);
+              }
+            }
+            for (const comp of enrichedCompetitors) {
+              if (!comp.traffic && trafficMap.has(comp.domain)) {
+                const td = trafficMap.get(comp.domain);
+                comp.traffic = {
+                  monthlyVisits: extractMonthlyVisits(td),
+                  globalRank: td.globalRank ?? null,
+                  categoryRank: td.categoryRank ?? null,
+                  sources: td.sources ?? td.trafficSources ?? null,
+                };
+              }
+            }
+          }
+
+          // Also backfill yourProfile traffic if missing or invalid
+          if (enrichedYourProfile && (!enrichedYourProfile.traffic || typeof enrichedYourProfile.traffic.monthlyVisits !== "number")) {
+            try {
+              const cleanDomain = (enrichedYourProfile.domain || yourDomain).replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+              const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(cleanDomain)}`, {
+                headers: { "x-internal-key": INTERNAL_API_KEY! },
+              });
+              if (res.ok) {
+                const td = await res.json();
+                console.log(`[traffic-backfill] yourProfile ${cleanDomain}:`, JSON.stringify(td).slice(0, 300));
+                enrichedYourProfile.traffic = {
+                  monthlyVisits: extractMonthlyVisits(td),
+                  globalRank: td.globalRank ?? null,
+                  categoryRank: td.categoryRank ?? null,
+                  sources: td.sources ?? td.trafficSources ?? null,
+                };
+              }
+            } catch (e: any) {
+              console.error("[traffic-backfill] yourProfile failed:", e.message);
             }
           }
 
@@ -516,6 +570,7 @@ export async function POST(
     }
 
     // Determine final status
+    await updateProgress("Saving results", 95);
     const anySucceeded = Object.values(auditIds).some((v) => v !== null);
     const allFailed = Object.values(auditIds).every((v) => v === null);
 
@@ -525,6 +580,7 @@ export async function POST(
         id,
         data: {
           auditStatus: allFailed ? "failed" : "completed",
+          auditProgress: allFailed ? "Failed|100" : "Complete|100",
           auditCompletedAt: new Date().toISOString(),
           auditError: errors.length > 0 ? errors.join("\n") : null,
           ...(auditIds.seoAudit ? { seoAudit: auditIds.seoAudit } : {}),
@@ -536,13 +592,12 @@ export async function POST(
         overrideAccess: true,
       });
     } catch (updateErr: any) {
-      // If the final status update fails (e.g. missing migration table), fall back to raw SQL
       console.error("[run-audits] Final status update via Payload failed, falling back to raw SQL:", updateErr.message);
       try {
         const db = (payload.db as any).drizzle;
         if (db) {
           await db.run(
-            `UPDATE client_proposals SET audit_status = '${allFailed ? "failed" : "completed"}', audit_completed_at = '${new Date().toISOString()}'${auditIds.seoAudit ? `, seo_audit_id = ${auditIds.seoAudit}` : ""}${auditIds.croAudit ? `, cro_audit_id = ${auditIds.croAudit}` : ""}${auditIds.keywordSnapshot ? `, keyword_snapshot_id = ${auditIds.keywordSnapshot}` : ""}${auditIds.competitorAnalysis ? `, competitor_analysis_id = ${auditIds.competitorAnalysis}` : ""} WHERE id = ${id}`
+            `UPDATE client_proposals SET audit_status = '${allFailed ? "failed" : "completed"}', audit_progress = '${allFailed ? "Failed|100" : "Complete|100"}', audit_completed_at = '${new Date().toISOString()}'${auditIds.seoAudit ? `, seo_audit_id = ${auditIds.seoAudit}` : ""}${auditIds.croAudit ? `, cro_audit_id = ${auditIds.croAudit}` : ""}${auditIds.keywordSnapshot ? `, keyword_snapshot_id = ${auditIds.keywordSnapshot}` : ""}${auditIds.competitorAnalysis ? `, competitor_analysis_id = ${auditIds.competitorAnalysis}` : ""} WHERE id = ${id}`
           );
         }
       } catch (sqlErr: any) {
@@ -550,28 +605,27 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
-      ok: anySucceeded,
-      status: allFailed ? "failed" : "completed",
-      auditIds,
-      errors: errors.length > 0 ? errors : undefined,
-    });
+    console.log(`[run-audits] Finished for proposal ${id}: ${allFailed ? "failed" : "completed"}`);
   } catch (e: any) {
     // Unexpected error — mark as failed
+    console.error("[run-audits] Unexpected error:", e.message);
     await payload.update({
       collection: "client-proposals",
       id,
       data: {
         auditStatus: "failed",
+        auditProgress: "Failed|100",
         auditCompletedAt: new Date().toISOString(),
         auditError: e.message || "Unexpected error",
       } as any,
       overrideAccess: true,
-    });
-
-    return NextResponse.json(
-      { error: e.message || "Unexpected error" },
-      { status: 500 }
-    );
+    }).catch(() => {});
   }
+
+  }; // end auditWork
+
+  // Fire and forget — don't await
+  auditWork();
+
+  return NextResponse.json({ ok: true, status: "running" });
 }

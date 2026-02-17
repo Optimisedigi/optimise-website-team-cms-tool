@@ -76,3 +76,11 @@
   align-items: center;
   gap: 6px;
 }
+
+// TAM rich text field — white background with border
+#field-tam .rich-text-lexical {
+  background: #fff;
+  border: 1px solid var(--theme-elevation-150, #ddd);
+  border-radius: 6px;
+  color: #111;
+}
