@@ -395,5 +395,17 @@ export async function POST(request: NextRequest) {
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 
-  return NextResponse.json({ ok: true, results });
+  // --- Schema diagnostics ---
+  const tables = ["client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches"];
+  const schema: Record<string, string[]> = {};
+  for (const table of tables) {
+    try {
+      const info = await client.execute(`PRAGMA table_info(${table})`);
+      schema[table] = info.rows.map((r: any) => r.name || r[1]);
+    } catch {
+      schema[table] = ["TABLE_NOT_FOUND"];
+    }
+  }
+
+  return NextResponse.json({ ok: true, results, schema });
 }
