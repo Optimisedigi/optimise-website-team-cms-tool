@@ -5,6 +5,9 @@
     },
     "src/app/(payload)/admin/[[...segments]]/not-found.tsx": {
       "maxDuration": 30
+    },
+    "src/app/(frontend)/api/[...slug]/route.ts": {
+      "maxDuration": 60
     }
   }
 }
