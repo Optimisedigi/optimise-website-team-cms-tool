@@ -926,9 +926,6 @@ export interface ClientProposal {
     };
     [k: string]: unknown;
   } | null;
-  /**
-   * Competitor domains to hide from the report (stored as JSON array of strings). Use the selector below.
-   */
   excludedCompetitorDomains?:
     | {
         [k: string]: unknown;

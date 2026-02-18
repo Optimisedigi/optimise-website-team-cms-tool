@@ -1095,6 +1095,29 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
           )
         })}
 
+        {/* Additional Flight Plan slides — one per extra image (rendered BEFORE main slide so image 2+ appear above when scrolling up) */}
+        {showSlide(16) && flightPlanImages && flightPlanImages.length > 1 && flightPlanImages.slice(1).map((item, i) => {
+          const imgUrl = typeof item.image === 'object' && item.image?.url ? item.image.url : null
+          if (!imgUrl) return null
+          return (
+            <section key={`flight-plan-extra-${i}`} className="slide slide-16 slide-expandable">
+              <div className="slide-header">
+                <h2>8. Flight Plan</h2>
+                <span>Roadmap &amp; Timeframes</span>
+              </div>
+              <div className="slide-content">
+                <div className="flight-plan-images">
+                  <figure className="flight-plan-image-wrap">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imgUrl} alt={item.caption || `Flight plan image ${i + 2}`} className="flight-plan-img" />
+                    {item.caption && <figcaption className="flight-plan-caption">{item.caption}</figcaption>}
+                  </figure>
+                </div>
+              </div>
+            </section>
+          )
+        })}
+
         {/* ============================================================ */}
         {/* SLIDE 16 — Flight Plan                                      */}
         {/* ============================================================ */}
@@ -1166,29 +1189,6 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             )}
           </div>
         </section>}
-
-        {/* Additional Flight Plan slides — one per extra image */}
-        {showSlide(16) && flightPlanImages && flightPlanImages.length > 1 && flightPlanImages.slice(1).map((item, i) => {
-          const imgUrl = typeof item.image === 'object' && item.image?.url ? item.image.url : null
-          if (!imgUrl) return null
-          return (
-            <section key={`flight-plan-extra-${i}`} className="slide slide-16 slide-expandable">
-              <div className="slide-header">
-                <h2>8. Flight Plan</h2>
-                <span>Roadmap &amp; Timeframes</span>
-              </div>
-              <div className="slide-content">
-                <div className="flight-plan-images">
-                  <figure className="flight-plan-image-wrap">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imgUrl} alt={item.caption || `Flight plan image ${i + 2}`} className="flight-plan-img" />
-                    {item.caption && <figcaption className="flight-plan-caption">{item.caption}</figcaption>}
-                  </figure>
-                </div>
-              </div>
-            </section>
-          )
-        })}
 
         {/* ============================================================ */}
         {/* SLIDE 15 — Mission Control                                  */}

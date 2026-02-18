@@ -3,6 +3,7 @@ import type {
   CollectionAfterChangeHook,
   CollectionBeforeChangeHook,
 } from "payload";
+import { proposalEditor } from "@/lib/proposalEditor";
 
 const generateUniqueSlug: CollectionBeforeChangeHook = async ({
   data,
@@ -279,6 +280,7 @@ export const ClientProposals: CollectionConfig = {
             {
               name: "tam",
               type: "richText",
+              editor: proposalEditor,
               admin: {
                 description:
                   "Total Addressable Market data shown on the Mission Brief slide. Leave empty to hide. Supports bold, italic, underline, font size formatting.",
@@ -733,6 +735,7 @@ export const ClientProposals: CollectionConfig = {
             {
               name: "flightPlan",
               type: "richText",
+              editor: proposalEditor,
               admin: {
                 description:
                   "Editable flight plan content shown on the report. Supports bold, italic, underline, font size formatting. Falls back to suggestions if empty.",
@@ -802,6 +805,7 @@ export const ClientProposals: CollectionConfig = {
             {
               name: "missionResources",
               type: "richText",
+              editor: proposalEditor,
               admin: {
                 description:
                   "Content for the Mission Resources slide. Supports bold, italic, underline, font size formatting.",
@@ -810,6 +814,7 @@ export const ClientProposals: CollectionConfig = {
             {
               name: "launchRequirements",
               type: "richText",
+              editor: proposalEditor,
               admin: {
                 description:
                   "Content for the Launch Requirements slide. Supports bold, italic, underline, font size formatting.",

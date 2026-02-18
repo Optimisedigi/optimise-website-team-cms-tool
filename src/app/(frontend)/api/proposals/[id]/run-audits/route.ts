@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { captureWebsiteScreenshot } from "@/lib/screenshots";
+import { captureWebsiteScreenshot, captureScreenshotViaGrowthTools } from "@/lib/screenshots";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -467,7 +467,11 @@ export async function POST(
                     if (!res.ok) return null;
                     return res.json();
                   }),
-                  captureWebsiteScreenshot(domain),
+                  captureWebsiteScreenshot(domain).then(async (result) => {
+                    if (result) return result;
+                    // Fallback to growth-tools Puppeteer endpoint
+                    return captureScreenshotViaGrowthTools(domain);
+                  }),
                 ]);
 
                 const trafficData = trafficResult.status === "fulfilled" ? trafficResult.value : null;
