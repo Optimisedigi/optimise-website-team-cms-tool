@@ -392,11 +392,34 @@ export async function POST(request: NextRequest) {
   await run("client_proposals_rels_path_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_rels_path_idx` ON `client_proposals_rels` (`path`)");
   await run("client_proposals_rels_content_researches_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_rels_content_researches_id_idx` ON `client_proposals_rels` (`content_researches_id`)");
 
+  // --- Missing columns on media table ---
+  await run("media.focal_x", "ALTER TABLE `media` ADD `focal_x` numeric");
+  await run("media.focal_y", "ALTER TABLE `media` ADD `focal_y` numeric");
+  await run("media.thumbnail_u_r_l", "ALTER TABLE `media` ADD `thumbnail_u_r_l` text");
+  await run("media.sizes_thumbnail_url", "ALTER TABLE `media` ADD `sizes_thumbnail_url` text");
+  await run("media.sizes_thumbnail_width", "ALTER TABLE `media` ADD `sizes_thumbnail_width` numeric");
+  await run("media.sizes_thumbnail_height", "ALTER TABLE `media` ADD `sizes_thumbnail_height` numeric");
+  await run("media.sizes_thumbnail_mime_type", "ALTER TABLE `media` ADD `sizes_thumbnail_mime_type` text");
+  await run("media.sizes_thumbnail_filesize", "ALTER TABLE `media` ADD `sizes_thumbnail_filesize` numeric");
+  await run("media.sizes_thumbnail_filename", "ALTER TABLE `media` ADD `sizes_thumbnail_filename` text");
+  await run("media.sizes_card_url", "ALTER TABLE `media` ADD `sizes_card_url` text");
+  await run("media.sizes_card_width", "ALTER TABLE `media` ADD `sizes_card_width` numeric");
+  await run("media.sizes_card_height", "ALTER TABLE `media` ADD `sizes_card_height` numeric");
+  await run("media.sizes_card_mime_type", "ALTER TABLE `media` ADD `sizes_card_mime_type` text");
+  await run("media.sizes_card_filesize", "ALTER TABLE `media` ADD `sizes_card_filesize` numeric");
+  await run("media.sizes_card_filename", "ALTER TABLE `media` ADD `sizes_card_filename` text");
+  await run("media.sizes_hero_url", "ALTER TABLE `media` ADD `sizes_hero_url` text");
+  await run("media.sizes_hero_width", "ALTER TABLE `media` ADD `sizes_hero_width` numeric");
+  await run("media.sizes_hero_height", "ALTER TABLE `media` ADD `sizes_hero_height` numeric");
+  await run("media.sizes_hero_mime_type", "ALTER TABLE `media` ADD `sizes_hero_mime_type` text");
+  await run("media.sizes_hero_filesize", "ALTER TABLE `media` ADD `sizes_hero_filesize` numeric");
+  await run("media.sizes_hero_filename", "ALTER TABLE `media` ADD `sizes_hero_filename` text");
+
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 
   // --- Schema diagnostics ---
-  const tables = ["client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches"];
+  const tables = ["media", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches"];
   const schema: Record<string, string[]> = {};
   for (const table of tables) {
     try {
