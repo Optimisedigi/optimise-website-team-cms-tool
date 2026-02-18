@@ -911,6 +911,26 @@ export const ClientProposals: CollectionConfig = {
             return value;
           },
         ],
+        beforeValidate: [
+          async ({ value, req, siblingData }) => {
+            if (!value) return value;
+            const id = (siblingData as any)?.id;
+            const existing = await req.payload.find({
+              collection: "client-proposals",
+              where: {
+                proposalPin: { equals: value },
+                ...(id ? { id: { not_equals: id } } : {}),
+              },
+              limit: 1,
+            });
+            if (existing.totalDocs > 0) {
+              throw new Error(
+                `PIN "${value}" is already in use by another proposal (${existing.docs[0].businessName}). Each proposal must have a unique PIN.`,
+              );
+            }
+            return value;
+          },
+        ],
       },
     },
   ],

@@ -97,6 +97,26 @@ export const Clients: CollectionConfig = {
                     return value;
                   },
                 ],
+                beforeValidate: [
+                  async ({ value, req, siblingData }) => {
+                    if (!value) return value;
+                    const id = (siblingData as any)?.id;
+                    const existing = await req.payload.find({
+                      collection: "clients",
+                      where: {
+                        clientPin: { equals: value },
+                        ...(id ? { id: { not_equals: id } } : {}),
+                      },
+                      limit: 1,
+                    });
+                    if (existing.totalDocs > 0) {
+                      throw new Error(
+                        `PIN "${value}" is already in use by another client (${existing.docs[0].name}). Each client must have a unique PIN.`,
+                      );
+                    }
+                    return value;
+                  },
+                ],
               },
             },
             {
