@@ -430,5 +430,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, results, schema });
+  // --- Test media insert to diagnose the exact error ---
+  let mediaTest = "not run";
+  try {
+    const testResult = await client.execute(
+      `INSERT INTO media (alt, updated_at, created_at, url, filename, mime_type, filesize, width, height, focal_x, focal_y) VALUES ('test', datetime('now'), datetime('now'), '/test.png', 'test.png', 'image/png', 100, 10, 10, 50, 50) RETURNING id`
+    );
+    const testId = testResult.rows?.[0]?.id;
+    if (testId) {
+      await client.execute(`DELETE FROM media WHERE id = ${testId}`);
+      mediaTest = `OK: inserted and deleted test row id=${testId}`;
+    } else {
+      mediaTest = `OK: inserted but no id returned`;
+    }
+  } catch (e: any) {
+    mediaTest = `ERROR: ${e?.message || String(e)}`;
+  }
+
+  return NextResponse.json({ ok: true, results, schema, mediaTest });
 }
