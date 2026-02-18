@@ -45,6 +45,13 @@ export const Media: CollectionConfig = {
     bulkUpload: false,
   },
   hooks: {
+    beforeChange: [
+      ({ data }) => {
+        if (data && !data.alt) data.alt = "";
+        if (data && !data.caption) data.caption = "";
+        return data;
+      },
+    ],
     beforeValidate: [
       ({ data, req }) => {
         const file = req.file;

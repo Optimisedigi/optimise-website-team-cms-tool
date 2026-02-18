@@ -430,43 +430,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // --- Test media insert matching Payload's exact query shape ---
-  let mediaTest = "not run";
-  try {
-    // Match Payload's exact INSERT with null id and RETURNING all columns
-    const testResult = await client.execute({
-      sql: `INSERT INTO "media" ("id", "alt", "caption", "updated_at", "created_at", "url", "thumbnail_u_r_l", "filename", "mime_type", "filesize", "width", "height", "focal_x", "focal_y", "sizes_thumbnail_url", "sizes_thumbnail_width", "sizes_thumbnail_height", "sizes_thumbnail_mime_type", "sizes_thumbnail_filesize", "sizes_thumbnail_filename", "sizes_card_url", "sizes_card_width", "sizes_card_height", "sizes_card_mime_type", "sizes_card_filesize", "sizes_card_filename", "sizes_hero_url", "sizes_hero_width", "sizes_hero_height", "sizes_hero_mime_type", "sizes_hero_filesize", "sizes_hero_filename") VALUES (null, null, null, ?, ?, ?, null, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING "id", "alt", "caption", "updated_at", "created_at", "url", "thumbnail_u_r_l", "filename", "mime_type", "filesize", "width", "height", "focal_x", "focal_y", "sizes_thumbnail_url", "sizes_thumbnail_width", "sizes_thumbnail_height", "sizes_thumbnail_mime_type", "sizes_thumbnail_filesize", "sizes_thumbnail_filename", "sizes_card_url", "sizes_card_width", "sizes_card_height", "sizes_card_mime_type", "sizes_card_filesize", "sizes_card_filename", "sizes_hero_url", "sizes_hero_width", "sizes_hero_height", "sizes_hero_mime_type", "sizes_hero_filesize", "sizes_hero_filename"`,
-      args: [new Date().toISOString(), new Date().toISOString(), "/test.png", "test.png", "image/png", 100, 10, 10, 50, 50, "/thumb.png", 400, 300, "image/png", 5000, "thumb.png", "/card.png", 768, 432, "image/png", 10000, "card.png", "/hero.png", 1920, 1080, "image/png", 20000, "hero.png"],
-    });
-    const testId = testResult.rows?.[0]?.id ?? testResult.rows?.[0]?.[0];
-    if (testId) {
-      await client.execute(`DELETE FROM media WHERE id = ${testId}`);
-      mediaTest = `OK: full insert worked, id=${testId}`;
-    } else {
-      mediaTest = `OK: inserted but no id returned. rows=${JSON.stringify(testResult.rows)}`;
-    }
-  } catch (e: any) {
-    mediaTest = `ERROR: ${e?.message || String(e)}`;
-  }
-
-  // Also test via Payload's API
-  let payloadMediaTest = "not run";
-  try {
-    const testDoc = await payload.create({
-      collection: "media",
-      data: { alt: "migration-test" },
-      file: {
-        data: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", "base64"),
-        mimetype: "image/png",
-        name: "migration-test.png",
-        size: 70,
-      },
-    });
-    payloadMediaTest = `OK: payload.create worked, id=${testDoc.id}`;
-    await payload.delete({ collection: "media", id: testDoc.id });
-  } catch (e: any) {
-    payloadMediaTest = `ERROR: ${e?.message || String(e)}`;
-  }
-
-  return NextResponse.json({ ok: true, results, schema, mediaTest });
+  return NextResponse.json({ ok: true, results, schema });
 }
