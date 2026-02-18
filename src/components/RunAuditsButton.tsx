@@ -1,7 +1,7 @@
 'use client'
 
 import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 const RunAuditsButton = () => {
   const { id } = useDocumentInfo()
@@ -12,7 +12,6 @@ const RunAuditsButton = () => {
   const [stage, setStage] = useState('')
   const [percent, setPercent] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const resumedRef = useRef(false)
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -53,6 +52,8 @@ const RunAuditsButton = () => {
     }, 3000)
   }, [id, stopPolling])
 
+  useEffect(() => () => stopPolling(), [stopPolling])
+
   if (!id) return null
 
   const websiteUrl = fields?.websiteUrl?.value as string | undefined
@@ -71,7 +72,7 @@ const RunAuditsButton = () => {
   const hasKeywords = hasKeywordCategories || !!legacyKeywords?.trim()
 
   // Only treat as "running" from local state (user clicked the button this session).
-  // A stale 'running' auditStatus from a previous failed run should not block re-runs.
+  // A stale 'running' auditStatus in the DB should never block re-runs.
   const isRunning = loading
   const isStuck = auditStatus === 'running' && !loading
 
@@ -80,37 +81,7 @@ const RunAuditsButton = () => {
   if (!businessType) missingFields.push('Business Type')
   if (!hasKeywords) missingFields.push('Keywords')
 
-  // If page loads with auditStatus 'running', start polling to pick up progress.
-  // After 60s of no completion, stop polling — the audit is likely stuck.
-  if (auditStatus === 'running' && !loading && !resumedRef.current) {
-    resumedRef.current = true
-    setLoading(true)
-    setStage('Resuming...')
-    // Defer startPolling + stuck timeout to next tick via useEffect
-  }
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useEffect(() => {
-    if (resumedRef.current && loading && stage === 'Resuming...') {
-      startPolling()
-
-      const stuckTimeout = setTimeout(() => {
-        setLoading(false)
-        stopPolling()
-        setStage('')
-      }, 60000)
-
-      return () => {
-        clearTimeout(stuckTimeout)
-        stopPolling()
-      }
-    }
-    return () => stopPolling()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, stage])
-
   const handleClick = async () => {
-    resumedRef.current = false
     setLoading(true)
     setMessage(null)
     setError(null)
