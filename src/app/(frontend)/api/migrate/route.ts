@@ -459,5 +459,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, results, schema });
+  // Dump payload_migrations for debugging
+  let migrations: any[] = [];
+  try {
+    const migrationRows = await client.execute("SELECT * FROM `payload_migrations` ORDER BY `created_at` DESC LIMIT 20");
+    migrations = migrationRows.rows;
+  } catch { /* ignore */ }
+
+  return NextResponse.json({ ok: true, results, schema, migrations });
 }
