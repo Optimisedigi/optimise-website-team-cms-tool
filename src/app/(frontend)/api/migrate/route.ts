@@ -418,9 +418,6 @@ export async function POST(request: NextRequest) {
   // --- Excluded competitor domains JSON column on client_proposals ---
   await run("client_proposals.excluded_competitor_domains", "ALTER TABLE `client_proposals` ADD `excluded_competitor_domains` text");
 
-  // --- Reset stuck audits ---
-  await run("reset_stuck_audits", "UPDATE `client_proposals` SET `audit_status` = 'failed', `audit_error` = 'Reset: stuck in running state' WHERE `audit_status` = 'running'");
-
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 
