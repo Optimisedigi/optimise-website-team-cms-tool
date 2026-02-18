@@ -927,6 +927,18 @@ export interface ClientProposal {
     [k: string]: unknown;
   } | null;
   /**
+   * Competitor domains to hide from the report (stored as JSON array of strings). Use the selector below.
+   */
+  excludedCompetitorDomains?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * Toggle on and save to create an active Client from this proposal
    */
   convertToClient?: boolean | null;
@@ -1924,6 +1936,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
       };
   missionResources?: T;
   launchRequirements?: T;
+  excludedCompetitorDomains?: T;
   convertToClient?: T;
   proposalPin?: T;
   updatedAt?: T;

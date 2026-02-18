@@ -292,6 +292,15 @@ export const ClientProposals: CollectionConfig = {
                   "Path or URL to the HTML mockup for this client (e.g. /mockups/purples/index.html)",
               },
             },
+            {
+              name: "mockupUpload",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/MockupUpload",
+                },
+              },
+            },
           ],
         },
         {
@@ -804,6 +813,23 @@ export const ClientProposals: CollectionConfig = {
               admin: {
                 description:
                   "Content for the Launch Requirements slide. Supports bold, italic, underline, font size formatting.",
+              },
+            },
+            {
+              name: "excludedCompetitorDomains",
+              type: "json",
+              admin: {
+                description:
+                  "Competitor domains to hide from the report (stored as JSON array of strings). Use the selector below.",
+              },
+            },
+            {
+              name: "competitorExcluder",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/CompetitorExcluder",
+                },
               },
             },
           ],

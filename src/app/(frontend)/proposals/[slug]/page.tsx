@@ -807,6 +807,11 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
     return result
   })
 
+  // Exclude competitor domains marked for exclusion in the CMS
+  const excludedCompetitorDomains = Array.isArray((proposal as any).excludedCompetitorDomains)
+    ? new Set(((proposal as any).excludedCompetitorDomains as string[]).map(d => d.replace(/^www\./, '')))
+    : new Set<string>()
+
   const cmsAddedCount = cmsCompetitorDomains.size
   const searchCompetitorLimit = Math.max(0, 6 - cmsAddedCount)
 
@@ -817,6 +822,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   if (allCompetitorsWithOverrides.length > 0) {
     for (const comp of allCompetitorsWithOverrides) {
       const cleanDomain = comp.domain?.replace(/^www\./, '') ?? ''
+      if (cleanDomain && excludedCompetitorDomains.has(cleanDomain)) continue
       if (cleanDomain && cmsCompetitorDomains.has(cleanDomain)) {
         selectedCompetitors.push(comp)
         matchedCmsDomains.add(cleanDomain)
@@ -838,6 +844,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   for (const c of cmsCompetitors) {
     if (!c.websiteUrl) continue
     const domain = domainFromUrl(c.websiteUrl)
+    if (excludedCompetitorDomains.has(domain)) continue
     if (!matchedCmsDomains.has(domain)) {
       const hasMetaOverride = metaAdsOverrides.has(domain)
       const manualGoogle = manualGoogleAdScreenshots.get(domain)
@@ -883,6 +890,10 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
 
   // Avg competitor monthly traffic
   const competitorTrafficValues = allCompetitorsWithOverrides
+    .filter(c => {
+      const d = c.domain?.replace(/^www\./, '') ?? ''
+      return !excludedCompetitorDomains.has(d)
+    })
     .map(c => normalizeMonthlyVisits(c.traffic?.monthlyVisits))
     .filter((v): v is number => v != null && v > 0)
   const avgCompetitorTraffic = competitorTrafficValues.length > 0
@@ -1277,7 +1288,10 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
           </div>
           <div className="slide-content">
             {(() => {
-              const allComps = [...allCompetitorsWithOverrides]
+              const allComps = [...allCompetitorsWithOverrides].filter(c => {
+                const d = c.domain?.replace(/^www\./, '') ?? ''
+                return !excludedCompetitorDomains.has(d)
+              })
               const googleAdsComps = allComps.filter(c => c.googleAds?.isRunningAds)
               const metaAdsComps = allComps.filter(c => c.metaAds?.isRunningAds)
               const hasAnyAds = googleAdsComps.length > 0 || metaAdsComps.length > 0
