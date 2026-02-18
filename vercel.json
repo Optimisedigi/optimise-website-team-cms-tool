@@ -8,6 +8,9 @@
     },
     "src/app/(frontend)/api/[...slug]/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/(frontend)/api/proposals/[id]/run-audits/route.ts": {
+      "maxDuration": 300
     }
   }
 }

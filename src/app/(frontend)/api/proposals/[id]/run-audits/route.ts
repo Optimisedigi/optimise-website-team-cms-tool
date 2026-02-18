@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { captureWebsiteScreenshot } from "@/lib/screenshots";
@@ -659,8 +660,8 @@ export async function POST(
 
   }; // end auditWork
 
-  // Fire and forget — don't await
-  auditWork();
+  // Use next/server after() to keep the serverless function alive after the response
+  after(auditWork);
 
   return NextResponse.json({ ok: true, status: "running" });
 }
