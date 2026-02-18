@@ -80,10 +80,23 @@ export const Clients: CollectionConfig = {
                 description:
                   "4-digit PIN for client hub access (auto-generated)",
               },
-              validate: (value: string | null | undefined) => {
+              validate: async (value: string | null | undefined, { req, id }: any) => {
                 if (!value) return true;
                 if (!/^\d{4}$/.test(value))
                   return "PIN must be exactly 4 digits";
+                try {
+                  const existing = await req.payload.find({
+                    collection: "clients",
+                    where: {
+                      clientPin: { equals: value },
+                      ...(id ? { id: { not_equals: id } } : {}),
+                    },
+                    limit: 1,
+                  });
+                  if (existing.totalDocs > 0) {
+                    return `PIN "${value}" is already in use by another client (${existing.docs[0].name}).`;
+                  }
+                } catch { /* skip check if payload not available */ }
                 return true;
               },
               hooks: {
@@ -92,26 +105,6 @@ export const Clients: CollectionConfig = {
                     if (operation === "create" && !value) {
                       return String(
                         Math.floor(1000 + Math.random() * 9000)
-                      );
-                    }
-                    return value;
-                  },
-                ],
-                beforeValidate: [
-                  async ({ value, req, siblingData }) => {
-                    if (!value) return value;
-                    const id = (siblingData as any)?.id;
-                    const existing = await req.payload.find({
-                      collection: "clients",
-                      where: {
-                        clientPin: { equals: value },
-                        ...(id ? { id: { not_equals: id } } : {}),
-                      },
-                      limit: 1,
-                    });
-                    if (existing.totalDocs > 0) {
-                      throw new Error(
-                        `PIN "${value}" is already in use by another client (${existing.docs[0].name}). Each client must have a unique PIN.`,
                       );
                     }
                     return value;
