@@ -27,15 +27,25 @@ const RunAuditsButton = () => {
 
   const websiteUrl = fields?.websiteUrl?.value as string | undefined
   const businessType = fields?.businessType?.value as string | undefined
-  const keywords = fields?.keywords?.value as string | undefined
+  const legacyKeywords = fields?.keywords?.value as string | undefined
   const auditStatus = fields?.auditStatus?.value as string | undefined
+
+  // Check keyword categories (array field stored as dot-path keys)
+  const hasKeywordCategories = fields
+    ? Object.keys(fields).some(
+        (key) =>
+          /^keywordCategories\.\d+\.keywords$/.test(key) &&
+          (fields[key]?.value as string | undefined)?.trim(),
+      )
+    : false
+  const hasKeywords = hasKeywordCategories || !!legacyKeywords?.trim()
 
   const isRunning = auditStatus === 'running' || loading
 
   const missingFields: string[] = []
   if (!websiteUrl) missingFields.push('Website URL')
   if (!businessType) missingFields.push('Business Type')
-  if (!keywords?.trim()) missingFields.push('Keywords')
+  if (!hasKeywords) missingFields.push('Keywords')
 
   const startPolling = () => {
     stopPolling()
