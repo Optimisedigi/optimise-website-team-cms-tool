@@ -819,14 +819,6 @@ export const ClientProposals: CollectionConfig = {
               name: "excludedCompetitorDomains",
               type: "json",
               admin: {
-                description:
-                  "Competitor domains to hide from the report (stored as JSON array of strings). Use the selector below.",
-              },
-            },
-            {
-              name: "competitorExcluder",
-              type: "ui",
-              admin: {
                 components: {
                   Field: "./components/CompetitorExcluder",
                 },

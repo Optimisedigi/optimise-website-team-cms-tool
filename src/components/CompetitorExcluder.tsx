@@ -1,6 +1,6 @@
 'use client'
 
-import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
+import { useDocumentInfo, useField } from '@payloadcms/ui'
 import { useState, useEffect } from 'react'
 
 type CompetitorProfile = {
@@ -9,15 +9,15 @@ type CompetitorProfile = {
 
 const CompetitorExcluder = () => {
   const { id } = useDocumentInfo()
-  const [fields, dispatchFields] = useAllFormFields()
+  const { value, setValue } = useField<string[] | string | null>({ path: 'excludedCompetitorDomains' })
   const [domains, setDomains] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
-  const raw = fields?.excludedCompetitorDomains?.value
-  const excluded: string[] = Array.isArray(raw)
-    ? raw
-    : typeof raw === 'string' && raw.startsWith('[')
-      ? (() => { try { return JSON.parse(raw) } catch { return [] } })()
+  // Normalize value — could be an array, a JSON string, or null
+  const excluded: string[] = Array.isArray(value)
+    ? value
+    : typeof value === 'string' && value.startsWith('[')
+      ? (() => { try { return JSON.parse(value) } catch { return [] } })()
       : []
 
   useEffect(() => {
@@ -65,7 +65,7 @@ const CompetitorExcluder = () => {
   if (domains.length === 0) {
     return (
       <div style={{ marginBottom: 16, fontSize: 13, color: 'var(--theme-elevation-500)' }}>
-        No competitor analysis found. Run audits first.
+        No competitor analysis found. Run audits first to populate this selector.
       </div>
     )
   }
@@ -74,11 +74,7 @@ const CompetitorExcluder = () => {
     const next = excluded.includes(domain)
       ? excluded.filter((d) => d !== domain)
       : [...excluded, domain]
-    dispatchFields({
-      type: 'UPDATE',
-      path: 'excludedCompetitorDomains',
-      value: next,
-    })
+    setValue(next)
   }
 
   return (
