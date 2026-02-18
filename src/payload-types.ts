@@ -210,6 +210,55 @@ export interface Client {
    */
   websiteType?: ('built_by_us' | 'external_cms') | null;
   /**
+   * Primary contact name
+   */
+  contactName?: string | null;
+  /**
+   * Primary contact email
+   */
+  contactEmail?: string | null;
+  /**
+   * Does this business have physical locations?
+   */
+  hasPhysicalLocations?: boolean | null;
+  /**
+   * Number of physical locations
+   */
+  numberOfLocations?: number | null;
+  /**
+   * Google Maps listing URLs for GBP analysis
+   */
+  googleMapsUrls?:
+    | {
+        /**
+         * Google Maps listing URL
+         */
+        url: string;
+        /**
+         * Location label (e.g. 'Head Office', 'Sydney Branch')
+         */
+        label?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Primary conversion goal
+   */
+  conversionGoal?:
+    | (
+        | 'lead generation'
+        | 'phone calls'
+        | 'form submissions'
+        | 'e-commerce'
+        | 'bookings'
+        | 'quote requests'
+        | 'email sign-ups'
+        | 'free trial'
+        | 'content downloads'
+        | 'brand awareness'
+      )
+    | null;
+  /**
    * Goals, notes, and context about this client
    */
   notes?: string | null;
@@ -237,6 +286,48 @@ export interface Client {
    * Client objectives — what they want to achieve (shown in report intro)
    */
   clientGoals?: string | null;
+  /**
+   * Consolidated keyword list (one per line)
+   */
+  keywords?: string | null;
+  /**
+   * Total Addressable Market data
+   */
+  tam?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Website visitor → lead conversion rate (%)
+   */
+  leadConversionRate?: number | null;
+  /**
+   * Lead → paying client conversion rate (%)
+   */
+  leadToSaleConversionRate?: number | null;
+  /**
+   * Average order / client value ($)
+   */
+  averageOrderValue?: number | null;
+  /**
+   * Annual purchase frequency
+   */
+  annualPurchaseFrequency?: number | null;
+  /**
+   * New customers acquired in the last 12 months
+   */
+  newCustomersLast12Months?: number | null;
   /**
    * Competitor businesses to benchmark against (up to 5)
    */
@@ -637,6 +728,10 @@ export interface ClientProposal {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * CSS selector to click before capturing screenshots (e.g. age-gate 'Enter site' button). Leave blank for most sites.
+   */
+  screenshotClickSelector?: string | null;
   /**
    * Path or URL to the HTML mockup for this client (e.g. /mockups/purples/index.html)
    */
@@ -1794,10 +1889,29 @@ export interface ClientsSelect<T extends boolean = true> {
   isActive?: T;
   clientPin?: T;
   websiteType?: T;
+  contactName?: T;
+  contactEmail?: T;
+  hasPhysicalLocations?: T;
+  numberOfLocations?: T;
+  googleMapsUrls?:
+    | T
+    | {
+        url?: T;
+        label?: T;
+        id?: T;
+      };
+  conversionGoal?: T;
   notes?: T;
   businessType?: T;
   targetLocation?: T;
   clientGoals?: T;
+  keywords?: T;
+  tam?: T;
+  leadConversionRate?: T;
+  leadToSaleConversionRate?: T;
+  averageOrderValue?: T;
+  annualPurchaseFrequency?: T;
+  newCustomersLast12Months?: T;
   competitors?:
     | T
     | {
@@ -1864,6 +1978,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   businessGoals?: T;
   notes?: T;
   tam?: T;
+  screenshotClickSelector?: T;
   websiteMockupUrl?: T;
   keywordCategories?:
     | T

@@ -8,6 +8,13 @@
  * Pricing: 100 free/month, $17/mo for 2,000 screenshots
  */
 
+export interface ScreenshotOptions {
+  /** CSS selector to click before capturing (e.g. age-gate "Enter site" button) */
+  clickSelector?: string;
+  /** Custom JS to execute before capturing (runs after click if both set) */
+  scripts?: string;
+}
+
 /**
  * Primary: Google PageSpeed Insights API.
  * Extracts the "final-screenshot" audit from Lighthouse results.
@@ -64,16 +71,19 @@ export async function captureWebsiteScreenshot(url: string): Promise<string | nu
  * Fallback: growth-tools Puppeteer endpoint.
  * Requires GROWTH_TOOLS_URL and INTERNAL_API_KEY env vars.
  */
-export async function captureScreenshotViaGrowthTools(url: string): Promise<string | null> {
+export async function captureScreenshotViaGrowthTools(url: string, opts?: ScreenshotOptions): Promise<string | null> {
   const growthToolsUrl = process.env.GROWTH_TOOLS_URL
   const apiKey = process.env.INTERNAL_API_KEY
   if (!growthToolsUrl || !apiKey) return null
 
   const fullUrl = url.startsWith('http') ? url : `https://${url}`
+  const params = new URLSearchParams({ url: fullUrl })
+  if (opts?.clickSelector) params.set('click', opts.clickSelector)
+  if (opts?.scripts) params.set('scripts', opts.scripts)
 
   try {
     const res = await fetch(
-      `${growthToolsUrl}/api/screenshot?url=${encodeURIComponent(fullUrl)}`,
+      `${growthToolsUrl}/api/screenshot?${params}`,
       {
         headers: { 'x-internal-key': apiKey },
         signal: AbortSignal.timeout(30000),
@@ -103,7 +113,7 @@ export async function captureScreenshotViaGrowthTools(url: string): Promise<stri
  * Only called as a backfill for screenshots that failed with PageSpeed + Puppeteer.
  * Requires SCREENSHOTONE_ACCESS_KEY env var.
  */
-export async function captureScreenshotViaScreenshotOne(url: string): Promise<string | null> {
+export async function captureScreenshotViaScreenshotOne(url: string, opts?: ScreenshotOptions): Promise<string | null> {
   const accessKey = process.env.SCREENSHOTONE_ACCESS_KEY
   if (!accessKey) {
     console.error('[screenshots] SCREENSHOTONE_ACCESS_KEY not set — skipping paid backfill')
@@ -125,6 +135,10 @@ export async function captureScreenshotViaScreenshotOne(url: string): Promise<st
     timeout: '30',
     image_quality: '80',
   })
+
+  // ScreenshotOne native click + scripts support (e.g. dismiss age gates)
+  if (opts?.clickSelector) params.set('click', opts.clickSelector)
+  if (opts?.scripts) params.set('scripts', opts.scripts)
 
   try {
     const res = await fetch(`https://api.screenshotone.com/take?${params}`, {

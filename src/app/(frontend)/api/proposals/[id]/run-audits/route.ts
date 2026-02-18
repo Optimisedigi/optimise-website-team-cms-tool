@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { captureWebsiteScreenshot, captureScreenshotViaGrowthTools, captureScreenshotViaScreenshotOne } from "@/lib/screenshots";
+import { captureWebsiteScreenshot, captureScreenshotViaGrowthTools, captureScreenshotViaScreenshotOne, type ScreenshotOptions } from "@/lib/screenshots";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -425,6 +425,11 @@ export async function POST(
           const competitorDomains: string[] = (compData?.competitors || []).map((c: any) => c.domain).filter(Boolean);
           const allDomains = [yourDomain, ...competitorDomains];
 
+          // Screenshot options for the prospect's own site (e.g. age-gate click)
+          const clickSelector = (proposal as any).screenshotClickSelector as string | undefined;
+          const yourDomainClean = yourDomain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+          const screenshotOpts: ScreenshotOptions | undefined = clickSelector ? { clickSelector } : undefined;
+
           console.log(`[screenshots] Starting PageSpeed screenshot capture for ${allDomains.length} domains`);
 
           // Capture screenshots in parallel via PageSpeed API
@@ -495,7 +500,9 @@ export async function POST(
                   captureWebsiteScreenshot(domain).then(async (result) => {
                     if (result) return result;
                     // Fallback to growth-tools Puppeteer endpoint
-                    return captureScreenshotViaGrowthTools(domain);
+                    const domainClean = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+                    const opts = domainClean === yourDomainClean ? screenshotOpts : undefined;
+                    return captureScreenshotViaGrowthTools(domain, opts);
                   }),
                 ]);
 
@@ -626,8 +633,9 @@ export async function POST(
             console.log(`[screenshots-backfill] Using ScreenshotOne for ${backfillDomains.length} missing screenshots`);
 
             const backfillResults = await Promise.allSettled(
-              backfillDomains.map(async ({ domain }) => {
-                const screenshot = await captureScreenshotViaScreenshotOne(domain);
+              backfillDomains.map(async ({ domain, isYourProfile }) => {
+                const opts = isYourProfile ? screenshotOpts : undefined;
+                const screenshot = await captureScreenshotViaScreenshotOne(domain, opts);
                 return { domain, screenshot };
               })
             );

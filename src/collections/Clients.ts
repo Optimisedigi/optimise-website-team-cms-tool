@@ -112,6 +112,92 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
+              type: "row",
+              fields: [
+                {
+                  name: "contactName",
+                  type: "text",
+                  admin: {
+                    description: "Primary contact name",
+                  },
+                },
+                {
+                  name: "contactEmail",
+                  type: "email",
+                  admin: {
+                    description: "Primary contact email",
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "hasPhysicalLocations",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Does this business have physical locations?",
+                  },
+                },
+                {
+                  name: "numberOfLocations",
+                  type: "number",
+                  min: 1,
+                  admin: {
+                    description: "Number of physical locations",
+                    condition: (data: any) => data?.hasPhysicalLocations,
+                  },
+                },
+              ],
+            },
+            {
+              name: "googleMapsUrls",
+              type: "array",
+              maxRows: 10,
+              admin: {
+                description: "Google Maps listing URLs for GBP analysis",
+                condition: (data: any) => data?.hasPhysicalLocations,
+              },
+              fields: [
+                {
+                  name: "url",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description: "Google Maps listing URL",
+                  },
+                },
+                {
+                  name: "label",
+                  type: "text",
+                  admin: {
+                    description: "Location label (e.g. 'Head Office', 'Sydney Branch')",
+                  },
+                },
+              ],
+            },
+            {
+              name: "conversionGoal",
+              type: "select",
+              admin: {
+                description: "Primary conversion goal",
+              },
+              options: [
+                { label: "Lead Generation", value: "lead generation" },
+                { label: "Phone Calls", value: "phone calls" },
+                { label: "Form Submissions", value: "form submissions" },
+                { label: "E-commerce Sales", value: "e-commerce" },
+                { label: "Bookings / Appointments", value: "bookings" },
+                { label: "Quote Requests", value: "quote requests" },
+                { label: "Email Sign-ups", value: "email sign-ups" },
+                { label: "Free Trial Sign-ups", value: "free trial" },
+                { label: "Content Downloads", value: "content downloads" },
+                { label: "Brand Awareness", value: "brand awareness" },
+              ],
+            },
+            {
               name: "notes",
               type: "textarea",
               admin: {
@@ -159,6 +245,77 @@ export const Clients: CollectionConfig = {
               admin: {
                 description: "Client objectives — what they want to achieve (shown in report intro)",
               },
+            },
+            {
+              name: "keywords",
+              type: "textarea",
+              admin: {
+                description: "Consolidated keyword list (one per line)",
+              },
+            },
+            {
+              name: "tam",
+              type: "richText",
+              admin: {
+                description: "Total Addressable Market data",
+              },
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "leadConversionRate",
+                  type: "number",
+                  min: 0,
+                  max: 100,
+                  admin: {
+                    description: "Website visitor → lead conversion rate (%)",
+                    step: 0.1,
+                  },
+                },
+                {
+                  name: "leadToSaleConversionRate",
+                  type: "number",
+                  min: 0,
+                  max: 100,
+                  admin: {
+                    description: "Lead → paying client conversion rate (%)",
+                    step: 0.1,
+                  },
+                },
+                {
+                  name: "averageOrderValue",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "Average order / client value ($)",
+                    step: 1,
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "annualPurchaseFrequency",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "Annual purchase frequency",
+                    step: 0.1,
+                  },
+                },
+                {
+                  name: "newCustomersLast12Months",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "New customers acquired in the last 12 months",
+                    step: 1,
+                  },
+                },
+              ],
             },
             {
               name: "competitors",

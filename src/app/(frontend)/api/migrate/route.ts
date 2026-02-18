@@ -418,11 +418,37 @@ export async function POST(request: NextRequest) {
   // --- Excluded competitor domains JSON column on client_proposals ---
   await run("client_proposals.excluded_competitor_domains", "ALTER TABLE `client_proposals` ADD `excluded_competitor_domains` text");
 
+  // --- Screenshot click selector on client_proposals ---
+  await run("client_proposals.screenshot_click_selector", "ALTER TABLE `client_proposals` ADD `screenshot_click_selector` text");
+
+  // --- New columns on clients for proposal conversion data ---
+  await run("clients.contact_name", "ALTER TABLE `clients` ADD `contact_name` text");
+  await run("clients.contact_email", "ALTER TABLE `clients` ADD `contact_email` text");
+  await run("clients.has_physical_locations", "ALTER TABLE `clients` ADD `has_physical_locations` integer DEFAULT false");
+  await run("clients.number_of_locations", "ALTER TABLE `clients` ADD `number_of_locations` numeric");
+  await run("clients.conversion_goal", "ALTER TABLE `clients` ADD `conversion_goal` text");
+  await run("clients.keywords", "ALTER TABLE `clients` ADD `keywords` text");
+  await run("clients.tam", "ALTER TABLE `clients` ADD `tam` text");
+  await run("clients.lead_conversion_rate", "ALTER TABLE `clients` ADD `lead_conversion_rate` numeric");
+  await run("clients.lead_to_sale_conversion_rate", "ALTER TABLE `clients` ADD `lead_to_sale_conversion_rate` numeric");
+  await run("clients.average_order_value", "ALTER TABLE `clients` ADD `average_order_value` numeric");
+  await run("clients.annual_purchase_frequency", "ALTER TABLE `clients` ADD `annual_purchase_frequency` numeric");
+  await run("clients.new_customers_last12_months", "ALTER TABLE `clients` ADD `new_customers_last12_months` numeric");
+
+  // --- Clients Google Maps URLs sub-table ---
+  await run("clients_google_maps_urls", `CREATE TABLE IF NOT EXISTS \`clients_google_maps_urls\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL, \`url\` text NOT NULL, \`label\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_google_maps_urls_order_idx", "CREATE INDEX IF NOT EXISTS `clients_google_maps_urls_order_idx` ON `clients_google_maps_urls` (`_order`)");
+  await run("clients_google_maps_urls_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_google_maps_urls_parent_id_idx` ON `clients_google_maps_urls` (`_parent_id`)");
+
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 
   // --- Schema diagnostics ---
-  const tables = ["media", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches"];
+  const tables = ["media", "clients", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches"];
   const schema: Record<string, string[]> = {};
   for (const table of tables) {
     try {

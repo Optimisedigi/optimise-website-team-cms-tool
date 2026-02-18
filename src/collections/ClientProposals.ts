@@ -58,6 +58,29 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
     const payload = req.payload;
 
     try {
+      // Flatten keywordCategories into a single newline-separated string
+      let keywords = "";
+      const cats = doc.keywordCategories as
+        | Array<{ categoryName: string; keywords: string }>
+        | undefined;
+      if (cats && cats.length > 0) {
+        keywords = cats
+          .map((c: { keywords: string }) => c.keywords)
+          .filter(Boolean)
+          .join("\n");
+      } else if (doc.keywords) {
+        keywords = doc.keywords as string;
+      }
+
+      // Strip competitor-only fields (screenshots, hasMetaAds) that don't exist on the Client schema
+      const competitors = (
+        doc.competitors as Array<Record<string, any>> | undefined
+      )?.map(({ name, websiteUrl, googleMapsUrl }) => ({
+        name,
+        websiteUrl,
+        googleMapsUrl,
+      }));
+
       // Create a new Client from the proposal data
       await payload.create({
         collection: "clients",
@@ -65,12 +88,25 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
           name: doc.businessName,
           slug: doc.slug + "-client",
           websiteUrl: doc.websiteUrl,
+          contactName: doc.contactName,
+          contactEmail: doc.contactEmail,
+          hasPhysicalLocations: doc.hasPhysicalLocations,
+          numberOfLocations: doc.numberOfLocations,
+          googleMapsUrls: doc.googleMapsUrls,
+          conversionGoal: doc.conversionGoal,
           businessType: doc.businessType,
           targetLocation: doc.targetLocation,
           clientGoals: doc.businessGoals,
-          competitors: doc.competitors,
+          competitors,
+          tam: doc.tam,
+          notes: doc.notes || `Converted from proposal: ${doc.businessName}`,
+          keywords: keywords || undefined,
+          leadConversionRate: doc.leadConversionRate,
+          leadToSaleConversionRate: doc.leadToSaleConversionRate,
+          averageOrderValue: doc.averageOrderValue,
+          annualPurchaseFrequency: doc.annualPurchaseFrequency,
+          newCustomersLast12Months: doc.newCustomersLast12Months,
           isActive: true,
-          notes: `Converted from proposal: ${doc.businessName}`,
         },
       });
 
@@ -284,6 +320,14 @@ export const ClientProposals: CollectionConfig = {
               admin: {
                 description:
                   "Total Addressable Market data shown on the Mission Brief slide. Leave empty to hide. Supports bold, italic, underline, font size formatting.",
+              },
+            },
+            {
+              name: "screenshotClickSelector",
+              type: "text",
+              admin: {
+                description:
+                  "CSS selector to click before capturing screenshots (e.g. age-gate 'Enter site' button). Leave blank for most sites.",
               },
             },
             {

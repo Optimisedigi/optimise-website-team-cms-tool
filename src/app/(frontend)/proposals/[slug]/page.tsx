@@ -430,6 +430,9 @@ function CompetitorCard({
             <span className="comp-domain">{comp.domain}</span>
             {sourceLabel && <span className="comp-source-label">{sourceLabel}</span>}
           </div>
+          {!monthlyVisits && !avgPos && !comp.keywordsFound ? (
+            <div className="comp-card-low-traffic">Monthly traffic too low</div>
+          ) : (
           <div className="comp-card-stats">
             <div className="comp-card-stat">
               <span className="comp-card-stat-value comp-card-stat-value-visits">{monthlyVisits ? formatTraffic(monthlyVisits) : '—'}</span>
@@ -484,6 +487,7 @@ function CompetitorCard({
               </div>
             )}
           </div>
+          )}
           {sources && (sources.organicSearch > 0 || sources.paidSearch > 0) && (
             <TrafficBar organic={sources.organicSearch} paid={sources.paidSearch} />
           )}
@@ -1298,6 +1302,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               )
 
               return (
+                <>
+                <p className="slide-ads-copy">Your competitors are paying for ads to drive them more traffic. This is a path you can go down IF the fundamentals are solid to ensure a feasible return on investment.</p>
                 <div className="slide-10-layout">
                   <div className="slide-10-col">
                     <h3>Google Ads</h3>
@@ -1375,6 +1381,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     )}
                   </div>
                 </div>
+                </>
               )
             })()}
           </div>

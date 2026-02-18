@@ -140,15 +140,18 @@
 /* TAM section */
 .tam-section {
   background: #fff;
-  border: 3px solid #e5e7eb;
+  border: none;
   border-radius: 10px;
   padding: 16px 20px;
   margin: 8px 0;
   color: #18181b;
+  display: flex;
+  justify-content: center;
 }
 
 .tam-copy {
   max-width: 700px;
+  text-align: center;
 }
 
 .tam-copy p {
@@ -1156,6 +1159,13 @@
 
 .comp-card-stat-value-visits {
   font-size: 30px;
+}
+
+.comp-card-low-traffic {
+  font-size: 15px;
+  color: rgba(0, 0, 0, 0.45);
+  font-style: italic;
+  padding: 8px 0;
 }
 
 .comp-card-stat-label {
@@ -2270,6 +2280,13 @@ html.scroll-ready .report-presentation {
     flex: 1 1 100%;
     max-height: none;
   }
+}
+
+.slide-ads-copy {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.5;
+  margin: 0 0 20px;
 }
 
 /* Slide 10 — Competitor Ads */
