@@ -1,16 +1,18 @@
 'use client'
 
-import { useDocumentInfo, useField } from '@payloadcms/ui'
+import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
 import { useState, useRef } from 'react'
 
 const MockupUpload = () => {
   const { id } = useDocumentInfo()
-  const { value, setValue } = useField<string>({ path: 'websiteMockupUrl' })
+  const [fields, dispatchFields] = useAllFormFields()
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   if (!id) return null
+
+  const currentUrl = fields?.websiteMockupUrl?.value as string | undefined
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -36,7 +38,11 @@ const MockupUpload = () => {
         return
       }
 
-      setValue(data.url)
+      dispatchFields({
+        type: 'UPDATE',
+        path: 'websiteMockupUrl',
+        value: data.url,
+      })
     } catch {
       setError('Network error — check your connection and try again.')
     } finally {
@@ -59,9 +65,9 @@ const MockupUpload = () => {
         Upload HTML Mockup
       </label>
 
-      {value && (
+      {currentUrl && (
         <p style={{ fontSize: 13, color: 'var(--theme-elevation-600)', marginBottom: 8, wordBreak: 'break-all' }}>
-          Current: {value}
+          Current: {currentUrl}
         </p>
       )}
 

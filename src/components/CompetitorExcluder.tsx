@@ -1,6 +1,6 @@
 'use client'
 
-import { useDocumentInfo, useField } from '@payloadcms/ui'
+import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
 import { useState, useEffect } from 'react'
 
 type CompetitorProfile = {
@@ -9,11 +9,16 @@ type CompetitorProfile = {
 
 const CompetitorExcluder = () => {
   const { id } = useDocumentInfo()
-  const { value, setValue } = useField<string[]>({ path: 'excludedCompetitorDomains' })
+  const [fields, dispatchFields] = useAllFormFields()
   const [domains, setDomains] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
-  const excluded = Array.isArray(value) ? value : []
+  const raw = fields?.excludedCompetitorDomains?.value
+  const excluded: string[] = Array.isArray(raw)
+    ? raw
+    : typeof raw === 'string' && raw.startsWith('[')
+      ? (() => { try { return JSON.parse(raw) } catch { return [] } })()
+      : []
 
   useEffect(() => {
     if (!id) return
@@ -22,7 +27,6 @@ const CompetitorExcluder = () => {
     const fetchCompetitors = async () => {
       setLoading(true)
       try {
-        // Fetch the competitor-analysis linked to this proposal
         const res = await fetch(
           `/api/competitor-analyses?where[proposal][equals]=${id}&limit=1&sort=-createdAt`,
           { credentials: 'include' },
@@ -38,7 +42,7 @@ const CompetitorExcluder = () => {
 
         if (!cancelled) setDomains(competitorDomains)
       } catch {
-        // Silently fail — the field just stays empty
+        // Silently fail
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -70,7 +74,11 @@ const CompetitorExcluder = () => {
     const next = excluded.includes(domain)
       ? excluded.filter((d) => d !== domain)
       : [...excluded, domain]
-    setValue(next)
+    dispatchFields({
+      type: 'UPDATE',
+      path: 'excludedCompetitorDomains',
+      value: next,
+    })
   }
 
   return (
