@@ -12,6 +12,7 @@ const RunAuditsButton = () => {
   const [stage, setStage] = useState('')
   const [percent, setPercent] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const resumedRef = useRef(false)
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -20,34 +21,7 @@ const RunAuditsButton = () => {
     }
   }, [])
 
-  // Clean up on unmount
-  useEffect(() => () => stopPolling(), [stopPolling])
-
-  if (!id) return null
-
-  const websiteUrl = fields?.websiteUrl?.value as string | undefined
-  const businessType = fields?.businessType?.value as string | undefined
-  const legacyKeywords = fields?.keywords?.value as string | undefined
-  const auditStatus = fields?.auditStatus?.value as string | undefined
-
-  // Check keyword categories (array field stored as dot-path keys)
-  const hasKeywordCategories = fields
-    ? Object.keys(fields).some(
-        (key) =>
-          /^keywordCategories\.\d+\.keywords$/.test(key) &&
-          (fields[key]?.value as string | undefined)?.trim(),
-      )
-    : false
-  const hasKeywords = hasKeywordCategories || !!legacyKeywords?.trim()
-
-  const isRunning = auditStatus === 'running' || loading
-
-  const missingFields: string[] = []
-  if (!websiteUrl) missingFields.push('Website URL')
-  if (!businessType) missingFields.push('Business Type')
-  if (!hasKeywords) missingFields.push('Keywords')
-
-  const startPolling = () => {
+  const startPolling = useCallback(() => {
     stopPolling()
     pollRef.current = setInterval(async () => {
       try {
@@ -77,9 +51,66 @@ const RunAuditsButton = () => {
         // Network hiccup — keep polling
       }
     }, 3000)
+  }, [id, stopPolling])
+
+  if (!id) return null
+
+  const websiteUrl = fields?.websiteUrl?.value as string | undefined
+  const businessType = fields?.businessType?.value as string | undefined
+  const legacyKeywords = fields?.keywords?.value as string | undefined
+  const auditStatus = fields?.auditStatus?.value as string | undefined
+
+  // Check keyword categories (array field stored as dot-path keys)
+  const hasKeywordCategories = fields
+    ? Object.keys(fields).some(
+        (key) =>
+          /^keywordCategories\.\d+\.keywords$/.test(key) &&
+          (fields[key]?.value as string | undefined)?.trim(),
+      )
+    : false
+  const hasKeywords = hasKeywordCategories || !!legacyKeywords?.trim()
+
+  // Only treat as "running" from local state (user clicked the button this session).
+  // A stale 'running' auditStatus from a previous failed run should not block re-runs.
+  const isRunning = loading
+  const isStuck = auditStatus === 'running' && !loading
+
+  const missingFields: string[] = []
+  if (!websiteUrl) missingFields.push('Website URL')
+  if (!businessType) missingFields.push('Business Type')
+  if (!hasKeywords) missingFields.push('Keywords')
+
+  // If page loads with auditStatus 'running', start polling to pick up progress.
+  // After 60s of no completion, stop polling — the audit is likely stuck.
+  if (auditStatus === 'running' && !loading && !resumedRef.current) {
+    resumedRef.current = true
+    setLoading(true)
+    setStage('Resuming...')
+    // Defer startPolling + stuck timeout to next tick via useEffect
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (resumedRef.current && loading && stage === 'Resuming...') {
+      startPolling()
+
+      const stuckTimeout = setTimeout(() => {
+        setLoading(false)
+        stopPolling()
+        setStage('')
+      }, 60000)
+
+      return () => {
+        clearTimeout(stuckTimeout)
+        stopPolling()
+      }
+    }
+    return () => stopPolling()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, stage])
+
   const handleClick = async () => {
+    resumedRef.current = false
     setLoading(true)
     setMessage(null)
     setError(null)
@@ -134,6 +165,12 @@ const RunAuditsButton = () => {
       {missingFields.length > 0 && (
         <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>
           Fill in {missingFields.join(', ')} before running audits.
+        </p>
+      )}
+
+      {isStuck && (
+        <p style={{ marginTop: 8, fontSize: 13, color: '#f59e0b' }}>
+          Previous audit appears stuck. You can safely re-run audits.
         </p>
       )}
 
