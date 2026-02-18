@@ -447,6 +447,10 @@ export async function POST(request: NextRequest) {
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 
+  // --- Ensure Payload's registered migration is marked as executed ---
+  // Without this row, Payload thinks migrations are pending and blocks all writes.
+  await run("mark_migration_executed", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260210_034208_add_client_analysis_fields', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
+
   // --- Schema diagnostics ---
   const tables = ["media", "clients", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches"];
   const schema: Record<string, string[]> = {};
