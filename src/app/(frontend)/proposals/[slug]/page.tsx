@@ -5,9 +5,35 @@ import Image from 'next/image'
 import RocketScroll from '@/components/RocketScroll'
 import KeywordSunburst from '@/components/KeywordSunburst'
 import StarField from '@/components/StarField'
-import { RichText } from '@payloadcms/richtext-lexical/react'
+import { RichText, defaultJSXConverters, TextJSXConverter } from '@payloadcms/richtext-lexical/react'
 import type { SerializedEditorState } from 'lexical'
 import './report.css'
+
+// Font size map matching proposalEditor TextStateFeature config
+const FONT_SIZE_MAP: Record<string, string> = {
+  'size-sm': '14px',
+  'size-base': '16px',
+  'size-lg': '20px',
+  'size-xl': '24px',
+  'size-2xl': '32px',
+}
+
+// Custom JSX converters that apply TextStateFeature font sizes as inline styles
+const defaultTextConverter = TextJSXConverter.text as (args: { node: any }) => React.ReactNode
+const richTextConverters = {
+  ...defaultJSXConverters,
+  text: ({ node }: { node: any }) => {
+    let text = defaultTextConverter({ node })
+
+    // Apply font size from TextStateFeature state
+    const fontSize = node.state?.fontSize
+    if (fontSize && FONT_SIZE_MAP[fontSize]) {
+      text = <span style={{ fontSize: FONT_SIZE_MAP[fontSize] }}>{text}</span>
+    }
+
+    return text
+  },
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1027,7 +1053,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             {launchRequirements && (
               <div className="cms-copy-block">
                 {isLexicalData(launchRequirements) ? (
-                  <RichText data={launchRequirements} />
+                  <RichText data={launchRequirements} converters={richTextConverters} />
                 ) : (
                   <LegacyTextBlock text={launchRequirements as string} />
                 )}
@@ -1062,7 +1088,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             {missionResources && (
               <div className="cms-copy-block">
                 {isLexicalData(missionResources) ? (
-                  <RichText data={missionResources} />
+                  <RichText data={missionResources} converters={richTextConverters} />
                 ) : (
                   <LegacyTextBlock text={missionResources as string} />
                 )}
@@ -1143,7 +1169,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             {flightPlanContent && (
               isLexicalData(flightPlanContent) ? (
                 <div className="cms-copy-block">
-                  <RichText data={flightPlanContent} />
+                  <RichText data={flightPlanContent} converters={richTextConverters} />
                 </div>
               ) : (
                 <div className="suggestions-list">
@@ -2144,7 +2170,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 <section className="client-overview tam-section">
                   <div className="cms-copy-block tam-copy">
                     {isLexicalData(tamData) ? (
-                      <RichText data={tamData} />
+                      <RichText data={tamData} converters={richTextConverters} />
                     ) : (
                       <LegacyTextBlock text={tamData as string} />
                     )}
