@@ -415,6 +415,9 @@ export async function POST(request: NextRequest) {
   await run("media.sizes_hero_filesize", "ALTER TABLE `media` ADD `sizes_hero_filesize` numeric");
   await run("media.sizes_hero_filename", "ALTER TABLE `media` ADD `sizes_hero_filename` text");
 
+  // --- Excluded competitor domains JSON column on client_proposals ---
+  await run("client_proposals.excluded_competitor_domains", "ALTER TABLE `client_proposals` ADD `excluded_competitor_domains` text");
+
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 
