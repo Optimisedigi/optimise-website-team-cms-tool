@@ -76,6 +76,15 @@ export async function POST(
     );
   }
 
+  // Preserve array fields that Payload clears on partial updates
+  const preservedArrayFields = {
+    competitors: proposal.competitors ?? [],
+    keywordCategories: (proposal as any).keywordCategories ?? [],
+    googleMapsUrls: (proposal as any).googleMapsUrls ?? [],
+    flightPlanImages: (proposal as any).flightPlanImages ?? [],
+    missionResourcesImages: (proposal as any).missionResourcesImages ?? [],
+  };
+
   // Mark as running
   await payload.update({
     collection: "client-proposals",
@@ -86,6 +95,7 @@ export async function POST(
       auditStartedAt: new Date().toISOString(),
       auditCompletedAt: null,
       auditError: null,
+      ...preservedArrayFields,
     } as any,
     overrideAccess: true,
   });
@@ -624,6 +634,7 @@ export async function POST(
           ...(auditIds.keywordSnapshot ? { keywordSnapshot: auditIds.keywordSnapshot } : {}),
           ...(auditIds.competitorAnalysis ? { competitorAnalysis: auditIds.competitorAnalysis } : {}),
           ...(auditIds.contentResearch ? { contentResearch: auditIds.contentResearch } : {}),
+          ...preservedArrayFields,
         } as any,
         overrideAccess: true,
       });
@@ -653,6 +664,7 @@ export async function POST(
         auditProgress: "Failed|100",
         auditCompletedAt: new Date().toISOString(),
         auditError: e.message || "Unexpected error",
+        ...preservedArrayFields,
       } as any,
       overrideAccess: true,
     }).catch(() => {});
