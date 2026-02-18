@@ -774,6 +774,7 @@ export const ClientProposals: CollectionConfig = {
                 proposal: { equals: id },
               }),
               admin: {
+                isSortable: true,
                 description:
                   "Select which content research keywords to show on the report. Leave empty to auto-select top 2 by search volume.",
               },

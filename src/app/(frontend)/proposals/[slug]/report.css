@@ -163,23 +163,17 @@
 
 .instrument-panel {
   margin-bottom: 8px;
-  background: #0b1120;
+  background: transparent;
   border-radius: 16px;
   padding: 20px 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border: none;
+  box-shadow: none;
   overflow: hidden;
   position: relative;
 }
 
 .instrument-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  display: none;
 }
 
 .instrument-panel-cards {
@@ -202,8 +196,8 @@
 }
 
 .instrument-panel .overview-score-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0b1120;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
 }
 
@@ -220,18 +214,18 @@
 }
 
 .instrument-panel .overview-score-green {
-  background: rgba(34, 197, 94, 0.12);
-  border-color: rgba(34, 197, 94, 0.25);
+  background: #0b1120;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .instrument-panel .overview-score-amber {
-  background: rgba(245, 158, 11, 0.12);
-  border-color: rgba(245, 158, 11, 0.25);
+  background: #0b1120;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .instrument-panel .overview-score-red {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: rgba(239, 68, 68, 0.25);
+  background: #0b1120;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 /* ============================================================ */
@@ -1364,16 +1358,15 @@
 
 .ad-thumbnail-hover {
   display: none;
-  position: fixed;
+  position: absolute;
   z-index: 100;
   padding: 4px;
   background: #fff;
   border-radius: 10px;
   box-shadow: 0 8px 30px rgba(0,0,0,0.25);
   border: 1px solid #e4e4e7;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  bottom: calc(100% + 8px);
+  left: 0;
 }
 
 .ad-thumbnail-wrap:hover .ad-thumbnail-hover {
@@ -1952,6 +1945,17 @@ html.scroll-ready .report-presentation {
   margin: 0 0 12px;
 }
 
+/* Checklist: strike through text on checked items */
+.cms-copy-block .list-item-checkbox-checked {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.slide-18 .cms-copy-block .list-item-checkbox-checked {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
 .slide-placeholder-block {
   padding: 40px 24px;
   border: 2px dashed #e4e4e7;
@@ -2361,9 +2365,8 @@ html.scroll-ready .report-presentation {
 }
 
 .ad-screenshots-grid .ad-thumbnail-hover {
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  bottom: calc(100% + 8px);
+  left: 0;
 }
 
 @media (max-width: 600px) {

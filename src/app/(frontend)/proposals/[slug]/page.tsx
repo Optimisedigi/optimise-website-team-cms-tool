@@ -512,11 +512,6 @@ function CompetitorCard({
               <span className="screenshot-domain">{comp.domain}</span>
             </div>
           )}
-          {comp.metaAds?.adScreenshots && comp.metaAds.adScreenshots.length > 0 && (
-            <a href={comp.metaAds.adScreenshots[0]} target="_blank" rel="noopener noreferrer" className="meta-ad-link">
-              View Meta Ad
-            </a>
-          )}
         </div>
       </div>
     </div>
@@ -1318,7 +1313,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                         {comp.googleAds?.adScreenshots && comp.googleAds.adScreenshots.length > 0 && (
                           <div className="ad-screenshots-grid">
                             {comp.googleAds.adScreenshots.slice(0, 5).map((url, j) => {
-                              const src = url.startsWith('data:') ? url : (url.startsWith('http') ? url : `data:image/png;base64,${url}`)
+                              const src = url.startsWith('/') || url.startsWith('http') || url.startsWith('data:') ? url : `data:image/png;base64,${url}`
                               return (
                                 <div key={j} className="ad-thumbnail-wrap">
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -2098,7 +2093,6 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   )}
                 </div>
               )}
-              <span className="client-overview-date">Report generated {reportDate}</span>
             </section>
 
             {(seoScore != null || croScore != null || totalMonthlySearchVolume != null || avgCompetitorTraffic != null) && (

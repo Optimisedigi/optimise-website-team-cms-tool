@@ -1,21 +1,22 @@
 /**
- * Website screenshot capture using Google PageSpeed Insights API.
- * Requires GOOGLE_PAGESPEED_API_KEY env var. Works on serverless (no Puppeteer/Chrome needed).
- * Returns a base64-encoded JPEG screenshot or null on failure.
+ * Website screenshot capture — tiered approach:
+ *   1. Google PageSpeed Insights API (free, primary)
+ *   2. Growth-tools Puppeteer endpoint (existing infra, fallback)
+ *   3. ScreenshotOne API (paid, backfill-only for gaps after report is built)
+ *
+ * ScreenshotOne setup: https://screenshotone.com — SCREENSHOTONE_ACCESS_KEY env var
+ * Pricing: 100 free/month, $17/mo for 2,000 screenshots
  */
 
-function extractScreenshot(data: any): string | null {
-  const screenshot = data?.lighthouseResult?.audits?.['final-screenshot']?.details?.data
-  if (!screenshot || typeof screenshot !== 'string') return null
-  // PageSpeed returns "data:image/jpeg;base64,..." — strip the prefix to return raw base64
-  return screenshot.replace(/^data:image\/\w+;base64,/, '')
-}
-
+/**
+ * Primary: Google PageSpeed Insights API.
+ * Extracts the "final-screenshot" audit from Lighthouse results.
+ * Free, no API key required (but rate-limited without one).
+ */
 export async function captureWebsiteScreenshot(url: string): Promise<string | null> {
   const apiKey = process.env.GOOGLE_PAGESPEED_API_KEY || ''
   const keyParam = apiKey ? `&key=${apiKey}` : ''
 
-  // Try the given URL first, then alternate formats (with/without www)
   const fullUrl = url.startsWith('http') ? url : `https://${url}`
   const urlVariants = [fullUrl]
   try {
@@ -29,12 +30,10 @@ export async function captureWebsiteScreenshot(url: string): Promise<string | nu
     // Invalid URL — just try the original
   }
 
-  // Try desktop strategy first, then mobile as fallback (mobile succeeds more often)
   for (const strategy of ['desktop', 'mobile'] as const) {
     for (const variant of urlVariants) {
       const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(variant)}&category=performance&strategy=${strategy}${keyParam}`
 
-      // Retry up to 2 times with a 45-second timeout
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           const res = await fetch(apiUrl, { signal: AbortSignal.timeout(45000) })
@@ -44,15 +43,15 @@ export async function captureWebsiteScreenshot(url: string): Promise<string | nu
           }
 
           const data = await res.json()
-          const base64 = extractScreenshot(data)
-          if (!base64) {
+          const screenshot = data?.lighthouseResult?.audits?.['final-screenshot']?.details?.data
+          if (!screenshot || typeof screenshot !== 'string') {
             console.error(`[screenshots] No screenshot in PageSpeed response for ${variant} strategy=${strategy}`)
             continue
           }
 
-          return base64
+          return screenshot.replace(/^data:image\/\w+;base64,/, '')
         } catch (err) {
-          console.error(`[screenshots] Failed to capture ${variant} strategy=${strategy} (attempt ${attempt + 1}):`, err)
+          console.error(`[screenshots] PageSpeed failed for ${variant} strategy=${strategy} (attempt ${attempt + 1}):`, err)
         }
       }
     }
@@ -62,9 +61,8 @@ export async function captureWebsiteScreenshot(url: string): Promise<string | nu
 }
 
 /**
- * Fallback screenshot capture via growth-tools Puppeteer endpoint.
+ * Fallback: growth-tools Puppeteer endpoint.
  * Requires GROWTH_TOOLS_URL and INTERNAL_API_KEY env vars.
- * Returns a base64-encoded screenshot or null on failure.
  */
 export async function captureScreenshotViaGrowthTools(url: string): Promise<string | null> {
   const growthToolsUrl = process.env.GROWTH_TOOLS_URL
@@ -82,7 +80,7 @@ export async function captureScreenshotViaGrowthTools(url: string): Promise<stri
       },
     )
     if (!res.ok) {
-      console.error(`[screenshots] Growth-tools screenshot returned ${res.status} for ${fullUrl}`)
+      console.error(`[screenshots] Growth-tools returned ${res.status} for ${fullUrl}`)
       return null
     }
 
@@ -93,10 +91,60 @@ export async function captureScreenshotViaGrowthTools(url: string): Promise<stri
       return null
     }
 
-    // Strip data URI prefix if present
     return screenshot.replace(/^data:image\/\w+;base64,/, '')
   } catch (err) {
-    console.error(`[screenshots] Growth-tools screenshot failed for ${fullUrl}:`, err)
+    console.error(`[screenshots] Growth-tools failed for ${fullUrl}:`, err)
+    return null
+  }
+}
+
+/**
+ * Last-resort: ScreenshotOne API (paid).
+ * Only called as a backfill for screenshots that failed with PageSpeed + Puppeteer.
+ * Requires SCREENSHOTONE_ACCESS_KEY env var.
+ */
+export async function captureScreenshotViaScreenshotOne(url: string): Promise<string | null> {
+  const accessKey = process.env.SCREENSHOTONE_ACCESS_KEY
+  if (!accessKey) {
+    console.error('[screenshots] SCREENSHOTONE_ACCESS_KEY not set — skipping paid backfill')
+    return null
+  }
+
+  const fullUrl = url.startsWith('http') ? url : `https://${url}`
+
+  const params = new URLSearchParams({
+    access_key: accessKey,
+    url: fullUrl,
+    viewport_width: '1280',
+    viewport_height: '900',
+    format: 'png',
+    block_ads: 'true',
+    block_cookie_banners: 'true',
+    block_chats: 'true',
+    delay: '3',
+    timeout: '30',
+    image_quality: '80',
+  })
+
+  try {
+    const res = await fetch(`https://api.screenshotone.com/take?${params}`, {
+      signal: AbortSignal.timeout(45000),
+    })
+
+    if (!res.ok) {
+      console.error(`[screenshots] ScreenshotOne returned ${res.status} for ${fullUrl}`)
+      return null
+    }
+
+    const buffer = await res.arrayBuffer()
+    if (buffer.byteLength < 100) {
+      console.error('[screenshots] ScreenshotOne returned suspiciously small response')
+      return null
+    }
+
+    return Buffer.from(buffer).toString('base64')
+  } catch (err) {
+    console.error(`[screenshots] ScreenshotOne failed for ${fullUrl}:`, err)
     return null
   }
 }

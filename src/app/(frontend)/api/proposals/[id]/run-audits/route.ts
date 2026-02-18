@@ -2,10 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { captureWebsiteScreenshot, captureScreenshotViaGrowthTools } from "@/lib/screenshots";
+import { captureWebsiteScreenshot, captureScreenshotViaGrowthTools, captureScreenshotViaScreenshotOne } from "@/lib/screenshots";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+
+// SimilarWeb only tracks root domains, not subdomains.
+// e.g. "my.clevelandclinic.org" → "clevelandclinic.org"
+// Handles multi-part TLDs like .org.au, .co.uk, .com.au
+const MULTI_PART_TLDS = new Set([
+  'co.uk', 'org.uk', 'ac.uk', 'co.nz', 'co.za', 'com.au', 'org.au', 'net.au',
+  'co.in', 'co.jp', 'co.kr', 'com.br', 'com.mx', 'com.sg', 'com.hk', 'com.tw',
+  'co.il', 'co.th', 'or.jp', 'ne.jp', 'org.nz', 'com.ar', 'com.co', 'com.vn',
+]);
+
+function extractRootDomain(domain: string): string {
+  const clean = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+  const parts = clean.split('.');
+  if (parts.length <= 2) return clean;
+
+  // Check if the last two parts form a multi-part TLD
+  const lastTwo = parts.slice(-2).join('.');
+  if (MULTI_PART_TLDS.has(lastTwo)) {
+    // root domain = name + multi-part TLD (e.g. tg.org.au)
+    return parts.slice(-3).join('.');
+  }
+  // Standard TLD: root domain = name + TLD (e.g. clevelandclinic.org)
+  return parts.slice(-2).join('.');
+}
 
 // Traffic endpoint returns monthlyVisits as an array of {month, visits} objects.
 // Extract the latest month's visits, or fall back to averageMonthlyVisits.
@@ -459,9 +483,10 @@ export async function POST(
             const cmsDataResults = await Promise.allSettled(
               missingCmsCompetitors.map(async ({ domain }) => {
                 const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+                const rootDomain = extractRootDomain(domain);
 
                 const [trafficResult, screenshotResult] = await Promise.allSettled([
-                  fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(cleanDomain)}`, {
+                  fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
                     headers: { "x-internal-key": INTERNAL_API_KEY! },
                   }).then(async (res) => {
                     if (!res.ok) return null;
@@ -516,13 +541,13 @@ export async function POST(
             console.log(`[traffic-backfill] Fetching traffic for ${noTrafficComps.length} competitors with null traffic`);
             const trafficResults = await Promise.allSettled(
               noTrafficComps.map(async (comp: any) => {
-                const cleanDomain = (comp.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-                const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(cleanDomain)}`, {
+                const rootDomain = extractRootDomain(comp.domain || "");
+                const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
                   headers: { "x-internal-key": INTERNAL_API_KEY! },
                 });
                 if (!res.ok) return { domain: comp.domain, trafficData: null };
                 const trafficData = await res.json();
-                console.log(`[traffic-backfill] ${cleanDomain}:`, trafficData ? JSON.stringify(trafficData).slice(0, 300) : 'null');
+                console.log(`[traffic-backfill] ${rootDomain}:`, trafficData ? JSON.stringify(trafficData).slice(0, 300) : 'null');
                 return { domain: comp.domain, trafficData };
               })
             );
@@ -533,7 +558,7 @@ export async function POST(
               }
             }
             for (const comp of enrichedCompetitors) {
-              if (!comp.traffic && trafficMap.has(comp.domain)) {
+              if ((!comp.traffic || typeof comp.traffic.monthlyVisits !== "number") && trafficMap.has(comp.domain)) {
                 const td = trafficMap.get(comp.domain);
                 comp.traffic = {
                   monthlyVisits: extractMonthlyVisits(td),
@@ -548,13 +573,13 @@ export async function POST(
           // Also backfill yourProfile traffic if missing or invalid
           if (enrichedYourProfile && (!enrichedYourProfile.traffic || typeof enrichedYourProfile.traffic.monthlyVisits !== "number")) {
             try {
-              const cleanDomain = (enrichedYourProfile.domain || yourDomain).replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-              const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(cleanDomain)}`, {
+              const rootDomain = extractRootDomain(enrichedYourProfile.domain || yourDomain);
+              const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
                 headers: { "x-internal-key": INTERNAL_API_KEY! },
               });
               if (res.ok) {
                 const td = await res.json();
-                console.log(`[traffic-backfill] yourProfile ${cleanDomain}:`, JSON.stringify(td).slice(0, 300));
+                console.log(`[traffic-backfill] yourProfile ${rootDomain}:`, JSON.stringify(td).slice(0, 300));
                 enrichedYourProfile.traffic = {
                   monthlyVisits: extractMonthlyVisits(td),
                   globalRank: td.globalRank ?? null,
@@ -580,7 +605,73 @@ export async function POST(
           });
 
           const captured = screenshotMap.size;
-          console.log(`[screenshots] Finished: ${captured}/${allDomains.length + missingCmsCompetitors.length} domains captured`);
+          const totalDomains = allDomains.length + missingCmsCompetitors.length;
+          console.log(`[screenshots] Finished: ${captured}/${totalDomains} domains captured`);
+
+          // ScreenshotOne backfill: only call the paid API for screenshots that failed
+          const missingScreenshotComps = enrichedCompetitors.filter((c: any) => !c.websiteScreenshot && c.domain);
+          const yourProfileMissing = enrichedYourProfile && !enrichedYourProfile.websiteScreenshot;
+
+          if (missingScreenshotComps.length > 0 || yourProfileMissing) {
+            await updateProgress("Backfilling missing screenshots (ScreenshotOne)", 90);
+            const backfillDomains: { domain: string; isYourProfile: boolean }[] = [];
+
+            if (yourProfileMissing) {
+              backfillDomains.push({ domain: enrichedYourProfile.domain || yourDomain, isYourProfile: true });
+            }
+            for (const c of missingScreenshotComps) {
+              backfillDomains.push({ domain: c.domain, isYourProfile: false });
+            }
+
+            console.log(`[screenshots-backfill] Using ScreenshotOne for ${backfillDomains.length} missing screenshots`);
+
+            const backfillResults = await Promise.allSettled(
+              backfillDomains.map(async ({ domain }) => {
+                const screenshot = await captureScreenshotViaScreenshotOne(domain);
+                return { domain, screenshot };
+              })
+            );
+
+            let backfilled = 0;
+            for (const result of backfillResults) {
+              if (result.status !== "fulfilled" || !result.value.screenshot) continue;
+              const { domain, screenshot } = result.value;
+              const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+              backfilled++;
+
+              // Update yourProfile if it was missing
+              if (enrichedYourProfile && !enrichedYourProfile.websiteScreenshot) {
+                const yourKey = (enrichedYourProfile.domain || yourDomain).replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+                if (yourKey === cleanDomain) {
+                  enrichedYourProfile.websiteScreenshot = screenshot;
+                }
+              }
+
+              // Update matching competitor
+              for (const comp of enrichedCompetitors) {
+                const compKey = (comp.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+                if (compKey === cleanDomain && !comp.websiteScreenshot) {
+                  comp.websiteScreenshot = screenshot;
+                }
+              }
+            }
+
+            if (backfilled > 0) {
+              console.log(`[screenshots-backfill] ScreenshotOne filled ${backfilled}/${backfillDomains.length} gaps`);
+              // Re-save with backfilled screenshots
+              await payload.update({
+                collection: "competitor-analyses",
+                id: recordId,
+                data: {
+                  yourProfile: enrichedYourProfile,
+                  competitors: enrichedCompetitors,
+                },
+                overrideAccess: true,
+              });
+            } else {
+              console.log(`[screenshots-backfill] ScreenshotOne could not fill any gaps`);
+            }
+          }
         }
       } catch (e: any) {
         // Non-fatal — log and continue

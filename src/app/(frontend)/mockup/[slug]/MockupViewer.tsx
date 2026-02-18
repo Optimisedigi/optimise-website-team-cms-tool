@@ -35,7 +35,8 @@ export default function MockupViewer({
       }
 
       if (data.ok && data.websiteMockupUrl) {
-        setMockupUrl(data.websiteMockupUrl)
+        // Use proxy route to serve mockup inline (avoids blob download headers)
+        setMockupUrl(`/api/mockup-serve?slug=${encodeURIComponent(slug)}`)
       } else if (data.ok && data.proposalSlug && data.proposalSlug !== slug) {
         setError('This PIN does not match this mockup.')
         setPin('')
