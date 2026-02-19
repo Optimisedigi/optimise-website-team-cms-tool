@@ -444,6 +444,12 @@ export async function POST(request: NextRequest) {
   await run("clients_google_maps_urls_order_idx", "CREATE INDEX IF NOT EXISTS `clients_google_maps_urls_order_idx` ON `clients_google_maps_urls` (`_order`)");
   await run("clients_google_maps_urls_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_google_maps_urls_parent_id_idx` ON `clients_google_maps_urls` (`_parent_id`)");
 
+  // --- Missing columns on blog_posts ---
+  await run("blog_posts.client_confirmed", "ALTER TABLE `blog_posts` ADD `client_confirmed` integer DEFAULT false");
+  await run("blog_posts.image_prompt_override", "ALTER TABLE `blog_posts` ADD `image_prompt_override` text");
+  await run("_blog_posts_v.version_client_confirmed", "ALTER TABLE `_blog_posts_v` ADD `version_client_confirmed` integer DEFAULT false");
+  await run("_blog_posts_v.version_image_prompt_override", "ALTER TABLE `_blog_posts_v` ADD `version_image_prompt_override` text");
+
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 
