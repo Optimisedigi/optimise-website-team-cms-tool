@@ -71,6 +71,40 @@ export const BlogPosts: CollectionConfig = {
           if (fm.metadescription) data.metaDescription = fm.metadescription;
           if (fm.status) data.status = fm.status;
 
+          // Extract title from H1 heading if not found in frontmatter
+          if (!data.title?.trim()) {
+            const h1Match = body.match(/^# (.+)$/m);
+            if (h1Match) data.title = h1Match[1].trim();
+          }
+
+          // Strip metadata sections formatted as markdown headings
+          // (e.g. "## Meta title\nContent\n\n") and extract their values
+          const metaSections = [
+            { pattern: /^##\s*meta\s*title\s*\n([\s\S]*?)(?=\n##?\s|\n*$)/im, field: 'metaTitle' as const },
+            { pattern: /^##\s*meta\s*description\s*\n([\s\S]*?)(?=\n##?\s|\n*$)/im, field: 'metaDescription' as const },
+            { pattern: /^##\s*excerpt\s*\n([\s\S]*?)(?=\n##?\s|\n*$)/im, field: 'excerpt' as const },
+          ];
+
+          for (const { pattern, field } of metaSections) {
+            const match = body.match(pattern);
+            if (match) {
+              const value = match[1].trim();
+              if (value && !data[field]?.trim()) {
+                data[field] = value.slice(0, field === 'metaDescription' ? 160 : field === 'excerpt' ? 160 : 60);
+              }
+              body = body.replace(match[0], '');
+            }
+          }
+
+          // Strip "Estimated reading time: ..." line
+          body = body.replace(/^Estimated reading time:.*$/im, '');
+
+          // Strip horizontal rules (---)
+          body = body.replace(/^---+\s*$/gm, '');
+
+          // Clean up excessive blank lines left after stripping
+          body = body.replace(/\n{3,}/g, '\n\n');
+
           if (body.trim()) {
             data.markdownContent = body.trim();
 
@@ -102,6 +136,10 @@ export const BlogPosts: CollectionConfig = {
               data.metaDescription = data.excerpt.slice(0, 160);
             }
           }
+
+          // Clear markdownSource after import so it doesn't overwrite
+          // markdownContent on subsequent saves
+          data.markdownSource = '';
         } catch {
           // If parsing fails, leave fields unchanged
         }
