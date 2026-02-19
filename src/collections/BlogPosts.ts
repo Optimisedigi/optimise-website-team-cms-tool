@@ -9,6 +9,9 @@ import matter from "gray-matter";
  */
 export const BlogPosts: CollectionConfig = {
   slug: "blog-posts",
+  access: {
+    read: () => true,
+  },
   admin: {
     useAsTitle: "title",
     group: "Content",
