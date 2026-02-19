@@ -452,7 +452,7 @@ export async function POST(request: NextRequest) {
   await run("mark_migration_executed", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260210_034208_add_client_analysis_fields', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
 
   // --- Schema diagnostics ---
-  const tables = ["media", "clients", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches"];
+  const tables = ["media", "clients", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels"];
   const schema: Record<string, string[]> = {};
   for (const table of tables) {
     try {
@@ -470,5 +470,12 @@ export async function POST(request: NextRequest) {
     migrations = migrationRows.rows;
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, results, schema, migrations });
+  // List all tables in the database
+  let allTables: string[] = [];
+  try {
+    const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
+    allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
+  } catch { /* ignore */ }
+
+  return NextResponse.json({ ok: true, results, schema, migrations, allTables });
 }
