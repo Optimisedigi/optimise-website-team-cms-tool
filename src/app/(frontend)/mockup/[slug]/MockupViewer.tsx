@@ -77,7 +77,7 @@ export default function MockupViewer({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0f0c29, #302b63, #24243e)',
+        background: 'linear-gradient(135deg, #0a1628, #1a3a5c, #0f2847)',
         fontFamily: 'system-ui, -apple-system, sans-serif',
       }}
     >

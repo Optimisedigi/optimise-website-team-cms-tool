@@ -208,11 +208,12 @@ function domainFromUrl(url: string): string {
 }
 
 function domainToBusinessName(domain: string): string {
-  // Strip www. and TLD to get the business name, then title-case it
-  const name = domain.replace(/^www\./, '').replace(/\.[^.]+$/, '')
-  // Split on dots, hyphens, underscores and title-case each word
+  // Strip www. prefix, then take only the first segment (before any dot) as the business name
+  const withoutWww = domain.replace(/^www\./, '')
+  const name = withoutWww.split('.')[0]
+  // Split on hyphens/underscores and title-case each word
   return name
-    .split(/[.\-_]/)
+    .split(/[-_]/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ')
 }
