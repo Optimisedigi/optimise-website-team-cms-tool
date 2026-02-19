@@ -4,9 +4,8 @@ import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
 import config from "@/payload.config";
 
-const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-
 export async function POST(req: NextRequest) {
+  const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!GEMINI_API_KEY) {
     return NextResponse.json(
       { error: "GOOGLE_GENERATIVE_AI_API_KEY not configured" },
