@@ -138,15 +138,26 @@ function cmsPostToBlogPost(post: CMSBlogPost): BlogPost {
   const tags =
     post.tags?.map((t) => (typeof t === "string" ? t : t.tag)) || [];
 
+  // Format ISO date to YYYY-MM-DD
+  const date = post.publishedDate
+    ? post.publishedDate.split("T")[0]
+    : new Date().toISOString().split("T")[0];
+
+  // Resolve relative image URLs against the CMS base URL
+  let imageUrl = post.featuredImage?.url || undefined;
+  if (imageUrl && imageUrl.startsWith("/") && CMS_API_URL) {
+    imageUrl = `${CMS_API_URL}${imageUrl}`;
+  }
+
   return {
     slug: post.slug,
     title: post.title,
-    date: post.publishedDate,
+    date,
     author: post.author,
     excerpt: post.excerpt,
     content,
     readTime: post.readingTime || calculateReadTime(content),
-    image: post.featuredImage?.url || undefined,
+    image: imageUrl,
     imageAlt: post.featuredImageAlt || post.title,
     tags,
   };
