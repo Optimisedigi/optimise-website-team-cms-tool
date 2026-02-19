@@ -9,6 +9,8 @@ const GenerateBlogImageButton = () => {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null)
+  const [mediaId, setMediaId] = useState<string | null>(null)
 
   const title = fields?.title?.value as string | undefined
   const excerpt = fields?.excerpt?.value as string | undefined
@@ -23,6 +25,8 @@ const GenerateBlogImageButton = () => {
     setLoading(true)
     setMessage(null)
     setError(null)
+    setMediaUrl(null)
+    setMediaId(null)
 
     try {
       const res = await fetch('/api/blog-posts/generate-image', {
@@ -44,7 +48,9 @@ const GenerateBlogImageButton = () => {
         return
       }
 
-      setMessage('Image generated and attached. Refresh the page to see it.')
+      setMediaUrl(data.url)
+      setMediaId(data.mediaId)
+      setMessage('Image generated! Review it below, then assign it as the featured image.')
     } catch {
       setError('Network error — check your connection and try again.')
     } finally {
@@ -103,6 +109,32 @@ const GenerateBlogImageButton = () => {
         <p style={{ marginTop: 8, fontSize: 13, color: '#6b7280' }}>
           Generating with Gemini Imagen and optimizing to WebP. This may take a few seconds...
         </p>
+      )}
+
+      {mediaUrl && (
+        <div style={{ marginTop: 12 }}>
+          <a
+            href={mediaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'inline-block', marginBottom: 8, fontSize: 13, color: '#7c3aed', fontWeight: 600 }}
+          >
+            View generated image (opens in new tab)
+          </a>
+          {mediaId && (
+            <span style={{ marginLeft: 12, fontSize: 12, color: '#6b7280' }}>
+              Media ID: {mediaId} —{' '}
+              <a
+                href={`/admin/collections/media/${mediaId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#7c3aed' }}
+              >
+                Edit in Media
+              </a>
+            </span>
+          )}
+        </div>
       )}
     </div>
   )

@@ -75,11 +75,11 @@ export async function POST(req: NextRequest) {
 
     const rawBuffer = Buffer.from(generated.image.imageBytes, "base64");
 
-    // 2. Optimize: Lanczos3 downscale + lossless WebP
+    // 2. Resize to 1168x784 landscape + lossless WebP
     const optimized = await sharp(rawBuffer)
-      .resize(1200, null, {
+      .resize(1168, 784, {
         kernel: sharp.kernel.lanczos3,
-        withoutEnlargement: true,
+        fit: 'cover',
       })
       .webp({ lossless: true })
       .toBuffer();
@@ -106,17 +106,6 @@ export async function POST(req: NextRequest) {
         mimetype: "image/webp",
         name: fileName,
         size: optimized.length,
-      },
-    });
-
-    // 4. Link the image to the blog post (draft mode skips required-field validation)
-    await payload.update({
-      collection: "blog-posts",
-      id: blogPostId,
-      draft: true,
-      data: {
-        featuredImage: mediaDoc.id,
-        featuredImageAlt: `Blog header image for: ${title}`,
       },
     });
 
