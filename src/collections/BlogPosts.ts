@@ -170,6 +170,16 @@ export const BlogPosts: CollectionConfig = {
           "Confirm the selected client is correct before saving or publishing",
       },
     },
+    {
+      name: "markdownGuide",
+      type: "ui",
+      admin: {
+        position: "sidebar",
+        components: {
+          Field: "./components/MarkdownGuide",
+        },
+      },
+    },
 
     // SEO Tab
     {
