@@ -457,6 +457,134 @@ export async function POST(request: NextRequest) {
   // Without this row, Payload thinks migrations are pending and blocks all writes.
   await run("mark_migration_executed", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260210_034208_add_client_analysis_fields', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
 
+  // --- One-time blog import (skips if slugs already exist) ---
+  const blogPosts = [
+    {
+      title: "5 reasons your digital marketing isn't working",
+      slug: "5-reasons-your-digital-marketing-isnt-working",
+      author: "Peter Tu",
+      excerpt: "Before you spend more on ads, make sure these five fundamentals are in place. Most digital marketing failures come down to these common issues.",
+      publishedDate: "2025-07-28",
+      imageAlt: "Five broken chain links representing common digital marketing mistakes including poor targeting, disconnected analytics, and missing conversion tracking",
+      tags: ["Digital Growth & Strategy", "Conversion Optimisation & UX"],
+      imageUrl: "https://www.optimisedigital.online/images/blog/five-reasons-digital-marketing-not-working.webp",
+    },
+    {
+      title: "Deciding your Google Ads budget: a guide for small to medium business owners",
+      slug: "deciding-your-google-ads-budget",
+      author: "Peter Tu",
+      excerpt: "Determining your Google Ads budget doesn't have to be complicated. Follow these seven steps to set a budget that works for your business.",
+      publishedDate: "2023-06-04",
+      imageAlt: "Google Ads budget planning illustration showing calculator, coins allocated into campaign buckets, and budget distribution pie chart",
+      tags: ["Google Ads", "Digital Marketing Spend"],
+      imageUrl: "https://www.optimisedigital.online/images/blog/google-ads-budget-planning.webp",
+    },
+    {
+      title: "What is the difference between digital marketing and traditional marketing?",
+      slug: "digital-marketing-vs-traditional-marketing",
+      author: "Peter Tu",
+      excerpt: "Understanding the key differences between digital and traditional marketing helps you make smarter decisions about where to invest your marketing budget.",
+      publishedDate: "2023-06-03",
+      imageAlt: "Split-screen comparison of digital marketing with analytics dashboard, social media, and search on the left versus traditional marketing with newspaper, billboard, TV, and radio on the right",
+      tags: ["Marketing Trends & Insights", "Digital Growth & Strategy"],
+      imageUrl: "https://www.optimisedigital.online/images/blog/digital-marketing-vs-traditional-marketing.webp",
+    },
+    {
+      title: "How much can digital marketing impact your business?",
+      slug: "how-much-can-digital-marketing-impact-your-business",
+      author: "Peter Tu",
+      excerpt: "Digital marketing effectiveness varies by business type. Results range from minimal to transformative depending on your model and readiness.",
+      publishedDate: "2025-05-11",
+      imageAlt: "MacBook Pro on a modern office desk displaying a marketing analytics dashboard with lead generation growth chart and total leads metric",
+      tags: ["Digital Growth & Strategy", "Digital Marketing Spend"],
+      imageUrl: "https://www.optimisedigital.online/images/blog/digital-marketing-business-growth-impact.webp",
+    },
+    {
+      title: "Where should I invest my money if I want to grow my business?",
+      slug: "where-to-invest-money-to-grow-your-business",
+      author: "Peter Tu",
+      excerpt: "Choosing between performance marketing and brand marketing? Here's how to think about allocating your marketing budget for sustainable growth.",
+      publishedDate: "2023-03-22",
+      imageAlt: "Business owner at her desk reviewing marketing budget allocation charts and growth reports on laptop and printed documents",
+      tags: ["Digital Marketing Spend", "Performance Marketing"],
+      imageUrl: "https://www.optimisedigital.online/images/blog/business-investment-growth-planning.webp",
+    },
+    {
+      title: "Why your digital marketing isn't working anymore",
+      slug: "why-your-digital-marketing-isnt-working-anymore",
+      author: "Peter Tu",
+      excerpt: "Digital marketing has changed. Rising ad costs, privacy updates, and shifting customer behaviour have made it harder to get results.",
+      publishedDate: "2025-07-28",
+      imageAlt: "Young professional woman looking up thoughtfully from her MacBook Pro while considering why her digital marketing strategy is not delivering results",
+      tags: ["Digital Growth & Strategy", "Marketing Trends & Insights"],
+      imageUrl: "https://www.optimisedigital.online/images/blog/why-digital-marketing-is-not-working.webp",
+    },
+  ];
+
+  const blogMarkdown: Record<string, string> = {
+    "5-reasons-your-digital-marketing-isnt-working": "If your digital marketing isn't delivering results, you're not alone. But before you throw more money at the problem, it's worth examining whether you've got the fundamentals right. Here are five common reasons digital marketing fails, and what to fix first.\n\n## 1. Your Website Isn't Built to Convert\n\nYou can drive all the traffic in the world to your website, but if it's not built to convert, you're wasting your money.\n\nSigns your site isn't conversion-ready:\n- Slow loading speeds (especially on mobile)\n- Poor mobile experience\n- Unclear calls-to-action\n- Confusing navigation\n- No clear user journey\n\n**The fix:** Before investing in more traffic, invest in your website. Speed it up, simplify the user journey, and make it crystal clear what action you want visitors to take.\n\n## 2. You're Neglecting SEO and Organic Visibility\n\nPaid advertising gets all the attention, but SEO remains one of the most valuable long-term investments you can make.\n\nWhy SEO matters:\n- It compounds over time\n- It reduces advertising dependency\n- It builds trust before customers even click\n- It captures high-intent search traffic\n\n**The fix:** Start ranking for the queries your customers are searching. Build helpful content that establishes your expertise. SEO takes time, but the results are worth the wait.\n\n## 3. You're Over-Relying on Unoptimised Ads\n\nToo many businesses treat advertising as their entire strategy rather than one component of it. Worse, they run generic boosted posts or send all traffic to their homepage.\n\nCommon advertising mistakes:\n- Boosting posts without a strategy\n- Sending ad traffic to your homepage instead of relevant landing pages\n- No conversion tracking set up\n- Not testing different audiences or creative\n\n**The fix:** View ads as fuel, not a crutch. Every ad should have a specific purpose, a relevant landing page, and proper tracking. Test, measure, and optimise continuously.\n\n## 4. You're Not Building Enough Trust\n\nPeople buy from businesses they trust. If you're not actively building trust throughout your marketing, you're leaving conversions on the table.\n\nTrust signals that matter:\n- Customer reviews and testimonials\n- Case studies with real results\n- Industry credentials and certifications\n- Social proof across all channels\n\n**The fix:** Display trust signals prominently. Collect and showcase reviews. Share customer success stories. Make it easy for prospects to see that others have had positive experiences with you.\n\n## 5. You Have Weak Customer Retention\n\nAcquisition gets all the glory, but retention is where the real growth happens. Keeping customers is cheaper and far more effective than constantly chasing new ones.\n\nWhy retention matters:\n- Repeat customers spend more\n- They refer others\n- Lower cost than acquisition\n- Higher lifetime value\n\n**The fix:** Don't neglect existing customers in pursuit of new ones. Build email sequences, loyalty programs, and ongoing communication that keeps customers coming back.\n\n## The Bottom Line\n\nBefore you invest heavily in paid advertising, make sure your foundations are solid. A leaky bucket won't hold water no matter how fast you pour it in.\n\nGet these five elements right, and your paid campaigns will work much harder for you.",
+    "deciding-your-google-ads-budget": "One of the most common questions small to medium business owners ask is: \"How much should I spend on Google Ads?\" It's a fair question, and the answer requires careful consideration of several factors.\n\n## Seven Steps to Setting Your Google Ads Budget\n\n### 1. Define Your Goals\n\nBefore allocating any budget, clarify what you're trying to achieve:\n- Sales and revenue\n- Lead generation\n- Website traffic\n- Brand awareness\n\nEach goal requires a different approach and potentially different budget levels. Be specific about what success looks like for your business.\n\n### 2. Assess Your Financial Capacity\n\nEvaluate what your business can sustainably invest while maintaining profitability and stability. Google Ads should be an investment that generates returns, not a financial strain.\n\nConsider:\n- Your overall marketing budget\n- Cash flow requirements\n- How long you can sustain spend before seeing returns\n\n### 3. Start With a Test Budget\n\nBegin modestly to gather performance data and validate strategies before committing substantial resources. There's no point spending big until you know what works.\n\nA test budget allows you to:\n- Understand your cost-per-click in your industry\n- Test different keywords and ad copy\n- Identify which campaigns show promise\n- Learn without significant financial risk\n\n### 4. Research Industry Competition\n\nDifferent sectors have varying cost-per-click rates. Understanding your competitive landscape helps set realistic expectations.\n\nSome industries (legal, insurance, finance) have very high CPCs, while others are more affordable. Know what you're getting into before you commit.\n\n### 5. Calculate Your Maximum CPA\n\nDetermine your maximum cost per acquisition by analysing:\n- Your conversion rates\n- Customer lifetime value\n- Profit margins\n\nIf a customer is worth $500 to your business and you need a 3x return, your maximum CPA is roughly $165. Work backwards from the value a customer brings.\n\n### 6. Monitor and Optimise\n\nTrack metrics including:\n- Click-through rates (CTR)\n- Conversion rates\n- Cost per conversion\n- Return on ad spend (ROAS)\n\nUse this data to continuously refine your campaigns. The businesses that win with Google Ads are those that obsess over optimisation.\n\n### 7. Test and Scale\n\nGradually increase budgets for successful campaigns that demonstrate positive returns. At the same time, continue testing new strategies, keywords, and ad variations.\n\nDon't put all your budget into one campaign. Maintain a testing budget to discover new opportunities.\n\n## Key Takeaway\n\nBudget allocation should be an ongoing process, allowing for adjustments and optimisations based on real-time data. Start conservatively, measure everything, and scale what works.\n\nThe right budget isn't a fixed number. It's the amount that generates profitable returns for your specific business.",
+    "digital-marketing-vs-traditional-marketing": "Small-to-medium business owners increasingly favour digital channels for growth and expansion. But understanding the differences between digital and traditional marketing helps you make informed decisions about where to invest.\n\n## Traditional Marketing: The Conventional Approach\n\nTraditional marketing encompasses the promotional methods that existed before the internet era:\n- Newspapers and magazines\n- Television and radio\n- Billboards and signage\n- Direct mail\n- Flyers and brochures\n\n### Characteristics of Traditional Marketing\n\n**Broad reach through offline channels** - Traditional media can reach large audiences, but targeting is limited to general demographics like geographic area or publication readership.\n\n**High costs** - Media placement and production costs for TV commercials, print ads, or billboard space can be substantial, often putting them out of reach for smaller businesses.\n\n**One-directional communication** - Traditional marketing is primarily broadcast messaging. You speak, the audience listens, but there's limited opportunity for dialogue.\n\n**Slow feedback loops** - Measuring effectiveness is difficult and delayed. You might wait weeks or months to understand if a campaign worked, making real-time adjustments impossible.\n\n## Digital Marketing: The Modern Approach\n\nDigital marketing leverages online platforms and technologies:\n- Websites and SEO\n- Search engine advertising\n- Social media marketing\n- Email marketing\n- Content marketing\n\n### Characteristics of Digital Marketing\n\n**Precise audience targeting** - Target based on demographics, interests, behaviours, search intent, and more. Reach exactly who you want to reach.\n\n**Flexible budgeting** - Start small and scale up. Adjust spending in real-time based on performance. No minimum commitments like traditional media buys.\n\n**Real-time analytics** - See immediately what's working and what isn't. Make data-driven decisions and optimise continuously.\n\n**Interactive engagement** - Two-way communication builds relationships. Respond to comments, answer questions, and create dialogue with your audience.\n\n## Key Differences at a Glance\n\n| Dimension | Traditional | Digital |\n|-----------|-------------|--------|\n| **Reach** | Broad audience | Precise targeting |\n| **Cost** | Generally expensive | Cost-effective, scalable |\n| **Measurement** | Difficult, delayed | Real-time tracking |\n| **Interaction** | One-way communication | Two-way engagement |\n| **Flexibility** | Fixed once placed | Adjustable anytime |\n| **Speed** | Slow to deploy | Immediate deployment |\n\n## Which Is Right for Your Business?\n\nWhile traditional marketing maintains relevance for certain goals (brand awareness, local presence, older demographics), digital marketing provides superior advantages for most modern businesses:\n\n- Lower barrier to entry\n- Better targeting capabilities\n- Measurable results\n- Ability to optimise in real-time\n- Direct customer engagement\n\nFor small to medium businesses seeking growth and strong online presence, digital marketing typically offers the best return on investment.\n\nThat said, the best approach for your business depends on your specific audience, goals, and industry. Sometimes a blend of both works best.",
+    "how-much-can-digital-marketing-impact-your-business": "One of the most common questions we hear is \"how much can digital marketing actually impact my business?\" The honest answer: it depends. Results range from minimal to transformative depending on several key factors.\n\n## The Impact Spectrum\n\nDigital marketing effectiveness isn't uniform. Six factors influence how much impact you can expect:\n\n1. **Type of business** - Some business models are naturally better suited to digital\n2. **Scale of delivery** - Local, national, or online operations each have different potential\n3. **Business maturity** - Established demand vs building awareness from scratch\n4. **Product or service quality** - Marketing amplifies what you have, good or bad\n5. **Operational capacity** - Can you handle increased demand?\n6. **Marketing goals** - Leads, sales, awareness, or loyalty all require different approaches\n\n## Matching Goals to Channels\n\nDifferent business goals align with different digital marketing channels:\n\n| Goal | Recommended Channels |\n|------|---------------------|\n| Phone calls | Local SEO, Google Ads |\n| Store visits | Google Maps, organic rankings |\n| Free trials | Lead forms, email, retargeting |\n| Lead generation | Typeform, Meta Lead Ads, LinkedIn |\n| Bookings | Booking flows, automation |\n| Purchases | CRO, Search, Social ads |\n\n## Growth Strategies at Every Stage\n\n### Stage 1: Free Growth\n\nBefore spending anything, exhaust these options:\n- Network outreach and referrals\n- Social media posting (organic)\n- Competitor research\n- Cold outreach\n\n### Stage 2: Foundations Without Paid Spend\n\nBuild your infrastructure before advertising:\n- Technical SEO improvements\n- Website usability enhancements\n- Content strategy development\n- Lead magnets (eBooks, calculators, guides)\n- Email automation setup\n- CRM implementation\n- Google Business Profile optimisation\n- Referral systems\n- Performance tracking\n\n### Stage 3: Paid Digital Growth\n\nOnce foundations are solid, scale with paid:\n- Google Ads (Search, Shopping, Display)\n- Meta/Instagram advertising\n- LinkedIn campaigns (B2B)\n- TikTok campaigns\n- YouTube video ads\n- Affiliate and influencer marketing\n\n## Critical Questions Before Investing\n\nBefore committing budget, honestly evaluate:\n\n1. **Does advertising align with your business model?** - Not every business benefits equally from digital advertising\n2. **Does your website serve customer needs?** - Traffic to a poor website is wasted\n3. **What actions should visitors take?** - Clear conversion paths are essential\n4. **Do digital channels generate actual demand?** - Is your audience searching online?\n5. **What's your customer lifetime value?** - This determines how much you can spend to acquire\n6. **What's the realistic ROI potential?** - Be honest about expected returns\n\n## The Bottom Line\n\nWe focus our resources on businesses where measurable growth is achievable. Not every business is ready for digital marketing investment, and that's okay.\n\nReadiness and alignment are essential prerequisites for success. Get the foundations right, answer the hard questions honestly, and you'll be in a much better position to see real impact from your digital marketing efforts.",
+    "where-to-invest-money-to-grow-your-business": "One of the most fundamental questions for small to medium-sized business owners is how to allocate marketing budget between different approaches. Should you focus on immediate results or long-term brand building?\n\n## Performance Marketing vs Brand Marketing\n\nUnderstanding these two approaches is essential for making smart investment decisions.\n\n### Performance Marketing\n\nPerformance marketing focuses on measurable results, such as conversions and sales, through targeted digital channels. You can track every dollar spent and its return.\n\nExamples include:\n- Google Ads\n- Facebook/Instagram advertising\n- Retargeting campaigns\n- Affiliate marketing\n\n**Pros:** Measurable, scalable, immediate results\n**Cons:** Stops working when you stop spending, can become expensive over time\n\n### Brand Marketing\n\nBrand marketing emphasises building a strong brand identity and emotional connection with consumers through consistent messaging. It's about creating long-term value and recognition.\n\nExamples include:\n- Content marketing\n- PR and media coverage\n- Sponsorships\n- Social media presence (organic)\n\n**Pros:** Compounds over time, builds lasting value, reduces acquisition costs long-term\n**Cons:** Harder to measure, takes longer to show results\n\n## The Recommended Approach\n\nRather than choosing one approach exclusively, blend both strategies. A suggested starting allocation:\n\n- **60% Performance Marketing** - Drive immediate results and revenue\n- **40% Brand Marketing** - Build long-term value and recognition\n\nThis ratio should adjust based on your individual business circumstances, goals, and stage of growth.\n\n## Strategic Progression\n\nYour approach should evolve as your business matures:\n\n### Early Stage\nNewer businesses should prioritise brand establishment initially. Build credibility, define your positioning, and create awareness before optimising for immediate conversions.\n\n### Growth Stage\nAs you accumulate operational data and market presence, transition toward more performance-driven tactics. You'll have the brand foundation to support conversion-focused campaigns.\n\n### Mature Stage\nEstablished businesses can be more aggressive with performance marketing while maintaining brand investments to protect market position.\n\n## Start Small, Scale What Works\n\nThe key principle: start modestly and scale investment based on demonstrated results rather than committing large budgets upfront.\n\nTest different channels and approaches with small budgets. Double down on what works. Cut what doesn't. This iterative approach minimises risk while maximising learning.\n\n## The Bottom Line\n\nThere's no one-size-fits-all answer to marketing investment. The right allocation depends on your business stage, industry, competitive landscape, and goals.\n\nWhat matters most is having a clear strategy, measuring results, and adjusting based on data rather than gut feeling.",
+    "why-your-digital-marketing-isnt-working-anymore": "Digital marketing isn't broken. It's simply evolved. Many businesses face declining returns from previously reliable tactics like paid search and social advertising. Understanding why this has happened is the first step to fixing it.\n\n## The Major Changes in Digital Marketing\n\nThe digital marketing landscape has shifted dramatically in recent years. Here are the four most significant changes:\n\n### 1. Privacy Updates Have Limited Targeting\n\nApple's iOS 14 privacy updates have significantly limited Meta ad targeting capabilities. Users can now opt out of tracking, which means advertisers have less data to work with when building audiences.\n\n### 2. Algorithm Changes Prioritise Quality\n\nGoogle's algorithm now prioritises helpful content over SEO shortcuts. The days of keyword stuffing and thin content are over. Search engines want to surface content that genuinely helps users.\n\n### 3. Longer Buyer Journeys\n\nCustomers now take longer to make purchasing decisions. The instant conversion is becoming rarer as buyers do more research, compare more options, and take their time before committing.\n\n### 4. Reduced Organic Reach\n\nSocial platforms increasingly favour paid content over organic posts. Building an audience through organic reach alone is harder than ever.\n\n## What Still Works\n\nSuccess in today's digital marketing environment requires a different approach:\n\n- **Strong product-market fit** - No amount of marketing can fix a product people don't want\n- **Platform-native, audience-relevant content** - Content that feels natural to each platform\n- **Full-funnel strategy** - From discovery through retention, not just acquisition\n- **Focus on customer lifetime value** - Long-term relationships over one-time sales\n- **Brand building and trust signals** - Credibility matters more than ever\n\n## The Right Approach\n\nBefore spending on paid advertising, audit these foundational elements:\n\n1. **Offer clarity and appeal** - Is what you're selling clearly communicated and genuinely attractive?\n2. **Website conversion capacity** - Can your site actually convert the traffic you send to it?\n3. **Trust-building content** - Do you have content that builds credibility with potential customers?\n4. **Navigation and funnel guidance** - Is it easy for visitors to take the next step?\n\n## Start With the Foundations\n\nWe recommend prioritising SEO and conversion rate optimisation as foundational elements before scaling paid media. These investments compound over time and reduce your dependence on increasingly expensive advertising platforms.\n\nThe businesses seeing the best results aren't those spending the most. They're the ones who've built solid foundations first.",
+  };
+
+  const blogImportResults: { slug: string; status: string; error?: string }[] = [];
+  for (const post of blogPosts) {
+    try {
+      const existing = await payload.find({
+        collection: "blog-posts",
+        where: { slug: { equals: post.slug } },
+        limit: 1,
+      });
+      if (existing.docs.length > 0) {
+        blogImportResults.push({ slug: post.slug, status: "skipped (exists)" });
+        continue;
+      }
+
+      // Download image from the live website
+      let featuredImageId: number | undefined;
+      try {
+        const imgRes = await fetch(post.imageUrl);
+        if (imgRes.ok) {
+          const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+          const fileName = post.imageUrl.split("/").pop() || "image.webp";
+          const media = await payload.create({
+            collection: "media",
+            data: { alt: post.imageAlt },
+            file: { data: imgBuffer, name: fileName, mimetype: "image/webp", size: imgBuffer.length },
+          });
+          featuredImageId = media.id;
+        }
+      } catch { /* image upload failed, continue without */ }
+
+      await payload.create({
+        collection: "blog-posts",
+        data: {
+          title: post.title,
+          slug: post.slug,
+          author: post.author,
+          excerpt: post.excerpt,
+          publishedDate: post.publishedDate,
+          markdownContent: blogMarkdown[post.slug] || "",
+          featuredImage: featuredImageId || undefined,
+          featuredImageAlt: post.imageAlt,
+          tags: post.tags,
+          client: 1,
+          clientConfirmed: true,
+          status: "published",
+          _status: "published",
+        },
+      });
+      blogImportResults.push({ slug: post.slug, status: "created" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      blogImportResults.push({ slug: post.slug, status: "error", error: msg });
+    }
+  }
+  results.push(`BLOG_IMPORT: ${JSON.stringify(blogImportResults)}`);
+
   // --- Schema diagnostics ---
   const tables = ["media", "clients", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels"];
   const schema: Record<string, string[]> = {};
