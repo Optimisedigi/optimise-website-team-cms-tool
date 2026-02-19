@@ -200,10 +200,15 @@ export const BlogPosts: CollectionConfig = {
             {
               name: "excerpt",
               type: "textarea",
-              maxLength: 160,
               admin: {
                 description:
                   "Brief summary for SEO meta description (max 160 characters). This appears in search results.",
+              },
+              validate: (value: string | null | undefined, args: { siblingData: Record<string, unknown> }) => {
+                if (value && value.length > 160 && args.siblingData?._status === "published") {
+                  return "Excerpt must be 160 characters or fewer to publish (currently " + value.length + ").";
+                }
+                return true;
               },
             },
             {
@@ -261,19 +266,29 @@ export const BlogPosts: CollectionConfig = {
             {
               name: "metaTitle",
               type: "text",
-              maxLength: 60,
               admin: {
                 description:
                   "SEO title for search results (max 60 chars). Leave blank to use the main title.",
+              },
+              validate: (value: string | null | undefined, args: { siblingData: Record<string, unknown> }) => {
+                if (value && value.length > 60 && args.siblingData?._status === "published") {
+                  return "Meta title must be 60 characters or fewer to publish (currently " + value.length + ").";
+                }
+                return true;
               },
             },
             {
               name: "metaDescription",
               type: "textarea",
-              maxLength: 160,
               admin: {
                 description:
-                  "SEO description. Leave blank to use the excerpt.",
+                  "SEO description (max 160 chars). Leave blank to use the excerpt.",
+              },
+              validate: (value: string | null | undefined, args: { siblingData: Record<string, unknown> }) => {
+                if (value && value.length > 160 && args.siblingData?._status === "published") {
+                  return "Meta description must be 160 characters or fewer to publish (currently " + value.length + ").";
+                }
+                return true;
               },
             },
             {

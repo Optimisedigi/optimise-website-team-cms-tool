@@ -1496,7 +1496,7 @@ export interface BlogPost {
    */
   metaTitle?: string | null;
   /**
-   * SEO description. Leave blank to use the excerpt.
+   * SEO description (max 160 chars). Leave blank to use the excerpt.
    */
   metaDescription?: string | null;
   /**

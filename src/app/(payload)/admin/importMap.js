@@ -26,6 +26,7 @@ import { default as default_da47157ebc74588a3650c3de3faf920e } from '../../../co
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
 import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../components/ViewProposalReportLink'
 import { default as default_00f2f68e89ac94a9115ac79e7355850c } from '../../../components/CompetitorExcluder'
+import { default as default_2b563fa0e9b70d98b73119ee8b081564 } from '../../../components/MarkdownGuide'
 import { default as default_8793146990086de56e1b564ebb701778 } from '../../../components/GenerateBlogImageButton'
 import { default as default_7e7701142b7068d2cf11592b7f0f90ce } from '../../../components/ClientCategorySelect'
 import { default as default_944faab4983d5384b5ad76a5dc5c6065 } from '../../../components/ClientTagsSelect'
@@ -73,6 +74,7 @@ export const importMap = {
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
   "./components/ViewProposalReportLink#default": default_5e310d3006558ed2b01fcb80fcc2b97e,
   "./components/CompetitorExcluder#default": default_00f2f68e89ac94a9115ac79e7355850c,
+  "./components/MarkdownGuide#default": default_2b563fa0e9b70d98b73119ee8b081564,
   "./components/GenerateBlogImageButton#default": default_8793146990086de56e1b564ebb701778,
   "./components/ClientCategorySelect#default": default_7e7701142b7068d2cf11592b7f0f90ce,
   "./components/ClientTagsSelect#default": default_944faab4983d5384b5ad76a5dc5c6065,
