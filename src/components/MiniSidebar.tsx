@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useNav } from '@payloadcms/ui'
+import { useNav, useAuth } from '@payloadcms/ui'
 
 const MINI_WIDTH = 48
 const BG = '#1a1a2e'
@@ -54,13 +54,17 @@ const CollapseIcon = () => (
 const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter()
   const { navOpen, setNavOpen } = useNav()
+  const { user } = useAuth()
 
   const toggleNav = () => setNavOpen(!navOpen)
 
+  // Hide sidebar entirely when not logged in (login, create-first-user, etc.)
+  const isLoggedIn = !!user
+
   return (
     <>
-      {/* Mini sidebar strip — visible when full nav is collapsed */}
-      {!navOpen && (
+      {/* Mini sidebar strip — visible when full nav is collapsed and user is logged in */}
+      {isLoggedIn && !navOpen && (
         <div
           className="mini-sidebar"
           style={{
@@ -154,8 +158,8 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
         </div>
       )}
 
-      {/* Collapse button at bottom-right of full sidebar — visible when nav is open */}
-      {navOpen && (
+      {/* Collapse button at bottom-right of full sidebar — visible when nav is open and logged in */}
+      {isLoggedIn && navOpen && (
         <button
           type="button"
           title="Collapse sidebar"

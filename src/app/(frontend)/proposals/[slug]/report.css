@@ -143,7 +143,7 @@
   border: none;
   border-radius: 10px;
   padding: 16px 20px;
-  margin: 8px 0;
+  margin: 0;
   color: #18181b;
   display: flex;
   justify-content: center;
@@ -165,10 +165,10 @@
 /* ============================================================ */
 
 .instrument-panel {
-  margin-bottom: 8px;
+  margin-bottom: 0;
   background: transparent;
   border-radius: 16px;
-  padding: 20px 0;
+  padding: 2px 0;
   border: none;
   box-shadow: none;
   overflow: hidden;
@@ -1851,9 +1851,9 @@ html.scroll-ready .report-presentation {
 
 .mc-pill {
   display: inline-block;
-  padding: 4px 12px;
+  padding: 3px 8px;
   border-radius: 20px;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
   background: #f4f4f5;
   color: #52525b;
@@ -2286,7 +2286,14 @@ html.scroll-ready .report-presentation {
   font-size: 15px;
   color: rgba(255, 255, 255, 0.65);
   line-height: 1.5;
-  margin: 0 0 20px;
+  margin: 0 0 12px;
+}
+
+.slide-ads-intro {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 16px;
+  font-style: italic;
 }
 
 /* Slide 10 — Competitor Ads */
@@ -2500,13 +2507,45 @@ html.scroll-ready .report-presentation {
 /* ============================================================ */
 
 @media (max-width: 900px) {
-  .rocket-fixed,
+  /* Rocket — smaller, mid z-index so it shows on white areas but behind thick elements */
+  .rocket-fixed {
+    right: 10px;
+    z-index: 5;
+    bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70%), calc(65% - 70px));
+    transform: scale(clamp(0.1, 0.45 * (1 - (var(--scroll-progress, 0) - 0.98) * 40), 0.45));
+    pointer-events: none;
+  }
+
+  .rocket-img {
+    width: 32px;
+    opacity: 0.7;
+  }
+
+  .rocket-flame {
+    width: 12px;
+    height: 12px;
+    margin-top: -14px;
+    opacity: 0.6;
+  }
+
   .flame-trail {
-    display: none;
+    right: 24px;
+    width: 2px;
+    opacity: 0.4;
+    z-index: 5;
+    height: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 21px), calc(65% - 70px + 21px));
   }
 
   .slide {
     padding: 40px 20px;
+  }
+
+  /* Slides 1-4 (intro, static images): rocket on TOP */
+  .slide-1,
+  .slide-2,
+  .slide-3,
+  .slide-4 {
+    z-index: auto;
   }
 
   .slide-2,
@@ -2520,15 +2559,42 @@ html.scroll-ready .report-presentation {
     padding-bottom: 60px;
     padding-right: 0;
   }
+
+  /* Elements that the rocket should go BEHIND — higher z-index */
+  .client-overview,
+  .instrument-panel,
+  .audit-hero,
+  .comp-card,
+  .cr-sunburst-wrap,
+  .mc-table-wrapper,
+  .recommendation-card,
+  .subsection-divider,
+  .kw-table-wrapper,
+  .slide-10-layout,
+  .slide-header,
+  .cms-copy-block,
+  .suggestion-item,
+  .flight-plan-images {
+    position: relative;
+    z-index: 10;
+  }
+
+  /* TAM section — rocket goes OVER it */
+  .tam-section {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Mission Resources (slide 17) & Launch Requirements (slide 18): rocket fully visible */
+  .slide-17,
+  .slide-18 {
+    z-index: auto;
+  }
 }
 
 @media (max-width: 600px) {
   .slide-10-layout {
     grid-template-columns: 1fr;
-  }
-
-  .slide-1-business {
-    font-size: 18px;
   }
 
   .mission-brief-details {
@@ -2545,8 +2611,642 @@ html.scroll-ready .report-presentation {
     padding-top: 40px;
     padding-bottom: 40px;
   }
+}
+
+/* ============================================================ */
+/* MOBILE RESPONSIVE — Comprehensive mobile overrides           */
+/* ============================================================ */
+
+@media (max-width: 600px) {
+
+  /* ---- Global: Slide headers — compact ---- */
+  .slide-header {
+    padding: 8px 16px;
+    gap: 2px;
+    margin-bottom: 6px;
+  }
+
+  .slide-header h2 {
+    font-size: 15px;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .slide-header span {
+    font-size: 13px;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .subsection-divider {
+    padding: 8px 12px 8px 16px;
+    margin: 20px 0 14px;
+  }
+
+  .subsection-divider-title {
+    font-size: 13px;
+  }
+
+  /* ---- Slide 1 — Intro ---- */
+  .slide-1-business {
+    font-size: 16px;
+  }
+
+  /* ---- Slide 5 — Mission Brief ---- */
+  .client-overview {
+    padding: 12px 14px 14px;
+    border-radius: 8px;
+    margin: 4px 0;
+  }
+
+  .client-overview-header {
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+
+  .client-overview-name {
+    font-size: 19px;
+  }
+
+  .client-overview-url {
+    font-size: 11px;
+  }
+
+  .client-overview-meta {
+    gap: 6px 14px;
+    margin-bottom: 4px;
+  }
+
+  .client-overview-item {
+    gap: 0;
+  }
+
+  .client-overview-label {
+    font-size: 9px;
+    line-height: 1.1;
+  }
+
+  .client-overview-value {
+    font-size: 13px;
+  }
+
+  .client-goals {
+    gap: 0;
+  }
+
+  .client-goals-text {
+    font-size: 13px;
+    line-height: 1.2;
+  }
 
   .mission-brief-details {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .mission-brief-detail {
+    gap: 0;
+  }
+
+  .mission-brief-detail-label {
+    font-size: 9px;
+    line-height: 1.1;
+  }
+
+  .mission-brief-detail-value {
+    font-size: 14px;
+  }
+
+  /* Instrument panel — compact */
+  .instrument-panel {
+    padding: 0;
+    margin-bottom: 0;
+  }
+
+  .instrument-panel-cards {
+    gap: 4px;
+    padding: 0 8px;
+  }
+
+  .overview-score-card {
+    padding: 8px 6px;
+    gap: 0;
+    min-height: 0;
+  }
+
+  .overview-score-subtitle {
+    min-height: 16px;
+  }
+
+  .overview-score-value {
+    font-size: 20px;
+  }
+
+  .overview-score-label {
+    font-size: 8px;
+  }
+
+  .overview-score-subtitle {
+    font-size: 9px;
+  }
+
+  /* TAM section */
+  .tam-section {
+    padding: 10px 14px;
+    margin: 0;
+  }
+
+  .tam-copy p {
+    font-size: 11px;
+  }
+
+  /* ---- Slide 7 — Competitor cards: compact stats on one line ---- */
+  .comp-card {
+    padding: 10px 12px;
+  }
+
+  .comp-card-header {
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
+  .comp-domain {
+    font-size: 14px;
+  }
+
+  .comp-rank-badge {
+    min-width: 26px;
+    height: 26px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+
+  .comp-card-stats {
+    gap: 6px 10px;
+    flex-wrap: wrap;
+  }
+
+  .comp-card-stat {
+    gap: 0;
+  }
+
+  .comp-card-stat-value {
+    font-size: 12px;
+  }
+
+  .comp-card-stat-value-visits {
+    font-size: 16px;
+  }
+
+  .comp-card-stat-label {
+    font-size: 4px;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+
+  .comp-card-stat-gbp {
+    padding-left: 3px;
+    border-left-width: 1px;
+  }
+
+  .comp-gbp-rating-inline .star-rating {
+    font-size: 6px;
+    letter-spacing: 0;
+  }
+
+  .comp-gbp-rating-num {
+    font-size: 7px;
+  }
+
+  .comp-card-stat-value {
+    font-size: 10px;
+  }
+
+  /* Smaller values for ads/GBP stats specifically */
+  .comp-card-stat-gbp .comp-card-stat-value {
+    font-size: 7px;
+  }
+
+  .yesno-badge {
+    font-size: 5px;
+    padding: 0px 3px;
+    line-height: 1.2;
+    vertical-align: middle;
+  }
+
+  /* Hide ad count numbers on mobile */
+  .comp-stat-count {
+    display: none;
+  }
+
+  /* Competitor thumbnails — 30% bigger */
+  .comp-card-thumbnails {
+    width: 156px;
+  }
+
+  .report-presentation .comp-card-thumbnails {
+    width: 156px;
+  }
+
+  /* ---- Slide 8 — CRO: Mission Priorities / Slide 10 — SEO ---- */
+  .audit-hero {
+    padding: 3px 3px;
+    gap: 6px;
+    margin-bottom: 4px;
+    border-radius: 12px;
+  }
+
+  .audit-hero-score {
+    align-self: center;
+  }
+
+  .gauge-wrapper {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .gauge-svg {
+    width: 130px;
+    height: 91px;
+  }
+
+  .audit-hero-info h1,
+  .audit-hero-info h3 {
+    font-size: 15px;
+    margin-bottom: 2px;
+  }
+
+  .audit-hero-label {
+    font-size: 14px;
+  }
+
+  .audit-hero-summary {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .audit-meta {
+    gap: 10px;
+  }
+
+  .audit-meta dt {
+    font-size: 9px;
+  }
+
+  .audit-meta dd {
+    font-size: 12px;
+  }
+
+  /* CRO sub-scores — 2 columns */
+  .cro-scores-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 16px;
+  }
+
+  .cro-interpretation {
+    font-size: 10px;
+    margin: 0 0 2px;
+    line-height: 1.3;
+  }
+
+  .gradient-bar-label {
+    font-size: 12px;
+  }
+
+  .gradient-bar-value {
+    font-size: 10px;
+  }
+
+  /* CRO findings — compact */
+  .finding-item {
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .findings-list {
+    gap: 4px;
+  }
+
+  /* CRO recommendations — compact */
+  .recommendation-card {
+    padding: 10px;
+  }
+
+  .rec-category-name {
+    font-size: 13px;
+  }
+
+  .rec-description {
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .rec-priority-pill {
+    font-size: 9px;
+    padding: 2px 7px;
+  }
+
+  .rec-pill {
+    font-size: 10px;
+    padding: 2px 7px;
+  }
+
+  /* ---- Slide 10 — SEO Overview ---- */
+
+  /* Hide SERP mockup on mobile */
+  .audit-hero-serp {
+    display: none !important;
+  }
+
+  /* Center gauge when in hero-with-serp layout */
+  .audit-hero.audit-hero-with-serp {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 3px 3px;
+    margin-bottom: 0;
+  }
+
+  .audit-hero.audit-hero-with-serp .audit-hero-info {
+    text-align: center;
+  }
+
+  .audit-hero.audit-hero-with-serp .audit-meta {
+    justify-content: center;
+  }
+
+  /* SEO category scores — 2 columns, tighter */
+  .score-bars,
+  .score-bars-3col {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 2px 12px;
+  }
+
+  .gradient-bar-wrapper {
+    padding-bottom: 22px;
+  }
+
+  /* SEO tech overview — compact */
+  .seo-compact-row {
     grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .seo-compact-title {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  .tech-item {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .tech-grid-compact {
+    gap: 4px;
+  }
+
+  .finding-compact {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  /* Page results — compact */
+  .page-results-grid {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .page-card {
+    padding: 2px 8px;
+  }
+
+  .page-url {
+    font-size: 10px;
+  }
+
+  /* ---- Slide 13 — Fueling the Ship: Content Research ---- */
+
+  /* Hide "bigger the slice" sentence on mobile */
+  .cr-intro-sub .cr-hide-mobile {
+    display: none;
+  }
+
+  .cr-intro-bold {
+    font-size: 16px;
+  }
+
+  .cr-intro-sub {
+    font-size: 13px;
+  }
+
+  .cr-sunburst-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* ---- Slide 14 — Fueling the Ship: Competitor Ads (2nd Stage Burn) ---- */
+  /* Reduce gap between header and first ad content */
+  .slide-14 .slide-header {
+    margin-bottom: 2px;
+  }
+
+  .slide-ads-copy {
+    display: none;
+  }
+
+  .slide-ads-intro {
+    font-size: 10px;
+    margin: 2px 0 4px;
+  }
+
+  .slide-10-layout {
+    gap: 12px;
+  }
+
+  .slide-10-col {
+    gap: 6px;
+  }
+
+  .slide-10-col h3 {
+    font-size: 14px;
+    margin-bottom: 0;
+  }
+
+  .ad-comp-card {
+    padding: 8px 10px;
+    gap: 4px;
+  }
+
+  .ad-comp-domain {
+    font-size: 12px;
+  }
+
+  .ad-comp-count {
+    font-size: 10px;
+  }
+
+  .ad-comp-advertiser {
+    font-size: 10px;
+  }
+
+  .ad-screenshot-thumb {
+    height: 80px;
+  }
+
+  /* ---- Slide 15 — Mission Control ---- */
+  .mission-control-funnel {
+    margin-bottom: 16px;
+  }
+
+  .mc-table {
+    font-size: 10px;
+  }
+
+  .mc-table th {
+    font-size: 9px;
+    padding: 5px 4px;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+  }
+
+  .mc-table td {
+    padding: 5px 4px;
+    font-size: 10px;
+  }
+
+  .mc-name {
+    font-size: 10px;
+  }
+
+  .mc-col-business { width: 90px; }
+  .mc-col-visits   { width: 60px; }
+  .mc-col-lcr      { width: 45px; }
+  .mc-col-leads    { width: 40px; }
+  .mc-col-ltsr     { width: 45px; }
+  .mc-col-clients  { width: 50px; }
+  .mc-col-return   { width: 60px; }
+  .mc-col-annual   { width: 60px; }
+
+  .mc-notes {
+    flex-direction: column;
+    margin-top: 24px;
+    gap: 10px;
+  }
+
+  .mc-pill {
+    font-size: 8px;
+    padding: 2px 6px;
+  }
+
+  .mc-notes-formulas {
+    text-align: left;
+  }
+
+  .mc-notes-formulas p {
+    font-size: 10px;
+  }
+
+  /* ---- Slide 16 — Flight Plan: smaller mockup button ---- */
+  .flight-plan-mockup-btn {
+    padding: 7px 18px !important;
+    font-size: 10px !important;
+    border-radius: 7px !important;
+    box-shadow: 0 3px 12px rgba(59, 130, 246, 0.3) !important;
+  }
+
+  .flight-plan-mockup-note {
+    font-size: 8px !important;
+    line-height: 1.3 !important;
+  }
+
+  .flight-plan-images {
+    grid-template-columns: 1fr;
+  }
+
+  .suggestion-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    gap: 8px;
+  }
+
+  /* Slide content padding */
+  .slide-16 .slide-content,
+  .slide-17 .slide-content,
+  .slide-18 .slide-content {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* ---- Slide 17/18 — compact copy ---- */
+  .slide-17 .cms-copy-block p,
+  .slide-18 .cms-copy-block p {
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  /* Slide 18 — space station smaller + moved down on mobile */
+  .slide-18-station {
+    width: 40%;
+    top: 230px;
+    right: 10px;
+  }
+
+  /* ---- Keyword table — smaller on mobile ---- */
+  .kw-table {
+    font-size: 10px;
+  }
+
+  .kw-table th {
+    font-size: 9px;
+    padding: 3px 4px;
+  }
+
+  .kw-table td {
+    padding: 2px 4px;
+  }
+
+  .kw-name {
+    font-size: 10px;
+  }
+
+  .kw-volume {
+    font-size: 10px;
+  }
+
+  .kw-category-heading {
+    font-size: 12px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+  }
+
+  /* Remove top margin from keyword grid so it sits tight under header */
+  .kw-category-grid {
+    margin-top: 0 !important;
+  }
+
+  /* ---- Report page (non-presentation) ---- */
+  .report-page {
+    padding: 0 14px 40px;
+  }
+
+  .section-divider {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 10px 14px;
+    margin: 24px 0 12px;
+  }
+
+  .section-divider-title {
+    font-size: 15px;
+  }
+
+  .section-divider-subtitle {
+    font-size: 13px;
   }
 }

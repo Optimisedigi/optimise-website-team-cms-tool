@@ -79,3 +79,65 @@
   border-radius: 6px;
   color: #111;
 }
+
+// ============================================================
+// Login page — no sidebar offset
+// ============================================================
+// When on login/create-first-user, Payload doesn't open the nav, but we also
+// need to remove the 48px mini-sidebar margin since MiniSidebar hides itself.
+.template-default.template-default--login .template-default__wrap {
+  margin-left: 0 !important;
+}
+
+// ============================================================
+// Mobile-friendly admin dashboard
+// ============================================================
+@media (max-width: 768px) {
+  // Remove mini-sidebar offset — mini sidebar not useful on mobile
+  .template-default:not(.template-default--nav-open) .template-default__wrap {
+    margin-left: 0;
+  }
+
+  // Hide the mini-sidebar on mobile (too narrow to be useful)
+  .mini-sidebar {
+    display: none !important;
+  }
+
+  // Full-width content on mobile
+  .template-default__wrap {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  // Dashboard cards — stack on mobile
+  .dashboard__card-list {
+    grid-template-columns: 1fr !important;
+  }
+
+  // Table cells — tighter padding on mobile
+  .table .row .cell {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  // Collection list — tighter spacing
+  .collection-list .cell-container {
+    padding: 6px 8px;
+  }
+
+  // Step nav (breadcrumbs) — wrap on mobile
+  .step-nav {
+    flex-wrap: wrap;
+  }
+
+  // Document header actions — wrap on mobile
+  .doc-controls {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  // Field rows — stack side-by-side fields on mobile
+  .field-type.row .row-fields {
+    flex-direction: column;
+  }
+}

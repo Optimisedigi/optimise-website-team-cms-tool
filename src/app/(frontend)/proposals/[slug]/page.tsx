@@ -25,8 +25,8 @@ const richTextConverters = {
   text: ({ node }: { node: any }) => {
     let text = defaultTextConverter({ node })
 
-    // Apply font size from TextStateFeature state
-    const fontSize = node.state?.fontSize
+    // Apply font size from TextStateFeature state (Lexical serializes node state under '$')
+    const fontSize = node.$?.fontSize
     if (fontSize && FONT_SIZE_MAP[fontSize]) {
       text = <span style={{ fontSize: FONT_SIZE_MAP[fontSize] }}>{text}</span>
     }
@@ -205,6 +205,16 @@ function domainFromUrl(url: string): string {
   } catch {
     return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '')
   }
+}
+
+function domainToBusinessName(domain: string): string {
+  // Strip www. and TLD to get the business name, then title-case it
+  const name = domain.replace(/^www\./, '').replace(/\.[^.]+$/, '')
+  // Split on dots, hyphens, underscores and title-case each word
+  return name
+    .split(/[.\-_]/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
 }
 
 function formatTraffic(visits: number): string {
@@ -476,13 +486,13 @@ function CompetitorCard({
               <span className="comp-card-stat-value">
                 <YesNoBadge value={runsGoogleAds} />
               </span>
-              <span className="comp-card-stat-label">Google Ads{runsGoogleAds && googleAdCount > 0 ? ` (${googleAdCount})` : ''}</span>
+              <span className="comp-card-stat-label">Google Ads{runsGoogleAds && googleAdCount > 0 ? <span className="comp-stat-count"> ({googleAdCount})</span> : ''}</span>
             </div>
             <div className="comp-card-stat">
               <span className="comp-card-stat-value">
                 <YesNoBadge value={runsMetaAds} />
               </span>
-              <span className="comp-card-stat-label">Meta Ads{runsMetaAds && metaAdCount > 0 ? ` (${metaAdCount})` : ''}</span>
+              <span className="comp-card-stat-label">Meta Ads{runsMetaAds && metaAdCount > 0 ? <span className="comp-stat-count"> ({metaAdCount})</span> : ''}</span>
             </div>
             {gbp ? (
               <>
@@ -1005,7 +1015,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
       const compMonthlyReturn = compClients * aov
       const compAnnualReturn = apf != null ? compClients * aov * apf : null
       missionControlRows.push({
-        name: comp.domain ?? 'Unknown',
+        name: domainToBusinessName(comp.domain ?? 'Unknown'),
         monthlyVisits: visits,
         leadConvRate: leadConversionRate,
         leads: compLeads,
@@ -1194,6 +1204,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     href={`/mockup/${proposal.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
+                    className="flight-plan-mockup-btn"
                     style={{
                       display: 'inline-block',
                       padding: '10px 28px',
@@ -1208,7 +1219,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   >
                     View Website Mockup
                   </a>
-                  <span style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center', lineHeight: '1.4' }}>Mock-up is one-page;<br />live site will have individual pages</span>
+                  <span className="flight-plan-mockup-note" style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center', lineHeight: '1.4' }}>Mock-up is one-page; live site will have individual pages for better SEO and will be a mobile-first build.</span>
                 </div>
               </div>
             )}
@@ -1245,7 +1256,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                       <tr>
                         <th>Business</th>
                         <th>Monthly Visits</th>
-                        <th>Lead Conv. Rate</th>
+                        <th>Conv. Rate</th>
                         <th>Leads</th>
                         <th>Lead → Sale</th>
                         <th>Paying Clients</th>
@@ -1274,14 +1285,23 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     {averageOrderValue != null && (
                       <span className="mc-pill">AOV: ${averageOrderValue.toLocaleString()}</span>
                     )}
+                    {leadConversionRate != null && (
+                      <span className="mc-pill">Conversion Rate: {leadConversionRate}%</span>
+                    )}
                     {annualPurchaseFrequency != null && (
                       <span className="mc-pill">Purchase Frequency: {annualPurchaseFrequency}x / year</span>
+                    )}
+                    {missionControlRows.length > 0 && missionControlRows[0].isYou && (
+                      <span className="mc-pill">Current Monthly Visits: {formatTraffic(missionControlRows[0].monthlyVisits)}</span>
                     )}
                   </div>
                   <div className="mc-notes-formulas">
                     <p>Monthly Return = Paying Clients &times; AOV</p>
                     {missionControlRows[0]?.annualReturnValue != null && (
                       <p>Annual Return Value = Paying Clients &times; AOV &times; Annual Purchase Frequency</p>
+                    )}
+                    {missionControlRows.length > 0 && missionControlRows[0].isYou && (
+                      <p>{proposal.businessName} currently receives ~{formatTraffic(missionControlRows[0].monthlyVisits)} monthly visits. The aim is to reach competitor-level traffic.</p>
                     )}
                   </div>
                 </div>
@@ -1330,6 +1350,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               return (
                 <>
                 <p className="slide-ads-copy">Your competitors are paying for ads to drive them more traffic. This is a path you can go down IF the fundamentals are solid to ensure a feasible return on investment.</p>
+                <p className="slide-ads-intro">These are some of the ads that your competitors have live right now:</p>
                 <div className="slide-10-layout">
                   <div className="slide-10-col">
                     <h3>Google Ads</h3>
@@ -1426,7 +1447,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               <>
                 <div className="cr-intro-copy">
                   <p className="cr-intro-bold">Is your website answering these questions?</p>
-                  <p className="cr-intro-sub">These are the exact questions your potential customers are actively searching for—and where your site can establish authority. Each sunburst shows the most popular questions grouped by type — the bigger the slice, the more people are searching for it.</p>
+                  <p className="cr-intro-sub">These are the exact questions your potential customers are actively searching for—and where your site can establish authority. Each sunburst shows the most popular questions grouped by type<span className="cr-hide-mobile"> — the bigger the slice, the more people are searching for it</span>.</p>
                 </div>
                 {(() => {
                   // Deduplicate content researches by keyword (keep most recent — array is sorted by -createdAt)
