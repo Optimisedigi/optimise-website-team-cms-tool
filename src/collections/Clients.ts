@@ -384,6 +384,20 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Blog Posts",
+          fields: [
+            {
+              name: "clientBlogPosts",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ClientBlogPostsList",
+                },
+              },
+            },
+          ],
+        },
+        {
           label: "Authors",
           fields: [
             {

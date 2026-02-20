@@ -17,6 +17,10 @@ export const BlogPosts: CollectionConfig = {
     group: "Content",
     defaultColumns: ["title", "client", "status", "publishedDate"],
     description: "Create and manage blog posts for clients",
+    listSearchableFields: ["title", "slug", "author"],
+    components: {
+      beforeListTable: ["./components/BlogPostsClientFilter"],
+    },
   },
   versions: {
     drafts: true,
