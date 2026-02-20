@@ -15,6 +15,7 @@ const guide = [
   { label: 'Code Block', syntax: '```\ncode\n```' },
   { label: 'Blockquote', syntax: '> Quote text' },
   { label: 'Line Break', syntax: 'Empty line between paragraphs' },
+  { label: 'FAQ Section', syntax: '## FAQ\n**Q: Question?**\nA: Answer...' },
 ]
 
 const MarkdownGuide = () => {
