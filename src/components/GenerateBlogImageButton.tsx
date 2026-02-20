@@ -5,8 +5,9 @@ import { useState } from 'react'
 
 const GenerateBlogImageButton = () => {
   const { id } = useDocumentInfo()
-  const [fields] = useAllFormFields()
-  const [loading, setLoading] = useState(false)
+  const [fields, dispatchFields] = useAllFormFields()
+  const [generatingPrompt, setGeneratingPrompt] = useState(false)
+  const [generatingImage, setGeneratingImage] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [mediaUrl, setMediaUrl] = useState<string | null>(null)
@@ -17,12 +18,51 @@ const GenerateBlogImageButton = () => {
   const imagePromptOverride = fields?.imagePromptOverride?.value as string | undefined
 
   const notSaved = !id
-  const missingFields: string[] = []
-  if (!title?.trim()) missingFields.push('Title')
+  const missingTitle = !title?.trim()
+  const hasPrompt = !!imagePromptOverride?.trim()
+  const busy = generatingPrompt || generatingImage
 
-  const handleClick = async () => {
-    if (loading) return
-    setLoading(true)
+  const handleGeneratePrompt = async () => {
+    if (busy) return
+    setGeneratingPrompt(true)
+    setMessage(null)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/blog-posts/generate-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          title: title?.trim(),
+          excerpt: excerpt?.trim(),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || `Failed (${res.status})`)
+        return
+      }
+
+      dispatchFields({
+        type: 'UPDATE',
+        path: 'imagePromptOverride',
+        value: data.prompt,
+      })
+
+      setMessage('Prompt generated! Review it in the field above, edit if needed, then click "Generate Image".')
+    } catch {
+      setError('Network error — check your connection and try again.')
+    } finally {
+      setGeneratingPrompt(false)
+    }
+  }
+
+  const handleGenerateImage = async () => {
+    if (busy) return
+    setGeneratingImage(true)
     setMessage(null)
     setError(null)
     setMediaUrl(null)
@@ -37,7 +77,7 @@ const GenerateBlogImageButton = () => {
           blogPostId: id,
           title: title?.trim(),
           excerpt: excerpt?.trim(),
-          imagePromptOverride: imagePromptOverride?.trim() || undefined,
+          imagePromptOverride: imagePromptOverride?.trim(),
         }),
       })
 
@@ -54,46 +94,69 @@ const GenerateBlogImageButton = () => {
     } catch {
       setError('Network error — check your connection and try again.')
     } finally {
-      setLoading(false)
+      setGeneratingImage(false)
     }
   }
 
+  const buttonBase = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '10px 20px',
+    color: '#fff',
+    borderRadius: 8,
+    border: 'none',
+    fontWeight: 600,
+    fontSize: 14,
+  } as const
+
   return (
     <div style={{ marginBottom: 20 }}>
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={loading || notSaved || missingFields.length > 0}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '10px 20px',
-          background: loading
-            ? '#6b7280'
-            : (notSaved || missingFields.length > 0)
-              ? '#9ca3af'
-              : '#7c3aed',
-          color: '#fff',
-          borderRadius: 8,
-          border: 'none',
-          fontWeight: 600,
-          fontSize: 14,
-          cursor: loading || notSaved || missingFields.length > 0 ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {loading ? 'Generating Image...' : 'Generate Featured Image'}
-      </button>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {/* Step 1: Generate Prompt */}
+        <button
+          type="button"
+          onClick={handleGeneratePrompt}
+          disabled={busy || missingTitle}
+          style={{
+            ...buttonBase,
+            background: busy || missingTitle ? '#9ca3af' : '#2563eb',
+            cursor: busy || missingTitle ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {generatingPrompt ? 'Generating Prompt...' : '1. Generate Prompt'}
+        </button>
 
-      {notSaved && (
+        {/* Step 2: Generate Image */}
+        <button
+          type="button"
+          onClick={handleGenerateImage}
+          disabled={busy || notSaved || missingTitle || !hasPrompt}
+          style={{
+            ...buttonBase,
+            background: busy || notSaved || missingTitle || !hasPrompt ? '#9ca3af' : '#7c3aed',
+            cursor: busy || notSaved || missingTitle || !hasPrompt ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {generatingImage ? 'Generating Image...' : '2. Generate Image'}
+        </button>
+      </div>
+
+      {missingTitle && (
         <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>
-          Save the post first, then generate an image.
+          Fill in a Title before generating.
         </p>
       )}
 
-      {!notSaved && missingFields.length > 0 && (
+      {!missingTitle && notSaved && !hasPrompt && (
         <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>
-          Fill in {missingFields.join(', ')} before generating an image.
+          Generate a prompt first, then save the post before generating an image.
+        </p>
+      )}
+
+      {!missingTitle && !notSaved && !hasPrompt && (
+        <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>
+          Click "Generate Prompt" first to create an image prompt, review it, then click "Generate Image".
         </p>
       )}
 
@@ -105,9 +168,15 @@ const GenerateBlogImageButton = () => {
         <p style={{ marginTop: 8, fontSize: 13, color: '#dc2626' }}>{error}</p>
       )}
 
-      {loading && (
+      {generatingPrompt && (
         <p style={{ marginTop: 8, fontSize: 13, color: '#6b7280' }}>
-          Generating with Gemini Imagen and optimizing to WebP. This may take a few seconds...
+          Generating a tailored image prompt with Gemini...
+        </p>
+      )}
+
+      {generatingImage && (
+        <p style={{ marginTop: 8, fontSize: 13, color: '#6b7280' }}>
+          Generating image with Imagen and optimizing to WebP. This may take a few seconds...
         </p>
       )}
 

@@ -313,7 +313,7 @@ export const BlogPosts: CollectionConfig = {
               type: "textarea",
               admin: {
                 description:
-                  "Override the auto-generated image prompt. If filled, the image will be generated from this prompt instead of the title/excerpt. Leave blank to auto-generate from title and excerpt.",
+                  'Click "Generate Prompt" below to create an AI image prompt from your title and excerpt. Review and edit the prompt here, then click "Generate Image".',
               },
             },
             {

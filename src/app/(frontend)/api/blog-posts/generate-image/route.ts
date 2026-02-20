@@ -16,7 +16,6 @@ export async function POST(req: NextRequest) {
   let body: {
     blogPostId?: string;
     title?: string;
-    excerpt?: string;
     imagePromptOverride?: string;
   };
   try {
@@ -25,7 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { blogPostId, title, excerpt, imagePromptOverride } = body;
+  const { blogPostId, title, imagePromptOverride } = body;
   if (!blogPostId || !title) {
     return NextResponse.json(
       { error: "blogPostId and title are required" },
@@ -37,27 +36,14 @@ export async function POST(req: NextRequest) {
     // 1. Generate image with Gemini Imagen 4 Fast
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-    let prompt: string;
-    if (imagePromptOverride) {
-      // User-provided prompt with mandatory no-text rule
-      prompt = [
-        imagePromptOverride,
-        "IMPORTANT: Do not include any text, words, letters, numbers, watermarks, logos, or typography anywhere in the image. The image must be purely visual with no written content whatsoever.",
-        "The image should work well as a 16:9 landscape blog hero banner.",
-      ].join(" ");
-    } else {
-      // Auto-generated prompt from title and excerpt
-      prompt = [
-        "Create a unique, eye-catching, professional blog header image.",
-        `Topic: ${title}.`,
-        excerpt ? `Context: ${excerpt}.` : "",
-        "Style: Modern, clean, visually striking.",
-        "IMPORTANT: Do not include any text, words, letters, numbers, watermarks, logos, or typography anywhere in the image. The image must be purely visual with no written content whatsoever. Text may only appear naturally on objects in the scene (e.g. a book spine, street sign) if contextually appropriate.",
-        "The image should work well as a 16:9 landscape blog hero banner.",
-      ]
-        .filter(Boolean)
-        .join(" ");
+    if (!imagePromptOverride?.trim()) {
+      return NextResponse.json(
+        { error: "Generate a prompt first using 'Generate Prompt', then click 'Generate Image'." },
+        { status: 400 }
+      );
     }
+
+    const prompt = imagePromptOverride.trim();
 
     const response = await ai.models.generateImages({
       model: "imagen-4.0-fast-generate-001",
