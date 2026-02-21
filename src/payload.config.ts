@@ -20,6 +20,7 @@ import { UsageReports } from "./collections/UsageReports";
 import { ContentResearches } from "./collections/ContentResearches";
 import { GscSnapshots } from "./collections/GscSnapshots";
 import { GscAlerts } from "./collections/GscAlerts";
+import { ActivityLog } from "./collections/ActivityLog";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -51,12 +52,13 @@ export default buildConfig({
       },
       actions: ["./components/UserDisplayName"],
       beforeNavLinks: ["./components/SidebarLogo"],
+      afterNavLinks: ["./components/SidebarNavExtras"],
       afterLogin: ["./components/ShowPasswordToggle"],
-      providers: ["./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar"],
-      beforeDashboard: ["./components/DashboardWelcome"],
+      providers: ["./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/PomodoroTimer"],
+      beforeDashboard: ["./components/Dashboard"],
     },
   },
-  collections: [Users, Clients, ClientProposals, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, Media],
+  collections: [Users, Clients, ClientProposals, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, ActivityLog, Media],
   editor: lexicalEditor(),
   secret: (() => {
     const s = process.env.PAYLOAD_SECRET;

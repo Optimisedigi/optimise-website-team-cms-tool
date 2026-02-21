@@ -39,11 +39,13 @@ import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../co
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_4a8985253bad55ee72042259cf28f1d7 } from '../../../components/UserDisplayName'
 import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
-import { default as default_eee8d15b2609d03b18983f3bc669ce04 } from '../../../components/DashboardWelcome'
+import { default as default_5c16f7aa63b8992f2b26b1a5603015ac } from '../../../components/SidebarNavExtras'
+import { default as default_c22c6ded068ed0e94e9b6d1c50d7f3ee } from '../../../components/Dashboard'
 import { default as default_cc474ecbeaf676f497427d66a0f4dd38 } from '../../../components/SidebarLogo'
 import { default as default_f79b4ca75381164e95f118cd1e894463 } from '../../../components/FirstLoginSetup'
 import { default as default_30b462c31bfed4dfe63e7ef34d180475 } from '../../../components/NavigationRecovery'
 import { default as default_47cb45239198beef21a512f6c005e728 } from '../../../components/MiniSidebar'
+import { default as default_02b1efea3bcfc49be1b8b522d8ca967d } from '../../../components/PomodoroTimer'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 import { CollectionCards as CollectionCards_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 
@@ -89,11 +91,13 @@ export const importMap = {
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/UserDisplayName#default": default_4a8985253bad55ee72042259cf28f1d7,
   "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
-  "./components/DashboardWelcome#default": default_eee8d15b2609d03b18983f3bc669ce04,
+  "./components/SidebarNavExtras#default": default_5c16f7aa63b8992f2b26b1a5603015ac,
+  "./components/Dashboard#default": default_c22c6ded068ed0e94e9b6d1c50d7f3ee,
   "./components/SidebarLogo#default": default_cc474ecbeaf676f497427d66a0f4dd38,
   "./components/FirstLoginSetup#default": default_f79b4ca75381164e95f118cd1e894463,
   "./components/NavigationRecovery#default": default_30b462c31bfed4dfe63e7ef34d180475,
   "./components/MiniSidebar#default": default_47cb45239198beef21a512f6c005e728,
+  "./components/PomodoroTimer#default": default_02b1efea3bcfc49be1b8b522d8ca967d,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
   "@payloadcms/ui/rsc#CollectionCards": CollectionCards_ab83ff7e88da8d3530831f296ec4756a
 }

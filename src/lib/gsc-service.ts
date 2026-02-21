@@ -138,6 +138,125 @@ export async function fetchSearchAnalytics(
 }
 
 /**
+ * Fetch brand vs non-brand query breakdown from GSC.
+ * Uses dimensionFilterGroups to split queries containing brand terms from generic ones.
+ */
+export async function fetchBrandedAnalytics(
+  accessToken: string,
+  siteUrl: string,
+  startDate: string,
+  endDate: string,
+  brandTerms: string[]
+) {
+  if (!brandTerms.length) {
+    return { brand: null, nonBrand: null };
+  }
+
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const searchconsole = google.searchconsole({ version: "v1", auth: oauth2Client });
+
+  // Build brand filter: query contains any brand term (OR logic via multiple filters)
+  const brandFilters = brandTerms.map((term) => ({
+    dimension: "query" as const,
+    operator: "contains" as const,
+    expression: term.trim().toLowerCase(),
+  }));
+
+  const nonBrandFilters = brandTerms.map((term) => ({
+    dimension: "query" as const,
+    operator: "notContains" as const,
+    expression: term.trim().toLowerCase(),
+  }));
+
+  try {
+    // Brand queries — use OR group (any brand term matches)
+    const brandRes = await searchconsole.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate,
+        endDate,
+        dimensions: ["query"],
+        dimensionFilterGroups: [
+          { groupType: "or", filters: brandFilters },
+        ],
+        rowLimit: 25,
+      },
+    });
+
+    const brandRows = brandRes.data.rows || [];
+    let brandClicks = 0, brandImpressions = 0, brandCtrSum = 0, brandPosSum = 0;
+    for (const row of brandRows) {
+      brandClicks += row.clicks || 0;
+      brandImpressions += row.impressions || 0;
+      brandCtrSum += row.ctr || 0;
+      brandPosSum += row.position || 0;
+    }
+
+    // Non-brand queries — AND group (none of the brand terms match)
+    const nonBrandRes = await searchconsole.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate,
+        endDate,
+        dimensions: ["query"],
+        dimensionFilterGroups: [
+          { groupType: "and", filters: nonBrandFilters },
+        ],
+        rowLimit: 25,
+      },
+    });
+
+    const nonBrandRows = nonBrandRes.data.rows || [];
+    let nbClicks = 0, nbImpressions = 0, nbCtrSum = 0, nbPosSum = 0;
+    for (const row of nonBrandRows) {
+      nbClicks += row.clicks || 0;
+      nbImpressions += row.impressions || 0;
+      nbCtrSum += row.ctr || 0;
+      nbPosSum += row.position || 0;
+    }
+
+    const topQueries = nonBrandRows.slice(0, 10).map((row: searchconsole_v1.Schema$ApiDataRow) => ({
+      query: row.keys?.[0] || "",
+      clicks: row.clicks || 0,
+      impressions: row.impressions || 0,
+      ctr: Math.round((row.ctr || 0) * 10000) / 100,
+      position: Math.round((row.position || 0) * 10) / 10,
+    }));
+
+    const brandCount = brandRows.length;
+    const nbCount = nonBrandRows.length;
+
+    return {
+      brand: {
+        clicks: brandClicks,
+        impressions: brandImpressions,
+        ctr: brandCount > 0
+          ? Math.round((brandCtrSum / brandCount) * 10000) / 100
+          : 0,
+        position: brandCount > 0
+          ? Math.round((brandPosSum / brandCount) * 10) / 10
+          : 0,
+      },
+      nonBrand: {
+        clicks: nbClicks,
+        impressions: nbImpressions,
+        ctr: nbCount > 0
+          ? Math.round((nbCtrSum / nbCount) * 10000) / 100
+          : 0,
+        position: nbCount > 0
+          ? Math.round((nbPosSum / nbCount) * 10) / 10
+          : 0,
+        topQueries,
+      },
+    };
+  } catch (err) {
+    console.error("[gsc-service] fetchBrandedAnalytics error:", err);
+    return { brand: null, nonBrand: null };
+  }
+}
+
+/**
  * Fetch indexing status using the URL Inspection API.
  * Inspects a sample of URLs from the sitemap to estimate index coverage.
  * Falls back to sitemap submitted counts if inspection fails.

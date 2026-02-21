@@ -126,6 +126,22 @@ export const GscSnapshots: CollectionConfig = {
                   "Top pages — array of {page, clicks, impressions, ctr, position}",
               },
             },
+            {
+              name: "brandedData",
+              type: "json",
+              admin: {
+                description:
+                  "Brand query metrics — {clicks, impressions, ctr, position}",
+              },
+            },
+            {
+              name: "nonBrandedData",
+              type: "json",
+              admin: {
+                description:
+                  "Non-brand query metrics — {clicks, impressions, ctr, position, topQueries: [...]}",
+              },
+            },
           ],
         },
         {

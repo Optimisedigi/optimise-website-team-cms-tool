@@ -1,5 +1,43 @@
-import type { CollectionConfig } from "payload";
+import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
+import { logActivity } from "../lib/activity-log";
+
+const trackRetainerChange: CollectionBeforeChangeHook = async ({
+  data,
+  originalDoc,
+  req,
+  operation,
+}) => {
+  if (operation !== "update" || !data || !originalDoc) return data;
+
+  const oldAmount = originalDoc.monthlyRetainer ?? 0;
+  const newAmount = data.monthlyRetainer ?? 0;
+
+  if (oldAmount === newAmount) return data;
+
+  const historyEntry = {
+    amount: newAmount,
+    previousAmount: oldAmount,
+    effectiveDate: new Date().toISOString(),
+    changedBy: req.user?.email || req.user?.name || "system",
+  };
+
+  const existing = Array.isArray(originalDoc.retainerHistory)
+    ? originalDoc.retainerHistory
+    : [];
+  data.retainerHistory = [historyEntry, ...existing];
+
+  // Log retainer change activity (fire-and-forget)
+  logActivity(req.payload, {
+    type: "retainer_changed",
+    title: `Retainer changed for ${originalDoc.name || "client"}`,
+    description: `$${oldAmount.toLocaleString()} → $${newAmount.toLocaleString()}/mo`,
+    user: req.user?.id,
+    client: originalDoc.id,
+  }).catch(() => {});
+
+  return data;
+};
 
 /**
  * Clients Collection
@@ -13,6 +51,22 @@ export const Clients: CollectionConfig = {
     useAsTitle: "name",
     group: "Database",
     description: "Manage client websites",
+  },
+  hooks: {
+    beforeChange: [trackRetainerChange],
+    afterChange: [
+      async ({ doc, operation, req }) => {
+        if (operation === "create") {
+          logActivity(req.payload, {
+            type: "client_added",
+            title: `New client: ${doc.name}`,
+            description: doc.websiteUrl || "",
+            user: req.user?.id,
+            client: doc.id,
+          }).catch(() => {});
+        }
+      },
+    ],
   },
   fields: [
     {
@@ -211,11 +265,34 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
+              name: "monthlyRetainer",
+              type: "number",
+              min: 0,
+              admin: {
+                description: "Monthly retainer amount ($)",
+                step: 1,
+              },
+            },
+            {
               name: "notes",
               type: "textarea",
               admin: {
                 description: "Goals, notes, and context about this client",
               },
+            },
+            {
+              name: "retainerHistory",
+              type: "array",
+              admin: {
+                readOnly: true,
+                description: "Automatic log of retainer changes",
+              },
+              fields: [
+                { name: "amount", type: "number" },
+                { name: "previousAmount", type: "number" },
+                { name: "effectiveDate", type: "date" },
+                { name: "changedBy", type: "text" },
+              ],
             },
           ],
         },
@@ -529,6 +606,14 @@ export const Clients: CollectionConfig = {
               admin: {
                 disabled: true,
                 hidden: true,
+              },
+            },
+            {
+              name: "brandKeywords",
+              type: "textarea",
+              admin: {
+                description:
+                  "Comma-separated brand terms to filter out from generic query analysis (e.g., 'optimise digital, optimisedigital, od agency')",
               },
             },
             {

@@ -3,6 +3,7 @@ import config from "@/payload.config";
 import {
   refreshAccessToken,
   fetchSearchAnalytics,
+  fetchBrandedAnalytics,
   fetchIndexingStatus,
   fetchSitemaps,
   fetchCoreWebVitals,
@@ -103,12 +104,19 @@ async function monitorClient(
 
   const formatDate = (d: Date) => d.toISOString().slice(0, 10);
 
+  // Parse brand keywords from client
+  const brandTerms = (client.brandKeywords || "")
+    .split(",")
+    .map((t: string) => t.trim())
+    .filter(Boolean);
+
   // Fetch all GSC data in parallel
-  const [searchData, indexingData, sitemapData, cwvData] = await Promise.all([
+  const [searchData, indexingData, sitemapData, cwvData, brandedAnalytics] = await Promise.all([
     fetchSearchAnalytics(accessToken, siteUrl, formatDate(startDate), formatDate(endDate)),
     fetchIndexingStatus(accessToken, siteUrl),
     fetchSitemaps(accessToken, siteUrl),
     fetchCoreWebVitals(accessToken, siteUrl),
+    fetchBrandedAnalytics(accessToken, siteUrl, formatDate(startDate), formatDate(endDate), brandTerms),
   ]);
 
   // Find previous snapshot for comparison
@@ -164,6 +172,8 @@ async function monitorClient(
       avgPosition: searchData.avgPosition,
       topKeywords: searchData.topKeywords,
       topPages: searchData.topPages,
+      brandedData: brandedAnalytics.brand,
+      nonBrandedData: brandedAnalytics.nonBrand,
       indexedPages: indexingData.indexedPages,
       notIndexedPages: indexingData.notIndexedPages,
       indexingIssues: indexingData.indexingIssues,
