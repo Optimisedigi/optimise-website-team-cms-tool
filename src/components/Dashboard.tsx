@@ -161,12 +161,26 @@ const Dashboard = () => {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [gscRefreshing, setGscRefreshing] = useState(false)
+  const [gscSeeding, setGscSeeding] = useState(false)
 
   const fetchDashboard = () => {
     return fetch('/api/dashboard')
       .then((r) => r.json())
       .then((d) => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
+  }
+
+  const handleGscSeed = async () => {
+    if (gscSeeding) return
+    setGscSeeding(true)
+    try {
+      await fetch('/api/gsc/seed', { method: 'POST' })
+      await fetchDashboard()
+    } catch {
+      // silently fail
+    } finally {
+      setGscSeeding(false)
+    }
   }
 
   const handleGscRefresh = async () => {
@@ -188,6 +202,16 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchDashboard()
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      if (!gscRefreshing) {
+        fetch('/api/dashboard')
+          .then((r) => r.json())
+          .then((d) => setData(d))
+          .catch(() => {})
+      }
+    }, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   if (loading) {
@@ -258,7 +282,7 @@ const Dashboard = () => {
           </div>
 
           {/* Search Console */}
-          <GscCard gsc={data.gsc} refreshing={gscRefreshing} onRefresh={handleGscRefresh} />
+          <GscCard gsc={data.gsc} refreshing={gscRefreshing} onRefresh={handleGscRefresh} onSeed={handleGscSeed} seeding={gscSeeding} />
 
           {/* Costs */}
           <div className="od-box">
@@ -317,10 +341,14 @@ function GscCard({
   gsc,
   refreshing,
   onRefresh,
+  onSeed,
+  seeding,
 }: {
   gsc: GscData | null
   refreshing: boolean
   onRefresh: () => void
+  onSeed: () => void
+  seeding: boolean
 }) {
   if (!gsc || (!gsc.totalClicks && !gsc.gscConnected)) {
     return (
@@ -329,9 +357,18 @@ function GscCard({
           <span className="od-box__title">Google Search Console</span>
         </div>
         <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
-          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
+          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: '0 0 12px' }}>
             Connect GSC in Settings &rarr; Integrations to see search performance data.
           </p>
+          <button
+            className="od-gsc__refresh"
+            onClick={onSeed}
+            disabled={seeding}
+            type="button"
+            style={{ fontSize: 12 }}
+          >
+            {seeding ? 'Seeding...' : 'Seed Demo Data'}
+          </button>
         </div>
       </div>
     )
