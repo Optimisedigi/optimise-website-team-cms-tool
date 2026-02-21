@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/gsc/cron",
+      "schedule": "0 6 * * *"
+    }
+  ],
   "functions": {
     "src/app/(payload)/admin/[[...segments]]/page.tsx": {
       "maxDuration": 30
