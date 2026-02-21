@@ -4,6 +4,7 @@ import type {
   CollectionBeforeChangeHook,
 } from "payload";
 import { proposalEditor } from "@/lib/proposalEditor";
+import { logActivity } from "../lib/activity-log";
 
 const generateUniqueSlug: CollectionBeforeChangeHook = async ({
   data,
@@ -879,6 +880,22 @@ export const ClientProposals: CollectionConfig = {
       ],
     },
     {
+      name: "proposalStatus",
+      type: "select",
+      defaultValue: "draft",
+      admin: {
+        position: "sidebar",
+        description: "Current stage of this proposal",
+      },
+      options: [
+        { label: "Draft", value: "draft" },
+        { label: "Proposal Sent", value: "proposal_sent" },
+        { label: "Proposal Presented", value: "proposal_presented" },
+        { label: "Client (Accepted)", value: "client" },
+        { label: "Declined", value: "declined" },
+      ],
+    },
+    {
       name: "convertToClient",
       type: "checkbox",
       defaultValue: false,
@@ -928,7 +945,19 @@ export const ClientProposals: CollectionConfig = {
     },
   ],
   hooks: {
-    afterChange: [convertToClientHook],
+    afterChange: [
+      convertToClientHook,
+      async ({ doc, operation, req }) => {
+        if (operation === "create") {
+          logActivity(req.payload, {
+            type: "proposal_created",
+            title: `New proposal: ${doc.businessName || doc.slug || "Untitled"}`,
+            description: doc.websiteUrl || "",
+            user: req.user?.id,
+          }).catch(() => {});
+        }
+      },
+    ],
     beforeChange: [generateUniqueSlug],
   },
 };

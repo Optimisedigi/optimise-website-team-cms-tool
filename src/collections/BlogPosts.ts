@@ -1,5 +1,6 @@
 import type { CollectionConfig } from "payload";
 import matter from "gray-matter";
+import { logActivity } from "../lib/activity-log";
 
 /**
  * Blog Posts Collection
@@ -26,6 +27,22 @@ export const BlogPosts: CollectionConfig = {
     drafts: true,
   },
   hooks: {
+    afterChange: [
+      async ({ doc, previousDoc, req }) => {
+        const wasPublished =
+          doc?.status === "published" &&
+          previousDoc?.status !== "published";
+        if (wasPublished) {
+          logActivity(req.payload, {
+            type: "blog_published",
+            title: `Published: ${doc.title}`,
+            description: doc.excerpt?.slice(0, 120) || "",
+            user: req.user?.id,
+            client: typeof doc.client === "object" ? doc.client?.id : doc.client,
+          }).catch(() => {});
+        }
+      },
+    ],
     beforeChange: [
       ({ data }) => {
         if (!data?.markdownSource) return data;

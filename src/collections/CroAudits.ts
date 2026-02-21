@@ -1,6 +1,7 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { hasValidApiKey } from "./api-key-access";
+import { logActivity } from "../lib/activity-log";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = ({ data }) => {
   if (data && !data.reportSlug && data.websiteUrl) {
@@ -30,6 +31,19 @@ export const CroAudits: CollectionConfig = {
   },
   hooks: {
     beforeChange: [autoGenerateSlug],
+    afterChange: [
+      async ({ doc, operation, req }) => {
+        if (operation === "create") {
+          logActivity(req.payload, {
+            type: "cro_audit_completed",
+            title: `CRO audit: ${doc.websiteUrl}`,
+            description: `Score: ${doc.overallScore ?? "N/A"}/10`,
+            user: req.user?.id,
+            client: typeof doc.client === "object" ? doc.client?.id : doc.client,
+          }).catch(() => {});
+        }
+      },
+    ],
   },
   access: {
     read: ({ req }) => !!req.user || hasValidApiKey(req),

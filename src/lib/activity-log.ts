@@ -7,6 +7,7 @@ type ActivityType =
   | "keyword_analysis"
   | "client_added"
   | "retainer_changed"
+  | "proposal_created"
   | "gsc_snapshot";
 
 interface ActivityEntry {

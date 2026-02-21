@@ -56,7 +56,7 @@ export async function GET() {
   }
 
   const [
-    gscResult,
+    gscBundle,
     clientCount,
     clientsForRetainer,
     activityResult,
@@ -71,8 +71,8 @@ export async function GET() {
     totalProposals,
     ...historicalCounts
   ] = await Promise.all([
-    // Latest GSC snapshot + client ID for Optimise Digital
-    (async () => {
+    // Latest GSC snapshot + 13-month history for Optimise Digital
+    (async (): Promise<{ gsc: any; gscMonthly: any[] } | null> => {
       try {
         const odClient = await payload.find({
           collection: "clients",
@@ -85,18 +85,82 @@ export async function GET() {
           clientId: client.id,
           gscConnected: client.gscConnected || false,
         };
-        if (client.latestGscSnapshot) {
-          const snapshotId =
-            typeof client.latestGscSnapshot === "object"
-              ? client.latestGscSnapshot.id
-              : client.latestGscSnapshot;
-          const snapshot = await payload.findByID({
-            collection: "gsc-snapshots",
-            id: snapshotId,
-          });
-          return { ...snapshot, ...clientMeta };
+
+        // Query last 13 months of snapshots
+        const snapshots = await payload.find({
+          collection: "gsc-snapshots",
+          where: { client: { equals: client.id } },
+          sort: "-snapshotDate",
+          limit: 100,
+          overrideAccess: true,
+        });
+
+        // Group by year-month, pick latest snapshot per month
+        const byMonth = new Map<string, any>();
+        for (const snap of snapshots.docs) {
+          const d = new Date(snap.snapshotDate as string);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          if (!byMonth.has(key)) byMonth.set(key, snap);
         }
-        return clientMeta;
+
+        // Build gscMonthly array (12 entries, chronological)
+        const sortedKeys = Array.from(byMonth.keys()).sort();
+        // Take last 12 entries for the chart
+        const chartKeys = sortedKeys.slice(-12);
+        const gscMonthly = chartKeys.map((key) => {
+          const snap = byMonth.get(key)!;
+          const [y, m] = key.split("-");
+          const d = new Date(Number(y), Number(m) - 1);
+          return {
+            month: d.toLocaleString("en-AU", { month: "short", year: "2-digit" }),
+            clicks: (snap.totalClicks as number) || 0,
+            impressions: (snap.totalImpressions as number) || 0,
+          };
+        });
+
+        // Get the latest snapshot for current stats
+        const latestSnap = snapshots.docs[0];
+        if (!latestSnap) return { gsc: clientMeta, gscMonthly };
+
+        // Compute unique keywords (clicks > 0) and unique pages (clicks > 0)
+        const topKeywords = (latestSnap.topKeywords as any[]) || [];
+        const topPages = (latestSnap.topPages as any[]) || [];
+        const uniqueKeywords = topKeywords.filter((k: any) => k.clicks > 0).length;
+        const uniquePages = topPages.filter((p: any) => p.clicks > 0).length;
+
+        // Compute YoY: compare latest month to same month last year
+        const latestDate = new Date(latestSnap.snapshotDate as string);
+        const yoyKey = `${latestDate.getFullYear() - 1}-${String(latestDate.getMonth() + 1).padStart(2, "0")}`;
+        const yoySnap = byMonth.get(yoyKey);
+
+        let clicksChange = latestSnap.clicksChange as number | undefined;
+        let impressionsChange = latestSnap.impressionsChange as number | undefined;
+        let positionChange = latestSnap.positionChange as number | undefined;
+        let ctrChange: number | undefined;
+
+        if (yoySnap) {
+          const oldClicks = (yoySnap.totalClicks as number) || 1;
+          const oldImpressions = (yoySnap.totalImpressions as number) || 1;
+          const oldCtr = (yoySnap.avgCtr as number) || 0;
+          const oldPosition = (yoySnap.avgPosition as number) || 0;
+          clicksChange = round(((((latestSnap.totalClicks as number) || 0) - oldClicks) / oldClicks) * 100);
+          impressionsChange = round(((((latestSnap.totalImpressions as number) || 0) - oldImpressions) / oldImpressions) * 100);
+          ctrChange = oldCtr > 0 ? round(((((latestSnap.avgCtr as number) || 0) - oldCtr) / oldCtr) * 100) : 0;
+          positionChange = oldPosition > 0 ? round(((((latestSnap.avgPosition as number) || 0) - oldPosition) / oldPosition) * 100) : 0;
+        }
+
+        const gsc = {
+          ...latestSnap,
+          ...clientMeta,
+          uniqueKeywords,
+          uniquePages,
+          clicksChange,
+          impressionsChange,
+          positionChange,
+          ctrChange,
+        };
+
+        return { gsc, gscMonthly };
       } catch {
         return null;
       }
@@ -216,7 +280,8 @@ export async function GET() {
     : 0;
 
   return NextResponse.json({
-    gsc: gscResult || null,
+    gsc: gscBundle?.gsc || null,
+    gscMonthly: gscBundle?.gscMonthly || [],
     activeClients: clientCount.totalDocs,
     totalRetainer,
     activity: activityResult.docs,

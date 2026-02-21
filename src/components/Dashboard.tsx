@@ -4,25 +4,6 @@ import { useEffect, useState, useRef } from 'react'
 
 // ─── Types ────────────────────────────────────────────────
 
-interface BrandMetrics {
-  clicks: number
-  impressions: number
-  ctr: number
-  position: number
-}
-
-interface GenericQuery {
-  query: string
-  clicks: number
-  impressions: number
-  ctr: number
-  position: number
-}
-
-interface NonBrandMetrics extends BrandMetrics {
-  topQueries: GenericQuery[]
-}
-
 interface GscData {
   totalClicks?: number
   totalImpressions?: number
@@ -31,12 +12,19 @@ interface GscData {
   clicksChange?: number
   impressionsChange?: number
   positionChange?: number
+  ctrChange?: number
+  uniqueKeywords?: number
+  uniquePages?: number
   periodStart?: string
   periodEnd?: string
-  brandedData?: BrandMetrics | null
-  nonBrandedData?: NonBrandMetrics | null
   clientId?: string
   gscConnected?: boolean
+}
+
+interface GscMonthlyEntry {
+  month: string
+  clicks: number
+  impressions: number
 }
 
 interface ActivityEntry {
@@ -58,6 +46,7 @@ interface CostHistoryEntry {
 
 interface DashboardData {
   gsc: GscData | null
+  gscMonthly: GscMonthlyEntry[]
   activeClients: number
   totalRetainer: number
   activity: ActivityEntry[]
@@ -99,6 +88,7 @@ const typeLabels: Record<string, string> = {
   keyword_analysis: 'Keywords',
   client_added: 'New Client',
   retainer_changed: 'Retainer',
+  proposal_created: 'Proposal',
   gsc_snapshot: 'GSC',
 }
 
@@ -150,9 +140,9 @@ const llmLabels: Record<string, string> = {
 }
 
 const CHART_COLORS = {
-  infrastructure: '#6366f1', // indigo
-  api: '#22c55e',            // green
-  llm: '#f59e0b',           // amber
+  infrastructure: '#213843', // dark
+  api: '#468D8B',            // mid
+  llm: '#74B3A8',            // light
 }
 
 // ─── Main ─────────────────────────────────────────────────
@@ -282,7 +272,7 @@ const Dashboard = () => {
           </div>
 
           {/* Search Console */}
-          <GscCard gsc={data.gsc} refreshing={gscRefreshing} onRefresh={handleGscRefresh} onSeed={handleGscSeed} seeding={gscSeeding} />
+          <GscCard gsc={data.gsc} gscMonthly={data.gscMonthly} refreshing={gscRefreshing} onRefresh={handleGscRefresh} onSeed={handleGscSeed} seeding={gscSeeding} />
 
           {/* Costs */}
           <div className="od-box">
@@ -339,12 +329,14 @@ const Dashboard = () => {
 
 function GscCard({
   gsc,
+  gscMonthly,
   refreshing,
   onRefresh,
   onSeed,
   seeding,
 }: {
   gsc: GscData | null
+  gscMonthly: GscMonthlyEntry[]
   refreshing: boolean
   onRefresh: () => void
   onSeed: () => void
@@ -390,6 +382,16 @@ function GscCard({
           )}
           <button
             className="od-gsc__refresh"
+            onClick={onSeed}
+            disabled={seeding}
+            type="button"
+            title="Re-seed 13 months of demo data"
+            style={{ fontSize: 11 }}
+          >
+            {seeding ? 'Seeding...' : 'Re-seed'}
+          </button>
+          <button
+            className="od-gsc__refresh"
             onClick={onRefresh}
             disabled={refreshing}
             type="button"
@@ -402,8 +404,7 @@ function GscCard({
 
       {hasSnapshot ? (
         <>
-          {/* Overall metrics */}
-          <div className="od-box__stats od-box__stats--4">
+          <div className="od-box__stats od-box__stats--6">
             <div className="od-box__stat">
               <span className="od-box__stat-value">
                 {(gsc.totalClicks ?? 0).toLocaleString()}
@@ -419,7 +420,10 @@ function GscCard({
               <span className="od-box__stat-label">Impressions</span>
             </div>
             <div className="od-box__stat">
-              <span className="od-box__stat-value">{(gsc.avgCtr ?? 0).toFixed(1)}%</span>
+              <span className="od-box__stat-value">
+                {(gsc.avgCtr ?? 0).toFixed(1)}%
+                <ChangeArrow value={gsc.ctrChange} />
+              </span>
               <span className="od-box__stat-label">CTR</span>
             </div>
             <div className="od-box__stat">
@@ -429,66 +433,17 @@ function GscCard({
               </span>
               <span className="od-box__stat-label">Avg Position</span>
             </div>
+            <div className="od-box__stat">
+              <span className="od-box__stat-value">{(gsc.uniqueKeywords ?? 0).toLocaleString()}</span>
+              <span className="od-box__stat-label">Unique Keywords</span>
+            </div>
+            <div className="od-box__stat">
+              <span className="od-box__stat-value">{(gsc.uniquePages ?? 0).toLocaleString()}</span>
+              <span className="od-box__stat-label">Unique Pages</span>
+            </div>
           </div>
 
-          {/* Brand vs Non-Brand split */}
-          {(gsc.brandedData || gsc.nonBrandedData) && (
-            <div className="od-gsc__split">
-              {gsc.brandedData && (
-                <div className="od-gsc__split-col">
-                  <div className="od-gsc__split-header">Brand</div>
-                  <div className="od-gsc__split-row">
-                    <span className="od-gsc__split-val">{gsc.brandedData.clicks.toLocaleString()}</span>
-                    <span className="od-gsc__split-lbl">clicks</span>
-                  </div>
-                  <div className="od-gsc__split-row">
-                    <span className="od-gsc__split-val">{gsc.brandedData.impressions.toLocaleString()}</span>
-                    <span className="od-gsc__split-lbl">impressions</span>
-                  </div>
-                </div>
-              )}
-              {gsc.nonBrandedData && (
-                <div className="od-gsc__split-col">
-                  <div className="od-gsc__split-header">Non-Brand</div>
-                  <div className="od-gsc__split-row">
-                    <span className="od-gsc__split-val">{gsc.nonBrandedData.clicks.toLocaleString()}</span>
-                    <span className="od-gsc__split-lbl">clicks</span>
-                  </div>
-                  <div className="od-gsc__split-row">
-                    <span className="od-gsc__split-val">{gsc.nonBrandedData.impressions.toLocaleString()}</span>
-                    <span className="od-gsc__split-lbl">impressions</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Top Generic Queries table */}
-          {gsc.nonBrandedData?.topQueries && gsc.nonBrandedData.topQueries.length > 0 && (
-            <div className="od-gsc__queries">
-              <div className="od-gsc__queries-head">Top Generic Queries</div>
-              <table className="od-gsc__table">
-                <thead>
-                  <tr>
-                    <th>Query</th>
-                    <th>Clicks</th>
-                    <th>Impr.</th>
-                    <th>Pos.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gsc.nonBrandedData.topQueries.map((q) => (
-                    <tr key={q.query}>
-                      <td className="od-gsc__table-query">{q.query}</td>
-                      <td>{q.clicks}</td>
-                      <td>{q.impressions.toLocaleString()}</td>
-                      <td>{q.position.toFixed(1)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {gscMonthly.length > 0 && <GscChart data={gscMonthly} />}
         </>
       ) : (
         <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
@@ -497,6 +452,105 @@ function GscCard({
           </p>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── GSC Monthly Chart (bars + line, pure CSS/SVG) ─────
+
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k'
+  return n.toString()
+}
+
+function GscChart({ data }: { data: GscMonthlyEntry[] }) {
+  const maxImpressions = Math.max(...data.map((d) => d.impressions), 1)
+  const maxClicks = Math.max(...data.map((d) => d.clicks), 1)
+  const chartHeight = 180
+  const barWidth = 100 / data.length
+
+  // Build SVG polyline points for clicks line
+  const linePoints = data.map((d, i) => {
+    const x = (i + 0.5) * barWidth
+    const y = chartHeight - (d.clicks / maxClicks) * (chartHeight - 20)
+    return `${x},${y}`
+  }).join(' ')
+
+  return (
+    <div className="od-gsc-chart">
+      <div className="od-gsc-chart__area" style={{ height: chartHeight, position: 'relative' }}>
+        {/* Bars for impressions */}
+        {data.map((entry, i) => {
+          const barH = (entry.impressions / maxImpressions) * (chartHeight - 24)
+          return (
+            <div
+              key={entry.month}
+              className="od-gsc-chart__bar-group"
+              style={{ width: `${barWidth}%`, left: `${i * barWidth}%` }}
+            >
+              <div
+                className="od-gsc-chart__bar"
+                style={{ height: barH, background: '#74B3A8' }}
+                title={`Impressions: ${entry.impressions.toLocaleString()}`}
+              >
+                <span className="od-gsc-chart__bar-val">{formatCompact(entry.impressions)}</span>
+              </div>
+            </div>
+          )
+        })}
+
+        {/* SVG overlay for clicks line */}
+        <svg
+          viewBox={`0 0 100 ${chartHeight}`}
+          preserveAspectRatio="none"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+        >
+          <polyline
+            points={linePoints}
+            fill="none"
+            stroke="#213843"
+            strokeWidth="1.5"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+
+        {/* Click value labels above line points */}
+        {data.map((d, i) => {
+          const leftPct = (i + 0.5) * barWidth
+          const yPx = chartHeight - (d.clicks / maxClicks) * (chartHeight - 20)
+          return (
+            <div
+              key={i}
+              className="od-gsc-chart__click-label"
+              style={{ left: `${leftPct}%`, top: yPx - 14 }}
+            >
+              {formatCompact(d.clicks)}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* X-axis labels */}
+      <div className="od-gsc-chart__labels">
+        {data.map((entry) => (
+          <div key={entry.month} className="od-gsc-chart__label" style={{ width: `${barWidth}%` }}>
+            {entry.month}
+          </div>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div className="od-chart__legend">
+        <span className="od-chart__legend-item">
+          <span className="od-chart__legend-dot" style={{ background: '#74B3A8' }} />
+          Impressions
+        </span>
+        <span className="od-chart__legend-item">
+          <span className="od-chart__legend-dot" style={{ background: '#213843' }} />
+          Clicks
+        </span>
+      </div>
     </div>
   )
 }
@@ -687,6 +741,9 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
     <div className="od-box od-box--feed">
       <div className="od-box__head">
         <span className="od-box__title">Activity Feed</span>
+        <a href="/admin/collections/activity-log" className="od-feed__see-all">
+          See all activity
+        </a>
       </div>
       {entries.length === 0 ? (
         <div style={{ padding: '24px 20px', color: 'var(--theme-elevation-400)', fontSize: 13 }}>

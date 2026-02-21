@@ -1,6 +1,7 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { hasValidApiKey } from "./api-key-access";
+import { logActivity } from "../lib/activity-log";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = ({ data }) => {
   if (data && !data.reportSlug && data.websiteUrl) {
@@ -30,6 +31,19 @@ export const KeywordSnapshots: CollectionConfig = {
   },
   hooks: {
     beforeChange: [autoGenerateSlug],
+    afterChange: [
+      async ({ doc, operation, req }) => {
+        if (operation === "create") {
+          logActivity(req.payload, {
+            type: "keyword_analysis",
+            title: `Keyword snapshot: ${doc.websiteUrl}`,
+            description: doc.label || `${doc.totalKeywords ?? 0} keywords tracked`,
+            user: req.user?.id,
+            client: typeof doc.client === "object" ? doc.client?.id : doc.client,
+          }).catch(() => {});
+        }
+      },
+    ],
   },
   access: {
     read: ({ req }) => !!req.user || hasValidApiKey(req),

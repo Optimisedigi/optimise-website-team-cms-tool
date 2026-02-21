@@ -1792,6 +1792,7 @@ export interface ActivityLog {
     | 'keyword_analysis'
     | 'client_added'
     | 'retainer_changed'
+    | 'proposal_created'
     | 'gsc_snapshot';
   title: string;
   description?: string | null;

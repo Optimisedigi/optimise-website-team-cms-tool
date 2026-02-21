@@ -9,6 +9,7 @@ export const ActivityLog: CollectionConfig = {
   admin: {
     useAsTitle: "title",
     group: "Admin",
+    hidden: true,
     defaultColumns: ["type", "title", "user", "client", "createdAt"],
     description: "Automatic feed of team activity",
   },
@@ -31,6 +32,7 @@ export const ActivityLog: CollectionConfig = {
         { label: "Keyword Analysis", value: "keyword_analysis" },
         { label: "Client Added", value: "client_added" },
         { label: "Retainer Changed", value: "retainer_changed" },
+        { label: "Proposal Created", value: "proposal_created" },
         { label: "GSC Snapshot", value: "gsc_snapshot" },
       ],
     },

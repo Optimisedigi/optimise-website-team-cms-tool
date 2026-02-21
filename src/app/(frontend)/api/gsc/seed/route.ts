@@ -4,9 +4,9 @@ import config from "@/payload.config";
 
 /**
  * POST /api/gsc/seed
- * Seeds a realistic GSC snapshot for the "optimise-digital" client so
- * the dashboard and Search Console page can be previewed without a
- * live GSC connection. Auth required.
+ * Seeds 13 months of realistic GSC snapshots for the "optimise-digital" client
+ * so the dashboard and Search Console page can be previewed without a live GSC
+ * connection. Auth required.
  */
 export async function POST(req: NextRequest) {
   const payload = await getPayload({ config });
@@ -28,119 +28,200 @@ export async function POST(req: NextRequest) {
   }
 
   const client = clients.docs[0];
-  const now = new Date();
-  const endDate = new Date(now);
-  endDate.setDate(endDate.getDate() - 1);
-  const startDate = new Date(endDate);
-  startDate.setDate(startDate.getDate() - 27);
 
+  // Delete existing snapshots for this client to avoid duplicates on re-seed
+  const existing = await payload.find({
+    collection: "gsc-snapshots",
+    where: { client: { equals: client.id } },
+    limit: 200,
+    overrideAccess: true,
+  });
+
+  for (const doc of existing.docs) {
+    await payload.delete({
+      collection: "gsc-snapshots",
+      id: doc.id,
+      overrideAccess: true,
+    });
+  }
+
+  const now = new Date();
   const formatDate = (d: Date) => d.toISOString().slice(0, 10);
 
-  const snapshot = await payload.create({
-    collection: "gsc-snapshots",
-    overrideAccess: true,
-    data: {
+  // Base metrics that grow over 13 months
+  const baseClicks = 1100;
+  const baseImpressions = 28000;
+  const basePosition = 16.8;
+  const baseCtr = 3.2;
+
+  const allKeywords = [
+    "seo agency sydney", "digital marketing agency", "local seo services",
+    "google ads management", "website audit tool", "seo audit free",
+    "small business seo", "ecommerce seo agency", "technical seo services",
+    "content marketing strategy", "ppc management sydney", "conversion rate optimisation",
+    "seo consultant near me", "website speed optimisation", "link building services",
+  ];
+
+  const allPages = [
+    "https://optimisedigital.com.au/",
+    "https://optimisedigital.com.au/seo-services/",
+    "https://optimisedigital.com.au/free-seo-audit/",
+    "https://optimisedigital.com.au/google-ads/",
+    "https://optimisedigital.com.au/blog/seo-tips-2026/",
+    "https://optimisedigital.com.au/case-studies/",
+    "https://optimisedigital.com.au/blog/local-seo-guide/",
+    "https://optimisedigital.com.au/contact/",
+    "https://optimisedigital.com.au/web-design/",
+    "https://optimisedigital.com.au/blog/google-ads-tips/",
+  ];
+
+  let previousSnapshotId: number | null = null;
+  let latestSnapshotId: number | null = null;
+
+  // Create 13 monthly snapshots: oldest first (12 months ago → current month)
+  for (let i = 12; i >= 0; i--) {
+    const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const endDate = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+    const startDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+
+    // Growth factor: 0.0 → 1.0 over 13 months with slight seasonality
+    const progress = (12 - i) / 12;
+    const seasonality = 1 + 0.08 * Math.sin((monthDate.getMonth() / 12) * Math.PI * 2);
+    const growthFactor = (1 + progress * 0.65) * seasonality;
+
+    const clicks = Math.round(baseClicks * growthFactor + (Math.random() - 0.5) * 120);
+    const impressions = Math.round(baseImpressions * growthFactor + (Math.random() - 0.5) * 2000);
+    const position = Math.round((basePosition - progress * 2.8 + (Math.random() - 0.5) * 0.6) * 10) / 10;
+    const ctr = Math.round((baseCtr + progress * 1.2 + (Math.random() - 0.5) * 0.3) * 10) / 10;
+
+    // Compute YoY change for this month (compared to 12 months prior — only available for most recent month)
+    let clicksChange: number | null = null;
+    let impressionsChange: number | null = null;
+    let positionChange: number | null = null;
+
+    if (i === 0) {
+      // Current month: compare to 12-months-ago baseline
+      const oldClicks = baseClicks * seasonality;
+      const oldImpressions = baseImpressions * seasonality;
+      clicksChange = Math.round(((clicks - oldClicks) / oldClicks) * 1000) / 10;
+      impressionsChange = Math.round(((impressions - oldImpressions) / oldImpressions) * 1000) / 10;
+      positionChange = Math.round((position - basePosition) * 10) / 10;
+    }
+
+    // Generate keyword data — vary per month, some with 0 clicks
+    const topKeywords = allKeywords.map((keyword, ki) => {
+      const kwGrowth = growthFactor * (1 - ki * 0.05);
+      const kwClicks = Math.max(0, Math.round((150 - ki * 12) * kwGrowth + (Math.random() - 0.5) * 15));
+      // Every 3rd keyword in early months has 0 clicks (tests unique keyword count)
+      const zeroOut = i > 8 && ki % 3 === 2;
+      return {
+        keyword,
+        clicks: zeroOut ? 0 : kwClicks,
+        impressions: Math.round((3200 - ki * 180) * growthFactor + Math.random() * 200),
+        ctr: zeroOut ? 0 : Math.round((4.5 - ki * 0.2 + Math.random() * 0.5) * 10) / 10,
+        position: Math.round((6 + ki * 1.2 - progress * 0.8 + Math.random() * 2) * 10) / 10,
+      };
+    });
+
+    // Generate page data — vary per month, some with 0 clicks
+    const topPages = allPages.map((page, pi) => {
+      const pageGrowth = growthFactor * (1 - pi * 0.04);
+      const pageClicks = Math.max(0, Math.round((320 - pi * 28) * pageGrowth + (Math.random() - 0.5) * 20));
+      const zeroOut = i > 9 && pi % 4 === 3;
+      return {
+        page,
+        clicks: zeroOut ? 0 : pageClicks,
+        impressions: Math.round((8400 - pi * 700) * pageGrowth + Math.random() * 300),
+        ctr: zeroOut ? 0 : Math.round((3.8 + Math.random() * 1.5) * 10) / 10,
+        position: Math.round((5 + pi * 1.1 + Math.random() * 3) * 10) / 10,
+      };
+    });
+
+    // Brand / non-brand split
+    const brandClicks = Math.round(clicks * 0.22);
+    const brandImpressions = Math.round(impressions * 0.14);
+    const nbClicks = clicks - brandClicks;
+    const nbImpressions = impressions - brandImpressions;
+
+    const snapshotData: Record<string, any> = {
       client: client.id,
-      snapshotDate: now.toISOString(),
+      snapshotDate: new Date(monthDate.getFullYear(), monthDate.getMonth(), 15).toISOString(),
       periodStart: formatDate(startDate),
       periodEnd: formatDate(endDate),
-      totalClicks: 1847,
-      totalImpressions: 42360,
-      avgCtr: 4.4,
-      avgPosition: 14.2,
-      clicksChange: 12,
-      impressionsChange: 8,
-      positionChange: -1.3,
-      topKeywords: [
-        { keyword: "seo agency sydney", clicks: 142, impressions: 3200, ctr: 4.4, position: 6.2 },
-        { keyword: "digital marketing agency", clicks: 98, impressions: 5100, ctr: 1.9, position: 18.4 },
-        { keyword: "local seo services", clicks: 87, impressions: 2800, ctr: 3.1, position: 8.7 },
-        { keyword: "google ads management", clicks: 76, impressions: 2400, ctr: 3.2, position: 11.3 },
-        { keyword: "website audit tool", clicks: 65, impressions: 1900, ctr: 3.4, position: 9.1 },
-        { keyword: "seo audit free", clicks: 54, impressions: 3600, ctr: 1.5, position: 22.1 },
-        { keyword: "small business seo", clicks: 48, impressions: 2100, ctr: 2.3, position: 15.6 },
-        { keyword: "ecommerce seo agency", clicks: 41, impressions: 1200, ctr: 3.4, position: 7.8 },
-        { keyword: "technical seo services", clicks: 38, impressions: 980, ctr: 3.9, position: 5.4 },
-        { keyword: "content marketing strategy", clicks: 35, impressions: 1800, ctr: 1.9, position: 19.2 },
-        { keyword: "ppc management sydney", clicks: 33, impressions: 890, ctr: 3.7, position: 8.9 },
-        { keyword: "conversion rate optimisation", clicks: 29, impressions: 760, ctr: 3.8, position: 10.1 },
-        { keyword: "seo consultant near me", clicks: 27, impressions: 1400, ctr: 1.9, position: 16.7 },
-        { keyword: "website speed optimisation", clicks: 24, impressions: 680, ctr: 3.5, position: 12.3 },
-        { keyword: "link building services", clicks: 22, impressions: 1100, ctr: 2.0, position: 21.5 },
-      ],
-      topPages: [
-        { page: "https://optimisedigital.com.au/", clicks: 320, impressions: 8400, ctr: 3.8, position: 12.1 },
-        { page: "https://optimisedigital.com.au/seo-services/", clicks: 245, impressions: 5200, ctr: 4.7, position: 7.3 },
-        { page: "https://optimisedigital.com.au/free-seo-audit/", clicks: 189, impressions: 4800, ctr: 3.9, position: 9.8 },
-        { page: "https://optimisedigital.com.au/google-ads/", clicks: 156, impressions: 3100, ctr: 5.0, position: 6.5 },
-        { page: "https://optimisedigital.com.au/blog/seo-tips-2026/", clicks: 134, impressions: 2900, ctr: 4.6, position: 8.2 },
-        { page: "https://optimisedigital.com.au/case-studies/", clicks: 98, impressions: 1800, ctr: 5.4, position: 5.1 },
-        { page: "https://optimisedigital.com.au/blog/local-seo-guide/", clicks: 87, impressions: 2200, ctr: 4.0, position: 10.4 },
-        { page: "https://optimisedigital.com.au/contact/", clicks: 76, impressions: 1400, ctr: 5.4, position: 4.2 },
-        { page: "https://optimisedigital.com.au/web-design/", clicks: 62, impressions: 1600, ctr: 3.9, position: 13.7 },
-        { page: "https://optimisedigital.com.au/blog/google-ads-tips/", clicks: 54, impressions: 1200, ctr: 4.5, position: 11.8 },
-      ],
+      totalClicks: clicks,
+      totalImpressions: impressions,
+      avgCtr: ctr,
+      avgPosition: position,
+      clicksChange: clicksChange ?? undefined,
+      impressionsChange: impressionsChange ?? undefined,
+      positionChange: positionChange ?? undefined,
+      topKeywords,
+      topPages,
       brandedData: {
-        clicks: 412,
-        impressions: 5800,
-        ctr: 7.1,
-        position: 2.3,
+        clicks: brandClicks,
+        impressions: brandImpressions,
+        ctr: Math.round((brandClicks / Math.max(brandImpressions, 1)) * 10000) / 100,
+        position: Math.round((2.1 + Math.random() * 0.5) * 10) / 10,
       },
       nonBrandedData: {
-        clicks: 1435,
-        impressions: 36560,
-        ctr: 3.9,
-        position: 16.1,
-        topQueries: [
-          { query: "seo agency sydney", clicks: 142, impressions: 3200, ctr: 4.4, position: 6.2 },
-          { query: "digital marketing agency", clicks: 98, impressions: 5100, ctr: 1.9, position: 18.4 },
-          { query: "local seo services", clicks: 87, impressions: 2800, ctr: 3.1, position: 8.7 },
-          { query: "google ads management", clicks: 76, impressions: 2400, ctr: 3.2, position: 11.3 },
-          { query: "website audit tool", clicks: 65, impressions: 1900, ctr: 3.4, position: 9.1 },
-          { query: "seo audit free", clicks: 54, impressions: 3600, ctr: 1.5, position: 22.1 },
-          { query: "small business seo", clicks: 48, impressions: 2100, ctr: 2.3, position: 15.6 },
-          { query: "ecommerce seo agency", clicks: 41, impressions: 1200, ctr: 3.4, position: 7.8 },
-          { query: "technical seo services", clicks: 38, impressions: 980, ctr: 3.9, position: 5.4 },
-          { query: "content marketing strategy", clicks: 35, impressions: 1800, ctr: 1.9, position: 19.2 },
-        ],
+        clicks: nbClicks,
+        impressions: nbImpressions,
+        ctr: Math.round((nbClicks / Math.max(nbImpressions, 1)) * 10000) / 100,
+        position: Math.round((position + 2 + Math.random()) * 10) / 10,
+        topQueries: topKeywords.slice(0, 10).map((kw) => ({
+          query: kw.keyword,
+          clicks: kw.clicks,
+          impressions: kw.impressions,
+          ctr: kw.ctr,
+          position: kw.position,
+        })),
       },
-      indexedPages: 156,
-      notIndexedPages: 23,
+      indexedPages: Math.round(130 + progress * 30 + Math.random() * 5),
+      notIndexedPages: Math.round(25 - progress * 5 + Math.random() * 3),
       indexingIssues: [
-        { reason: "Crawled - currently not indexed", count: 12, urls: ["https://optimisedigital.com.au/tag/seo/"] },
-        { reason: "Discovered - currently not indexed", count: 8, urls: ["https://optimisedigital.com.au/author/admin/"] },
+        { reason: "Crawled - currently not indexed", count: Math.round(12 - progress * 4), urls: ["https://optimisedigital.com.au/tag/seo/"] },
+        { reason: "Discovered - currently not indexed", count: Math.round(8 - progress * 2), urls: ["https://optimisedigital.com.au/author/admin/"] },
         { reason: "Duplicate without user-selected canonical", count: 3, urls: ["https://optimisedigital.com.au/page/2/"] },
       ],
       cwvMobile: {
-        lcp: 2400,
-        inp: 180,
-        cls: 0.08,
+        lcp: Math.round(2400 - progress * 300 + Math.random() * 100),
+        inp: Math.round(180 - progress * 30 + Math.random() * 20),
+        cls: Math.round((0.08 - progress * 0.02 + Math.random() * 0.01) * 100) / 100,
         status: "GOOD",
         source: "field",
       },
       cwvDesktop: {
-        lcp: 1200,
-        inp: 95,
-        cls: 0.02,
+        lcp: Math.round(1200 - progress * 150 + Math.random() * 50),
+        inp: Math.round(95 - progress * 15 + Math.random() * 10),
+        cls: Math.round((0.02 + Math.random() * 0.005) * 1000) / 1000,
         status: "GOOD",
         source: "field",
       },
-      previousSnapshot: null,
-    },
-  });
+      previousSnapshot: previousSnapshotId,
+    };
 
-  // Update client to point to this snapshot and mark as "connected"
+    const snapshot = await payload.create({
+      collection: "gsc-snapshots",
+      overrideAccess: true,
+      data: snapshotData as any,
+    });
+
+    previousSnapshotId = snapshot.id;
+    latestSnapshotId = snapshot.id;
+  }
+
+  // Update client to point to the most recent snapshot
   await payload.update({
     collection: "clients",
     id: client.id,
     overrideAccess: true,
     data: {
-      latestGscSnapshot: snapshot.id,
+      latestGscSnapshot: latestSnapshotId as any,
       gscConnected: true,
       gscLastSync: now.toISOString(),
       brandKeywords: "optimise digital, optimisedigital, od agency",
     },
   });
 
-  return NextResponse.json({ ok: true, snapshotId: snapshot.id });
+  return NextResponse.json({ ok: true, snapshotsCreated: 13, latestSnapshotId });
 }
