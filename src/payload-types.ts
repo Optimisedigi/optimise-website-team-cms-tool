@@ -80,6 +80,7 @@ export interface Config {
     'usage-reports': UsageReport;
     'gsc-snapshots': GscSnapshot;
     'gsc-alerts': GscAlert;
+    'activity-log': ActivityLog;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -101,6 +102,7 @@ export interface Config {
     'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-alerts': GscAlertsSelect<false> | GscAlertsSelect<true>;
+    'activity-log': ActivityLogSelect<false> | ActivityLogSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -259,9 +261,25 @@ export interface Client {
       )
     | null;
   /**
+   * Monthly retainer amount ($)
+   */
+  monthlyRetainer?: number | null;
+  /**
    * Goals, notes, and context about this client
    */
   notes?: string | null;
+  /**
+   * Automatic log of retainer changes
+   */
+  retainerHistory?:
+    | {
+        amount?: number | null;
+        previousAmount?: number | null;
+        effectiveDate?: string | null;
+        changedBy?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Type of business — used for report weighting and presentation
    */
@@ -414,6 +432,10 @@ export interface Client {
   gscRefreshToken?: string | null;
   gscTokenExpiry?: string | null;
   /**
+   * Comma-separated brand terms to filter out from generic query analysis (e.g., 'optimise digital, optimisedigital, od agency')
+   */
+  brandKeywords?: string | null;
+  /**
    * Last successful GSC data sync
    */
   gscLastSync?: string | null;
@@ -534,6 +556,30 @@ export interface GscSnapshot {
    * Top pages — array of {page, clicks, impressions, ctr, position}
    */
   topPages?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Brand query metrics — {clicks, impressions, ctr, position}
+   */
+  brandedData?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Non-brand query metrics — {clicks, impressions, ctr, position, topQueries: [...]}
+   */
+  nonBrandedData?:
     | {
         [k: string]: unknown;
       }
@@ -1031,6 +1077,10 @@ export interface ClientProposal {
     | boolean
     | null;
   /**
+   * Current stage of this proposal
+   */
+  proposalStatus?: ('draft' | 'proposal_sent' | 'proposal_presented' | 'client' | 'declined') | null;
+  /**
    * Toggle on and save to create an active Client from this proposal
    */
   convertToClient?: boolean | null;
@@ -1504,7 +1554,7 @@ export interface BlogPost {
    */
   canonicalUrl?: string | null;
   /**
-   * Override the auto-generated image prompt. If filled, the image will be generated from this prompt instead of the title/excerpt. Leave blank to auto-generate from title and excerpt.
+   * Click "Generate Prompt" below to create an AI image prompt from your title and excerpt. Review and edit the prompt here, then click "Generate Image".
    */
   imagePromptOverride?: string | null;
   /**
@@ -1728,6 +1778,35 @@ export interface GscAlert {
   createdAt: string;
 }
 /**
+ * Automatic feed of team activity
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "activity-log".
+ */
+export interface ActivityLog {
+  id: number;
+  type:
+    | 'blog_published'
+    | 'seo_audit_completed'
+    | 'cro_audit_completed'
+    | 'keyword_analysis'
+    | 'client_added'
+    | 'retainer_changed'
+    | 'gsc_snapshot';
+  title: string;
+  description?: string | null;
+  /**
+   * User who triggered this activity
+   */
+  user?: (number | null) | User;
+  /**
+   * Related client
+   */
+  client?: (number | null) | Client;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -1802,6 +1881,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'gsc-alerts';
         value: number | GscAlert;
+      } | null)
+    | ({
+        relationTo: 'activity-log';
+        value: number | ActivityLog;
       } | null)
     | ({
         relationTo: 'media';
@@ -1901,7 +1984,17 @@ export interface ClientsSelect<T extends boolean = true> {
         id?: T;
       };
   conversionGoal?: T;
+  monthlyRetainer?: T;
   notes?: T;
+  retainerHistory?:
+    | T
+    | {
+        amount?: T;
+        previousAmount?: T;
+        effectiveDate?: T;
+        changedBy?: T;
+        id?: T;
+      };
   businessType?: T;
   targetLocation?: T;
   clientGoals?: T;
@@ -1949,6 +2042,7 @@ export interface ClientsSelect<T extends boolean = true> {
   gscAccessToken?: T;
   gscRefreshToken?: T;
   gscTokenExpiry?: T;
+  brandKeywords?: T;
   gscLastSync?: T;
   latestGscSnapshot?: T;
   updatedAt?: T;
@@ -2049,6 +2143,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   missionResources?: T;
   launchRequirements?: T;
   excludedCompetitorDomains?: T;
+  proposalStatus?: T;
   convertToClient?: T;
   proposalPin?: T;
   updatedAt?: T;
@@ -2233,6 +2328,8 @@ export interface GscSnapshotsSelect<T extends boolean = true> {
   avgPosition?: T;
   topKeywords?: T;
   topPages?: T;
+  brandedData?: T;
+  nonBrandedData?: T;
   indexedPages?: T;
   notIndexedPages?: T;
   indexingIssues?: T;
@@ -2261,6 +2358,19 @@ export interface GscAlertsSelect<T extends boolean = true> {
   recommendation?: T;
   resolved?: T;
   resolvedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "activity-log_select".
+ */
+export interface ActivityLogSelect<T extends boolean = true> {
+  type?: T;
+  title?: T;
+  description?: T;
+  user?: T;
+  client?: T;
   updatedAt?: T;
   createdAt?: T;
 }
