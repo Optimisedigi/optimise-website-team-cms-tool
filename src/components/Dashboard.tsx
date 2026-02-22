@@ -49,6 +49,7 @@ interface DashboardData {
   gscMonthly: GscMonthlyEntry[]
   activeClients: number
   totalRetainer: number
+  ytdRevenue: number
   activity: ActivityEntry[]
   userRole: string
   userName: string
@@ -250,7 +251,7 @@ const Dashboard = () => {
             <div className="od-box__head">
               <span className="od-box__title">Topline Agency Data</span>
             </div>
-            <div className="od-box__stats od-box__stats--6">
+            <div className="od-box__stats od-box__stats--7">
               <div className="od-box__stat">
                 <span className="od-box__stat-value">{data.activeClients}</span>
                 <span className="od-box__stat-label">Active Clients</span>
@@ -258,6 +259,10 @@ const Dashboard = () => {
               <div className="od-box__stat">
                 <span className="od-box__stat-value">${data.totalRetainer.toLocaleString()}</span>
                 <span className="od-box__stat-label">Monthly Revenue</span>
+              </div>
+              <div className="od-box__stat">
+                <span className="od-box__stat-value">${data.ytdRevenue.toLocaleString()}</span>
+                <span className="od-box__stat-label">YTD Revenue</span>
               </div>
               <div className="od-box__stat">
                 <span className="od-box__stat-value">{data.proposals.active}</span>

@@ -291,6 +291,22 @@ export async function GET() {
 
   const totalRetainer = round(totalMonthlyRevenue + oneOffTotal);
 
+  // YTD revenue: monthly retainer * months elapsed + all one-off projects this calendar year
+  const ytdMonths = now.getMonth() + 1; // Jan=1, Feb=2, etc.
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  const ytdOneOff = clientsForRetainer.docs.reduce((sum: number, c: any) => {
+    const projects = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
+    return sum + projects.reduce((pSum: number, p: any) => {
+      if (!p.date || !p.amount) return pSum;
+      const pDate = new Date(p.date);
+      if (pDate >= yearStart && pDate < currentMonthEnd) {
+        return pSum + p.amount;
+      }
+      return pSum;
+    }, 0);
+  }, 0);
+  const ytdRevenue = round(totalMonthlyRevenue * ytdMonths + ytdOneOff);
+
   const usage = {
     seoAudits: seoCount.totalDocs,
     croAudits: croCount.totalDocs,
@@ -326,6 +342,7 @@ export async function GET() {
     totalRetainer,
     totalMonthlyRevenue,
     oneOffTotal,
+    ytdRevenue,
     activity: activityResult.docs,
     userRole: user.role,
     userName: user.name || user.email,

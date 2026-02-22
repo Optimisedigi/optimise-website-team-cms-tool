@@ -252,6 +252,10 @@
   grid-template-columns: repeat(6, 1fr);
 }
 
+.od-box__stats--7 {
+  grid-template-columns: repeat(7, 1fr);
+}
+
 .od-box__stats--4 {
   grid-template-columns: repeat(4, 1fr);
 }
@@ -1060,6 +1064,7 @@
   }
 
   .od-box__stats,
+  .od-box__stats--7,
   .od-box__stats--6,
   .od-box__stats--4 {
     grid-template-columns: repeat(2, 1fr);
