@@ -162,7 +162,18 @@ export async function GET() {
         };
 
         return { gsc, gscMonthly };
-      } catch {
+      } catch (err) {
+        console.error("[dashboard] GSC bundle error:", err);
+        // Still try to return clientMeta so Connect button works
+        try {
+          const odClient = await payload.find({
+            collection: "clients",
+            where: { slug: { equals: "optimise-digital" } },
+            limit: 1,
+          });
+          const c = odClient.docs[0];
+          if (c) return { gsc: { clientId: c.id, gscConnected: c.gscConnected || false }, gscMonthly: [] };
+        } catch { /* ignore */ }
         return null;
       }
     })(),
