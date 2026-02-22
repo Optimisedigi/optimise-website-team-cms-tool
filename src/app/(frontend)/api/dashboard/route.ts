@@ -203,16 +203,16 @@ export async function GET() {
           { proposalStatus: { exists: false } },
         ],
       },
-    } as any),
+    } as any).catch(() => ({ totalDocs: 0 })),
 
     // Proposals converted to clients
     payload.count({
       collection: "client-proposals",
       where: { proposalStatus: { equals: "client" } },
-    } as any),
+    } as any).catch(() => ({ totalDocs: 0 })),
 
     // Total proposals ever
-    payload.count({ collection: "client-proposals" }),
+    payload.count({ collection: "client-proposals" }).catch(() => ({ totalDocs: 0 })),
 
     // Historical counts per month (for chart) — count all auditable collections per month
     ...monthRanges.map(async (range) => {
