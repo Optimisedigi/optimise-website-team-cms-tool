@@ -126,6 +126,15 @@ export const Clients: CollectionConfig = {
               },
             },
             {
+              name: "isAgency",
+              type: "checkbox",
+              defaultValue: false,
+              admin: {
+                position: "sidebar",
+                description: "Check if this is the agency itself (hides revenue fields)",
+              },
+            },
+            {
               name: "clientPin",
               type: "text",
               unique: true,
@@ -269,9 +278,46 @@ export const Clients: CollectionConfig = {
               type: "number",
               min: 0,
               admin: {
-                description: "Monthly retainer amount ($)",
+                description: "Monthly revenue amount ($)",
                 step: 1,
+                condition: (data: any) => !data?.isAgency,
               },
+            },
+            {
+              name: "oneOffProjects",
+              type: "array",
+              admin: {
+                description: "One-off projects (website builds, audits, etc.)",
+                condition: (data: any) => !data?.isAgency,
+              },
+              fields: [
+                {
+                  name: "projectName",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description: "Project name",
+                  },
+                },
+                {
+                  name: "amount",
+                  type: "number",
+                  required: true,
+                  min: 0,
+                  admin: {
+                    description: "Project amount ($)",
+                    step: 1,
+                  },
+                },
+                {
+                  name: "date",
+                  type: "date",
+                  required: true,
+                  admin: {
+                    description: "Project date",
+                  },
+                },
+              ],
             },
             {
               name: "notes",
@@ -285,7 +331,7 @@ export const Clients: CollectionConfig = {
               type: "array",
               admin: {
                 readOnly: true,
-                description: "Automatic log of retainer changes",
+                description: "Automatic log of revenue changes",
               },
               fields: [
                 { name: "amount", type: "number" },

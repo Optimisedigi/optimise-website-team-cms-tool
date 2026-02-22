@@ -257,7 +257,7 @@ const Dashboard = () => {
               </div>
               <div className="od-box__stat">
                 <span className="od-box__stat-value">${data.totalRetainer.toLocaleString()}</span>
-                <span className="od-box__stat-label">Monthly Retainer</span>
+                <span className="od-box__stat-label">Monthly Revenue</span>
               </div>
               <div className="od-box__stat">
                 <span className="od-box__stat-value">{data.proposals.active}</span>
