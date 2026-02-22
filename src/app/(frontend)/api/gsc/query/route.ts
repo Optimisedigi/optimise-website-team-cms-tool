@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   if (
     client.gscConnected &&
     (client as any).gscAccessToken &&
-    (client as any).gscSiteUrl
+    (client as any).gscPropertyUrl
   ) {
     try {
       return await fetchLiveData(client as any, startDate, endDate, brandTerms);
@@ -73,7 +73,7 @@ async function fetchLiveData(
   brandTerms: string[],
 ) {
   let accessToken = client.gscAccessToken;
-  const siteUrl = client.gscSiteUrl;
+  const siteUrl = client.gscPropertyUrl;
 
   // Refresh token if needed
   if (client.gscTokenExpiry && new Date(client.gscTokenExpiry) < new Date()) {
