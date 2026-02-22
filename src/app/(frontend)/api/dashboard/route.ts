@@ -104,10 +104,9 @@ export async function GET() {
           if (!byMonth.has(key)) byMonth.set(key, snap);
         }
 
-        // Build gscMonthly array (12 entries, chronological)
+        // Build gscMonthly array: start from Jan 2026, grow as months are added
         const sortedKeys = Array.from(byMonth.keys()).sort();
-        // Take last 12 entries for the chart
-        const chartKeys = sortedKeys.slice(-12);
+        const chartKeys = sortedKeys.filter((key) => key >= "2026-01");
         const gscMonthly = chartKeys.map((key) => {
           const snap = byMonth.get(key)!;
           const [y, m] = key.split("-");
