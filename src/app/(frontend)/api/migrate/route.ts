@@ -515,6 +515,20 @@ export async function POST(request: NextRequest) {
   // --- brand_keywords column on clients ---
   await run("clients.brand_keywords", "ALTER TABLE `clients` ADD `brand_keywords` text");
 
+  // --- monthly_retainer column on clients ---
+  await run("clients.monthly_retainer", "ALTER TABLE `clients` ADD `monthly_retainer` numeric");
+
+  // --- Retainer History sub-table ---
+  await run("clients_retainer_history", `CREATE TABLE IF NOT EXISTS \`clients_retainer_history\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`amount\` numeric, \`previous_amount\` numeric,
+    \`effective_date\` text, \`changed_by\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_retainer_history_order_idx", "CREATE INDEX IF NOT EXISTS `clients_retainer_history_order_idx` ON `clients_retainer_history` (`_order`)");
+  await run("clients_retainer_history_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_retainer_history_parent_id_idx` ON `clients_retainer_history` (`_parent_id`)");
+
   // --- locked_docs_rels for new collections ---
   await run("locked_docs_rels.activity_log_id", "ALTER TABLE `payload_locked_documents_rels` ADD `activity_log_id` integer REFERENCES `activity_log`(`id`) ON DELETE cascade");
   await run("locked_docs_rels.job_posts_id", "ALTER TABLE `payload_locked_documents_rels` ADD `job_posts_id` integer REFERENCES `job_posts`(`id`) ON DELETE cascade");
