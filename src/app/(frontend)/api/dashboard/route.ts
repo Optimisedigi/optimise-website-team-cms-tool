@@ -104,19 +104,19 @@ export async function GET() {
           if (!byMonth.has(key)) byMonth.set(key, snap);
         }
 
-        // Build gscMonthly array: start from Jan 2026, grow as months are added
-        const sortedKeys = Array.from(byMonth.keys()).sort();
-        const chartKeys = sortedKeys.filter((key) => key >= "2026-01");
-        const gscMonthly = chartKeys.map((key) => {
-          const snap = byMonth.get(key)!;
-          const [y, m] = key.split("-");
-          const d = new Date(Number(y), Number(m) - 1);
-          return {
+        // Build gscMonthly array: every month from Jan 2026 to current month (zeros for missing)
+        const gscMonthly: { month: string; clicks: number; impressions: number }[] = [];
+        const chartStart = new Date(2026, 0, 1); // Jan 2026
+        const chartEnd = new Date(now.getFullYear(), now.getMonth(), 1); // current month
+        for (let d = new Date(chartStart); d <= chartEnd; d.setMonth(d.getMonth() + 1)) {
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const snap = byMonth.get(key);
+          gscMonthly.push({
             month: d.toLocaleString("en-AU", { month: "short", year: "2-digit" }),
-            clicks: (snap.totalClicks as number) || 0,
-            impressions: (snap.totalImpressions as number) || 0,
-          };
-        });
+            clicks: snap ? ((snap.totalClicks as number) || 0) : 0,
+            impressions: snap ? ((snap.totalImpressions as number) || 0) : 0,
+          });
+        }
 
         // Get the latest snapshot for current stats
         const latestSnap = snapshots.docs[0];
