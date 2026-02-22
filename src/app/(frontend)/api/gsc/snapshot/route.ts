@@ -49,10 +49,11 @@ export async function GET(req: NextRequest) {
       overrideAccess: true,
     });
 
-    // Group by year-month, pick latest snapshot per month
+    // Group by the month the data covers (periodEnd), not when snapshot was taken
     const byMonth = new Map<string, any>();
     for (const snap of snapshots.docs) {
-      const d = new Date(snap.snapshotDate as string);
+      const dateStr = (snap.periodEnd as string) || (snap.snapshotDate as string);
+      const d = new Date(dateStr);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       if (!byMonth.has(key)) byMonth.set(key, snap);
     }
