@@ -170,29 +170,29 @@ export async function GET() {
     payload.count({
       collection: "clients",
       where: { isActive: { equals: true } },
-    }),
+    }).catch(() => ({ totalDocs: 0 })),
 
     payload.find({
       collection: "clients",
       where: { isActive: { equals: true } },
       limit: 500,
       select: { monthlyRetainer: true } as any,
-    }),
+    }).catch(() => ({ docs: [] })),
 
     payload.find({
       collection: "activity-log" as any,
       limit: 20,
       sort: "-createdAt",
       depth: 1,
-    }),
+    }).catch(() => ({ docs: [] })),
 
     // This month's counts
-    payload.count({ collection: "seo-audits", where: { createdAt: { greater_than: monthStart } } }),
-    payload.count({ collection: "cro-audits", where: { createdAt: { greater_than: monthStart } } }),
-    payload.count({ collection: "keyword-snapshots", where: { createdAt: { greater_than: monthStart } } }),
-    payload.count({ collection: "competitor-analyses", where: { createdAt: { greater_than: monthStart } } }),
-    payload.count({ collection: "content-researches", where: { createdAt: { greater_than: monthStart } } }),
-    payload.count({ collection: "media", where: { createdAt: { greater_than: monthStart } } }),
+    payload.count({ collection: "seo-audits", where: { createdAt: { greater_than: monthStart } } }).catch(() => ({ totalDocs: 0 })),
+    payload.count({ collection: "cro-audits", where: { createdAt: { greater_than: monthStart } } }).catch(() => ({ totalDocs: 0 })),
+    payload.count({ collection: "keyword-snapshots", where: { createdAt: { greater_than: monthStart } } }).catch(() => ({ totalDocs: 0 })),
+    payload.count({ collection: "competitor-analyses", where: { createdAt: { greater_than: monthStart } } }).catch(() => ({ totalDocs: 0 })),
+    payload.count({ collection: "content-researches", where: { createdAt: { greater_than: monthStart } } }).catch(() => ({ totalDocs: 0 })),
+    payload.count({ collection: "media", where: { createdAt: { greater_than: monthStart } } }).catch(() => ({ totalDocs: 0 })),
 
     // Proposals — active (not declined, not converted)
     payload.count({
@@ -223,12 +223,12 @@ export async function GET() {
         },
       };
       const [seo, cro, kw, comp, content, media] = await Promise.all([
-        payload.count({ collection: "seo-audits", where }),
-        payload.count({ collection: "cro-audits", where }),
-        payload.count({ collection: "keyword-snapshots", where }),
-        payload.count({ collection: "competitor-analyses", where }),
-        payload.count({ collection: "content-researches", where }),
-        payload.count({ collection: "media", where }),
+        payload.count({ collection: "seo-audits", where }).catch(() => ({ totalDocs: 0 })),
+        payload.count({ collection: "cro-audits", where }).catch(() => ({ totalDocs: 0 })),
+        payload.count({ collection: "keyword-snapshots", where }).catch(() => ({ totalDocs: 0 })),
+        payload.count({ collection: "competitor-analyses", where }).catch(() => ({ totalDocs: 0 })),
+        payload.count({ collection: "content-researches", where }).catch(() => ({ totalDocs: 0 })),
+        payload.count({ collection: "media", where }).catch(() => ({ totalDocs: 0 })),
       ]);
       const apiCost =
         seo.totalDocs * COST_PER_AUD.seoAudit +
