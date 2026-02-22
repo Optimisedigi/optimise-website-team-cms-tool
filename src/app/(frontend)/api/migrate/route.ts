@@ -566,5 +566,12 @@ export async function POST(request: NextRequest) {
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, results, schema, migrations, allTables });
+  // Diagnostic: list clients
+  let clients: any[] = [];
+  try {
+    const clientRows = await client.execute("SELECT id, name, slug, gsc_connected FROM `clients` ORDER BY id");
+    clients = clientRows.rows;
+  } catch { /* ignore */ }
+
+  return NextResponse.json({ ok: true, results, schema, migrations, allTables, clients });
 }
