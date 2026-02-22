@@ -450,6 +450,75 @@ export async function POST(request: NextRequest) {
   await run("_blog_posts_v.version_client_confirmed", "ALTER TABLE `_blog_posts_v` ADD `version_client_confirmed` integer DEFAULT false");
   await run("_blog_posts_v.version_image_prompt_override", "ALTER TABLE `_blog_posts_v` ADD `version_image_prompt_override` text");
 
+  // --- Activity Log table ---
+  await run("activity_log", `CREATE TABLE IF NOT EXISTS \`activity_log\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`type\` text NOT NULL,
+    \`title\` text NOT NULL,
+    \`description\` text,
+    \`user_id\` integer,
+    \`client_id\` integer,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("activity_log_user_idx", "CREATE INDEX IF NOT EXISTS `activity_log_user_idx` ON `activity_log` (`user_id`)");
+  await run("activity_log_client_idx", "CREATE INDEX IF NOT EXISTS `activity_log_client_idx` ON `activity_log` (`client_id`)");
+  await run("activity_log_created_at_idx", "CREATE INDEX IF NOT EXISTS `activity_log_created_at_idx` ON `activity_log` (`created_at`)");
+  await run("activity_log_updated_at_idx", "CREATE INDEX IF NOT EXISTS `activity_log_updated_at_idx` ON `activity_log` (`updated_at`)");
+
+  // --- Content Researches table ---
+  await run("content_researches", `CREATE TABLE IF NOT EXISTS \`content_researches\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`keyword\` text NOT NULL,
+    \`location\` text,
+    \`total_questions\` numeric,
+    \`clusters\` text,
+    \`external_id\` text,
+    \`proposal_id\` integer,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("content_researches_proposal_idx", "CREATE INDEX IF NOT EXISTS `content_researches_proposal_idx` ON `content_researches` (`proposal_id`)");
+  await run("content_researches_created_at_idx", "CREATE INDEX IF NOT EXISTS `content_researches_created_at_idx` ON `content_researches` (`created_at`)");
+  await run("content_researches_updated_at_idx", "CREATE INDEX IF NOT EXISTS `content_researches_updated_at_idx` ON `content_researches` (`updated_at`)");
+
+  // --- Job Posts table ---
+  await run("job_posts", `CREATE TABLE IF NOT EXISTS \`job_posts\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`client_confirmed\` integer DEFAULT false,
+    \`job_title\` text NOT NULL,
+    \`excerpt\` text NOT NULL,
+    \`description\` text NOT NULL,
+    \`department\` text NOT NULL,
+    \`employment_type\` text DEFAULT 'full-time' NOT NULL,
+    \`location\` text DEFAULT 'Remote' NOT NULL,
+    \`slug\` text NOT NULL,
+    \`published_date\` text NOT NULL,
+    \`status\` text DEFAULT 'draft' NOT NULL,
+    \`_status\` text DEFAULT 'draft',
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("job_posts_slug_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `job_posts_slug_idx` ON `job_posts` (`slug`)");
+  await run("job_posts_client_idx", "CREATE INDEX IF NOT EXISTS `job_posts_client_idx` ON `job_posts` (`client_id`)");
+  await run("job_posts_created_at_idx", "CREATE INDEX IF NOT EXISTS `job_posts_created_at_idx` ON `job_posts` (`created_at`)");
+  await run("job_posts_updated_at_idx", "CREATE INDEX IF NOT EXISTS `job_posts_updated_at_idx` ON `job_posts` (`updated_at`)");
+
+  // --- proposal_status column on client_proposals ---
+  await run("client_proposals.proposal_status", "ALTER TABLE `client_proposals` ADD `proposal_status` text DEFAULT 'draft'");
+
+  // --- brand_keywords column on clients ---
+  await run("clients.brand_keywords", "ALTER TABLE `clients` ADD `brand_keywords` text");
+
+  // --- locked_docs_rels for new collections ---
+  await run("locked_docs_rels.activity_log_id", "ALTER TABLE `payload_locked_documents_rels` ADD `activity_log_id` integer REFERENCES `activity_log`(`id`) ON DELETE cascade");
+  await run("locked_docs_rels.job_posts_id", "ALTER TABLE `payload_locked_documents_rels` ADD `job_posts_id` integer REFERENCES `job_posts`(`id`) ON DELETE cascade");
+
   // --- Clean up dev migration records that cause interactive prompts ---
   await run("clean_dev_migrations", "DELETE FROM `payload_migrations` WHERE `batch` = -1");
 
@@ -458,7 +527,7 @@ export async function POST(request: NextRequest) {
   await run("mark_migration_executed", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260210_034208_add_client_analysis_fields', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
 
   // --- Schema diagnostics ---
-  const tables = ["media", "clients", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels"];
+  const tables = ["media", "clients", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels", "activity_log", "job_posts", "gsc_snapshots", "gsc_alerts"];
   const schema: Record<string, string[]> = {};
   for (const table of tables) {
     try {
