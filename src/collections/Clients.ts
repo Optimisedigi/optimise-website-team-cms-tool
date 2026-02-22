@@ -188,6 +188,22 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
+              name: "externalCms",
+              type: "select",
+              admin: {
+                description: "Which CMS platform is the website built on?",
+                condition: (data: any) => data?.websiteType === "external_cms",
+              },
+              options: [
+                { label: "WordPress", value: "wordpress" },
+                { label: "Shopify", value: "shopify" },
+                { label: "Squarespace", value: "squarespace" },
+                { label: "Wix", value: "wix" },
+                { label: "Webflow", value: "webflow" },
+                { label: "Other", value: "other" },
+              ],
+            },
+            {
               type: "row",
               fields: [
                 {

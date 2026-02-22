@@ -544,6 +544,9 @@ export async function POST(request: NextRequest) {
   // Without this row, Payload thinks migrations are pending and blocks all writes.
   await run("mark_migration_executed", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260210_034208_add_client_analysis_fields', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
 
+  // --- externalCms column on clients ---
+  await run("clients.external_cms", "ALTER TABLE `clients` ADD `external_cms` text");
+
   // --- isAgency column on clients ---
   await run("clients.is_agency", "ALTER TABLE `clients` ADD `is_agency` integer DEFAULT false");
 
