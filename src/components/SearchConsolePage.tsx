@@ -170,7 +170,16 @@ function CwvStatus({ label, data }: { label: string; data: CwvData | null | unde
 
 // ─── Main Component ───────────────────────────────────────
 
+interface ClientOption {
+  id: string
+  name: string
+  slug: string
+  gscConnected: boolean
+}
+
 const SearchConsolePage = () => {
+  const [clients, setClients] = useState<ClientOption[]>([])
+  const [selectedClientId, setSelectedClientId] = useState<string>('')
   const [snapshot, setSnapshot] = useState<SnapshotData | null>(null)
   const [queryData, setQueryData] = useState<QueryData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -186,43 +195,78 @@ const SearchConsolePage = () => {
   const [chartLine, setChartLine] = useState<'ctr' | 'clicks'>('ctr')
   const QUERIES_PER_PAGE = 15
 
-  // Load initial snapshot data (for indexing/CWV which come from snapshots)
+  // Load client list, then fetch snapshot for first connected client
   useEffect(() => {
-    fetch('/api/dashboard')
-      .then((r) => r.json())
-      .then((d) => {
-        setSnapshot(d.gsc || null)
-        setLoading(false)
+    fetch('/api/clients/list')
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: ClientOption[]) => {
+        const connected = data.filter((c) => c.gscConnected)
+        setClients(connected)
+        if (connected.length > 0) {
+          setSelectedClientId(String(connected[0].id))
+        } else {
+          setLoading(false)
+        }
       })
       .catch(() => setLoading(false))
   }, [])
 
+  // Fetch snapshot whenever selectedClientId changes
+  const fetchSnapshot = useCallback(async (clientId: string) => {
+    setLoading(true)
+    setQueryData(null)
+    try {
+      const res = await fetch(`/api/gsc/snapshot?clientId=${clientId}`)
+      const d = await res.json()
+      setSnapshot(d.gsc || null)
+    } catch {
+      setSnapshot(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedClientId) {
+      fetchSnapshot(selectedClientId)
+    }
+  }, [selectedClientId, fetchSnapshot])
+
   // Fetch query data for a date range
-  const fetchQueryData = useCallback(async (start: string, end: string) => {
-    if (!snapshot?.clientId) return
+  const fetchQueryData = useCallback(async (start: string, end: string, clientId?: string) => {
+    const cid = clientId || selectedClientId
+    if (!cid) return
     setQueryLoading(true)
     try {
       const res = await fetch('/api/gsc/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: snapshot.clientId, startDate: start, endDate: end }),
+        body: JSON.stringify({ clientId: cid, startDate: start, endDate: end }),
       })
       const d = await res.json()
       setQueryData(d)
     } catch { /* ignore */ } finally {
       setQueryLoading(false)
     }
-  }, [snapshot?.clientId])
+  }, [selectedClientId])
 
-  // Initial load with default preset
+  // Initial query load when snapshot arrives
   useEffect(() => {
     if (snapshot?.clientId && !queryData) {
       const { start, end } = getPresetDates('28d')
       setStartDate(start)
       setEndDate(end)
-      fetchQueryData(start, end)
+      fetchQueryData(start, end, String(snapshot.clientId))
     }
   }, [snapshot?.clientId, queryData, fetchQueryData])
+
+  const handleClientChange = (clientId: string) => {
+    setSelectedClientId(clientId)
+    setQueryData(null)
+    setQueryFilter('')
+    setQueryPage(0)
+    setActivePreset('28d')
+  }
 
   const handlePreset = (preset: DatePreset) => {
     setActivePreset(preset)
@@ -240,17 +284,15 @@ const SearchConsolePage = () => {
   }
 
   const handleRefresh = async () => {
-    if (!snapshot?.clientId || refreshing) return
+    if (!selectedClientId || refreshing) return
     setRefreshing(true)
     try {
       await fetch('/api/gsc/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: snapshot.clientId }),
+        body: JSON.stringify({ clientId: selectedClientId }),
       })
-      const res = await fetch('/api/dashboard')
-      const d = await res.json()
-      setSnapshot(d.gsc || null)
+      await fetchSnapshot(selectedClientId)
       if (startDate && endDate) fetchQueryData(startDate, endDate)
     } catch { /* ignore */ } finally {
       setRefreshing(false)
@@ -266,7 +308,11 @@ const SearchConsolePage = () => {
       <div className="od-gsc-page">
         <h2 className="od-gsc-page__title">Search Console</h2>
         <div className="od-box" style={{ padding: '40px 20px', textAlign: 'center' }}>
-          <p style={{ color: '#6b7280', fontSize: 14 }}>GSC is not connected. Go to Settings &rarr; Integrations to connect.</p>
+          <p style={{ color: '#6b7280', fontSize: 14 }}>
+            {clients.length === 0
+              ? 'No clients have GSC connected. Go to Settings \u2192 Integrations to connect a client.'
+              : 'GSC is not connected for this client. Go to Settings \u2192 Integrations to connect.'}
+          </p>
         </div>
       </div>
     )
@@ -304,6 +350,18 @@ const SearchConsolePage = () => {
       <div className="od-gsc-page__header">
         <h2 className="od-gsc-page__title">Search Console</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {clients.length > 1 && (
+            <select
+              value={selectedClientId}
+              onChange={(e) => handleClientChange(e.target.value)}
+              className="od-gsc-page__date-input"
+              style={{ minWidth: 180 }}
+            >
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
           <button className="od-gsc__refresh" onClick={handleRefresh} disabled={refreshing} type="button">
             {refreshing ? 'Syncing...' : 'Refresh'}
           </button>

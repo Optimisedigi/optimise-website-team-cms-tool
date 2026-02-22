@@ -2,18 +2,21 @@
 
 import { useEffect, useState } from 'react'
 
-interface IntegrationStatus {
-  clientId: string | null
+interface ClientOption {
+  id: string
+  name: string
+  slug: string
   gscConnected: boolean
 }
 
 const IntegrationsPage = () => {
-  const [status, setStatus] = useState<IntegrationStatus | null>(null)
+  const [clients, setClients] = useState<ClientOption[]>([])
+  const [selectedClientId, setSelectedClientId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [disconnecting, setDisconnecting] = useState(false)
 
   useEffect(() => {
-    fetch('/api/dashboard')
+    fetch('/api/clients/list')
       .then((r) => {
         if (!r.ok) {
           console.error('[Integrations] API returned', r.status, r.statusText)
@@ -21,33 +24,35 @@ const IntegrationsPage = () => {
         }
         return r.json()
       })
-      .then((d) => {
-        if (d && !d.error) {
-          setStatus({
-            clientId: d.gsc?.clientId || null,
-            gscConnected: d.gsc?.gscConnected || false,
-          })
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setClients(data)
+          setSelectedClientId(data[0].id)
         }
         setLoading(false)
       })
       .catch((err) => { console.error('[Integrations] fetch error:', err); setLoading(false) })
   }, [])
 
+  const selectedClient = clients.find((c) => String(c.id) === String(selectedClientId)) || null
+
   const handleConnect = () => {
-    if (!status?.clientId) return
-    window.location.href = `/api/gsc/connect?clientId=${status.clientId}`
+    if (!selectedClient) return
+    window.location.href = `/api/gsc/connect?clientId=${selectedClient.id}`
   }
 
   const handleDisconnect = async () => {
-    if (!status?.clientId || disconnecting) return
+    if (!selectedClient || disconnecting) return
     setDisconnecting(true)
     try {
       await fetch('/api/gsc/disconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: status.clientId }),
+        body: JSON.stringify({ clientId: selectedClient.id }),
       })
-      setStatus({ ...status, gscConnected: false })
+      setClients((prev) =>
+        prev.map((c) => c.id === selectedClient.id ? { ...c, gscConnected: false } : c),
+      )
     } catch { /* ignore */ } finally {
       setDisconnecting(false)
     }
@@ -62,6 +67,27 @@ const IntegrationsPage = () => {
       <h2 className="od-settings__title">Integrations</h2>
       <p className="od-settings__subtitle">Manage platform connections for your agency.</p>
 
+      {/* Client Picker */}
+      {clients.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginRight: 8 }}>
+            Client:
+          </label>
+          <select
+            value={selectedClientId}
+            onChange={(e) => setSelectedClientId(e.target.value)}
+            className="od-gsc-page__date-input"
+            style={{ minWidth: 200 }}
+          >
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}{c.gscConnected ? ' (GSC connected)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="od-settings__grid">
         {/* Google Search Console */}
         <div className="od-settings__card">
@@ -73,7 +99,7 @@ const IntegrationsPage = () => {
             </div>
           </div>
           <div className="od-settings__card-footer">
-            {status?.gscConnected ? (
+            {selectedClient?.gscConnected ? (
               <>
                 <span className="od-settings__status od-settings__status--connected">Connected</span>
                 <button className="od-settings__btn od-settings__btn--danger" onClick={handleDisconnect} disabled={disconnecting} type="button">
@@ -83,7 +109,7 @@ const IntegrationsPage = () => {
             ) : (
               <>
                 <span className="od-settings__status">Not Connected</span>
-                <button className="od-settings__btn od-settings__btn--primary" onClick={handleConnect} disabled={!status?.clientId} type="button">
+                <button className="od-settings__btn od-settings__btn--primary" onClick={handleConnect} disabled={!selectedClient} type="button">
                   Connect
                 </button>
               </>

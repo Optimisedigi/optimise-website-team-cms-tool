@@ -179,7 +179,13 @@ export async function GET() {
 
     payload.count({
       collection: "clients",
-      where: { isActive: { equals: true } },
+      where: {
+        isActive: { equals: true },
+        or: [
+          { isAgency: { not_equals: true } },
+          { isAgency: { exists: false } },
+        ],
+      },
     }).catch(() => ({ totalDocs: 0 })),
 
     payload.find({
