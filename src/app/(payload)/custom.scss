@@ -773,12 +773,12 @@
 
 // ── Sidebar extras (Performance / Settings nav groups) ──
 .sidebar-extras__group {
-  padding-left: 6px;
+  padding-left: 0;
 }
 
 .sidebar-extras__link {
   display: block;
-  padding: 4px 0 4px 12px;
+  padding: 4px 0 4px 0;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
