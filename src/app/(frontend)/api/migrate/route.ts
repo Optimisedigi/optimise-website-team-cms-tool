@@ -251,6 +251,10 @@ export async function POST(request: NextRequest) {
   await run("gsc_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `gsc_snapshots_created_at_idx` ON `gsc_snapshots` (`created_at`)");
   await run("gsc_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `gsc_snapshots_updated_at_idx` ON `gsc_snapshots` (`updated_at`)");
 
+  // --- Missing columns on gsc_snapshots ---
+  await run("gsc_snapshots.branded_data", "ALTER TABLE `gsc_snapshots` ADD `branded_data` text");
+  await run("gsc_snapshots.non_branded_data", "ALTER TABLE `gsc_snapshots` ADD `non_branded_data` text");
+
   // --- GSC Alerts table ---
   await run("gsc_alerts", `CREATE TABLE IF NOT EXISTS \`gsc_alerts\` (
     \`id\` integer PRIMARY KEY NOT NULL,
