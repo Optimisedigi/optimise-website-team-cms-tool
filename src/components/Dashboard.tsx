@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import RocketSplash from './RocketSplash'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -212,11 +213,7 @@ const Dashboard = () => {
   }, [])
 
   if (loading) {
-    return (
-      <div className="od-dash">
-        <p style={{ color: 'var(--theme-elevation-400)', padding: '60px 0' }}>Loading dashboard...</p>
-      </div>
-    )
+    return <RocketSplash />
   }
 
   if (!data) {

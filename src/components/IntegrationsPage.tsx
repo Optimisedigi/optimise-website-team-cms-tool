@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import RocketSplash from './RocketSplash'
 
 interface ClientOption {
   id: string
@@ -59,7 +60,7 @@ const IntegrationsPage = () => {
   }
 
   if (loading) {
-    return <div className="od-settings"><p style={{ color: '#6b7280', padding: '60px 0' }}>Loading...</p></div>
+    return <RocketSplash />
   }
 
   return (

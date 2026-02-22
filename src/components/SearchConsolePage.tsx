@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import RocketSplash from './RocketSplash'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -300,7 +301,7 @@ const SearchConsolePage = () => {
   }
 
   if (loading) {
-    return <div className="od-gsc-page"><p style={{ color: '#6b7280', padding: '60px 0' }}>Loading Search Console data...</p></div>
+    return <RocketSplash />
   }
 
   if (!snapshot || !snapshot.gscConnected) {
