@@ -290,6 +290,25 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
+              name: "secondaryConversionGoal",
+              type: "select",
+              admin: {
+                description: "Secondary conversion goal",
+              },
+              options: [
+                { label: "Lead Generation", value: "lead generation" },
+                { label: "Phone Calls", value: "phone calls" },
+                { label: "Form Submissions", value: "form submissions" },
+                { label: "E-commerce Sales", value: "e-commerce" },
+                { label: "Bookings / Appointments", value: "bookings" },
+                { label: "Quote Requests", value: "quote requests" },
+                { label: "Email Sign-ups", value: "email sign-ups" },
+                { label: "Free Trial Sign-ups", value: "free trial" },
+                { label: "Content Downloads", value: "content downloads" },
+                { label: "Brand Awareness", value: "brand awareness" },
+              ],
+            },
+            {
               name: "monthlyRetainer",
               type: "number",
               min: 0,

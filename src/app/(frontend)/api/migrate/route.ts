@@ -547,6 +547,9 @@ export async function POST(request: NextRequest) {
   // --- externalCms column on clients ---
   await run("clients.external_cms", "ALTER TABLE `clients` ADD `external_cms` text");
 
+  // --- secondaryConversionGoal column on clients ---
+  await run("clients.secondary_conversion_goal", "ALTER TABLE `clients` ADD `secondary_conversion_goal` text");
+
   // --- isAgency column on clients ---
   await run("clients.is_agency", "ALTER TABLE `clients` ADD `is_agency` integer DEFAULT false");
 
