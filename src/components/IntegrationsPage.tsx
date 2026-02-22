@@ -14,15 +14,23 @@ const IntegrationsPage = () => {
 
   useEffect(() => {
     fetch('/api/dashboard')
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) {
+          console.error('[Integrations] API returned', r.status, r.statusText)
+          return null
+        }
+        return r.json()
+      })
       .then((d) => {
-        setStatus({
-          clientId: d.gsc?.clientId || null,
-          gscConnected: d.gsc?.gscConnected || false,
-        })
+        if (d && !d.error) {
+          setStatus({
+            clientId: d.gsc?.clientId || null,
+            gscConnected: d.gsc?.gscConnected || false,
+          })
+        }
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch((err) => { console.error('[Integrations] fetch error:', err); setLoading(false) })
   }, [])
 
   const handleConnect = () => {

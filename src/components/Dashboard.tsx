@@ -155,9 +155,15 @@ const Dashboard = () => {
 
   const fetchDashboard = () => {
     return fetch('/api/dashboard')
-      .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then((r) => {
+        if (!r.ok) {
+          console.error('[Dashboard] API returned', r.status, r.statusText)
+          return null
+        }
+        return r.json()
+      })
+      .then((d) => { if (d && !d.error) setData(d); setLoading(false) })
+      .catch((err) => { console.error('[Dashboard] fetch error:', err); setLoading(false) })
   }
 
   const handleGscSeed = async () => {
@@ -196,9 +202,9 @@ const Dashboard = () => {
     const interval = setInterval(() => {
       if (!gscRefreshing) {
         fetch('/api/dashboard')
-          .then((r) => r.json())
-          .then((d) => setData(d))
-          .catch(() => {})
+          .then((r) => r.ok ? r.json() : null)
+          .then((d) => { if (d && !d.error) setData(d) })
+          .catch((err) => console.error('[Dashboard] refresh error:', err))
       }
     }, 30000)
     return () => clearInterval(interval)
@@ -215,7 +221,8 @@ const Dashboard = () => {
   if (!data) {
     return (
       <div className="od-dash">
-        <p style={{ color: 'var(--theme-elevation-400)', padding: '60px 0' }}>Could not load dashboard data.</p>
+        <p style={{ color: 'var(--theme-elevation-400)', padding: '60px 0' }}>Could not load dashboard data. Check the browser console for details.</p>
+        <button type="button" onClick={() => { setLoading(true); fetchDashboard() }} style={{ background: 'var(--theme-elevation-100)', border: '1px solid var(--theme-elevation-200)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', color: 'inherit' }}>Retry</button>
       </div>
     )
   }

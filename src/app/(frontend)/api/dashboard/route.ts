@@ -32,6 +32,7 @@ const LLM_MONTHLY_AUD = {
 };
 
 export async function GET() {
+  try {
   const payload = await getPayload({ config });
 
   const headersList = await nextHeaders();
@@ -306,6 +307,13 @@ export async function GET() {
     costHistory: historicalCounts,
     month: now.toLocaleString("en-AU", { month: "long", year: "numeric" }),
   });
+  } catch (err) {
+    console.error("[dashboard] API error:", err);
+    return NextResponse.json(
+      { error: "Failed to load dashboard data", details: String(err) },
+      { status: 500 },
+    );
+  }
 }
 
 function round(n: number): number {
