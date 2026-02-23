@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     const snapshots = await payload.find({
       collection: "gsc-snapshots",
       where: { client: { equals: client.id } },
-      sort: "-snapshotDate",
+      sort: "-periodEnd",
       limit: 100,
       overrideAccess: true,
     });
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
     const uniquePages = topPages.filter((p: any) => p.clicks > 0).length;
 
     // Compute YoY changes
-    const latestDateStr = (latestSnap.snapshotDate as string);
+    const latestDateStr = (latestSnap.periodEnd as string) || (latestSnap.snapshotDate as string);
     const [latestYear, latestMonth] = latestDateStr.split('-');
     const yoyKey = `${Number(latestYear) - 1}-${latestMonth}`;
     const yoySnap = byMonth.get(yoyKey);
