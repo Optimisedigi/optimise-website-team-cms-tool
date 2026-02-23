@@ -23,6 +23,11 @@ const MODE_LABELS: Record<Mode, string> = {
 /* ── Tabs ── */
 type Tab = 'pomodoro' | 'tracker'
 
+interface ClientOption {
+  id: string | number
+  name: string
+}
+
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
@@ -81,6 +86,14 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
   const [elapsed, setElapsed] = useState(0)
   const trackerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [saving, setSaving] = useState(false)
+  const [selectedClient, setSelectedClient] = useState<ClientOption | null>(null)
+
+  /* ── Client @mention state ── */
+  const [clients, setClients] = useState<ClientOption[]>([])
+  const [showMentions, setShowMentions] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [mentionIndex, setMentionIndex] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -146,6 +159,59 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
     return clearTracker
   }, [tracking, clearTracker])
 
+  /* ── Fetch active clients for @mention ── */
+  useEffect(() => {
+    fetch('/api/clients/list')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: ClientOption[]) => setClients(data))
+      .catch(() => {})
+  }, [])
+
+  /* ── Mention helpers ── */
+  const filteredClients = mentionQuery
+    ? clients.filter((c) => c.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+    : clients
+
+  const handleTaskInput = (value: string) => {
+    setTaskName(value)
+
+    // Detect @mention trigger
+    const atMatch = value.match(/@(\w*)$/)
+    if (atMatch) {
+      setMentionQuery(atMatch[1])
+      setShowMentions(true)
+      setMentionIndex(0)
+    } else {
+      setShowMentions(false)
+    }
+  }
+
+  const insertMention = (client: ClientOption) => {
+    // Replace the @query with @ClientName
+    const newName = taskName.replace(/@\w*$/, `@${client.name} `)
+    setTaskName(newName)
+    setSelectedClient(client)
+    setShowMentions(false)
+    inputRef.current?.focus()
+  }
+
+  const handleMentionKeyDown = (e: React.KeyboardEvent) => {
+    if (!showMentions || filteredClients.length === 0) return
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setMentionIndex((prev) => Math.min(prev + 1, filteredClients.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setMentionIndex((prev) => Math.max(prev - 1, 0))
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault()
+      insertMention(filteredClients[mentionIndex])
+    } else if (e.key === 'Escape') {
+      setShowMentions(false)
+    }
+  }
+
   /* ── Pomodoro actions ── */
   const switchMode = (newMode: Mode) => {
     setMode(newMode)
@@ -171,6 +237,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
   /* ── Tracker actions ── */
   const startTracking = () => {
     if (!taskName.trim()) return
+    setShowMentions(false)
     setElapsed(0)
     setTracking(true)
   }
@@ -184,13 +251,18 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
       await fetch('/api/time-track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskName: taskName.trim(), durationSeconds: elapsed }),
+        body: JSON.stringify({
+          taskName: taskName.trim(),
+          durationSeconds: elapsed,
+          clientId: selectedClient?.id || null,
+        }),
       })
     } catch {
       // silent fail — activity log is non-critical
     } finally {
       setSaving(false)
       setTaskName('')
+      setSelectedClient(null)
       setElapsed(0)
     }
   }
@@ -490,15 +562,61 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
           {/* ── TRACKER TAB ── */}
           {tab === 'tracker' && (
             <>
-              {/* Task input */}
-              <div style={{ padding: '0 18px 14px' }}>
+              {/* Task input with @mention */}
+              <div style={{ padding: '0 18px 14px', position: 'relative' }}>
+                {/* Selected client tag */}
+                {selectedClient && !tracking && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginBottom: 8,
+                  }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      background: 'rgba(59,130,246,0.2)',
+                      color: '#3b82f6',
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}>
+                      @{selectedClient.name}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedClient(null)
+                          setTaskName(taskName.replace(new RegExp(`@${selectedClient.name}\\s?`), ''))
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#3b82f6',
+                          cursor: 'pointer',
+                          padding: 0,
+                          fontSize: 13,
+                          lineHeight: 1,
+                        }}
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  </div>
+                )}
                 <input
+                  ref={inputRef}
                   type="text"
-                  placeholder="What are you working on?"
+                  placeholder="What are you working on? Use @ for client"
                   value={taskName}
-                  onChange={(e) => setTaskName(e.target.value)}
+                  onChange={(e) => handleTaskInput(e.target.value)}
                   disabled={tracking}
                   onKeyDown={(e) => {
+                    if (showMentions) {
+                      handleMentionKeyDown(e)
+                      return
+                    }
                     if (e.key === 'Enter' && !tracking) startTracking()
                   }}
                   style={{
@@ -513,6 +631,46 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
                     boxSizing: 'border-box',
                   }}
                 />
+
+                {/* @mention dropdown */}
+                {showMentions && filteredClients.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    left: 18,
+                    right: 18,
+                    bottom: '100%',
+                    marginBottom: 4,
+                    background: '#1a1a1a',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: 8,
+                    maxHeight: 160,
+                    overflowY: 'auto',
+                    zIndex: 10,
+                  }}>
+                    {filteredClients.slice(0, 8).map((client, i) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => insertMention(client)}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          padding: '8px 12px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          fontWeight: 500,
+                          textAlign: 'left',
+                          background: i === mentionIndex ? 'rgba(59,130,246,0.2)' : 'transparent',
+                          color: i === mentionIndex ? '#3b82f6' : 'rgba(255,255,255,0.7)',
+                          transition: 'background 100ms',
+                        }}
+                      >
+                        @{client.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Elapsed time */}

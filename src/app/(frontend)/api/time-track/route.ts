@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { taskName, durationSeconds } = await req.json();
+  const { taskName, durationSeconds, clientId } = await req.json();
 
   if (!taskName || typeof durationSeconds !== "number" || durationSeconds < 1) {
     return NextResponse.json({ error: "Invalid data" }, { status: 400 });
@@ -25,14 +25,20 @@ export async function POST(req: Request) {
       ? `${minutes}m ${seconds}s`
       : `${seconds}s`;
 
+  const data: Record<string, unknown> = {
+    type: "time_tracked",
+    title: taskName,
+    description: `Tracked ${formatted}`,
+    user: user.id,
+  };
+
+  if (clientId) {
+    data.client = clientId;
+  }
+
   await payload.create({
     collection: "activity-log" as any,
-    data: {
-      type: "time_tracked",
-      title: taskName,
-      description: `Tracked ${formatted}`,
-      user: user.id,
-    } as any,
+    data: data as any,
   });
 
   return NextResponse.json({ ok: true });

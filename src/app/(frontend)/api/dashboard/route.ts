@@ -97,11 +97,12 @@ export async function GET() {
         });
 
         // Group by the month the data covers (periodEnd), not when snapshot was taken
+        // Parse year-month directly from the date string to avoid timezone shift
         const byMonth = new Map<string, any>();
         for (const snap of snapshots.docs) {
           const dateStr = (snap.periodEnd as string) || (snap.snapshotDate as string);
-          const d = new Date(dateStr);
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const [year, month] = dateStr.split('-');
+          const key = `${year}-${month}`;
           if (!byMonth.has(key)) byMonth.set(key, snap);
         }
 
@@ -130,8 +131,9 @@ export async function GET() {
         const uniquePages = topPages.filter((p: any) => p.clicks > 0).length;
 
         // Compute YoY: compare latest month to same month last year
-        const latestDate = new Date(latestSnap.snapshotDate as string);
-        const yoyKey = `${latestDate.getFullYear() - 1}-${String(latestDate.getMonth() + 1).padStart(2, "0")}`;
+        const latestDateStr = (latestSnap.snapshotDate as string);
+        const [latestYear, latestMonth] = latestDateStr.split('-');
+        const yoyKey = `${Number(latestYear) - 1}-${latestMonth}`;
         const yoySnap = byMonth.get(yoyKey);
 
         let clicksChange = latestSnap.clicksChange as number | undefined;
