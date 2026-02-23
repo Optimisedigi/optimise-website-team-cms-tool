@@ -28,6 +28,66 @@ interface ClientOption {
   name: string
 }
 
+/* ── localStorage persistence for tracker ── */
+const TRACKER_STORAGE_KEY = 'od-time-tracker'
+
+interface TrackerPersist {
+  taskName: string
+  startedAt: number // epoch ms
+  clientId?: string | number
+  clientName?: string
+}
+
+function saveTracker(data: TrackerPersist) {
+  try { localStorage.setItem(TRACKER_STORAGE_KEY, JSON.stringify(data)) } catch {}
+}
+
+function loadTracker(): TrackerPersist | null {
+  try {
+    const raw = localStorage.getItem(TRACKER_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function clearTrackerStorage() {
+  try { localStorage.removeItem(TRACKER_STORAGE_KEY) } catch {}
+}
+
+/* ── Reminder thresholds (seconds) ── */
+const REMINDER_THRESHOLDS = [
+  { at: 30 * 60, label: '30 minutes' },
+  { at: 60 * 60, label: '1 hour' },
+  { at: 2 * 60 * 60, label: '2 hours' },
+]
+
+/* ── Play a cute laser gun "pew pew" via Web Audio API ── */
+function playReminderBeep() {
+  try {
+    const ctx = new AudioContext()
+    const t = ctx.currentTime
+
+    const pew = (startTime: number) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'square'
+      // Sweep from high to low for the laser effect
+      osc.frequency.setValueAtTime(1800, startTime)
+      osc.frequency.exponentialRampToValueAtTime(200, startTime + 0.15)
+      gain.gain.setValueAtTime(0.25, startTime)
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.15)
+      osc.start(startTime)
+      osc.stop(startTime + 0.15)
+    }
+
+    pew(t)
+    pew(t + 0.2)
+
+    setTimeout(() => ctx.close(), 600)
+  } catch {}
+}
+
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
@@ -84,9 +144,11 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
   const [taskName, setTaskName] = useState('')
   const [tracking, setTracking] = useState(false)
   const [elapsed, setElapsed] = useState(0)
+  const startedAtRef = useRef<number | null>(null)
   const trackerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [saving, setSaving] = useState(false)
   const [selectedClient, setSelectedClient] = useState<ClientOption | null>(null)
+  const remindedRef = useRef<Set<number>>(new Set())
 
   /* ── Client @mention state ── */
   const [clients, setClients] = useState<ClientOption[]>([])
@@ -145,7 +207,31 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
     }
   }, [timeLeft, mode])
 
-  /* ── Tracker tick ── */
+  /* ── Rehydrate tracker from localStorage on mount ── */
+  useEffect(() => {
+    const saved = loadTracker()
+    if (!saved) return
+
+    const elapsedSec = Math.floor((Date.now() - saved.startedAt) / 1000)
+    if (elapsedSec < 1) return
+
+    startedAtRef.current = saved.startedAt
+    setTaskName(saved.taskName)
+    setElapsed(elapsedSec)
+    setTracking(true)
+    setTab('tracker')
+
+    if (saved.clientId && saved.clientName) {
+      setSelectedClient({ id: saved.clientId, name: saved.clientName })
+    }
+
+    // Mark already-passed reminder thresholds so we don't fire them
+    for (const t of REMINDER_THRESHOLDS) {
+      if (elapsedSec >= t.at) remindedRef.current.add(t.at)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Tracker tick — uses real startedAt for accuracy across refreshes ── */
   useEffect(() => {
     if (!tracking) {
       clearTracker()
@@ -153,11 +239,28 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
     }
 
     trackerRef.current = setInterval(() => {
-      setElapsed((prev) => prev + 1)
+      if (!startedAtRef.current) return
+      const now = Date.now()
+      const sec = Math.floor((now - startedAtRef.current) / 1000)
+      setElapsed(sec)
+
+      // Check reminder thresholds
+      for (const t of REMINDER_THRESHOLDS) {
+        if (sec >= t.at && !remindedRef.current.has(t.at)) {
+          remindedRef.current.add(t.at)
+          playReminderBeep()
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Time Tracker', {
+              body: `Still working on "${taskName}"? You've been at it for ${t.label}.`,
+              icon: '/optimise-digital-favicon.png',
+            })
+          }
+        }
+      }
     }, 1000)
 
     return clearTracker
-  }, [tracking, clearTracker])
+  }, [tracking, clearTracker, taskName])
 
   /* ── Fetch active clients for @mention ── */
   useEffect(() => {
@@ -238,13 +341,31 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
   const startTracking = () => {
     if (!taskName.trim()) return
     setShowMentions(false)
+    const now = Date.now()
+    startedAtRef.current = now
+    remindedRef.current = new Set()
     setElapsed(0)
     setTracking(true)
+
+    saveTracker({
+      taskName: taskName.trim(),
+      startedAt: now,
+      clientId: selectedClient?.id,
+      clientName: selectedClient?.name,
+    })
   }
 
   const stopTracking = async () => {
     setTracking(false)
-    if (elapsed < 1) return
+    clearTrackerStorage()
+
+    // Calculate final elapsed from startedAt for accuracy
+    const finalElapsed = startedAtRef.current
+      ? Math.floor((Date.now() - startedAtRef.current) / 1000)
+      : elapsed
+    startedAtRef.current = null
+
+    if (finalElapsed < 1) return
 
     setSaving(true)
     try {
@@ -253,7 +374,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           taskName: taskName.trim(),
-          durationSeconds: elapsed,
+          durationSeconds: finalElapsed,
           clientId: selectedClient?.id || null,
         }),
       })
@@ -264,6 +385,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
       setTaskName('')
       setSelectedClient(null)
       setElapsed(0)
+      remindedRef.current = new Set()
     }
   }
 
