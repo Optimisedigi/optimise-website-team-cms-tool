@@ -8,7 +8,8 @@ type ActivityType =
   | "client_added"
   | "retainer_changed"
   | "proposal_created"
-  | "gsc_snapshot";
+  | "gsc_snapshot"
+  | "time_tracked";
 
 interface ActivityEntry {
   type: ActivityType;

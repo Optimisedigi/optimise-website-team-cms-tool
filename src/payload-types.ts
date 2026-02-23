@@ -204,6 +204,10 @@ export interface Client {
    */
   isActive?: boolean | null;
   /**
+   * Check if this is the agency itself (hides revenue fields)
+   */
+  isAgency?: boolean | null;
+  /**
    * 4-digit PIN for client hub access (auto-generated)
    */
   clientPin?: string | null;
@@ -211,6 +215,10 @@ export interface Client {
    * Who built the website — determines whether GSC alerts are actionable (we fix) or advisory (we recommend)
    */
   websiteType?: ('built_by_us' | 'external_cms') | null;
+  /**
+   * Which CMS platform is the website built on?
+   */
+  externalCms?: ('wordpress' | 'shopify' | 'squarespace' | 'wix' | 'webflow' | 'other') | null;
   /**
    * Primary contact name
    */
@@ -261,15 +269,52 @@ export interface Client {
       )
     | null;
   /**
-   * Monthly retainer amount ($)
+   * Secondary conversion goal
+   */
+  secondaryConversionGoal?:
+    | (
+        | 'lead generation'
+        | 'phone calls'
+        | 'form submissions'
+        | 'e-commerce'
+        | 'bookings'
+        | 'quote requests'
+        | 'email sign-ups'
+        | 'free trial'
+        | 'content downloads'
+        | 'brand awareness'
+      )
+    | null;
+  /**
+   * Monthly revenue amount ($)
    */
   monthlyRetainer?: number | null;
+  /**
+   * One-off projects (website builds, audits, etc.)
+   */
+  oneOffProjects?:
+    | {
+        /**
+         * Project name
+         */
+        projectName: string;
+        /**
+         * Project amount ($)
+         */
+        amount: number;
+        /**
+         * Project date
+         */
+        date: string;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Goals, notes, and context about this client
    */
   notes?: string | null;
   /**
-   * Automatic log of retainer changes
+   * Automatic log of revenue changes
    */
   retainerHistory?:
     | {
@@ -1971,8 +2016,10 @@ export interface ClientsSelect<T extends boolean = true> {
   websiteUrl?: T;
   apiKey?: T;
   isActive?: T;
+  isAgency?: T;
   clientPin?: T;
   websiteType?: T;
+  externalCms?: T;
   contactName?: T;
   contactEmail?: T;
   hasPhysicalLocations?: T;
@@ -1985,7 +2032,16 @@ export interface ClientsSelect<T extends boolean = true> {
         id?: T;
       };
   conversionGoal?: T;
+  secondaryConversionGoal?: T;
   monthlyRetainer?: T;
+  oneOffProjects?:
+    | T
+    | {
+        projectName?: T;
+        amount?: T;
+        date?: T;
+        id?: T;
+      };
   notes?: T;
   retainerHistory?:
     | T

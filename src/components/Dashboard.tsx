@@ -92,6 +92,7 @@ const typeLabels: Record<string, string> = {
   retainer_changed: 'Retainer',
   proposal_created: 'Proposal',
   gsc_snapshot: 'GSC',
+  time_tracked: 'Time Tracked',
 }
 
 function timeAgo(dateStr: string): string {

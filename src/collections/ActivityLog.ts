@@ -34,6 +34,7 @@ export const ActivityLog: CollectionConfig = {
         { label: "Retainer Changed", value: "retainer_changed" },
         { label: "Proposal Created", value: "proposal_created" },
         { label: "GSC Snapshot", value: "gsc_snapshot" },
+        { label: "Time Tracked", value: "time_tracked" },
       ],
     },
     {
