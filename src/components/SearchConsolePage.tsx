@@ -692,6 +692,7 @@ function bucketDaily(daily: DailyEntry[], granularity: BucketGranularity): Bucke
 // ─── Performance Chart (bars=Impressions, line=CTR) ───────
 
 function PerformanceChart({ daily, startDate, endDate, lineMetric = 'ctr' }: { daily: DailyEntry[]; startDate: string; endDate: string; lineMetric?: 'ctr' | 'clicks' }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const granularity = getGranularity(startDate, endDate)
   const buckets = bucketDaily(daily, granularity)
 
@@ -721,7 +722,11 @@ function PerformanceChart({ daily, startDate, endDate, lineMetric = 'ctr' }: { d
 
   return (
     <div className="od-perf-chart">
-      <div className="od-perf-chart__area" style={{ height: chartHeight, position: 'relative' }}>
+      <div
+        className="od-perf-chart__area"
+        style={{ height: chartHeight, position: 'relative' }}
+        onMouseLeave={() => setHoveredIdx(null)}
+      >
         {buckets.map((bucket, i) => {
           const barH = (bucket.impressions / maxImpressions) * (chartHeight - 24)
           return (
@@ -729,15 +734,57 @@ function PerformanceChart({ daily, startDate, endDate, lineMetric = 'ctr' }: { d
               key={i}
               className="od-perf-chart__bar-group"
               style={{ width: `${barWidth}%`, left: `${i * barWidth}%` }}
-              title={`${bucket.label}\nImpressions: ${bucket.impressions.toLocaleString()}\nClicks: ${bucket.clicks.toLocaleString()}\nCTR: ${bucketCtr[i].toFixed(1)}%`}
+              onMouseEnter={() => setHoveredIdx(i)}
             >
               <div
                 className="od-perf-chart__bar"
-                style={{ height: barH, background: '#74B3A8' }}
+                style={{
+                  height: barH,
+                  background: hoveredIdx === i ? '#5a9e94' : '#74B3A8',
+                  transition: 'background 100ms',
+                }}
               />
             </div>
           )
         })}
+
+        {/* Hover tooltip */}
+        {hoveredIdx !== null && buckets[hoveredIdx] && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${(hoveredIdx + 0.5) * barWidth}%`,
+              top: 0,
+              transform: 'translateX(-50%)',
+              background: '#1a1a2e',
+              color: '#fff',
+              borderRadius: 8,
+              padding: '10px 14px',
+              fontSize: 12,
+              lineHeight: 1.6,
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+              zIndex: 10,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 13 }}>
+              {buckets[hoveredIdx].label}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#74B3A8', flexShrink: 0 }} />
+              Impressions: <strong>{buckets[hoveredIdx].impressions.toLocaleString()}</strong>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#213843', flexShrink: 0 }} />
+              Clicks: <strong>{buckets[hoveredIdx].clicks.toLocaleString()}</strong>
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+              CTR: {bucketCtr[hoveredIdx].toFixed(1)}%
+            </div>
+          </div>
+        )}
 
         {/* Line overlay (CTR or Clicks) */}
         <svg

@@ -97,12 +97,11 @@ export async function GET() {
         });
 
         // Group by the month the data covers (periodEnd), not when snapshot was taken
-        // Parse year-month directly from the date string to avoid timezone shift
+        // Use slice(0,7) to extract "YYYY-MM" — handles both "YYYY-MM-DD" and full ISO strings
         const byMonth = new Map<string, any>();
         for (const snap of snapshots.docs) {
           const dateStr = (snap.periodEnd as string) || (snap.snapshotDate as string);
-          const [year, month] = dateStr.split('-');
-          const key = `${year}-${month}`;
+          const key = dateStr.slice(0, 7); // "YYYY-MM"
           if (!byMonth.has(key)) byMonth.set(key, snap);
         }
 
