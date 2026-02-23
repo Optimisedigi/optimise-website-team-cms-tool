@@ -105,9 +105,13 @@ export async function GET() {
           if (!byMonth.has(key)) byMonth.set(key, snap);
         }
 
-        // Build gscMonthly array: every month from Jan 2026 to current month (zeros for missing)
+        // Build gscMonthly array from earliest snapshot month to current month
         const gscMonthly: { month: string; clicks: number; impressions: number }[] = [];
-        const chartStart = new Date(2026, 0, 1); // Jan 2026
+        const monthKeys = [...byMonth.keys()].sort();
+        const earliestKey = monthKeys[0]; // e.g. "2026-02"
+        const chartStart = earliestKey
+          ? new Date(Number(earliestKey.slice(0, 4)), Number(earliestKey.slice(5, 7)) - 1, 1)
+          : new Date(now.getFullYear(), now.getMonth(), 1);
         const chartEnd = new Date(now.getFullYear(), now.getMonth(), 1); // current month
         for (let d = new Date(chartStart); d <= chartEnd; d.setMonth(d.getMonth() + 1)) {
           const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
