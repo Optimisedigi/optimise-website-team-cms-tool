@@ -29,6 +29,7 @@
     width: 48px;
     height: 48px;
     object-fit: contain;
+    transform: rotate(-30deg);
   }
 }
 
@@ -196,11 +197,86 @@
 .nav a.nav__link {
   color: rgba(255, 255, 255, 0.7);
   transition: color 150ms;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .nav a.nav__link:hover,
 .nav a.nav__link:focus-visible,
 .nav a.nav__link.active {
   color: #ffffff;
+}
+
+// ── Collection nav icons ──
+// Each ::before uses a mask-image SVG matching the mini sidebar icons.
+@mixin nav-icon($path) {
+  &::before {
+    content: '';
+    display: inline-block;
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    background: currentColor;
+    mask: url("data:image/svg+xml,#{$path}") no-repeat center / contain;
+  }
+}
+
+$svg-open: "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E";
+$svg-close: "%3C/svg%3E";
+
+// Database group
+.nav a.nav__link[href="/admin/collections/clients"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M23 21v-2a4 4 0 0 0-3-3.87'/%3E%3Cpath d='M16 3.13a4 4 0 0 1 0 7.75'/%3E#{$svg-close}");
+}
+.nav a.nav__link[href="/admin/collections/client-proposals"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E#{$svg-close}");
+}
+
+// Content group
+.nav a.nav__link[href="/admin/collections/blog-posts"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z'/%3E#{$svg-close}");
+}
+.nav a.nav__link[href="/admin/collections/job-posts"] {
+  @include nav-icon("#{$svg-open}%3Crect x='2' y='7' width='20' height='14' rx='2' ry='2'/%3E%3Cpath d='M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16'/%3E#{$svg-close}");
+}
+.nav a.nav__link[href="/admin/collections/media"] {
+  @include nav-icon("#{$svg-open}%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E#{$svg-close}");
+}
+
+// Audits group
+.nav a.nav__link[href="/admin/collections/seo-audits"] {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E#{$svg-close}");
+}
+.nav a.nav__link[href="/admin/collections/cro-audits"] {
+  @include nav-icon("#{$svg-open}%3Cline x1='18' y1='20' x2='18' y2='10'/%3E%3Cline x1='12' y1='20' x2='12' y2='4'/%3E%3Cline x1='6' y1='20' x2='6' y2='14'/%3E#{$svg-close}");
+}
+.nav a.nav__link[href="/admin/collections/keyword-snapshots"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4'/%3E#{$svg-close}");
+}
+.nav a.nav__link[href="/admin/collections/competitor-analyses"] {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='6'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E#{$svg-close}");
+}
+.nav a.nav__link[href="/admin/collections/content-researches"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/%3E%3Cpath d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'/%3E#{$svg-close}");
+}
+.nav a.nav__link[href="/admin/collections/gsc-alerts"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E#{$svg-close}");
+}
+
+// Cost Setup group
+.nav a.nav__link[href="/admin/collections/cost-categories"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z'/%3E%3Cline x1='7' y1='7' x2='7.01' y2='7'/%3E#{$svg-close}");
+}
+.nav a.nav__link[href="/admin/collections/cost-rules"] {
+  @include nav-icon("#{$svg-open}%3Cline x1='4' y1='21' x2='4' y2='14'/%3E%3Cline x1='4' y1='10' x2='4' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12' y2='3'/%3E%3Cline x1='20' y1='21' x2='20' y2='16'/%3E%3Cline x1='20' y1='12' x2='20' y2='3'/%3E%3Cline x1='1' y1='14' x2='7' y2='14'/%3E%3Cline x1='9' y1='8' x2='15' y2='8'/%3E%3Cline x1='17' y1='16' x2='23' y2='16'/%3E#{$svg-close}");
+}
+
+// Admin group
+.nav a.nav__link[href="/admin/collections/usage-reports"] {
+  @include nav-icon("#{$svg-open}%3Cpolyline points='22 12 18 12 15 21 9 3 6 12 2 12'/%3E#{$svg-close}");
+}
+.nav a.nav__link[href="/admin/collections/users"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E#{$svg-close}");
 }
 
 // Bottom controls
@@ -777,7 +853,9 @@
 }
 
 .sidebar-extras__link {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 4px 0 4px 0;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.7);

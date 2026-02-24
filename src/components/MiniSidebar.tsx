@@ -8,6 +8,16 @@ const BG = '#1a1a2e'
 
 const icons = [
   {
+    label: 'Dashboard',
+    href: '/admin',
+    svg: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        <polyline points="9 22 9 12 15 12 15 22" />
+      </svg>
+    ),
+  },
+  {
     label: 'Clients',
     href: '/admin/collections/clients',
     svg: (
@@ -33,12 +43,21 @@ const icons = [
     ),
   },
   {
-    label: 'Blog',
+    label: 'Blog Posts',
     href: '/admin/collections/blog-posts',
     svg: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 20h9" />
         <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Search Console',
+    href: '/admin/performance/search-console',
+    svg: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
       </svg>
     ),
   },
@@ -67,6 +86,8 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
       {isLoggedIn && !navOpen && (
         <div
           className="mini-sidebar"
+          onClick={toggleNav}
+          title="Open sidebar"
           style={{
             position: 'fixed',
             top: 0,
@@ -79,12 +100,13 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
             alignItems: 'center',
             zIndex: 1,
             borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+            cursor: 'pointer',
           }}
         >
           {/* Rocket logo */}
           <button
             type="button"
-            onClick={() => router.push('/admin')}
+            onClick={(e) => { e.stopPropagation(); router.push('/admin') }}
             title="Dashboard"
             style={{
               background: 'none',
@@ -111,7 +133,7 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
             <button
               key={item.href}
               type="button"
-              onClick={() => router.push(item.href)}
+              onClick={(e) => { e.stopPropagation(); router.push(item.href) }}
               title={item.label}
               style={{
                 background: 'none',
@@ -138,7 +160,7 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
           <button
             type="button"
             title="Open sidebar"
-            onClick={toggleNav}
+            onClick={(e) => e.stopPropagation()}
             style={{
               background: 'none',
               border: 'none',
