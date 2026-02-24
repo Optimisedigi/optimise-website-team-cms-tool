@@ -150,6 +150,13 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
   const [selectedClient, setSelectedClient] = useState<ClientOption | null>(null)
   const remindedRef = useRef<Set<number>>(new Set())
 
+  /* ── Admin time-edit state ── */
+  const isAdmin = (user as Record<string, unknown> | null)?.role === 'admin'
+  const [customStartTime, setCustomStartTime] = useState('') // HH:MM format
+  const [pendingSave, setPendingSave] = useState(false) // stopped but not yet saved
+  const [editEndTime, setEditEndTime] = useState('') // HH:MM format for end time editing
+  const pendingElapsedRef = useRef<number>(0) // final elapsed when stopped
+
   /* ── Client @mention state ── */
   const [clients, setClients] = useState<ClientOption[]>([])
   const [showMentions, setShowMentions] = useState(false)
@@ -341,11 +348,27 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
   const startTracking = () => {
     if (!taskName.trim()) return
     setShowMentions(false)
-    const now = Date.now()
+
+    let now = Date.now()
+
+    // Admin: apply custom start time if set
+    if (isAdmin && customStartTime) {
+      const [hh, mm] = customStartTime.split(':').map(Number)
+      if (!isNaN(hh) && !isNaN(mm)) {
+        const d = new Date()
+        d.setHours(hh, mm, 0, 0)
+        // If the custom time is in the future, ignore it
+        if (d.getTime() <= Date.now()) {
+          now = d.getTime()
+        }
+      }
+    }
+
     startedAtRef.current = now
     remindedRef.current = new Set()
-    setElapsed(0)
+    setElapsed(Math.floor((Date.now() - now) / 1000))
     setTracking(true)
+    setCustomStartTime('')
 
     saveTracker({
       taskName: taskName.trim(),
@@ -355,7 +378,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
     })
   }
 
-  const stopTracking = async () => {
+  const stopTracking = () => {
     setTracking(false)
     clearTrackerStorage()
 
@@ -367,6 +390,22 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
 
     if (finalElapsed < 1) return
 
+    // Admin: show end-time edit before saving
+    if (isAdmin) {
+      pendingElapsedRef.current = finalElapsed
+      setElapsed(finalElapsed)
+      const now = new Date()
+      setEditEndTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
+      setPendingSave(true)
+      return
+    }
+
+    doSave(finalElapsed)
+  }
+
+  const doSave = async (durationSeconds: number) => {
+    if (durationSeconds < 1) return
+
     setSaving(true)
     try {
       await fetch('/api/time-track', {
@@ -374,7 +413,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           taskName: taskName.trim(),
-          durationSeconds: finalElapsed,
+          durationSeconds,
           clientId: selectedClient?.id || null,
         }),
       })
@@ -382,11 +421,42 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
       // silent fail — activity log is non-critical
     } finally {
       setSaving(false)
+      setPendingSave(false)
+      setEditEndTime('')
       setTaskName('')
       setSelectedClient(null)
       setElapsed(0)
       remindedRef.current = new Set()
     }
+  }
+
+  const confirmSave = () => {
+    // Recalculate duration if admin changed end time
+    let finalDuration = pendingElapsedRef.current
+    if (editEndTime && startedAtRef.current === null) {
+      const [hh, mm] = editEndTime.split(':').map(Number)
+      if (!isNaN(hh) && !isNaN(mm)) {
+        const endDate = new Date()
+        endDate.setHours(hh, mm, 0, 0)
+        // We stored the original startedAt in the elapsed calculation, reconstruct it
+        const originalStart = new Date(Date.now() - pendingElapsedRef.current * 1000)
+        const diff = Math.floor((endDate.getTime() - originalStart.getTime()) / 1000)
+        if (diff > 0) {
+          finalDuration = diff
+        }
+      }
+    }
+    doSave(finalDuration)
+  }
+
+  const cancelSave = () => {
+    setPendingSave(false)
+    setEditEndTime('')
+    setTaskName('')
+    setSelectedClient(null)
+    setElapsed(0)
+    pendingElapsedRef.current = 0
+    remindedRef.current = new Set()
   }
 
   if (!user) return <>{children}</>
@@ -733,7 +803,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
                   placeholder="What are you working on? Use @ for client"
                   value={taskName}
                   onChange={(e) => handleTaskInput(e.target.value)}
-                  disabled={tracking}
+                  disabled={tracking || pendingSave}
                   onKeyDown={(e) => {
                     if (showMentions) {
                       handleMentionKeyDown(e)
@@ -816,6 +886,83 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
                 </div>
               </div>
 
+              {/* Admin: custom start time */}
+              {isAdmin && !tracking && !pendingSave && (
+                <div style={{ padding: '0 18px 10px' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 11,
+                    color: 'rgba(255,255,255,0.5)',
+                  }}>
+                    Start time:
+                    <input
+                      type="time"
+                      value={customStartTime}
+                      onChange={(e) => setCustomStartTime(e.target.value)}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#fff',
+                        fontSize: 12,
+                        outline: 'none',
+                        colorScheme: 'dark',
+                      }}
+                    />
+                    {customStartTime && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomStartTime('')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'rgba(255,255,255,0.4)',
+                          cursor: 'pointer',
+                          fontSize: 13,
+                          padding: 0,
+                          lineHeight: 1,
+                        }}
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </label>
+                </div>
+              )}
+
+              {/* Admin: edit end time before saving */}
+              {pendingSave && (
+                <div style={{ padding: '0 18px 10px' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 11,
+                    color: 'rgba(255,255,255,0.5)',
+                  }}>
+                    End time:
+                    <input
+                      type="time"
+                      value={editEndTime}
+                      onChange={(e) => setEditEndTime(e.target.value)}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#fff',
+                        fontSize: 12,
+                        outline: 'none',
+                        colorScheme: 'dark',
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
+
               {/* Controls */}
               <div
                 style={{
@@ -825,7 +972,44 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
                   justifyContent: 'center',
                 }}
               >
-                {!tracking ? (
+                {pendingSave ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={confirmSave}
+                      disabled={saving}
+                      style={{
+                        padding: '8px 24px',
+                        borderRadius: 8,
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontWeight: 700,
+                        fontSize: 13,
+                        background: '#22c55e',
+                        color: '#fff',
+                        transition: 'background 150ms',
+                      }}
+                    >
+                      {saving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelSave}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        background: 'transparent',
+                        color: 'rgba(255,255,255,0.7)',
+                      }}
+                    >
+                      Discard
+                    </button>
+                  </>
+                ) : !tracking ? (
                   <button
                     type="button"
                     onClick={startTracking}
@@ -876,9 +1060,11 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
                   textAlign: 'center',
                 }}
               >
-                {tracking
-                  ? `Tracking: ${taskName}`
-                  : 'Enter a task and press Start'}
+                {pendingSave
+                  ? 'Adjust end time and save'
+                  : tracking
+                    ? `Tracking: ${taskName}`
+                    : 'Enter a task and press Start'}
               </div>
             </>
           )}
