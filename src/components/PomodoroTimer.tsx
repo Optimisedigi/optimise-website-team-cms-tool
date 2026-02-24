@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '@payloadcms/ui'
 
 /* ── Pomodoro modes ── */
@@ -143,8 +144,10 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
   /* ── Tracker state ── */
   const [taskName, setTaskName] = useState('')
   const [tracking, setTracking] = useState(false)
+  const [trackerPaused, setTrackerPaused] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const startedAtRef = useRef<number | null>(null)
+  const pausedAtRef = useRef<number | null>(null)
   const trackerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [saving, setSaving] = useState(false)
   const [selectedClient, setSelectedClient] = useState<ClientOption | null>(null)
@@ -163,6 +166,42 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
   const [mentionQuery, setMentionQuery] = useState('')
   const [mentionIndex, setMentionIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  /* ── Picture-in-Picture state ── */
+  const [pipWindow, setPipWindow] = useState<Window | null>(null)
+  const pipSupported = typeof window !== 'undefined' && 'documentPictureInPicture' in window
+
+  const openPip = async () => {
+    if (!pipSupported) return
+    try {
+      const pip = await (window as any).documentPictureInPicture.requestWindow({ width: 300, height: 190 })
+
+      // Dark background
+      pip.document.body.style.cssText = 'margin:0;padding:0;background:#111;color:#fff;overflow:hidden;'
+
+      // Clone all loaded stylesheets from the parent (includes Press Start 2P @font-face)
+      ;[...document.styleSheets].forEach((sheet) => {
+        try {
+          const cssText = [...sheet.cssRules].map((r) => r.cssText).join('\n')
+          const style = pip.document.createElement('style')
+          style.textContent = cssText
+          pip.document.head.appendChild(style)
+        } catch {
+          if (sheet.href) {
+            const link = pip.document.createElement('link')
+            link.rel = 'stylesheet'
+            link.href = sheet.href
+            pip.document.head.appendChild(link)
+          }
+        }
+      })
+
+      pip.addEventListener('pagehide', () => setPipWindow(null))
+      setPipWindow(pip)
+    } catch {
+      // User dismissed or API unavailable
+    }
+  }
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -240,7 +279,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
 
   /* ── Tracker tick — uses real startedAt for accuracy across refreshes ── */
   useEffect(() => {
-    if (!tracking) {
+    if (!tracking || trackerPaused) {
       clearTracker()
       return
     }
@@ -267,7 +306,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
     }, 1000)
 
     return clearTracker
-  }, [tracking, clearTracker, taskName])
+  }, [tracking, trackerPaused, clearTracker, taskName])
 
   /* ── Fetch active clients for @mention ── */
   useEffect(() => {
@@ -378,8 +417,25 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
     })
   }
 
+  const pauseTracker = () => {
+    pausedAtRef.current = Date.now()
+    setTrackerPaused(true)
+  }
+
+  const resumeTracker = () => {
+    if (pausedAtRef.current && startedAtRef.current) {
+      // Shift startedAt forward by the time we spent paused
+      const pauseDuration = Date.now() - pausedAtRef.current
+      startedAtRef.current += pauseDuration
+    }
+    pausedAtRef.current = null
+    setTrackerPaused(false)
+  }
+
   const stopTracking = () => {
     setTracking(false)
+    setTrackerPaused(false)
+    pausedAtRef.current = null
     clearTrackerStorage()
 
     // Calculate final elapsed from startedAt for accuracy
@@ -468,7 +524,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
       ? formatTime(timeLeft)
       : 'Pomodoro'
 
-  const pillColor = tracking ? '#3b82f6' : '#111'
+  const pillColor = '#111'
 
   /* ── Breath phase (for breathwork mode) ── */
   const breathPhase = mode === 'breathwork' && running
@@ -508,6 +564,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
               ? '"Press Start 2P", "Courier New", monospace'
               : 'inherit',
             letterSpacing: running || tracking ? '0.5px' : undefined,
+            opacity: 0.8,
           }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -532,6 +589,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
             width: 320,
             boxShadow: '0 8px 40px rgba(0,0,0,0.4)',
             overflow: 'hidden',
+            opacity: 0.8,
           }}
         >
           {/* Header */}
@@ -546,21 +604,44 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
             <span style={{ fontWeight: 700, fontSize: 14 }}>
               {tab === 'pomodoro' ? 'Pomodoro Timer' : 'Time Tracker'}
             </span>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'rgba(255,255,255,0.5)',
-                cursor: 'pointer',
-                fontSize: 18,
-                padding: 0,
-                lineHeight: 1,
-              }}
-            >
-              &times;
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {pipSupported && !pipWindow && (
+                <button
+                  type="button"
+                  onClick={openPip}
+                  title="Pop out to floating window"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'rgba(255,255,255,0.5)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    lineHeight: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                  </svg>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(255,255,255,0.5)',
+                  cursor: 'pointer',
+                  fontSize: 18,
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+              >
+                &times;
+              </button>
+            </div>
           </div>
 
           {/* Tab switcher */}
@@ -879,7 +960,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
                     fontWeight: 700,
                     letterSpacing: 2,
                     lineHeight: 1.2,
-                    color: tracking ? '#3b82f6' : '#fff',
+                    color: trackerPaused ? 'rgba(255,255,255,0.4)' : '#fff',
                   }}
                 >
                   {formatElapsed(elapsed)}
@@ -1029,24 +1110,43 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
                     Start
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={stopTracking}
-                    disabled={saving}
-                    style={{
-                      padding: '8px 32px',
-                      borderRadius: 8,
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontWeight: 700,
-                      fontSize: 13,
-                      background: '#ef4444',
-                      color: '#fff',
-                      transition: 'background 150ms',
-                    }}
-                  >
-                    {saving ? 'Saving...' : 'Stop'}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={trackerPaused ? resumeTracker : pauseTracker}
+                      style={{
+                        padding: '8px 18px',
+                        borderRadius: 8,
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        cursor: 'pointer',
+                        fontWeight: 700,
+                        fontSize: 13,
+                        background: trackerPaused ? '#22c55e' : 'transparent',
+                        color: trackerPaused ? '#fff' : 'rgba(255,255,255,0.7)',
+                        transition: 'all 150ms',
+                      }}
+                    >
+                      {trackerPaused ? 'Resume' : 'Pause'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={stopTracking}
+                      disabled={saving}
+                      style={{
+                        padding: '8px 18px',
+                        borderRadius: 8,
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontWeight: 700,
+                        fontSize: 13,
+                        background: '#ef4444',
+                        color: '#fff',
+                        transition: 'background 150ms',
+                      }}
+                    >
+                      {saving ? 'Saving...' : 'Finish'}
+                    </button>
+                  </>
                 )}
               </div>
 
@@ -1069,6 +1169,151 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
             </>
           )}
         </div>
+      )}
+      {/* Picture-in-Picture portal */}
+      {pipWindow && createPortal(
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          gap: 8,
+          padding: 16,
+          boxSizing: 'border-box',
+          position: 'relative',
+          opacity: 0.8,
+        }}>
+          {/* Close PiP */}
+          <button
+            type="button"
+            onClick={() => pipWindow.close()}
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 12,
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255,255,255,0.4)',
+              cursor: 'pointer',
+              fontSize: 18,
+              padding: 0,
+              lineHeight: 1,
+            }}
+          >
+            &times;
+          </button>
+
+          {/* Label */}
+          <div style={{
+            fontSize: 11,
+            color: 'rgba(255,255,255,0.45)',
+            fontWeight: 600,
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            maxWidth: 260,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            textAlign: 'center',
+          }}>
+            {tab === 'tracker' && taskName
+              ? taskName.replace(/@\w+\s?/g, '').trim() || 'Time Tracker'
+              : MODE_LABELS[mode]}
+          </div>
+
+          {/* Clock */}
+          <div style={{
+            fontFamily: '"Press Start 2P", "Courier New", monospace',
+            fontSize: 38,
+            fontWeight: 700,
+            letterSpacing: 2,
+            color: trackerPaused ? 'rgba(255,255,255,0.4)' : '#fff',
+            lineHeight: 1.2,
+          }}>
+            {tab === 'tracker' ? formatElapsed(elapsed) : formatTime(timeLeft)}
+          </div>
+
+          {/* Action button */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {tab === 'pomodoro' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setRunning((r) => !r)}
+                  style={{
+                    padding: '7px 20px',
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    background: running ? '#ef4444' : '#22c55e',
+                    color: '#fff',
+                  }}
+                >
+                  {running ? 'Pause' : timeLeft < DURATIONS[mode] && timeLeft > 0 ? 'Resume' : 'Start'}
+                </button>
+                <button
+                  type="button"
+                  onClick={reset}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    background: 'transparent',
+                    color: 'rgba(255,255,255,0.7)',
+                  }}
+                >
+                  Reset
+                </button>
+              </>
+            ) : tracking ? (
+              <>
+                <button
+                  type="button"
+                  onClick={trackerPaused ? resumeTracker : pauseTracker}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    background: trackerPaused ? '#22c55e' : 'transparent',
+                    color: trackerPaused ? '#fff' : 'rgba(255,255,255,0.7)',
+                  }}
+                >
+                  {trackerPaused ? 'Resume' : 'Pause'}
+                </button>
+                <button
+                  type="button"
+                  onClick={stopTracking}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    background: '#ef4444',
+                    color: '#fff',
+                  }}
+                >
+                  Finish
+                </button>
+              </>
+            ) : (
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+                Start tracking in main window
+              </div>
+            )}
+          </div>
+        </div>,
+        pipWindow.document.body,
       )}
     </>
   )
