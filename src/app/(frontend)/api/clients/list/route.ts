@@ -14,7 +14,7 @@ export async function GET() {
 
     const result = await payload.find({
       collection: "clients",
-      where: { isActive: { equals: true } },
+      where: { isActive: { not_equals: false } },
       sort: "name",
       limit: 500,
       select: { name: true, slug: true, gscConnected: true, blogCategories: true, blogTags: true, servicePages: true } as any,
