@@ -3,15 +3,20 @@ import { withPayload } from '@payloadcms/next/withPayload'
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   redirects: async () => [
-    // Blog Prompter uses a custom list-view form — redirect create/edit to the list
+    // Blog Prompter — redirect collection routes to the standalone custom page
+    {
+      source: '/admin/collections/blog-prompts',
+      destination: '/admin/blog/prompter',
+      permanent: false,
+    },
     {
       source: '/admin/collections/blog-prompts/create',
-      destination: '/admin/collections/blog-prompts',
+      destination: '/admin/blog/prompter',
       permanent: false,
     },
     {
       source: '/admin/collections/blog-prompts/:id',
-      destination: '/admin/collections/blog-prompts',
+      destination: '/admin/blog/prompter',
       permanent: false,
     },
   ],
