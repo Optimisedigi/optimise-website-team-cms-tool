@@ -1,0 +1,78 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getPayload } from "payload";
+import config from "@/payload.config";
+import { headers as nextHeaders } from "next/headers";
+
+export async function GET() {
+  try {
+    const payload = await getPayload({ config });
+    const headersList = await nextHeaders();
+    const { user } = await payload.auth({ headers: headersList });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const result = await payload.find({
+      collection: "blog-prompts",
+      sort: "-createdAt",
+      limit: 50,
+      overrideAccess: true,
+    });
+
+    return NextResponse.json({ docs: result.docs });
+  } catch (err) {
+    console.error("[blog-prompts GET] error:", err);
+    return NextResponse.json({ error: "Failed to load briefs" }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const payload = await getPayload({ config });
+    const headersList = await nextHeaders();
+    const { user } = await payload.auth({ headers: headersList });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const doc = await payload.create({
+      collection: "blog-prompts",
+      data: body,
+      overrideAccess: true,
+    });
+
+    return NextResponse.json({ doc });
+  } catch (err) {
+    console.error("[blog-prompts POST] error:", err);
+    return NextResponse.json({ error: "Failed to save brief" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const payload = await getPayload({ config });
+    const headersList = await nextHeaders();
+    const { user } = await payload.auth({ headers: headersList });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const url = new URL(request.url);
+    const id = url.searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    }
+
+    await payload.delete({
+      collection: "blog-prompts",
+      id,
+      overrideAccess: true,
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("[blog-prompts DELETE] error:", err);
+    return NextResponse.json({ error: "Failed to delete brief" }, { status: 500 });
+  }
+}

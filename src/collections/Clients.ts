@@ -539,6 +539,13 @@ export const Clients: CollectionConfig = {
                 description: "Available tags for this client (one per line)",
               },
             },
+            {
+              name: "servicePages",
+              type: "textarea",
+              admin: {
+                description: "Service or product/category pages for this client (one per line). Used to auto-populate the blog prompt requirements.",
+              },
+            },
           ],
         },
         {

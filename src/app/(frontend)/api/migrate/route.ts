@@ -563,8 +563,104 @@ export async function POST(request: NextRequest) {
   await run("clients_one_off_projects_order_idx", "CREATE INDEX IF NOT EXISTS `clients_one_off_projects_order_idx` ON `clients_one_off_projects` (`_order`)");
   await run("clients_one_off_projects_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_one_off_projects_parent_id_idx` ON `clients_one_off_projects` (`_parent_id`)");
 
+  // --- Cost Categories table ---
+  await run("cost_categories", `CREATE TABLE IF NOT EXISTS \`cost_categories\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`name\` text NOT NULL,
+    \`color\` text DEFAULT '#4A90D9' NOT NULL,
+    \`budget\` numeric,
+    \`is_active\` integer DEFAULT true,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("cost_categories_name_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `cost_categories_name_idx` ON `cost_categories` (`name`)");
+  await run("cost_categories_created_at_idx", "CREATE INDEX IF NOT EXISTS `cost_categories_created_at_idx` ON `cost_categories` (`created_at`)");
+  await run("cost_categories_updated_at_idx", "CREATE INDEX IF NOT EXISTS `cost_categories_updated_at_idx` ON `cost_categories` (`updated_at`)");
+
+  // --- Cost Rules table ---
+  await run("cost_rules", `CREATE TABLE IF NOT EXISTS \`cost_rules\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`pattern\` text NOT NULL,
+    \`category_id\` integer NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`category_id\`) REFERENCES \`cost_categories\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("cost_rules_pattern_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `cost_rules_pattern_idx` ON `cost_rules` (`pattern`)");
+  await run("cost_rules_category_idx", "CREATE INDEX IF NOT EXISTS `cost_rules_category_idx` ON `cost_rules` (`category_id`)");
+  await run("cost_rules_created_at_idx", "CREATE INDEX IF NOT EXISTS `cost_rules_created_at_idx` ON `cost_rules` (`created_at`)");
+  await run("cost_rules_updated_at_idx", "CREATE INDEX IF NOT EXISTS `cost_rules_updated_at_idx` ON `cost_rules` (`updated_at`)");
+
+  // --- Business Costs table ---
+  await run("business_costs", `CREATE TABLE IF NOT EXISTS \`business_costs\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`date\` text NOT NULL,
+    \`amount\` numeric NOT NULL,
+    \`description\` text NOT NULL,
+    \`category_id\` integer,
+    \`notes\` text,
+    \`source\` text DEFAULT 'manual',
+    \`month\` text,
+    \`year\` numeric,
+    \`client_id\` integer,
+    \`import_batch\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`category_id\`) REFERENCES \`cost_categories\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("business_costs_category_idx", "CREATE INDEX IF NOT EXISTS `business_costs_category_idx` ON `business_costs` (`category_id`)");
+  await run("business_costs_client_idx", "CREATE INDEX IF NOT EXISTS `business_costs_client_idx` ON `business_costs` (`client_id`)");
+  await run("business_costs_month_idx", "CREATE INDEX IF NOT EXISTS `business_costs_month_idx` ON `business_costs` (`month`)");
+  await run("business_costs_date_idx", "CREATE INDEX IF NOT EXISTS `business_costs_date_idx` ON `business_costs` (`date`)");
+  await run("business_costs_created_at_idx", "CREATE INDEX IF NOT EXISTS `business_costs_created_at_idx` ON `business_costs` (`created_at`)");
+  await run("business_costs_updated_at_idx", "CREATE INDEX IF NOT EXISTS `business_costs_updated_at_idx` ON `business_costs` (`updated_at`)");
+
+  // --- API Cost Rates global table ---
+  await run("api_cost_rates", `CREATE TABLE IF NOT EXISTS \`api_cost_rates\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`seo_audit_cost\` numeric DEFAULT 0.012,
+    \`cro_audit_cost\` numeric DEFAULT 0.005,
+    \`keyword_snapshot_cost\` numeric DEFAULT 0.008,
+    \`competitor_analysis_cost\` numeric DEFAULT 0.01,
+    \`content_research_cost\` numeric DEFAULT 0.004,
+    \`blog_image_cost\` numeric DEFAULT 0.031,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+
+  // --- locked_docs_rels for finance collections ---
+  await run("locked_docs_rels.cost_categories_id", "ALTER TABLE `payload_locked_documents_rels` ADD `cost_categories_id` integer REFERENCES `cost_categories`(`id`) ON DELETE cascade");
+  await run("locked_docs_rels.cost_rules_id", "ALTER TABLE `payload_locked_documents_rels` ADD `cost_rules_id` integer REFERENCES `cost_rules`(`id`) ON DELETE cascade");
+  await run("locked_docs_rels.business_costs_id", "ALTER TABLE `payload_locked_documents_rels` ADD `business_costs_id` integer REFERENCES `business_costs`(`id`) ON DELETE cascade");
+
+  // --- blog_prompts table ---
+  await run("blog_prompts", `CREATE TABLE IF NOT EXISTS \`blog_prompts\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`blog_idea\` text NOT NULL,
+    \`title_idea\` text,
+    \`category\` text,
+    \`tag\` text,
+    \`main_point\` text,
+    \`key_points\` text,
+    \`primary_keywords\` text,
+    \`secondary_keywords\` text,
+    \`points_to_avoid\` text,
+    \`target_audience\` text,
+    \`supporting_content\` text,
+    \`generated_prompt\` text,
+    \`status\` text DEFAULT 'draft',
+    \`source\` text DEFAULT 'internal',
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("locked_docs_rels.blog_prompts_id", "ALTER TABLE `payload_locked_documents_rels` ADD `blog_prompts_id` integer REFERENCES `blog_prompts`(`id`) ON DELETE cascade");
+
+  // --- clients.service_pages column ---
+  await run("clients.service_pages", "ALTER TABLE `clients` ADD `service_pages` text");
+
   // --- Schema diagnostics ---
-  const tables = ["media", "clients", "clients_one_off_projects", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels", "activity_log", "job_posts", "gsc_snapshots", "gsc_alerts"];
+  const tables = ["media", "clients", "clients_one_off_projects", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels", "activity_log", "job_posts", "gsc_snapshots", "gsc_alerts", "cost_categories", "cost_rules", "business_costs", "api_cost_rates", "blog_prompts"];
   const schema: Record<string, string[]> = {};
   for (const table of tables) {
     try {

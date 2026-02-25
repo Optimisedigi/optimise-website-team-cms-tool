@@ -17,7 +17,7 @@ export async function GET() {
       where: { isActive: { equals: true } },
       sort: "name",
       limit: 500,
-      select: { name: true, slug: true, gscConnected: true } as any,
+      select: { name: true, slug: true, gscConnected: true, blogCategories: true, blogTags: true, servicePages: true } as any,
     });
 
     const clients = result.docs.map((c: any) => ({
@@ -25,6 +25,9 @@ export async function GET() {
       name: c.name,
       slug: c.slug,
       gscConnected: c.gscConnected || false,
+      blogCategories: c.blogCategories || '',
+      blogTags: c.blogTags || '',
+      servicePages: c.servicePages || '',
     }));
 
     return NextResponse.json(clients);

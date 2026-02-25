@@ -21,6 +21,11 @@ import { ContentResearches } from "./collections/ContentResearches";
 import { GscSnapshots } from "./collections/GscSnapshots";
 import { GscAlerts } from "./collections/GscAlerts";
 import { ActivityLog } from "./collections/ActivityLog";
+import { CostCategories } from "./collections/CostCategories";
+import { CostRules } from "./collections/CostRules";
+import { BusinessCosts } from "./collections/BusinessCosts";
+import { BlogPrompts } from "./collections/BlogPrompts";
+import { ApiCostRates } from "./globals/ApiCostRates";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -58,7 +63,8 @@ export default buildConfig({
       beforeDashboard: ["./components/Dashboard"],
     },
   },
-  collections: [Users, Clients, ClientProposals, BlogPosts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, ActivityLog, Media],
+  collections: [Users, Clients, ClientProposals, BlogPosts, BlogPrompts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, ActivityLog, BusinessCosts, CostCategories, CostRules, Media],
+  globals: [ApiCostRates],
   editor: lexicalEditor(),
   secret: (() => {
     const s = process.env.PAYLOAD_SECRET;
