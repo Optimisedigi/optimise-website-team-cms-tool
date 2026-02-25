@@ -71,6 +71,7 @@ export interface Config {
     clients: Client;
     'client-proposals': ClientProposal;
     'blog-posts': BlogPost;
+    'blog-prompts': BlogPrompt;
     'job-posts': JobPost;
     'seo-audits': SeoAudit;
     'cro-audits': CroAudit;
@@ -81,6 +82,9 @@ export interface Config {
     'gsc-snapshots': GscSnapshot;
     'gsc-alerts': GscAlert;
     'activity-log': ActivityLog;
+    'business-costs': BusinessCost;
+    'cost-categories': CostCategory;
+    'cost-rules': CostRule;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -93,6 +97,7 @@ export interface Config {
     clients: ClientsSelect<false> | ClientsSelect<true>;
     'client-proposals': ClientProposalsSelect<false> | ClientProposalsSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
+    'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
     'seo-audits': SeoAuditsSelect<false> | SeoAuditsSelect<true>;
     'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
@@ -103,6 +108,9 @@ export interface Config {
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-alerts': GscAlertsSelect<false> | GscAlertsSelect<true>;
     'activity-log': ActivityLogSelect<false> | ActivityLogSelect<true>;
+    'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
+    'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
+    'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -113,8 +121,12 @@ export interface Config {
     defaultIDType: number;
   };
   fallbackLocale: null;
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    'api-cost-rates': ApiCostRate;
+  };
+  globalsSelect: {
+    'api-cost-rates': ApiCostRatesSelect<false> | ApiCostRatesSelect<true>;
+  };
   locale: null;
   user: User & {
     collection: 'users';
@@ -419,6 +431,10 @@ export interface Client {
    * Available tags for this client (one per line)
    */
   blogTags?: string | null;
+  /**
+   * Service or product/category pages for this client (one per line). Used to auto-populate the blog prompt requirements.
+   */
+  servicePages?: string | null;
   /**
    * Author profiles for this client (up to 10)
    */
@@ -1647,6 +1663,29 @@ export interface BlogPost {
   _status?: ('draft' | 'published') | null;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-prompts".
+ */
+export interface BlogPrompt {
+  id: number;
+  blogIdea: string;
+  titleIdea?: string | null;
+  category?: string | null;
+  tag?: string | null;
+  mainPoint?: string | null;
+  keyPoints?: string | null;
+  primaryKeywords?: string | null;
+  secondaryKeywords?: string | null;
+  pointsToAvoid?: string | null;
+  targetAudience?: string | null;
+  supportingContent?: string | null;
+  generatedPrompt?: string | null;
+  status?: ('draft' | 'client-submitted' | 'ready') | null;
+  source?: ('internal' | 'client') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Manage open roles displayed on the careers page
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1838,7 +1877,8 @@ export interface ActivityLog {
     | 'client_added'
     | 'retainer_changed'
     | 'proposal_created'
-    | 'gsc_snapshot';
+    | 'gsc_snapshot'
+    | 'time_tracked';
   title: string;
   description?: string | null;
   /**
@@ -1849,6 +1889,76 @@ export interface ActivityLog {
    * Related client
    */
   client?: (number | null) | Client;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "business-costs".
+ */
+export interface BusinessCost {
+  id: number;
+  date: string;
+  /**
+   * Positive = expense (AUD)
+   */
+  amount: number;
+  /**
+   * Merchant / payee name
+   */
+  description: string;
+  category?: (number | null) | CostCategory;
+  notes?: string | null;
+  source?: ('csv_import' | 'manual') | null;
+  /**
+   * Auto-derived YYYY-MM
+   */
+  month?: string | null;
+  /**
+   * Auto-derived
+   */
+  year?: number | null;
+  /**
+   * Link contractor costs to a client
+   */
+  client?: (number | null) | Client;
+  /**
+   * Groups CSV imports
+   */
+  importBatch?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cost-categories".
+ */
+export interface CostCategory {
+  id: number;
+  name: string;
+  /**
+   * Hex colour for charts, e.g. #4A90D9
+   */
+  color: string;
+  /**
+   * Monthly budget in AUD. Enables over-budget alerts when set.
+   */
+  budget?: number | null;
+  isActive?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cost-rules".
+ */
+export interface CostRule {
+  id: number;
+  /**
+   * Case-insensitive substring to match against transaction descriptions, e.g. VERCEL
+   */
+  pattern: string;
+  category: number | CostCategory;
   updatedAt: string;
   createdAt: string;
 }
@@ -1893,6 +2003,10 @@ export interface PayloadLockedDocument {
         value: number | BlogPost;
       } | null)
     | ({
+        relationTo: 'blog-prompts';
+        value: number | BlogPrompt;
+      } | null)
+    | ({
         relationTo: 'job-posts';
         value: number | JobPost;
       } | null)
@@ -1931,6 +2045,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'activity-log';
         value: number | ActivityLog;
+      } | null)
+    | ({
+        relationTo: 'business-costs';
+        value: number | BusinessCost;
+      } | null)
+    | ({
+        relationTo: 'cost-categories';
+        value: number | CostCategory;
+      } | null)
+    | ({
+        relationTo: 'cost-rules';
+        value: number | CostRule;
       } | null)
     | ({
         relationTo: 'media';
@@ -2072,6 +2198,7 @@ export interface ClientsSelect<T extends boolean = true> {
       };
   blogCategories?: T;
   blogTags?: T;
+  servicePages?: T;
   authors?:
     | T
     | {
@@ -2234,6 +2361,28 @@ export interface BlogPostsSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-prompts_select".
+ */
+export interface BlogPromptsSelect<T extends boolean = true> {
+  blogIdea?: T;
+  titleIdea?: T;
+  category?: T;
+  tag?: T;
+  mainPoint?: T;
+  keyPoints?: T;
+  primaryKeywords?: T;
+  secondaryKeywords?: T;
+  pointsToAvoid?: T;
+  targetAudience?: T;
+  supportingContent?: T;
+  generatedPrompt?: T;
+  status?: T;
+  source?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2433,6 +2582,46 @@ export interface ActivityLogSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "business-costs_select".
+ */
+export interface BusinessCostsSelect<T extends boolean = true> {
+  date?: T;
+  amount?: T;
+  description?: T;
+  category?: T;
+  notes?: T;
+  source?: T;
+  month?: T;
+  year?: T;
+  client?: T;
+  importBatch?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cost-categories_select".
+ */
+export interface CostCategoriesSelect<T extends boolean = true> {
+  name?: T;
+  color?: T;
+  budget?: T;
+  isActive?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cost-rules_select".
+ */
+export interface CostRulesSelect<T extends boolean = true> {
+  pattern?: T;
+  category?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
@@ -2523,6 +2712,56 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * Configurable cost-per-unit rates (AUD) for each API tool. Update when provider prices change.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "api-cost-rates".
+ */
+export interface ApiCostRate {
+  id: number;
+  /**
+   * Cost per SEO audit (AUD)
+   */
+  seoAuditCost?: number | null;
+  /**
+   * Cost per CRO audit (AUD)
+   */
+  croAuditCost?: number | null;
+  /**
+   * Cost per keyword snapshot (AUD)
+   */
+  keywordSnapshotCost?: number | null;
+  /**
+   * Cost per competitor analysis (AUD)
+   */
+  competitorAnalysisCost?: number | null;
+  /**
+   * Cost per content research (AUD)
+   */
+  contentResearchCost?: number | null;
+  /**
+   * Cost per blog image generation (AUD)
+   */
+  blogImageCost?: number | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "api-cost-rates_select".
+ */
+export interface ApiCostRatesSelect<T extends boolean = true> {
+  seoAuditCost?: T;
+  croAuditCost?: T;
+  keywordSnapshotCost?: T;
+  competitorAnalysisCost?: T;
+  contentResearchCost?: T;
+  blogImageCost?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
