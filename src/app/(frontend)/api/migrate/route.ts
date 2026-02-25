@@ -694,3 +694,133 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ ok: true, results, schema, migrations, allTables, clients });
 }
+
+/**
+ * GET /api/migrate — run only the newer finance + blog_prompts schema additions.
+ * Useful when the full POST migration times out after too many operations.
+ */
+export async function GET(request: NextRequest) {
+  const apiKey = request.headers.get("x-api-key");
+  if (!apiKey || apiKey !== process.env.AUDIT_API_KEY) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const payloadConfig = await config;
+  const payload = await getPayload({ config: payloadConfig });
+  const client = (payload.db as any).client;
+  if (!client) return NextResponse.json({ error: "No LibSQL client" }, { status: 500 });
+
+  const results: string[] = [];
+  async function run(label: string, statement: string) {
+    try {
+      await client.execute(statement);
+      results.push(`OK: ${label}`);
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      if (msg.includes("already exists") || msg.includes("duplicate column")) {
+        results.push(`SKIP: ${label} (already exists)`);
+      } else {
+        results.push(`ERROR: ${label} — ${msg}`);
+      }
+    }
+  }
+
+  // Cost Categories
+  await run("cost_categories", `CREATE TABLE IF NOT EXISTS \`cost_categories\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`name\` text NOT NULL,
+    \`color\` text DEFAULT '#4A90D9' NOT NULL,
+    \`budget\` numeric,
+    \`is_active\` integer DEFAULT 1,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("cost_categories_name_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `cost_categories_name_idx` ON `cost_categories` (`name`)");
+  await run("cost_categories_created_at_idx", "CREATE INDEX IF NOT EXISTS `cost_categories_created_at_idx` ON `cost_categories` (`created_at`)");
+  await run("cost_categories_updated_at_idx", "CREATE INDEX IF NOT EXISTS `cost_categories_updated_at_idx` ON `cost_categories` (`updated_at`)");
+
+  // Cost Rules
+  await run("cost_rules", `CREATE TABLE IF NOT EXISTS \`cost_rules\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`pattern\` text NOT NULL,
+    \`category_id\` integer NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`category_id\`) REFERENCES \`cost_categories\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("cost_rules_pattern_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `cost_rules_pattern_idx` ON `cost_rules` (`pattern`)");
+  await run("cost_rules_category_idx", "CREATE INDEX IF NOT EXISTS `cost_rules_category_idx` ON `cost_rules` (`category_id`)");
+
+  // Business Costs
+  await run("business_costs", `CREATE TABLE IF NOT EXISTS \`business_costs\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`date\` text NOT NULL,
+    \`amount\` numeric NOT NULL,
+    \`description\` text NOT NULL,
+    \`category_id\` integer,
+    \`notes\` text,
+    \`source\` text DEFAULT 'manual',
+    \`month\` text,
+    \`year\` numeric,
+    \`client_id\` integer,
+    \`import_batch\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`category_id\`) REFERENCES \`cost_categories\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("business_costs_category_idx", "CREATE INDEX IF NOT EXISTS `business_costs_category_idx` ON `business_costs` (`category_id`)");
+  await run("business_costs_client_idx", "CREATE INDEX IF NOT EXISTS `business_costs_client_idx` ON `business_costs` (`client_id`)");
+  await run("business_costs_month_idx", "CREATE INDEX IF NOT EXISTS `business_costs_month_idx` ON `business_costs` (`month`)");
+
+  // API Cost Rates
+  await run("api_cost_rates", `CREATE TABLE IF NOT EXISTS \`api_cost_rates\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`seo_audit_cost\` numeric DEFAULT 0.012,
+    \`cro_audit_cost\` numeric DEFAULT 0.005,
+    \`keyword_snapshot_cost\` numeric DEFAULT 0.008,
+    \`competitor_analysis_cost\` numeric DEFAULT 0.01,
+    \`content_research_cost\` numeric DEFAULT 0.004,
+    \`blog_image_cost\` numeric DEFAULT 0.031,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+
+  // locked_docs_rels for finance
+  await run("locked_docs_rels.cost_categories_id", "ALTER TABLE `payload_locked_documents_rels` ADD `cost_categories_id` integer REFERENCES `cost_categories`(`id`) ON DELETE cascade");
+  await run("locked_docs_rels.cost_rules_id", "ALTER TABLE `payload_locked_documents_rels` ADD `cost_rules_id` integer REFERENCES `cost_rules`(`id`) ON DELETE cascade");
+  await run("locked_docs_rels.business_costs_id", "ALTER TABLE `payload_locked_documents_rels` ADD `business_costs_id` integer REFERENCES `business_costs`(`id`) ON DELETE cascade");
+
+  // Blog Prompts
+  await run("blog_prompts", `CREATE TABLE IF NOT EXISTS \`blog_prompts\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`blog_idea\` text NOT NULL,
+    \`title_idea\` text,
+    \`category\` text,
+    \`tag\` text,
+    \`main_point\` text,
+    \`key_points\` text,
+    \`primary_keywords\` text,
+    \`secondary_keywords\` text,
+    \`points_to_avoid\` text,
+    \`target_audience\` text,
+    \`supporting_content\` text,
+    \`generated_prompt\` text,
+    \`status\` text DEFAULT 'draft',
+    \`source\` text DEFAULT 'internal',
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("locked_docs_rels.blog_prompts_id", "ALTER TABLE `payload_locked_documents_rels` ADD `blog_prompts_id` integer REFERENCES `blog_prompts`(`id`) ON DELETE cascade");
+
+  // clients.service_pages
+  await run("clients.service_pages", "ALTER TABLE `clients` ADD `service_pages` text");
+
+  let allTables: string[] = [];
+  try {
+    const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
+    allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
+  } catch { /* ignore */ }
+
+  return NextResponse.json({ ok: true, results, allTables });
+}
