@@ -355,6 +355,13 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
+              name: "googleAdsCustomerId",
+              type: "text",
+              admin: {
+                description: "Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.",
+              },
+            },
+            {
               name: "notes",
               type: "textarea",
               admin: {
@@ -487,6 +494,16 @@ export const Clients: CollectionConfig = {
                   },
                 },
               ],
+            },
+            {
+              name: "googleAdsAudits",
+              type: "join",
+              collection: "google-ads-audits",
+              on: "client",
+              admin: {
+                description: "Google Ads audits linked to this client",
+                defaultColumns: ["businessName", "overallScore", "auditStatus", "createdAt"],
+              },
             },
             {
               name: "competitors",

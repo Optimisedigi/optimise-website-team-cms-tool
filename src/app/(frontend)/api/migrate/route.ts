@@ -659,6 +659,9 @@ export async function POST(request: NextRequest) {
   // --- clients.service_pages column ---
   await run("clients.service_pages", "ALTER TABLE `clients` ADD `service_pages` text");
 
+  // --- clients.google_ads_customer_id column ---
+  await run("clients.google_ads_customer_id", "ALTER TABLE `clients` ADD `google_ads_customer_id` text");
+
   // --- Google Ads Audits ---
   await run("google_ads_audits", `CREATE TABLE IF NOT EXISTS \`google_ads_audits\` (
     \`id\` integer PRIMARY KEY NOT NULL,

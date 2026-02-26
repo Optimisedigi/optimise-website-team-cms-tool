@@ -92,7 +92,11 @@ export interface Config {
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
-  collectionsJoins: {};
+  collectionsJoins: {
+    clients: {
+      googleAdsAudits: 'google-ads-audits';
+    };
+  };
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     clients: ClientsSelect<false> | ClientsSelect<true>;
@@ -324,6 +328,10 @@ export interface Client {
       }[]
     | null;
   /**
+   * Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.
+   */
+  googleAdsCustomerId?: string | null;
+  /**
    * Goals, notes, and context about this client
    */
   notes?: string | null;
@@ -405,6 +413,14 @@ export interface Client {
    * New customers acquired in the last 12 months
    */
   newCustomersLast12Months?: number | null;
+  /**
+   * Google Ads audits linked to this client
+   */
+  googleAdsAudits?: {
+    docs?: (number | GoogleAdsAudit)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   /**
    * Competitor businesses to benchmark against (up to 5)
    */
@@ -510,103 +526,103 @@ export interface Client {
   createdAt: string;
 }
 /**
- * Upload and manage media. Images: max 800 KB. Videos: max 10 MB (no bulk upload).
+ * Google Ads audit pipeline. Requires client to grant access to the Optimise Digital MCC (manager account) before the audit can pull data.
  *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media".
+ * via the `definition` "google-ads-audits".
  */
-export interface Media {
+export interface GoogleAdsAudit {
   id: number;
   /**
-   * Describe the image for accessibility and SEO. Be specific (e.g., 'Team meeting in modern office with whiteboard').
+   * Client business name
    */
-  alt?: string | null;
+  businessName: string;
   /**
-   * Optional caption to display below the image.
+   * URL-friendly identifier (auto-generated from business name)
    */
-  caption?: string | null;
-  updatedAt: string;
-  createdAt: string;
-  url?: string | null;
-  thumbnailURL?: string | null;
-  filename?: string | null;
-  mimeType?: string | null;
-  filesize?: number | null;
-  width?: number | null;
-  height?: number | null;
-  focalX?: number | null;
-  focalY?: number | null;
-  sizes?: {
-    thumbnail?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-    card?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-    hero?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-  };
-}
-/**
- * Monthly Google Search Console data snapshots
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "gsc-snapshots".
- */
-export interface GscSnapshot {
-  id: number;
+  slug: string;
   /**
-   * The client this snapshot belongs to
+   * Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC before running the audit.
    */
-  client: number | Client;
+  customerId: string;
   /**
-   * Date this snapshot was taken
+   * Client website URL
    */
-  snapshotDate: string;
+  websiteUrl?: string | null;
   /**
-   * Start of the reporting period
+   * Type of business
    */
-  periodStart: string;
+  businessType?:
+    | (
+        | 'trades'
+        | 'services'
+        | 'ecommerce'
+        | 'healthcare'
+        | 'hospitality'
+        | 'realestate'
+        | 'education'
+        | 'saas'
+        | 'other'
+      )
+    | null;
   /**
-   * End of the reporting period
+   * Client-stated monthly ad spend ($)
    */
-  periodEnd: string;
+  monthlySpend?: number | null;
   /**
-   * Total clicks from search
+   * Client contact email (for sending audit email)
    */
-  totalClicks?: number | null;
+  contactEmail?: string | null;
   /**
-   * Total search impressions
+   * What the client considers a conversion (forms, calls, purchases, etc.)
    */
-  totalImpressions?: number | null;
+  conversionObjectives?:
+    | {
+        objective: string;
+        id?: string | null;
+      }[]
+    | null;
   /**
-   * Average click-through rate (%)
+   * Brand terms for brand/generic campaign classification
    */
-  avgCtr?: number | null;
+  brandTerms?:
+    | {
+        term: string;
+        id?: string | null;
+      }[]
+    | null;
   /**
-   * Average search position
+   * Internal team notes about this client
    */
-  avgPosition?: number | null;
+  notes?: string | null;
   /**
-   * Top keywords — array of {keyword, clicks, impressions, ctr, position}
+   * Current audit pipeline status
    */
-  topKeywords?:
+  auditStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
+  /**
+   * Current stage (e.g. 'Pulling data|25')
+   */
+  auditProgress?: string | null;
+  /**
+   * When audit was last kicked off
+   */
+  auditStartedAt?: string | null;
+  /**
+   * When audit finished
+   */
+  auditCompletedAt?: string | null;
+  /**
+   * Error details if audit failed
+   */
+  auditError?: string | null;
+  /**
+   * Overall audit score (0-100)
+   */
+  overallScore?: number | null;
+  /**
+   * Raw API data from Google Ads (campaigns, keywords, search terms, etc.)
+   */
+  rawData?:
     | {
         [k: string]: unknown;
       }
@@ -616,9 +632,9 @@ export interface GscSnapshot {
     | boolean
     | null;
   /**
-   * Top pages — array of {page, clicks, impressions, ctr, position}
+   * Full scored audit results (GoogleAdsAuditResults shape)
    */
-  topPages?:
+  scoredReport?:
     | {
         [k: string]: unknown;
       }
@@ -628,9 +644,21 @@ export interface GscSnapshot {
     | boolean
     | null;
   /**
-   * Brand query metrics — {clicks, impressions, ctr, position}
+   * Generated email HTML (preview in Presentation tab)
    */
-  brandedData?:
+  emailHtml?: string | null;
+  /**
+   * When the audit email was sent
+   */
+  emailSentAt?: string | null;
+  /**
+   * Toggle on to make the presentation publicly accessible (with PIN)
+   */
+  presentationPublished?: boolean | null;
+  /**
+   * AuditPresentation-shaped data for the presentation renderer. Editable by team before publishing.
+   */
+  presentationData?:
     | {
         [k: string]: unknown;
       }
@@ -640,89 +668,70 @@ export interface GscSnapshot {
     | boolean
     | null;
   /**
-   * Non-brand query metrics — {clicks, impressions, ctr, position, topQueries: [...]}
+   * Internal annotations before publishing (not shown to client)
    */
-  nonBrandedData?:
+  teamNotes?: string | null;
+  /**
+   * Previous audit run summaries (auto-populated on re-run)
+   */
+  history?:
     | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
+        runDate: string;
+        overallScore?: number | null;
+        /**
+         * Step-by-step scores from this run
+         */
+        stepScores?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Auto-generated summary of changes since last run
+         */
+        notes?: string | null;
+        id?: string | null;
+      }[]
     | null;
   /**
-   * Number of indexed pages
+   * Populated from roadmap + quick wins. Future OptiMate agent reads these via API.
    */
-  indexedPages?: number | null;
-  /**
-   * Number of pages not indexed
-   */
-  notIndexedPages?: number | null;
-  /**
-   * Indexing issues — array of {reason, count, urls}
-   */
-  indexingIssues?:
+  actionItems?:
     | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
+        /**
+         * What needs to be done
+         */
+        action: string;
+        priority?: ('high' | 'medium' | 'low') | null;
+        status?: ('pending' | 'in-progress' | 'done') | null;
+        completedAt?: string | null;
+        /**
+         * Implementation notes or OptiMate feedback
+         */
+        notes?: string | null;
+        id?: string | null;
+      }[]
     | null;
   /**
-   * Sitemaps — array of {url, lastSubmitted, isPending, warnings, errors}
+   * 4-digit PIN for presentation access (auto-generated)
    */
-  sitemaps?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
+  presentationPin?: string | null;
   /**
-   * Mobile CWV — {lcp, fid, cls, status} where status is GOOD/NEEDS_IMPROVEMENT/POOR
+   * Link to existing client (optional)
    */
-  cwvMobile?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
+  client?: (number | null) | Client;
   /**
-   * Desktop CWV — {lcp, fid, cls, status}
+   * Link to client proposal (optional)
    */
-  cwvDesktop?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
+  proposal?: (number | null) | ClientProposal;
   /**
-   * Clicks change vs previous period (%)
+   * Toggle on and save to create a Client Proposal from this audit
    */
-  clicksChange?: number | null;
-  /**
-   * Impressions change vs previous period (%)
-   */
-  impressionsChange?: number | null;
-  /**
-   * Position change vs previous period (negative = improved)
-   */
-  positionChange?: number | null;
-  /**
-   * Previous snapshot for comparison
-   */
-  previousSnapshot?: (number | null) | GscSnapshot;
+  createProposal?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1159,6 +1168,60 @@ export interface ClientProposal {
   createdAt: string;
 }
 /**
+ * Upload and manage media. Images: max 800 KB. Videos: max 10 MB (no bulk upload).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: number;
+  /**
+   * Describe the image for accessibility and SEO. Be specific (e.g., 'Team meeting in modern office with whiteboard').
+   */
+  alt?: string | null;
+  /**
+   * Optional caption to display below the image.
+   */
+  caption?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    hero?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
+}
+/**
  * Full SEO audit reports from the growth tools
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1555,103 +1618,49 @@ export interface ContentResearch {
   createdAt: string;
 }
 /**
- * Google Ads audit pipeline — pull data, score, generate presentation & email
+ * Monthly Google Search Console data snapshots
  *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "google-ads-audits".
+ * via the `definition` "gsc-snapshots".
  */
-export interface GoogleAdsAudit {
+export interface GscSnapshot {
   id: number;
   /**
-   * Client business name
+   * The client this snapshot belongs to
    */
-  businessName: string;
+  client: number | Client;
   /**
-   * URL-friendly identifier (auto-generated from business name)
+   * Date this snapshot was taken
    */
-  slug: string;
+  snapshotDate: string;
   /**
-   * Google Ads customer ID (e.g. 955-493-5739)
+   * Start of the reporting period
    */
-  customerId: string;
+  periodStart: string;
   /**
-   * Client website URL
+   * End of the reporting period
    */
-  websiteUrl?: string | null;
+  periodEnd: string;
   /**
-   * Type of business
+   * Total clicks from search
    */
-  businessType?:
-    | (
-        | 'trades'
-        | 'services'
-        | 'ecommerce'
-        | 'healthcare'
-        | 'hospitality'
-        | 'realestate'
-        | 'education'
-        | 'saas'
-        | 'other'
-      )
-    | null;
+  totalClicks?: number | null;
   /**
-   * Client-stated monthly ad spend ($)
+   * Total search impressions
    */
-  monthlySpend?: number | null;
+  totalImpressions?: number | null;
   /**
-   * Client contact email (for sending audit email)
+   * Average click-through rate (%)
    */
-  contactEmail?: string | null;
+  avgCtr?: number | null;
   /**
-   * What the client considers a conversion (forms, calls, purchases, etc.)
+   * Average search position
    */
-  conversionObjectives?:
-    | {
-        objective: string;
-        id?: string | null;
-      }[]
-    | null;
+  avgPosition?: number | null;
   /**
-   * Brand terms for brand/generic campaign classification
+   * Top keywords — array of {keyword, clicks, impressions, ctr, position}
    */
-  brandTerms?:
-    | {
-        term: string;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Internal team notes about this client
-   */
-  notes?: string | null;
-  /**
-   * Current audit pipeline status
-   */
-  auditStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
-  /**
-   * Current stage (e.g. 'Pulling data|25')
-   */
-  auditProgress?: string | null;
-  /**
-   * When audit was last kicked off
-   */
-  auditStartedAt?: string | null;
-  /**
-   * When audit finished
-   */
-  auditCompletedAt?: string | null;
-  /**
-   * Error details if audit failed
-   */
-  auditError?: string | null;
-  /**
-   * Overall audit score (0-100)
-   */
-  overallScore?: number | null;
-  /**
-   * Raw API data from Google Ads (campaigns, keywords, search terms, etc.)
-   */
-  rawData?:
+  topKeywords?:
     | {
         [k: string]: unknown;
       }
@@ -1661,9 +1670,9 @@ export interface GoogleAdsAudit {
     | boolean
     | null;
   /**
-   * Full scored audit results (GoogleAdsAuditResults shape)
+   * Top pages — array of {page, clicks, impressions, ctr, position}
    */
-  scoredReport?:
+  topPages?:
     | {
         [k: string]: unknown;
       }
@@ -1673,21 +1682,9 @@ export interface GoogleAdsAudit {
     | boolean
     | null;
   /**
-   * Generated email HTML (preview in Presentation tab)
+   * Brand query metrics — {clicks, impressions, ctr, position}
    */
-  emailHtml?: string | null;
-  /**
-   * When the audit email was sent
-   */
-  emailSentAt?: string | null;
-  /**
-   * Toggle on to make the presentation publicly accessible (with PIN)
-   */
-  presentationPublished?: boolean | null;
-  /**
-   * AuditPresentation-shaped data for the presentation renderer. Editable by team before publishing.
-   */
-  presentationData?:
+  brandedData?:
     | {
         [k: string]: unknown;
       }
@@ -1697,70 +1694,89 @@ export interface GoogleAdsAudit {
     | boolean
     | null;
   /**
-   * Internal annotations before publishing (not shown to client)
+   * Non-brand query metrics — {clicks, impressions, ctr, position, topQueries: [...]}
    */
-  teamNotes?: string | null;
-  /**
-   * Previous audit run summaries (auto-populated on re-run)
-   */
-  history?:
+  nonBrandedData?:
     | {
-        runDate: string;
-        overallScore?: number | null;
-        /**
-         * Step-by-step scores from this run
-         */
-        stepScores?:
-          | {
-              [k: string]: unknown;
-            }
-          | unknown[]
-          | string
-          | number
-          | boolean
-          | null;
-        /**
-         * Auto-generated summary of changes since last run
-         */
-        notes?: string | null;
-        id?: string | null;
-      }[]
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
     | null;
   /**
-   * Populated from roadmap + quick wins. Future OptiMate agent reads these via API.
+   * Number of indexed pages
    */
-  actionItems?:
+  indexedPages?: number | null;
+  /**
+   * Number of pages not indexed
+   */
+  notIndexedPages?: number | null;
+  /**
+   * Indexing issues — array of {reason, count, urls}
+   */
+  indexingIssues?:
     | {
-        /**
-         * What needs to be done
-         */
-        action: string;
-        priority?: ('high' | 'medium' | 'low') | null;
-        status?: ('pending' | 'in-progress' | 'done') | null;
-        completedAt?: string | null;
-        /**
-         * Implementation notes or OptiMate feedback
-         */
-        notes?: string | null;
-        id?: string | null;
-      }[]
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
     | null;
   /**
-   * 4-digit PIN for presentation access (auto-generated)
+   * Sitemaps — array of {url, lastSubmitted, isPending, warnings, errors}
    */
-  presentationPin?: string | null;
+  sitemaps?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   /**
-   * Link to existing client (optional)
+   * Mobile CWV — {lcp, fid, cls, status} where status is GOOD/NEEDS_IMPROVEMENT/POOR
    */
-  client?: (number | null) | Client;
+  cwvMobile?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   /**
-   * Link to client proposal (optional)
+   * Desktop CWV — {lcp, fid, cls, status}
    */
-  proposal?: (number | null) | ClientProposal;
+  cwvDesktop?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   /**
-   * Toggle on and save to create a Client Proposal from this audit
+   * Clicks change vs previous period (%)
    */
-  createProposal?: boolean | null;
+  clicksChange?: number | null;
+  /**
+   * Impressions change vs previous period (%)
+   */
+  impressionsChange?: number | null;
+  /**
+   * Position change vs previous period (negative = improved)
+   */
+  positionChange?: number | null;
+  /**
+   * Previous snapshot for comparison
+   */
+  previousSnapshot?: (number | null) | GscSnapshot;
   updatedAt: string;
   createdAt: string;
 }
@@ -2388,6 +2404,7 @@ export interface ClientsSelect<T extends boolean = true> {
         date?: T;
         id?: T;
       };
+  googleAdsCustomerId?: T;
   notes?: T;
   retainerHistory?:
     | T
@@ -2408,6 +2425,7 @@ export interface ClientsSelect<T extends boolean = true> {
   averageOrderValue?: T;
   annualPurchaseFrequency?: T;
   newCustomersLast12Months?: T;
+  googleAdsAudits?: T;
   competitors?:
     | T
     | {
