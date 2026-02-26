@@ -6,8 +6,11 @@ describe("Users Collection", () => {
     expect(Users.slug).toBe("users");
   });
 
-  it("should have auth enabled", () => {
-    expect(Users.auth).toBe(true);
+  it("should have auth enabled with API key and max login attempts", () => {
+    expect(Users.auth).toEqual({
+      useAPIKey: true,
+      maxLoginAttempts: 5,
+    });
   });
 
   it("should use email as title", () => {
@@ -27,7 +30,7 @@ describe("Users Collection", () => {
     expect(nameField).toHaveProperty("type", "text");
   });
 
-  it("should have role field with admin/editor/writer options", () => {
+  it("should have role field with admin/manager/specialist options", () => {
     const roleField = Users.fields.find(
       (f) => "name" in f && f.name === "role"
     );
@@ -36,15 +39,15 @@ describe("Users Collection", () => {
     if (roleField && "options" in roleField) {
       const values = roleField.options?.map((o) => typeof o === "string" ? o : o.value);
       expect(values).toContain("admin");
-      expect(values).toContain("editor");
-      expect(values).toContain("writer");
+      expect(values).toContain("manager");
+      expect(values).toContain("specialist");
     }
   });
 
-  it("should default role to writer", () => {
+  it("should default role to specialist", () => {
     const roleField = Users.fields.find(
       (f) => "name" in f && f.name === "role"
     );
-    expect(roleField).toHaveProperty("defaultValue", "writer");
+    expect(roleField).toHaveProperty("defaultValue", "specialist");
   });
 });

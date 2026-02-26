@@ -52,13 +52,13 @@ describe("Media Collection", () => {
     }
   });
 
-  it("should have required alt field", () => {
+  it("should have optional alt field", () => {
     const altField = Media.fields.find(
       (f) => "name" in f && f.name === "alt"
     );
     expect(altField).toBeDefined();
-    expect(altField).toHaveProperty("required", true);
     expect(altField).toHaveProperty("type", "text");
+    expect(altField).not.toHaveProperty("required", true);
   });
 
   it("should have optional caption field", () => {
