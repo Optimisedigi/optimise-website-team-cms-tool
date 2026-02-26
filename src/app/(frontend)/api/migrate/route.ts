@@ -3,7 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 
 /**
- * One-time migration endpoint.
+ * Schema migration endpoint.
  * POST /api/migrate with header x-api-key matching AUDIT_API_KEY.
  * Creates missing tables/columns for collections added after initial deployment.
  * Safe to run multiple times (uses IF NOT EXISTS / catches duplicate column errors).
