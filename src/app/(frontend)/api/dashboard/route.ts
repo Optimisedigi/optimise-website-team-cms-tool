@@ -3,8 +3,8 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 
-// ── Real per-unit API costs in AUD (researched Feb 2026) ──
-const COST_PER_AUD = {
+// ── Default per-unit API costs in AUD (fallbacks if global not configured) ──
+const DEFAULT_COST_PER_AUD = {
   seoAudit: 0.012,
   croAudit: 0.005,
   keywordSnapshot: 0.008,
@@ -39,6 +39,57 @@ export async function GET() {
   const { user } = await payload.auth({ headers: headersList });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Read configurable API cost rates from global, fallback to defaults
+  let COST_PER_AUD = { ...DEFAULT_COST_PER_AUD };
+  try {
+    const rates = await payload.findGlobal({ slug: 'api-cost-rates' as any, overrideAccess: true });
+    if (rates) {
+      COST_PER_AUD = {
+        seoAudit: (rates as any).seoAuditCost ?? DEFAULT_COST_PER_AUD.seoAudit,
+        croAudit: (rates as any).croAuditCost ?? DEFAULT_COST_PER_AUD.croAudit,
+        keywordSnapshot: (rates as any).keywordSnapshotCost ?? DEFAULT_COST_PER_AUD.keywordSnapshot,
+        competitorAnalysis: (rates as any).competitorAnalysisCost ?? DEFAULT_COST_PER_AUD.competitorAnalysis,
+        contentResearch: (rates as any).contentResearchCost ?? DEFAULT_COST_PER_AUD.contentResearch,
+        blogImage: (rates as any).blogImageCost ?? DEFAULT_COST_PER_AUD.blogImage,
+      };
+    }
+  } catch {
+    // Global not configured yet, use defaults
+  }
+
+  // Fetch business costs summary for dashboard card
+  let businessCostsSummary = { totalThisMonth: 0, uncategorisedCount: 0 };
+  try {
+    const now_ = new Date();
+    const thisMonth = `${now_.getFullYear()}-${String(now_.getMonth() + 1).padStart(2, '0')}`;
+    const [bcThisMonth, bcUncat] = await Promise.all([
+      payload.find({
+        collection: 'business-costs' as any,
+        where: { month: { equals: thisMonth } },
+        limit: 5000,
+        depth: 0,
+        overrideAccess: true,
+      }),
+      payload.find({
+        collection: 'business-costs' as any,
+        where: {
+          or: [
+            { category: { exists: false } },
+            { category: { equals: null as any } },
+          ],
+        },
+        limit: 0,
+        overrideAccess: true,
+      }),
+    ]);
+    businessCostsSummary = {
+      totalThisMonth: round(bcThisMonth.docs.reduce((sum: number, c: any) => sum + ((c.amount as number) || 0), 0)),
+      uncategorisedCount: bcUncat.totalDocs,
+    };
+  } catch {
+    // business-costs collection might not exist yet
   }
 
   const now = new Date();
@@ -365,6 +416,7 @@ export async function GET() {
       total: totalCost,
     },
     costHistory: historicalCounts,
+    businessCosts: businessCostsSummary,
     month: now.toLocaleString("en-AU", { month: "long", year: "numeric" }),
   });
   } catch (err) {

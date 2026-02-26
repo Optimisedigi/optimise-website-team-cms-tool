@@ -78,6 +78,10 @@ interface DashboardData {
     total: number
   }
   costHistory: CostHistoryEntry[]
+  businessCosts?: {
+    totalThisMonth: number
+    uncategorisedCount: number
+  }
   month: string
 }
 
@@ -298,6 +302,30 @@ const Dashboard = () => {
               <CostBreakdown data={data} />
             </div>
           </div>
+
+          {/* Business Costs Summary */}
+          {data.businessCosts && (
+            <div className="od-box">
+              <div className="od-box__head">
+                <span className="od-box__title">Business Costs</span>
+                <a href="/admin/finance/costs" style={{ fontSize: 12, color: 'var(--theme-elevation-500)', textDecoration: 'none' }}>
+                  View all &rarr;
+                </a>
+              </div>
+              <div className="od-box__stats od-box__stats--2" style={{ padding: '16px 20px' }}>
+                <div className="od-box__stat">
+                  <span className="od-box__stat-value">${data.businessCosts.totalThisMonth.toFixed(2)}</span>
+                  <span className="od-box__stat-label">Total This Month (AUD)</span>
+                </div>
+                <div className="od-box__stat">
+                  <span className="od-box__stat-value" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
+                    {data.businessCosts.uncategorisedCount}
+                  </span>
+                  <span className="od-box__stat-label">Uncategorised</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* GA4 placeholder */}
           <div className="od-box od-box--muted">
