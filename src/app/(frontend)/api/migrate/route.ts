@@ -912,9 +912,6 @@ export async function GET(request: NextRequest) {
   // client_proposals.google_ads_customer_id
   await run("client_proposals.google_ads_customer_id", "ALTER TABLE `client_proposals` ADD `google_ads_customer_id` text");
 
-  // clients.service_pages
-  await run("clients.service_pages", "ALTER TABLE `clients` ADD `service_pages` text");
-
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
