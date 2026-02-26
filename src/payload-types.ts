@@ -1701,6 +1701,51 @@ export interface GoogleAdsAudit {
    */
   teamNotes?: string | null;
   /**
+   * Previous audit run summaries (auto-populated on re-run)
+   */
+  history?:
+    | {
+        runDate: string;
+        overallScore?: number | null;
+        /**
+         * Step-by-step scores from this run
+         */
+        stepScores?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Auto-generated summary of changes since last run
+         */
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Populated from roadmap + quick wins. Future OptiMate agent reads these via API.
+   */
+  actionItems?:
+    | {
+        /**
+         * What needs to be done
+         */
+        action: string;
+        priority?: ('high' | 'medium' | 'low') | null;
+        status?: ('pending' | 'in-progress' | 'done') | null;
+        completedAt?: string | null;
+        /**
+         * Implementation notes or OptiMate feedback
+         */
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * 4-digit PIN for presentation access (auto-generated)
    */
   presentationPin?: string | null;
@@ -1712,6 +1757,10 @@ export interface GoogleAdsAudit {
    * Link to client proposal (optional)
    */
   proposal?: (number | null) | ClientProposal;
+  /**
+   * Toggle on and save to create a Client Proposal from this audit
+   */
+  createProposal?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2662,9 +2711,29 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   presentationPublished?: T;
   presentationData?: T;
   teamNotes?: T;
+  history?:
+    | T
+    | {
+        runDate?: T;
+        overallScore?: T;
+        stepScores?: T;
+        notes?: T;
+        id?: T;
+      };
+  actionItems?:
+    | T
+    | {
+        action?: T;
+        priority?: T;
+        status?: T;
+        completedAt?: T;
+        notes?: T;
+        id?: T;
+      };
   presentationPin?: T;
   client?: T;
   proposal?: T;
+  createProposal?: T;
   updatedAt?: T;
   createdAt?: T;
 }

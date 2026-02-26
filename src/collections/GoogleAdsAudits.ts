@@ -1,5 +1,6 @@
 import type {
   CollectionConfig,
+  CollectionAfterChangeHook,
   CollectionBeforeChangeHook,
 } from "payload";
 import crypto from "crypto";
@@ -51,6 +52,64 @@ const generateUniquePin = async (payload: any): Promise<string> => {
   return crypto.randomBytes(2).toString("hex").toUpperCase();
 };
 
+const createProposalHook: CollectionAfterChangeHook = async ({
+  doc,
+  req,
+  previousDoc,
+}) => {
+  if (doc.createProposal && !previousDoc?.createProposal) {
+    const payload = req.payload;
+
+    try {
+      const scoreNote = doc.overallScore != null ? ` (score: ${doc.overallScore}/100)` : "";
+
+      const proposal = await payload.create({
+        collection: "client-proposals" as any,
+        data: {
+          businessName: doc.businessName,
+          websiteUrl: doc.websiteUrl || "",
+          businessType: doc.businessType,
+          contactEmail: doc.contactEmail,
+          googleAdsAudit: doc.id,
+          proposalStatus: "draft",
+          notes: `Created from Google Ads audit${scoreNote}`,
+        },
+      });
+
+      // Link the audit back to the new proposal and reset the toggle
+      await payload.update({
+        collection: "google-ads-audits",
+        id: doc.id,
+        data: {
+          proposal: proposal.id,
+          createProposal: false,
+        },
+      });
+
+      logActivity(payload, {
+        type: "google_ads_proposal_created",
+        title: `Proposal created from audit: ${doc.businessName}`,
+        description: `Customer ID: ${doc.customerId || "not set"}`,
+        user: req.user?.id,
+      }).catch(() => {});
+    } catch (error) {
+      // Reset the toggle so the user can retry
+      await payload.update({
+        collection: "google-ads-audits",
+        id: doc.id,
+        data: { createProposal: false },
+      });
+      payload.logger.error(
+        `Failed to create proposal from audit "${doc.businessName}": ${error}`,
+      );
+      throw new Error(
+        `Failed to create proposal: a proposal for "${doc.businessName}" may already exist.`,
+      );
+    }
+  }
+  return doc;
+};
+
 export const GoogleAdsAudits: CollectionConfig = {
   slug: "google-ads-audits",
   labels: {
@@ -66,6 +125,7 @@ export const GoogleAdsAudits: CollectionConfig = {
   hooks: {
     beforeChange: [autoGenerateSlug],
     afterChange: [
+      createProposalHook,
       async ({ doc, operation, req }) => {
         if (operation === "create") {
           logActivity(req.payload, {
@@ -514,6 +574,16 @@ export const GoogleAdsAudits: CollectionConfig = {
       admin: {
         position: "sidebar",
         description: "Link to client proposal (optional)",
+      },
+    },
+    {
+      name: "createProposal",
+      type: "checkbox",
+      defaultValue: false,
+      admin: {
+        position: "sidebar",
+        description:
+          "Toggle on and save to create a Client Proposal from this audit",
       },
     },
   ],
