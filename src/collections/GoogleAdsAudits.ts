@@ -120,7 +120,7 @@ export const GoogleAdsAudits: CollectionConfig = {
     useAsTitle: "businessName",
     group: "Audits",
     defaultColumns: ["businessName", "overallScore", "auditStatus", "createdAt"],
-    description: "Google Ads audit pipeline — pull data, score, generate presentation & email",
+    description: "Google Ads audit pipeline. Requires client to grant access to the Optimise Digital MCC (manager account) before the audit can pull data.",
   },
   hooks: {
     beforeChange: [autoGenerateSlug],
@@ -180,7 +180,7 @@ export const GoogleAdsAudits: CollectionConfig = {
                   type: "text",
                   required: true,
                   admin: {
-                    description: "Google Ads customer ID (e.g. 955-493-5739)",
+                    description: "Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC before running the audit.",
                   },
                 },
                 {
