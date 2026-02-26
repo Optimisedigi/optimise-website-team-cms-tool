@@ -324,6 +324,13 @@ export const ClientProposals: CollectionConfig = {
               },
             },
             {
+              name: "googleAdsCustomerId",
+              type: "text",
+              admin: {
+                description: "Google Ads customer ID (e.g. 955-493-5739). Required to run a Google Ads audit from this proposal.",
+              },
+            },
+            {
               name: "screenshotClickSelector",
               type: "text",
               admin: {
@@ -731,6 +738,15 @@ export const ClientProposals: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "Linked content research results",
+              },
+            },
+            {
+              name: "runGoogleAdsAudit",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunGoogleAdsAuditFromProposalButton",
+                },
               },
             },
             {

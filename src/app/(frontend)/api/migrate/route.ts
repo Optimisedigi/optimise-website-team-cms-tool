@@ -909,6 +909,9 @@ export async function GET(request: NextRequest) {
   )`);
   await run("locked_docs_rels.blog_prompts_id", "ALTER TABLE `payload_locked_documents_rels` ADD `blog_prompts_id` integer REFERENCES `blog_prompts`(`id`) ON DELETE cascade");
 
+  // client_proposals.google_ads_customer_id
+  await run("client_proposals.google_ads_customer_id", "ALTER TABLE `client_proposals` ADD `google_ads_customer_id` text");
+
   // clients.service_pages
   await run("clients.service_pages", "ALTER TABLE `clients` ADD `service_pages` text");
 

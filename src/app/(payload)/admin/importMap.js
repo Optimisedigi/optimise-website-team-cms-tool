@@ -21,10 +21,12 @@ import { StrikethroughFeatureClient as StrikethroughFeatureClient_e70f5e05f09f93
 import { UnderlineFeatureClient as UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { default as default_fb5d37b90851b3851c29f4b754a04aca } from '../../../components/RunGoogleAdsAuditFromClientButton'
 import { default as default_b0745460f96744dbbe5a3465bced6bcf } from '../../../components/ClientBlogPostsList'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_da47157ebc74588a3650c3de3faf920e } from '../../../components/MockupUpload'
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
+import { default as default_524269742a06f6b5480b96a4c642a8de } from '../../../components/RunGoogleAdsAuditFromProposalButton'
 import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../components/ViewProposalReportLink'
 import { default as default_00f2f68e89ac94a9115ac79e7355850c } from '../../../components/CompetitorExcluder'
 import { default as default_2b563fa0e9b70d98b73119ee8b081564 } from '../../../components/MarkdownGuide'
@@ -79,10 +81,12 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UnderlineFeatureClient": UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#BoldFeatureClient": BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "./components/RunGoogleAdsAuditFromClientButton#default": default_fb5d37b90851b3851c29f4b754a04aca,
   "./components/ClientBlogPostsList#default": default_b0745460f96744dbbe5a3465bced6bcf,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/MockupUpload#default": default_da47157ebc74588a3650c3de3faf920e,
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
+  "./components/RunGoogleAdsAuditFromProposalButton#default": default_524269742a06f6b5480b96a4c642a8de,
   "./components/ViewProposalReportLink#default": default_5e310d3006558ed2b01fcb80fcc2b97e,
   "./components/CompetitorExcluder#default": default_00f2f68e89ac94a9115ac79e7355850c,
   "./components/MarkdownGuide#default": default_2b563fa0e9b70d98b73119ee8b081564,

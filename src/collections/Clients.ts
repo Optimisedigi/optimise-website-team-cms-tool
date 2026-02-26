@@ -496,6 +496,15 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
+              name: "runGoogleAdsAudit",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunGoogleAdsAuditFromClientButton",
+                },
+              },
+            },
+            {
               name: "googleAdsAudits",
               type: "join",
               collection: "google-ads-audits",
