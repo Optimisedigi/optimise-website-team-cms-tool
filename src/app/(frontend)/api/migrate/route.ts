@@ -918,5 +918,5 @@ export async function GET(request: NextRequest) {
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, results, allTables });
+  return NextResponse.json({ ok: true, version: "2026-02-27a", results, allTables });
 }
