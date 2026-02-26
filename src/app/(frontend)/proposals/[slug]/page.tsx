@@ -534,14 +534,14 @@ function CompetitorCard({
             <div className="screenshot-wrap">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={comp.websiteScreenshot.startsWith('data:') ? comp.websiteScreenshot : `data:image/png;base64,${comp.websiteScreenshot}`}
+                src={comp.websiteScreenshot.startsWith('http') ? comp.websiteScreenshot : comp.websiteScreenshot.startsWith('data:') ? comp.websiteScreenshot : `data:image/png;base64,${comp.websiteScreenshot}`}
                 alt={`${comp.domain} website fold`}
                 className="screenshot-img"
               />
               <div className="screenshot-hover">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={comp.websiteScreenshot.startsWith('data:') ? comp.websiteScreenshot : `data:image/png;base64,${comp.websiteScreenshot}`}
+                  src={comp.websiteScreenshot.startsWith('http') ? comp.websiteScreenshot : comp.websiteScreenshot.startsWith('data:') ? comp.websiteScreenshot : `data:image/png;base64,${comp.websiteScreenshot}`}
                   alt={`${comp.domain} website fold expanded`}
                   className="screenshot-hover-img"
                 />

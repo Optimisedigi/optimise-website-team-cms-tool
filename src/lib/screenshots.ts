@@ -1,12 +1,15 @@
 /**
  * Website screenshot capture — tiered approach:
- *   1. Google PageSpeed Insights API (free, primary)
- *   2. Growth-tools Puppeteer endpoint (existing infra, fallback)
- *   3. ScreenshotOne API (paid, backfill-only for gaps after report is built)
+ *   1. Scrapling service (Railway, anti-bot) → Vercel Blob storage
+ *   2. Google PageSpeed Insights API (free fallback, returns base64)
  *
- * ScreenshotOne setup: https://screenshotone.com — SCREENSHOTONE_ACCESS_KEY env var
- * Pricing: 100 free/month, $17/mo for 2,000 screenshots
+ * Legacy tiers (still exported for backward compat):
+ *   3. Growth-tools Puppeteer endpoint
+ *   4. ScreenshotOne API (paid)
  */
+
+import { captureScreenshotViaScrapling } from './scrapling-service'
+import { uploadScreenshotToBlob } from './blob-upload'
 
 export interface ScreenshotOptions {
   /** CSS selector to click before capturing (e.g. age-gate "Enter site" button) */
@@ -161,4 +164,29 @@ export async function captureScreenshotViaScreenshotOne(url: string, opts?: Scre
     console.error(`[screenshots] ScreenshotOne failed for ${fullUrl}:`, err)
     return null
   }
+}
+
+/**
+ * Orchestrator: try Scrapling service (→ Blob URL), fall back to PageSpeed (→ base64).
+ * Returns a Blob URL string, a base64 string, or null.
+ */
+export async function captureAndUploadScreenshot(
+  url: string,
+  opts?: ScreenshotOptions,
+): Promise<string | null> {
+  // Tier 1: Scrapling service → Vercel Blob
+  const buffer = await captureScreenshotViaScrapling(url, {
+    clickSelector: opts?.clickSelector,
+  })
+  if (buffer) {
+    const blobUrl = await uploadScreenshotToBlob(buffer, url)
+    if (blobUrl) return blobUrl
+    // Blob upload failed — fall through to base64 fallback but convert this buffer
+    console.error('[screenshots] Blob upload failed, returning base64 from Scrapling buffer')
+    return buffer.toString('base64')
+  }
+
+  // Tier 2: PageSpeed (free, returns base64)
+  const base64 = await captureWebsiteScreenshot(url)
+  return base64
 }
