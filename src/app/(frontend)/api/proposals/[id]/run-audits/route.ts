@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { captureWebsiteScreenshot, captureScreenshotViaGrowthTools, captureScreenshotViaScreenshotOne, type ScreenshotOptions } from "@/lib/screenshots";
+import { captureAndUploadScreenshot, type ScreenshotOptions } from "@/lib/screenshots";
+import { checkMetaAdsViaScrapling, extractSocialLinks } from "@/lib/scrapling-service";
+import { uploadScreenshotToBlob } from "@/lib/blob-upload";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -400,9 +402,8 @@ export async function POST(
       errors.push(compResult.reason?.message || "Competitor analysis failed");
     }
 
-    // Post-processing: capture website screenshots via Google PageSpeed Insights API
-    // Meta Ads data is kept from growth-tools API response (scraping Facebook is unreliable)
-    // Falls back to existing competitor analysis if the growth-tools API failed this run
+    // Post-processing: capture website screenshots via Scrapling service (→ Blob URL)
+    // Falls back to PageSpeed (→ base64). Traffic backfill still uses growth-tools /api/traffic.
     const compAnalysisId = auditIds.competitorAnalysis ?? proposal.competitorAnalysis?.id ?? proposal.competitorAnalysis;
     if (compAnalysisId != null) {
       try {
@@ -423,19 +424,31 @@ export async function POST(
           await updateProgress("Capturing website screenshots", 65);
           const yourDomain = compData?.yourProfile?.domain || websiteUrl;
           const competitorDomains: string[] = (compData?.competitors || []).map((c: any) => c.domain).filter(Boolean);
-          const allDomains = [yourDomain, ...competitorDomains];
 
           // Screenshot options for the prospect's own site (e.g. age-gate click)
           const clickSelector = (proposal as any).screenshotClickSelector as string | undefined;
           const yourDomainClean = yourDomain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
           const screenshotOpts: ScreenshotOptions | undefined = clickSelector ? { clickSelector } : undefined;
 
-          console.log(`[screenshots] Starting PageSpeed screenshot capture for ${allDomains.length} domains`);
+          // Collect CMS-only competitors (not in API response)
+          const cmsCompetitors = (proposal.competitors ?? []) as { name: string; websiteUrl?: string | null }[];
+          const apiDomains = new Set(competitorDomains.map((d: string) => d.replace(/^www\./, "")));
+          const cmsOnlyDomains: string[] = [];
+          for (const c of cmsCompetitors) {
+            if (!c.websiteUrl) continue;
+            const domain = c.websiteUrl.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+            if (!apiDomains.has(domain)) cmsOnlyDomains.push(domain);
+          }
 
-          // Capture screenshots in parallel via PageSpeed API
+          // Single pass: capture all screenshots in parallel via Scrapling → Blob (or PageSpeed fallback)
+          const allDomains = [yourDomain, ...competitorDomains, ...cmsOnlyDomains];
+          console.log(`[screenshots] Capturing screenshots for ${allDomains.length} domains`);
+
           const captureResults = await Promise.allSettled(
             allDomains.map(async (domain: string) => {
-              const screenshot = await captureWebsiteScreenshot(domain);
+              const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+              const opts = cleanDomain === yourDomainClean ? screenshotOpts : undefined;
+              const screenshot = await captureAndUploadScreenshot(`https://${cleanDomain}`, opts);
               return { domain, screenshot };
             })
           );
@@ -466,80 +479,121 @@ export async function POST(
             return comp;
           });
 
-          // Capture screenshots for CMS competitors not found in the API response
-          const cmsCompetitors = (proposal.competitors ?? []) as { name: string; websiteUrl?: string | null }[];
-          const apiDomains = new Set(competitorDomains.map((d: string) => d.replace(/^www\./, "")));
-          const missingCmsCompetitors: { name: string; domain: string }[] = [];
+          // Append CMS-only competitors as stub entries with screenshots
+          for (const domain of cmsOnlyDomains) {
+            const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+            enrichedCompetitors.push({
+              domain: cleanDomain,
+              traffic: null,
+              websiteScreenshot: screenshotMap.get(cleanDomain) || null,
+              metaAds: null,
+              googleAds: null,
+              googleBusinessProfile: null,
+            });
+          }
 
-          for (const c of cmsCompetitors) {
-            if (!c.websiteUrl) continue;
-            const domain = c.websiteUrl.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-            if (!apiDomains.has(domain)) {
-              missingCmsCompetitors.push({ name: c.name, domain });
+          // Meta Ads pass: extract social links first, then use Facebook handle for precise Ad Library search
+          await updateProgress("Extracting social links", 71);
+          const allCompetitorDomains = enrichedCompetitors.map((c: any) => c.domain).filter(Boolean);
+          console.log(`[social-links] Extracting social links for ${allCompetitorDomains.length} competitors`);
+
+          // Step 1: Extract social links from all competitor websites in parallel
+          const socialLinksResults = await Promise.allSettled(
+            allCompetitorDomains.map(async (domain: string) => {
+              const result = await extractSocialLinks(domain);
+              return { domain, socialLinks: result };
+            })
+          );
+
+          // Build a lookup map of domain → social links
+          const socialLinksMap = new Map<string, { facebook: string | null; instagram: string | null; linkedin: string | null }>();
+          for (const r of socialLinksResults) {
+            if (r.status === "fulfilled") {
+              const cleanDomain = r.value.domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+              socialLinksMap.set(cleanDomain, r.value.socialLinks);
             }
           }
 
-          if (missingCmsCompetitors.length > 0) {
-            await updateProgress("Fetching CMS competitor data", 75);
-            console.log(`[cms-competitors] Fetching data for ${missingCmsCompetitors.length} CMS-only competitors`);
-
-            // Fetch traffic data (SimilarWeb) AND screenshots in parallel for each CMS competitor
-            // Uses the lightweight /api/traffic endpoint instead of full competitor-analysis
-            const cmsDataResults = await Promise.allSettled(
-              missingCmsCompetitors.map(async ({ domain }) => {
-                const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-                const rootDomain = extractRootDomain(domain);
-
-                const [trafficResult, screenshotResult] = await Promise.allSettled([
-                  fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
-                    headers: { "x-internal-key": INTERNAL_API_KEY! },
-                  }).then(async (res) => {
-                    if (!res.ok) return null;
-                    return res.json();
-                  }),
-                  captureWebsiteScreenshot(domain).then(async (result) => {
-                    if (result) return result;
-                    // Fallback to growth-tools Puppeteer endpoint
-                    const domainClean = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-                    const opts = domainClean === yourDomainClean ? screenshotOpts : undefined;
-                    return captureScreenshotViaGrowthTools(domain, opts);
-                  }),
-                ]);
-
-                const trafficData = trafficResult.status === "fulfilled" ? trafficResult.value : null;
-                const screenshot = screenshotResult.status === "fulfilled" ? screenshotResult.value : null;
-
-                console.log(`[cms-competitors] ${domain} — traffic endpoint:`, trafficData ? JSON.stringify(trafficData).slice(0, 300) : 'null');
-
-                return { domain, trafficData, screenshot };
-              })
-            );
-
-            // Append enriched competitor entries using traffic endpoint data
-            for (const result of cmsDataResults) {
-              if (result.status === "fulfilled") {
-                const { domain, trafficData, screenshot } = result.value;
-                // Traffic endpoint returns: { monthlyVisits, globalRank, categoryRank, sources, ... }
-                const traffic = trafficData ? {
-                  monthlyVisits: extractMonthlyVisits(trafficData),
-                  globalRank: trafficData.globalRank ?? null,
-                  categoryRank: trafficData.categoryRank ?? null,
-                  sources: trafficData.sources ?? trafficData.trafficSources ?? null,
-                } : null;
-                enrichedCompetitors.push({
-                  domain,
-                  traffic,
-                  websiteScreenshot: screenshot || null,
-                  metaAds: null,
-                  googleAds: null,
-                  googleBusinessProfile: null,
-                });
-                if (screenshot) screenshotMap.set(domain, screenshot);
+          // Step 2: Check Meta Ad Library using Facebook handle (if found) or domain as fallback
+          await updateProgress("Checking Meta Ad Library", 75);
+          console.log(`[meta-ads] Checking Meta Ad Library for ${allCompetitorDomains.length} competitors`);
+          const metaAdsResults = await Promise.allSettled(
+            allCompetitorDomains.map(async (domain: string) => {
+              const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+              const socialLinks = socialLinksMap.get(cleanDomain);
+              const searchTerm = socialLinks?.facebook || cleanDomain;
+              if (socialLinks?.facebook) {
+                console.log(`[meta-ads] Using Facebook handle "${socialLinks.facebook}" for ${cleanDomain}`);
+              }
+              const result = await checkMetaAdsViaScrapling(searchTerm);
+              // Upload base64 ad screenshots to Vercel Blob
+              if (result.adScreenshots.length > 0) {
+                const uploadedUrls: string[] = [];
+                for (const b64 of result.adScreenshots) {
+                  try {
+                    const buffer = Buffer.from(b64, "base64");
+                    const blobUrl = await uploadScreenshotToBlob(buffer, `meta-ad-${cleanDomain}`);
+                    if (blobUrl) uploadedUrls.push(blobUrl);
+                  } catch {
+                    // Skip failed uploads
+                  }
+                }
+                result.adScreenshots = uploadedUrls;
+              }
+              return { domain, metaAds: result, socialLinks };
+            })
+          );
+          // Merge meta ads results and social links into enrichedCompetitors
+          for (const r of metaAdsResults) {
+            if (r.status !== "fulfilled") continue;
+            const { domain, metaAds, socialLinks } = r.value;
+            const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+            const comp = enrichedCompetitors.find((c: any) => {
+              const k = (c.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+              return k === cleanDomain;
+            });
+            if (comp) {
+              comp.metaAds = metaAds;
+              if (socialLinks) {
+                comp.socialLinks = socialLinks;
               }
             }
           }
 
-          // Backfill traffic via /api/traffic for any competitor (API-discovered or CMS) missing valid traffic data
+          // Fetch traffic for CMS-only competitors
+          if (cmsOnlyDomains.length > 0) {
+            await updateProgress("Fetching CMS competitor traffic data", 75);
+            const cmsTrafficResults = await Promise.allSettled(
+              cmsOnlyDomains.map(async (domain) => {
+                const rootDomain = extractRootDomain(domain);
+                const res = await fetch(`${GROWTH_TOOLS_URL}/api/traffic?domain=${encodeURIComponent(rootDomain)}`, {
+                  headers: { "x-internal-key": INTERNAL_API_KEY! },
+                });
+                if (!res.ok) return { domain, trafficData: null };
+                const trafficData = await res.json();
+                return { domain, trafficData };
+              })
+            );
+            for (const r of cmsTrafficResults) {
+              if (r.status !== "fulfilled" || !r.value.trafficData) continue;
+              const { domain, trafficData } = r.value;
+              const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+              const comp = enrichedCompetitors.find((c: any) => {
+                const k = (c.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+                return k === cleanDomain;
+              });
+              if (comp) {
+                comp.traffic = {
+                  monthlyVisits: extractMonthlyVisits(trafficData),
+                  globalRank: trafficData.globalRank ?? null,
+                  categoryRank: trafficData.categoryRank ?? null,
+                  sources: trafficData.sources ?? trafficData.trafficSources ?? null,
+                };
+              }
+            }
+          }
+
+          // Backfill traffic via /api/traffic for any competitor missing valid traffic data
           const noTrafficComps = enrichedCompetitors.filter((c: any) =>
             !c.traffic || typeof c.traffic.monthlyVisits !== "number"
           );
@@ -554,7 +608,6 @@ export async function POST(
                 });
                 if (!res.ok) return { domain: comp.domain, trafficData: null };
                 const trafficData = await res.json();
-                console.log(`[traffic-backfill] ${rootDomain}:`, trafficData ? JSON.stringify(trafficData).slice(0, 300) : 'null');
                 return { domain: comp.domain, trafficData };
               })
             );
@@ -600,7 +653,6 @@ export async function POST(
           }
 
           const recordId = (auditIds.competitorAnalysis ?? compAnalysisId) as number;
-          // Update the competitor-analyses record with enriched screenshots (including CMS stubs)
           await payload.update({
             collection: "competitor-analyses",
             id: recordId,
@@ -612,74 +664,7 @@ export async function POST(
           });
 
           const captured = screenshotMap.size;
-          const totalDomains = allDomains.length + missingCmsCompetitors.length;
-          console.log(`[screenshots] Finished: ${captured}/${totalDomains} domains captured`);
-
-          // ScreenshotOne backfill: only call the paid API for screenshots that failed
-          const missingScreenshotComps = enrichedCompetitors.filter((c: any) => !c.websiteScreenshot && c.domain);
-          const yourProfileMissing = enrichedYourProfile && !enrichedYourProfile.websiteScreenshot;
-
-          if (missingScreenshotComps.length > 0 || yourProfileMissing) {
-            await updateProgress("Backfilling missing screenshots (ScreenshotOne)", 90);
-            const backfillDomains: { domain: string; isYourProfile: boolean }[] = [];
-
-            if (yourProfileMissing) {
-              backfillDomains.push({ domain: enrichedYourProfile.domain || yourDomain, isYourProfile: true });
-            }
-            for (const c of missingScreenshotComps) {
-              backfillDomains.push({ domain: c.domain, isYourProfile: false });
-            }
-
-            console.log(`[screenshots-backfill] Using ScreenshotOne for ${backfillDomains.length} missing screenshots`);
-
-            const backfillResults = await Promise.allSettled(
-              backfillDomains.map(async ({ domain, isYourProfile }) => {
-                const opts = isYourProfile ? screenshotOpts : undefined;
-                const screenshot = await captureScreenshotViaScreenshotOne(domain, opts);
-                return { domain, screenshot };
-              })
-            );
-
-            let backfilled = 0;
-            for (const result of backfillResults) {
-              if (result.status !== "fulfilled" || !result.value.screenshot) continue;
-              const { domain, screenshot } = result.value;
-              const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-              backfilled++;
-
-              // Update yourProfile if it was missing
-              if (enrichedYourProfile && !enrichedYourProfile.websiteScreenshot) {
-                const yourKey = (enrichedYourProfile.domain || yourDomain).replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-                if (yourKey === cleanDomain) {
-                  enrichedYourProfile.websiteScreenshot = screenshot;
-                }
-              }
-
-              // Update matching competitor
-              for (const comp of enrichedCompetitors) {
-                const compKey = (comp.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-                if (compKey === cleanDomain && !comp.websiteScreenshot) {
-                  comp.websiteScreenshot = screenshot;
-                }
-              }
-            }
-
-            if (backfilled > 0) {
-              console.log(`[screenshots-backfill] ScreenshotOne filled ${backfilled}/${backfillDomains.length} gaps`);
-              // Re-save with backfilled screenshots
-              await payload.update({
-                collection: "competitor-analyses",
-                id: recordId,
-                data: {
-                  yourProfile: enrichedYourProfile,
-                  competitors: enrichedCompetitors,
-                },
-                overrideAccess: true,
-              });
-            } else {
-              console.log(`[screenshots-backfill] ScreenshotOne could not fill any gaps`);
-            }
-          }
+          console.log(`[screenshots] Finished: ${captured}/${allDomains.length} domains captured`);
         }
       } catch (e: any) {
         // Non-fatal — log and continue
