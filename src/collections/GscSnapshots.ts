@@ -9,7 +9,7 @@ export const GscSnapshots: CollectionConfig = {
   },
   admin: {
     useAsTitle: "snapshotDate",
-    group: "Audits",
+    hidden: true,
     defaultColumns: ["client", "snapshotDate", "totalClicks", "totalImpressions", "avgPosition"],
     description: "Monthly Google Search Console data snapshots",
   },

@@ -33,8 +33,11 @@ import { default as default_7e7701142b7068d2cf11592b7f0f90ce } from '../../../co
 import { default as default_944faab4983d5384b5ad76a5dc5c6065 } from '../../../components/ClientTagsSelect'
 import { default as default_cce1b7420de9fe5183217c041b5a6118 } from '../../../components/ClientAuthorSelect'
 import { default as default_4d0f5bb8e6ad7a9090a88ed52a1972ef } from '../../../components/BlogPostsClientFilter'
+import { default as default_6c751ab69932cc559e5c82f606fdbdb0 } from '../../../components/BlogPrompterListView'
 import { default as default_3d6cbb93c24934a6d54420e5106bbab0 } from '../../../components/ViewReportLink'
 import { default as default_5ee4907bc6cc2a02fa1a48dea9e62484 } from '../../../components/DownloadMarkdownButton'
+import { default as default_96a982169d7094c7232bb687c5c863a6 } from '../../../components/RunGoogleAdsAuditButton'
+import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_4a8985253bad55ee72042259cf28f1d7 } from '../../../components/UserDisplayName'
@@ -85,8 +88,11 @@ export const importMap = {
   "./components/ClientTagsSelect#default": default_944faab4983d5384b5ad76a5dc5c6065,
   "./components/ClientAuthorSelect#default": default_cce1b7420de9fe5183217c041b5a6118,
   "./components/BlogPostsClientFilter#default": default_4d0f5bb8e6ad7a9090a88ed52a1972ef,
+  "./components/BlogPrompterListView#default": default_6c751ab69932cc559e5c82f606fdbdb0,
   "./components/ViewReportLink#default": default_3d6cbb93c24934a6d54420e5106bbab0,
   "./components/DownloadMarkdownButton#default": default_5ee4907bc6cc2a02fa1a48dea9e62484,
+  "./components/RunGoogleAdsAuditButton#default": default_96a982169d7094c7232bb687c5c863a6,
+  "./components/BusinessCostsListView#default": default_6f9be25dea842550674d5a5331ed4ffe,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/UserDisplayName#default": default_4a8985253bad55ee72042259cf28f1d7,

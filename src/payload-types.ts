@@ -75,6 +75,7 @@ export interface Config {
     'job-posts': JobPost;
     'seo-audits': SeoAudit;
     'cro-audits': CroAudit;
+    'google-ads-audits': GoogleAdsAudit;
     'keyword-snapshots': KeywordSnapshot;
     'competitor-analyses': CompetitorAnalysis;
     'content-researches': ContentResearch;
@@ -101,6 +102,7 @@ export interface Config {
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
     'seo-audits': SeoAuditsSelect<false> | SeoAuditsSelect<true>;
     'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
+    'google-ads-audits': GoogleAdsAuditsSelect<false> | GoogleAdsAuditsSelect<true>;
     'keyword-snapshots': KeywordSnapshotsSelect<false> | KeywordSnapshotsSelect<true>;
     'competitor-analyses': CompetitorAnalysesSelect<false> | CompetitorAnalysesSelect<true>;
     'content-researches': ContentResearchesSelect<false> | ContentResearchesSelect<true>;
@@ -1019,6 +1021,10 @@ export interface ClientProposal {
    */
   contentResearch?: (number | ContentResearch)[] | null;
   /**
+   * Linked Google Ads audit
+   */
+  googleAdsAudit?: (number | null) | GoogleAdsAudit;
+  /**
    * Select slides to REMOVE from the report. Selected slides will be hidden. Leave empty to show all.
    */
   visibleSlides?:
@@ -1549,6 +1555,167 @@ export interface ContentResearch {
   createdAt: string;
 }
 /**
+ * Google Ads audit pipeline — pull data, score, generate presentation & email
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-audits".
+ */
+export interface GoogleAdsAudit {
+  id: number;
+  /**
+   * Client business name
+   */
+  businessName: string;
+  /**
+   * URL-friendly identifier (auto-generated from business name)
+   */
+  slug: string;
+  /**
+   * Google Ads customer ID (e.g. 955-493-5739)
+   */
+  customerId: string;
+  /**
+   * Client website URL
+   */
+  websiteUrl?: string | null;
+  /**
+   * Type of business
+   */
+  businessType?:
+    | (
+        | 'trades'
+        | 'services'
+        | 'ecommerce'
+        | 'healthcare'
+        | 'hospitality'
+        | 'realestate'
+        | 'education'
+        | 'saas'
+        | 'other'
+      )
+    | null;
+  /**
+   * Client-stated monthly ad spend ($)
+   */
+  monthlySpend?: number | null;
+  /**
+   * Client contact email (for sending audit email)
+   */
+  contactEmail?: string | null;
+  /**
+   * What the client considers a conversion (forms, calls, purchases, etc.)
+   */
+  conversionObjectives?:
+    | {
+        objective: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Brand terms for brand/generic campaign classification
+   */
+  brandTerms?:
+    | {
+        term: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Internal team notes about this client
+   */
+  notes?: string | null;
+  /**
+   * Current audit pipeline status
+   */
+  auditStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
+  /**
+   * Current stage (e.g. 'Pulling data|25')
+   */
+  auditProgress?: string | null;
+  /**
+   * When audit was last kicked off
+   */
+  auditStartedAt?: string | null;
+  /**
+   * When audit finished
+   */
+  auditCompletedAt?: string | null;
+  /**
+   * Error details if audit failed
+   */
+  auditError?: string | null;
+  /**
+   * Overall audit score (0-100)
+   */
+  overallScore?: number | null;
+  /**
+   * Raw API data from Google Ads (campaigns, keywords, search terms, etc.)
+   */
+  rawData?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Full scored audit results (GoogleAdsAuditResults shape)
+   */
+  scoredReport?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Generated email HTML (preview in Presentation tab)
+   */
+  emailHtml?: string | null;
+  /**
+   * When the audit email was sent
+   */
+  emailSentAt?: string | null;
+  /**
+   * Toggle on to make the presentation publicly accessible (with PIN)
+   */
+  presentationPublished?: boolean | null;
+  /**
+   * AuditPresentation-shaped data for the presentation renderer. Editable by team before publishing.
+   */
+  presentationData?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Internal annotations before publishing (not shown to client)
+   */
+  teamNotes?: string | null;
+  /**
+   * 4-digit PIN for presentation access (auto-generated)
+   */
+  presentationPin?: string | null;
+  /**
+   * Link to existing client (optional)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Link to client proposal (optional)
+   */
+  proposal?: (number | null) | ClientProposal;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Create and manage blog posts for clients
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2019,6 +2186,10 @@ export interface PayloadLockedDocument {
         value: number | CroAudit;
       } | null)
     | ({
+        relationTo: 'google-ads-audits';
+        value: number | GoogleAdsAudit;
+      } | null)
+    | ({
         relationTo: 'keyword-snapshots';
         value: number | KeywordSnapshot;
       } | null)
@@ -2307,6 +2478,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   keywordSnapshot?: T;
   competitorAnalysis?: T;
   contentResearch?: T;
+  googleAdsAudit?: T;
   visibleSlides?: T;
   flightPlan?: T;
   flightPlanImages?:
@@ -2449,6 +2621,50 @@ export interface CroAuditsSelect<T extends boolean = true> {
   customerEmail?: T;
   visitorIp?: T;
   visitorFingerprint?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-audits_select".
+ */
+export interface GoogleAdsAuditsSelect<T extends boolean = true> {
+  businessName?: T;
+  slug?: T;
+  customerId?: T;
+  websiteUrl?: T;
+  businessType?: T;
+  monthlySpend?: T;
+  contactEmail?: T;
+  conversionObjectives?:
+    | T
+    | {
+        objective?: T;
+        id?: T;
+      };
+  brandTerms?:
+    | T
+    | {
+        term?: T;
+        id?: T;
+      };
+  notes?: T;
+  auditStatus?: T;
+  auditProgress?: T;
+  auditStartedAt?: T;
+  auditCompletedAt?: T;
+  auditError?: T;
+  overallScore?: T;
+  rawData?: T;
+  scoredReport?: T;
+  emailHtml?: T;
+  emailSentAt?: T;
+  presentationPublished?: T;
+  presentationData?: T;
+  teamNotes?: T;
+  presentationPin?: T;
+  client?: T;
+  proposal?: T;
   updatedAt?: T;
   createdAt?: T;
 }
