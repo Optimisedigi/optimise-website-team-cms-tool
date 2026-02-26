@@ -389,7 +389,40 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 4: Presentation ──
+        // ── Tab 4: Finding Curation ──
+        {
+          label: "Finding Curation",
+          fields: [
+            {
+              name: "curationUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GoogleAdsFindingCuration",
+                },
+              },
+            },
+            {
+              name: "curatedFindings",
+              type: "json",
+              admin: {
+                description:
+                  "Team-curated finding selections (managed by the UI above)",
+              },
+            },
+            {
+              name: "regenerateEmailUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RegenerateEmailButton",
+                },
+              },
+            },
+          ],
+        },
+
+        // ── Tab 5: Presentation ──
         {
           label: "Presentation",
           fields: [
@@ -418,7 +451,7 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 5: History ──
+        // ── Tab 6: History ──
         {
           label: "History",
           fields: [
@@ -460,7 +493,7 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 6: Action Items (OptiMate prep) ──
+        // ── Tab 7: Action Items (OptiMate prep) ──
         {
           label: "Action Items",
           fields: [

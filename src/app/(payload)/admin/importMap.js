@@ -37,6 +37,9 @@ import { default as default_6c751ab69932cc559e5c82f606fdbdb0 } from '../../../co
 import { default as default_3d6cbb93c24934a6d54420e5106bbab0 } from '../../../components/ViewReportLink'
 import { default as default_5ee4907bc6cc2a02fa1a48dea9e62484 } from '../../../components/DownloadMarkdownButton'
 import { default as default_96a982169d7094c7232bb687c5c863a6 } from '../../../components/RunGoogleAdsAuditButton'
+import { default as default_47af8c78950b0c47a8049a44d7cef06c } from '../../../components/GoogleAdsAuditPreview'
+import { default as default_909a54b4f02f1428884a878a4fce4a5f } from '../../../components/GoogleAdsFindingCuration'
+import { default as default_10fccc7885acbd99c8b1f5d8e310047f } from '../../../components/RegenerateEmailButton'
 import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
@@ -92,6 +95,9 @@ export const importMap = {
   "./components/ViewReportLink#default": default_3d6cbb93c24934a6d54420e5106bbab0,
   "./components/DownloadMarkdownButton#default": default_5ee4907bc6cc2a02fa1a48dea9e62484,
   "./components/RunGoogleAdsAuditButton#default": default_96a982169d7094c7232bb687c5c863a6,
+  "./components/GoogleAdsAuditPreview#default": default_47af8c78950b0c47a8049a44d7cef06c,
+  "./components/GoogleAdsFindingCuration#default": default_909a54b4f02f1428884a878a4fce4a5f,
+  "./components/RegenerateEmailButton#default": default_10fccc7885acbd99c8b1f5d8e310047f,
   "./components/BusinessCostsListView#default": default_6f9be25dea842550674d5a5331ed4ffe,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,

@@ -137,7 +137,20 @@ export async function POST(
 
       const result = await response.json();
 
-      // Store raw data + scored report + email HTML on the CMS record
+      // Auto-generate default curation with all items selected
+      const scored = result.scored;
+      const defaultCuration = {
+        stepFindings: Object.fromEntries(
+          scored.steps.map((s: any) => [s.step, s.findings.map((_: any, i: number) => i)])
+        ),
+        stepRecommendations: Object.fromEntries(
+          scored.steps.map((s: any) => [s.step, s.recommendations.map((_: any, i: number) => i)])
+        ),
+        emailQuickWins: scored.quickWins.map((_: any, i: number) => i),
+        presentationQuickWins: scored.quickWins.map((_: any, i: number) => i),
+      };
+
+      // Store raw data + scored report + email HTML + default curation on the CMS record
       await payload.update({
         collection: "google-ads-audits",
         id,
@@ -146,6 +159,7 @@ export async function POST(
           scoredReport: result.scored,
           overallScore: result.scored.overallScore,
           emailHtml: result.emailHtml || null,
+          curatedFindings: defaultCuration,
           auditProgress: "Storing results|90",
           ...preservedArrayFields,
         } as any,
