@@ -25,6 +25,7 @@ import { CostCategories } from "./collections/CostCategories";
 import { CostRules } from "./collections/CostRules";
 import { BusinessCosts } from "./collections/BusinessCosts";
 import { BlogPrompts } from "./collections/BlogPrompts";
+import { GoogleAdsAudits } from "./collections/GoogleAdsAudits";
 import { ApiCostRates } from "./globals/ApiCostRates";
 
 
@@ -63,7 +64,7 @@ export default buildConfig({
       beforeDashboard: ["./components/Dashboard"],
     },
   },
-  collections: [Users, Clients, ClientProposals, BlogPosts, BlogPrompts, JobPosts, SeoAudits, CroAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, ActivityLog, BusinessCosts, CostCategories, CostRules, Media],
+  collections: [Users, Clients, ClientProposals, BlogPosts, BlogPrompts, JobPosts, SeoAudits, CroAudits, GoogleAdsAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, ActivityLog, BusinessCosts, CostCategories, CostRules, Media],
   globals: [ApiCostRates],
   editor: lexicalEditor(),
   secret: (() => {

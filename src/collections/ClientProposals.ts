@@ -734,6 +734,15 @@ export const ClientProposals: CollectionConfig = {
               },
             },
             {
+              name: "googleAdsAudit",
+              type: "relationship",
+              relationTo: "google-ads-audits",
+              admin: {
+                readOnly: true,
+                description: "Linked Google Ads audit",
+              },
+            },
+            {
               name: "viewReport",
               type: "ui",
               admin: {

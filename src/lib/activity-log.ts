@@ -9,7 +9,8 @@ type ActivityType =
   | "retainer_changed"
   | "proposal_created"
   | "gsc_snapshot"
-  | "time_tracked";
+  | "time_tracked"
+  | "google_ads_audit_created";
 
 interface ActivityEntry {
   type: ActivityType;
