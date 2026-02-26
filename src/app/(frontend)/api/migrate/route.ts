@@ -659,8 +659,101 @@ export async function POST(request: NextRequest) {
   // --- clients.service_pages column ---
   await run("clients.service_pages", "ALTER TABLE `clients` ADD `service_pages` text");
 
+  // --- Google Ads Audits ---
+  await run("google_ads_audits", `CREATE TABLE IF NOT EXISTS \`google_ads_audits\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`business_name\` text NOT NULL,
+    \`slug\` text NOT NULL,
+    \`customer_id\` text NOT NULL,
+    \`website_url\` text,
+    \`business_type\` text,
+    \`monthly_spend\` numeric,
+    \`contact_email\` text,
+    \`notes\` text,
+    \`audit_status\` text,
+    \`audit_progress\` text,
+    \`audit_started_at\` text,
+    \`audit_completed_at\` text,
+    \`audit_error\` text,
+    \`overall_score\` numeric,
+    \`raw_data\` text,
+    \`scored_report\` text,
+    \`email_html\` text,
+    \`email_sent_at\` text,
+    \`presentation_published\` integer DEFAULT false,
+    \`presentation_data\` text,
+    \`team_notes\` text,
+    \`presentation_pin\` text,
+    \`client_id\` integer,
+    \`proposal_id\` integer,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("google_ads_audits_slug_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_audits_slug_idx` ON `google_ads_audits` (`slug`)");
+  await run("google_ads_audits_client_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audits_client_idx` ON `google_ads_audits` (`client_id`)");
+  await run("google_ads_audits_proposal_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audits_proposal_idx` ON `google_ads_audits` (`proposal_id`)");
+  await run("google_ads_audits_created_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audits_created_at_idx` ON `google_ads_audits` (`created_at`)");
+  await run("google_ads_audits_updated_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audits_updated_at_idx` ON `google_ads_audits` (`updated_at`)");
+
+  // Array tables for google_ads_audits
+  await run("google_ads_audits_conversion_objectives", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_conversion_objectives\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`objective\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gaa_conv_obj_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_conv_obj_order_idx` ON `google_ads_audits_conversion_objectives` (`_order`)");
+  await run("gaa_conv_obj_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_conv_obj_parent_idx` ON `google_ads_audits_conversion_objectives` (`_parent_id`)");
+
+  await run("google_ads_audits_brand_terms", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_brand_terms\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`term\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gaa_brand_terms_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_brand_terms_order_idx` ON `google_ads_audits_brand_terms` (`_order`)");
+  await run("gaa_brand_terms_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_brand_terms_parent_idx` ON `google_ads_audits_brand_terms` (`_parent_id`)");
+
+  await run("google_ads_audits_history", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_history\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`run_date\` text NOT NULL,
+    \`overall_score\` numeric,
+    \`step_scores\` text,
+    \`notes\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gaa_history_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_history_order_idx` ON `google_ads_audits_history` (`_order`)");
+  await run("gaa_history_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_history_parent_idx` ON `google_ads_audits_history` (`_parent_id`)");
+
+  await run("google_ads_audits_action_items", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_action_items\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`action\` text NOT NULL,
+    \`priority\` text DEFAULT 'medium',
+    \`status\` text DEFAULT 'pending',
+    \`completed_at\` text,
+    \`notes\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gaa_action_items_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_action_items_order_idx` ON `google_ads_audits_action_items` (`_order`)");
+  await run("gaa_action_items_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_action_items_parent_idx` ON `google_ads_audits_action_items` (`_parent_id`)");
+
+  // locked_docs_rels for google_ads_audits
+  await run("locked_docs_rels.google_ads_audits_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_audits_id` integer REFERENCES `google_ads_audits`(`id`) ON DELETE cascade");
+
+  // client_proposals → google_ads_audit relationship
+  await run("client_proposals.google_ads_audit_id", "ALTER TABLE `client_proposals` ADD `google_ads_audit_id` integer REFERENCES `google_ads_audits`(`id`) ON DELETE set null");
+  await run("client_proposals_google_ads_audit_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_google_ads_audit_idx` ON `client_proposals` (`google_ads_audit_id`)");
+
   // --- Schema diagnostics ---
-  const tables = ["media", "clients", "clients_one_off_projects", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels", "activity_log", "job_posts", "gsc_snapshots", "gsc_alerts", "cost_categories", "cost_rules", "business_costs", "api_cost_rates", "blog_prompts"];
+  const tables = ["media", "clients", "clients_one_off_projects", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels", "activity_log", "job_posts", "gsc_snapshots", "gsc_alerts", "cost_categories", "cost_rules", "business_costs", "api_cost_rates", "blog_prompts", "google_ads_audits"];
   const schema: Record<string, string[]> = {};
   for (const table of tables) {
     try {
