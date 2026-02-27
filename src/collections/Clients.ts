@@ -555,8 +555,9 @@ export const Clients: CollectionConfig = {
 
             // ─ Automation Config ─
             {
-              name: "googleAdsAutomations",
+              name: "gadsAuto",
               type: "group",
+              label: "Google Ads Automations",
               admin: {
                 description: "Configure Google Ads automations for this client",
               },
@@ -584,7 +585,7 @@ export const Clients: CollectionConfig = {
                       admin: {
                         description: "How to handle candidates",
                         width: "50%",
-                        condition: (data: any) => data?.googleAdsAutomations?.negativeSweepEnabled,
+                        condition: (data: any) => data?.gadsAuto?.negativeSweepEnabled,
                       },
                     },
                     {
@@ -603,7 +604,7 @@ export const Clients: CollectionConfig = {
                       admin: {
                         description: "Day to run the sweep",
                         width: "50%",
-                        condition: (data: any) => data?.googleAdsAutomations?.negativeSweepEnabled,
+                        condition: (data: any) => data?.gadsAuto?.negativeSweepEnabled,
                       },
                     },
                   ],
@@ -616,16 +617,17 @@ export const Clients: CollectionConfig = {
                   admin: {
                     description: "Minimum spend ($) on a search term to flag it as a candidate",
                     step: 1,
-                    condition: (data: any) => data?.googleAdsAutomations?.negativeSweepEnabled,
+                    condition: (data: any) => data?.gadsAuto?.negativeSweepEnabled,
                   },
                 },
                 {
                   name: "negativeSweepExcludeTerms",
                   type: "array",
+                  dbName: "gads_sweep_exclude",
                   maxRows: 50,
                   admin: {
                     description: "Terms to never suggest as negatives (in addition to brand terms)",
-                    condition: (data: any) => data?.googleAdsAutomations?.negativeSweepEnabled,
+                    condition: (data: any) => data?.gadsAuto?.negativeSweepEnabled,
                   },
                   fields: [
                     {
@@ -654,7 +656,7 @@ export const Clients: CollectionConfig = {
                   admin: {
                     description: "Day of month to run (1-28)",
                     step: 1,
-                    condition: (data: any) => data?.googleAdsAutomations?.reauditEnabled,
+                    condition: (data: any) => data?.gadsAuto?.reauditEnabled,
                   },
                 },
 
@@ -676,16 +678,17 @@ export const Clients: CollectionConfig = {
                   admin: {
                     description: "Day of month to generate (default 3rd, lets data settle)",
                     step: 1,
-                    condition: (data: any) => data?.googleAdsAutomations?.performanceReportEnabled,
+                    condition: (data: any) => data?.gadsAuto?.performanceReportEnabled,
                   },
                 },
                 {
                   name: "performanceReportRecipientEmails",
                   type: "array",
+                  dbName: "gads_report_emails",
                   maxRows: 10,
                   admin: {
                     description: "Email recipients for the report (falls back to team email if empty)",
-                    condition: (data: any) => data?.googleAdsAutomations?.performanceReportEnabled,
+                    condition: (data: any) => data?.gadsAuto?.performanceReportEnabled,
                   },
                   fields: [
                     {
@@ -701,7 +704,7 @@ export const Clients: CollectionConfig = {
                   defaultValue: true,
                   admin: {
                     description: "Make report data available via the client hub API",
-                    condition: (data: any) => data?.googleAdsAutomations?.performanceReportEnabled,
+                    condition: (data: any) => data?.gadsAuto?.performanceReportEnabled,
                   },
                 },
               ],
@@ -709,8 +712,9 @@ export const Clients: CollectionConfig = {
 
             // ─ Score Trajectory (read-only, auto-populated) ─
             {
-              name: "googleAdsScoreTrajectory",
+              name: "gadsTrajectory",
               type: "group",
+              label: "Score Trajectory",
               admin: {
                 readOnly: true,
                 description: "Computed on each re-audit",
