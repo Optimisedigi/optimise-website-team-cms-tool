@@ -857,6 +857,10 @@ export async function POST(request: NextRequest) {
   await run("clients_gads_report_emails_order_idx", "CREATE INDEX IF NOT EXISTS `clients_gads_report_emails_order_idx` ON `clients_gads_report_emails` (`_order`)");
   await run("clients_gads_report_emails_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_gads_report_emails_parent_idx` ON `clients_gads_report_emails` (`_parent_id`)");
 
+  // Fix: dbName tables were created with "clients_" prefix but Payload queries them without it
+  await run("rename_gads_sweep_exclude", "ALTER TABLE `clients_gads_sweep_exclude` RENAME TO `gads_sweep_exclude`");
+  await run("rename_gads_report_emails", "ALTER TABLE `clients_gads_report_emails` RENAME TO `gads_report_emails`");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
