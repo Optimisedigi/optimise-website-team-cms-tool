@@ -90,8 +90,8 @@ describe("Clients Collection", () => {
     expect(isActiveField).toHaveProperty("defaultValue", true);
   });
 
-  it("should be in Database admin group", () => {
-    expect(Clients.admin?.group).toBe("Database");
+  it("should be in Clients admin group", () => {
+    expect(Clients.admin?.group).toBe("Clients");
   });
 
   it("should use name as title", () => {

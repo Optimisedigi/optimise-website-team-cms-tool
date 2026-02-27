@@ -5,20 +5,18 @@ import { createPortal } from 'react-dom'
 import { useAuth } from '@payloadcms/ui'
 
 /* ── Pomodoro modes ── */
-type Mode = 'focus' | 'breathwork' | 'break' | 'long'
+type Mode = 'focus' | 'breathwork' | 'break'
 
 const DURATIONS: Record<Mode, number> = {
   focus: 25 * 60,
   breathwork: 5 * 60,
-  break: 5 * 60,
-  long: 15 * 60,
+  break: 15 * 60,
 }
 
 const MODE_LABELS: Record<Mode, string> = {
   focus: 'Focus',
   breathwork: 'Breathe',
   break: 'Break',
-  long: 'Long Break',
 }
 
 /* ── Tabs ── */
@@ -689,7 +687,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
                   padding: '0 18px 14px',
                 }}
               >
-                {(['focus', 'breathwork', 'break', 'long'] as Mode[]).map((m) => (
+                {(['focus', 'breathwork', 'break'] as Mode[]).map((m) => (
                   <button
                     key={m}
                     type="button"
@@ -827,7 +825,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
                   textAlign: 'center',
                 }}
               >
-                Focus {DURATIONS.focus / 60}m &middot; Breathe {DURATIONS.breathwork / 60}m &middot; Break {DURATIONS.break / 60}m &middot; Long {DURATIONS.long / 60}m
+                Focus {DURATIONS.focus / 60}m &middot; Breathe {DURATIONS.breathwork / 60}m &middot; Break {DURATIONS.break / 60}m
               </div>
             </>
           )}

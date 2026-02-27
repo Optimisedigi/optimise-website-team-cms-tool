@@ -196,7 +196,8 @@ const SearchConsolePage = () => {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [brandTab, setBrandTab] = useState<'overview' | 'brand' | 'generic'>('overview')
-  const [chartLine, setChartLine] = useState<'ctr' | 'clicks'>('ctr')
+  const [chartLine, setChartLine] = useState<'impressions' | 'ctr'>('impressions')
+  const [chartFilter, setChartFilter] = useState<'all' | 'brand' | 'generic'>('all')
   const QUERIES_PER_PAGE = 15
 
   // Load client list, then fetch snapshot for first connected client
@@ -407,19 +408,19 @@ const SearchConsolePage = () => {
       {/* Summary metrics */}
       <div className="od-box" style={{ marginBottom: 16 }}>
         <div className="od-box__stats od-box__stats--4">
-          <div
-            className={`od-box__stat od-box__stat--selectable ${chartLine === 'clicks' ? 'od-box__stat--selected' : ''}`}
-            onClick={() => setChartLine('clicks')}
-            role="button"
-            tabIndex={0}
-          >
+          <div className="od-box__stat">
             <span className="od-box__stat-value">
               {summary.totalClicks.toLocaleString()}
               <ChangeArrow value={snapshot.clicksChange} />
             </span>
             <span className="od-box__stat-label">Clicks</span>
           </div>
-          <div className="od-box__stat">
+          <div
+            className={`od-box__stat od-box__stat--selectable ${chartLine === 'impressions' ? 'od-box__stat--selected' : ''}`}
+            onClick={() => setChartLine('impressions')}
+            role="button"
+            tabIndex={0}
+          >
             <span className="od-box__stat-value">
               {summary.totalImpressions.toLocaleString()}
               <ChangeArrow value={snapshot.impressionsChange} />
@@ -450,8 +451,30 @@ const SearchConsolePage = () => {
         <div className="od-box" style={{ marginBottom: 16 }}>
           <div className="od-box__head">
             <span className="od-box__title">Total Performance Over Time</span>
+            {queryData.dailyBrand?.length > 0 && (
+              <div className="od-gsc-page__tabs" style={{ marginLeft: 'auto' }}>
+                {(['all', 'brand', 'generic'] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    className={`od-gsc-page__tab ${chartFilter === f ? 'od-gsc-page__tab--active' : ''}`}
+                    onClick={() => setChartFilter(f)}
+                  >
+                    {f === 'all' ? 'All' : f === 'brand' ? 'Brand' : 'Generic'}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <PerformanceChart daily={queryData.daily} startDate={startDate} endDate={endDate} lineMetric={chartLine} />
+          <PerformanceChart
+            daily={queryData.daily}
+            dailyBrand={queryData.dailyBrand}
+            dailyGeneric={queryData.dailyGeneric}
+            startDate={startDate}
+            endDate={endDate}
+            rightMetric={chartLine}
+            clickFilter={chartFilter}
+          />
           <TimeAnalysisTable daily={queryData.daily} startDate={startDate} endDate={endDate} />
         </div>
       )}
@@ -694,153 +717,224 @@ function bucketDaily(daily: DailyEntry[], granularity: BucketGranularity): Bucke
 
 // ─── Performance Chart (dual lines) ──────────────────────
 
-function PerformanceChart({ daily, startDate, endDate, lineMetric = 'ctr' }: { daily: DailyEntry[]; startDate: string; endDate: string; lineMetric?: 'ctr' | 'clicks' }) {
+function bucketBrandDaily(brandDaily: DailyBrandEntry[], granularity: BucketGranularity): { label: string; clicks: number }[] {
+  const map = new Map<string, { label: string; clicks: number }>()
+
+  for (const d of brandDaily) {
+    const date = parseLocalDate(d.date)
+    let key: string
+    let label: string
+
+    switch (granularity) {
+      case 'month': {
+        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        label = date.toLocaleDateString('en-AU', { month: 'short', year: '2-digit' })
+        break
+      }
+      case 'week': {
+        key = isoWeekKey(date)
+        const ws = weekStart(date)
+        label = ws.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+        break
+      }
+      default: {
+        key = d.date
+        label = date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+        break
+      }
+    }
+
+    const existing = map.get(key)
+    if (existing) {
+      existing.clicks += d.clicks
+    } else {
+      map.set(key, { label, clicks: d.clicks })
+    }
+  }
+
+  return Array.from(map.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([, v]) => v)
+}
+
+function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate, rightMetric = 'impressions', clickFilter = 'all' }: { daily: DailyEntry[]; dailyBrand?: DailyBrandEntry[]; dailyGeneric?: DailyBrandEntry[]; startDate: string; endDate: string; rightMetric?: 'impressions' | 'ctr'; clickFilter?: 'all' | 'brand' | 'generic' }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const granularity = getGranularity(startDate, endDate)
   const buckets = bucketDaily(daily, granularity)
 
+  // Build filtered click values for bars based on brand/generic toggle
+  const brandBuckets = dailyBrand?.length ? bucketBrandDaily(dailyBrand, granularity) : []
+  const genericBuckets = dailyGeneric?.length ? bucketBrandDaily(dailyGeneric, granularity) : []
+
+  const barClicks = buckets.map((b, i) => {
+    if (clickFilter === 'brand') return brandBuckets[i]?.clicks ?? 0
+    if (clickFilter === 'generic') return genericBuckets[i]?.clicks ?? 0
+    return b.clicks
+  })
+
   const chartHeight = 200
   const bucketCount = buckets.length
+  const barWidth = bucketCount > 0 ? Math.min(100 / bucketCount * 0.6, 8) : 4
   const step = bucketCount > 1 ? 100 / (bucketCount - 1) : 50
 
-  // Impressions line (left Y axis)
-  const maxImpressions = Math.max(...buckets.map((b) => b.impressions), 1)
-  const impressionPoints = buckets.map((val, i) => {
-    const x = bucketCount > 1 ? i * step : 50
-    const y = chartHeight - (val.impressions / maxImpressions) * (chartHeight - 24)
-    return `${x},${y}`
-  }).join(' ')
+  // Left Y axis: Clicks (bar chart)
+  const maxClicks = Math.max(...barClicks, 1)
 
-  // Second line (right Y axis): clicks or CTR
+  // Right Y axis: Impressions or CTR (line)
   const bucketCtr = buckets.map((b) => b.impressions > 0 ? (b.clicks / b.impressions) * 100 : 0)
-  const lineValues = lineMetric === 'clicks'
-    ? buckets.map((b) => b.clicks)
+  const lineValues = rightMetric === 'impressions'
+    ? buckets.map((b) => b.impressions)
     : bucketCtr
   const maxLineVal = Math.max(...lineValues, 0.1)
 
-  const secondLinePoints = lineValues.map((val, i) => {
+  const linePoints = lineValues.map((val, i) => {
     const x = bucketCount > 1 ? i * step : 50
     const y = chartHeight - (val / maxLineVal) * (chartHeight - 24)
     return `${x},${y}`
   }).join(' ')
 
+  // Y axis tick values
+  const clickTicks = [0, Math.round(maxClicks / 2), Math.round(maxClicks)]
+  const lineTicks = rightMetric === 'impressions'
+    ? [0, Math.round(maxLineVal / 2), Math.round(maxLineVal)]
+    : [0, (maxLineVal / 2).toFixed(1), maxLineVal.toFixed(1)]
+
   // Only skip labels for daily granularity with many bars
   const labelEvery = granularity === 'day' && bucketCount > 14 ? Math.ceil(bucketCount / 10) : 1
 
   const granLabel = granularity === 'month' ? 'Monthly' : granularity === 'week' ? 'Weekly' : 'Daily'
-  const lineLabel = lineMetric === 'clicks' ? 'Clicks' : 'CTR'
+  const lineLabel = rightMetric === 'impressions' ? 'Impressions' : 'CTR'
 
   return (
     <div className="od-perf-chart">
-      <div
-        className="od-perf-chart__area"
-        style={{ height: chartHeight, position: 'relative' }}
-        onMouseLeave={() => setHoveredIdx(null)}
-      >
-        {/* Invisible hover zones for each bucket */}
-        {buckets.map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: bucketCount > 1 ? `${i * step - step / 2}%` : '0%',
-              width: bucketCount > 1 ? `${step}%` : '100%',
-              top: 0,
-              bottom: 0,
-            }}
-            onMouseEnter={() => setHoveredIdx(i)}
-          />
-        ))}
+      <div style={{ display: 'flex', gap: 0 }}>
+        {/* Left Y axis labels (Clicks) */}
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end', paddingRight: 6, fontSize: 10, color: 'rgba(255,255,255,0.45)', width: 40, flexShrink: 0, height: chartHeight }}>
+          <span>{clickTicks[2].toLocaleString()}</span>
+          <span>{clickTicks[1].toLocaleString()}</span>
+          <span>0</span>
+        </div>
 
-        {/* Hover tooltip */}
-        {hoveredIdx !== null && buckets[hoveredIdx] && (
-          <div
-            style={{
-              position: 'absolute',
-              left: bucketCount > 1 ? `${hoveredIdx * step}%` : '50%',
-              top: 0,
-              transform: 'translateX(-50%)',
-              background: '#1a1a2e',
-              color: '#fff',
-              borderRadius: 8,
-              padding: '10px 14px',
-              fontSize: 12,
-              lineHeight: 1.6,
-              whiteSpace: 'nowrap',
-              pointerEvents: 'none',
-              zIndex: 10,
-              boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-              border: '1px solid rgba(255,255,255,0.1)',
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 13 }}>
-              {buckets[hoveredIdx].label}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#74B3A8', flexShrink: 0 }} />
-              Impressions: <strong>{buckets[hoveredIdx].impressions.toLocaleString()}</strong>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#213843', flexShrink: 0 }} />
-              Clicks: <strong>{buckets[hoveredIdx].clicks.toLocaleString()}</strong>
-            </div>
-            <div style={{ color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-              CTR: {bucketCtr[hoveredIdx].toFixed(1)}%
-            </div>
-          </div>
-        )}
-
-        {/* Dual line SVG */}
-        <svg
-          viewBox={`0 0 100 ${chartHeight}`}
-          preserveAspectRatio="none"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+        {/* Chart area */}
+        <div
+          className="od-perf-chart__area"
+          style={{ height: chartHeight, position: 'relative', flex: 1 }}
+          onMouseLeave={() => setHoveredIdx(null)}
         >
-          {/* Impressions line */}
-          <polyline
-            points={impressionPoints}
-            fill="none"
-            stroke="#74B3A8"
-            strokeWidth="2"
-            vectorEffect="non-scaling-stroke"
-          />
-          {/* Clicks/CTR line */}
-          <polyline
-            points={secondLinePoints}
-            fill="none"
-            stroke="#213843"
-            strokeWidth="2"
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
+          {/* Invisible hover zones */}
+          {buckets.map((_, i) => (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                left: bucketCount > 1 ? `${i * step - step / 2}%` : '0%',
+                width: bucketCount > 1 ? `${step}%` : '100%',
+                top: 0,
+                bottom: 0,
+              }}
+              onMouseEnter={() => setHoveredIdx(i)}
+            />
+          ))}
 
-        {/* Hover dot indicator */}
-        {hoveredIdx !== null && (
+          {/* Hover tooltip */}
+          {hoveredIdx !== null && buckets[hoveredIdx] && (
+            <div
+              style={{
+                position: 'absolute',
+                left: bucketCount > 1 ? `${hoveredIdx * step}%` : '50%',
+                top: 0,
+                transform: 'translateX(-50%)',
+                background: '#1a1a2e',
+                color: '#fff',
+                borderRadius: 8,
+                padding: '10px 14px',
+                fontSize: 12,
+                lineHeight: 1.6,
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+                zIndex: 10,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 13 }}>
+                {buckets[hoveredIdx].label}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366f1', flexShrink: 0 }} />
+                {clickFilter !== 'all' ? `${clickFilter === 'brand' ? 'Brand' : 'Generic'} Clicks` : 'Clicks'}: <strong>{barClicks[hoveredIdx].toLocaleString()}</strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#74B3A8', flexShrink: 0 }} />
+                Impressions: <strong>{buckets[hoveredIdx].impressions.toLocaleString()}</strong>
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                CTR: {bucketCtr[hoveredIdx].toFixed(1)}%
+              </div>
+            </div>
+          )}
+
+          {/* Bars (Clicks) + Line SVG */}
           <svg
             viewBox={`0 0 100 ${chartHeight}`}
             preserveAspectRatio="none"
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
           >
-            <circle
-              cx={bucketCount > 1 ? hoveredIdx * step : 50}
-              cy={chartHeight - (buckets[hoveredIdx].impressions / maxImpressions) * (chartHeight - 24)}
-              r="3"
-              fill="#74B3A8"
-              vectorEffect="non-scaling-stroke"
-            />
-            <circle
-              cx={bucketCount > 1 ? hoveredIdx * step : 50}
-              cy={chartHeight - (lineValues[hoveredIdx] / maxLineVal) * (chartHeight - 24)}
-              r="3"
-              fill="#213843"
+            {/* Click bars */}
+            {buckets.map((_b, i) => {
+              const x = bucketCount > 1 ? i * step : 50
+              const barH = (barClicks[i] / maxClicks) * (chartHeight - 24)
+              return (
+                <rect
+                  key={i}
+                  x={x - barWidth / 2}
+                  y={chartHeight - barH}
+                  width={barWidth}
+                  height={barH}
+                  fill={hoveredIdx === i ? '#818cf8' : '#6366f1'}
+                  rx="1"
+                  vectorEffect="non-scaling-stroke"
+                />
+              )
+            })}
+            {/* Right metric line */}
+            <polyline
+              points={linePoints}
+              fill="none"
+              stroke="#74B3A8"
+              strokeWidth="2"
               vectorEffect="non-scaling-stroke"
             />
           </svg>
-        )}
+
+          {/* Hover dot on line */}
+          {hoveredIdx !== null && (
+            <svg
+              viewBox={`0 0 100 ${chartHeight}`}
+              preserveAspectRatio="none"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+            >
+              <circle
+                cx={bucketCount > 1 ? hoveredIdx * step : 50}
+                cy={chartHeight - (lineValues[hoveredIdx] / maxLineVal) * (chartHeight - 24)}
+                r="3"
+                fill="#74B3A8"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          )}
+        </div>
+
+        {/* Right Y axis labels */}
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', paddingLeft: 6, fontSize: 10, color: 'rgba(255,255,255,0.45)', width: 48, flexShrink: 0, height: chartHeight }}>
+          <span>{rightMetric === 'ctr' ? `${lineTicks[2]}%` : Number(lineTicks[2]).toLocaleString()}</span>
+          <span>{rightMetric === 'ctr' ? `${lineTicks[1]}%` : Number(lineTicks[1]).toLocaleString()}</span>
+          <span>0</span>
+        </div>
       </div>
 
       {/* X-axis labels */}
-      <div className="od-perf-chart__labels">
+      <div className="od-perf-chart__labels" style={{ marginLeft: 40, marginRight: 48 }}>
         {buckets.map((bucket, i) => (
           i % labelEvery === 0 ? (
             <div key={i} className="od-perf-chart__label" style={{ left: bucketCount > 1 ? `${i * step}%` : '50%' }}>
@@ -852,11 +946,11 @@ function PerformanceChart({ daily, startDate, endDate, lineMetric = 'ctr' }: { d
 
       <div className="od-chart__legend">
         <span className="od-chart__legend-item">
-          <span className="od-chart__legend-dot" style={{ background: '#74B3A8' }} />
-          Impressions ({granLabel})
+          <span className="od-chart__legend-dot" style={{ background: '#6366f1', borderRadius: 2 }} />
+          {clickFilter !== 'all' ? `${clickFilter === 'brand' ? 'Brand' : 'Generic'} Clicks` : 'Clicks'} ({granLabel})
         </span>
         <span className="od-chart__legend-item">
-          <span className="od-chart__legend-dot" style={{ background: '#213843' }} />
+          <span className="od-chart__legend-dot" style={{ background: '#74B3A8' }} />
           {lineLabel}
         </span>
       </div>

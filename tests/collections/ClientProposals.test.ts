@@ -60,8 +60,8 @@ describe("ClientProposals Collection", () => {
     expect(ClientProposals.admin?.useAsTitle).toBe("businessName");
   });
 
-  it("should be in Database admin group", () => {
-    expect(ClientProposals.admin?.group).toBe("Database");
+  it("should be in Clients admin group", () => {
+    expect(ClientProposals.admin?.group).toBe("Clients");
   });
 
   it("should have required businessName field", () => {

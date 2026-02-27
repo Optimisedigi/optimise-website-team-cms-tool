@@ -1103,6 +1103,27 @@ export async function GET(request: NextRequest) {
   await run("gaa_perf_reports_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_perf_reports_order_idx` ON `google_ads_audits_performance_reports` (`_order`)");
   await run("gaa_perf_reports_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_perf_reports_parent_idx` ON `google_ads_audits_performance_reports` (`_parent_id`)");
 
+  // ── Client billing fields ──
+  await run("clients.client_start_date", "ALTER TABLE `clients` ADD `client_start_date` text");
+  await run("clients.historical_revenue", "ALTER TABLE `clients` ADD `historical_revenue` numeric");
+  await run("clients.contract_id", "ALTER TABLE `clients` ADD `contract_id` integer REFERENCES `media`(`id`) ON DELETE set null");
+
+  // ── ApiCostRates subscriptions array ──
+  await run("api_cost_rates_subscriptions", `CREATE TABLE IF NOT EXISTS \`api_cost_rates_subscriptions\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`name\` text NOT NULL,
+    \`category\` text DEFAULT 'llm',
+    \`monthly_cost_aud\` numeric NOT NULL,
+    \`start_date\` text,
+    \`is_active\` integer DEFAULT true,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`api_cost_rates\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("api_cost_rates_subs_order_idx", "CREATE INDEX IF NOT EXISTS `api_cost_rates_subs_order_idx` ON `api_cost_rates_subscriptions` (`_order`)");
+  await run("api_cost_rates_subs_parent_idx", "CREATE INDEX IF NOT EXISTS `api_cost_rates_subs_parent_idx` ON `api_cost_rates_subscriptions` (`_parent_id`)");
+  await run("api_cost_rates_subs.start_date", "ALTER TABLE `api_cost_rates_subscriptions` ADD `start_date` text");
+
   // ── GSC Daily (historical daily data) ──
 
   await run("gsc_daily", `CREATE TABLE IF NOT EXISTS \`gsc_daily\` (

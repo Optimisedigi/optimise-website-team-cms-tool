@@ -149,7 +149,7 @@ export const ClientProposals: CollectionConfig = {
   },
   admin: {
     useAsTitle: "businessName",
-    group: "Database",
+    group: "Clients",
     description: "Proposals for prospective clients",
   },
   access: {

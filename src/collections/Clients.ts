@@ -49,7 +49,7 @@ export const Clients: CollectionConfig = {
   slug: "clients",
   admin: {
     useAsTitle: "name",
-    group: "Database",
+    group: "Clients",
     description: "Manage client websites",
   },
   hooks: {
@@ -69,6 +69,16 @@ export const Clients: CollectionConfig = {
     ],
   },
   fields: [
+    {
+      name: "billingSummary",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/ClientBillingSummary",
+        },
+        condition: (data: any) => !data?.isAgency && data?.id,
+      },
+    },
     {
       type: "tabs",
       tabs: [
@@ -309,12 +319,39 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
+              name: "clientStartDate",
+              type: "date",
+              admin: {
+                description: "When this client started working with us",
+                condition: (data: any) => !data?.isAgency,
+              },
+            },
+            {
               name: "monthlyRetainer",
               type: "number",
               min: 0,
               admin: {
                 description: "Monthly revenue amount ($)",
                 step: 1,
+                condition: (data: any) => !data?.isAgency,
+              },
+            },
+            {
+              name: "historicalRevenue",
+              type: "number",
+              min: 0,
+              admin: {
+                description: "Pre-CMS revenue ($). Added to auto-calculated total for clients who started before the CMS was set up.",
+                step: 1,
+                condition: (data: any) => !data?.isAgency,
+              },
+            },
+            {
+              name: "contract",
+              type: "upload",
+              relationTo: "media",
+              admin: {
+                description: "Client contract document",
                 condition: (data: any) => !data?.isAgency,
               },
             },

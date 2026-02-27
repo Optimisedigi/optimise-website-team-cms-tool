@@ -508,52 +508,74 @@ function GscChart({ data }: { data: GscMonthlyEntry[] }) {
   const chartHeight = 180
   const count = data.length
   const step = count > 1 ? 100 / (count - 1) : 50
+  const barWidth = count > 0 ? Math.min(100 / count * 0.6, 10) : 6
 
-  // Build SVG polyline points for impressions line
+  // Build SVG polyline points for impressions line (right axis)
   const impressionPoints = data.map((d, i) => {
     const x = count > 1 ? i * step : 50
     const y = chartHeight - (d.impressions / maxImpressions) * (chartHeight - 20)
     return `${x},${y}`
   }).join(' ')
 
-  // Build SVG polyline points for clicks line
-  const clickPoints = data.map((d, i) => {
-    const x = count > 1 ? i * step : 50
-    const y = chartHeight - (d.clicks / maxClicks) * (chartHeight - 20)
-    return `${x},${y}`
-  }).join(' ')
+  // Y axis tick values
+  const clickTicks = [0, Math.round(maxClicks / 2), Math.round(maxClicks)]
+  const impTicks = [0, Math.round(maxImpressions / 2), Math.round(maxImpressions)]
 
   return (
     <div className="od-gsc-chart">
-      <div className="od-gsc-chart__area" style={{ height: chartHeight, position: 'relative' }}>
-        {/* Dual line SVG */}
-        <svg
-          viewBox={`0 0 100 ${chartHeight}`}
-          preserveAspectRatio="none"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-        >
-          {/* Impressions line */}
-          <polyline
-            points={impressionPoints}
-            fill="none"
-            stroke="#74B3A8"
-            strokeWidth="2"
-            vectorEffect="non-scaling-stroke"
-          />
-          {/* Clicks line */}
-          <polyline
-            points={clickPoints}
-            fill="none"
-            stroke="#213843"
-            strokeWidth="2"
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
+      <div style={{ display: 'flex', gap: 0 }}>
+        {/* Left Y axis (Clicks) */}
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end', paddingRight: 4, fontSize: 9, color: 'var(--theme-elevation-400)', width: 36, flexShrink: 0, height: chartHeight }}>
+          <span>{formatCompact(clickTicks[2])}</span>
+          <span>{formatCompact(clickTicks[1])}</span>
+          <span>0</span>
+        </div>
+
+        <div className="od-gsc-chart__area" style={{ height: chartHeight, position: 'relative', flex: 1 }}>
+          <svg
+            viewBox={`0 0 100 ${chartHeight}`}
+            preserveAspectRatio="none"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+          >
+            {/* Click bars (left axis) */}
+            {data.map((d, i) => {
+              const x = count > 1 ? i * step : 50
+              const barH = (d.clicks / maxClicks) * (chartHeight - 20)
+              return (
+                <rect
+                  key={i}
+                  x={x - barWidth / 2}
+                  y={chartHeight - barH}
+                  width={barWidth}
+                  height={barH}
+                  fill="#6366f1"
+                  rx="1"
+                  vectorEffect="non-scaling-stroke"
+                />
+              )
+            })}
+            {/* Impressions line (right axis) */}
+            <polyline
+              points={impressionPoints}
+              fill="none"
+              stroke="#74B3A8"
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        </div>
+
+        {/* Right Y axis (Impressions) */}
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', paddingLeft: 4, fontSize: 9, color: 'var(--theme-elevation-400)', width: 40, flexShrink: 0, height: chartHeight }}>
+          <span>{formatCompact(impTicks[2])}</span>
+          <span>{formatCompact(impTicks[1])}</span>
+          <span>0</span>
+        </div>
       </div>
 
       {/* X-axis labels */}
-      <div className="od-gsc-chart__labels">
-        {data.map((entry, i) => (
+      <div className="od-gsc-chart__labels" style={{ marginLeft: 36, marginRight: 40 }}>
+        {data.map((entry) => (
           <div key={entry.month} className="od-gsc-chart__label" style={{ width: `${100 / count}%` }}>
             {entry.month}
           </div>
@@ -563,12 +585,12 @@ function GscChart({ data }: { data: GscMonthlyEntry[] }) {
       {/* Legend */}
       <div className="od-chart__legend">
         <span className="od-chart__legend-item">
-          <span className="od-chart__legend-dot" style={{ background: '#74B3A8' }} />
-          Impressions
+          <span className="od-chart__legend-dot" style={{ background: '#6366f1', borderRadius: 2 }} />
+          Clicks
         </span>
         <span className="od-chart__legend-item">
-          <span className="od-chart__legend-dot" style={{ background: '#213843' }} />
-          Clicks
+          <span className="od-chart__legend-dot" style={{ background: '#74B3A8' }} />
+          Impressions
         </span>
       </div>
     </div>

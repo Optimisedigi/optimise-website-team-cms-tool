@@ -306,9 +306,21 @@ export interface Client {
       )
     | null;
   /**
+   * When this client started working with us
+   */
+  clientStartDate?: string | null;
+  /**
    * Monthly revenue amount ($)
    */
   monthlyRetainer?: number | null;
+  /**
+   * Pre-CMS revenue ($). Added to auto-calculated total for clients who started before the CMS was set up.
+   */
+  historicalRevenue?: number | null;
+  /**
+   * Client contract document
+   */
+  contract?: (number | null) | Media;
   /**
    * One-off projects (website builds, audits, etc.)
    */
@@ -416,14 +428,6 @@ export interface Client {
    */
   newCustomersLast12Months?: number | null;
   /**
-   * Google Ads audits linked to this client
-   */
-  googleAdsAudits?: {
-    docs?: (number | GoogleAdsAudit)[];
-    hasNextPage?: boolean;
-    totalDocs?: number;
-  };
-  /**
    * Competitor businesses to benchmark against (up to 5)
    */
   competitors?:
@@ -443,6 +447,82 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Google Ads audits linked to this client
+   */
+  googleAdsAudits?: {
+    docs?: (number | GoogleAdsAudit)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  /**
+   * Configure Google Ads automations for this client
+   */
+  gadsAuto?: {
+    /**
+     * Enable weekly negative keyword sweeps
+     */
+    negativeSweepEnabled?: boolean | null;
+    /**
+     * How to handle candidates
+     */
+    negativeSweepMode?: ('review_first' | 'auto_apply') | null;
+    /**
+     * Day to run the sweep
+     */
+    negativeSweepWeekday?: ('monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday') | null;
+    /**
+     * Minimum spend ($) on a search term to flag it as a candidate
+     */
+    negativeSweepMinSpendThreshold?: number | null;
+    /**
+     * Terms to never suggest as negatives (in addition to brand terms)
+     */
+    negativeSweepExcludeTerms?:
+      | {
+          term: string;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Enable scheduled monthly re-audits
+     */
+    reauditEnabled?: boolean | null;
+    /**
+     * Day of month to run (1-28)
+     */
+    reauditDayOfMonth?: number | null;
+    /**
+     * Enable monthly performance reports
+     */
+    performanceReportEnabled?: boolean | null;
+    /**
+     * Day of month to generate (default 3rd, lets data settle)
+     */
+    performanceReportDayOfMonth?: number | null;
+    /**
+     * Email recipients for the report (falls back to team email if empty)
+     */
+    performanceReportRecipientEmails?:
+      | {
+          email: string;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Make report data available via the client hub API
+     */
+    performanceReportIncludeInClientHub?: boolean | null;
+  };
+  /**
+   * Computed on each re-audit
+   */
+  gadsTrajectory?: {
+    latestScore?: number | null;
+    previousScore?: number | null;
+    scoreChange?: number | null;
+    trend?: ('improving' | 'stable' | 'declining') | null;
+  };
   /**
    * Blog categories for this client (one per line)
    */
@@ -526,6 +606,60 @@ export interface Client {
   latestGscSnapshot?: (number | null) | GscSnapshot;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * Upload and manage media. Images: max 800 KB. Videos: max 10 MB (no bulk upload).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: number;
+  /**
+   * Describe the image for accessibility and SEO. Be specific (e.g., 'Team meeting in modern office with whiteboard').
+   */
+  alt?: string | null;
+  /**
+   * Optional caption to display below the image.
+   */
+  caption?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    hero?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
 }
 /**
  * Google Ads audit pipeline. Requires client to grant access to the Optimise Digital MCC (manager account) before the audit can pull data.
@@ -731,7 +865,7 @@ export interface GoogleAdsAudit {
       }[]
     | null;
   /**
-   * Weekly negative keyword sweep — finds wasteful search terms and suggests/applies negatives
+   * ⚠️ Legacy config — configure automations from the Client record instead. These fields are kept for existing data.
    */
   negativeSweepConfig?: {
     /**
@@ -761,7 +895,7 @@ export interface GoogleAdsAudit {
       | null;
   };
   /**
-   * Monthly re-audit — re-runs the full 13-step scoring and tracks score trajectory
+   * ⚠️ Legacy config — configure from Client record.
    */
   reauditConfig?: {
     /**
@@ -783,7 +917,7 @@ export interface GoogleAdsAudit {
     trend?: ('improving' | 'stable' | 'declining') | null;
   };
   /**
-   * Monthly performance report — KPIs, MoM comparison, campaign breakdown
+   * ⚠️ Legacy config — configure from Client record.
    */
   performanceReportConfig?: {
     /**
@@ -1379,60 +1513,6 @@ export interface ClientProposal {
   proposalPin?: string | null;
   updatedAt: string;
   createdAt: string;
-}
-/**
- * Upload and manage media. Images: max 800 KB. Videos: max 10 MB (no bulk upload).
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media".
- */
-export interface Media {
-  id: number;
-  /**
-   * Describe the image for accessibility and SEO. Be specific (e.g., 'Team meeting in modern office with whiteboard').
-   */
-  alt?: string | null;
-  /**
-   * Optional caption to display below the image.
-   */
-  caption?: string | null;
-  updatedAt: string;
-  createdAt: string;
-  url?: string | null;
-  thumbnailURL?: string | null;
-  filename?: string | null;
-  mimeType?: string | null;
-  filesize?: number | null;
-  width?: number | null;
-  height?: number | null;
-  focalX?: number | null;
-  focalY?: number | null;
-  sizes?: {
-    thumbnail?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-    card?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-    hero?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-  };
 }
 /**
  * Full SEO audit reports from the growth tools
@@ -2638,7 +2718,10 @@ export interface ClientsSelect<T extends boolean = true> {
       };
   conversionGoal?: T;
   secondaryConversionGoal?: T;
+  clientStartDate?: T;
   monthlyRetainer?: T;
+  historicalRevenue?: T;
+  contract?: T;
   oneOffProjects?:
     | T
     | {
@@ -2668,7 +2751,6 @@ export interface ClientsSelect<T extends boolean = true> {
   averageOrderValue?: T;
   annualPurchaseFrequency?: T;
   newCustomersLast12Months?: T;
-  googleAdsAudits?: T;
   competitors?:
     | T
     | {
@@ -2676,6 +2758,40 @@ export interface ClientsSelect<T extends boolean = true> {
         websiteUrl?: T;
         googleMapsUrl?: T;
         id?: T;
+      };
+  googleAdsAudits?: T;
+  gadsAuto?:
+    | T
+    | {
+        negativeSweepEnabled?: T;
+        negativeSweepMode?: T;
+        negativeSweepWeekday?: T;
+        negativeSweepMinSpendThreshold?: T;
+        negativeSweepExcludeTerms?:
+          | T
+          | {
+              term?: T;
+              id?: T;
+            };
+        reauditEnabled?: T;
+        reauditDayOfMonth?: T;
+        performanceReportEnabled?: T;
+        performanceReportDayOfMonth?: T;
+        performanceReportRecipientEmails?:
+          | T
+          | {
+              email?: T;
+              id?: T;
+            };
+        performanceReportIncludeInClientHub?: T;
+      };
+  gadsTrajectory?:
+    | T
+    | {
+        latestScore?: T;
+        previousScore?: T;
+        scoreChange?: T;
+        trend?: T;
       };
   blogCategories?: T;
   blogTags?: T;
@@ -3342,7 +3458,7 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   createdAt?: T;
 }
 /**
- * Configurable cost-per-unit rates (AUD) for each API tool. Update when provider prices change.
+ * Configurable cost-per-unit rates (AUD) and monthly subscriptions. Update when provider prices change.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "api-cost-rates".
@@ -3373,6 +3489,31 @@ export interface ApiCostRate {
    * Cost per blog image generation (AUD)
    */
   blogImageCost?: number | null;
+  /**
+   * Monthly subscription costs. These recur until removed.
+   */
+  subscriptions?:
+    | {
+        /**
+         * Service name (e.g. Gemini, Kimi, Claude)
+         */
+        name: string;
+        category?: ('llm' | 'infra' | 'other') | null;
+        /**
+         * Monthly cost in AUD
+         */
+        monthlyCostAud: number;
+        /**
+         * When this subscription started. Only included in cost calculations from this date.
+         */
+        startDate: string;
+        /**
+         * Uncheck to stop including in cost calculations
+         */
+        isActive?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -3387,6 +3528,16 @@ export interface ApiCostRatesSelect<T extends boolean = true> {
   competitorAnalysisCost?: T;
   contentResearchCost?: T;
   blogImageCost?: T;
+  subscriptions?:
+    | T
+    | {
+        name?: T;
+        category?: T;
+        monthlyCostAud?: T;
+        startDate?: T;
+        isActive?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

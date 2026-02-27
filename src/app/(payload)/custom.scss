@@ -181,10 +181,27 @@
   --theme-border-color: rgba(255, 255, 255, 0.08);
 }
 
+// Narrower sidebar — just wide enough so no text wraps
+.nav {
+  --nav-width: 240px;
+}
+
 // Reduce top padding so logo sits at very top of sidebar
 .nav .nav__scroll {
   --nav-padding-block-start: 4px;
+  display: flex;
+  flex-direction: column;
 }
+
+// Reorder nav groups: Clients → Performance → Audits → Content → Finance → Admin → Settings
+#nav-group-Clients  { order: 1; }
+.sidebar-extras__group:first-of-type { order: 2; } // Performance
+#nav-group-Audits   { order: 3; }
+#nav-group-Content  { order: 4; }
+#nav-group-Finance  { order: 5; }
+#nav-group-Admin    { order: 6; }
+.sidebar-extras__group:last-of-type  { order: 7; } // Settings
+.nav .nav__controls { order: 99; }
 
 // Prominent group headers
 .nav .nav-group__toggle {
