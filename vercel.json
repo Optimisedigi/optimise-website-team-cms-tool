@@ -19,7 +19,7 @@
       "maxDuration": 300
     },
     "src/app/(frontend)/api/migrate/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "src/app/(frontend)/api/schema-migrate/route.ts": {
       "maxDuration": 60
