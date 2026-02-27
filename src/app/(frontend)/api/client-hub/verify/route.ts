@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
 
   // Client match takes priority
   if (matchedClientId) {
-    const [seoResult, croResult, kwResult] = await Promise.all([
+    const [seoResult, croResult, kwResult, gadsResult] = await Promise.all([
       payload.find({
         collection: "seo-audits",
         where: { client: { equals: matchedClientId } },
@@ -162,13 +162,31 @@ export async function POST(req: NextRequest) {
         limit: 1,
         overrideAccess: true,
       }),
+      payload.find({
+        collection: "google-ads-audits",
+        where: {
+          client: { equals: matchedClientId },
+          presentationPublished: { equals: true },
+        },
+        sort: "-createdAt",
+        limit: 1,
+        overrideAccess: true,
+        select: {
+          slug: true,
+          presentationPin: true,
+          overallScore: true,
+          businessName: true,
+          createdAt: true,
+        },
+      }),
     ]);
 
     const seoAudit = seoResult.docs[0] ?? null;
     const croAudit = croResult.docs[0] ?? null;
     const kwSnapshot = kwResult.docs[0] ?? null;
+    const gadsAudit = gadsResult.docs[0] ?? null;
 
-    if (!seoAudit && !croAudit && !kwSnapshot) {
+    if (!seoAudit && !croAudit && !kwSnapshot && !gadsAudit) {
       return NextResponse.json(
         { ok: false, error: "No audit report found." },
         { status: 404 }
@@ -207,12 +225,21 @@ export async function POST(req: NextRequest) {
       croAudit: safeCroAudit,
       keywordSnapshot: kwSnapshot,
       competitorAnalysis: null,
+      googleAdsAudit: gadsAudit
+        ? {
+            slug: (gadsAudit as any).slug,
+            pin: (gadsAudit as any).presentationPin,
+            businessName: (gadsAudit as any).businessName,
+            overallScore: (gadsAudit as any).overallScore,
+            createdAt: (gadsAudit as any).createdAt,
+          }
+        : null,
     });
   }
 
   // Proposal match
   if (matchedProposalId) {
-    const [seoResult, croResult, kwResult, compResult] = await Promise.all([
+    const [seoResult, croResult, kwResult, compResult, gadsResult] = await Promise.all([
       payload.find({
         collection: "seo-audits",
         where: { proposal: { equals: matchedProposalId } },
@@ -241,14 +268,32 @@ export async function POST(req: NextRequest) {
         limit: 1,
         overrideAccess: true,
       }),
+      payload.find({
+        collection: "google-ads-audits",
+        where: {
+          proposal: { equals: matchedProposalId },
+          presentationPublished: { equals: true },
+        },
+        sort: "-createdAt",
+        limit: 1,
+        overrideAccess: true,
+        select: {
+          slug: true,
+          presentationPin: true,
+          overallScore: true,
+          businessName: true,
+          createdAt: true,
+        },
+      }),
     ]);
 
     const seoAudit = seoResult.docs[0] ?? null;
     const croAudit = croResult.docs[0] ?? null;
     const kwSnapshot = kwResult.docs[0] ?? null;
     const compAnalysis = compResult.docs[0] ?? null;
+    const gadsAudit = gadsResult.docs[0] ?? null;
 
-    if (!seoAudit && !croAudit && !kwSnapshot && !compAnalysis && !matchedMockupUrl) {
+    if (!seoAudit && !croAudit && !kwSnapshot && !compAnalysis && !gadsAudit && !matchedMockupUrl) {
       return NextResponse.json(
         { ok: false, error: "No audit report found." },
         { status: 404 }
@@ -289,6 +334,15 @@ export async function POST(req: NextRequest) {
       croAudit: safeCroAudit,
       keywordSnapshot: kwSnapshot,
       competitorAnalysis: compAnalysis,
+      googleAdsAudit: gadsAudit
+        ? {
+            slug: (gadsAudit as any).slug,
+            pin: (gadsAudit as any).presentationPin,
+            businessName: (gadsAudit as any).businessName,
+            overallScore: (gadsAudit as any).overallScore,
+            createdAt: (gadsAudit as any).createdAt,
+          }
+        : null,
     });
   }
 
