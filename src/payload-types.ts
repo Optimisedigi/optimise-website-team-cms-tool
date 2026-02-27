@@ -82,6 +82,7 @@ export interface Config {
     'usage-reports': UsageReport;
     'gsc-snapshots': GscSnapshot;
     'gsc-alerts': GscAlert;
+    'gsc-daily': GscDaily;
     'activity-log': ActivityLog;
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
@@ -113,6 +114,7 @@ export interface Config {
     'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-alerts': GscAlertsSelect<false> | GscAlertsSelect<true>;
+    'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
     'activity-log': ActivityLogSelect<false> | ActivityLogSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
@@ -652,6 +654,18 @@ export interface GoogleAdsAudit {
    */
   emailSentAt?: string | null;
   /**
+   * Team-curated finding selections (managed by the UI above)
+   */
+  curatedFindings?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * Toggle on to make the presentation publicly accessible (with PIN)
    */
   presentationPublished?: boolean | null;
@@ -713,6 +727,201 @@ export interface GoogleAdsAudit {
          * Implementation notes or OptiMate feedback
          */
         notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Weekly negative keyword sweep — finds wasteful search terms and suggests/applies negatives
+   */
+  negativeSweepConfig?: {
+    /**
+     * Enable weekly negative keyword sweeps
+     */
+    enabled?: boolean | null;
+    /**
+     * How to handle candidates
+     */
+    mode?: ('review_first' | 'auto_apply') | null;
+    /**
+     * Day to run the sweep
+     */
+    weekday?: ('monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday') | null;
+    /**
+     * Minimum spend ($) on a search term to flag it as a candidate
+     */
+    minSpendThreshold?: number | null;
+    /**
+     * Terms to never suggest as negatives (in addition to brand terms)
+     */
+    excludeTerms?:
+      | {
+          term: string;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Monthly re-audit — re-runs the full 13-step scoring and tracks score trajectory
+   */
+  reauditConfig?: {
+    /**
+     * Enable scheduled re-audits
+     */
+    enabled?: boolean | null;
+    /**
+     * Day of month to run (1–28)
+     */
+    dayOfMonth?: number | null;
+  };
+  /**
+   * Computed on each re-audit
+   */
+  scoreTrajectory?: {
+    latestScore?: number | null;
+    previousScore?: number | null;
+    scoreChange?: number | null;
+    trend?: ('improving' | 'stable' | 'declining') | null;
+  };
+  /**
+   * Monthly performance report — KPIs, MoM comparison, campaign breakdown
+   */
+  performanceReportConfig?: {
+    /**
+     * Enable monthly performance reports
+     */
+    enabled?: boolean | null;
+    /**
+     * Day of month to generate (default 3rd — lets data settle)
+     */
+    dayOfMonth?: number | null;
+    /**
+     * Email recipients for the report (falls back to team email if empty)
+     */
+    recipientEmails?:
+      | {
+          email: string;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Make report data available via the client hub API
+     */
+    includeInClientHub?: boolean | null;
+  };
+  /**
+   * Current batch of negative keyword candidates awaiting review (cleared on approve/skip)
+   */
+  negativeSweepPendingApproval?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * History of negative keyword sweeps
+   */
+  negativeSweepHistory?:
+    | {
+        sweepDate: string;
+        candidateCount?: number | null;
+        /**
+         * $ waste found
+         */
+        totalWasteIdentified?: number | null;
+        appliedCount?: number | null;
+        status?: ('pending_review' | 'approved' | 'applied' | 'skipped') | null;
+        /**
+         * Full candidate list for this sweep
+         */
+        candidates?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Monthly performance report history
+   */
+  performanceReports?:
+    | {
+        /**
+         * YYYY-MM
+         */
+        reportMonth: string;
+        /**
+         * When generated
+         */
+        reportDate?: string | null;
+        emailSentAt?: string | null;
+        /**
+         * Month KPIs (spend, clicks, conversions, CPA, etc.)
+         */
+        kpis?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Month-on-month comparison
+         */
+        mom?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Top campaigns by spend
+         */
+        campaignBreakdown?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * 12-month trend data
+         */
+        monthlyTrend?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Who received the email
+         */
+        emailRecipients?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
         id?: string | null;
       }[]
     | null;
@@ -846,6 +1055,10 @@ export interface ClientProposal {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * Google Ads customer ID (e.g. 955-493-5739). Required to run a Google Ads audit from this proposal.
+   */
+  googleAdsCustomerId?: string | null;
   /**
    * CSS selector to click before capturing screenshots (e.g. age-gate 'Enter site' button). Leave blank for most sites.
    */
@@ -2094,6 +2307,32 @@ export interface GscAlert {
   createdAt: string;
 }
 /**
+ * Daily Google Search Console metrics for historical archival
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-daily".
+ */
+export interface GscDaily {
+  id: number;
+  client: number | Client;
+  /**
+   * YYYY-MM-DD
+   */
+  date: string;
+  clicks: number;
+  impressions: number;
+  /**
+   * Click-through rate as percentage (e.g. 3.45)
+   */
+  ctr?: number | null;
+  /**
+   * Average position (e.g. 14.2)
+   */
+  position?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Automatic feed of team activity
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2277,6 +2516,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'gsc-alerts';
         value: number | GscAlert;
+      } | null)
+    | ({
+        relationTo: 'gsc-daily';
+        value: number | GscDaily;
       } | null)
     | ({
         relationTo: 'activity-log';
@@ -2494,6 +2737,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   businessGoals?: T;
   notes?: T;
   tam?: T;
+  googleAdsCustomerId?: T;
   screenshotClickSelector?: T;
   websiteMockupUrl?: T;
   keywordCategories?:
@@ -2726,6 +2970,7 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   scoredReport?: T;
   emailHtml?: T;
   emailSentAt?: T;
+  curatedFindings?: T;
   presentationPublished?: T;
   presentationData?: T;
   teamNotes?: T;
@@ -2746,6 +2991,72 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
         status?: T;
         completedAt?: T;
         notes?: T;
+        id?: T;
+      };
+  negativeSweepConfig?:
+    | T
+    | {
+        enabled?: T;
+        mode?: T;
+        weekday?: T;
+        minSpendThreshold?: T;
+        excludeTerms?:
+          | T
+          | {
+              term?: T;
+              id?: T;
+            };
+      };
+  reauditConfig?:
+    | T
+    | {
+        enabled?: T;
+        dayOfMonth?: T;
+      };
+  scoreTrajectory?:
+    | T
+    | {
+        latestScore?: T;
+        previousScore?: T;
+        scoreChange?: T;
+        trend?: T;
+      };
+  performanceReportConfig?:
+    | T
+    | {
+        enabled?: T;
+        dayOfMonth?: T;
+        recipientEmails?:
+          | T
+          | {
+              email?: T;
+              id?: T;
+            };
+        includeInClientHub?: T;
+      };
+  negativeSweepPendingApproval?: T;
+  negativeSweepHistory?:
+    | T
+    | {
+        sweepDate?: T;
+        candidateCount?: T;
+        totalWasteIdentified?: T;
+        appliedCount?: T;
+        status?: T;
+        candidates?: T;
+        id?: T;
+      };
+  performanceReports?:
+    | T
+    | {
+        reportMonth?: T;
+        reportDate?: T;
+        emailSentAt?: T;
+        kpis?: T;
+        mom?: T;
+        campaignBreakdown?: T;
+        monthlyTrend?: T;
+        emailRecipients?: T;
         id?: T;
       };
   presentationPin?: T;
@@ -2867,6 +3178,20 @@ export interface GscAlertsSelect<T extends boolean = true> {
   recommendation?: T;
   resolved?: T;
   resolvedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-daily_select".
+ */
+export interface GscDailySelect<T extends boolean = true> {
+  client?: T;
+  date?: T;
+  clicks?: T;
+  impressions?: T;
+  ctr?: T;
+  position?: T;
   updatedAt?: T;
   createdAt?: T;
 }

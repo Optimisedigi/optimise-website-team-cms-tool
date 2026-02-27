@@ -1,5 +1,6 @@
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { google } from "googleapis";
 import {
   refreshAccessToken,
   fetchSearchAnalytics,
@@ -390,10 +391,119 @@ async function monitorClient(
     });
   }
 
+  // Sync daily data (backfill or incremental)
+  try {
+    await syncDailyData(payload, client, accessToken);
+  } catch (err) {
+    console.error(`[gsc-monitor] Daily sync error for ${client.name}:`, err);
+  }
+
   return {
     clientId: String(client.id),
     clientName: client.name,
     snapshotId: latestSnapshotId,
     alerts: allAlerts,
   };
+}
+
+/**
+ * Sync daily GSC metrics into gsc-daily collection.
+ * - If < 30 rows exist: backfill 16 months (~480 days)
+ * - Otherwise: incremental sync of last 5 days (GSC finalises ~48h after)
+ */
+async function syncDailyData(
+  payload: any,
+  client: any,
+  accessToken: string,
+) {
+  const siteUrl = client.gscPropertyUrl;
+  if (!siteUrl) return;
+
+  // Check existing row count
+  const existingCount = await payload.find({
+    collection: "gsc-daily",
+    where: { client: { equals: client.id } },
+    limit: 0,
+    overrideAccess: true,
+  });
+
+  const needsBackfill = existingCount.totalDocs < 30;
+
+  const now = new Date();
+  let startDate: string;
+  let endDate: string;
+
+  if (needsBackfill) {
+    // Backfill: 16 months ago to 3 days ago
+    const start = new Date(now.getFullYear(), now.getMonth() - 16, now.getDate());
+    startDate = start.toISOString().slice(0, 10);
+    endDate = new Date(now.getTime() - 3 * 86400000).toISOString().slice(0, 10);
+    console.log(`[gsc-monitor] Backfilling daily data for ${client.name}: ${startDate} to ${endDate}`);
+  } else {
+    // Incremental: last 5 days
+    startDate = new Date(now.getTime() - 5 * 86400000).toISOString().slice(0, 10);
+    endDate = new Date(now.getTime() - 1 * 86400000).toISOString().slice(0, 10);
+  }
+
+  // Fetch daily data from GSC API
+  const oauth2Client = new google.auth.OAuth2();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const searchconsole = google.searchconsole({ version: "v1", auth: oauth2Client });
+
+  const res = await searchconsole.searchanalytics.query({
+    siteUrl,
+    requestBody: {
+      startDate,
+      endDate,
+      dimensions: ["date"],
+    },
+  });
+
+  const rows = res.data.rows || [];
+  if (!rows.length) return;
+
+  let upserted = 0;
+
+  for (const row of rows) {
+    const date = row.keys?.[0];
+    if (!date) continue;
+
+    const dailyData = {
+      client: client.id,
+      date,
+      clicks: row.clicks || 0,
+      impressions: row.impressions || 0,
+      ctr: Math.round((row.ctr || 0) * 10000) / 100,
+      position: Math.round((row.position || 0) * 10) / 10,
+    };
+
+    // Check for existing row (dedup by client + date)
+    const existing = await payload.find({
+      collection: "gsc-daily",
+      where: {
+        client: { equals: client.id },
+        date: { equals: date },
+      },
+      limit: 1,
+      overrideAccess: true,
+    });
+
+    if (existing.docs[0]) {
+      await payload.update({
+        collection: "gsc-daily",
+        id: existing.docs[0].id,
+        overrideAccess: true,
+        data: dailyData,
+      });
+    } else {
+      await payload.create({
+        collection: "gsc-daily",
+        overrideAccess: true,
+        data: dailyData,
+      });
+    }
+    upserted++;
+  }
+
+  console.log(`[gsc-monitor] Daily sync for ${client.name}: ${upserted} rows upserted (${needsBackfill ? "backfill" : "incremental"})`);
 }

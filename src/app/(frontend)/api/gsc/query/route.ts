@@ -47,14 +47,14 @@ export async function POST(req: NextRequest) {
     .map((t: string) => t.trim())
     .filter(Boolean);
 
-  // If GSC is live-connected, use real API
+  // If GSC is live-connected, use real API (with stored data hybrid)
   if (
     client.gscConnected &&
     (client as any).gscAccessToken &&
     (client as any).gscPropertyUrl
   ) {
     try {
-      return await fetchLiveData(client as any, startDate, endDate, brandTerms);
+      return await fetchLiveData(client as any, startDate, endDate, brandTerms, payload);
     } catch (err) {
       console.error("[gsc/query] Live fetch failed, falling back to mock:", err);
     }
@@ -71,6 +71,7 @@ async function fetchLiveData(
   startDate: string,
   endDate: string,
   brandTerms: string[],
+  payload: any,
 ) {
   let accessToken = client.gscAccessToken;
   const siteUrl = client.gscPropertyUrl;
@@ -81,15 +82,87 @@ async function fetchLiveData(
     accessToken = refreshed.accessToken;
   }
 
-  // Parallel fetch: overall + brand + daily + daily brand/generic
-  const [analytics, branded, dailyData, dailyBrandData, dailyGenericData] =
-    await Promise.all([
-      fetchSearchAnalytics(accessToken, siteUrl, startDate, endDate),
-      fetchBrandedAnalytics(accessToken, siteUrl, startDate, endDate, brandTerms),
-      fetchDailyData(accessToken, siteUrl, startDate, endDate),
-      fetchDailyFiltered(accessToken, siteUrl, startDate, endDate, brandTerms, "brand"),
-      fetchDailyFiltered(accessToken, siteUrl, startDate, endDate, brandTerms, "generic"),
-    ]);
+  // Determine which date ranges can use stored data vs live API
+  // GSC data finalises ~3 days after, so anything before cutoff is stable
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 3);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  let storedDaily: Array<{ date: string; clicks: number; impressions: number; ctr: number; position: number }> = [];
+  let liveStartDate = startDate;
+
+  // Try to use stored daily data for the stable portion
+  if (startDate < cutoffStr) {
+    const storedEnd = endDate <= cutoffStr ? endDate : cutoffStr;
+    const storedRows = await payload.find({
+      collection: "gsc-daily",
+      where: {
+        and: [
+          { client: { equals: client.id } },
+          { date: { greater_than_equal: startDate } },
+          { date: { less_than_equal: storedEnd } },
+        ],
+      },
+      limit: 600,
+      sort: "date",
+      overrideAccess: true,
+    });
+
+    // Use stored data if we have reasonable coverage (at least 50% of expected days)
+    const expectedDays = Math.round(
+      (new Date(storedEnd).getTime() - new Date(startDate).getTime()) / 86400000
+    );
+    if (storedRows.totalDocs >= expectedDays * 0.5 && storedRows.totalDocs > 0) {
+      storedDaily = storedRows.docs.map((row: any) => ({
+        date: row.date,
+        clicks: row.clicks,
+        impressions: row.impressions,
+        ctr: row.ctr || 0,
+        position: row.position || 0,
+      }));
+      // Only fetch live data for the recent portion
+      if (endDate > cutoffStr) {
+        liveStartDate = cutoffStr;
+      } else {
+        liveStartDate = ""; // all covered by stored data
+      }
+    }
+  }
+
+  // Build parallel fetches - always need summary/keywords/pages/brand from live API
+  const fetchPromises: Promise<any>[] = [
+    fetchSearchAnalytics(accessToken, siteUrl, startDate, endDate),
+    fetchBrandedAnalytics(accessToken, siteUrl, startDate, endDate, brandTerms),
+    fetchDailyFiltered(accessToken, siteUrl, startDate, endDate, brandTerms, "brand"),
+    fetchDailyFiltered(accessToken, siteUrl, startDate, endDate, brandTerms, "generic"),
+  ];
+
+  // Only fetch live daily data if we need it
+  if (liveStartDate && liveStartDate < endDate) {
+    fetchPromises.push(fetchDailyData(accessToken, siteUrl, liveStartDate, endDate));
+  } else if (!storedDaily.length) {
+    // No stored data and no live range - fetch everything live
+    fetchPromises.push(fetchDailyData(accessToken, siteUrl, startDate, endDate));
+  }
+
+  const results = await Promise.all(fetchPromises);
+  const [analytics, branded, dailyBrandData, dailyGenericData] = results;
+  const liveDailyData = results[4] || [];
+
+  // Merge stored + live daily data
+  let dailyData: Array<{ date: string; clicks: number; impressions: number; ctr: number; position: number }>;
+  if (storedDaily.length && liveDailyData.length) {
+    // Merge: stored data first, then live data for dates not in stored
+    const storedDates = new Set(storedDaily.map((d: any) => d.date));
+    const liveOnly = liveDailyData.filter((d: any) => !storedDates.has(d.date));
+    dailyData = [...storedDaily, ...liveOnly].sort(
+      (a: any, b: any) => a.date.localeCompare(b.date)
+    );
+  } else if (storedDaily.length) {
+    dailyData = storedDaily;
+  } else {
+    dailyData = liveDailyData;
+  }
 
   return NextResponse.json({
     brandTerms,
