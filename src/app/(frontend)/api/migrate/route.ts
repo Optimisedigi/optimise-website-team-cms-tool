@@ -826,6 +826,12 @@ export async function POST(request: NextRequest) {
   await run("gsc_daily_client_date_unique", "CREATE UNIQUE INDEX IF NOT EXISTS `gsc_daily_client_date_unique` ON `gsc_daily` (`client_id`, `date`)");
   await run("locked_docs_rels.gsc_daily_id", "ALTER TABLE `payload_locked_documents_rels` ADD `gsc_daily_id` integer REFERENCES `gsc_daily`(`id`) ON DELETE cascade");
 
+  // ╔══════════════════════════════════════════════════════════════════╗
+  // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
+  // ║  This is the POST handler — all migrations must be here.       ║
+  // ║  The GET handler below is a legacy diagnostic, not used.       ║
+  // ╚══════════════════════════════════════════════════════════════════╝
+
   // --- Schema diagnostics ---
   const tables = ["media", "clients", "clients_one_off_projects", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels", "activity_log", "job_posts", "gsc_snapshots", "gsc_alerts", "cost_categories", "cost_rules", "business_costs", "api_cost_rates", "blog_prompts", "google_ads_audits"];
   const schema: Record<string, string[]> = {};
