@@ -550,6 +550,358 @@ export const GoogleAdsAudits: CollectionConfig = {
             },
           ],
         },
+
+        // ── Tab 8: Automations ──
+        {
+          label: "Automations",
+          fields: [
+            // ─ Negative Keyword Sweep Config ─
+            {
+              name: "negativeSweepConfig",
+              type: "group",
+              admin: {
+                description: "Weekly negative keyword sweep — finds wasteful search terms and suggests/applies negatives",
+              },
+              fields: [
+                {
+                  name: "enabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Enable weekly negative keyword sweeps",
+                  },
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "mode",
+                      type: "select",
+                      defaultValue: "review_first",
+                      options: [
+                        { label: "Review first (team approves)", value: "review_first" },
+                        { label: "Auto-apply", value: "auto_apply" },
+                      ],
+                      admin: {
+                        description: "How to handle candidates",
+                        width: "50%",
+                      },
+                    },
+                    {
+                      name: "weekday",
+                      type: "select",
+                      defaultValue: "monday",
+                      options: [
+                        { label: "Monday", value: "monday" },
+                        { label: "Tuesday", value: "tuesday" },
+                        { label: "Wednesday", value: "wednesday" },
+                        { label: "Thursday", value: "thursday" },
+                        { label: "Friday", value: "friday" },
+                        { label: "Saturday", value: "saturday" },
+                        { label: "Sunday", value: "sunday" },
+                      ],
+                      admin: {
+                        description: "Day to run the sweep",
+                        width: "50%",
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: "minSpendThreshold",
+                  type: "number",
+                  defaultValue: 5,
+                  min: 0,
+                  admin: {
+                    description: "Minimum spend ($) on a search term to flag it as a candidate",
+                    step: 1,
+                  },
+                },
+                {
+                  name: "excludeTerms",
+                  type: "array",
+                  maxRows: 50,
+                  admin: {
+                    description: "Terms to never suggest as negatives (in addition to brand terms)",
+                  },
+                  fields: [
+                    {
+                      name: "term",
+                      type: "text",
+                      required: true,
+                    },
+                  ],
+                },
+              ],
+            },
+
+            // ─ Re-audit Config ─
+            {
+              name: "reauditConfig",
+              type: "group",
+              admin: {
+                description: "Monthly re-audit — re-runs the full 13-step scoring and tracks score trajectory",
+              },
+              fields: [
+                {
+                  name: "enabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Enable scheduled re-audits",
+                  },
+                },
+                {
+                  name: "dayOfMonth",
+                  type: "number",
+                  defaultValue: 1,
+                  min: 1,
+                  max: 28,
+                  admin: {
+                    description: "Day of month to run (1–28)",
+                    step: 1,
+                  },
+                },
+              ],
+            },
+
+            // ─ Score Trajectory ─
+            {
+              name: "scoreTrajectory",
+              type: "group",
+              admin: {
+                readOnly: true,
+                description: "Computed on each re-audit",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "latestScore",
+                      type: "number",
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                    {
+                      name: "previousScore",
+                      type: "number",
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                    {
+                      name: "scoreChange",
+                      type: "number",
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                    {
+                      name: "trend",
+                      type: "select",
+                      options: [
+                        { label: "Improving", value: "improving" },
+                        { label: "Stable", value: "stable" },
+                        { label: "Declining", value: "declining" },
+                      ],
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                  ],
+                },
+              ],
+            },
+
+            // ─ Performance Report Config ─
+            {
+              name: "performanceReportConfig",
+              type: "group",
+              admin: {
+                description: "Monthly performance report — KPIs, MoM comparison, campaign breakdown",
+              },
+              fields: [
+                {
+                  name: "enabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Enable monthly performance reports",
+                  },
+                },
+                {
+                  name: "dayOfMonth",
+                  type: "number",
+                  defaultValue: 3,
+                  min: 1,
+                  max: 28,
+                  admin: {
+                    description: "Day of month to generate (default 3rd — lets data settle)",
+                    step: 1,
+                  },
+                },
+                {
+                  name: "recipientEmails",
+                  type: "array",
+                  maxRows: 10,
+                  admin: {
+                    description: "Email recipients for the report (falls back to team email if empty)",
+                  },
+                  fields: [
+                    {
+                      name: "email",
+                      type: "email",
+                      required: true,
+                    },
+                  ],
+                },
+                {
+                  name: "includeInClientHub",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description: "Make report data available via the client hub API",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+
+        // ── Tab 9: Sweep History ──
+        {
+          label: "Sweep History",
+          fields: [
+            {
+              name: "negativeSweepPendingApproval",
+              type: "json",
+              admin: {
+                description: "Current batch of negative keyword candidates awaiting review (cleared on approve/skip)",
+              },
+            },
+            {
+              name: "negativeSweepHistory",
+              type: "array",
+              admin: {
+                readOnly: true,
+                description: "History of negative keyword sweeps",
+              },
+              fields: [
+                {
+                  name: "sweepDate",
+                  type: "date",
+                  required: true,
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "candidateCount",
+                      type: "number",
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                    {
+                      name: "totalWasteIdentified",
+                      type: "number",
+                      admin: { readOnly: true, description: "$ waste found", width: "25%" },
+                    },
+                    {
+                      name: "appliedCount",
+                      type: "number",
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                    {
+                      name: "status",
+                      type: "select",
+                      options: [
+                        { label: "Pending Review", value: "pending_review" },
+                        { label: "Approved", value: "approved" },
+                        { label: "Applied", value: "applied" },
+                        { label: "Skipped", value: "skipped" },
+                      ],
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                  ],
+                },
+                {
+                  name: "candidates",
+                  type: "json",
+                  admin: {
+                    description: "Full candidate list for this sweep",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+
+        // ── Tab 10: Performance Reports ──
+        {
+          label: "Performance Reports",
+          fields: [
+            {
+              name: "performanceReports",
+              type: "array",
+              admin: {
+                readOnly: true,
+                description: "Monthly performance report history",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "reportMonth",
+                      type: "text",
+                      required: true,
+                      admin: { readOnly: true, description: "YYYY-MM", width: "33%" },
+                    },
+                    {
+                      name: "reportDate",
+                      type: "date",
+                      admin: { readOnly: true, description: "When generated", width: "33%" },
+                    },
+                    {
+                      name: "emailSentAt",
+                      type: "date",
+                      admin: { readOnly: true, width: "33%" },
+                    },
+                  ],
+                },
+                {
+                  name: "kpis",
+                  type: "json",
+                  admin: {
+                    description: "Month KPIs (spend, clicks, conversions, CPA, etc.)",
+                  },
+                },
+                {
+                  name: "mom",
+                  type: "json",
+                  admin: {
+                    description: "Month-on-month comparison",
+                  },
+                },
+                {
+                  name: "campaignBreakdown",
+                  type: "json",
+                  admin: {
+                    description: "Top campaigns by spend",
+                  },
+                },
+                {
+                  name: "monthlyTrend",
+                  type: "json",
+                  admin: {
+                    description: "12-month trend data",
+                  },
+                },
+                {
+                  name: "emailRecipients",
+                  type: "json",
+                  admin: {
+                    readOnly: true,
+                    description: "Who received the email",
+                  },
+                },
+              ],
+            },
+          ],
+        },
       ],
     },
 
