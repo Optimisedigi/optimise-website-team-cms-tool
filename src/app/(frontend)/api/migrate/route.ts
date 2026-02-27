@@ -908,7 +908,22 @@ export async function POST(request: NextRequest) {
     retainerHistory = retResult.rows;
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-02-27e", results, schema, migrations, allTables, clients, activityCount, retainerHistory });
+  // Diagnostic: test payload.find on clients (same as /api/clients/list)
+  let payloadFindTest: any = null;
+  try {
+    const findResult = await payload.find({
+      collection: "clients",
+      where: { isActive: { not_equals: false } },
+      sort: "name",
+      limit: 500,
+      select: { name: true, slug: true, gscConnected: true, blogCategories: true, blogTags: true, servicePages: true } as any,
+    });
+    payloadFindTest = { ok: true, totalDocs: findResult.totalDocs, firstDoc: findResult.docs[0] };
+  } catch (err: any) {
+    payloadFindTest = { ok: false, error: err?.message || String(err) };
+  }
+
+  return NextResponse.json({ ok: true, version: "2026-02-27f", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest });
 }
 
 /**
