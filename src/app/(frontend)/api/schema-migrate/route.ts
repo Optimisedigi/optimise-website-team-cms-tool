@@ -756,6 +756,108 @@ export async function POST(request: NextRequest) {
   await run("client_proposals.google_ads_audit_id", "ALTER TABLE `client_proposals` ADD `google_ads_audit_id` integer REFERENCES `google_ads_audits`(`id`) ON DELETE set null");
   await run("client_proposals_google_ads_audit_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_google_ads_audit_idx` ON `client_proposals` (`google_ads_audit_id`)");
 
+  // ── Google Ads Automations (2026-02-27) ──
+
+  // Negative sweep config (group → columns on main table)
+  await run("gaa.negative_sweep_config_enabled", "ALTER TABLE `google_ads_audits` ADD `negative_sweep_config_enabled` integer DEFAULT false");
+  await run("gaa.negative_sweep_config_mode", "ALTER TABLE `google_ads_audits` ADD `negative_sweep_config_mode` text DEFAULT 'review_first'");
+  await run("gaa.negative_sweep_config_weekday", "ALTER TABLE `google_ads_audits` ADD `negative_sweep_config_weekday` text DEFAULT 'monday'");
+  await run("gaa.negative_sweep_config_min_spend_threshold", "ALTER TABLE `google_ads_audits` ADD `negative_sweep_config_min_spend_threshold` numeric DEFAULT 5");
+
+  // Re-audit config (group → columns)
+  await run("gaa.reaudit_config_enabled", "ALTER TABLE `google_ads_audits` ADD `reaudit_config_enabled` integer DEFAULT false");
+  await run("gaa.reaudit_config_day_of_month", "ALTER TABLE `google_ads_audits` ADD `reaudit_config_day_of_month` numeric DEFAULT 1");
+
+  // Score trajectory (group → columns)
+  await run("gaa.score_trajectory_latest_score", "ALTER TABLE `google_ads_audits` ADD `score_trajectory_latest_score` numeric");
+  await run("gaa.score_trajectory_previous_score", "ALTER TABLE `google_ads_audits` ADD `score_trajectory_previous_score` numeric");
+  await run("gaa.score_trajectory_score_change", "ALTER TABLE `google_ads_audits` ADD `score_trajectory_score_change` numeric");
+  await run("gaa.score_trajectory_trend", "ALTER TABLE `google_ads_audits` ADD `score_trajectory_trend` text");
+
+  // Performance report config (group → columns)
+  await run("gaa.performance_report_config_enabled", "ALTER TABLE `google_ads_audits` ADD `performance_report_config_enabled` integer DEFAULT false");
+  await run("gaa.performance_report_config_day_of_month", "ALTER TABLE `google_ads_audits` ADD `performance_report_config_day_of_month` numeric DEFAULT 3");
+  await run("gaa.performance_report_config_include_in_client_hub", "ALTER TABLE `google_ads_audits` ADD `performance_report_config_include_in_client_hub` integer DEFAULT true");
+
+  // Pending approval + curated findings checkbox
+  await run("gaa.negative_sweep_pending_approval", "ALTER TABLE `google_ads_audits` ADD `negative_sweep_pending_approval` text");
+  await run("gaa.create_proposal", "ALTER TABLE `google_ads_audits` ADD `create_proposal` integer DEFAULT false");
+
+  // Negative sweep config exclude terms (array table)
+  await run("gaa_negative_sweep_config_exclude_terms", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_negative_sweep_config_exclude_terms\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`term\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gaa_sweep_exclude_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_sweep_exclude_order_idx` ON `google_ads_audits_negative_sweep_config_exclude_terms` (`_order`)");
+  await run("gaa_sweep_exclude_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_sweep_exclude_parent_idx` ON `google_ads_audits_negative_sweep_config_exclude_terms` (`_parent_id`)");
+
+  // Performance report config recipient emails (array table)
+  await run("gaa_performance_report_config_recipient_emails", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_performance_report_config_recipient_emails\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`email\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gaa_report_emails_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_report_emails_order_idx` ON `google_ads_audits_performance_report_config_recipient_emails` (`_order`)");
+  await run("gaa_report_emails_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_report_emails_parent_idx` ON `google_ads_audits_performance_report_config_recipient_emails` (`_parent_id`)");
+
+  // Negative sweep history (array table)
+  await run("gaa_negative_sweep_history", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_negative_sweep_history\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`sweep_date\` text,
+    \`candidate_count\` numeric,
+    \`total_waste_identified\` numeric,
+    \`applied_count\` numeric,
+    \`status\` text,
+    \`candidates\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gaa_sweep_hist_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_sweep_hist_order_idx` ON `google_ads_audits_negative_sweep_history` (`_order`)");
+  await run("gaa_sweep_hist_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_sweep_hist_parent_idx` ON `google_ads_audits_negative_sweep_history` (`_parent_id`)");
+
+  // Performance reports (array table)
+  await run("gaa_performance_reports", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_performance_reports\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`report_month\` text,
+    \`report_date\` text,
+    \`email_sent_at\` text,
+    \`kpis\` text,
+    \`mom\` text,
+    \`campaign_breakdown\` text,
+    \`monthly_trend\` text,
+    \`email_recipients\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gaa_perf_reports_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_perf_reports_order_idx` ON `google_ads_audits_performance_reports` (`_order`)");
+  await run("gaa_perf_reports_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_perf_reports_parent_idx` ON `google_ads_audits_performance_reports` (`_parent_id`)");
+
+  // ── GSC Daily (historical daily data) ──
+
+  await run("gsc_daily", `CREATE TABLE IF NOT EXISTS \`gsc_daily\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`date\` text NOT NULL,
+    \`clicks\` numeric NOT NULL,
+    \`impressions\` numeric NOT NULL,
+    \`ctr\` numeric,
+    \`position\` numeric,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gsc_daily_client_idx", "CREATE INDEX IF NOT EXISTS `gsc_daily_client_idx` ON `gsc_daily` (`client_id`)");
+  await run("gsc_daily_date_idx", "CREATE INDEX IF NOT EXISTS `gsc_daily_date_idx` ON `gsc_daily` (`date`)");
+  await run("gsc_daily_client_date_unique", "CREATE UNIQUE INDEX IF NOT EXISTS `gsc_daily_client_date_unique` ON `gsc_daily` (`client_id`, `date`)");
+  await run("locked_docs_rels.gsc_daily_id", "ALTER TABLE `payload_locked_documents_rels` ADD `gsc_daily_id` integer REFERENCES `gsc_daily`(`id`) ON DELETE cascade");
+
   // --- Schema diagnostics ---
   const tables = ["media", "clients", "clients_one_off_projects", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels", "activity_log", "job_posts", "gsc_snapshots", "gsc_alerts", "cost_categories", "cost_rules", "business_costs", "api_cost_rates", "blog_prompts", "google_ads_audits"];
   const schema: Record<string, string[]> = {};
@@ -789,7 +891,7 @@ export async function POST(request: NextRequest) {
     clients = clientRows.rows;
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, results, schema, migrations, allTables, clients });
+  return NextResponse.json({ ok: true, version: "2026-02-27d", results, schema, migrations, allTables, clients });
 }
 
 /**
