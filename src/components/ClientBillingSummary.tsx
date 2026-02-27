@@ -46,29 +46,35 @@ function ClientBillingSummary() {
 
   // Calculate retainer revenue to date
   let retainerRevenue = 0
-  if (clientStartDate && monthlyRetainer > 0) {
-    const sortedHistory = [...retainerHistory]
-      .filter((h) => h?.effectiveDate && h?.amount != null)
-      .sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime())
-
-    const start = new Date(clientStartDate)
+  if (monthlyRetainer > 0) {
     const now = new Date()
 
-    if (sortedHistory.length > 0) {
-      let periodStart = start
-      for (const entry of sortedHistory) {
-        const changeDate = new Date(entry.effectiveDate)
-        if (changeDate > periodStart) {
-          const months = monthsBetween(periodStart, changeDate)
-          retainerRevenue += months * (Number(entry.previousAmount) || 0)
-          periodStart = changeDate
+    if (clientStartDate) {
+      const sortedHistory = [...retainerHistory]
+        .filter((h) => h?.effectiveDate && h?.amount != null)
+        .sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime())
+
+      const start = new Date(clientStartDate)
+
+      if (sortedHistory.length > 0) {
+        let periodStart = start
+        for (const entry of sortedHistory) {
+          const changeDate = new Date(entry.effectiveDate)
+          if (changeDate > periodStart) {
+            const months = monthsBetween(periodStart, changeDate)
+            retainerRevenue += months * (Number(entry.previousAmount) || 0)
+            periodStart = changeDate
+          }
         }
+        const months = monthsBetween(periodStart, now)
+        retainerRevenue += months * monthlyRetainer
+      } else {
+        const months = monthsBetween(start, now)
+        retainerRevenue = months * monthlyRetainer
       }
-      const months = monthsBetween(periodStart, now)
-      retainerRevenue += months * monthlyRetainer
     } else {
-      const months = monthsBetween(start, now)
-      retainerRevenue = months * monthlyRetainer
+      // No start date: count current month only
+      retainerRevenue = monthlyRetainer
     }
   }
 
