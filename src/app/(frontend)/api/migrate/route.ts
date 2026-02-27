@@ -861,6 +861,26 @@ export async function POST(request: NextRequest) {
   await run("rename_gads_sweep_exclude", "ALTER TABLE `clients_gads_sweep_exclude` RENAME TO `gads_sweep_exclude`");
   await run("rename_gads_report_emails", "ALTER TABLE `clients_gads_report_emails` RENAME TO `gads_report_emails`");
 
+  // --- internal_link_suggestions table ---
+  await run("internal_link_suggestions", `CREATE TABLE IF NOT EXISTS \`internal_link_suggestions\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`source_url\` text NOT NULL,
+    \`target_url\` text NOT NULL,
+    \`anchor_text\` text NOT NULL,
+    \`context_snippet\` text,
+    \`confidence_score\` numeric NOT NULL,
+    \`estimated_page_rank_lift\` numeric,
+    \`cluster_relation\` text,
+    \`cluster_name\` text,
+    \`status\` text DEFAULT 'pending',
+    \`run_id\` numeric,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("internal_link_suggestions_created_at_idx", "CREATE INDEX IF NOT EXISTS `internal_link_suggestions_created_at_idx` ON `internal_link_suggestions` (`created_at`)");
+  await run("internal_link_suggestions_updated_at_idx", "CREATE INDEX IF NOT EXISTS `internal_link_suggestions_updated_at_idx` ON `internal_link_suggestions` (`updated_at`)");
+  await run("locked_docs_rels.internal_link_suggestions_id", "ALTER TABLE `payload_locked_documents_rels` ADD `internal_link_suggestions_id` integer REFERENCES `internal_link_suggestions`(`id`) ON DELETE cascade");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
