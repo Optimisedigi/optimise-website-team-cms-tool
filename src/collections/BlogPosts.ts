@@ -40,6 +40,23 @@ export const BlogPosts: CollectionConfig = {
             user: req.user?.id,
             client: typeof doc.client === "object" ? doc.client?.id : doc.client,
           }).catch(() => {});
+
+          // Notify Growth Tools for auto-linking analysis
+          const growthToolsUrl = process.env.GROWTH_TOOLS_URL;
+          const internalKey = process.env.INTERNAL_API_KEY;
+          if (growthToolsUrl && internalKey) {
+            const blogUrl = `https://www.optimisedigital.online/digital-marketing-growth-hub/${doc.slug}`;
+            fetch(`${growthToolsUrl}/api/webhooks/blog-published`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-internal-key": internalKey,
+              },
+              body: JSON.stringify({ blogUrl, slug: doc.slug, title: doc.title }),
+            }).catch((err) => {
+              console.error("[BlogPosts] Growth Tools webhook failed:", (err as Error).message);
+            });
+          }
         }
       },
     ],

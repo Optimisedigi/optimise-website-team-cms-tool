@@ -100,6 +100,7 @@ export const BlogPrompts: CollectionConfig = {
       options: [
         { label: "Internal", value: "internal" },
         { label: "Client", value: "client" },
+        { label: "Topic Clusters", value: "topic-clusters" },
       ],
     },
   ],
