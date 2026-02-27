@@ -1,6 +1,16 @@
 'use client'
 
-import { useDocumentInfo, useFormFields } from '@payloadcms/ui'
+import { useDocumentInfo } from '@payloadcms/ui'
+import { useEffect, useState } from 'react'
+
+type ClientBillingData = {
+  monthlyRetainer: number
+  historicalRevenue: number
+  clientStartDate: string | null
+  oneOffProjects: Array<{ amount: number; date: string }>
+  retainerHistory: Array<{ amount: number; previousAmount: number; effectiveDate: string }>
+  isAgency: boolean
+}
 
 /**
  * Billing summary displayed above the tabs on the client edit page.
@@ -8,31 +18,43 @@ import { useDocumentInfo, useFormFields } from '@payloadcms/ui'
  */
 function ClientBillingSummary() {
   const { id } = useDocumentInfo()
+  const [data, setData] = useState<ClientBillingData | null>(null)
 
-  const monthlyRetainer = useFormFields(([fields]) => fields.monthlyRetainer?.value as number | undefined) ?? 0
-  const historicalRevenue = useFormFields(([fields]) => fields.historicalRevenue?.value as number | undefined) ?? 0
-  const clientStartDate = useFormFields(([fields]) => fields.clientStartDate?.value as string | undefined)
-  const oneOffProjects = useFormFields(([fields]) => fields.oneOffProjects?.value as any[] | undefined) ?? []
-  const retainerHistory = useFormFields(([fields]) => fields.retainerHistory?.value as any[] | undefined) ?? []
+  useEffect(() => {
+    if (!id) return
+    fetch(`/api/clients/${id}?depth=0`)
+      .then((res) => res.json())
+      .then((doc) => {
+        setData({
+          monthlyRetainer: doc.monthlyRetainer ?? 0,
+          historicalRevenue: doc.historicalRevenue ?? 0,
+          clientStartDate: doc.clientStartDate ?? null,
+          oneOffProjects: Array.isArray(doc.oneOffProjects) ? doc.oneOffProjects : [],
+          retainerHistory: Array.isArray(doc.retainerHistory) ? doc.retainerHistory : [],
+          isAgency: !!doc.isAgency,
+        })
+      })
+      .catch(() => {})
+  }, [id])
 
-  if (!id) return null
+  if (!id || !data || data.isAgency) return null
+
+  const { monthlyRetainer, historicalRevenue, clientStartDate, oneOffProjects, retainerHistory } = data
 
   // Calculate one-off totals
-  const oneOffTotal = oneOffProjects.reduce((sum: number, p: any) => sum + (Number(p?.amount) || 0), 0)
+  const oneOffTotal = oneOffProjects.reduce((sum, p) => sum + (Number(p?.amount) || 0), 0)
 
   // Calculate retainer revenue to date
   let retainerRevenue = 0
   if (clientStartDate && monthlyRetainer > 0) {
-    // Build timeline of retainer amounts from history (sorted by effectiveDate desc)
     const sortedHistory = [...retainerHistory]
-      .filter((h: any) => h?.effectiveDate && h?.amount != null)
-      .sort((a: any, b: any) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime())
+      .filter((h) => h?.effectiveDate && h?.amount != null)
+      .sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime())
 
     const start = new Date(clientStartDate)
     const now = new Date()
 
     if (sortedHistory.length > 0) {
-      // Walk through retainer periods
       let periodStart = start
       for (const entry of sortedHistory) {
         const changeDate = new Date(entry.effectiveDate)
@@ -42,11 +64,9 @@ function ClientBillingSummary() {
           periodStart = changeDate
         }
       }
-      // Current retainer from last change to now
       const months = monthsBetween(periodStart, now)
       retainerRevenue += months * monthlyRetainer
     } else {
-      // No history: simple calculation
       const months = monthsBetween(start, now)
       retainerRevenue = months * monthlyRetainer
     }
