@@ -17,6 +17,9 @@
     },
     "src/app/(frontend)/api/proposals/[id]/run-audits/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/(frontend)/api/migrate/route.ts": {
+      "maxDuration": 60
     }
   }
 }
