@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 
+// Force rebuild: 2026-02-27-v2
 /**
  * Schema migration endpoint.
  * POST /api/migrate with header x-api-key matching AUDIT_API_KEY.
