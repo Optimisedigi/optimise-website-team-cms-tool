@@ -892,11 +892,23 @@ export async function POST(request: NextRequest) {
   // Diagnostic: list clients
   let clients: any[] = [];
   try {
-    const clientRows = await client.execute("SELECT id, name, slug, gsc_connected FROM `clients` ORDER BY id");
+    const clientRows = await client.execute("SELECT id, name, slug, gsc_connected, gsc_property_url, gsc_access_token, gsc_refresh_token, monthly_retainer, client_start_date, is_active FROM `clients` ORDER BY id");
     clients = clientRows.rows;
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-02-27d", results, schema, migrations, allTables, clients });
+  // Diagnostic: check activity log and retainer history
+  let activityCount = 0;
+  let retainerHistory: any[] = [];
+  try {
+    const actResult = await client.execute("SELECT COUNT(*) as cnt FROM `activity_log`");
+    activityCount = actResult.rows[0]?.cnt ?? 0;
+  } catch { /* ignore */ }
+  try {
+    const retResult = await client.execute("SELECT * FROM `clients_retainer_history` ORDER BY _order");
+    retainerHistory = retResult.rows;
+  } catch { /* ignore */ }
+
+  return NextResponse.json({ ok: true, version: "2026-02-27e", results, schema, migrations, allTables, clients, activityCount, retainerHistory });
 }
 
 /**
