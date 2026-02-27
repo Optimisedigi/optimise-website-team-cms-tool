@@ -494,7 +494,7 @@ function GscCard({
   )
 }
 
-// ─── GSC Monthly Chart (bars + line, pure CSS/SVG) ─────
+// ─── GSC Monthly Chart (dual lines, pure CSS/SVG) ──────
 
 function formatCompact(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M'
@@ -506,11 +506,19 @@ function GscChart({ data }: { data: GscMonthlyEntry[] }) {
   const maxImpressions = Math.max(...data.map((d) => d.impressions), 1)
   const maxClicks = Math.max(...data.map((d) => d.clicks), 1)
   const chartHeight = 180
-  const barWidth = 100 / data.length
+  const count = data.length
+  const step = count > 1 ? 100 / (count - 1) : 50
+
+  // Build SVG polyline points for impressions line
+  const impressionPoints = data.map((d, i) => {
+    const x = count > 1 ? i * step : 50
+    const y = chartHeight - (d.impressions / maxImpressions) * (chartHeight - 20)
+    return `${x},${y}`
+  }).join(' ')
 
   // Build SVG polyline points for clicks line
-  const linePoints = data.map((d, i) => {
-    const x = (i + 0.5) * barWidth
+  const clickPoints = data.map((d, i) => {
+    const x = count > 1 ? i * step : 50
     const y = chartHeight - (d.clicks / maxClicks) * (chartHeight - 20)
     return `${x},${y}`
   }).join(' ')
@@ -518,61 +526,35 @@ function GscChart({ data }: { data: GscMonthlyEntry[] }) {
   return (
     <div className="od-gsc-chart">
       <div className="od-gsc-chart__area" style={{ height: chartHeight, position: 'relative' }}>
-        {/* Bars for impressions */}
-        {data.map((entry, i) => {
-          const barH = (entry.impressions / maxImpressions) * (chartHeight - 24)
-          return (
-            <div
-              key={entry.month}
-              className="od-gsc-chart__bar-group"
-              style={{ width: `${barWidth}%`, left: `${i * barWidth}%` }}
-            >
-              <div
-                className="od-gsc-chart__bar"
-                style={{ height: barH, background: '#74B3A8' }}
-                title={`Impressions: ${entry.impressions.toLocaleString()}`}
-              >
-                <span className="od-gsc-chart__bar-val">{formatCompact(entry.impressions)}</span>
-              </div>
-            </div>
-          )
-        })}
-
-        {/* SVG overlay for clicks line */}
+        {/* Dual line SVG */}
         <svg
           viewBox={`0 0 100 ${chartHeight}`}
           preserveAspectRatio="none"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
         >
+          {/* Impressions line */}
           <polyline
-            points={linePoints}
+            points={impressionPoints}
+            fill="none"
+            stroke="#74B3A8"
+            strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
+          />
+          {/* Clicks line */}
+          <polyline
+            points={clickPoints}
             fill="none"
             stroke="#213843"
-            strokeWidth="1.5"
+            strokeWidth="2"
             vectorEffect="non-scaling-stroke"
           />
         </svg>
-
-        {/* Click value labels above line points */}
-        {data.map((d, i) => {
-          const leftPct = (i + 0.5) * barWidth
-          const yPx = chartHeight - (d.clicks / maxClicks) * (chartHeight - 20)
-          return (
-            <div
-              key={i}
-              className="od-gsc-chart__click-label"
-              style={{ left: `${leftPct}%`, top: yPx - 14 }}
-            >
-              {formatCompact(d.clicks)}
-            </div>
-          )
-        })}
       </div>
 
       {/* X-axis labels */}
       <div className="od-gsc-chart__labels">
-        {data.map((entry) => (
-          <div key={entry.month} className="od-gsc-chart__label" style={{ width: `${barWidth}%` }}>
+        {data.map((entry, i) => (
+          <div key={entry.month} className="od-gsc-chart__label" style={{ width: `${100 / count}%` }}>
             {entry.month}
           </div>
         ))}

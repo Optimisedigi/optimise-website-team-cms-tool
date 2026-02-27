@@ -92,7 +92,7 @@ interface SnapshotData {
   gscConnected?: boolean
 }
 
-type DatePreset = '7d' | '28d' | '3m' | '12m'
+type DatePreset = '7d' | '28d' | '3m' | '12m' | '16m'
 
 // ─── Helpers ──────────────────────────────────────────────
 
@@ -131,8 +131,11 @@ function getPresetDates(preset: DatePreset): { start: string; end: string } {
       break
     case '12m':
       // 12 calendar months: 1st of (current month - 11) → yesterday
-      // e.g. today 22 Feb 2026 → 1 Mar 2025 – 21 Feb 2026
       start = new Date(now.getFullYear(), now.getMonth() - 11, 1)
+      break
+    case '16m':
+      // 16 calendar months: 1st of (current month - 15) → yesterday
+      start = new Date(now.getFullYear(), now.getMonth() - 15, 1)
       break
     default:
       start = new Date(end)
@@ -372,7 +375,7 @@ const SearchConsolePage = () => {
       {/* Date Picker */}
       <div className="od-gsc-page__datepicker">
         <div className="od-gsc-page__presets">
-          {([['7d', 'Last 7 days'], ['28d', 'Last 28 days'], ['3m', 'Last 3 months'], ['12m', 'Last 12 months']] as const).map(([key, label]) => (
+          {([['7d', 'Last 7 days'], ['28d', 'Last 28 days'], ['3m', 'Last 3 months'], ['12m', 'Last 12 months'], ['16m', 'Last 16 months']] as const).map(([key, label]) => (
             <button
               key={key}
               className={`od-gsc-page__preset ${activePreset === key ? 'od-gsc-page__preset--active' : ''}`}
@@ -689,33 +692,40 @@ function bucketDaily(daily: DailyEntry[], granularity: BucketGranularity): Bucke
     .map(([, v]) => v)
 }
 
-// ─── Performance Chart (bars=Impressions, line=CTR) ───────
+// ─── Performance Chart (dual lines) ──────────────────────
 
 function PerformanceChart({ daily, startDate, endDate, lineMetric = 'ctr' }: { daily: DailyEntry[]; startDate: string; endDate: string; lineMetric?: 'ctr' | 'clicks' }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const granularity = getGranularity(startDate, endDate)
   const buckets = bucketDaily(daily, granularity)
 
-  const maxImpressions = Math.max(...buckets.map((b) => b.impressions), 1)
   const chartHeight = 200
-  const barCount = buckets.length
-  const barWidth = 100 / barCount
+  const bucketCount = buckets.length
+  const step = bucketCount > 1 ? 100 / (bucketCount - 1) : 50
 
-  // Compute line values based on selected metric
+  // Impressions line (left Y axis)
+  const maxImpressions = Math.max(...buckets.map((b) => b.impressions), 1)
+  const impressionPoints = buckets.map((val, i) => {
+    const x = bucketCount > 1 ? i * step : 50
+    const y = chartHeight - (val.impressions / maxImpressions) * (chartHeight - 24)
+    return `${x},${y}`
+  }).join(' ')
+
+  // Second line (right Y axis): clicks or CTR
   const bucketCtr = buckets.map((b) => b.impressions > 0 ? (b.clicks / b.impressions) * 100 : 0)
   const lineValues = lineMetric === 'clicks'
     ? buckets.map((b) => b.clicks)
     : bucketCtr
   const maxLineVal = Math.max(...lineValues, 0.1)
 
-  const linePoints = lineValues.map((val, i) => {
-    const x = (i + 0.5) * barWidth
+  const secondLinePoints = lineValues.map((val, i) => {
+    const x = bucketCount > 1 ? i * step : 50
     const y = chartHeight - (val / maxLineVal) * (chartHeight - 24)
     return `${x},${y}`
   }).join(' ')
 
   // Only skip labels for daily granularity with many bars
-  const labelEvery = granularity === 'day' && barCount > 14 ? Math.ceil(barCount / 10) : 1
+  const labelEvery = granularity === 'day' && bucketCount > 14 ? Math.ceil(bucketCount / 10) : 1
 
   const granLabel = granularity === 'month' ? 'Monthly' : granularity === 'week' ? 'Weekly' : 'Daily'
   const lineLabel = lineMetric === 'clicks' ? 'Clicks' : 'CTR'
@@ -727,33 +737,27 @@ function PerformanceChart({ daily, startDate, endDate, lineMetric = 'ctr' }: { d
         style={{ height: chartHeight, position: 'relative' }}
         onMouseLeave={() => setHoveredIdx(null)}
       >
-        {buckets.map((bucket, i) => {
-          const barH = (bucket.impressions / maxImpressions) * (chartHeight - 24)
-          return (
-            <div
-              key={i}
-              className="od-perf-chart__bar-group"
-              style={{ width: `${barWidth}%`, left: `${i * barWidth}%` }}
-              onMouseEnter={() => setHoveredIdx(i)}
-            >
-              <div
-                className="od-perf-chart__bar"
-                style={{
-                  height: barH,
-                  background: hoveredIdx === i ? '#5a9e94' : '#74B3A8',
-                  transition: 'background 100ms',
-                }}
-              />
-            </div>
-          )
-        })}
+        {/* Invisible hover zones for each bucket */}
+        {buckets.map((_, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: bucketCount > 1 ? `${i * step - step / 2}%` : '0%',
+              width: bucketCount > 1 ? `${step}%` : '100%',
+              top: 0,
+              bottom: 0,
+            }}
+            onMouseEnter={() => setHoveredIdx(i)}
+          />
+        ))}
 
         {/* Hover tooltip */}
         {hoveredIdx !== null && buckets[hoveredIdx] && (
           <div
             style={{
               position: 'absolute',
-              left: `${(hoveredIdx + 0.5) * barWidth}%`,
+              left: bucketCount > 1 ? `${hoveredIdx * step}%` : '50%',
               top: 0,
               transform: 'translateX(-50%)',
               background: '#1a1a2e',
@@ -786,27 +790,60 @@ function PerformanceChart({ daily, startDate, endDate, lineMetric = 'ctr' }: { d
           </div>
         )}
 
-        {/* Line overlay (CTR or Clicks) */}
+        {/* Dual line SVG */}
         <svg
           viewBox={`0 0 100 ${chartHeight}`}
           preserveAspectRatio="none"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
         >
+          {/* Impressions line */}
           <polyline
-            points={linePoints}
+            points={impressionPoints}
+            fill="none"
+            stroke="#74B3A8"
+            strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
+          />
+          {/* Clicks/CTR line */}
+          <polyline
+            points={secondLinePoints}
             fill="none"
             stroke="#213843"
-            strokeWidth="1.5"
+            strokeWidth="2"
             vectorEffect="non-scaling-stroke"
           />
         </svg>
+
+        {/* Hover dot indicator */}
+        {hoveredIdx !== null && (
+          <svg
+            viewBox={`0 0 100 ${chartHeight}`}
+            preserveAspectRatio="none"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+          >
+            <circle
+              cx={bucketCount > 1 ? hoveredIdx * step : 50}
+              cy={chartHeight - (buckets[hoveredIdx].impressions / maxImpressions) * (chartHeight - 24)}
+              r="3"
+              fill="#74B3A8"
+              vectorEffect="non-scaling-stroke"
+            />
+            <circle
+              cx={bucketCount > 1 ? hoveredIdx * step : 50}
+              cy={chartHeight - (lineValues[hoveredIdx] / maxLineVal) * (chartHeight - 24)}
+              r="3"
+              fill="#213843"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        )}
       </div>
 
       {/* X-axis labels */}
       <div className="od-perf-chart__labels">
         {buckets.map((bucket, i) => (
           i % labelEvery === 0 ? (
-            <div key={i} className="od-perf-chart__label" style={{ left: `${(i + 0.5) * barWidth}%` }}>
+            <div key={i} className="od-perf-chart__label" style={{ left: bucketCount > 1 ? `${i * step}%` : '50%' }}>
               {bucket.label}
             </div>
           ) : null
