@@ -826,6 +826,37 @@ export async function POST(request: NextRequest) {
   await run("gsc_daily_client_date_unique", "CREATE UNIQUE INDEX IF NOT EXISTS `gsc_daily_client_date_unique` ON `gsc_daily` (`client_id`, `date`)");
   await run("locked_docs_rels.gsc_daily_id", "ALTER TABLE `payload_locked_documents_rels` ADD `gsc_daily_id` integer REFERENCES `gsc_daily`(`id`) ON DELETE cascade");
 
+  // ── Google Ads Automations on Clients ──
+  await run("clients.google_ads_automations_negative_sweep_enabled", "ALTER TABLE `clients` ADD `google_ads_automations_negative_sweep_enabled` integer DEFAULT false");
+  await run("clients.google_ads_automations_negative_sweep_mode", "ALTER TABLE `clients` ADD `google_ads_automations_negative_sweep_mode` text DEFAULT 'review_first'");
+  await run("clients.google_ads_automations_negative_sweep_weekday", "ALTER TABLE `clients` ADD `google_ads_automations_negative_sweep_weekday` text DEFAULT 'monday'");
+  await run("clients.google_ads_automations_negative_sweep_min_spend_threshold", "ALTER TABLE `clients` ADD `google_ads_automations_negative_sweep_min_spend_threshold` numeric DEFAULT 5");
+  await run("clients.google_ads_automations_reaudit_enabled", "ALTER TABLE `clients` ADD `google_ads_automations_reaudit_enabled` integer DEFAULT false");
+  await run("clients.google_ads_automations_reaudit_day_of_month", "ALTER TABLE `clients` ADD `google_ads_automations_reaudit_day_of_month` numeric DEFAULT 1");
+  await run("clients.google_ads_automations_performance_report_enabled", "ALTER TABLE `clients` ADD `google_ads_automations_performance_report_enabled` integer DEFAULT false");
+  await run("clients.google_ads_automations_performance_report_day_of_month", "ALTER TABLE `clients` ADD `google_ads_automations_performance_report_day_of_month` numeric DEFAULT 3");
+  await run("clients.google_ads_automations_performance_report_include_in_client_hub", "ALTER TABLE `clients` ADD `google_ads_automations_performance_report_include_in_client_hub` integer DEFAULT true");
+  // Score trajectory
+  await run("clients.google_ads_score_trajectory_latest_score", "ALTER TABLE `clients` ADD `google_ads_score_trajectory_latest_score` numeric");
+  await run("clients.google_ads_score_trajectory_previous_score", "ALTER TABLE `clients` ADD `google_ads_score_trajectory_previous_score` numeric");
+  await run("clients.google_ads_score_trajectory_score_change", "ALTER TABLE `clients` ADD `google_ads_score_trajectory_score_change` numeric");
+  await run("clients.google_ads_score_trajectory_trend", "ALTER TABLE `clients` ADD `google_ads_score_trajectory_trend` text");
+  // Array tables for automation config
+  await run("clients_gaa_sweep_exclude_terms", `CREATE TABLE IF NOT EXISTS \`clients_google_ads_automations_negative_sweep_exclude_terms\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL, \`term\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_gaa_sweep_exclude_order_idx", "CREATE INDEX IF NOT EXISTS `clients_gaa_sweep_exclude_order_idx` ON `clients_google_ads_automations_negative_sweep_exclude_terms` (`_order`)");
+  await run("clients_gaa_sweep_exclude_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_gaa_sweep_exclude_parent_idx` ON `clients_google_ads_automations_negative_sweep_exclude_terms` (`_parent_id`)");
+  await run("clients_gaa_report_recipient_emails", `CREATE TABLE IF NOT EXISTS \`clients_google_ads_automations_performance_report_recipient_emails\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL, \`email\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_gaa_report_emails_order_idx", "CREATE INDEX IF NOT EXISTS `clients_gaa_report_emails_order_idx` ON `clients_google_ads_automations_performance_report_recipient_emails` (`_order`)");
+  await run("clients_gaa_report_emails_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_gaa_report_emails_parent_idx` ON `clients_google_ads_automations_performance_report_recipient_emails` (`_parent_id`)");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║

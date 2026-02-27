@@ -496,25 +496,6 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
-              name: "runGoogleAdsAudit",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/RunGoogleAdsAuditFromClientButton",
-                },
-              },
-            },
-            {
-              name: "googleAdsAudits",
-              type: "join",
-              collection: "google-ads-audits",
-              on: "client",
-              admin: {
-                description: "Google Ads audits linked to this client",
-                defaultColumns: ["businessName", "overallScore", "auditStatus", "createdAt"],
-              },
-            },
-            {
               name: "competitors",
               type: "array",
               maxRows: 5,
@@ -543,6 +524,227 @@ export const Clients: CollectionConfig = {
                   admin: {
                     description: "Google Maps listing URL for GBP analysis",
                   },
+                },
+              ],
+            },
+          ],
+        },
+        {
+          label: "Google Ads",
+          fields: [
+            // ─ Audit Button + Linked Audits ─
+            {
+              name: "runGoogleAdsAudit",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunGoogleAdsAuditFromClientButton",
+                },
+              },
+            },
+            {
+              name: "googleAdsAudits",
+              type: "join",
+              collection: "google-ads-audits",
+              on: "client",
+              admin: {
+                description: "Google Ads audits linked to this client",
+                defaultColumns: ["businessName", "overallScore", "auditStatus", "createdAt"],
+              },
+            },
+
+            // ─ Automation Config ─
+            {
+              name: "googleAdsAutomations",
+              type: "group",
+              admin: {
+                description: "Configure Google Ads automations for this client",
+              },
+              fields: [
+                // Negative Keyword Sweep
+                {
+                  name: "negativeSweepEnabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Enable weekly negative keyword sweeps",
+                  },
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "negativeSweepMode",
+                      type: "select",
+                      defaultValue: "review_first",
+                      options: [
+                        { label: "Review first (team approves)", value: "review_first" },
+                        { label: "Auto-apply", value: "auto_apply" },
+                      ],
+                      admin: {
+                        description: "How to handle candidates",
+                        width: "50%",
+                        condition: (data: any) => data?.googleAdsAutomations?.negativeSweepEnabled,
+                      },
+                    },
+                    {
+                      name: "negativeSweepWeekday",
+                      type: "select",
+                      defaultValue: "monday",
+                      options: [
+                        { label: "Monday", value: "monday" },
+                        { label: "Tuesday", value: "tuesday" },
+                        { label: "Wednesday", value: "wednesday" },
+                        { label: "Thursday", value: "thursday" },
+                        { label: "Friday", value: "friday" },
+                        { label: "Saturday", value: "saturday" },
+                        { label: "Sunday", value: "sunday" },
+                      ],
+                      admin: {
+                        description: "Day to run the sweep",
+                        width: "50%",
+                        condition: (data: any) => data?.googleAdsAutomations?.negativeSweepEnabled,
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: "negativeSweepMinSpendThreshold",
+                  type: "number",
+                  defaultValue: 5,
+                  min: 0,
+                  admin: {
+                    description: "Minimum spend ($) on a search term to flag it as a candidate",
+                    step: 1,
+                    condition: (data: any) => data?.googleAdsAutomations?.negativeSweepEnabled,
+                  },
+                },
+                {
+                  name: "negativeSweepExcludeTerms",
+                  type: "array",
+                  maxRows: 50,
+                  admin: {
+                    description: "Terms to never suggest as negatives (in addition to brand terms)",
+                    condition: (data: any) => data?.googleAdsAutomations?.negativeSweepEnabled,
+                  },
+                  fields: [
+                    {
+                      name: "term",
+                      type: "text",
+                      required: true,
+                    },
+                  ],
+                },
+
+                // Re-audit
+                {
+                  name: "reauditEnabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Enable scheduled monthly re-audits",
+                  },
+                },
+                {
+                  name: "reauditDayOfMonth",
+                  type: "number",
+                  defaultValue: 1,
+                  min: 1,
+                  max: 28,
+                  admin: {
+                    description: "Day of month to run (1-28)",
+                    step: 1,
+                    condition: (data: any) => data?.googleAdsAutomations?.reauditEnabled,
+                  },
+                },
+
+                // Performance Report
+                {
+                  name: "performanceReportEnabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Enable monthly performance reports",
+                  },
+                },
+                {
+                  name: "performanceReportDayOfMonth",
+                  type: "number",
+                  defaultValue: 3,
+                  min: 1,
+                  max: 28,
+                  admin: {
+                    description: "Day of month to generate (default 3rd, lets data settle)",
+                    step: 1,
+                    condition: (data: any) => data?.googleAdsAutomations?.performanceReportEnabled,
+                  },
+                },
+                {
+                  name: "performanceReportRecipientEmails",
+                  type: "array",
+                  maxRows: 10,
+                  admin: {
+                    description: "Email recipients for the report (falls back to team email if empty)",
+                    condition: (data: any) => data?.googleAdsAutomations?.performanceReportEnabled,
+                  },
+                  fields: [
+                    {
+                      name: "email",
+                      type: "email",
+                      required: true,
+                    },
+                  ],
+                },
+                {
+                  name: "performanceReportIncludeInClientHub",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description: "Make report data available via the client hub API",
+                    condition: (data: any) => data?.googleAdsAutomations?.performanceReportEnabled,
+                  },
+                },
+              ],
+            },
+
+            // ─ Score Trajectory (read-only, auto-populated) ─
+            {
+              name: "googleAdsScoreTrajectory",
+              type: "group",
+              admin: {
+                readOnly: true,
+                description: "Computed on each re-audit",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "latestScore",
+                      type: "number",
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                    {
+                      name: "previousScore",
+                      type: "number",
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                    {
+                      name: "scoreChange",
+                      type: "number",
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                    {
+                      name: "trend",
+                      type: "select",
+                      options: [
+                        { label: "Improving", value: "improving" },
+                        { label: "Stable", value: "stable" },
+                        { label: "Declining", value: "declining" },
+                      ],
+                      admin: { readOnly: true, width: "25%" },
+                    },
+                  ],
                 },
               ],
             },

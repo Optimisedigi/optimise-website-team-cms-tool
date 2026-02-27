@@ -551,7 +551,7 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 8: Automations ──
+        // ── Tab 8: Automations (Legacy — configure from Client record) ──
         {
           label: "Automations",
           fields: [
@@ -560,7 +560,8 @@ export const GoogleAdsAudits: CollectionConfig = {
               name: "negativeSweepConfig",
               type: "group",
               admin: {
-                description: "Weekly negative keyword sweep — finds wasteful search terms and suggests/applies negatives",
+                description: "⚠️ Legacy config — configure automations from the Client record instead. These fields are kept for existing data.",
+                readOnly: true,
               },
               fields: [
                 {
@@ -640,7 +641,8 @@ export const GoogleAdsAudits: CollectionConfig = {
               name: "reauditConfig",
               type: "group",
               admin: {
-                description: "Monthly re-audit — re-runs the full 13-step scoring and tracks score trajectory",
+                description: "⚠️ Legacy config — configure from Client record.",
+                readOnly: true,
               },
               fields: [
                 {
@@ -712,7 +714,8 @@ export const GoogleAdsAudits: CollectionConfig = {
               name: "performanceReportConfig",
               type: "group",
               admin: {
-                description: "Monthly performance report — KPIs, MoM comparison, campaign breakdown",
+                description: "⚠️ Legacy config — configure from Client record.",
+                readOnly: true,
               },
               fields: [
                 {
