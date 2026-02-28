@@ -381,10 +381,12 @@ export async function POST(
     if (compResult.status === "fulfilled") {
       try {
         const comp = compResult.value;
-        // Debug: check if screenshots are in the API response
+        // Debug: log the full structure of the first competitor to diagnose missing fields
         const firstComp = comp.competitors?.[0];
+        console.log(`[competitor-debug] API returned ${comp.competitors?.length ?? 0} competitors. Keys on response: ${Object.keys(comp).join(", ")}`);
         if (firstComp) {
-          console.log(`[competitor-debug] ${firstComp.domain}: websiteScreenshot=${firstComp.websiteScreenshot ? 'YES (' + String(firstComp.websiteScreenshot).length + ' chars)' : 'NO'}, metaAds.adScreenshots=${firstComp.metaAds?.adScreenshots?.length ?? 0} items`);
+          console.log(`[competitor-debug] First competitor keys: ${Object.keys(firstComp).join(", ")}`);
+          console.log(`[competitor-debug] ${firstComp.domain || firstComp.url || firstComp.website || "NO-DOMAIN"}: websiteScreenshot=${firstComp.websiteScreenshot ? 'YES (' + String(firstComp.websiteScreenshot).length + ' chars)' : 'NO'}, metaAds.adScreenshots=${firstComp.metaAds?.adScreenshots?.length ?? 0} items`);
         }
         const created = await payload.create({
           collection: "competitor-analyses",
