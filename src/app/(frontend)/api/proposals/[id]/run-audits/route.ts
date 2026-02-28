@@ -6,6 +6,11 @@ import { captureAndUploadScreenshot, type ScreenshotOptions } from "@/lib/screen
 import { checkMetaAdsViaScrapling, extractSocialLinks } from "@/lib/scrapling-service";
 import { uploadScreenshotToBlob } from "@/lib/blob-upload";
 
+// Allow up to 300s for the background audit pipeline (Vercel Pro max).
+// Without this, the default ~15s timeout kills `after()` mid-execution,
+// leaving auditStatus stuck at "running".
+export const maxDuration = 300;
+
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
@@ -492,35 +497,18 @@ export async function POST(
             });
           }
 
-          // Meta Ads pass: extract social links first, then use Facebook handle for precise Ad Library search
-          await updateProgress("Extracting social links", 71);
+          // Combined pass: extract social links → Meta Ad Library per competitor (all in parallel)
+          // Merging these two stages into one saves ~15s of sequential waiting (critical for Hobby 60s limit)
+          await updateProgress("Checking social links & Meta Ad Library", 71);
           const allCompetitorDomains = enrichedCompetitors.map((c: any) => c.domain).filter(Boolean);
-          console.log(`[social-links] Extracting social links for ${allCompetitorDomains.length} competitors`);
+          console.log(`[social+meta] Processing ${allCompetitorDomains.length} competitors (social links → meta ads)`);
 
-          // Step 1: Extract social links from all competitor websites in parallel
-          const socialLinksResults = await Promise.allSettled(
-            allCompetitorDomains.map(async (domain: string) => {
-              const result = await extractSocialLinks(domain);
-              return { domain, socialLinks: result };
-            })
-          );
-
-          // Build a lookup map of domain → social links
-          const socialLinksMap = new Map<string, { facebook: string | null; instagram: string | null; linkedin: string | null }>();
-          for (const r of socialLinksResults) {
-            if (r.status === "fulfilled") {
-              const cleanDomain = r.value.domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-              socialLinksMap.set(cleanDomain, r.value.socialLinks);
-            }
-          }
-
-          // Step 2: Check Meta Ad Library using Facebook handle (if found) or domain as fallback
-          await updateProgress("Checking Meta Ad Library", 75);
-          console.log(`[meta-ads] Checking Meta Ad Library for ${allCompetitorDomains.length} competitors`);
-          const metaAdsResults = await Promise.allSettled(
+          const socialMetaResults = await Promise.allSettled(
             allCompetitorDomains.map(async (domain: string) => {
               const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
-              const socialLinks = socialLinksMap.get(cleanDomain);
+              // Step 1: Extract social links
+              const socialLinks = await extractSocialLinks(domain);
+              // Step 2: Use Facebook handle for Meta Ad Library (or fall back to domain)
               const searchTerm = socialLinks?.facebook || cleanDomain;
               if (socialLinks?.facebook) {
                 console.log(`[meta-ads] Using Facebook handle "${socialLinks.facebook}" for ${cleanDomain}`);
@@ -543,8 +531,9 @@ export async function POST(
               return { domain, metaAds: result, socialLinks };
             })
           );
+          await updateProgress("Processing results", 85);
           // Merge meta ads results and social links into enrichedCompetitors
-          for (const r of metaAdsResults) {
+          for (const r of socialMetaResults) {
             if (r.status !== "fulfilled") continue;
             const { domain, metaAds, socialLinks } = r.value;
             const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
@@ -562,7 +551,7 @@ export async function POST(
 
           // Fetch traffic for CMS-only competitors
           if (cmsOnlyDomains.length > 0) {
-            await updateProgress("Fetching CMS competitor traffic data", 75);
+            await updateProgress("Fetching CMS competitor traffic data", 87);
             const cmsTrafficResults = await Promise.allSettled(
               cmsOnlyDomains.map(async (domain) => {
                 const rootDomain = extractRootDomain(domain);
