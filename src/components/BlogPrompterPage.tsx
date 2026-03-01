@@ -57,6 +57,9 @@ function buildRequirements(servicePages?: string): string {
 - Blog content exists to support SEO and topic authority.
 - Blog content aligns with business services or products only where relevant and can link back to their service pages: ${services}.
 - If there are clear internal links, make it clear where they should be added in the blog post.
+- Do not add any internal links inside the TLDR section.
+- Each unique URL should only be linked once in the entire blog post. Do not link multiple anchor texts to the same destination.
+- If the blog mentions Facebook Ads, Instagram Ads, Meta Ads, and/or LinkedIn Ads and they all point to the same service page, only add one internal link using "Meta Ads" as the anchor text.
 - Blog content answers real user questions, not generic filler.
 - Include estimated reading time in minutes and a TLDR at the start.
 - Make it easy and enjoyable to read.

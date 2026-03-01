@@ -60,6 +60,16 @@ export const BlogPosts: CollectionConfig = {
         }
       },
     ],
+    beforeValidate: [
+      ({ data, operation }) => {
+        if (operation === "create" && !data?.clientConfirmed) {
+          throw new Error(
+            "Please confirm the selected client is correct before saving."
+          );
+        }
+        return data;
+      },
+    ],
     beforeChange: [
       ({ data }) => {
         if (!data?.markdownSource) return data;

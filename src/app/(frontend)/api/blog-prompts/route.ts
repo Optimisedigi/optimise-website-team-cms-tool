@@ -3,18 +3,12 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 
-async function getAuthedPayload() {
-  const payload = await getPayload({ config });
-  const headersList = await nextHeaders();
-  const { user } = await payload.auth({ headers: headersList });
-  if (!user) return null;
-  return payload;
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const payload = await getAuthedPayload();
-    if (!payload) {
+    const payload = await getPayload({ config });
+    const headersList = await nextHeaders();
+    const { user } = await payload.auth({ headers: headersList });
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -54,8 +48,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const payload = await getAuthedPayload();
-    if (!payload) {
+    const payload = await getPayload({ config });
+    const headersList = await nextHeaders();
+    const { user } = await payload.auth({ headers: headersList });
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -75,8 +71,10 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const payload = await getAuthedPayload();
-    if (!payload) {
+    const payload = await getPayload({ config });
+    const headersList = await nextHeaders();
+    const { user } = await payload.auth({ headers: headersList });
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -102,8 +100,10 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const payload = await getAuthedPayload();
-    if (!payload) {
+    const payload = await getPayload({ config });
+    const headersList = await nextHeaders();
+    const { user } = await payload.auth({ headers: headersList });
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
