@@ -84,6 +84,14 @@ Blockquote        > Quote text
 Line Break        Empty line between paragraphs
 FAQ Section       ## FAQ **Q: Question?** A: Answer...
 
+- Use these spacing rules consistently:
+After every H2 (##) and H3 (###) heading, add one blank line.
+Before every list, add one blank line.
+Between paragraphs, add one blank line.
+Before and after every code block, add one blank line.
+If a line ends with a colon and a list follows, add one blank line after the colon line.
+Keep paragraphs short. Aim for one to three sentences per paragraph block.
+
 - Use this blog snippet example to match and maintain formatting consistency across the site:
 >TL;DR If you want more high intent local customers, your Google Business Profile needs to be treated as a core growth channel, not an afterthought. Strong reviews, accurate information, regular updates, and geo-optimised landing pages build long term visibility that compounds.
 
