@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
+
+const KIMI_BASE_URL = process.env.KIMI_BASE_URL || "https://api.moonshot.ai/v1";
+const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2";
 
 export async function POST(req: NextRequest) {
-  const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!GEMINI_API_KEY) {
+  const KIMI_API_KEY = process.env.KIMI_API_KEY;
+  if (!KIMI_API_KEY) {
     return NextResponse.json(
-      { error: "GOOGLE_GENERATIVE_AI_API_KEY not configured" },
+      { error: "KIMI_API_KEY not configured" },
       { status: 500 }
     );
   }
@@ -26,8 +28,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-
     const systemPrompt = [
       "You are an expert at writing image generation prompts.",
       "Given a blog post title and optional excerpt, write a single vivid, detailed prompt for an AI image generator.",
@@ -41,20 +41,38 @@ export async function POST(req: NextRequest) {
       ? `Blog title: "${title.trim()}"\nExcerpt: "${excerpt.trim()}"`
       : `Blog title: "${title.trim()}"`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: userMessage,
-      config: {
-        systemInstruction: systemPrompt,
-        maxOutputTokens: 300,
-        temperature: 0.9,
+    const res = await fetch(`${KIMI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${KIMI_API_KEY}`,
       },
+      body: JSON.stringify({
+        model: KIMI_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        temperature: 0.9,
+        max_tokens: 300,
+      }),
+      signal: AbortSignal.timeout(30_000),
     });
 
-    const prompt = response.text?.trim();
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error(`[generate-prompt] Kimi API error ${res.status}: ${detail}`);
+      return NextResponse.json(
+        { error: `Kimi API error: ${res.status}` },
+        { status: 502 }
+      );
+    }
+
+    const data = await res.json();
+    const prompt = data.choices?.[0]?.message?.content?.trim();
     if (!prompt) {
       return NextResponse.json(
-        { error: "Gemini returned no prompt" },
+        { error: "Kimi returned no prompt" },
         { status: 502 }
       );
     }
