@@ -103,5 +103,10 @@ export const BlogPrompts: CollectionConfig = {
         { label: "Topic Clusters", value: "topic-clusters" },
       ],
     },
+    {
+      name: "archivedAt",
+      type: "date",
+      admin: { hidden: true },
+    },
   ],
 };

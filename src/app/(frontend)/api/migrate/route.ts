@@ -881,6 +881,9 @@ export async function POST(request: NextRequest) {
   await run("internal_link_suggestions_updated_at_idx", "CREATE INDEX IF NOT EXISTS `internal_link_suggestions_updated_at_idx` ON `internal_link_suggestions` (`updated_at`)");
   await run("locked_docs_rels.internal_link_suggestions_id", "ALTER TABLE `payload_locked_documents_rels` ADD `internal_link_suggestions_id` integer REFERENCES `internal_link_suggestions`(`id`) ON DELETE cascade");
 
+  // --- blog_prompts.archived_at column ---
+  await run("blog_prompts.archived_at", "ALTER TABLE `blog_prompts` ADD `archived_at` text");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║

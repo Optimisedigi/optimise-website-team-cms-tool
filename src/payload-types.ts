@@ -87,6 +87,7 @@ export interface Config {
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
+    'internal-link-suggestions': InternalLinkSuggestion;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -119,6 +120,7 @@ export interface Config {
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
+    'internal-link-suggestions': InternalLinkSuggestionsSelect<false> | InternalLinkSuggestionsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -2206,7 +2208,8 @@ export interface BlogPrompt {
   supportingContent?: string | null;
   generatedPrompt?: string | null;
   status?: ('draft' | 'client-submitted' | 'ready') | null;
-  source?: ('internal' | 'client') | null;
+  source?: ('internal' | 'client' | 'topic-clusters') | null;
+  archivedAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2515,6 +2518,25 @@ export interface CostRule {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "internal-link-suggestions".
+ */
+export interface InternalLinkSuggestion {
+  id: number;
+  sourceUrl: string;
+  targetUrl: string;
+  anchorText: string;
+  contextSnippet?: string | null;
+  confidenceScore: number;
+  estimatedPageRankLift?: number | null;
+  clusterRelation?: string | null;
+  clusterName?: string | null;
+  status?: ('pending' | 'approved' | 'rejected') | null;
+  runId?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -2616,6 +2638,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'cost-rules';
         value: number | CostRule;
+      } | null)
+    | ({
+        relationTo: 'internal-link-suggestions';
+        value: number | InternalLinkSuggestion;
       } | null)
     | ({
         relationTo: 'media';
@@ -2980,6 +3006,7 @@ export interface BlogPromptsSelect<T extends boolean = true> {
   generatedPrompt?: T;
   status?: T;
   source?: T;
+  archivedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3361,6 +3388,24 @@ export interface CostCategoriesSelect<T extends boolean = true> {
 export interface CostRulesSelect<T extends boolean = true> {
   pattern?: T;
   category?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "internal-link-suggestions_select".
+ */
+export interface InternalLinkSuggestionsSelect<T extends boolean = true> {
+  sourceUrl?: T;
+  targetUrl?: T;
+  anchorText?: T;
+  contextSnippet?: T;
+  confidenceScore?: T;
+  estimatedPageRankLift?: T;
+  clusterRelation?: T;
+  clusterName?: T;
+  status?: T;
+  runId?: T;
   updatedAt?: T;
   createdAt?: T;
 }
