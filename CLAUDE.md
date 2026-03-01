@@ -42,41 +42,44 @@ Still actively expanding — core audit/proposal/content/GSC features are built,
 
 ```
 src/
-  collections/          # 20 Payload collections (see below)
-  globals/              # ApiCostRates (per-unit API costs)
-  lib/                  # Service clients and utilities
-    gsc-service.ts        # GSC OAuth + analytics queries
-    gsc-monitor.ts        # Automated GSC monitoring for all clients
-    scrapling-service.ts  # Scrapling service client (screenshots, social, meta ads)
-    screenshots.ts        # Tiered screenshot: PageSpeed → Scrapling → fallback
-    blob-upload.ts        # Vercel Blob upload utility
-    activity-log.ts       # System event logging
+  collections/            # 23 Payload collection configs
+  globals/                # ApiCostRates (per-unit API costs)
+  migrations/             # Drizzle migration files
+  lib/                    # Service clients and utilities
+    gsc-service.ts          # GSC OAuth + analytics queries
+    gsc-monitor.ts          # Automated GSC monitoring for all clients
+    scrapling-service.ts    # Scrapling service client (screenshots, social, meta ads)
+    screenshots.ts          # Tiered screenshot: PageSpeed → Scrapling → fallback
+    blob-upload.ts          # Vercel Blob upload utility
+    activity-log.ts         # System event logging
     google-ads-email-generator.ts  # Styled HTML email from audit results
-    google-ads-types.ts   # Google Ads audit TypeScript types
-  components/           # ~40 custom admin UI components
+    google-ads-types.ts     # Google Ads audit TypeScript types
+    proposalEditor.ts       # Proposal editing utilities
+  components/             # ~46 custom admin UI components
   app/
-    (payload)/admin/    # Payload admin (importMap.js lives here)
+    (payload)/admin/      # Payload admin (importMap.js lives here)
     (frontend)/
-      api/              # ~38 API routes (see key routes below)
-      audits/[slug]     # Public audit report (PIN-gated)
-      proposals/[slug]  # Public proposal report (PIN-gated)
-      reports/[slug]    # SEO/CRO report viewer
-      mockup/[slug]     # Client mockup previewer
-tests/                  # Vitest tests (338 tests, <1s)
-  lib/                    # Unit tests for src/lib/
-  collections/            # Collection config + hook tests
-  components/             # React component tests
-  api/                    # API route handler tests
+      api/                # ~38 API routes (19 route groups)
+      audits/[slug]       # Public audit report (PIN-gated)
+      proposals/[slug]    # Public proposal report (PIN-gated)
+      reports/[slug]      # SEO/CRO report viewer
+      mockup/[slug]       # Client mockup previewer
+tests/                    # Vitest tests (~340 tests, <1s)
+  lib/                      # Unit tests for src/lib/
+  collections/              # Collection config + hook tests
+  components/               # React component tests
+  api/                      # API route handler tests
+scripts/                  # Utility scripts (e.g. migrate-richtext)
 ```
 
-## Collections (20)
+## Collections (23)
 
 **Core:** `clients`, `client-proposals`, `users`, `media`
 **Audits:** `seo-audits`, `cro-audits`, `keyword-snapshots`, `competitor-analyses`, `content-researches`, `google-ads-audits`
-**GSC:** `gsc-snapshots`, `gsc-alerts`
-**Content:** `blog-posts`, `blog-prompts`, `job-posts`
+**GSC:** `gsc-snapshots`, `gsc-daily`, `gsc-alerts`
+**Content:** `blog-posts`, `blog-prompts`, `job-posts`, `internal-link-suggestions`
 **Finance:** `business-costs`, `cost-categories`, `cost-rules`
-**Utility:** `activity-log`, `usage-reports`
+**Utility:** `activity-log`, `usage-reports`, `api-key-access`
 
 ### Key Relationships
 
@@ -104,6 +107,7 @@ Client
 | `/api/gsc/cron` | GET | Scheduled GSC monitoring (CRON_SECRET) |
 | `/api/blog-posts/generate-prompt` | POST | Generate blog brief via Gemini |
 | `/api/blog-posts/generate-image` | POST | Generate blog cover via Gemini |
+| `/api/blog-prompts` | GET/POST/PATCH/DELETE | Blog prompter CRUD + archive |
 | `/api/costs/categorise` | POST | AI cost categorization |
 | `/api/migrate` | POST | Manual schema migration (x-api-key: AUDIT_API_KEY) |
 | `/api/audit-auth` | POST | PIN auth for public reports (rate-limited) |
@@ -122,6 +126,17 @@ Client
 1. Client connects GSC via OAuth
 2. Cron creates monthly snapshots
 3. Alerts generated from snapshot comparisons
+
+## Code Quality — Zero Tolerance
+
+After editing ANY file, run:
+
+```bash
+npx tsc --noEmit          # Type check — fix ALL errors
+npm test                  # Run tests — fix ALL failures (ignore pre-existing scrapling failures)
+```
+
+Fix all errors before committing or continuing.
 
 ## Deployment Gotchas
 
@@ -142,3 +157,7 @@ Client
 - Git: stage specific files (never `git add .`), conventional commits, never push unless asked
 - Prefer editing existing files over creating new ones
 - New collections need: collection file, migration entry, locked_docs_rels column, importMap regeneration
+- API routes → `src/app/(frontend)/api/`, one directory per resource
+- Components → `src/components/`, one component per file
+- Service clients → `src/lib/`, grouped by external service
+- Collection configs → `src/collections/`, one file per collection
