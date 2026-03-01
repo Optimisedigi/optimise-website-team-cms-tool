@@ -2012,8 +2012,15 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             categoryGroups.push({ name: 'Keywords', keywords })
           }
 
-          // All category tables on one slide, columns sized to fit
-          const colCount = Math.min(categoryGroups.length, 3)
+          // Sort each category by search volume (descending) and cap at 35 rows per column
+          const maxRowsPerColumn = 35
+          const sortedGroups = categoryGroups.map(group => ({
+            ...group,
+            keywords: [...group.keywords]
+              .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0))
+              .slice(0, maxRowsPerColumn),
+          }))
+          const colCount = Math.min(sortedGroups.length, 3)
 
           return (
             <section className="slide slide-6 slide-expandable">
@@ -2022,9 +2029,9 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 <span>Keywords Analysis</span>
               </div>
               <div className="slide-content">
-                <div className="kw-category-grid" style={{ columns: colCount, columnGap: '24px' }}>
-                  {categoryGroups.map((group, gIdx) => (
-                    <section key={gIdx} className="audit-section" style={{ breakInside: 'avoid', marginBottom: '20px' }}>
+                <div className="kw-category-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${colCount}, 1fr)`, gap: '24px' }}>
+                  {sortedGroups.map((group, gIdx) => (
+                    <section key={gIdx} className="audit-section" style={{ marginBottom: '20px' }}>
                       <h3 className="kw-category-heading">{group.name}</h3>
                       <div className="kw-table-wrapper">
                         <table className="kw-table">
