@@ -7,6 +7,13 @@ export const InternalLinkSuggestions: CollectionConfig = {
     group: "SEO",
     defaultColumns: ["sourceUrl", "targetUrl", "confidenceScore", "status", "createdAt"],
     useAsTitle: "anchorText",
+    components: {
+      views: {
+        list: {
+          Component: "./components/InternalLinkSuggestionsListView",
+        },
+      },
+    },
   },
   access: {
     read: () => true,
