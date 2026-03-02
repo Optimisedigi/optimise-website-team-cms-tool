@@ -28,7 +28,9 @@ import { BlogPrompts } from "./collections/BlogPrompts";
 import { GoogleAdsAudits } from "./collections/GoogleAdsAudits";
 import { GscDaily } from "./collections/GscDaily";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
+import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
 import { ApiCostRates } from "./globals/ApiCostRates";
+import { SheetsAuth } from "./globals/SheetsAuth";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -66,8 +68,8 @@ export default buildConfig({
       beforeDashboard: ["./components/Dashboard"],
     },
   },
-  collections: [Users, Clients, ClientProposals, BlogPosts, BlogPrompts, JobPosts, SeoAudits, CroAudits, GoogleAdsAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, GscDaily, ActivityLog, BusinessCosts, CostCategories, CostRules, InternalLinkSuggestions, Media],
-  globals: [ApiCostRates],
+  collections: [Users, Clients, ClientProposals, BlogPosts, BlogPrompts, JobPosts, SeoAudits, CroAudits, GoogleAdsAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, GscDaily, ActivityLog, BusinessCosts, CostCategories, CostRules, InternalLinkSuggestions, NegativeSweepCandidates, Media],
+  globals: [ApiCostRates, SheetsAuth],
   editor: lexicalEditor(),
   secret: (() => {
     const s = process.env.PAYLOAD_SECRET;

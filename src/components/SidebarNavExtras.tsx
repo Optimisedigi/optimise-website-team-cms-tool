@@ -7,6 +7,13 @@ const IconSearch = () => (
 )
 
 
+const IconNegativeKw = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <circle cx="12" cy="12" r="10" />
+    <line x1="8" y1="12" x2="16" y2="12" />
+  </svg>
+)
+
 const IconIntegrations = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
     <circle cx="12" cy="12" r="3" />
@@ -27,6 +34,19 @@ const SidebarNavExtras = () => {
           <a href="/admin/performance/search-console" className="nav__link sidebar-extras__link">
             <IconSearch />
             <span className="nav__link-label">Search Console</span>
+          </a>
+        </div>
+      </div>
+
+      {/* Google Ads group */}
+      <div className="nav-group sidebar-extras__group">
+        <button type="button" className="nav-group__toggle" tabIndex={-1}>
+          Google Ads
+        </button>
+        <div className="nav-group__content">
+          <a href="/admin/google-ads/negative-sweep" className="nav__link sidebar-extras__link">
+            <IconNegativeKw />
+            <span className="nav__link-label">Negative Sweep</span>
           </a>
         </div>
       </div>

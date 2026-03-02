@@ -720,11 +720,20 @@ export async function POST(
     } catch (updateErr: any) {
       console.error("[run-audits] Final status update via Payload failed, falling back to raw SQL:", updateErr.message);
       try {
-        const db = (payload.db as any).drizzle;
-        if (db) {
-          await db.run(
-            `UPDATE client_proposals SET audit_status = '${allFailed ? "failed" : "completed"}', audit_progress = '${allFailed ? "Failed|100" : "Complete|100"}', audit_completed_at = '${new Date().toISOString()}'${auditIds.seoAudit ? `, seo_audit_id = ${auditIds.seoAudit}` : ""}${auditIds.croAudit ? `, cro_audit_id = ${auditIds.croAudit}` : ""}${auditIds.keywordSnapshot ? `, keyword_snapshot_id = ${auditIds.keywordSnapshot}` : ""}${auditIds.competitorAnalysis ? `, competitor_analysis_id = ${auditIds.competitorAnalysis}` : ""} WHERE id = ${id}`
-          );
+        const sqlClient = (payload.db as any).client;
+        if (sqlClient) {
+          const status = allFailed ? "failed" : "completed";
+          const progress = allFailed ? "Failed|100" : "Complete|100";
+          const completedAt = new Date().toISOString();
+          let sql = "UPDATE `client_proposals` SET `audit_status` = ?, `audit_progress` = ?, `audit_completed_at` = ?";
+          const params: any[] = [status, progress, completedAt];
+          if (auditIds.seoAudit) { sql += ", `seo_audit_id` = ?"; params.push(auditIds.seoAudit); }
+          if (auditIds.croAudit) { sql += ", `cro_audit_id` = ?"; params.push(auditIds.croAudit); }
+          if (auditIds.keywordSnapshot) { sql += ", `keyword_snapshot_id` = ?"; params.push(auditIds.keywordSnapshot); }
+          if (auditIds.competitorAnalysis) { sql += ", `competitor_analysis_id` = ?"; params.push(auditIds.competitorAnalysis); }
+          sql += " WHERE `id` = ?";
+          params.push(id);
+          await sqlClient.execute({ sql, args: params });
         }
       } catch (sqlErr: any) {
         console.error("[run-audits] Raw SQL fallback also failed:", sqlErr.message);

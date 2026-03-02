@@ -11,7 +11,10 @@ type ActivityType =
   | "gsc_snapshot"
   | "time_tracked"
   | "google_ads_audit_created"
-  | "google_ads_proposal_created";
+  | "google_ads_proposal_created"
+  | "link_suggestion_created"
+  | "negative_sweep_completed"
+  | "negative_sweep_synced";
 
 interface ActivityEntry {
   type: ActivityType;

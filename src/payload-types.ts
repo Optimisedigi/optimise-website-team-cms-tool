@@ -88,6 +88,7 @@ export interface Config {
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
     'internal-link-suggestions': InternalLinkSuggestion;
+    'negative-sweep-candidates': NegativeSweepCandidate;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -121,6 +122,7 @@ export interface Config {
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
     'internal-link-suggestions': InternalLinkSuggestionsSelect<false> | InternalLinkSuggestionsSelect<true>;
+    'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -133,9 +135,11 @@ export interface Config {
   fallbackLocale: null;
   globals: {
     'api-cost-rates': ApiCostRate;
+    'sheets-auth': SheetsAuth;
   };
   globalsSelect: {
     'api-cost-rates': ApiCostRatesSelect<false> | ApiCostRatesSelect<true>;
+    'sheets-auth': SheetsAuthSelect<false> | SheetsAuthSelect<true>;
   };
   locale: null;
   widgets: {
@@ -480,14 +484,13 @@ export interface Client {
      */
     negativeSweepMinSpendThreshold?: number | null;
     /**
-     * Terms to never suggest as negatives (in addition to brand terms)
+     * Terms to never suggest as negatives, in addition to brand terms (one per line)
      */
-    negativeSweepExcludeTerms?:
-      | {
-          term: string;
-          id?: string | null;
-        }[]
-      | null;
+    negativeSweepExcludeTerms?: string | null;
+    /**
+     * Google Sheet URL for this client's negative keywords (must have a neg_kws_lists tab)
+     */
+    negativeSweepSheetUrl?: string | null;
     /**
      * Enable scheduled monthly re-audits
      */
@@ -597,7 +600,7 @@ export interface Client {
   gscRefreshToken?: string | null;
   gscTokenExpiry?: string | null;
   /**
-   * Comma-separated brand terms to filter out from generic query analysis (e.g., 'optimise digital, optimisedigital, od agency')
+   * Brand terms to filter out from generic query analysis (one per line)
    */
   brandKeywords?: string | null;
   /**
@@ -714,23 +717,13 @@ export interface GoogleAdsAudit {
    */
   contactEmail?: string | null;
   /**
-   * What the client considers a conversion (forms, calls, purchases, etc.)
+   * What the client considers a conversion (one per line, e.g. form submissions, phone calls, purchases)
    */
-  conversionObjectives?:
-    | {
-        objective: string;
-        id?: string | null;
-      }[]
-    | null;
+  conversionObjectives?: string | null;
   /**
-   * Brand terms for brand/generic campaign classification
+   * Brand terms for brand/generic classification (one per line)
    */
-  brandTerms?:
-    | {
-        term: string;
-        id?: string | null;
-      }[]
-    | null;
+  brandTerms?: string | null;
   /**
    * Internal team notes about this client
    */
@@ -889,14 +882,9 @@ export interface GoogleAdsAudit {
      */
     minSpendThreshold?: number | null;
     /**
-     * Terms to never suggest as negatives (in addition to brand terms)
+     * Terms to never suggest as negatives, in addition to brand terms (one per line)
      */
-    excludeTerms?:
-      | {
-          term: string;
-          id?: string | null;
-        }[]
-      | null;
+    excludeTerms?: string | null;
   };
   /**
    * ⚠️ Legacy config — configure from Client record.
@@ -2539,6 +2527,40 @@ export interface InternalLinkSuggestion {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "negative-sweep-candidates".
+ */
+export interface NegativeSweepCandidate {
+  id: number;
+  client: number | Client;
+  searchTerm: string;
+  campaignName?: string | null;
+  adGroupName?: string | null;
+  clicks?: number | null;
+  impressions?: number | null;
+  cost?: number | null;
+  conversions?: number | null;
+  status: 'pending' | 'approved' | 'rejected';
+  /**
+   * AI-suggested negative keyword list
+   */
+  suggestedList?: string | null;
+  /**
+   * Team-assigned list (overrides AI suggestion)
+   */
+  assignedList?: string | null;
+  matchType?: ('exact' | 'phrase' | 'broad') | null;
+  /**
+   * Why the AI flagged this term
+   */
+  aiReasoning?: string | null;
+  sweepDate: string;
+  writtenToSheet?: boolean | null;
+  writtenAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -2644,6 +2666,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'internal-link-suggestions';
         value: number | InternalLinkSuggestion;
+      } | null)
+    | ({
+        relationTo: 'negative-sweep-candidates';
+        value: number | NegativeSweepCandidate;
       } | null)
     | ({
         relationTo: 'media';
@@ -2795,12 +2821,8 @@ export interface ClientsSelect<T extends boolean = true> {
         negativeSweepMode?: T;
         negativeSweepWeekday?: T;
         negativeSweepMinSpendThreshold?: T;
-        negativeSweepExcludeTerms?:
-          | T
-          | {
-              term?: T;
-              id?: T;
-            };
+        negativeSweepExcludeTerms?: T;
+        negativeSweepSheetUrl?: T;
         reauditEnabled?: T;
         reauditDayOfMonth?: T;
         performanceReportEnabled?: T;
@@ -3092,18 +3114,8 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   businessType?: T;
   monthlySpend?: T;
   contactEmail?: T;
-  conversionObjectives?:
-    | T
-    | {
-        objective?: T;
-        id?: T;
-      };
-  brandTerms?:
-    | T
-    | {
-        term?: T;
-        id?: T;
-      };
+  conversionObjectives?: T;
+  brandTerms?: T;
   notes?: T;
   auditStatus?: T;
   auditProgress?: T;
@@ -3145,12 +3157,7 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
         mode?: T;
         weekday?: T;
         minSpendThreshold?: T;
-        excludeTerms?:
-          | T
-          | {
-              term?: T;
-              id?: T;
-            };
+        excludeTerms?: T;
       };
   reauditConfig?:
     | T
@@ -3413,6 +3420,30 @@ export interface InternalLinkSuggestionsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "negative-sweep-candidates_select".
+ */
+export interface NegativeSweepCandidatesSelect<T extends boolean = true> {
+  client?: T;
+  searchTerm?: T;
+  campaignName?: T;
+  adGroupName?: T;
+  clicks?: T;
+  impressions?: T;
+  cost?: T;
+  conversions?: T;
+  status?: T;
+  suggestedList?: T;
+  assignedList?: T;
+  matchType?: T;
+  aiReasoning?: T;
+  sweepDate?: T;
+  writtenToSheet?: T;
+  writtenAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
@@ -3565,6 +3596,23 @@ export interface ApiCostRate {
   createdAt?: string | null;
 }
 /**
+ * Google Sheets OAuth token for writing negative keywords to client spreadsheets. Connect once to enable all clients.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sheets-auth".
+ */
+export interface SheetsAuth {
+  id: number;
+  refreshToken?: string | null;
+  /**
+   * Google account connected for Sheets access
+   */
+  connectedEmail?: string | null;
+  connectedAt?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "api-cost-rates_select".
  */
@@ -3585,6 +3633,18 @@ export interface ApiCostRatesSelect<T extends boolean = true> {
         isActive?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sheets-auth_select".
+ */
+export interface SheetsAuthSelect<T extends boolean = true> {
+  refreshToken?: T;
+  connectedEmail?: T;
+  connectedAt?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

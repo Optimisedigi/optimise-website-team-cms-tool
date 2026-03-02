@@ -665,6 +665,14 @@ export const Clients: CollectionConfig = {
                     condition: (data: any) => data?.gadsAuto?.negativeSweepEnabled,
                   },
                 },
+                {
+                  name: "negativeSweepSheetUrl",
+                  type: "text",
+                  admin: {
+                    description: "Google Sheet URL for this client's negative keywords (must have a neg_kws_lists tab)",
+                    condition: (data: any) => data?.gadsAuto?.negativeSweepEnabled,
+                  },
+                },
 
                 // Re-audit
                 {

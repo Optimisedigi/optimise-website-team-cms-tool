@@ -889,6 +889,49 @@ export async function POST(request: NextRequest) {
   // --- blog_prompts.archived_at column ---
   await run("blog_prompts.archived_at", "ALTER TABLE `blog_prompts` ADD `archived_at` text");
 
+  // --- negative_sweep_candidates table ---
+  await run("negative_sweep_candidates", `CREATE TABLE IF NOT EXISTS \`negative_sweep_candidates\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`search_term\` text NOT NULL,
+    \`campaign_name\` text,
+    \`ad_group_name\` text,
+    \`clicks\` numeric DEFAULT 0,
+    \`impressions\` numeric DEFAULT 0,
+    \`cost\` numeric DEFAULT 0,
+    \`conversions\` numeric DEFAULT 0,
+    \`status\` text DEFAULT 'pending',
+    \`suggested_list\` text,
+    \`assigned_list\` text,
+    \`match_type\` text DEFAULT 'exact',
+    \`ai_reasoning\` text,
+    \`sweep_date\` text NOT NULL,
+    \`written_to_sheet\` integer DEFAULT false,
+    \`written_at\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("negative_sweep_candidates_client_idx", "CREATE INDEX IF NOT EXISTS `negative_sweep_candidates_client_idx` ON `negative_sweep_candidates` (`client_id`)");
+  await run("negative_sweep_candidates_status_idx", "CREATE INDEX IF NOT EXISTS `negative_sweep_candidates_status_idx` ON `negative_sweep_candidates` (`status`)");
+  await run("negative_sweep_candidates_sweep_date_idx", "CREATE INDEX IF NOT EXISTS `negative_sweep_candidates_sweep_date_idx` ON `negative_sweep_candidates` (`sweep_date`)");
+  await run("negative_sweep_candidates_created_at_idx", "CREATE INDEX IF NOT EXISTS `negative_sweep_candidates_created_at_idx` ON `negative_sweep_candidates` (`created_at`)");
+  await run("negative_sweep_candidates_updated_at_idx", "CREATE INDEX IF NOT EXISTS `negative_sweep_candidates_updated_at_idx` ON `negative_sweep_candidates` (`updated_at`)");
+  await run("locked_docs_rels.negative_sweep_candidates_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_sweep_candidates_id` integer REFERENCES `negative_sweep_candidates`(`id`) ON DELETE cascade");
+
+  // --- sheets_auth global table ---
+  await run("sheets_auth", `CREATE TABLE IF NOT EXISTS \`sheets_auth\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`refresh_token\` text,
+    \`connected_email\` text,
+    \`connected_at\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+
+  // --- clients.gads_auto_negative_sweep_sheet_url column ---
+  await run("clients.gads_auto_negative_sweep_sheet_url", "ALTER TABLE `clients` ADD `gads_auto_negative_sweep_sheet_url` text");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
@@ -924,7 +967,7 @@ export async function POST(request: NextRequest) {
   // Diagnostic: list clients
   let clients: any[] = [];
   try {
-    const clientRows = await client.execute("SELECT id, name, slug, gsc_connected, gsc_property_url, gsc_access_token, gsc_refresh_token, monthly_retainer, client_start_date, is_active FROM `clients` ORDER BY id");
+    const clientRows = await client.execute("SELECT id, name, slug, gsc_connected, gsc_property_url, monthly_retainer, client_start_date, is_active FROM `clients` ORDER BY id");
     clients = clientRows.rows;
   } catch { /* ignore */ }
 
