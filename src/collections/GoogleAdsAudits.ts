@@ -233,18 +233,10 @@ export const GoogleAdsAudits: CollectionConfig = {
             },
             {
               name: "conversionObjectives",
-              type: "array",
-              maxRows: 10,
+              type: "textarea",
               admin: {
-                description: "What the client considers a conversion (forms, calls, purchases, etc.)",
+                description: "What the client considers a conversion (one per line, e.g. form submissions, phone calls, purchases)",
               },
-              fields: [
-                {
-                  name: "objective",
-                  type: "text",
-                  required: true,
-                },
-              ],
             },
             {
               name: "brandTerms",
@@ -612,18 +604,10 @@ export const GoogleAdsAudits: CollectionConfig = {
                 },
                 {
                   name: "excludeTerms",
-                  type: "array",
-                  maxRows: 50,
+                  type: "textarea",
                   admin: {
-                    description: "Terms to never suggest as negatives (in addition to brand terms)",
+                    description: "Terms to never suggest as negatives, in addition to brand terms (one per line)",
                   },
-                  fields: [
-                    {
-                      name: "term",
-                      type: "text",
-                      required: true,
-                    },
-                  ],
                 },
               ],
             },

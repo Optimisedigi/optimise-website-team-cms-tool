@@ -775,6 +775,9 @@ export async function POST(request: NextRequest) {
   await run("gaa.create_proposal", "ALTER TABLE `google_ads_audits` ADD `create_proposal` integer DEFAULT false");
   await run("gaa.curated_findings", "ALTER TABLE `google_ads_audits` ADD `curated_findings` text");
   await run("gaa.brand_terms_text", "ALTER TABLE `google_ads_audits` ADD `brand_terms` text");
+  await run("gaa.conversion_objectives_text", "ALTER TABLE `google_ads_audits` ADD `conversion_objectives` text");
+  await run("gaa.negative_sweep_config_exclude_terms_text", "ALTER TABLE `google_ads_audits` ADD `negative_sweep_config_exclude_terms` text");
+  await run("clients.gads_auto_negative_sweep_exclude_terms", "ALTER TABLE `clients` ADD `gads_auto_negative_sweep_exclude_terms` text");
 
   await run("gaa_negative_sweep_config_exclude_terms", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_negative_sweep_config_exclude_terms\` (
     \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,

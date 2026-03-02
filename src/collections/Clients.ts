@@ -659,20 +659,11 @@ export const Clients: CollectionConfig = {
                 },
                 {
                   name: "negativeSweepExcludeTerms",
-                  type: "array",
-                  dbName: "gads_sweep_exclude",
-                  maxRows: 50,
+                  type: "textarea",
                   admin: {
-                    description: "Terms to never suggest as negatives (in addition to brand terms)",
+                    description: "Terms to never suggest as negatives, in addition to brand terms (one per line)",
                     condition: (data: any) => data?.gadsAuto?.negativeSweepEnabled,
                   },
-                  fields: [
-                    {
-                      name: "term",
-                      type: "text",
-                      required: true,
-                    },
-                  ],
                 },
 
                 // Re-audit
@@ -970,7 +961,7 @@ export const Clients: CollectionConfig = {
               type: "textarea",
               admin: {
                 description:
-                  "Comma-separated brand terms to filter out from generic query analysis (e.g., 'optimise digital, optimisedigital, od agency')",
+                  "Brand terms to filter out from generic query analysis (one per line)",
               },
             },
             {

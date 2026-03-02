@@ -60,8 +60,8 @@ export async function POST(
     id,
     data: {
       emailHtml,
-      conversionObjectives: audit.conversionObjectives ?? [],
-      brandTerms: audit.brandTerms ?? [],
+      conversionObjectives: audit.conversionObjectives ?? "",
+      brandTerms: audit.brandTerms ?? "",
       history: audit.history ?? [],
       actionItems: audit.actionItems ?? [],
     } as any,

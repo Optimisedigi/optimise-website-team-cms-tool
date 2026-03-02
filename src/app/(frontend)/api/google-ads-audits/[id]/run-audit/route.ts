@@ -64,7 +64,7 @@ export async function POST(
 
   // Preserve array fields that Payload clears on partial updates
   const preservedArrayFields = {
-    conversionObjectives: audit.conversionObjectives ?? [],
+    conversionObjectives: audit.conversionObjectives ?? "",
     brandTerms: audit.brandTerms ?? "",
     history: existingHistory,
     actionItems: (audit.actionItems as any[] | undefined) ?? [],
@@ -103,9 +103,9 @@ export async function POST(
       const brandTerms = typeof audit.brandTerms === "string"
         ? audit.brandTerms.split("\n").map((t: string) => t.trim()).filter(Boolean)
         : (audit.brandTerms as any[] | undefined)?.map((bt: any) => bt.term).filter(Boolean);
-      const conversionObjectives = (audit.conversionObjectives as any[] | undefined)
-        ?.map((co: any) => co.objective)
-        .filter(Boolean);
+      const conversionObjectives = typeof audit.conversionObjectives === "string"
+        ? audit.conversionObjectives.split("\n").map((t: string) => t.trim()).filter(Boolean)
+        : (audit.conversionObjectives as any[] | undefined)?.map((co: any) => co.objective).filter(Boolean);
 
       // Call the comprehensive audit endpoint on growth-tools
       const response = await fetch(`${GROWTH_TOOLS_URL}/api/google-ads/comprehensive-audit`, {

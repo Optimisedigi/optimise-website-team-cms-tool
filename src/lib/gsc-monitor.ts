@@ -139,7 +139,7 @@ async function monitorClient(
 
   // Parse brand keywords from client
   const brandTerms = (client.brandKeywords || "")
-    .split(",")
+    .split(/[,\n]/)
     .map((t: string) => t.trim())
     .filter(Boolean);
 

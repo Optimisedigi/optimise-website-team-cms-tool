@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   }
 
   const brandTerms = ((client as any).brandKeywords || "")
-    .split(",")
+    .split(/[,\n]/)
     .map((t: string) => t.trim())
     .filter(Boolean);
 
