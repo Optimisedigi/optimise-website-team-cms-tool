@@ -65,7 +65,7 @@ export async function POST(
   // Preserve array fields that Payload clears on partial updates
   const preservedArrayFields = {
     conversionObjectives: audit.conversionObjectives ?? [],
-    brandTerms: audit.brandTerms ?? [],
+    brandTerms: audit.brandTerms ?? "",
     history: existingHistory,
     actionItems: (audit.actionItems as any[] | undefined) ?? [],
   };
@@ -100,9 +100,9 @@ export async function POST(
       await updateProgress("Pulling data from Google Ads API", 10);
 
       // Build manual inputs from CMS fields
-      const brandTerms = (audit.brandTerms as any[] | undefined)
-        ?.map((bt: any) => bt.term)
-        .filter(Boolean);
+      const brandTerms = typeof audit.brandTerms === "string"
+        ? audit.brandTerms.split("\n").map((t: string) => t.trim()).filter(Boolean)
+        : (audit.brandTerms as any[] | undefined)?.map((bt: any) => bt.term).filter(Boolean);
       const conversionObjectives = (audit.conversionObjectives as any[] | undefined)
         ?.map((co: any) => co.objective)
         .filter(Boolean);

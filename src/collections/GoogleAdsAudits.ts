@@ -248,18 +248,10 @@ export const GoogleAdsAudits: CollectionConfig = {
             },
             {
               name: "brandTerms",
-              type: "array",
-              maxRows: 20,
+              type: "textarea",
               admin: {
-                description: "Brand terms for brand/generic campaign classification",
+                description: "Brand terms for brand/generic classification (one per line)",
               },
-              fields: [
-                {
-                  name: "term",
-                  type: "text",
-                  required: true,
-                },
-              ],
             },
             {
               name: "notes",
