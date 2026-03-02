@@ -2,8 +2,10 @@ import { withPayload } from '@payloadcms/next/withPayload'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverActions: {
-    bodySizeLimit: '16mb',
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '16mb',
+    },
   },
   redirects: async () => [
     // Blog Prompter — redirect collection routes to the standalone custom page
