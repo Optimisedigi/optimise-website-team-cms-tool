@@ -15,7 +15,7 @@ export const ActivityLog: CollectionConfig = {
   },
   access: {
     read: ({ req }) => !!req.user,
-    create: () => true,
+    create: ({ req }) => !!req.user,
     update: () => false,
     delete: ({ req }) => req.user?.role === "admin",
   },
@@ -35,6 +35,11 @@ export const ActivityLog: CollectionConfig = {
         { label: "Proposal Created", value: "proposal_created" },
         { label: "GSC Snapshot", value: "gsc_snapshot" },
         { label: "Time Tracked", value: "time_tracked" },
+        { label: "Google Ads Audit Created", value: "google_ads_audit_created" },
+        { label: "Google Ads Proposal Created", value: "google_ads_proposal_created" },
+        { label: "Link Suggestion Created", value: "link_suggestion_created" },
+        { label: "Negative Sweep Completed", value: "negative_sweep_completed" },
+        { label: "Negative Sweep Synced", value: "negative_sweep_synced" },
       ],
     },
     {

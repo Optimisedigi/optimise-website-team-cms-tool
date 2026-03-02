@@ -38,6 +38,7 @@ export async function POST(request: Request) {
     const doc = await payload.findByID({
       collection: "google-ads-audits",
       id: auditId,
+      overrideAccess: true,
     });
 
     if (!doc) {

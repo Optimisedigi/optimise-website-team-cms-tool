@@ -9,9 +9,9 @@ import { logActivity } from "@/lib/activity-log";
 
 // ─── Helpers ───────────────────────────────────────────────────
 const mockPayload = {
-  find: vi.fn(),
-  create: vi.fn(),
-  update: vi.fn(),
+  find: vi.fn().mockResolvedValue({ docs: [] }),
+  create: vi.fn().mockResolvedValue({}),
+  update: vi.fn().mockResolvedValue({}),
   logger: { error: vi.fn(), info: vi.fn() },
 };
 

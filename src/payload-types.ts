@@ -2200,6 +2200,10 @@ export interface BlogPrompt {
   status?: ('draft' | 'client-submitted' | 'ready') | null;
   source?: ('internal' | 'client' | 'topic-clusters') | null;
   archivedAt?: string | null;
+  /**
+   * Syncs back to Growth Tools content gap tracker
+   */
+  gapStatus?: ('open' | 'in_progress' | 'published') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2422,7 +2426,12 @@ export interface ActivityLog {
     | 'retainer_changed'
     | 'proposal_created'
     | 'gsc_snapshot'
-    | 'time_tracked';
+    | 'time_tracked'
+    | 'google_ads_audit_created'
+    | 'google_ads_proposal_created'
+    | 'link_suggestion_created'
+    | 'negative_sweep_completed'
+    | 'negative_sweep_synced';
   title: string;
   description?: string | null;
   /**
@@ -3031,6 +3040,7 @@ export interface BlogPromptsSelect<T extends boolean = true> {
   status?: T;
   source?: T;
   archivedAt?: T;
+  gapStatus?: T;
   updatedAt?: T;
   createdAt?: T;
 }

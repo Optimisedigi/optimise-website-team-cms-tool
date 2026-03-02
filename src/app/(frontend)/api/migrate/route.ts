@@ -932,6 +932,9 @@ export async function POST(request: NextRequest) {
   // --- clients.gads_auto_negative_sweep_sheet_url column ---
   await run("clients.gads_auto_negative_sweep_sheet_url", "ALTER TABLE `clients` ADD `gads_auto_negative_sweep_sheet_url` text");
 
+  // --- blog_prompts.gap_status column ---
+  await run("blog_prompts.gap_status", "ALTER TABLE `blog_prompts` ADD `gap_status` text DEFAULT 'open'");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║

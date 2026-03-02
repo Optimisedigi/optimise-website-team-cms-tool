@@ -3,6 +3,39 @@ import type { CollectionConfig } from "payload";
 export const BlogPrompts: CollectionConfig = {
   slug: "blog-prompts",
   labels: { singular: "Blog Prompter", plural: "Blog Prompter" },
+  hooks: {
+    afterChange: [
+      async ({ doc, previousDoc }) => {
+        if (
+          doc.source === "topic-clusters" &&
+          doc.gapStatus &&
+          doc.gapStatus !== previousDoc?.gapStatus
+        ) {
+          const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
+          const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+          if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) return;
+
+          fetch(`${GROWTH_TOOLS_URL}/api/topic-clusters/gaps/sync-status`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Internal-Key": INTERNAL_API_KEY,
+            },
+            body: JSON.stringify({
+              gaps: [
+                {
+                  targetKeyword: doc.primaryKeywords || doc.blogIdea,
+                  status: doc.gapStatus,
+                },
+              ],
+            }),
+          }).catch((err) =>
+            console.error("[BlogPrompts] Gap sync failed:", (err as Error).message)
+          );
+        }
+      },
+    ],
+  },
   admin: {
     group: "Content",
     defaultColumns: ["blogIdea", "titleIdea", "status", "source", "createdAt"],
@@ -107,6 +140,20 @@ export const BlogPrompts: CollectionConfig = {
       name: "archivedAt",
       type: "date",
       admin: { hidden: true },
+    },
+    {
+      name: "gapStatus",
+      type: "select",
+      options: [
+        { label: "Open", value: "open" },
+        { label: "In Progress", value: "in_progress" },
+        { label: "Published", value: "published" },
+      ],
+      defaultValue: "open",
+      admin: {
+        condition: (data: any) => data?.source === "topic-clusters",
+        description: "Syncs back to Growth Tools content gap tracker",
+      },
     },
   ],
 };

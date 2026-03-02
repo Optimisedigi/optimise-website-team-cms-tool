@@ -57,6 +57,31 @@ export const BlogPosts: CollectionConfig = {
               console.error("[BlogPosts] Growth Tools webhook failed:", (err as Error).message);
             });
           }
+
+          // Auto-update matching blog prompt gap status to "published"
+          req.payload
+            .find({
+              collection: "blog-prompts",
+              where: {
+                source: { equals: "topic-clusters" },
+                blogIdea: { contains: doc.title },
+              },
+              limit: 1,
+              overrideAccess: true,
+            })
+            .then((result) => {
+              if (result.docs.length > 0) {
+                return req.payload.update({
+                  collection: "blog-prompts",
+                  id: result.docs[0].id,
+                  data: { gapStatus: "published" } as any,
+                  overrideAccess: true,
+                });
+              }
+            })
+            .catch((err) => {
+              console.error("[BlogPosts] Gap status update failed:", (err as Error).message);
+            });
         }
       },
     ],
