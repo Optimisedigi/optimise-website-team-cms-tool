@@ -773,6 +773,7 @@ export async function POST(request: NextRequest) {
   await run("gaa.performance_report_config_include_in_client_hub", "ALTER TABLE `google_ads_audits` ADD `performance_report_config_include_in_client_hub` integer DEFAULT true");
   await run("gaa.negative_sweep_pending_approval", "ALTER TABLE `google_ads_audits` ADD `negative_sweep_pending_approval` text");
   await run("gaa.create_proposal", "ALTER TABLE `google_ads_audits` ADD `create_proposal` integer DEFAULT false");
+  await run("gaa.curated_findings", "ALTER TABLE `google_ads_audits` ADD `curated_findings` text");
 
   await run("gaa_negative_sweep_config_exclude_terms", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_negative_sweep_config_exclude_terms\` (
     \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
