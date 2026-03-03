@@ -81,6 +81,14 @@ export const NegativeSweepCandidates: CollectionConfig = {
       index: true,
     },
     {
+      name: "suggestedNegative",
+      type: "text",
+      admin: {
+        description:
+          "AI-suggested negative keyword (may differ from the search term, e.g. 'salary' instead of 'plumber salary')",
+      },
+    },
+    {
       name: "suggestedList",
       type: "text",
       admin: {

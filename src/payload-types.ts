@@ -67,29 +67,29 @@ export interface Config {
   };
   blocks: {};
   collections: {
-    users: User;
     clients: Client;
     'client-proposals': ClientProposal;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
     'job-posts': JobPost;
+    media: Media;
+    'internal-link-suggestions': InternalLinkSuggestion;
     'seo-audits': SeoAudit;
     'cro-audits': CroAudit;
     'google-ads-audits': GoogleAdsAudit;
     'keyword-snapshots': KeywordSnapshot;
     'competitor-analyses': CompetitorAnalysis;
     'content-researches': ContentResearch;
-    'usage-reports': UsageReport;
-    'gsc-snapshots': GscSnapshot;
     'gsc-alerts': GscAlert;
-    'gsc-daily': GscDaily;
-    'activity-log': ActivityLog;
+    'negative-sweep-candidates': NegativeSweepCandidate;
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
-    'internal-link-suggestions': InternalLinkSuggestion;
-    'negative-sweep-candidates': NegativeSweepCandidate;
-    media: Media;
+    users: User;
+    'usage-reports': UsageReport;
+    'activity-log': ActivityLog;
+    'gsc-snapshots': GscSnapshot;
+    'gsc-daily': GscDaily;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -101,29 +101,29 @@ export interface Config {
     };
   };
   collectionsSelect: {
-    users: UsersSelect<false> | UsersSelect<true>;
     clients: ClientsSelect<false> | ClientsSelect<true>;
     'client-proposals': ClientProposalsSelect<false> | ClientProposalsSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
+    media: MediaSelect<false> | MediaSelect<true>;
+    'internal-link-suggestions': InternalLinkSuggestionsSelect<false> | InternalLinkSuggestionsSelect<true>;
     'seo-audits': SeoAuditsSelect<false> | SeoAuditsSelect<true>;
     'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
     'google-ads-audits': GoogleAdsAuditsSelect<false> | GoogleAdsAuditsSelect<true>;
     'keyword-snapshots': KeywordSnapshotsSelect<false> | KeywordSnapshotsSelect<true>;
     'competitor-analyses': CompetitorAnalysesSelect<false> | CompetitorAnalysesSelect<true>;
     'content-researches': ContentResearchesSelect<false> | ContentResearchesSelect<true>;
-    'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
-    'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-alerts': GscAlertsSelect<false> | GscAlertsSelect<true>;
-    'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
-    'activity-log': ActivityLogSelect<false> | ActivityLogSelect<true>;
+    'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
-    'internal-link-suggestions': InternalLinkSuggestionsSelect<false> | InternalLinkSuggestionsSelect<true>;
-    'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
-    media: MediaSelect<false> | MediaSelect<true>;
+    users: UsersSelect<false> | UsersSelect<true>;
+    'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
+    'activity-log': ActivityLogSelect<false> | ActivityLogSelect<true>;
+    'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
+    'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -134,12 +134,12 @@ export interface Config {
   };
   fallbackLocale: null;
   globals: {
-    'api-cost-rates': ApiCostRate;
     'sheets-auth': SheetsAuth;
+    'api-cost-rates': ApiCostRate;
   };
   globalsSelect: {
-    'api-cost-rates': ApiCostRatesSelect<false> | ApiCostRatesSelect<true>;
     'sheets-auth': SheetsAuthSelect<false> | SheetsAuthSelect<true>;
+    'api-cost-rates': ApiCostRatesSelect<false> | ApiCostRatesSelect<true>;
   };
   locale: null;
   widgets: {
@@ -168,40 +168,6 @@ export interface UserAuthOperations {
     email: string;
     password: string;
   };
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
- */
-export interface User {
-  id: number;
-  name: string;
-  role: 'admin' | 'manager' | 'specialist';
-  /**
-   * Whether this user has completed their first-login setup
-   */
-  setupCompleted?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-  enableAPIKey?: boolean | null;
-  apiKey?: string | null;
-  apiKeyIndex?: string | null;
-  email: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
-  sessions?:
-    | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
-      }[]
-    | null;
-  password?: string | null;
-  collection: 'users';
 }
 /**
  * Manage client websites
@@ -2278,57 +2244,21 @@ export interface JobPost {
   _status?: ('draft' | 'published') | null;
 }
 /**
- * Monthly usage and estimated API cost reports from the growth tools
- *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "usage-reports".
+ * via the `definition` "internal-link-suggestions".
  */
-export interface UsageReport {
+export interface InternalLinkSuggestion {
   id: number;
-  /**
-   * Auto-generated from month/year (e.g. 'February 2026')
-   */
-  label?: string | null;
-  /**
-   * Month (1–12)
-   */
-  month: number;
-  /**
-   * Year (e.g. 2026)
-   */
-  year: number;
-  /**
-   * Total SEO audits this month
-   */
-  seoAudits?: number | null;
-  /**
-   * Total CRO audits this month
-   */
-  croAudits?: number | null;
-  /**
-   * Total keyword snapshots this month
-   */
-  keywordSnapshots?: number | null;
-  /**
-   * Total individual keywords looked up
-   */
-  totalKeywordsTracked?: number | null;
-  /**
-   * Breakdown — { serper, moonshot, postmark, total }
-   */
-  estimatedCosts?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Total estimated cost for the month (AUD)
-   */
-  totalEstimatedCost?: number | null;
+  sourceUrl: string;
+  targetUrl: string;
+  anchorText: string;
+  contextSnippet?: string | null;
+  confidenceScore: number;
+  estimatedPageRankLift?: number | null;
+  clusterRelation?: string | null;
+  clusterName?: string | null;
+  status?: ('pending' | 'approved' | 'rejected') | null;
+  runId?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2384,64 +2314,40 @@ export interface GscAlert {
   createdAt: string;
 }
 /**
- * Daily Google Search Console metrics for historical archival
- *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "gsc-daily".
+ * via the `definition` "negative-sweep-candidates".
  */
-export interface GscDaily {
+export interface NegativeSweepCandidate {
   id: number;
   client: number | Client;
+  searchTerm: string;
+  campaignName?: string | null;
+  adGroupName?: string | null;
+  clicks?: number | null;
+  impressions?: number | null;
+  cost?: number | null;
+  conversions?: number | null;
+  status: 'pending' | 'approved' | 'rejected';
   /**
-   * YYYY-MM-DD
+   * AI-suggested negative keyword (may differ from the search term, e.g. 'salary' instead of 'plumber salary')
    */
-  date: string;
-  clicks: number;
-  impressions: number;
+  suggestedNegative?: string | null;
   /**
-   * Click-through rate as percentage (e.g. 3.45)
+   * AI-suggested negative keyword list
    */
-  ctr?: number | null;
+  suggestedList?: string | null;
   /**
-   * Average position (e.g. 14.2)
+   * Team-assigned list (overrides AI suggestion)
    */
-  position?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Automatic feed of team activity
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "activity-log".
- */
-export interface ActivityLog {
-  id: number;
-  type:
-    | 'blog_published'
-    | 'seo_audit_completed'
-    | 'cro_audit_completed'
-    | 'keyword_analysis'
-    | 'client_added'
-    | 'retainer_changed'
-    | 'proposal_created'
-    | 'gsc_snapshot'
-    | 'time_tracked'
-    | 'google_ads_audit_created'
-    | 'google_ads_proposal_created'
-    | 'link_suggestion_created'
-    | 'negative_sweep_completed'
-    | 'negative_sweep_synced';
-  title: string;
-  description?: string | null;
+  assignedList?: string | null;
+  matchType?: ('exact' | 'phrase' | 'broad') | null;
   /**
-   * User who triggered this activity
+   * Why the AI flagged this term
    */
-  user?: (number | null) | User;
-  /**
-   * Related client
-   */
-  client?: (number | null) | Client;
+  aiReasoning?: string | null;
+  sweepDate: string;
+  writtenToSheet?: boolean | null;
+  writtenAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2517,54 +2423,152 @@ export interface CostRule {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "internal-link-suggestions".
+ * via the `definition` "users".
  */
-export interface InternalLinkSuggestion {
+export interface User {
   id: number;
-  sourceUrl: string;
-  targetUrl: string;
-  anchorText: string;
-  contextSnippet?: string | null;
-  confidenceScore: number;
-  estimatedPageRankLift?: number | null;
-  clusterRelation?: string | null;
-  clusterName?: string | null;
-  status?: ('pending' | 'approved' | 'rejected') | null;
-  runId?: number | null;
+  name: string;
+  role: 'admin' | 'manager' | 'specialist';
+  /**
+   * Whether this user has completed their first-login setup
+   */
+  setupCompleted?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
+  collection: 'users';
+}
+/**
+ * Monthly usage and estimated API cost reports from the growth tools
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "usage-reports".
+ */
+export interface UsageReport {
+  id: number;
+  /**
+   * Auto-generated from month/year (e.g. 'February 2026')
+   */
+  label?: string | null;
+  /**
+   * Month (1–12)
+   */
+  month: number;
+  /**
+   * Year (e.g. 2026)
+   */
+  year: number;
+  /**
+   * Total SEO audits this month
+   */
+  seoAudits?: number | null;
+  /**
+   * Total CRO audits this month
+   */
+  croAudits?: number | null;
+  /**
+   * Total keyword snapshots this month
+   */
+  keywordSnapshots?: number | null;
+  /**
+   * Total individual keywords looked up
+   */
+  totalKeywordsTracked?: number | null;
+  /**
+   * Breakdown — { serper, moonshot, postmark, total }
+   */
+  estimatedCosts?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Total estimated cost for the month (AUD)
+   */
+  totalEstimatedCost?: number | null;
   updatedAt: string;
   createdAt: string;
 }
 /**
+ * Automatic feed of team activity
+ *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "negative-sweep-candidates".
+ * via the `definition` "activity-log".
  */
-export interface NegativeSweepCandidate {
+export interface ActivityLog {
+  id: number;
+  type:
+    | 'blog_published'
+    | 'seo_audit_completed'
+    | 'cro_audit_completed'
+    | 'keyword_analysis'
+    | 'client_added'
+    | 'retainer_changed'
+    | 'proposal_created'
+    | 'gsc_snapshot'
+    | 'time_tracked'
+    | 'google_ads_audit_created'
+    | 'google_ads_proposal_created'
+    | 'link_suggestion_created'
+    | 'negative_sweep_completed'
+    | 'negative_sweep_synced';
+  title: string;
+  description?: string | null;
+  /**
+   * User who triggered this activity
+   */
+  user?: (number | null) | User;
+  /**
+   * Related client
+   */
+  client?: (number | null) | Client;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Daily Google Search Console metrics for historical archival
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-daily".
+ */
+export interface GscDaily {
   id: number;
   client: number | Client;
-  searchTerm: string;
-  campaignName?: string | null;
-  adGroupName?: string | null;
-  clicks?: number | null;
-  impressions?: number | null;
-  cost?: number | null;
-  conversions?: number | null;
-  status: 'pending' | 'approved' | 'rejected';
   /**
-   * AI-suggested negative keyword list
+   * YYYY-MM-DD
    */
-  suggestedList?: string | null;
+  date: string;
+  clicks: number;
+  impressions: number;
   /**
-   * Team-assigned list (overrides AI suggestion)
+   * Click-through rate as percentage (e.g. 3.45)
    */
-  assignedList?: string | null;
-  matchType?: ('exact' | 'phrase' | 'broad') | null;
+  ctr?: number | null;
   /**
-   * Why the AI flagged this term
+   * Average position (e.g. 14.2)
    */
-  aiReasoning?: string | null;
-  sweepDate: string;
-  writtenToSheet?: boolean | null;
-  writtenAt?: string | null;
+  position?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2593,10 +2597,6 @@ export interface PayloadLockedDocument {
   id: number;
   document?:
     | ({
-        relationTo: 'users';
-        value: number | User;
-      } | null)
-    | ({
         relationTo: 'clients';
         value: number | Client;
       } | null)
@@ -2615,6 +2615,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'job-posts';
         value: number | JobPost;
+      } | null)
+    | ({
+        relationTo: 'media';
+        value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'internal-link-suggestions';
+        value: number | InternalLinkSuggestion;
       } | null)
     | ({
         relationTo: 'seo-audits';
@@ -2641,24 +2649,12 @@ export interface PayloadLockedDocument {
         value: number | ContentResearch;
       } | null)
     | ({
-        relationTo: 'usage-reports';
-        value: number | UsageReport;
-      } | null)
-    | ({
-        relationTo: 'gsc-snapshots';
-        value: number | GscSnapshot;
-      } | null)
-    | ({
         relationTo: 'gsc-alerts';
         value: number | GscAlert;
       } | null)
     | ({
-        relationTo: 'gsc-daily';
-        value: number | GscDaily;
-      } | null)
-    | ({
-        relationTo: 'activity-log';
-        value: number | ActivityLog;
+        relationTo: 'negative-sweep-candidates';
+        value: number | NegativeSweepCandidate;
       } | null)
     | ({
         relationTo: 'business-costs';
@@ -2673,16 +2669,24 @@ export interface PayloadLockedDocument {
         value: number | CostRule;
       } | null)
     | ({
-        relationTo: 'internal-link-suggestions';
-        value: number | InternalLinkSuggestion;
+        relationTo: 'users';
+        value: number | User;
       } | null)
     | ({
-        relationTo: 'negative-sweep-candidates';
-        value: number | NegativeSweepCandidate;
+        relationTo: 'usage-reports';
+        value: number | UsageReport;
       } | null)
     | ({
-        relationTo: 'media';
-        value: number | Media;
+        relationTo: 'activity-log';
+        value: number | ActivityLog;
+      } | null)
+    | ({
+        relationTo: 'gsc-snapshots';
+        value: number | GscSnapshot;
+      } | null)
+    | ({
+        relationTo: 'gsc-daily';
+        value: number | GscDaily;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -2725,34 +2729,6 @@ export interface PayloadMigration {
   batch?: number | null;
   updatedAt: string;
   createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users_select".
- */
-export interface UsersSelect<T extends boolean = true> {
-  name?: T;
-  role?: T;
-  setupCompleted?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  enableAPIKey?: T;
-  apiKey?: T;
-  apiKeyIndex?: T;
-  email?: T;
-  resetPasswordToken?: T;
-  resetPasswordExpiration?: T;
-  salt?: T;
-  hash?: T;
-  loginAttempts?: T;
-  lockUntil?: T;
-  sessions?:
-    | T
-    | {
-        id?: T;
-        createdAt?: T;
-        expiresAt?: T;
-      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3066,6 +3042,77 @@ export interface JobPostsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media_select".
+ */
+export interface MediaSelect<T extends boolean = true> {
+  alt?: T;
+  caption?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+  sizes?:
+    | T
+    | {
+        thumbnail?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        card?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        hero?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "internal-link-suggestions_select".
+ */
+export interface InternalLinkSuggestionsSelect<T extends boolean = true> {
+  sourceUrl?: T;
+  targetUrl?: T;
+  anchorText?: T;
+  contextSnippet?: T;
+  confidenceScore?: T;
+  estimatedPageRankLift?: T;
+  clusterRelation?: T;
+  clusterName?: T;
+  status?: T;
+  runId?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "seo-audits_select".
  */
 export interface SeoAuditsSelect<T extends boolean = true> {
@@ -3280,53 +3327,6 @@ export interface ContentResearchesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "usage-reports_select".
- */
-export interface UsageReportsSelect<T extends boolean = true> {
-  label?: T;
-  month?: T;
-  year?: T;
-  seoAudits?: T;
-  croAudits?: T;
-  keywordSnapshots?: T;
-  totalKeywordsTracked?: T;
-  estimatedCosts?: T;
-  totalEstimatedCost?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "gsc-snapshots_select".
- */
-export interface GscSnapshotsSelect<T extends boolean = true> {
-  client?: T;
-  snapshotDate?: T;
-  periodStart?: T;
-  periodEnd?: T;
-  totalClicks?: T;
-  totalImpressions?: T;
-  avgCtr?: T;
-  avgPosition?: T;
-  topKeywords?: T;
-  topPages?: T;
-  brandedData?: T;
-  nonBrandedData?: T;
-  indexedPages?: T;
-  notIndexedPages?: T;
-  indexingIssues?: T;
-  sitemaps?: T;
-  cwvMobile?: T;
-  cwvDesktop?: T;
-  clicksChange?: T;
-  impressionsChange?: T;
-  positionChange?: T;
-  previousSnapshot?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "gsc-alerts_select".
  */
 export interface GscAlertsSelect<T extends boolean = true> {
@@ -3345,28 +3345,26 @@ export interface GscAlertsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "gsc-daily_select".
+ * via the `definition` "negative-sweep-candidates_select".
  */
-export interface GscDailySelect<T extends boolean = true> {
+export interface NegativeSweepCandidatesSelect<T extends boolean = true> {
   client?: T;
-  date?: T;
+  searchTerm?: T;
+  campaignName?: T;
+  adGroupName?: T;
   clicks?: T;
   impressions?: T;
-  ctr?: T;
-  position?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "activity-log_select".
- */
-export interface ActivityLogSelect<T extends boolean = true> {
-  type?: T;
-  title?: T;
-  description?: T;
-  user?: T;
-  client?: T;
+  cost?: T;
+  conversions?: T;
+  status?: T;
+  suggestedNegative?: T;
+  suggestedList?: T;
+  assignedList?: T;
+  matchType?: T;
+  aiReasoning?: T;
+  sweepDate?: T;
+  writtenToSheet?: T;
+  writtenAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3412,98 +3410,105 @@ export interface CostRulesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "internal-link-suggestions_select".
+ * via the `definition` "users_select".
  */
-export interface InternalLinkSuggestionsSelect<T extends boolean = true> {
-  sourceUrl?: T;
-  targetUrl?: T;
-  anchorText?: T;
-  contextSnippet?: T;
-  confidenceScore?: T;
-  estimatedPageRankLift?: T;
-  clusterRelation?: T;
-  clusterName?: T;
-  status?: T;
-  runId?: T;
+export interface UsersSelect<T extends boolean = true> {
+  name?: T;
+  role?: T;
+  setupCompleted?: T;
   updatedAt?: T;
   createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "negative-sweep-candidates_select".
- */
-export interface NegativeSweepCandidatesSelect<T extends boolean = true> {
-  client?: T;
-  searchTerm?: T;
-  campaignName?: T;
-  adGroupName?: T;
-  clicks?: T;
-  impressions?: T;
-  cost?: T;
-  conversions?: T;
-  status?: T;
-  suggestedList?: T;
-  assignedList?: T;
-  matchType?: T;
-  aiReasoning?: T;
-  sweepDate?: T;
-  writtenToSheet?: T;
-  writtenAt?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media_select".
- */
-export interface MediaSelect<T extends boolean = true> {
-  alt?: T;
-  caption?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  url?: T;
-  thumbnailURL?: T;
-  filename?: T;
-  mimeType?: T;
-  filesize?: T;
-  width?: T;
-  height?: T;
-  focalX?: T;
-  focalY?: T;
-  sizes?:
+  enableAPIKey?: T;
+  apiKey?: T;
+  apiKeyIndex?: T;
+  email?: T;
+  resetPasswordToken?: T;
+  resetPasswordExpiration?: T;
+  salt?: T;
+  hash?: T;
+  loginAttempts?: T;
+  lockUntil?: T;
+  sessions?:
     | T
     | {
-        thumbnail?:
-          | T
-          | {
-              url?: T;
-              width?: T;
-              height?: T;
-              mimeType?: T;
-              filesize?: T;
-              filename?: T;
-            };
-        card?:
-          | T
-          | {
-              url?: T;
-              width?: T;
-              height?: T;
-              mimeType?: T;
-              filesize?: T;
-              filename?: T;
-            };
-        hero?:
-          | T
-          | {
-              url?: T;
-              width?: T;
-              height?: T;
-              mimeType?: T;
-              filesize?: T;
-              filename?: T;
-            };
+        id?: T;
+        createdAt?: T;
+        expiresAt?: T;
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "usage-reports_select".
+ */
+export interface UsageReportsSelect<T extends boolean = true> {
+  label?: T;
+  month?: T;
+  year?: T;
+  seoAudits?: T;
+  croAudits?: T;
+  keywordSnapshots?: T;
+  totalKeywordsTracked?: T;
+  estimatedCosts?: T;
+  totalEstimatedCost?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "activity-log_select".
+ */
+export interface ActivityLogSelect<T extends boolean = true> {
+  type?: T;
+  title?: T;
+  description?: T;
+  user?: T;
+  client?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-snapshots_select".
+ */
+export interface GscSnapshotsSelect<T extends boolean = true> {
+  client?: T;
+  snapshotDate?: T;
+  periodStart?: T;
+  periodEnd?: T;
+  totalClicks?: T;
+  totalImpressions?: T;
+  avgCtr?: T;
+  avgPosition?: T;
+  topKeywords?: T;
+  topPages?: T;
+  brandedData?: T;
+  nonBrandedData?: T;
+  indexedPages?: T;
+  notIndexedPages?: T;
+  indexingIssues?: T;
+  sitemaps?: T;
+  cwvMobile?: T;
+  cwvDesktop?: T;
+  clicksChange?: T;
+  impressionsChange?: T;
+  positionChange?: T;
+  previousSnapshot?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-daily_select".
+ */
+export interface GscDailySelect<T extends boolean = true> {
+  client?: T;
+  date?: T;
+  clicks?: T;
+  impressions?: T;
+  ctr?: T;
+  position?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3544,6 +3549,23 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * Google Sheets OAuth token for writing negative keywords to client spreadsheets. Connect once to enable all clients.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sheets-auth".
+ */
+export interface SheetsAuth {
+  id: number;
+  refreshToken?: string | null;
+  /**
+   * Google account connected for Sheets access
+   */
+  connectedEmail?: string | null;
+  connectedAt?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
 }
 /**
  * Configurable cost-per-unit rates (AUD) and monthly subscriptions. Update when provider prices change.
@@ -3606,21 +3628,16 @@ export interface ApiCostRate {
   createdAt?: string | null;
 }
 /**
- * Google Sheets OAuth token for writing negative keywords to client spreadsheets. Connect once to enable all clients.
- *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "sheets-auth".
+ * via the `definition` "sheets-auth_select".
  */
-export interface SheetsAuth {
-  id: number;
-  refreshToken?: string | null;
-  /**
-   * Google account connected for Sheets access
-   */
-  connectedEmail?: string | null;
-  connectedAt?: string | null;
-  updatedAt?: string | null;
-  createdAt?: string | null;
+export interface SheetsAuthSelect<T extends boolean = true> {
+  refreshToken?: T;
+  connectedEmail?: T;
+  connectedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3643,18 +3660,6 @@ export interface ApiCostRatesSelect<T extends boolean = true> {
         isActive?: T;
         id?: T;
       };
-  updatedAt?: T;
-  createdAt?: T;
-  globalType?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "sheets-auth_select".
- */
-export interface SheetsAuthSelect<T extends boolean = true> {
-  refreshToken?: T;
-  connectedEmail?: T;
-  connectedAt?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

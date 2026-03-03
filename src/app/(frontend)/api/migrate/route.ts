@@ -894,6 +894,7 @@ export async function POST(request: NextRequest) {
     \`id\` integer PRIMARY KEY NOT NULL,
     \`client_id\` integer NOT NULL,
     \`search_term\` text NOT NULL,
+    \`suggested_negative\` text,
     \`campaign_name\` text,
     \`ad_group_name\` text,
     \`clicks\` numeric DEFAULT 0,
@@ -918,6 +919,7 @@ export async function POST(request: NextRequest) {
   await run("negative_sweep_candidates_created_at_idx", "CREATE INDEX IF NOT EXISTS `negative_sweep_candidates_created_at_idx` ON `negative_sweep_candidates` (`created_at`)");
   await run("negative_sweep_candidates_updated_at_idx", "CREATE INDEX IF NOT EXISTS `negative_sweep_candidates_updated_at_idx` ON `negative_sweep_candidates` (`updated_at`)");
   await run("locked_docs_rels.negative_sweep_candidates_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_sweep_candidates_id` integer REFERENCES `negative_sweep_candidates`(`id`) ON DELETE cascade");
+  await run("negative_sweep_candidates.suggested_negative", "ALTER TABLE `negative_sweep_candidates` ADD `suggested_negative` text");
 
   // --- sheets_auth global table ---
   await run("sheets_auth", `CREATE TABLE IF NOT EXISTS \`sheets_auth\` (

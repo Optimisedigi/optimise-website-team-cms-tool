@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { GoogleGenAI } from "@google/genai";
 import {
   extractSpreadsheetId,
   readExistingKeywords,
   readSheetLists,
 } from "@/lib/sheets-service";
 import { logActivity } from "@/lib/activity-log";
+
+const KIMI_BASE_URL = process.env.KIMI_BASE_URL || "https://api.moonshot.ai/v1";
+const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2";
 
 const WEEKDAYS = [
   "sunday",
@@ -20,7 +22,7 @@ const WEEKDAYS = [
   "saturday",
 ];
 
-interface SearchTermRow {
+interface SweepCandidate {
   searchTerm: string;
   campaignName: string;
   adGroupName: string;
@@ -28,12 +30,16 @@ interface SearchTermRow {
   impressions: number;
   cost: number;
   conversions: number;
+  matchType: string;
 }
 
 /**
  * GET /api/negative-sweep/cron
- * Weekly cron that pulls search term data, runs AI analysis, creates candidates.
+ * Weekly cron that calls Growth Tools' negative sweep endpoint to get candidates,
+ * then uses Kimi AI to classify and suggest smarter negative keywords.
  * Authenticated via CRON_SECRET bearer token.
+ *
+ * Manual trigger: ?clientId=123&force=true — bypasses weekday check, runs for one client.
  */
 export async function GET(req: NextRequest) {
   // Auth
@@ -64,21 +70,36 @@ export async function GET(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
+  const forceClientId = req.nextUrl.searchParams.get("clientId");
+  const force = req.nextUrl.searchParams.get("force") === "true";
+
   const today = WEEKDAYS[new Date().getDay()];
   const sweepDate = new Date().toISOString().split("T")[0];
 
   try {
-    // Find clients with negative sweep enabled and matching weekday
-    const clients = await payload.find({
-      collection: "clients",
-      where: {
-        "gadsAuto.negativeSweepEnabled": { equals: true },
-        "gadsAuto.negativeSweepWeekday": { equals: today },
-        isActive: { not_equals: false },
-      },
-      limit: 100,
-      overrideAccess: true,
-    });
+    let clients;
+
+    if (force && forceClientId) {
+      // Manual trigger: skip weekday check, run for specific client
+      const client = await payload.findByID({
+        collection: "clients",
+        id: forceClientId,
+        overrideAccess: true,
+      });
+      clients = { docs: client ? [client] : [] };
+    } else {
+      // Normal cron: find clients with matching weekday
+      clients = await payload.find({
+        collection: "clients",
+        where: {
+          "gadsAuto.negativeSweepEnabled": { equals: true },
+          "gadsAuto.negativeSweepWeekday": { equals: today },
+          isActive: { not_equals: false },
+        },
+        limit: 100,
+        overrideAccess: true,
+      });
+    }
 
     const summary: {
       client: string;
@@ -138,20 +159,38 @@ async function processClient(
     throw new Error("GROWTH_TOOLS_URL not configured");
   }
 
-  // 1. Fetch search term data from Growth Tools
+  // 1. Check for existing candidates from this sweep date
+  const existingCandidates = await payload.find({
+    collection: "negative-sweep-candidates" as any,
+    where: {
+      client: { equals: client.id },
+      sweepDate: { equals: sweepDate },
+    },
+    limit: 1,
+    overrideAccess: true,
+  });
+
+  if (existingCandidates.docs.length > 0) {
+    return { created: 0 };
+  }
+
+  // 2. Call Growth Tools negative sweep endpoint
+  // This fetches search terms + existing campaign negatives in parallel,
+  // filters by spend/clicks/conversions, deduplicates, and returns candidates
+  const minSpend = client.gadsAuto?.negativeSweepMinSpendThreshold ?? 5;
   const response = await fetch(
-    `${GROWTH_TOOLS_URL}/api/google-ads/search-terms`,
+    `${GROWTH_TOOLS_URL}/api/google-ads/negative-sweep`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(INTERNAL_API_KEY
-          ? { "x-api-key": INTERNAL_API_KEY }
-          : {}),
+        ...(INTERNAL_API_KEY ? { "x-api-key": INTERNAL_API_KEY } : {}),
       },
       body: JSON.stringify({
         customerId: customerId.replace(/-/g, ""),
-        dateRange: "LAST_7_DAYS",
+        minSpend,
+        minClicks: 3,
+        maxCandidates: 50,
       }),
       signal: AbortSignal.timeout(60_000),
     }
@@ -163,29 +202,38 @@ async function processClient(
   }
 
   const data = await response.json();
-  const searchTerms: SearchTermRow[] = data.searchTerms || data.results || [];
+  const candidates: SweepCandidate[] = data.candidates || [];
 
-  if (searchTerms.length === 0) {
+  if (candidates.length === 0) {
     return { created: 0 };
   }
 
-  // 2. Build exclusion sets
-  const minSpend = client.gadsAuto?.negativeSweepMinSpendThreshold ?? 5;
+  // 3. Additional filtering: exclude brand keywords and manual exclude terms
   const excludeTermsRaw = client.gadsAuto?.negativeSweepExcludeTerms || "";
   const brandKeywordsRaw = client.brandKeywords || "";
 
   const excludeSet = new Set(
-    [
-      ...excludeTermsRaw.split("\n"),
-      ...brandKeywordsRaw.split("\n"),
-    ]
+    [...excludeTermsRaw.split("\n"), ...brandKeywordsRaw.split("\n")]
       .map((t: string) => t.trim().toLowerCase())
       .filter(Boolean)
   );
 
-  // 3. Get existing keywords from sheet (if configured)
-  let existingSheetKeywords = new Set<string>();
+  const filtered = candidates.filter((c) => {
+    const termLower = c.searchTerm.toLowerCase().trim();
+    // Skip if any exclude/brand term appears in the search term
+    for (const exclude of excludeSet) {
+      if (termLower.includes(exclude)) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    return { created: 0 };
+  }
+
+  // 4. Get sheet lists info (for AI context on available lists)
   let sheetListsInfo: { name: string; column: string; regex: string }[] = [];
+  let existingSheetKeywords = new Set<string>();
   const sheetUrl = client.gadsAuto?.negativeSweepSheetUrl;
   if (sheetUrl) {
     const spreadsheetId = extractSpreadsheetId(sheetUrl);
@@ -217,40 +265,20 @@ async function processClient(
     }
   }
 
-  // 4. Check for existing candidates from this sweep date
-  const existingCandidates = await payload.find({
-    collection: "negative-sweep-candidates" as any,
-    where: {
-      client: { equals: client.id },
-      sweepDate: { equals: sweepDate },
-    },
-    limit: 1,
-    overrideAccess: true,
-  });
+  // Filter out terms already in the sheet
+  const newCandidates = existingSheetKeywords.size > 0
+    ? filtered.filter((c) => !existingSheetKeywords.has(c.searchTerm.toLowerCase().trim()))
+    : filtered;
 
-  if (existingCandidates.docs.length > 0) {
-    // Already ran for this date
+  if (newCandidates.length === 0) {
     return { created: 0 };
   }
 
-  // 5. Filter search terms
-  const filtered = searchTerms.filter((term) => {
-    const termLower = term.searchTerm.toLowerCase().trim();
-    if (excludeSet.has(termLower)) return false;
-    if (existingSheetKeywords.has(termLower)) return false;
-    if (term.cost < minSpend) return false;
-    if (term.conversions > 0) return false; // Don't flag converting terms
-    return true;
-  });
+  // 5. AI classification with Kimi — classifies candidates and suggests
+  // smarter negative keywords (e.g. "salary" phrase match instead of "plumber salary" exact)
+  const classified = await classifyWithAI(newCandidates, client, sheetListsInfo);
 
-  if (filtered.length === 0) {
-    return { created: 0 };
-  }
-
-  // 6. AI classification
-  const classified = await classifyWithAI(filtered, client, sheetListsInfo);
-
-  // 7. Create candidate records
+  // 6. Create candidate records
   let created = 0;
   for (const item of classified) {
     if (!item.isCandidate) continue;
@@ -260,6 +288,7 @@ async function processClient(
       data: {
         client: client.id,
         searchTerm: item.searchTerm,
+        suggestedNegative: item.suggestedNegative || item.searchTerm,
         campaignName: item.campaignName,
         adGroupName: item.adGroupName,
         clicks: item.clicks,
@@ -279,7 +308,7 @@ async function processClient(
 
   logActivity(payload, {
     type: "negative_sweep_completed" as any,
-    title: `Negative sweep: ${created} candidates from ${filtered.length} terms`,
+    title: `Negative sweep: ${created} candidates from ${newCandidates.length} terms`,
     description: `Client: ${client.name}`,
     client: client.id,
   }).catch(() => {});
@@ -287,35 +316,36 @@ async function processClient(
   return { created };
 }
 
-interface ClassifiedTerm extends SearchTermRow {
+interface ClassifiedTerm extends SweepCandidate {
   isCandidate: boolean;
+  suggestedNegative?: string;
   suggestedList?: string;
-  matchType?: string;
   reasoning?: string;
 }
 
 async function classifyWithAI(
-  terms: SearchTermRow[],
+  terms: SweepCandidate[],
   client: any,
   sheetLists: { name: string; column: string; regex: string }[]
 ): Promise<ClassifiedTerm[]> {
-  const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  const KIMI_API_KEY = process.env.KIMI_API_KEY;
 
-  if (!GEMINI_API_KEY) {
-    // Fallback: treat all filtered terms as candidates without AI reasoning
+  if (!KIMI_API_KEY) {
+    // Fallback: treat all terms as candidates with the raw search term
     return terms.map((t) => ({
       ...t,
       isCandidate: true,
-      reasoning: "AI classification unavailable, flagged by spend/conversion filters",
-      matchType: "exact",
+      suggestedNegative: t.searchTerm,
+      reasoning: "AI classification unavailable — flagged by spend/conversion filters",
     }));
   }
 
-  const listsInfo = sheetLists.length > 0
-    ? sheetLists.map((l) => `- ${l.name} (regex: ${l.regex || "none"})`).join("\n")
-    : "";
-
-  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+  const listsInfo =
+    sheetLists.length > 0
+      ? sheetLists
+          .map((l) => `- ${l.name} (regex: ${l.regex || "none"})`)
+          .join("\n")
+      : "";
 
   const termsJson = JSON.stringify(
     terms.map((t) => ({
@@ -325,40 +355,73 @@ async function classifyWithAI(
       clicks: t.clicks,
       impressions: t.impressions,
       cost: t.cost,
-      conversions: t.conversions,
     }))
   );
 
-  const prompt = `You are a Google Ads negative keyword analyst for "${client.name}" (${client.websiteUrl || "unknown website"}).
+  const systemPrompt = [
+    "You are a Google Ads negative keyword analyst.",
+    "You analyze search terms that are spending money without converting and determine:",
+    "1. Whether the term is genuinely irrelevant to the business (true negative) or just underperforming (keep it).",
+    "2. The SMARTEST negative keyword to add — not necessarily the exact search term.",
+    "",
+    "IMPORTANT: Suggest the root irrelevant word or phrase, not the full search term.",
+    "Example: If the client is a plumber and the search term is 'plumber salary',",
+    "suggest 'salary' as a PHRASE match negative — this blocks 'plumber salary',",
+    "'plumbing salary', 'salary for plumbers', etc. in one rule.",
+    "",
+    "Example: 'free plumbing quotes online' → suggest 'free' as PHRASE match.",
+    "Example: 'plumber jobs near me' → suggest 'jobs' as PHRASE match.",
+    "Example: 'how to fix a tap DIY' → suggest 'diy' as PHRASE match.",
+    "Example: 'best plumber review reddit' → suggest 'reddit' as PHRASE match.",
+    "",
+    "Only use EXACT match when the root word is too generic and would block good traffic.",
+    "Use BROAD match sparingly — only for very clearly irrelevant concepts.",
+    "",
+    "Return ONLY a valid JSON array, no markdown fences, no explanation.",
+  ].join("\n");
 
-Analyze these search terms and classify each as a negative keyword candidate or legitimate traffic.
+  const userMessage = `Client: "${client.name}" (${client.websiteUrl || "unknown website"})
+Business description: ${client.businessDescription || client.industry || "Not provided"}
 
 ${listsInfo ? `Available negative keyword lists:\n${listsInfo}\n` : ""}
-Search terms (JSON):
+Search terms to analyze (all have spend but zero conversions):
 ${termsJson}
 
-For each term, return a JSON array with objects containing:
+For each term, return a JSON object with:
 - searchTerm: the original search term
-- isCandidate: boolean (true if it should be a negative keyword)
-- suggestedList: which negative keyword list to add it to (from the available lists above, or "General" if no lists provided)
+- isCandidate: boolean (true = genuinely irrelevant, false = keep/underperforming)
+- suggestedNegative: the smarter negative keyword to add (root word/phrase, not the full search term)
 - matchType: "exact", "phrase", or "broad"
-- reasoning: brief explanation of why this is or isn't a negative keyword candidate
-
-Consider:
-- Irrelevant intent (e.g., job seekers, DIY, competitors, unrelated industries)
-- High spend with zero conversions is suspicious but not always negative
-- Terms related to the client's actual business should NOT be flagged
-- When in doubt, flag it for review (the team will make the final call)
-
-Return ONLY a valid JSON array, no markdown, no explanation.`;
+- suggestedList: which list to add it to (from available lists, or "General")
+- reasoning: brief explanation`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
+    const res = await fetch(`${KIMI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${KIMI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: KIMI_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        temperature: 0.3,
+        max_tokens: 4000,
+      }),
+      signal: AbortSignal.timeout(60_000),
     });
 
-    const text = response.text?.trim() || "";
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error(`[negative-sweep/cron] Kimi API error ${res.status}: ${detail}`);
+      throw new Error(`Kimi API error: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content?.trim() || "";
     // Strip potential markdown code fences
     const jsonStr = text.replace(/^```json?\s*/i, "").replace(/```\s*$/i, "");
     const parsed = JSON.parse(jsonStr);
@@ -376,20 +439,20 @@ Return ONLY a valid JSON array, no markdown, no explanation.`;
       return {
         ...t,
         isCandidate: match?.isCandidate ?? true,
+        suggestedNegative: match?.suggestedNegative || t.searchTerm,
         suggestedList: match?.suggestedList || "",
-        matchType: match?.matchType || "exact",
+        matchType: match?.matchType || "phrase",
         reasoning: match?.reasoning || "",
       };
     });
   } catch (err) {
     console.error("[negative-sweep/cron] AI classification failed:", err);
-    // Fallback: flag all as candidates
+    // Fallback: flag all as candidates with the raw search term
     return terms.map((t) => ({
       ...t,
       isCandidate: true,
-      reasoning:
-        "AI classification failed, flagged by spend/conversion filters",
-      matchType: "exact" as const,
+      suggestedNegative: t.searchTerm,
+      reasoning: "AI classification failed — flagged by spend/conversion filters",
     }));
   }
 }

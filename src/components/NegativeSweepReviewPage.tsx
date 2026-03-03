@@ -8,6 +8,7 @@ interface Candidate {
   id: string
   client: { id: string; name: string } | string
   searchTerm: string
+  suggestedNegative?: string
   campaignName?: string
   adGroupName?: string
   clicks: number
@@ -445,9 +446,22 @@ function CandidateCard({
     >
       {/* Header row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <span style={{ fontWeight: 600, fontSize: 14, wordBreak: 'break-word', flex: 1 }}>
-          {candidate.searchTerm}
-        </span>
+        <div style={{ flex: 1 }}>
+          <span style={{ fontWeight: 600, fontSize: 14, wordBreak: 'break-word' }}>
+            {candidate.searchTerm}
+          </span>
+          {candidate.suggestedNegative && candidate.suggestedNegative !== candidate.searchTerm && (
+            <div style={{ fontSize: 12, marginTop: 2 }}>
+              <span style={{ color: 'var(--theme-elevation-500)' }}>Suggested negative: </span>
+              <span style={{ fontWeight: 600, color: 'var(--theme-success-500, #22c55e)' }}>
+                {candidate.suggestedNegative}
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--theme-elevation-400)', marginLeft: 4 }}>
+                ({candidate.matchType})
+              </span>
+            </div>
+          )}
+        </div>
         <span
           style={{
             fontSize: 10,

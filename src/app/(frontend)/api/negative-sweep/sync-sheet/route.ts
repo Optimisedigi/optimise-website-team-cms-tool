@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       if (!byList.has(listName)) byList.set(listName, []);
       byList.get(listName)!.push({
         id: doc.id,
-        keyword: doc.searchTerm,
+        keyword: doc.suggestedNegative || doc.searchTerm,
       });
     }
 
