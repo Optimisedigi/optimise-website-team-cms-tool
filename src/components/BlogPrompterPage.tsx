@@ -36,6 +36,10 @@ interface SavedBrief extends BriefFields {
 
 // ─── Helpers ──────────────────────────────────────────────
 
+function stripBlogPrefix(text: string): string {
+  return text.replace(/^[A-Za-z][A-Za-z\s]{0,20}:\s*/, '')
+}
+
 function parseLines(text: string): string[] {
   return text.split('\n').map((s) => s.trim()).filter(Boolean)
 }
@@ -293,7 +297,7 @@ const BlogPrompterPage = () => {
 
   const handleLoadBrief = (brief: SavedBrief) => {
     setFields({
-      blogIdea: brief.blogIdea || '',
+      blogIdea: stripBlogPrefix(brief.blogIdea || ''),
       titleIdea: brief.titleIdea || '',
       category: brief.category || '',
       tag: brief.tag || '',
@@ -483,7 +487,7 @@ const BlogPrompterPage = () => {
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}
                     >
-                      {brief.blogIdea}
+                      {stripBlogPrefix(brief.blogIdea)}
                     </button>
                     <button
                       type="button"
@@ -511,7 +515,7 @@ const BlogPrompterPage = () => {
         <div ref={selectedBriefRef} style={{ marginTop: 24, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-150)', borderRadius: 8, padding: 20 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>{selectedBrief.blogIdea}</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{stripBlogPrefix(selectedBrief.blogIdea)}</div>
               {selectedBrief.titleIdea && (
                 <div style={{ fontSize: 12, color: 'var(--theme-elevation-400)', marginTop: 2 }}>{selectedBrief.titleIdea}</div>
               )}

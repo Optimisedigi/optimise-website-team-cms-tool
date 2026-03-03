@@ -344,8 +344,9 @@ export async function GET() {
 
   const totalRetainer = round(totalMonthlyRevenue + oneOffTotal);
 
-  // YTD revenue: monthly retainer * months elapsed + all one-off projects this calendar year
-  const ytdMonths = now.getMonth() + 1; // Jan=1, Feb=2, etc.
+  // YTD revenue: monthly retainer * months paid + all one-off projects this calendar year
+  // Count all prior months as paid, plus current month only if past the 15th (invoice due ~14 days after 1st)
+  const ytdMonths = now.getMonth() + (now.getDate() >= 15 ? 1 : 0);
   const yearStart = new Date(now.getFullYear(), 0, 1);
   const ytdOneOff = clientsForRetainer.docs.reduce((sum: number, c: any) => {
     const projects = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
