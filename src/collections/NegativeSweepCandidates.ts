@@ -9,7 +9,7 @@ export const NegativeSweepCandidates: CollectionConfig = {
   },
   admin: {
     hidden: true,
-    group: "Google Ads",
+    group: "Audits",
     defaultColumns: ["searchTerm", "client", "status", "cost", "sweepDate"],
   },
   access: {

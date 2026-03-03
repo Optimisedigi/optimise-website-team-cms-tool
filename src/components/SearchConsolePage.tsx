@@ -541,7 +541,7 @@ const SearchConsolePage = () => {
             <tbody>
               {pagedQueries.map((q) => (
                 <tr key={q.keyword || q.query}>
-                  <td className="od-gsc__table-query">{q.keyword || q.query}</td>
+                  <td className="od-gsc__table-query">{(q.keyword || q.query || '').replace(/^\d+:\s*/, '')}</td>
                   <td>{q.clicks}</td>
                   <td>{q.impressions.toLocaleString()}</td>
                   <td>{q.ctr.toFixed(1)}%</td>
@@ -775,7 +775,7 @@ function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate,
   const chartHeight = 200
   const bucketCount = buckets.length
   const barWidth = bucketCount > 0 ? Math.min(100 / bucketCount * 0.6, 8) : 4
-  const step = bucketCount > 1 ? 100 / (bucketCount - 1) : 50
+  const step = bucketCount > 0 ? 100 / bucketCount : 100
 
   // Left Y axis: Clicks (bar chart)
   const maxClicks = Math.max(...barClicks, 1)
@@ -788,7 +788,7 @@ function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate,
   const maxLineVal = Math.max(...lineValues, 0.1)
 
   const linePoints = lineValues.map((val, i) => {
-    const x = bucketCount > 1 ? i * step : 50
+    const x = (i + 0.5) * step
     const y = chartHeight - (val / maxLineVal) * (chartHeight - 24)
     return `${x},${y}`
   }).join(' ')
@@ -827,8 +827,8 @@ function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate,
               key={i}
               style={{
                 position: 'absolute',
-                left: bucketCount > 1 ? `${i * step - step / 2}%` : '0%',
-                width: bucketCount > 1 ? `${step}%` : '100%',
+                left: `${i * step}%`,
+                width: `${step}%`,
                 top: 0,
                 bottom: 0,
               }}
@@ -841,10 +841,11 @@ function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate,
             <div
               style={{
                 position: 'absolute',
-                left: bucketCount > 1 ? `${hoveredIdx * step}%` : '50%',
+                left: `${(hoveredIdx + 0.5) * step}%`,
                 top: 0,
                 transform: 'translateX(-50%)',
-                background: '#1a1a2e',
+                background: 'rgba(26, 26, 46, 0.5)',
+                backdropFilter: 'blur(8px)',
                 color: '#fff',
                 borderRadius: 8,
                 padding: '10px 14px',
@@ -882,7 +883,7 @@ function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate,
           >
             {/* Click bars */}
             {buckets.map((_b, i) => {
-              const x = bucketCount > 1 ? i * step : 50
+              const x = (i + 0.5) * step
               const barH = (barClicks[i] / maxClicks) * (chartHeight - 24)
               return (
                 <rect
@@ -915,7 +916,7 @@ function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate,
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
             >
               <circle
-                cx={bucketCount > 1 ? hoveredIdx * step : 50}
+                cx={(hoveredIdx + 0.5) * step}
                 cy={chartHeight - (lineValues[hoveredIdx] / maxLineVal) * (chartHeight - 24)}
                 r="3"
                 fill="#74B3A8"
@@ -937,7 +938,7 @@ function PerformanceChart({ daily, dailyBrand, dailyGeneric, startDate, endDate,
       <div className="od-perf-chart__labels" style={{ marginLeft: 40, marginRight: 48 }}>
         {buckets.map((bucket, i) => (
           i % labelEvery === 0 ? (
-            <div key={i} className="od-perf-chart__label" style={{ left: bucketCount > 1 ? `${i * step}%` : '50%' }}>
+            <div key={i} className="od-perf-chart__label" style={{ left: `${(i + 0.5) * step}%` }}>
               {bucket.label}
             </div>
           ) : null

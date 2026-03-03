@@ -97,6 +97,15 @@ export const BlogPosts: CollectionConfig = {
     ],
     beforeChange: [
       ({ data }) => {
+        // Sync Payload's _status with the custom status field
+        if (data?.status === 'published') {
+          data._status = 'published'
+        } else if (data?.status === 'draft' || data?.status === 'review') {
+          data._status = 'draft'
+        }
+        return data
+      },
+      ({ data }) => {
         if (!data?.markdownSource) return data;
 
         try {

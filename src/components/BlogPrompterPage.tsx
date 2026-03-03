@@ -31,6 +31,7 @@ interface SavedBrief extends BriefFields {
   generatedPrompt?: string
   createdAt?: string
   archivedAt?: string
+  source?: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -117,8 +118,8 @@ Excerpt: [Short excerpt]`
 function buildPrompt(f: BriefFields, clientName?: string, servicePages?: string): string {
   const name = clientName || 'Optimise Digital'
 
-  const section = (heading: string, value: string, note?: string) => {
-    if (!value.trim()) return null
+  const section = (heading: string, value: string | null | undefined, note?: string) => {
+    if (!value?.trim()) return null
     return `## ${heading}\n${note ? note + '\n' : ''}${value.trim()}`
   }
 
@@ -214,14 +215,14 @@ const BlogPrompterPage = () => {
   const [selectedBrief, setSelectedBrief] = useState<SavedBrief | null>(null)
   const selectedBriefRef = useRef<HTMLDivElement>(null)
   const [deletingId, setDeletingId] = useState<string | number | null>(null)
-  const [archivingId, setArchivingId] = useState<string | number | null>(null)
-  const [showArchived, setShowArchived] = useState(false)
-  const [archivedBriefs, setArchivedBriefs] = useState<SavedBrief[]>([])
-  const [loadingArchived, setLoadingArchived] = useState(false)
+  const [showProposed, setShowProposed] = useState(false)
 
   const selectedClient = clients.find((c) => String(c.id) === selectedClientId) ?? null
   const clientCategories = selectedClient ? parseLines(selectedClient.blogCategories) : []
   const clientTags = selectedClient ? parseLines(selectedClient.blogTags) : []
+
+  const activeBriefs = briefs.filter((b) => b.source !== 'topic-clusters')
+  const proposedBriefs = briefs.filter((b) => b.source === 'topic-clusters')
 
   const set = (key: keyof BriefFields) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -314,37 +315,9 @@ const BlogPrompterPage = () => {
     try {
       await fetch(`/api/blog-prompts?id=${id}`, { method: 'DELETE' })
       setBriefs((prev) => prev.filter((b) => b.id !== id))
-      setArchivedBriefs((prev) => prev.filter((b) => b.id !== id))
       if (selectedBrief?.id === id) setSelectedBrief(null)
     } catch { /* ignore */ }
     finally { setDeletingId(null) }
-  }
-
-  const handleArchiveBrief = async (id: string | number) => {
-    setArchivingId(id)
-    try {
-      const res = await fetch(`/api/blog-prompts?id=${id}`, { method: 'PATCH' })
-      const data = await res.json()
-      if (data.doc) {
-        setBriefs((prev) => prev.filter((b) => b.id !== id))
-        setArchivedBriefs((prev) => [data.doc, ...prev])
-        if (selectedBrief?.id === id) setSelectedBrief(null)
-      }
-    } catch { /* ignore */ }
-    finally { setArchivingId(null) }
-  }
-
-  const handleToggleArchived = (archived: boolean) => {
-    setShowArchived(archived)
-    setSelectedBrief(null)
-    if (archived && archivedBriefs.length === 0) {
-      setLoadingArchived(true)
-      fetch('/api/blog-prompts?archived=true')
-        .then((r) => r.json())
-        .then((d) => { if (d.docs) setArchivedBriefs(d.docs) })
-        .catch(() => {})
-        .finally(() => setLoadingArchived(false))
-    }
   }
 
   return (
@@ -457,40 +430,38 @@ const BlogPrompterPage = () => {
             <div style={{ display: 'flex', borderBottom: '1px solid var(--theme-elevation-100)' }}>
               <button
                 type="button"
-                onClick={() => handleToggleArchived(false)}
+                onClick={() => { setShowProposed(false); setSelectedBrief(null) }}
                 style={{
-                  flex: 1, padding: '10px 14px', fontSize: 12, fontWeight: showArchived ? 400 : 600,
-                  background: showArchived ? 'transparent' : 'var(--theme-elevation-50)',
-                  border: 'none', borderBottom: showArchived ? 'none' : '2px solid var(--theme-elevation-500)',
+                  flex: 1, padding: '10px 14px', fontSize: 12, fontWeight: showProposed ? 400 : 600,
+                  background: showProposed ? 'transparent' : 'var(--theme-elevation-50)',
+                  border: 'none', borderBottom: showProposed ? 'none' : '2px solid var(--theme-elevation-500)',
                   cursor: 'pointer', color: 'inherit',
                 }}
               >
-                Active {briefs.length > 0 && <span style={{ fontSize: 11, color: 'var(--theme-elevation-400)' }}>({briefs.length})</span>}
+                Active {activeBriefs.length > 0 && <span style={{ fontSize: 11, color: 'var(--theme-elevation-400)' }}>({activeBriefs.length})</span>}
               </button>
               <button
                 type="button"
-                onClick={() => handleToggleArchived(true)}
+                onClick={() => { setShowProposed(true); setSelectedBrief(null) }}
                 style={{
-                  flex: 1, padding: '10px 14px', fontSize: 12, fontWeight: showArchived ? 600 : 400,
-                  background: showArchived ? 'var(--theme-elevation-50)' : 'transparent',
-                  border: 'none', borderBottom: showArchived ? '2px solid var(--theme-elevation-500)' : 'none',
+                  flex: 1, padding: '10px 14px', fontSize: 12, fontWeight: showProposed ? 600 : 400,
+                  background: showProposed ? 'var(--theme-elevation-50)' : 'transparent',
+                  border: 'none', borderBottom: showProposed ? '2px solid var(--theme-elevation-500)' : 'none',
                   cursor: 'pointer', color: 'inherit',
                 }}
               >
-                Archived {archivedBriefs.length > 0 && <span style={{ fontSize: 11, color: 'var(--theme-elevation-400)' }}>({archivedBriefs.length})</span>}
+                Proposed {proposedBriefs.length > 0 && <span style={{ fontSize: 11, color: 'var(--theme-elevation-400)' }}>({proposedBriefs.length})</span>}
               </button>
             </div>
             <div style={{ maxHeight: 500, overflowY: 'auto' }}>
               {(() => {
-                const displayBriefs = showArchived ? archivedBriefs : briefs
-                const isLoading = showArchived ? loadingArchived : loadingBriefs
-                const emptyMsg = showArchived ? 'No archived briefs.' : 'No saved briefs yet.'
+                const displayBriefs = showProposed ? proposedBriefs : activeBriefs
 
-                if (isLoading) {
+                if (loadingBriefs) {
                   return <div style={{ padding: '16px 14px', fontSize: 12, color: 'var(--theme-elevation-400)' }}>Loading...</div>
                 }
                 if (displayBriefs.length === 0) {
-                  return <div style={{ padding: '16px 14px', fontSize: 12, color: 'var(--theme-elevation-400)' }}>{emptyMsg}</div>
+                  return <div style={{ padding: '16px 14px', fontSize: 12, color: 'var(--theme-elevation-400)' }}>{showProposed ? 'No proposed blogs yet.' : 'No saved briefs yet.'}</div>
                 }
                 return displayBriefs.map((brief) => (
                   <div
@@ -508,27 +479,25 @@ const BlogPrompterPage = () => {
                         flex: 1, padding: '9px 14px', textAlign: 'left',
                         background: 'transparent', border: 'none', cursor: 'pointer',
                         fontSize: 12, fontWeight: selectedBrief?.id === brief.id ? 600 : 400,
-                        color: showArchived ? 'var(--theme-elevation-400)' : 'inherit',
+                        color: 'inherit',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}
                     >
                       {brief.blogIdea}
                     </button>
-                    {!showArchived && (
-                      <button
-                        type="button"
-                        title="Mark as done"
-                        onClick={(e) => { e.stopPropagation(); handleArchiveBrief(brief.id) }}
-                        disabled={archivingId === brief.id}
-                        style={{
-                          background: 'transparent', border: 'none', cursor: 'pointer',
-                          fontSize: 13, padding: '4px 8px', color: 'var(--theme-elevation-400)',
-                          flexShrink: 0, opacity: archivingId === brief.id ? 0.4 : 1,
-                        }}
-                      >
-                        {archivingId === brief.id ? '...' : '\u2713'}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      title="Delete brief"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteBrief(brief.id) }}
+                      disabled={deletingId === brief.id}
+                      style={{
+                        background: 'transparent', border: 'none', cursor: 'pointer',
+                        fontSize: 11, padding: '4px 8px', color: 'var(--theme-elevation-400)',
+                        flexShrink: 0, opacity: deletingId === brief.id ? 0.4 : 1,
+                      }}
+                    >
+                      {deletingId === brief.id ? '...' : '\u2715'}
+                    </button>
                   </div>
                 ))
               })()}
@@ -552,28 +521,10 @@ const BlogPrompterPage = () => {
 
           <PromptBox prompt={selectedBrief.generatedPrompt || buildPrompt(selectedBrief)} />
 
-          {selectedBrief.archivedAt && (
-            <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 8 }}>
-              Archived {new Date(selectedBrief.archivedAt).toLocaleDateString()}
-            </div>
-          )}
-
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            {!selectedBrief.archivedAt && (
-              <>
-                <button type="button" onClick={() => handleLoadBrief(selectedBrief)} style={smallBtnStyle}>
-                  Load into form
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleArchiveBrief(selectedBrief.id)}
-                  disabled={archivingId === selectedBrief.id}
-                  style={{ ...smallBtnStyle, color: '#22c55e', borderColor: '#86efac' }}
-                >
-                  {archivingId === selectedBrief.id ? 'Archiving...' : 'Done'}
-                </button>
-              </>
-            )}
+            <button type="button" onClick={() => handleLoadBrief(selectedBrief)} style={smallBtnStyle}>
+              Load into form
+            </button>
             <button
               type="button"
               onClick={() => handleDeleteBrief(selectedBrief.id)}

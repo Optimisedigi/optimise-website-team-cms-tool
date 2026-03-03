@@ -68,8 +68,23 @@ export default buildConfig({
       beforeDashboard: ["./components/Dashboard"],
     },
   },
-  collections: [Users, Clients, ClientProposals, BlogPosts, BlogPrompts, JobPosts, SeoAudits, CroAudits, GoogleAdsAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, UsageReports, GscSnapshots, GscAlerts, GscDaily, ActivityLog, BusinessCosts, CostCategories, CostRules, InternalLinkSuggestions, NegativeSweepCandidates, Media],
-  globals: [ApiCostRates, SheetsAuth],
+  collections: [
+    // Clients
+    Clients, ClientProposals,
+    // Content
+    BlogPosts, BlogPrompts, JobPosts, Media,
+    // SEO
+    InternalLinkSuggestions,
+    // Audits
+    SeoAudits, CroAudits, GoogleAdsAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, NegativeSweepCandidates,
+    // Finance
+    BusinessCosts, CostCategories, CostRules,
+    // Admin
+    Users, UsageReports, ActivityLog,
+    // Hidden (no group impact)
+    GscSnapshots, GscDaily,
+  ],
+  globals: [SheetsAuth, ApiCostRates],
   editor: lexicalEditor(),
   secret: (() => {
     const s = process.env.PAYLOAD_SECRET;

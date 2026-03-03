@@ -110,6 +110,40 @@ describe("BlogPosts Collection", () => {
   });
 });
 
+// ─── beforeChange hook: Status sync ─────────────────────────────
+describe("BlogPosts: beforeChange status sync hook", () => {
+  let statusHook: any;
+
+  beforeEach(() => {
+    const hooks = getBeforeChangeHooks();
+    statusHook = hooks[0];
+  });
+
+  it("should set _status to published when status is published", () => {
+    const data = { status: "published" };
+    const result = statusHook({ data });
+    expect(result._status).toBe("published");
+  });
+
+  it("should set _status to draft when status is draft", () => {
+    const data = { status: "draft" };
+    const result = statusHook({ data });
+    expect(result._status).toBe("draft");
+  });
+
+  it("should set _status to draft when status is review", () => {
+    const data = { status: "review" };
+    const result = statusHook({ data });
+    expect(result._status).toBe("draft");
+  });
+
+  it("should not change _status when status is undefined", () => {
+    const data = { title: "Test" };
+    const result = statusHook({ data });
+    expect(result._status).toBeUndefined();
+  });
+});
+
 // ─── beforeChange hook: Markdown parsing ───────────────────────
 describe("BlogPosts: beforeChange markdown parsing hook", () => {
   let markdownHook: any;
@@ -118,7 +152,7 @@ describe("BlogPosts: beforeChange markdown parsing hook", () => {
     vi.clearAllMocks();
     const hooks = getBeforeChangeHooks();
     expect(hooks.length).toBeGreaterThanOrEqual(1);
-    markdownHook = hooks[0];
+    markdownHook = hooks[1];
   });
 
   it("should return data unchanged when markdownSource is empty", () => {

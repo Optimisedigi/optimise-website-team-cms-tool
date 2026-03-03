@@ -12,30 +12,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const url = new URL(request.url);
-    const showArchived = url.searchParams.get("archived") === "true";
-
-    // Lazy cleanup: delete briefs archived more than 10 days ago
-    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
-    try {
-      await payload.delete({
-        collection: "blog-prompts",
-        where: {
-          archivedAt: { less_than: tenDaysAgo, exists: true },
-        },
-        overrideAccess: true,
-      });
-    } catch {
-      // cleanup is best-effort
-    }
-
     const result = await payload.find({
       collection: "blog-prompts",
       sort: "-createdAt",
-      limit: 50,
-      where: showArchived
-        ? { archivedAt: { exists: true } }
-        : { archivedAt: { exists: false } },
+      limit: 200,
       overrideAccess: true,
     });
 

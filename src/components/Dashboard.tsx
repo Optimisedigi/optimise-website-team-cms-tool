@@ -503,16 +503,17 @@ function formatCompact(n: number): string {
 }
 
 function GscChart({ data }: { data: GscMonthlyEntry[] }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const maxImpressions = Math.max(...data.map((d) => d.impressions), 1)
   const maxClicks = Math.max(...data.map((d) => d.clicks), 1)
   const chartHeight = 180
   const count = data.length
-  const step = count > 1 ? 100 / (count - 1) : 50
+  const step = count > 0 ? 100 / count : 100
   const barWidth = count > 0 ? Math.min(100 / count * 0.6, 10) : 6
 
   // Build SVG polyline points for impressions line (right axis)
   const impressionPoints = data.map((d, i) => {
-    const x = count > 1 ? i * step : 50
+    const x = (i + 0.5) * step
     const y = chartHeight - (d.impressions / maxImpressions) * (chartHeight - 20)
     return `${x},${y}`
   }).join(' ')
@@ -531,7 +532,62 @@ function GscChart({ data }: { data: GscMonthlyEntry[] }) {
           <span>0</span>
         </div>
 
-        <div className="od-gsc-chart__area" style={{ height: chartHeight, position: 'relative', flex: 1 }}>
+        <div
+          className="od-gsc-chart__area"
+          style={{ height: chartHeight, position: 'relative', flex: 1 }}
+          onMouseLeave={() => setHoveredIdx(null)}
+        >
+          {/* Invisible hover zones */}
+          {data.map((_, i) => (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                left: `${i * step}%`,
+                width: `${step}%`,
+                top: 0,
+                bottom: 0,
+              }}
+              onMouseEnter={() => setHoveredIdx(i)}
+            />
+          ))}
+
+          {/* Hover tooltip */}
+          {hoveredIdx !== null && data[hoveredIdx] && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${(hoveredIdx + 0.5) * step}%`,
+                top: 0,
+                transform: 'translateX(-50%)',
+                background: 'rgba(26, 26, 46, 0.5)',
+                backdropFilter: 'blur(8px)',
+                color: '#fff',
+                borderRadius: 8,
+                padding: '10px 14px',
+                fontSize: 12,
+                lineHeight: 1.6,
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+                zIndex: 10,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 13 }}>
+                {data[hoveredIdx].month}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366f1', flexShrink: 0 }} />
+                Clicks: <strong>{data[hoveredIdx].clicks.toLocaleString()}</strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#74B3A8', flexShrink: 0 }} />
+                Impressions: <strong>{data[hoveredIdx].impressions.toLocaleString()}</strong>
+              </div>
+            </div>
+          )}
+
           <svg
             viewBox={`0 0 100 ${chartHeight}`}
             preserveAspectRatio="none"
@@ -539,7 +595,7 @@ function GscChart({ data }: { data: GscMonthlyEntry[] }) {
           >
             {/* Click bars (left axis) */}
             {data.map((d, i) => {
-              const x = count > 1 ? i * step : 50
+              const x = (i + 0.5) * step
               const barH = (d.clicks / maxClicks) * (chartHeight - 20)
               return (
                 <rect
@@ -548,7 +604,7 @@ function GscChart({ data }: { data: GscMonthlyEntry[] }) {
                   y={chartHeight - barH}
                   width={barWidth}
                   height={barH}
-                  fill="#6366f1"
+                  fill={hoveredIdx === i ? '#818cf8' : '#6366f1'}
                   rx="1"
                   vectorEffect="non-scaling-stroke"
                 />
@@ -563,6 +619,23 @@ function GscChart({ data }: { data: GscMonthlyEntry[] }) {
               vectorEffect="non-scaling-stroke"
             />
           </svg>
+
+          {/* Hover dot on line */}
+          {hoveredIdx !== null && (
+            <svg
+              viewBox={`0 0 100 ${chartHeight}`}
+              preserveAspectRatio="none"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+            >
+              <circle
+                cx={(hoveredIdx + 0.5) * step}
+                cy={chartHeight - (data[hoveredIdx].impressions / maxImpressions) * (chartHeight - 20)}
+                r="3"
+                fill="#74B3A8"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          )}
         </div>
 
         {/* Right Y axis (Impressions) */}

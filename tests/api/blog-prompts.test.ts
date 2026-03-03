@@ -73,79 +73,26 @@ describe('GET /api/blog-prompts', () => {
     expect(json.error).toBe('Unauthorized')
   })
 
-  it('returns non-archived briefs by default', async () => {
+  it('returns all briefs', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
-    mockPayload.delete.mockResolvedValue({ docs: [] })
-    mockPayload.find.mockResolvedValue({ docs: [{ id: '1', title: 'Brief 1' }] })
+    mockPayload.find.mockResolvedValue({ docs: [{ id: '1', title: 'Brief 1' }, { id: '2', source: 'topic-clusters' }] })
 
     const res = await GET(makeGetRequest())
     const json = await res.json()
 
     expect(res.status).toBe(200)
-    expect(json.docs).toEqual([{ id: '1', title: 'Brief 1' }])
+    expect(json.docs).toHaveLength(2)
 
     expect(mockPayload.find).toHaveBeenCalledWith({
       collection: 'blog-prompts',
       sort: '-createdAt',
-      limit: 50,
-      where: { archivedAt: { exists: false } },
+      limit: 200,
       overrideAccess: true,
     })
-  })
-
-  it('returns archived briefs when ?archived=true', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
-    mockPayload.delete.mockResolvedValue({ docs: [] })
-    mockPayload.find.mockResolvedValue({ docs: [{ id: '2', title: 'Archived Brief' }] })
-
-    const res = await GET(makeGetRequest({ archived: 'true' }))
-    const json = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(json.docs).toEqual([{ id: '2', title: 'Archived Brief' }])
-
-    expect(mockPayload.find).toHaveBeenCalledWith({
-      collection: 'blog-prompts',
-      sort: '-createdAt',
-      limit: 50,
-      where: { archivedAt: { exists: true } },
-      overrideAccess: true,
-    })
-  })
-
-  it('runs lazy cleanup of old archived briefs', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
-    mockPayload.delete.mockResolvedValue({ docs: [] })
-    mockPayload.find.mockResolvedValue({ docs: [] })
-
-    await GET(makeGetRequest())
-
-    expect(mockPayload.delete).toHaveBeenCalledWith(
-      expect.objectContaining({
-        collection: 'blog-prompts',
-        where: {
-          archivedAt: { less_than: expect.any(String), exists: true },
-        },
-        overrideAccess: true,
-      })
-    )
-  })
-
-  it('still returns briefs when cleanup fails', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
-    mockPayload.delete.mockRejectedValue(new Error('Cleanup failed'))
-    mockPayload.find.mockResolvedValue({ docs: [{ id: '1' }] })
-
-    const res = await GET(makeGetRequest())
-    const json = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(json.docs).toEqual([{ id: '1' }])
   })
 
   it('returns 500 when find throws an error', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
-    mockPayload.delete.mockResolvedValue({ docs: [] })
     mockPayload.find.mockRejectedValue(new Error('DB error'))
 
     const res = await GET(makeGetRequest())
