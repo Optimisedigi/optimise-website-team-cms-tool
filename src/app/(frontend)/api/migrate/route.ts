@@ -971,6 +971,34 @@ export async function POST(request: NextRequest) {
     ALTER TABLE \`google_ads_audits_action_items\` ADD COLUMN \`time_spent\` integer
   `);
 
+  // --- clients: Weekly Report automation fields (2026-03-04) ---
+  await run("clients.gads_auto_weekly_report_weekly_report_enabled", "ALTER TABLE `clients` ADD `gads_auto_weekly_report_weekly_report_enabled` integer DEFAULT 0");
+  await run("clients.gads_auto_weekly_report_weekly_report_template", "ALTER TABLE `clients` ADD `gads_auto_weekly_report_weekly_report_template` text DEFAULT 'lead_gen'");
+  await run("clients.gads_auto_weekly_report_weekly_report_send_day", "ALTER TABLE `clients` ADD `gads_auto_weekly_report_weekly_report_send_day` text DEFAULT 'monday'");
+
+  // Array table for weekly report recipient emails (dbName: gads_weekly_emails)
+  await run("gads_weekly_emails", `CREATE TABLE IF NOT EXISTS \`gads_weekly_emails\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL, \`email\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gads_weekly_emails_order_idx", "CREATE INDEX IF NOT EXISTS `gads_weekly_emails_order_idx` ON `gads_weekly_emails` (`_order`)");
+  await run("gads_weekly_emails_parent_idx", "CREATE INDEX IF NOT EXISTS `gads_weekly_emails_parent_idx` ON `gads_weekly_emails` (`_parent_id`)");
+
+  // --- google_ads_audits: Weekly Reports history table (2026-03-04) ---
+  await run("google_ads_audits_weekly_reports", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_weekly_reports\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL REFERENCES google_ads_audits(id) ON DELETE CASCADE,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`report_week\` text,
+    \`report_date\` text,
+    \`template\` text,
+    \`kpis\` text,
+    \`wow\` text,
+    \`campaign_breakdown\` text,
+    \`work_done_count\` integer
+  )`);
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║

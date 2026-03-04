@@ -939,7 +939,75 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 11: OptiMate History ──
+        // ── Tab 11: Weekly Reports ──
+        {
+          label: "Weekly Reports",
+          fields: [
+            {
+              name: "weeklyReports",
+              type: "array",
+              admin: {
+                readOnly: true,
+                description: "Weekly performance report history",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "reportWeek",
+                      type: "text",
+                      required: true,
+                      admin: { readOnly: true, description: "YYYY-MM-DD/YYYY-MM-DD", width: "33%" },
+                    },
+                    {
+                      name: "reportDate",
+                      type: "date",
+                      admin: { readOnly: true, description: "When generated", width: "33%" },
+                    },
+                    {
+                      name: "template",
+                      type: "text",
+                      admin: { readOnly: true, width: "33%" },
+                    },
+                  ],
+                },
+                {
+                  name: "kpis",
+                  type: "json",
+                  admin: {
+                    description: "Week KPIs (spend, clicks, conversions, CPA, etc.)",
+                  },
+                },
+                {
+                  name: "wow",
+                  type: "json",
+                  admin: {
+                    description: "Week-on-week comparison",
+                  },
+                },
+                {
+                  name: "campaignBreakdown",
+                  type: "json",
+                  admin: {
+                    description: "Top campaigns by spend",
+                  },
+                },
+                {
+                  name: "workDoneCount",
+                  type: "number",
+                  admin: {
+                    readOnly: true,
+                    description: "Number of work items included in this report",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+
+        // ── Tab 12: OptiMate History ──
+        // (was Tab 11 before Weekly Reports was added)
         {
           label: "OptiMate",
           fields: [
