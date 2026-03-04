@@ -87,7 +87,16 @@ const GoogleAdsChat = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     sendMessage(input)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      sendMessage(input)
+    }
   }
 
   return (
@@ -239,8 +248,7 @@ const GoogleAdsChat = () => {
       )}
 
       {/* Input */}
-      <form
-        onSubmit={handleSubmit}
+      <div
         style={{
           marginTop: 12,
           display: 'flex',
@@ -252,6 +260,7 @@ const GoogleAdsChat = () => {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Ask about budget, keywords, campaigns..."
           disabled={loading}
           style={{
@@ -272,7 +281,8 @@ const GoogleAdsChat = () => {
           }}
         />
         <button
-          type="submit"
+          type="button"
+          onClick={() => sendMessage(input)}
           disabled={loading || !input.trim()}
           style={{
             padding: '10px 20px',
@@ -288,7 +298,7 @@ const GoogleAdsChat = () => {
         >
           Send
         </button>
-      </form>
+      </div>
     </div>
   )
 }
