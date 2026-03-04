@@ -123,7 +123,20 @@ export const GoogleAdsAudits: CollectionConfig = {
     description: "Google Ads audit pipeline. Requires client to grant access to the Optimise Digital MCC (manager account) before the audit can pull data.",
   },
   hooks: {
-    beforeChange: [autoGenerateSlug],
+    beforeChange: [
+      autoGenerateSlug,
+      // Copy action item description into notes when notes is empty
+      async ({ data }) => {
+        if (data?.actionItems && Array.isArray(data.actionItems)) {
+          for (const item of data.actionItems) {
+            if (item.description && !item.notes) {
+              item.notes = item.description;
+            }
+          }
+        }
+        return data;
+      },
+    ],
     afterChange: [
       createProposalHook,
       async ({ doc, operation, req }) => {
@@ -494,6 +507,13 @@ export const GoogleAdsAudits: CollectionConfig = {
                   required: true,
                   admin: {
                     description: "What needs to be done",
+                  },
+                },
+                {
+                  name: "description",
+                  type: "textarea",
+                  admin: {
+                    description: "Detailed description — auto-copied to Notes on save if notes is empty",
                   },
                 },
                 {

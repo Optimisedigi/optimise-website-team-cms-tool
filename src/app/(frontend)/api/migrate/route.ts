@@ -960,6 +960,11 @@ export async function POST(request: NextRequest) {
     \`recommendations\` text
   )`);
 
+  // Action items: add description textarea field (2026-03-04)
+  await run("gaa_action_items_add_description", `
+    ALTER TABLE \`google_ads_audits_action_items\` ADD COLUMN \`description\` text
+  `);
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
