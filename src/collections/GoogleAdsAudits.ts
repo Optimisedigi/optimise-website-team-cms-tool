@@ -125,12 +125,19 @@ export const GoogleAdsAudits: CollectionConfig = {
   hooks: {
     beforeChange: [
       autoGenerateSlug,
-      // Copy action item description into notes when notes is empty
+      // Process action items: auto-copy description to notes, auto-complete logged work
       async ({ data }) => {
         if (data?.actionItems && Array.isArray(data.actionItems)) {
           for (const item of data.actionItems) {
             if (item.description && !item.notes) {
               item.notes = item.description;
+            }
+            // "Completed Work" items auto-set to done with today's date
+            if (item.itemType === "completed") {
+              item.status = "done";
+              if (!item.completedAt) {
+                item.completedAt = new Date().toISOString();
+              }
             }
           }
         }
@@ -502,11 +509,24 @@ export const GoogleAdsAudits: CollectionConfig = {
               },
               fields: [
                 {
+                  name: "itemType",
+                  type: "select",
+                  defaultValue: "task",
+                  options: [
+                    { label: "Planned Task", value: "task" },
+                    { label: "Completed Work", value: "completed" },
+                  ],
+                  admin: {
+                    description: "Task = something to do. Completed Work = log ad hoc work already done.",
+                    width: "50%",
+                  },
+                },
+                {
                   name: "action",
                   type: "text",
                   required: true,
                   admin: {
-                    description: "What needs to be done",
+                    description: "What needs to be done / what was done",
                   },
                 },
                 {
@@ -517,30 +537,47 @@ export const GoogleAdsAudits: CollectionConfig = {
                   },
                 },
                 {
-                  name: "priority",
-                  type: "select",
-                  defaultValue: "medium",
-                  options: [
-                    { label: "High", value: "high" },
-                    { label: "Medium", value: "medium" },
-                    { label: "Low", value: "low" },
-                  ],
-                },
-                {
-                  name: "status",
-                  type: "select",
-                  defaultValue: "pending",
-                  options: [
-                    { label: "Pending", value: "pending" },
-                    { label: "In Progress", value: "in-progress" },
-                    { label: "Done", value: "done" },
+                  type: "row",
+                  fields: [
+                    {
+                      name: "priority",
+                      type: "select",
+                      defaultValue: "medium",
+                      options: [
+                        { label: "High", value: "high" },
+                        { label: "Medium", value: "medium" },
+                        { label: "Low", value: "low" },
+                      ],
+                      admin: { width: "33%" },
+                    },
+                    {
+                      name: "status",
+                      type: "select",
+                      defaultValue: "pending",
+                      options: [
+                        { label: "Pending", value: "pending" },
+                        { label: "In Progress", value: "in-progress" },
+                        { label: "Done", value: "done" },
+                      ],
+                      admin: { width: "33%" },
+                    },
+                    {
+                      name: "timeSpent",
+                      type: "number",
+                      admin: {
+                        description: "Minutes spent on this work",
+                        width: "33%",
+                        step: 5,
+                      },
+                    },
                   ],
                 },
                 {
                   name: "completedAt",
                   type: "date",
                   admin: {
-                    condition: (data: any, siblingData: any) => siblingData?.status === "done",
+                    condition: (data: any, siblingData: any) =>
+                      siblingData?.status === "done" || siblingData?.itemType === "completed",
                   },
                 },
                 {

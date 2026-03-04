@@ -960,9 +960,15 @@ export async function POST(request: NextRequest) {
     \`recommendations\` text
   )`);
 
-  // Action items: add description textarea field (2026-03-04)
+  // Action items: add description, itemType, timeSpent fields (2026-03-04)
   await run("gaa_action_items_add_description", `
     ALTER TABLE \`google_ads_audits_action_items\` ADD COLUMN \`description\` text
+  `);
+  await run("gaa_action_items_add_item_type", `
+    ALTER TABLE \`google_ads_audits_action_items\` ADD COLUMN \`item_type\` text DEFAULT 'task'
+  `);
+  await run("gaa_action_items_add_time_spent", `
+    ALTER TABLE \`google_ads_audits_action_items\` ADD COLUMN \`time_spent\` integer
   `);
 
   // ╔══════════════════════════════════════════════════════════════════╗
