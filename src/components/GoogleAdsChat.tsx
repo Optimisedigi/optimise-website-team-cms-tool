@@ -24,6 +24,8 @@ function renderMarkdown(text: string) {
   const elements: React.ReactNode[] = []
   let listItems: React.ReactNode[] = []
   let listType: 'ul' | 'ol' | null = null
+  let codeBlock: string[] | null = null
+  let codeBlockLang = ''
 
   const flushList = () => {
     if (listItems.length > 0 && listType) {
@@ -38,18 +40,60 @@ function renderMarkdown(text: string) {
     }
   }
 
+  const flushCodeBlock = () => {
+    if (codeBlock !== null) {
+      elements.push(
+        <pre
+          key={`code-${elements.length}`}
+          style={{
+            margin: '8px 0',
+            padding: 12,
+            background: '#1f2937',
+            color: '#e5e7eb',
+            borderRadius: 6,
+            fontSize: 11,
+            lineHeight: 1.4,
+            overflowX: 'auto',
+            whiteSpace: 'pre',
+            fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+          }}
+        >
+          {codeBlock.join('\n')}
+        </pre>,
+      )
+      codeBlock = null
+      codeBlockLang = ''
+    }
+  }
+
   const formatInline = (line: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = []
-    const regex = /\*\*(.+?)\*\*/g
+    // Handle **bold** and `inline code`
+    const regex = /\*\*(.+?)\*\*|`([^`]+)`/g
     let lastIndex = 0
     let match
     while ((match = regex.exec(line)) !== null) {
       if (match.index > lastIndex) {
         parts.push(line.slice(lastIndex, match.index))
       }
-      parts.push(
-        <strong key={`b-${match.index}`}>{match[1]}</strong>,
-      )
+      if (match[1]) {
+        parts.push(<strong key={`b-${match.index}`}>{match[1]}</strong>)
+      } else if (match[2]) {
+        parts.push(
+          <code
+            key={`c-${match.index}`}
+            style={{
+              padding: '1px 5px',
+              background: '#e5e7eb',
+              borderRadius: 3,
+              fontSize: '0.9em',
+              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+            }}
+          >
+            {match[2]}
+          </code>,
+        )
+      }
       lastIndex = regex.lastIndex
     }
     if (lastIndex < line.length) {
@@ -60,6 +104,25 @@ function renderMarkdown(text: string) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
+
+    // Fenced code block start/end
+    if (line.trimStart().startsWith('```')) {
+      if (codeBlock === null) {
+        flushList()
+        codeBlock = []
+        codeBlockLang = line.trimStart().slice(3).trim()
+      } else {
+        flushCodeBlock()
+      }
+      continue
+    }
+
+    // Inside a code block — collect lines as-is
+    if (codeBlock !== null) {
+      codeBlock.push(line)
+      continue
+    }
+
     const bulletMatch = line.match(/^[-*]\s+(.+)/)
     const numberedMatch = line.match(/^\d+\.\s+(.+)/)
 
@@ -93,6 +156,7 @@ function renderMarkdown(text: string) {
     }
   }
   flushList()
+  flushCodeBlock() // close unclosed code block
   return elements
 }
 
