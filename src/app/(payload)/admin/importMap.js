@@ -47,6 +47,8 @@ import { default as default_10fccc7885acbd99c8b1f5d8e310047f } from '../../../co
 import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
 import { default as default_d7691cd6896b18804e19a29368edb888 } from '../../../components/ConnectSheetsButton'
+import { default as default_gsc_indexing_audit_info } from '../../../components/GscIndexingAuditInfo'
+import { default as default_gsc_indexing_audit_results } from '../../../components/GscIndexingAuditResults'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_4a8985253bad55ee72042259cf28f1d7 } from '../../../components/UserDisplayName'
@@ -111,6 +113,8 @@ export const importMap = {
   "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/BusinessCostsListView#default": default_6f9be25dea842550674d5a5331ed4ffe,
   "./components/ConnectSheetsButton#default": default_d7691cd6896b18804e19a29368edb888,
+  "./components/GscIndexingAuditInfo#default": default_gsc_indexing_audit_info,
+  "./components/GscIndexingAuditResults#default": default_gsc_indexing_audit_results,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/UserDisplayName#default": default_4a8985253bad55ee72042259cf28f1d7,
