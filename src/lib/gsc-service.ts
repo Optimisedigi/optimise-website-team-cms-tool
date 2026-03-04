@@ -597,6 +597,211 @@ export function compareSnapshots(
   return alerts;
 }
 
+// ─── Indexing Audit Functions ──────────────────────────────────
+
+export interface InspectionResult {
+  url: string;
+  coverageState: string;
+  crawledAs: string;
+  lastCrawlTime: string | null;
+  pageFetchState: string;
+  robotsTxtState: string;
+  indexingState: string;
+  verdict: string;
+  referringUrls: string[];
+  sitemap: string[];
+  inspectedAt: string;
+  error?: string;
+}
+
+/**
+ * Fetch all sitemap URLs from GSC, parsing sitemap XML to extract <loc> URLs.
+ * Handles <sitemapindex> recursion (max depth 2).
+ * Cap at 10,000 URLs total.
+ */
+export async function fetchAndParseSitemaps(
+  accessToken: string,
+  siteUrl: string
+): Promise<string[]> {
+  const sitemapEntries = await fetchSitemaps(accessToken, siteUrl);
+  const sitemapUrls = sitemapEntries.map((s) => s.url).filter(Boolean);
+
+  if (sitemapUrls.length === 0) return [];
+
+  const allUrls = new Set<string>();
+  const MAX_URLS = 10000;
+  const TIMEOUT = 15000;
+
+  async function parseSitemap(url: string, depth: number): Promise<void> {
+    if (depth > 2 || allUrls.size >= MAX_URLS) return;
+
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
+      if (!res.ok) return;
+      const text = await res.text();
+
+      // Check if this is a sitemap index
+      if (text.includes("<sitemapindex")) {
+        const indexLocs = [...text.matchAll(/<sitemap[^>]*>[\s\S]*?<loc>\s*(.*?)\s*<\/loc>/g)];
+        for (const match of indexLocs) {
+          if (allUrls.size >= MAX_URLS) break;
+          await parseSitemap(match[1], depth + 1);
+        }
+      } else {
+        // Regular sitemap — extract <loc> tags
+        const locs = [...text.matchAll(/<url[^>]*>[\s\S]*?<loc>\s*(.*?)\s*<\/loc>/g)];
+        for (const match of locs) {
+          if (allUrls.size >= MAX_URLS) break;
+          allUrls.add(match[1]);
+        }
+      }
+    } catch {
+      // Timeout or fetch error — skip this sitemap
+    }
+  }
+
+  for (const url of sitemapUrls) {
+    if (allUrls.size >= MAX_URLS) break;
+    await parseSitemap(url, 0);
+  }
+
+  return [...allUrls];
+}
+
+/**
+ * Normalize a URL for deduplication: lowercase host, remove trailing slash.
+ */
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.hostname = u.hostname.toLowerCase();
+    let path = u.pathname;
+    if (path.length > 1 && path.endsWith("/")) {
+      path = path.slice(0, -1);
+    }
+    return `${u.protocol}//${u.host}${path}${u.search}`;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Discover all URLs for a site from sitemaps + search analytics.
+ * Returns deduplicated URLs and source breakdown.
+ */
+export async function discoverAllUrls(
+  accessToken: string,
+  siteUrl: string
+): Promise<{ urls: string[]; sources: { sitemap: string[]; searchAnalytics: string[] } }> {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const searchconsole = google.searchconsole({ version: "v1", auth: oauth2Client });
+
+  // Fetch sitemap URLs and search analytics pages in parallel
+  const [sitemapUrls, analyticsRes] = await Promise.all([
+    fetchAndParseSitemaps(accessToken, siteUrl),
+    searchconsole.searchanalytics.query({
+      siteUrl,
+      requestBody: {
+        startDate: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10),
+        endDate: new Date(Date.now() - 86400000).toISOString().slice(0, 10),
+        dimensions: ["page"],
+        rowLimit: 5000,
+      },
+    }),
+  ]);
+
+  const analyticsUrls = (analyticsRes.data.rows || [])
+    .map((r: searchconsole_v1.Schema$ApiDataRow) => r.keys?.[0])
+    .filter(Boolean) as string[];
+
+  // Deduplicate by normalized URL
+  const seen = new Map<string, string>();
+  for (const url of [...sitemapUrls, ...analyticsUrls]) {
+    const normalized = normalizeUrl(url);
+    if (!seen.has(normalized)) {
+      seen.set(normalized, url);
+    }
+  }
+
+  return {
+    urls: [...seen.values()],
+    sources: {
+      sitemap: sitemapUrls,
+      searchAnalytics: analyticsUrls,
+    },
+  };
+}
+
+/**
+ * Inspect a batch of URLs via the URL Inspection API.
+ * Sequential processing with 200ms delay. Stops on 429 rate limit.
+ */
+export async function inspectUrlBatch(
+  accessToken: string,
+  siteUrl: string,
+  urls: string[]
+): Promise<InspectionResult[]> {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const searchconsole = google.searchconsole({ version: "v1", auth: oauth2Client });
+
+  const results: InspectionResult[] = [];
+
+  for (const url of urls) {
+    try {
+      const res = await searchconsole.urlInspection.index.inspect({
+        requestBody: { inspectionUrl: url, siteUrl },
+      });
+
+      const idx = res.data.inspectionResult?.indexStatusResult;
+
+      results.push({
+        url,
+        coverageState: idx?.coverageState || "Unknown",
+        crawledAs: idx?.crawledAs || "Unknown",
+        lastCrawlTime: idx?.lastCrawlTime || null,
+        pageFetchState: idx?.pageFetchState || "Unknown",
+        robotsTxtState: idx?.robotsTxtState || "Unknown",
+        indexingState: idx?.indexingState || "Unknown",
+        verdict: idx?.verdict || "Unknown",
+        referringUrls: (idx?.referringUrls || []) as string[],
+        sitemap: (idx?.sitemap || []) as string[],
+        inspectedAt: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      // On 429 (rate limit): stop batch, return results so far
+      if (err?.code === 429 || err?.status === 429) {
+        console.log(`[gsc-service] Rate limited after ${results.length} inspections, stopping batch`);
+        break;
+      }
+
+      // Other errors: mark as failed, continue
+      results.push({
+        url,
+        coverageState: "inspection_failed",
+        crawledAs: "",
+        lastCrawlTime: null,
+        pageFetchState: "",
+        robotsTxtState: "",
+        indexingState: "",
+        verdict: "",
+        referringUrls: [],
+        sitemap: [],
+        inspectedAt: new Date().toISOString(),
+        error: err instanceof Error ? err.message : "Inspection failed",
+      });
+    }
+
+    // 200ms delay between requests
+    if (urls.indexOf(url) < urls.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
+  return results;
+}
+
 /**
  * List available sites from the user's GSC account.
  */

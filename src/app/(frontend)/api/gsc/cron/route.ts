@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import sgMail from "@sendgrid/mail";
 import { runGscMonitor } from "@/lib/gsc-monitor";
+import { processIndexingBatches } from "@/lib/gsc-indexing";
 
 export async function GET(req: NextRequest) {
   // Authenticate via CRON_SECRET bearer token
@@ -39,6 +40,13 @@ export async function GET(req: NextRequest) {
 
     if (alertResults.length > 0 && process.env.SENDGRID_API_KEY && process.env.ALERT_EMAIL_FROM && process.env.ALERT_EMAIL_TO) {
       await sendAlertDigest(alertResults);
+    }
+
+    // Process any pending indexing audit batches
+    try {
+      await processIndexingBatches();
+    } catch (err) {
+      console.error("[gsc-cron] Indexing batch processing error:", err);
     }
 
     return NextResponse.json({

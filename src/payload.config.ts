@@ -27,6 +27,7 @@ import { BusinessCosts } from "./collections/BusinessCosts";
 import { BlogPrompts } from "./collections/BlogPrompts";
 import { GoogleAdsAudits } from "./collections/GoogleAdsAudits";
 import { GscDaily } from "./collections/GscDaily";
+import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
 import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
 import { ApiCostRates } from "./globals/ApiCostRates";
@@ -76,7 +77,7 @@ export default buildConfig({
     // SEO
     InternalLinkSuggestions,
     // Audits
-    SeoAudits, CroAudits, GoogleAdsAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, NegativeSweepCandidates,
+    SeoAudits, CroAudits, GoogleAdsAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, NegativeSweepCandidates,
     // Finance
     BusinessCosts, CostCategories, CostRules,
     // Admin

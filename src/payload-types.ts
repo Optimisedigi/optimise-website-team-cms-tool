@@ -81,6 +81,7 @@ export interface Config {
     'competitor-analyses': CompetitorAnalysis;
     'content-researches': ContentResearch;
     'gsc-alerts': GscAlert;
+    'gsc-indexing-audits': GscIndexingAudit;
     'negative-sweep-candidates': NegativeSweepCandidate;
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
@@ -115,6 +116,7 @@ export interface Config {
     'competitor-analyses': CompetitorAnalysesSelect<false> | CompetitorAnalysesSelect<true>;
     'content-researches': ContentResearchesSelect<false> | ContentResearchesSelect<true>;
     'gsc-alerts': GscAlertsSelect<false> | GscAlertsSelect<true>;
+    'gsc-indexing-audits': GscIndexingAuditsSelect<false> | GscIndexingAuditsSelect<true>;
     'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
@@ -486,6 +488,46 @@ export interface Client {
      * Make report data available via the client hub API
      */
     performanceReportIncludeInClientHub?: boolean | null;
+    /**
+     * Enable OptiMate autonomous monitoring (runs twice daily)
+     */
+    optimateEnabled?: boolean | null;
+    /**
+     * review_first: all recs go to team. auto_apply: safe actions (pause overbudget) applied automatically.
+     */
+    optimateMode?: ('review_first' | 'auto_apply') | null;
+    /**
+     * Flag campaigns pacing above this % of monthly budget
+     */
+    optimateBudgetThreshold?: number | null;
+    /**
+     * Alert on WoW CTR drops exceeding this % (e.g. 20 = 20% drop)
+     */
+    optimateCtrDropThreshold?: number | null;
+    /**
+     * Alert on WoW CPA spikes exceeding this % (e.g. 30 = 30% spike)
+     */
+    optimateCpaSpikeThreshold?: number | null;
+  };
+  weeklyReport?: {
+    weeklyReportEnabled?: boolean | null;
+    /**
+     * Controls which KPIs appear in the report email
+     */
+    weeklyReportTemplate?: ('lead_gen' | 'ecommerce' | 'brand_awareness') | null;
+    /**
+     * Day of week to send the report (covers previous Mon-Sun)
+     */
+    weeklyReportSendDay?: ('monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday') | null;
+    /**
+     * Email addresses to receive weekly reports
+     */
+    weeklyReportRecipientEmails?:
+      | {
+          email: string;
+          id?: string | null;
+        }[]
+      | null;
   };
   /**
    * Computed on each re-audit
@@ -814,11 +856,23 @@ export interface GoogleAdsAudit {
   actionItems?:
     | {
         /**
-         * What needs to be done
+         * Task = something to do. Completed Work = log ad hoc work already done.
+         */
+        itemType?: ('task' | 'completed') | null;
+        /**
+         * What needs to be done / what was done
          */
         action: string;
+        /**
+         * Detailed description — auto-copied to Notes on save if notes is empty
+         */
+        description?: string | null;
         priority?: ('high' | 'medium' | 'low') | null;
         status?: ('pending' | 'in-progress' | 'done') | null;
+        /**
+         * Minutes spent on this work
+         */
+        timeSpent?: number | null;
         completedAt?: string | null;
         /**
          * Implementation notes or OptiMate feedback
@@ -1006,6 +1060,111 @@ export interface GoogleAdsAudit {
          * Who received the email
          */
         emailRecipients?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Weekly performance report history
+   */
+  weeklyReports?:
+    | {
+        /**
+         * YYYY-MM-DD/YYYY-MM-DD
+         */
+        reportWeek: string;
+        /**
+         * When generated
+         */
+        reportDate?: string | null;
+        template?: string | null;
+        /**
+         * Week KPIs (spend, clicks, conversions, CPA, etc.)
+         */
+        kpis?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Week-on-week comparison
+         */
+        wow?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Top campaigns by spend
+         */
+        campaignBreakdown?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Number of work items included in this report
+         */
+        workDoneCount?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Autonomous monitoring run history (populated by OptiMate agent)
+   */
+  optimateHistory?:
+    | {
+        runDate: string;
+        recommendationCount?: number | null;
+        criticalCount?: number | null;
+        warningCount?: number | null;
+        /**
+         * Which checks ran
+         */
+        checksRun?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Actions auto-applied this run
+         */
+        autoApplied?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        /**
+         * Full recommendation list
+         */
+        recommendations?:
           | {
               [k: string]: unknown;
             }
@@ -2314,6 +2473,94 @@ export interface GscAlert {
   createdAt: string;
 }
 /**
+ * Full indexing audits via the URL Inspection API
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-indexing-audits".
+ */
+export interface GscIndexingAudit {
+  id: number;
+  /**
+   * The client this audit belongs to
+   */
+  client: number | Client;
+  status: 'discovering' | 'inspecting' | 'completed' | 'failed';
+  /**
+   * Total URLs discovered
+   */
+  totalUrls?: number | null;
+  /**
+   * URLs inspected so far
+   */
+  inspectedCount?: number | null;
+  /**
+   * When the audit started
+   */
+  startedAt?: string | null;
+  /**
+   * When the audit completed
+   */
+  completedAt?: string | null;
+  /**
+   * When the last batch was processed
+   */
+  lastBatchDate?: string | null;
+  /**
+   * Error message if the audit failed
+   */
+  error?: string | null;
+  /**
+   * Summary stats — { indexed, notIndexed, byReason: { [reason]: count } }
+   */
+  summaryStats?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * URL discovery sources — { sitemap: string[], searchAnalytics: string[] }
+   */
+  urlSources?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * All discovered URLs — string[]
+   */
+  discoveredUrls?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Inspection results — InspectionResult[]
+   */
+  inspectionResults?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "negative-sweep-candidates".
  */
@@ -2653,6 +2900,10 @@ export interface PayloadLockedDocument {
         value: number | GscAlert;
       } | null)
     | ({
+        relationTo: 'gsc-indexing-audits';
+        value: number | GscIndexingAudit;
+      } | null)
+    | ({
         relationTo: 'negative-sweep-candidates';
         value: number | NegativeSweepCandidate;
       } | null)
@@ -2819,6 +3070,24 @@ export interface ClientsSelect<T extends boolean = true> {
               id?: T;
             };
         performanceReportIncludeInClientHub?: T;
+        optimateEnabled?: T;
+        optimateMode?: T;
+        optimateBudgetThreshold?: T;
+        optimateCtrDropThreshold?: T;
+        optimateCpaSpikeThreshold?: T;
+      };
+  weeklyReport?:
+    | T
+    | {
+        weeklyReportEnabled?: T;
+        weeklyReportTemplate?: T;
+        weeklyReportSendDay?: T;
+        weeklyReportRecipientEmails?:
+          | T
+          | {
+              email?: T;
+              id?: T;
+            };
       };
   gadsTrajectory?:
     | T
@@ -3200,9 +3469,12 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   actionItems?:
     | T
     | {
+        itemType?: T;
         action?: T;
+        description?: T;
         priority?: T;
         status?: T;
+        timeSpent?: T;
         completedAt?: T;
         notes?: T;
         id?: T;
@@ -3266,6 +3538,30 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
         campaignBreakdown?: T;
         monthlyTrend?: T;
         emailRecipients?: T;
+        id?: T;
+      };
+  weeklyReports?:
+    | T
+    | {
+        reportWeek?: T;
+        reportDate?: T;
+        template?: T;
+        kpis?: T;
+        wow?: T;
+        campaignBreakdown?: T;
+        workDoneCount?: T;
+        id?: T;
+      };
+  optimateHistory?:
+    | T
+    | {
+        runDate?: T;
+        recommendationCount?: T;
+        criticalCount?: T;
+        warningCount?: T;
+        checksRun?: T;
+        autoApplied?: T;
+        recommendations?: T;
         id?: T;
       };
   presentationPin?: T;
@@ -3340,6 +3636,26 @@ export interface GscAlertsSelect<T extends boolean = true> {
   recommendation?: T;
   resolved?: T;
   resolvedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-indexing-audits_select".
+ */
+export interface GscIndexingAuditsSelect<T extends boolean = true> {
+  client?: T;
+  status?: T;
+  totalUrls?: T;
+  inspectedCount?: T;
+  startedAt?: T;
+  completedAt?: T;
+  lastBatchDate?: T;
+  error?: T;
+  summaryStats?: T;
+  urlSources?: T;
+  discoveredUrls?: T;
+  inspectionResults?: T;
   updatedAt?: T;
   createdAt?: T;
 }

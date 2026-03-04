@@ -198,6 +198,8 @@ const SearchConsolePage = () => {
   const [brandTab, setBrandTab] = useState<'overview' | 'brand' | 'generic'>('overview')
   const [chartLine, setChartLine] = useState<'impressions' | 'ctr'>('impressions')
   const [chartFilter, setChartFilter] = useState<'all' | 'brand' | 'generic'>('all')
+  const [indexingAudit, setIndexingAudit] = useState<{ id: string; status: string; inspectedCount: number; totalUrls: number; summaryStats?: any } | null>(null)
+  const [auditLoading, setAuditLoading] = useState(false)
   const QUERIES_PER_PAGE = 15
 
   // Load client list, then fetch snapshot for first connected client
@@ -220,6 +222,7 @@ const SearchConsolePage = () => {
   const fetchSnapshot = useCallback(async (clientId: string) => {
     setLoading(true)
     setQueryData(null)
+    setIndexingAudit(null)
     try {
       const res = await fetch(`/api/gsc/snapshot?clientId=${clientId}`)
       const d = await res.json()
@@ -301,6 +304,24 @@ const SearchConsolePage = () => {
       if (startDate && endDate) fetchQueryData(startDate, endDate)
     } catch { /* ignore */ } finally {
       setRefreshing(false)
+    }
+  }
+
+  const handleStartAudit = async () => {
+    if (!selectedClientId || auditLoading) return
+    setAuditLoading(true)
+    try {
+      const res = await fetch('/api/gsc/indexing-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: selectedClientId }),
+      })
+      const data = await res.json()
+      if (data.ok && data.auditId) {
+        setIndexingAudit({ id: data.auditId, status: data.status || 'discovering', inspectedCount: 0, totalUrls: 0 })
+      }
+    } catch { /* ignore */ } finally {
+      setAuditLoading(false)
     }
   }
 
@@ -612,6 +633,66 @@ const SearchConsolePage = () => {
               ))}
             </div>
           )}
+          {/* Full Indexing Audit */}
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #e5e7eb' }}>
+            {indexingAudit && (indexingAudit.status === 'discovering' || indexingAudit.status === 'inspecting') ? (
+              <div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>
+                  Full audit in progress: {indexingAudit.inspectedCount}/{indexingAudit.totalUrls} URLs inspected
+                </div>
+                <div style={{ height: 6, background: '#e5e7eb', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${indexingAudit.totalUrls > 0 ? (indexingAudit.inspectedCount / indexingAudit.totalUrls) * 100 : 0}%`,
+                    background: '#3b82f6',
+                    borderRadius: 3,
+                  }} />
+                </div>
+                <a
+                  href={`/admin/collections/gsc-indexing-audits/${indexingAudit.id}`}
+                  style={{ fontSize: 12, color: '#3b82f6', marginTop: 6, display: 'inline-block' }}
+                >
+                  View audit details
+                </a>
+              </div>
+            ) : indexingAudit && indexingAudit.status === 'completed' ? (
+              <div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>
+                  Last audit: {indexingAudit.summaryStats?.indexed ?? 0} indexed, {indexingAudit.summaryStats?.notIndexed ?? 0} not indexed
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <a
+                    href={`/admin/collections/gsc-indexing-audits/${indexingAudit.id}`}
+                    style={{ fontSize: 12, color: '#3b82f6' }}
+                  >
+                    View results
+                  </a>
+                  <button
+                    onClick={handleStartAudit}
+                    disabled={auditLoading}
+                    style={{
+                      fontSize: 12, padding: '4px 10px', borderRadius: 4,
+                      border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer',
+                    }}
+                  >
+                    {auditLoading ? 'Starting...' : 'Run New Audit'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={handleStartAudit}
+                disabled={auditLoading}
+                style={{
+                  fontSize: 12, padding: '6px 14px', borderRadius: 4,
+                  border: '1px solid #3b82f6', background: '#3b82f6', color: '#fff',
+                  cursor: auditLoading ? 'default' : 'pointer', opacity: auditLoading ? 0.7 : 1,
+                }}
+              >
+                {auditLoading ? 'Starting...' : 'Run Full Indexing Audit'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Core Web Vitals */}
