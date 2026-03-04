@@ -29,6 +29,15 @@ export const GscIndexingAudits: CollectionConfig = {
           label: "Overview",
           fields: [
             {
+              name: "infoPanel",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GscIndexingAuditInfo",
+                },
+              },
+            },
+            {
               name: "client",
               type: "relationship",
               relationTo: "clients",
