@@ -743,6 +743,56 @@ export const Clients: CollectionConfig = {
                     condition: (data: any) => data?.gadsAuto?.performanceReportEnabled,
                   },
                 },
+
+                // ─ OptiMate Autonomous Monitoring ─
+                {
+                  name: "optimateEnabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Enable OptiMate autonomous monitoring (runs twice daily)",
+                  },
+                },
+                {
+                  name: "optimateMode",
+                  type: "select",
+                  defaultValue: "review_first",
+                  options: [
+                    { label: "Review First", value: "review_first" },
+                    { label: "Auto Apply", value: "auto_apply" },
+                  ],
+                  admin: {
+                    description: "review_first: all recs go to team. auto_apply: safe actions (pause overbudget) applied automatically.",
+                    condition: (data: any) => data?.gadsAuto?.optimateEnabled,
+                  },
+                },
+                {
+                  name: "optimateBudgetThreshold",
+                  type: "number",
+                  defaultValue: 130,
+                  admin: {
+                    description: "Flag campaigns pacing above this % of monthly budget",
+                    condition: (data: any) => data?.gadsAuto?.optimateEnabled,
+                  },
+                },
+                {
+                  name: "optimateCtrDropThreshold",
+                  type: "number",
+                  defaultValue: 20,
+                  admin: {
+                    description: "Alert on WoW CTR drops exceeding this % (e.g. 20 = 20% drop)",
+                    condition: (data: any) => data?.gadsAuto?.optimateEnabled,
+                  },
+                },
+                {
+                  name: "optimateCpaSpikeThreshold",
+                  type: "number",
+                  defaultValue: 30,
+                  admin: {
+                    description: "Alert on WoW CPA spikes exceeding this % (e.g. 30 = 30% spike)",
+                    condition: (data: any) => data?.gadsAuto?.optimateEnabled,
+                  },
+                },
               ],
             },
 

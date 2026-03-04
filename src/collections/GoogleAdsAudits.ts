@@ -881,6 +881,80 @@ export const GoogleAdsAudits: CollectionConfig = {
             },
           ],
         },
+
+        // ── Tab 11: OptiMate History ──
+        {
+          label: "OptiMate",
+          fields: [
+            {
+              name: "optimateHistory",
+              type: "array",
+              admin: {
+                readOnly: true,
+                description: "Autonomous monitoring run history (populated by OptiMate agent)",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "runDate",
+                      type: "text",
+                      required: true,
+                      admin: { readOnly: true, width: "30%" },
+                    },
+                    {
+                      name: "recommendationCount",
+                      type: "number",
+                      admin: { readOnly: true, width: "15%" },
+                    },
+                    {
+                      name: "criticalCount",
+                      type: "number",
+                      admin: { readOnly: true, width: "15%" },
+                    },
+                    {
+                      name: "warningCount",
+                      type: "number",
+                      admin: { readOnly: true, width: "15%" },
+                    },
+                  ],
+                },
+                {
+                  name: "checksRun",
+                  type: "json",
+                  admin: { readOnly: true, description: "Which checks ran" },
+                },
+                {
+                  name: "autoApplied",
+                  type: "json",
+                  admin: { readOnly: true, description: "Actions auto-applied this run" },
+                },
+                {
+                  name: "recommendations",
+                  type: "json",
+                  admin: { readOnly: true, description: "Full recommendation list" },
+                },
+              ],
+            },
+          ],
+        },
+
+        // ── Tab 12: OptiMate Chat ──
+        {
+          label: "Chat",
+          fields: [
+            {
+              name: "optimateChat",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GoogleAdsChat",
+                },
+              },
+            },
+          ],
+        },
       ],
     },
 

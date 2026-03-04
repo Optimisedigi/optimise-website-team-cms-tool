@@ -937,6 +937,29 @@ export async function POST(request: NextRequest) {
   // --- blog_prompts.gap_status column ---
   await run("blog_prompts.gap_status", "ALTER TABLE `blog_prompts` ADD `gap_status` text DEFAULT 'open'");
 
+  // --- clients: OptiMate automation fields ---
+  await run("clients.gads_auto_optimate_enabled", "ALTER TABLE `clients` ADD `gads_auto_optimate_enabled` integer DEFAULT 0");
+  await run("clients.gads_auto_optimate_mode", "ALTER TABLE `clients` ADD `gads_auto_optimate_mode` text DEFAULT 'review_first'");
+  await run("clients.gads_auto_optimate_budget_threshold", "ALTER TABLE `clients` ADD `gads_auto_optimate_budget_threshold` integer DEFAULT 130");
+  await run("clients.gads_auto_optimate_ctr_drop_threshold", "ALTER TABLE `clients` ADD `gads_auto_optimate_ctr_drop_threshold` integer DEFAULT 20");
+  await run("clients.gads_auto_optimate_cpa_spike_threshold", "ALTER TABLE `clients` ADD `gads_auto_optimate_cpa_spike_threshold` integer DEFAULT 30");
+
+  // --- google_ads_audits: OptiMate history (stored as JSON array in each row item) ---
+  // The optimateHistory is a Payload array field — Payload creates a separate table for it.
+  // We create the table here so PATCH pushes from Growth Tools can work.
+  await run("google_ads_audits_optimate_history", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_optimate_history\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL REFERENCES google_ads_audits(id) ON DELETE CASCADE,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`run_date\` text,
+    \`recommendation_count\` integer,
+    \`critical_count\` integer,
+    \`warning_count\` integer,
+    \`checks_run\` text,
+    \`auto_applied\` text,
+    \`recommendations\` text
+  )`);
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
