@@ -85,22 +85,26 @@ const GoogleAdsChat = () => {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    sendMessage(input)
-  }
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Stop ALL keydown events from reaching Payload's parent form
+    e.stopPropagation()
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      e.stopPropagation()
       sendMessage(input)
     }
   }
 
+  const stopFormBubble = (e: React.FormEvent | React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
   return (
-    <div style={{ maxWidth: 700, marginBottom: 20 }}>
+    <div
+      style={{ maxWidth: 700, marginBottom: 20 }}
+      onSubmit={stopFormBubble}
+      onKeyPress={stopFormBubble}
+    >
       {/* Header */}
       <div
         style={{
@@ -166,7 +170,11 @@ const GoogleAdsChat = () => {
                 <button
                   key={q}
                   type="button"
-                  onClick={() => sendMessage(q)}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    sendMessage(q)
+                  }}
                   style={{
                     padding: '6px 12px',
                     fontSize: 12,
@@ -282,7 +290,11 @@ const GoogleAdsChat = () => {
         />
         <button
           type="button"
-          onClick={() => sendMessage(input)}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            sendMessage(input)
+          }}
           disabled={loading || !input.trim()}
           style={{
             padding: '10px 20px',
