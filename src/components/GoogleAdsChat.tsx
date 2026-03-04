@@ -15,6 +15,87 @@ const SUGGESTED_QUESTIONS = [
   'Give me a weekly performance summary',
 ]
 
+/**
+ * Lightweight markdown renderer for chat messages.
+ * Handles: **bold**, bullet lists (- item), numbered lists, and paragraphs.
+ */
+function renderMarkdown(text: string) {
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+  let listItems: React.ReactNode[] = []
+  let listType: 'ul' | 'ol' | null = null
+
+  const flushList = () => {
+    if (listItems.length > 0 && listType) {
+      const Tag = listType
+      elements.push(
+        <Tag key={`list-${elements.length}`} style={{ margin: '6px 0', paddingLeft: 20 }}>
+          {listItems}
+        </Tag>,
+      )
+      listItems = []
+      listType = null
+    }
+  }
+
+  const formatInline = (line: string): React.ReactNode[] => {
+    const parts: React.ReactNode[] = []
+    const regex = /\*\*(.+?)\*\*/g
+    let lastIndex = 0
+    let match
+    while ((match = regex.exec(line)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(line.slice(lastIndex, match.index))
+      }
+      parts.push(
+        <strong key={`b-${match.index}`}>{match[1]}</strong>,
+      )
+      lastIndex = regex.lastIndex
+    }
+    if (lastIndex < line.length) {
+      parts.push(line.slice(lastIndex))
+    }
+    return parts.length > 0 ? parts : [line]
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const bulletMatch = line.match(/^[-*]\s+(.+)/)
+    const numberedMatch = line.match(/^\d+\.\s+(.+)/)
+
+    if (bulletMatch) {
+      if (listType !== 'ul') flushList()
+      listType = 'ul'
+      listItems.push(
+        <li key={`li-${i}`} style={{ marginBottom: 2 }}>
+          {formatInline(bulletMatch[1])}
+        </li>,
+      )
+    } else if (numberedMatch) {
+      if (listType !== 'ol') flushList()
+      listType = 'ol'
+      listItems.push(
+        <li key={`li-${i}`} style={{ marginBottom: 2 }}>
+          {formatInline(numberedMatch[1])}
+        </li>,
+      )
+    } else {
+      flushList()
+      if (line.trim() === '') {
+        elements.push(<div key={`br-${i}`} style={{ height: 8 }} />)
+      } else {
+        elements.push(
+          <p key={`p-${i}`} style={{ margin: '4px 0' }}>
+            {formatInline(line)}
+          </p>,
+        )
+      }
+    }
+  }
+  flushList()
+  return elements
+}
+
 const GoogleAdsChat = () => {
   const { id } = useDocumentInfo()
   const [fields] = useAllFormFields()
@@ -88,7 +169,7 @@ const GoogleAdsChat = () => {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Stop ALL keydown events from reaching Payload's parent form
+    // Stop keydown from reaching Payload's parent form
     e.stopPropagation()
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -96,16 +177,10 @@ const GoogleAdsChat = () => {
     }
   }
 
-  const stopFormBubble = (e: React.FormEvent | React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }
-
   return (
     <div
       style={{ maxWidth: 700, marginBottom: 20 }}
-      onSubmit={stopFormBubble}
-      onKeyPress={stopFormBubble}
+      onKeyDown={(e) => e.stopPropagation()}
     >
       {/* Header */}
       <div
@@ -218,11 +293,10 @@ const GoogleAdsChat = () => {
                 color: msg.role === 'user' ? '#fff' : '#1f2937',
                 fontSize: 13,
                 lineHeight: 1.5,
-                whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
               }}
             >
-              {msg.content}
+              {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
             </div>
           </div>
         ))}
