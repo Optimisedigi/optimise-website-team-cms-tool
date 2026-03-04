@@ -24,6 +24,7 @@ const GoogleAdsChat = () => {
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const sessionIdRef = useRef(crypto.randomUUID())
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -62,6 +63,7 @@ const GoogleAdsChat = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text.trim(),
+          sessionId: sessionIdRef.current,
           history: messages.slice(-20),
         }),
       })

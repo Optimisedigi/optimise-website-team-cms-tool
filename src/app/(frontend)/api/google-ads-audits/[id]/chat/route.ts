@@ -36,7 +36,7 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { message, history } = body;
+    const { message, history, sessionId } = body;
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -74,6 +74,7 @@ export async function POST(
       body: JSON.stringify({
         customerId,
         message,
+        sessionId: sessionId || "",
         history: history || [],
       }),
     });
