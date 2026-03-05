@@ -118,7 +118,7 @@ export const GoogleAdsAudits: CollectionConfig = {
   },
   admin: {
     useAsTitle: "businessName",
-    group: "Audits",
+    group: "Growth Tools",
     defaultColumns: ["businessName", "overallScore", "auditStatus", "createdAt"],
     description: "Google Ads audit pipeline. Requires client to grant access to the Optimise Digital MCC (manager account) before the audit can pull data.",
   },

@@ -9,7 +9,7 @@ export const GscAlerts: CollectionConfig = {
   },
   admin: {
     useAsTitle: "title",
-    group: "Audits",
+    group: "Growth Tools",
     defaultColumns: ["client", "severity", "category", "title", "resolved", "createdAt"],
     description: "Alerts triggered by GSC snapshot comparisons",
   },

@@ -10,7 +10,7 @@ export const Contracts: CollectionConfig = {
   },
   admin: {
     useAsTitle: "contractTitle",
-    group: "Performance",
+    group: "Clients",
     description: "Service contracts linked to client proposals",
     defaultColumns: ["contractTitle", "clientName", "status", "contractDate", "createdAt"],
     components: {

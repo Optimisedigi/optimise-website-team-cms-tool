@@ -230,13 +230,14 @@
   flex-direction: column;
 }
 
-// Reorder nav groups: Performance → Audits → Content → Finance → Settings → Admin
-#nav-group-Performance { order: 1; }
-#nav-group-Audits      { order: 2; }
-#nav-group-Content     { order: 3; }
-#nav-group-Finance     { order: 4; }
-#nav-group-Settings    { order: 5; }
-#nav-group-Admin       { order: 6; }
+// Reorder nav groups: Performance → Clients → Growth Tools → Content → Finance → Settings → Admin
+#nav-group-Performance          { order: 1; }
+#nav-group-Clients              { order: 2; }
+[id="nav-group-Growth Tools"]   { order: 3; }
+#nav-group-Content              { order: 4; }
+#nav-group-Finance              { order: 5; }
+#nav-group-Settings             { order: 6; }
+#nav-group-Admin                { order: 7; }
 .nav .nav__controls    { order: 99; }
 
 // Prominent group headers

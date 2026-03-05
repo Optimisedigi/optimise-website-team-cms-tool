@@ -9,7 +9,7 @@ export const ContentResearches: CollectionConfig = {
   },
   admin: {
     useAsTitle: "keyword",
-    group: "Audits",
+    group: "Growth Tools",
     defaultColumns: ["keyword", "location", "totalQuestions", "createdAt"],
     description: "Content research results from the growth tools",
   },

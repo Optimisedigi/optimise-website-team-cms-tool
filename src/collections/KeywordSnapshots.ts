@@ -25,7 +25,7 @@ export const KeywordSnapshots: CollectionConfig = {
   },
   admin: {
     useAsTitle: "websiteUrl",
-    group: "Audits",
+    group: "Growth Tools",
     defaultColumns: ["websiteUrl", "label", "totalKeywords", "createdAt"],
     description: "Keyword ranking snapshots from the growth tools",
   },

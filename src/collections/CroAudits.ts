@@ -25,7 +25,7 @@ export const CroAudits: CollectionConfig = {
   },
   admin: {
     useAsTitle: "websiteUrl",
-    group: "Audits",
+    group: "Growth Tools",
     defaultColumns: ["websiteUrl", "overallScore", "conversionGoal", "createdAt"],
     description: "Conversion rate optimisation audit reports from the growth tools",
   },

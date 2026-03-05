@@ -24,7 +24,7 @@ export const CompetitorAnalyses: CollectionConfig = {
   },
   admin: {
     useAsTitle: "websiteUrl",
-    group: "Audits",
+    group: "Growth Tools",
     defaultColumns: ["websiteUrl", "totalCompetitors", "createdAt"],
     description: "Competitor analysis reports",
   },

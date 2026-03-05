@@ -9,7 +9,7 @@ export const NegativeSweepCandidates: CollectionConfig = {
   },
   admin: {
     hidden: true,
-    group: "Audits",
+    group: "Growth Tools",
     defaultColumns: ["searchTerm", "client", "status", "cost", "sweepDate"],
   },
   access: {

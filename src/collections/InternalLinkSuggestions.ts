@@ -4,7 +4,7 @@ export const InternalLinkSuggestions: CollectionConfig = {
   slug: "internal-link-suggestions",
   labels: { singular: "Internal Link Suggestion", plural: "Internal Link Suggestions" },
   admin: {
-    group: "Audits",
+    group: "Growth Tools",
     defaultColumns: ["sourceUrl", "targetUrl", "confidenceScore", "status", "createdAt"],
     useAsTitle: "anchorText",
     components: {

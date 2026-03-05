@@ -8,7 +8,7 @@ export const GscIndexingAudits: CollectionConfig = {
   },
   admin: {
     useAsTitle: "status",
-    group: "Audits",
+    group: "Growth Tools",
     defaultColumns: ["client", "status", "totalUrls", "inspectedCount", "createdAt"],
     description: "Full indexing audits via the URL Inspection API",
   },

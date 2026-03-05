@@ -25,7 +25,7 @@ export const SeoAudits: CollectionConfig = {
   },
   admin: {
     useAsTitle: "websiteUrl",
-    group: "Audits",
+    group: "Growth Tools",
     defaultColumns: ["websiteUrl", "overallScore", "customerEmail", "createdAt"],
     description: "Full SEO audit reports from the growth tools",
   },
