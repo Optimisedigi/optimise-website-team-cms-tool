@@ -307,7 +307,7 @@ export default function ContractSignPage() {
                 <img
                   src={completedAgencySignature}
                   alt="Agency signature"
-                  style={{ maxWidth: 220, height: 'auto', display: 'block' }}
+                  style={{ maxWidth: 154, height: 'auto', display: 'block' }}
                 />
               </div>
             </div>
@@ -814,7 +814,7 @@ export default function ContractSignPage() {
                 <img
                   src={contract.agencySignature}
                   alt="Agency signature"
-                  style={{ maxWidth: 220, height: 'auto', display: 'block', background: '#ffffff' }}
+                  style={{ maxWidth: 154, height: 'auto', display: 'block', background: '#ffffff' }}
                 />
               </div>
             )}
