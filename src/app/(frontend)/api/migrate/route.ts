@@ -999,6 +999,31 @@ export async function POST(request: NextRequest) {
     \`work_done_count\` integer
   )`);
 
+  // --- GSC Indexing Audits (2026-03-05) ---
+  await run("gsc_indexing_audits", `CREATE TABLE IF NOT EXISTS \`gsc_indexing_audits\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`client_id\` integer,
+    \`status\` text DEFAULT 'discovering',
+    \`total_urls\` numeric DEFAULT 0,
+    \`inspected_count\` numeric DEFAULT 0,
+    \`started_at\` text,
+    \`completed_at\` text,
+    \`last_batch_date\` text,
+    \`error\` text,
+    \`summary_stats\` text,
+    \`url_sources\` text,
+    \`discovered_urls\` text,
+    \`inspection_results\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("gsc_indexing_audits_client_idx", "CREATE INDEX IF NOT EXISTS `gsc_indexing_audits_client_idx` ON `gsc_indexing_audits` (`client_id`)");
+  await run("gsc_indexing_audits_status_idx", "CREATE INDEX IF NOT EXISTS `gsc_indexing_audits_status_idx` ON `gsc_indexing_audits` (`status`)");
+  await run("gsc_indexing_audits_created_at_idx", "CREATE INDEX IF NOT EXISTS `gsc_indexing_audits_created_at_idx` ON `gsc_indexing_audits` (`created_at`)");
+  await run("gsc_indexing_audits_updated_at_idx", "CREATE INDEX IF NOT EXISTS `gsc_indexing_audits_updated_at_idx` ON `gsc_indexing_audits` (`updated_at`)");
+  await run("locked_docs_rels.gsc_indexing_audits_id", "ALTER TABLE `payload_locked_documents_rels` ADD `gsc_indexing_audits_id` integer");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
@@ -1065,7 +1090,7 @@ export async function POST(request: NextRequest) {
     payloadFindTest = { ok: false, error: err?.message || String(err) };
   }
 
-  return NextResponse.json({ ok: true, version: "2026-02-27f", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest });
+  return NextResponse.json({ ok: true, version: "2026-03-05", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest });
 }
 
 /**
