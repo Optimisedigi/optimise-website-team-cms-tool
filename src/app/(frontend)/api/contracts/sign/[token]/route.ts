@@ -307,29 +307,32 @@ export async function POST(
         }
       };
 
-      // Client email
-      sendBrevoEmail(
-        { email: updatedDoc.clientEmail, name: updatedDoc.clientContactName || updatedDoc.clientName || "" },
-        generateCompletionEmail({
-          recipientName: updatedDoc.clientContactName || updatedDoc.clientName || "Client",
-          contractTitle,
-          pdfUrl: signedPdfUrl,
-          isAgencyCopy: false,
-        }),
-        `Signed Contract: ${contractTitle}`,
-      ).catch((err: any) => console.error("[brevo] Client email failed:", err.message));
+      // Send both emails in parallel and await before returning (required for Vercel serverless)
+      await Promise.all([
+        // Client email
+        sendBrevoEmail(
+          { email: updatedDoc.clientEmail, name: updatedDoc.clientContactName || updatedDoc.clientName || "" },
+          generateCompletionEmail({
+            recipientName: updatedDoc.clientContactName || updatedDoc.clientName || "Client",
+            contractTitle,
+            pdfUrl: signedPdfUrl,
+            isAgencyCopy: false,
+          }),
+          `Signed Contract: ${contractTitle}`,
+        ).catch((err: any) => console.error("[brevo] Client email failed:", err.message)),
 
-      // Agency email
-      sendBrevoEmail(
-        { email: agencyEmail, name: fromName },
-        generateCompletionEmail({
-          recipientName: updatedDoc.agencyContactName || "Team",
-          contractTitle,
-          pdfUrl: signedPdfUrl,
-          isAgencyCopy: true,
-        }),
-        `Contract Signed: ${contractTitle}`,
-      ).catch((err: any) => console.error("[brevo] Agency email failed:", err.message));
+        // Agency email
+        sendBrevoEmail(
+          { email: agencyEmail, name: fromName },
+          generateCompletionEmail({
+            recipientName: updatedDoc.agencyContactName || "Team",
+            contractTitle,
+            pdfUrl: signedPdfUrl,
+            isAgencyCopy: true,
+          }),
+          `Contract Signed: ${contractTitle}`,
+        ).catch((err: any) => console.error("[brevo] Agency email failed:", err.message)),
+      ]);
     } else {
       console.warn("[brevo] Skipping completion emails. BREVO_API_KEY:", !!process.env.BREVO_API_KEY, "signedPdfUrl:", !!signedPdfUrl);
     }
