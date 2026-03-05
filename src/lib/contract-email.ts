@@ -48,6 +48,40 @@ function baseTemplate(content: string): string {
 </html>`;
 }
 
+export function generateSigningInviteEmail(opts: {
+  recipientName: string;
+  contractTitle: string;
+  signingUrl: string;
+  senderName: string;
+}): string {
+  const content = `
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">Hi ${escapeHtml(opts.recipientName)},</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      ${escapeHtml(opts.senderName)} has prepared a contract for your review and signature.
+    </p>
+    <p style="margin:0 0 8px;font-size:14px;color:#64748b;">
+      <strong style="color:#1e293b;">Contract:</strong> ${escapeHtml(opts.contractTitle)}
+    </p>
+    <p style="margin:0 0 24px;font-size:14px;color:#64748b;">
+      Please click the button below to review the contract details and provide your signature. This link will expire in 7 days.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <a href="${escapeHtml(opts.signingUrl)}" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:600;">
+            Review &amp; Sign Contract
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:24px 0 0;font-size:12px;color:#94a3b8;text-align:center;">
+      If you have any questions, please contact ${escapeHtml(opts.senderName)} directly.
+    </p>
+`;
+
+  return baseTemplate(content);
+}
+
 export function generateCompletionEmail(opts: {
   recipientName: string;
   contractTitle: string;

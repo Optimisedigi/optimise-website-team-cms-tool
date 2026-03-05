@@ -229,6 +229,7 @@ export async function POST(
 
     // Upload to Vercel Blob
     let signedPdfUrl = "";
+    console.log("[sign-contract] BLOB_READ_WRITE_TOKEN set:", !!process.env.BLOB_READ_WRITE_TOKEN, "pdfBuffer size:", pdfBuffer.length);
     if (process.env.BLOB_READ_WRITE_TOKEN) {
       const slug = updatedDoc.contractTitle
         ?.toLowerCase()
@@ -266,20 +267,22 @@ export async function POST(
             console.error("[sign-contract] Failed to update client with signed PDF:", err.message),
           );
       }
+    } else {
+      console.warn("[sign-contract] BLOB_READ_WRITE_TOKEN not set — skipping PDF upload. Emails will NOT send.");
     }
 
     logActivity(payload, {
       type: "contract_client_signed",
       title: `Contract signed by client: ${updatedDoc.contractTitle}`,
-      description: `Signed by ${signerName}`,
+      description: `Signed by ${signerName}. Status: ${updatedDoc.status}. PDF: ${signedPdfUrl ? 'yes' : 'no'}. Brevo: ${process.env.BREVO_API_KEY ? 'yes' : 'no'}`,
     }).catch(() => {});
 
     // Send completion emails via Brevo (fire-and-forget)
-    console.log("[brevo] BREVO_API_KEY set:", !!process.env.BREVO_API_KEY, "signedPdfUrl:", !!signedPdfUrl);
+    console.log("[brevo] BREVO_API_KEY set:", !!process.env.BREVO_API_KEY, "signedPdfUrl:", !!signedPdfUrl, "BLOB_READ_WRITE_TOKEN set:", !!process.env.BLOB_READ_WRITE_TOKEN, "clientEmail:", updatedDoc.clientEmail);
     if (process.env.BREVO_API_KEY && signedPdfUrl) {
-      const fromEmail = process.env.CONTRACT_FROM_EMAIL || "peter@optimisedigital.online";
+      const fromEmail = process.env.CONTRACT_FROM_EMAIL || "contracts@optimisedigital.online";
       const fromName = "Optimise Digital";
-      const agencyEmail = process.env.CONTRACT_AGENCY_EMAIL || "peter@optimisedigital.online";
+      const agencyEmail = process.env.CONTRACT_AGENCY_EMAIL || "contracts@optimisedigital.online";
       const contractTitle = updatedDoc.contractTitle || "Service Contract";
 
       const sendBrevoEmail = async (to: { email: string; name: string }, htmlContent: string, subject: string) => {
@@ -327,6 +330,8 @@ export async function POST(
         }),
         `Contract Signed: ${contractTitle}`,
       ).catch((err: any) => console.error("[brevo] Agency email failed:", err.message));
+    } else {
+      console.warn("[brevo] Skipping completion emails. BREVO_API_KEY:", !!process.env.BREVO_API_KEY, "signedPdfUrl:", !!signedPdfUrl);
     }
 
     const agencySigUrlPost = await resolveMediaUrl(payload, updatedDoc.agencySignature);
