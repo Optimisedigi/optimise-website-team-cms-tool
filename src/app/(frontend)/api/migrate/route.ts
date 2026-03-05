@@ -1111,6 +1111,7 @@ export async function POST(request: NextRequest) {
     \`client_signed_at\` text,
     \`client_signed_ip\` text,
     \`signed_pdf_url\` text,
+    \`pdf_hash\` text,
     \`status\` text DEFAULT 'draft',
     \`signing_token\` text,
     \`signing_token_expires_at\` text,
@@ -1474,6 +1475,7 @@ export async function GET(request: NextRequest) {
     \`client_signed_at\` text,
     \`client_signed_ip\` text,
     \`signed_pdf_url\` text,
+    \`pdf_hash\` text,
     \`status\` text DEFAULT 'draft',
     \`signing_token\` text,
     \`signing_token_expires_at\` text,
@@ -1514,6 +1516,7 @@ export async function GET(request: NextRequest) {
   await run("contracts.agency_signature_id", "ALTER TABLE `contracts` ADD `agency_signature_id` integer REFERENCES `media`(`id`) ON DELETE set null");
   await run("contracts.agency_signature_idx", "CREATE INDEX IF NOT EXISTS `contracts_agency_signature_idx` ON `contracts` (`agency_signature_id`)");
   await run("contracts.is_template", "ALTER TABLE `contracts` ADD `is_template` integer DEFAULT 0");
+  await run("contracts.pdf_hash", "ALTER TABLE `contracts` ADD `pdf_hash` text");
 
   let allTables: string[] = [];
   try {
