@@ -1147,7 +1147,33 @@ export async function POST(request: NextRequest) {
     payloadFindTest = { ok: false, error: err?.message || String(err) };
   }
 
-  return NextResponse.json({ ok: true, version: "2026-03-05", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest });
+  // Test contracts create/find
+  let contractsTest: any = null;
+  try {
+    const findContracts = await payload.find({
+      collection: "contracts",
+      limit: 1,
+      overrideAccess: true,
+    });
+    contractsTest = { find: { ok: true, totalDocs: findContracts.totalDocs } };
+  } catch (err: any) {
+    contractsTest = { find: { ok: false, error: err?.message || String(err), stack: err?.stack?.split("\n").slice(0, 5) } };
+  }
+
+  try {
+    const testDoc = await payload.create({
+      collection: "contracts",
+      data: { contractTitle: "__migrate_test__", contractDate: "2026-03-05" },
+      overrideAccess: true,
+    });
+    // Delete test doc
+    await payload.delete({ collection: "contracts", id: testDoc.id, overrideAccess: true });
+    contractsTest.create = { ok: true };
+  } catch (err: any) {
+    contractsTest.create = { ok: false, error: err?.message || String(err), stack: err?.stack?.split("\n").slice(0, 5) };
+  }
+
+  return NextResponse.json({ ok: true, version: "2026-03-05", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
