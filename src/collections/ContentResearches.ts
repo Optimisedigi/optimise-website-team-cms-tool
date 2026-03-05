@@ -74,5 +74,14 @@ export const ContentResearches: CollectionConfig = {
         description: "Link to client proposal",
       },
     },
+    {
+      name: "client",
+      type: "relationship",
+      relationTo: "clients",
+      admin: {
+        position: "sidebar",
+        description: "Link to client (set on proposal conversion)",
+      },
+    },
   ],
 };

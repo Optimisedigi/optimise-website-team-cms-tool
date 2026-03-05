@@ -16,6 +16,7 @@ const mockPayload = {
   find: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  delete: vi.fn(),
   logger: { error: vi.fn(), info: vi.fn() },
 };
 
@@ -322,8 +323,11 @@ describe("ClientProposals: convertToClient hook", () => {
   });
 
   it("should create a client when convertToClient is toggled on", async () => {
+    // find for contracts, then 6x find for re-linking audit collections
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
     mockPayload.create.mockResolvedValueOnce({ id: "new-client-id" });
-    mockPayload.update.mockResolvedValueOnce({});
+    mockPayload.update.mockResolvedValue({});
+    mockPayload.delete.mockResolvedValue({});
 
     const doc = {
       id: "prop-1",
@@ -366,19 +370,20 @@ describe("ClientProposals: convertToClient hook", () => {
       }),
     );
 
-    // Verify toggle is reset
-    expect(mockPayload.update).toHaveBeenCalledWith(
+    // Verify proposal is deleted after conversion
+    expect(mockPayload.delete).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: "client-proposals",
         id: "prop-1",
-        data: { convertToClient: false },
       }),
     );
   });
 
   it("should strip competitor-only fields from competitors", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
     mockPayload.create.mockResolvedValueOnce({ id: "c1" });
-    mockPayload.update.mockResolvedValueOnce({});
+    mockPayload.update.mockResolvedValue({});
+    mockPayload.delete.mockResolvedValue({});
 
     const doc = {
       id: "prop-1",
@@ -415,8 +420,10 @@ describe("ClientProposals: convertToClient hook", () => {
   });
 
   it("should flatten keywordCategories into single keywords string", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
     mockPayload.create.mockResolvedValueOnce({ id: "c1" });
-    mockPayload.update.mockResolvedValueOnce({});
+    mockPayload.update.mockResolvedValue({});
+    mockPayload.delete.mockResolvedValue({});
 
     const doc = {
       id: "prop-1",
@@ -440,8 +447,10 @@ describe("ClientProposals: convertToClient hook", () => {
   });
 
   it("should fall back to legacy keywords field", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
     mockPayload.create.mockResolvedValueOnce({ id: "c1" });
-    mockPayload.update.mockResolvedValueOnce({});
+    mockPayload.update.mockResolvedValue({});
+    mockPayload.delete.mockResolvedValue({});
 
     const doc = {
       id: "prop-1",
@@ -497,8 +506,9 @@ describe("ClientProposals: convertToClient hook", () => {
   });
 
   it("should reset toggle and rethrow on error", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
     mockPayload.create.mockRejectedValueOnce(new Error("Duplicate slug"));
-    mockPayload.update.mockResolvedValueOnce({});
+    mockPayload.update.mockResolvedValue({});
 
     const doc = {
       id: "prop-1",
@@ -527,8 +537,10 @@ describe("ClientProposals: convertToClient hook", () => {
   });
 
   it("should map proposal fields to client fields correctly", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
     mockPayload.create.mockResolvedValueOnce({ id: "c1" });
-    mockPayload.update.mockResolvedValueOnce({});
+    mockPayload.update.mockResolvedValue({});
+    mockPayload.delete.mockResolvedValue({});
 
     const doc = {
       id: "prop-1",
@@ -586,8 +598,10 @@ describe("ClientProposals: convertToClient hook", () => {
   });
 
   it("should set default notes when notes field is empty", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
     mockPayload.create.mockResolvedValueOnce({ id: "c1" });
-    mockPayload.update.mockResolvedValueOnce({});
+    mockPayload.update.mockResolvedValue({});
+    mockPayload.delete.mockResolvedValue({});
 
     const doc = {
       id: "prop-1",

@@ -250,6 +250,22 @@ export async function POST(
         data: { signedPdfUrl },
         overrideAccess: true,
       });
+
+      // If contract is already linked to a client, save the signed PDF URL there too
+      const clientId =
+        typeof updatedDoc.client === "object" ? updatedDoc.client?.id : updatedDoc.client;
+      if (clientId) {
+        payload
+          .update({
+            collection: "clients",
+            id: clientId,
+            data: { signedContractUrl: signedPdfUrl },
+            overrideAccess: true,
+          })
+          .catch((err: any) =>
+            console.error("[sign-contract] Failed to update client with signed PDF:", err.message),
+          );
+      }
     }
 
     logActivity(payload, {

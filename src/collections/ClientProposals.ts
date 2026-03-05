@@ -83,7 +83,26 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
       }));
 
       // Create a new Client from the proposal data
-      await payload.create({
+      // Find completed contract linked to this proposal
+      let completedContract: any = null;
+      try {
+        const contractResults = await payload.find({
+          collection: "contracts",
+          where: {
+            proposal: { equals: doc.id },
+            status: { equals: "completed" },
+          },
+          limit: 1,
+          overrideAccess: true,
+        });
+        if (contractResults.totalDocs > 0) {
+          completedContract = contractResults.docs[0];
+        }
+      } catch {
+        // No contracts found, continue
+      }
+
+      const newClient = await payload.create({
         collection: "clients",
         data: {
           name: doc.businessName,
@@ -108,14 +127,58 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
           annualPurchaseFrequency: doc.annualPurchaseFrequency,
           newCustomersLast12Months: doc.newCustomersLast12Months,
           isActive: true,
+          ...(completedContract?.signedPdfUrl
+            ? { signedContractUrl: completedContract.signedPdfUrl, signedContract: completedContract.id }
+            : {}),
         },
       });
 
-      // Reset the toggle so it can't be accidentally triggered again
-      await payload.update({
+      // Link contract to the new client
+      if (completedContract) {
+        await payload.update({
+          collection: "contracts",
+          id: completedContract.id,
+          data: { client: newClient.id },
+          overrideAccess: true,
+        });
+      }
+
+      // Re-link all audit/research records from the proposal to the new client
+      const collectionsToRelink = [
+        "seo-audits",
+        "cro-audits",
+        "keyword-snapshots",
+        "competitor-analyses",
+        "google-ads-audits",
+        "content-researches",
+      ] as const;
+
+      await Promise.all(
+        collectionsToRelink.map(async (collection) => {
+          const records = await payload.find({
+            collection,
+            where: { proposal: { equals: doc.id } },
+            limit: 100,
+            overrideAccess: true,
+          });
+          await Promise.all(
+            records.docs.map((record: any) =>
+              payload.update({
+                collection,
+                id: record.id,
+                data: { client: newClient.id },
+                overrideAccess: true,
+              }),
+            ),
+          );
+        }),
+      );
+
+      // Delete the proposal now that all data is re-linked
+      await payload.delete({
         collection: "client-proposals",
         id: doc.id,
-        data: { convertToClient: false },
+        overrideAccess: true,
       });
     } catch (error) {
       // Reset the toggle so the user can retry
@@ -898,6 +961,30 @@ export const ClientProposals: CollectionConfig = {
                 components: {
                   Field: "./components/CompetitorExcluder",
                 },
+              },
+            },
+          ],
+        },
+        {
+          label: "Contract",
+          fields: [
+            {
+              name: "createContractButton",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/CreateContractButton",
+                },
+              },
+            },
+            {
+              name: "contracts",
+              type: "join",
+              collection: "contracts",
+              on: "proposal",
+              admin: {
+                description: "Contracts linked to this proposal",
+                defaultColumns: ["contractTitle", "status", "contractDate", "createdAt"],
               },
             },
           ],
