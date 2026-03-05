@@ -618,6 +618,15 @@ export const Clients: CollectionConfig = {
                 description: "Configure Google Ads automations for this client",
               },
               fields: [
+                // Dashboard (Quality Score tab)
+                {
+                  name: "dashboardEnabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Enable Google Ads dashboard & monthly quality score snapshots",
+                  },
+                },
                 // Negative Keyword Sweep
                 {
                   name: "negativeSweepEnabled",

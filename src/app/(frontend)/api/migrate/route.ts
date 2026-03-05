@@ -1026,6 +1026,9 @@ export async function POST(request: NextRequest) {
   await run("gsc_indexing_audits_updated_at_idx", "CREATE INDEX IF NOT EXISTS `gsc_indexing_audits_updated_at_idx` ON `gsc_indexing_audits` (`updated_at`)");
   await run("locked_docs_rels.gsc_indexing_audits_id", "ALTER TABLE `payload_locked_documents_rels` ADD `gsc_indexing_audits_id` integer");
 
+  // --- clients.gads_auto_dashboard_enabled (Quality Score tab + monthly snapshots) ---
+  await run("clients.gads_auto_dashboard_enabled", "ALTER TABLE `clients` ADD `gads_auto_dashboard_enabled` integer DEFAULT false");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
