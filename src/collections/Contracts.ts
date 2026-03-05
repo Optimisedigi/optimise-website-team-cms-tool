@@ -313,6 +313,15 @@ export const Contracts: CollectionConfig = {
               },
             },
             {
+              name: "sendEmailButton",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/SendContractEmailButton",
+                },
+              },
+            },
+            {
               type: "row",
               fields: [
                 {

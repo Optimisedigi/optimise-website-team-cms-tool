@@ -36,7 +36,7 @@ function baseTemplate(content: string): string {
           <tr>
             <td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
               <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">
-                Optimise Digital Pty Ltd &bull; Sydney, Australia
+                Optimise Digital Pty Ltd
               </p>
             </td>
           </tr>
@@ -99,7 +99,7 @@ export function generateCompletionEmail(opts: {
       <strong style="color:#1e293b;">Contract:</strong> ${escapeHtml(opts.contractTitle)}
     </p>
     <p style="margin:0 0 24px;font-size:14px;color:#64748b;">
-      A copy of the fully signed contract is attached below for your records.
+      A copy of the fully signed contract is in the link below for your records.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>

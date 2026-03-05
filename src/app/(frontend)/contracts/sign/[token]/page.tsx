@@ -402,6 +402,7 @@ export default function ContractSignPage() {
                 type="text"
                 value={clientDisplayName}
                 onChange={(e) => setClientDisplayName(e.target.value)}
+                placeholder="Enter business name"
                 style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 105px)' }}
               />
             </div>
@@ -411,6 +412,7 @@ export default function ContractSignPage() {
                 type="text"
                 value={signerName}
                 onChange={(e) => setSignerName(e.target.value)}
+                placeholder="Enter your name"
                 style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 60px)' }}
               />
             </div>
@@ -420,8 +422,8 @@ export default function ContractSignPage() {
                 type="text"
                 value={signerTitle}
                 onChange={(e) => setSignerTitle(e.target.value)}
+                placeholder="Enter your title"
                 style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 50px)' }}
-                placeholder=""
               />
             </div>
           </div>
@@ -432,15 +434,17 @@ export default function ContractSignPage() {
                 type="text"
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
+                placeholder="Enter phone"
                 style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 65px)' }}
               />
             </div>
             <div style={{ flex: '0 1 220px' }}>
-              <span style={fieldLabelStyle}>Website </span>
+              <span style={fieldLabelStyle}>Website: </span>
               <input
                 type="text"
                 value={clientWebsite}
                 onChange={(e) => setClientWebsite(e.target.value)}
+                placeholder="Enter website"
                 style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 75px)' }}
               />
             </div>
@@ -450,6 +454,7 @@ export default function ContractSignPage() {
                 type="email"
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
+                placeholder="Enter email"
                 style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 55px)' }}
               />
             </div>
