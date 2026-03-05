@@ -230,15 +230,14 @@
   flex-direction: column;
 }
 
-// Reorder nav groups: Clients → Performance → Audits → Content → Finance → Admin → Settings
-#nav-group-Clients  { order: 1; }
-.sidebar-extras__group:first-of-type { order: 2; } // Performance
-#nav-group-Audits   { order: 3; }
-#nav-group-Content  { order: 4; }
-#nav-group-Finance  { order: 5; }
-#nav-group-Admin    { order: 6; }
-.sidebar-extras__group:last-of-type  { order: 7; } // Settings
-.nav .nav__controls { order: 99; }
+// Reorder nav groups: Performance → Audits → Content → Finance → Settings → Admin
+#nav-group-Performance { order: 1; }
+#nav-group-Audits      { order: 2; }
+#nav-group-Content     { order: 3; }
+#nav-group-Finance     { order: 4; }
+#nav-group-Settings    { order: 5; }
+#nav-group-Admin       { order: 6; }
+.nav .nav__controls    { order: 99; }
 
 // Prominent group headers
 .nav .nav-group__toggle {
@@ -345,12 +344,47 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Cline x1='9' y1='18' x2='15' y2='18'/%3E%3Cline x1='10' y1='22' x2='14' y2='22'/%3E%3Cpath d='M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14'/%3E#{$svg-close}");
 }
 
+// Contracts
+.nav a.nav__link[href="/admin/collections/contracts"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cpath d='M12 18v-6'/%3E%3Cpath d='M9 15l3 3 3-3'/%3E#{$svg-close}");
+}
+
+// Activity Log
+.nav a.nav__link[href="/admin/collections/activity-log"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'/%3E%3Crect x='8' y='2' width='8' height='4' rx='1' ry='1'/%3E%3Cline x1='9' y1='10' x2='15' y2='10'/%3E%3Cline x1='9' y1='14' x2='15' y2='14'/%3E%3Cline x1='9' y1='18' x2='13' y2='18'/%3E#{$svg-close}");
+}
+
+// Internal Link Suggestions
+.nav a.nav__link[href="/admin/collections/internal-link-suggestions"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E#{$svg-close}");
+}
+
+// GSC Indexing Audits
+.nav a.nav__link[href="/admin/collections/gsc-indexing-audits"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Ccircle cx='11.5' cy='14.5' r='2.5'/%3E%3Cline x1='13.3' y1='16.3' x2='16' y2='19'/%3E#{$svg-close}");
+}
+
+// Negative Sweep Candidates
+.nav a.nav__link[href="/admin/collections/negative-sweep-candidates"] {
+  @include nav-icon("#{$svg-open}%3Cpolygon points='22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3'/%3E#{$svg-close}");
+}
+
+// Sheets Auth (global)
+.nav a.nav__link[href="/admin/globals/sheets-auth"] {
+  @include nav-icon("#{$svg-open}%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='3' y1='9' x2='21' y2='9'/%3E%3Cline x1='3' y1='15' x2='21' y2='15'/%3E%3Cline x1='9' y1='3' x2='9' y2='21'/%3E%3Cline x1='15' y1='3' x2='15' y2='21'/%3E#{$svg-close}");
+}
+
 // Admin group
 .nav a.nav__link[href="/admin/collections/usage-reports"] {
   @include nav-icon("#{$svg-open}%3Cpolyline points='22 12 18 12 15 21 9 3 6 12 2 12'/%3E#{$svg-close}");
 }
 .nav a.nav__link[href="/admin/collections/users"] {
   @include nav-icon("#{$svg-open}%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E#{$svg-close}");
+}
+
+// Ensure nav icons persist on active links
+.nav a.nav__link.active::before {
+  display: inline-block !important;
 }
 
 // Bottom controls
@@ -921,7 +955,7 @@ $svg-close: "%3C/svg%3E";
   margin-top: 3px;
 }
 
-// ── Sidebar extras (Performance / Settings nav groups) ──
+// ── Sidebar extras (injected links) ──
 .sidebar-extras__group {
   padding-left: 0;
 }

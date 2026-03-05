@@ -212,7 +212,7 @@ export const ClientProposals: CollectionConfig = {
   },
   admin: {
     useAsTitle: "businessName",
-    group: "Clients",
+    group: "Performance",
     description: "Proposals for prospective clients",
   },
   access: {

@@ -10,7 +10,7 @@ export const Contracts: CollectionConfig = {
   },
   admin: {
     useAsTitle: "contractTitle",
-    group: "Clients",
+    group: "Performance",
     description: "Service contracts linked to client proposals",
     defaultColumns: ["contractTitle", "clientName", "status", "contractDate", "createdAt"],
     components: {
@@ -374,6 +374,14 @@ export const Contracts: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "URL of the signed contract PDF (Vercel Blob)",
+              },
+            },
+            {
+              name: "pdfHash",
+              type: "text",
+              admin: {
+                readOnly: true,
+                description: "SHA-256 hash of the signed PDF for document integrity verification",
               },
             },
             {

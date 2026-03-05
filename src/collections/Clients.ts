@@ -49,7 +49,7 @@ export const Clients: CollectionConfig = {
   slug: "clients",
   admin: {
     useAsTitle: "name",
-    group: "Clients",
+    group: "Performance",
     description: "Manage client websites",
   },
   hooks: {
