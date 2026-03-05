@@ -489,6 +489,9 @@ export default function ContractSignPage() {
             <strong>Service Provider</strong>: Optimise Digital Pty Ltd
           </p>
           <p style={{ fontSize: 15, margin: '0 0 6px' }}>
+            <strong>ACN</strong>: 651 821 180
+          </p>
+          <p style={{ fontSize: 15, margin: '0 0 6px' }}>
             <strong>Address</strong>: 72A Yelverton St, Sydenham NSW 2044
           </p>
           <p style={{ fontSize: 15, margin: '0 0 6px' }}>
@@ -621,7 +624,7 @@ export default function ContractSignPage() {
         {/* Acceptance and Signature */}
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Acceptance and Signature:</h2>
         <p style={{ margin: '0 0 24px' }}>
-          By signing below, both parties agree to the terms and conditions outlined in this contract.
+          By signing below, both parties consent to executing this agreement electronically under the Electronic Transactions Act 1999 (Cth) and agree that electronic signatures are the legal equivalent of manual signatures. Both parties agree to the terms and conditions outlined in this contract.
         </p>
 
         {/* Client signature - callout box */}
