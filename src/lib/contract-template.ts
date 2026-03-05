@@ -225,7 +225,7 @@ export function generateContractSections(data: ContractData): ContractSection[] 
   sections.push({
     type: "paragraph",
     content:
-      "By signing below, both parties agree to the terms and conditions outlined in this contract.",
+      "By signing below, both parties consent to executing this agreement electronically under the Electronic Transactions Act 1999 (Cth) and agree that electronic signatures are the legal equivalent of manual signatures. Both parties agree to the terms and conditions outlined in this contract.",
   });
   sections.push({
     type: "signatures",

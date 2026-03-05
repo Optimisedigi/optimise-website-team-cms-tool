@@ -396,7 +396,7 @@ export default function ContractSignPage() {
             Please check and update your details below
           </p>
           <div style={{ display: 'flex', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 240px' }}>
+            <div style={{ flex: '1 1 50%' }}>
               <span style={fieldLabelStyle}>Client Name: </span>
               <input
                 type="text"
@@ -406,7 +406,7 @@ export default function ContractSignPage() {
                 style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 105px)' }}
               />
             </div>
-            <div style={{ flex: '0 1 160px' }}>
+            <div style={{ flex: '1 1 40%' }}>
               <span style={fieldLabelStyle}>Name: </span>
               <input
                 type="text"
@@ -416,7 +416,19 @@ export default function ContractSignPage() {
                 style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 60px)' }}
               />
             </div>
-            <div style={{ flex: '1 1 200px' }}>
+          </div>
+          <div style={{ display: 'flex', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 50%' }}>
+              <span style={fieldLabelStyle}>Phone: </span>
+              <input
+                type="text"
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                placeholder="Enter phone"
+                style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 65px)' }}
+              />
+            </div>
+            <div style={{ flex: '1 1 40%' }}>
               <span style={fieldLabelStyle}>Title: </span>
               <input
                 type="text"
@@ -428,27 +440,7 @@ export default function ContractSignPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ flex: '0 1 170px' }}>
-              <span style={fieldLabelStyle}>Phone: </span>
-              <input
-                type="text"
-                value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)}
-                placeholder="Enter phone"
-                style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 65px)' }}
-              />
-            </div>
-            <div style={{ flex: '0 1 220px' }}>
-              <span style={fieldLabelStyle}>Website: </span>
-              <input
-                type="text"
-                value={clientWebsite}
-                onChange={(e) => setClientWebsite(e.target.value)}
-                placeholder="Enter website"
-                style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 75px)' }}
-              />
-            </div>
-            <div style={{ flex: '1 1 260px' }}>
+            <div style={{ flex: '1 1 50%' }}>
               <span style={fieldLabelStyle}>Email: </span>
               <input
                 type="email"
@@ -456,6 +448,16 @@ export default function ContractSignPage() {
                 onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="Enter email"
                 style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 55px)' }}
+              />
+            </div>
+            <div style={{ flex: '1 1 40%' }}>
+              <span style={fieldLabelStyle}>Website: </span>
+              <input
+                type="text"
+                value={clientWebsite}
+                onChange={(e) => setClientWebsite(e.target.value)}
+                placeholder="Enter website"
+                style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 75px)' }}
               />
             </div>
           </div>
