@@ -1132,6 +1132,9 @@ export async function POST(request: NextRequest) {
   await run("clients.signed_contract_url", "ALTER TABLE `clients` ADD `signed_contract_url` text");
   await run("clients.signed_contract_id", "ALTER TABLE `clients` ADD `signed_contract_id` integer REFERENCES `contracts`(`id`) ON DELETE set null");
 
+  // Fix: Payload expects agency_signature_id (upload fields use _id suffix) but table has agency_signature
+  await run("contracts_rename_agency_sig", "ALTER TABLE `contracts` RENAME COLUMN `agency_signature` TO `agency_signature_id`");
+
   // Diagnostic: test payload.find on clients (same as /api/clients/list)
   let payloadFindTest: any = null;
   try {
