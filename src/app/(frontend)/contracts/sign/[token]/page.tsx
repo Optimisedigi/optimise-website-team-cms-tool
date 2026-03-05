@@ -771,6 +771,7 @@ export default function ContractSignPage() {
                 style={{ marginTop: 3 }}
               />
               <span style={{ fontSize: 13, color: '#333', lineHeight: 1.5 }}>
+                I consent to entering into this agreement electronically under the Electronic Transactions Act 1999 (Cth).
                 I agree that my electronic signature is the legal equivalent of my manual signature on this contract.
                 I have read and agree to the terms outlined above.
               </span>

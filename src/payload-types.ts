@@ -860,6 +860,10 @@ export interface Contract {
    */
   signedPdfUrl?: string | null;
   /**
+   * SHA-256 hash of the signed PDF for document integrity verification
+   */
+  pdfHash?: string | null;
+  /**
    * Contract status
    */
   status?: ('draft' | 'sent' | 'completed') | null;
@@ -3500,6 +3504,7 @@ export interface ContractsSelect<T extends boolean = true> {
   clientSignedAt?: T;
   clientSignedIp?: T;
   signedPdfUrl?: T;
+  pdfHash?: T;
   status?: T;
   signingToken?: T;
   signingTokenExpiresAt?: T;

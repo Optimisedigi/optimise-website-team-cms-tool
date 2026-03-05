@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { put } from "@vercel/blob";
+import crypto from "crypto";
 import { generateContractPdf } from "@/lib/contract-pdf";
 import { logActivity } from "@/lib/activity-log";
 import type { ContractData } from "@/lib/contract-template";
@@ -227,6 +228,9 @@ export async function POST(
 
     const pdfBuffer = await generateContractPdf(contractData);
 
+    // Compute SHA-256 hash for document integrity verification
+    const pdfHash = crypto.createHash("sha256").update(pdfBuffer).digest("hex");
+
     // Upload to Vercel Blob
     let signedPdfUrl = "";
     console.log("[sign-contract] BLOB_READ_WRITE_TOKEN set:", !!process.env.BLOB_READ_WRITE_TOKEN, "pdfBuffer size:", pdfBuffer.length);
@@ -248,7 +252,7 @@ export async function POST(
       await payload.update({
         collection: "contracts",
         id: doc.id,
-        data: { signedPdfUrl },
+        data: { signedPdfUrl, pdfHash },
         overrideAccess: true,
       });
 

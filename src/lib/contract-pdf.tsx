@@ -249,6 +249,10 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
               <Text style={styles.fieldValue}>: Optimise Digital Pty Ltd</Text>
             </View>
             <View style={{ flexDirection: "row", marginBottom: 3 }}>
+              <Text style={styles.fieldLabel}>ACN</Text>
+              <Text style={styles.fieldValue}>: 651 821 180</Text>
+            </View>
+            <View style={{ flexDirection: "row", marginBottom: 3 }}>
               <Text style={styles.fieldLabel}>Address</Text>
               <Text style={styles.fieldValue}>: 72A Yelverton St, Sydenham NSW 2044</Text>
             </View>
@@ -556,7 +560,9 @@ const ContractPDF: React.FC<ContractPDFProps> = ({ data }) => {
 
         <Text style={styles.footer}>
           This document was digitally signed via Optimise Digital&apos;s contract
-          management system.
+          management system. A SHA-256 hash of this document is stored for
+          integrity verification. Signed documents are retained for a minimum
+          of 7 years in accordance with Australian record-keeping requirements.
         </Text>
       </Page>
     </Document>
