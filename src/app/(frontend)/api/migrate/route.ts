@@ -1077,6 +1077,61 @@ export async function POST(request: NextRequest) {
     retainerHistory = retResult.rows;
   } catch { /* ignore */ }
 
+  // ── Contracts (e-signature flow) ──
+  await run("contracts", `CREATE TABLE IF NOT EXISTS \`contracts\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`contract_title\` text NOT NULL,
+    \`proposal_id\` integer,
+    \`client_id\` integer,
+    \`client_name\` text,
+    \`client_contact_name\` text,
+    \`client_email\` text,
+    \`client_title\` text,
+    \`client_phone\` text,
+    \`client_website\` text,
+    \`contract_date\` text,
+    \`contract_start_date\` text,
+    \`monthly_retainer\` numeric,
+    \`setup_fee\` numeric,
+    \`contract_term\` text,
+    \`payment_terms\` text,
+    \`scope_of_work\` text,
+    \`pricing_notes\` text,
+    \`payment_terms_override\` text,
+    \`agency_contact_name\` text,
+    \`agency_contact_email\` text,
+    \`agency_contact_phone\` text,
+    \`agency_signer_name\` text,
+    \`agency_signer_title\` text,
+    \`agency_signature\` integer,
+    \`agency_signed_at\` text,
+    \`agency_signed_ip\` text,
+    \`client_signer_name\` text,
+    \`client_signature\` text,
+    \`client_signed_at\` text,
+    \`client_signed_ip\` text,
+    \`signed_pdf_url\` text,
+    \`status\` text DEFAULT 'draft',
+    \`signing_token\` text,
+    \`signing_token_expires_at\` text,
+    \`sent_at\` text,
+    \`is_template\` integer DEFAULT false,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`agency_signature\`) REFERENCES \`media\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("contracts_proposal_idx", "CREATE INDEX IF NOT EXISTS `contracts_proposal_idx` ON `contracts` (`proposal_id`)");
+  await run("contracts_client_idx", "CREATE INDEX IF NOT EXISTS `contracts_client_idx` ON `contracts` (`client_id`)");
+  await run("contracts_signing_token_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `contracts_signing_token_idx` ON `contracts` (`signing_token`)");
+  await run("contracts_status_idx", "CREATE INDEX IF NOT EXISTS `contracts_status_idx` ON `contracts` (`status`)");
+  await run("contracts_created_at_idx", "CREATE INDEX IF NOT EXISTS `contracts_created_at_idx` ON `contracts` (`created_at`)");
+  await run("contracts_updated_at_idx", "CREATE INDEX IF NOT EXISTS `contracts_updated_at_idx` ON `contracts` (`updated_at`)");
+  await run("locked_docs_rels.contracts_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contracts_id` integer");
+  await run("clients.signed_contract_url", "ALTER TABLE `clients` ADD `signed_contract_url` text");
+  await run("clients.signed_contract_id", "ALTER TABLE `clients` ADD `signed_contract_id` integer REFERENCES `contracts`(`id`) ON DELETE set null");
+
   // Diagnostic: test payload.find on clients (same as /api/clients/list)
   let payloadFindTest: any = null;
   try {
