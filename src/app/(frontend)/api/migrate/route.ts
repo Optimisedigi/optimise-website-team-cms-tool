@@ -489,6 +489,8 @@ export async function POST(request: NextRequest) {
   await run("content_researches_proposal_idx", "CREATE INDEX IF NOT EXISTS `content_researches_proposal_idx` ON `content_researches` (`proposal_id`)");
   await run("content_researches_created_at_idx", "CREATE INDEX IF NOT EXISTS `content_researches_created_at_idx` ON `content_researches` (`created_at`)");
   await run("content_researches_updated_at_idx", "CREATE INDEX IF NOT EXISTS `content_researches_updated_at_idx` ON `content_researches` (`updated_at`)");
+  await run("content_researches.client_id", "ALTER TABLE `content_researches` ADD `client_id` integer REFERENCES `clients`(`id`) ON DELETE set null");
+  await run("content_researches_client_idx", "CREATE INDEX IF NOT EXISTS `content_researches_client_idx` ON `content_researches` (`client_id`)");
 
   // --- Job Posts table ---
   await run("job_posts", `CREATE TABLE IF NOT EXISTS \`job_posts\` (
@@ -1362,11 +1364,78 @@ export async function GET(request: NextRequest) {
   await run("gsc_indexing_audits_updated_at_idx", "CREATE INDEX IF NOT EXISTS `gsc_indexing_audits_updated_at_idx` ON `gsc_indexing_audits` (`updated_at`)");
   await run("locked_docs_rels.gsc_indexing_audits_id", "ALTER TABLE `payload_locked_documents_rels` ADD `gsc_indexing_audits_id` integer");
 
+  // ── Contracts (e-signature flow) ──
+  await run("contracts", `CREATE TABLE IF NOT EXISTS \`contracts\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`contract_title\` text NOT NULL,
+    \`proposal_id\` integer,
+    \`client_id\` integer,
+    \`client_name\` text NOT NULL,
+    \`client_email\` text NOT NULL,
+    \`contract_date\` text,
+    \`contract_start_date\` text,
+    \`monthly_price\` numeric,
+    \`setup_fee\` numeric,
+    \`retainer_amount\` numeric,
+    \`contract_term\` text,
+    \`payment_terms\` text,
+    \`scope_of_work\` text,
+    \`agency_signer_name\` text,
+    \`agency_signer_title\` text,
+    \`agency_signature\` text,
+    \`agency_signed_at\` text,
+    \`agency_signed_ip\` text,
+    \`client_signer_name\` text,
+    \`client_signature\` text,
+    \`client_signed_at\` text,
+    \`client_signed_ip\` text,
+    \`signed_pdf_url\` text,
+    \`status\` text DEFAULT 'draft',
+    \`signing_token\` text,
+    \`signing_token_expires_at\` text,
+    \`sent_at\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("contracts_proposal_idx", "CREATE INDEX IF NOT EXISTS `contracts_proposal_idx` ON `contracts` (`proposal_id`)");
+  await run("contracts_client_idx", "CREATE INDEX IF NOT EXISTS `contracts_client_idx` ON `contracts` (`client_id`)");
+  await run("contracts_signing_token_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `contracts_signing_token_idx` ON `contracts` (`signing_token`)");
+  await run("contracts_status_idx", "CREATE INDEX IF NOT EXISTS `contracts_status_idx` ON `contracts` (`status`)");
+  await run("contracts_created_at_idx", "CREATE INDEX IF NOT EXISTS `contracts_created_at_idx` ON `contracts` (`created_at`)");
+  await run("contracts_updated_at_idx", "CREATE INDEX IF NOT EXISTS `contracts_updated_at_idx` ON `contracts` (`updated_at`)");
+  await run("locked_docs_rels.contracts_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contracts_id` integer");
+
+  // Contract fields on clients
+  await run("clients.signed_contract_url", "ALTER TABLE `clients` ADD `signed_contract_url` text");
+  await run("clients.signed_contract_id", "ALTER TABLE `clients` ADD `signed_contract_id` integer REFERENCES `contracts`(`id`) ON DELETE set null");
+
+  // ── New contract columns (2026-03-05) ──
+  await run("contracts.client_title", "ALTER TABLE `contracts` ADD `client_title` text");
+  await run("contracts.client_phone", "ALTER TABLE `contracts` ADD `client_phone` text");
+  await run("contracts.client_website", "ALTER TABLE `contracts` ADD `client_website` text");
+  await run("contracts.agency_contact_name", "ALTER TABLE `contracts` ADD `agency_contact_name` text");
+  await run("contracts.agency_contact_email", "ALTER TABLE `contracts` ADD `agency_contact_email` text");
+  await run("contracts.agency_contact_phone", "ALTER TABLE `contracts` ADD `agency_contact_phone` text");
+  await run("contracts.monthly_retainer", "ALTER TABLE `contracts` ADD `monthly_retainer` numeric");
+  await run("contracts.client_contact_name", "ALTER TABLE `contracts` ADD `client_contact_name` text");
+  await run("contracts.pricing_notes", "ALTER TABLE `contracts` ADD `pricing_notes` text");
+  await run("contracts.payment_terms_override", "ALTER TABLE `contracts` ADD `payment_terms_override` text");
+
+  // ── Contract signature upload + template flag (2026-03-05) ──
+  // agency_signature changed from text (base64) to upload FK (media)
+  // DROP COLUMN requires SQLite 3.35+ / libSQL
+  await run("contracts.drop_agency_signature_text", "ALTER TABLE `contracts` DROP COLUMN `agency_signature`");
+  await run("contracts.agency_signature_id", "ALTER TABLE `contracts` ADD `agency_signature_id` integer REFERENCES `media`(`id`) ON DELETE set null");
+  await run("contracts.agency_signature_idx", "CREATE INDEX IF NOT EXISTS `contracts_agency_signature_idx` ON `contracts` (`agency_signature_id`)");
+  await run("contracts.is_template", "ALTER TABLE `contracts` ADD `is_template` integer DEFAULT 0");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-04", results, allTables });
+  return NextResponse.json({ ok: true, version: "2026-03-05-contracts-v2", results, allTables });
 }
