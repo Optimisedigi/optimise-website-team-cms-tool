@@ -40,6 +40,10 @@ export const ActivityLog: CollectionConfig = {
         { label: "Link Suggestion Created", value: "link_suggestion_created" },
         { label: "Negative Sweep Completed", value: "negative_sweep_completed" },
         { label: "Negative Sweep Synced", value: "negative_sweep_synced" },
+        { label: "Contract Created", value: "contract_created" },
+        { label: "Contract Agency Signed", value: "contract_agency_signed" },
+        { label: "Contract Sent", value: "contract_sent" },
+        { label: "Contract Client Signed", value: "contract_client_signed" },
       ],
     },
     {

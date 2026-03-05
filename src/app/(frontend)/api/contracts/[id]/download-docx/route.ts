@@ -1,0 +1,673 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getPayload } from "payload";
+import config from "@/payload.config";
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+  AlignmentType,
+  BorderStyle,
+  ImageRun,
+  HeadingLevel,
+} from "docx";
+import {
+  formatCurrency,
+  formatDate,
+} from "@/lib/contract-template";
+import fs from "fs";
+import path from "path";
+
+// A4 width in DXA (twips) minus margins: 11906 - 720*2 = 10466
+const PAGE_WIDTH_DXA = 10466;
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+
+  const payloadConfig = await config;
+  const payload = await getPayload({ config: payloadConfig });
+
+  const { user } = await payload.auth({ headers: req.headers });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let doc: any;
+  try {
+    doc = await payload.findByID({
+      collection: "contracts",
+      id,
+      overrideAccess: true,
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "Contract not found" },
+      { status: 404 },
+    );
+  }
+
+  try {
+    // Resolve agency signature to buffer for embedding
+    const sigBuffer = await resolveMediaBuffer(payload, doc.agencySignature);
+
+    const buffer = await generateContractDocx(doc, sigBuffer);
+
+    const slug =
+      doc.contractTitle
+        ?.toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "contract";
+
+    return new NextResponse(new Uint8Array(buffer), {
+      status: 200,
+      headers: {
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": `attachment; filename="${slug}.docx"`,
+      },
+    });
+  } catch (e: any) {
+    console.error("[download-docx] Error:", e.message);
+    return NextResponse.json(
+      { error: `Failed to generate Word document: ${e.message}` },
+      { status: 500 },
+    );
+  }
+}
+
+async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise<Buffer> {
+  const agencyName = "Optimise Digital Pty Ltd";
+  const contactName = doc.agencyContactName || "Peter Tu";
+  const contactEmail = doc.agencyContactEmail || "peter@optimisedigital.online";
+  const contactPhone = doc.agencyContactPhone || "0493053188";
+
+  const setupAmount = doc.setupFee ? formatCurrency(doc.setupFee) : "$0";
+  const retainerAmount = doc.monthlyRetainer ? formatCurrency(doc.monthlyRetainer) : "$0";
+
+  const children: (Paragraph | Table)[] = [];
+
+  // Logo (15% smaller than original 252 → 214)
+  try {
+    const logoPath = path.join(process.cwd(), "public", "logo.png");
+    const logoBuffer = fs.readFileSync(logoPath);
+    children.push(
+      new Paragraph({
+        children: [
+          new ImageRun({
+            data: logoBuffer,
+            transformation: { width: 214, height: 43 },
+            type: "png",
+          }),
+        ],
+        spacing: { after: 300 },
+      }),
+    );
+  } catch {
+    // skip logo
+  }
+
+  // Thick rule
+  children.push(thickRule());
+
+  // Cover
+  children.push(
+    textPara("Contract Agreement", 26),
+    textPara("Between", 26),
+    textPara(agencyName, 30, true),
+    textPara("And", 26),
+    textPara(doc.clientName, 30, true),
+  );
+
+  children.push(thickRule());
+
+  // This contract is between
+  children.push(
+    new Paragraph({
+      children: [new TextRun({ text: "This contract is between:", bold: true, italics: true })],
+      spacing: { after: 100 },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Client: ", bold: true }),
+        new TextRun({ text: doc.clientName }),
+      ],
+      spacing: { after: 100 },
+    }),
+  );
+
+  // Client details
+  if (doc.clientContactName || doc.clientTitle || doc.clientEmail) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: "Name: ", bold: true }),
+          new TextRun({ text: `${doc.clientContactName || ""}    ` }),
+          new TextRun({ text: "Title: ", bold: true }),
+          new TextRun({ text: `${doc.clientTitle || ""}    ` }),
+          new TextRun({ text: "Email: ", bold: true }),
+          new TextRun({ text: doc.clientEmail || "" }),
+        ],
+        spacing: { after: 50 },
+      }),
+    );
+  }
+  if (doc.clientPhone || doc.clientWebsite) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: "Phone: ", bold: true }),
+          new TextRun({ text: `${doc.clientPhone || ""}    ` }),
+          new TextRun({ text: "Website: ", bold: true }),
+          new TextRun({ text: doc.clientWebsite || "" }),
+        ],
+        spacing: { after: 200 },
+      }),
+    );
+  }
+
+  // Service Provider
+  children.push(
+    labelValuePara("Service Provider", agencyName),
+    labelValuePara("Address", "72A Yelverton St, Sydenham NSW 2044"),
+    labelValuePara("Contact Person", contactName),
+    labelValuePara("Email", contactEmail),
+    labelValuePara("Phone", contactPhone, 200),
+  );
+
+  // Effective date
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Effective Date: ", bold: true }),
+        new TextRun({ text: doc.contractDate ? formatDate(doc.contractDate) : "" }),
+        new TextRun({ text: " (to be confirmed with client)", italics: true, color: "666666" }),
+      ],
+      spacing: { after: 200 },
+    }),
+  );
+
+  children.push(thickRule());
+
+  // Scope of Work
+  if (doc.scopeOfWork?.root?.children) {
+    children.push(
+      new Paragraph({ text: "Scope of Work", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+    );
+    children.push(...lexicalToDocx(doc.scopeOfWork.root.children));
+    children.push(thinRule());
+  }
+
+  // Pricing table
+  if (doc.setupFee || doc.monthlyRetainer) {
+    children.push(
+      new Paragraph({ text: "Pricing", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+    );
+
+    const labelWidth = Math.round(PAGE_WIDTH_DXA * 0.6);
+    const valueWidth = PAGE_WIDTH_DXA - labelWidth;
+
+    const noBorders = {
+      top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+    } as const;
+
+    const thinBorder = { style: BorderStyle.SINGLE, size: 1, color: "111111" } as const;
+
+    const tableRows: TableRow[] = [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: " ", bold: true })] })],
+            width: { size: labelWidth, type: WidthType.DXA },
+            borders: { ...noBorders, bottom: thinBorder, right: thinBorder },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: "Amount", bold: true })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            width: { size: valueWidth, type: WidthType.DXA },
+            borders: { ...noBorders, bottom: thinBorder },
+          }),
+        ],
+      }),
+    ];
+
+    if (doc.setupFee && doc.setupFee > 0) {
+      tableRows.push(
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: "One-time setup fee", bold: true })] })],
+              width: { size: labelWidth, type: WidthType.DXA },
+              borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, right: thinBorder },
+            }),
+            new TableCell({
+              children: [
+                new Paragraph({
+                  text: formatCurrency(doc.setupFee),
+                  alignment: AlignmentType.RIGHT,
+                }),
+              ],
+              width: { size: valueWidth, type: WidthType.DXA },
+              borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } },
+            }),
+          ],
+        }),
+      );
+    }
+
+    if (doc.monthlyRetainer && doc.monthlyRetainer > 0) {
+      tableRows.push(
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: "Monthly management retainer", bold: true })] })],
+              width: { size: labelWidth, type: WidthType.DXA },
+              borders: { ...noBorders, right: thinBorder },
+            }),
+            new TableCell({
+              children: [
+                new Paragraph({
+                  text: `${formatCurrency(doc.monthlyRetainer)}/month`,
+                  alignment: AlignmentType.RIGHT,
+                }),
+              ],
+              width: { size: valueWidth, type: WidthType.DXA },
+              borders: noBorders,
+            }),
+          ],
+        }),
+      );
+    }
+
+    children.push(
+      new Table({
+        rows: tableRows,
+        width: { size: PAGE_WIDTH_DXA, type: WidthType.DXA },
+        borders: {
+          top: thinBorder,
+          bottom: thinBorder,
+          left: thinBorder,
+          right: thinBorder,
+          insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+          insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        },
+      }),
+    );
+
+    // Pricing notes (rich text)
+    if (doc.pricingNotes?.root?.children) {
+      children.push(new Paragraph({ spacing: { before: 100 } }));
+      children.push(...lexicalToDocx(doc.pricingNotes.root.children));
+    }
+
+    children.push(thinRule());
+  }
+
+  // Payment Terms
+  children.push(
+    new Paragraph({ text: "Payment Terms:", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+  );
+  if (doc.paymentTermsOverride?.root?.children) {
+    children.push(...lexicalToDocx(doc.paymentTermsOverride.root.children));
+  } else {
+    const paymentBullets = [
+      `The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`,
+      `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
+      "Invoices are due within 14 days of issue.",
+      "This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.",
+    ];
+    for (const bullet of paymentBullets) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: bullet })],
+          bullet: { level: 0 },
+          spacing: { after: 80 },
+        }),
+      );
+    }
+  }
+
+  children.push(thinRule());
+
+  // Termination
+  children.push(
+    new Paragraph({ text: "Termination:", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+  );
+  for (const bullet of [
+    "Either party may terminate this contract with a 30-day written notice.",
+    "Upon termination, the Client agrees to pay for all services rendered up to the termination date.",
+    "Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.",
+  ]) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: bullet })],
+        bullet: { level: 0 },
+        spacing: { after: 80 },
+      }),
+    );
+  }
+
+  children.push(thinRule());
+
+  // Confidentiality
+  children.push(
+    new Paragraph({ text: "Confidentiality:", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+  );
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `Either party may disclose Confidential Information to the other. "Confidential Information" includes all non-public information about the Disclosing Party's business, technology, structure, and strategies, whether conveyed orally or in tangible form, and whether or not marked as "confidential." The Recipient will keep the Confidential Information in trust, not disclose it to others, and ensure that its employees, agents, or any persons under its direction do the same, indefinitely.`,
+        }),
+      ],
+      bullet: { level: 0 },
+      spacing: { after: 200 },
+    }),
+  );
+
+  children.push(thickRule());
+
+  // Acceptance and Signature
+  children.push(
+    new Paragraph({ text: "Acceptance and Signature:", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+    new Paragraph({
+      text: "By signing below, both parties agree to the terms and conditions outlined in this contract.",
+      spacing: { after: 200 },
+    }),
+  );
+
+  // Client signature block
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Client", bold: true }),
+        new TextRun({ text: `: ${doc.clientName}` }),
+      ],
+      spacing: { after: 100 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: "Signature: ____________________________" })],
+      spacing: { after: 50 },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Name: ", bold: true }),
+        new TextRun({ text: `${doc.clientSignerName || doc.clientContactName || "[Name]"}    ` }),
+        new TextRun({ text: "Date: ", bold: true }),
+        new TextRun({ text: doc.clientSignedAt ? formatDate(doc.clientSignedAt) : "____________________" }),
+      ],
+      spacing: { after: 300 },
+    }),
+  );
+
+  // Service Provider signature block
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Service Provider", bold: true }),
+        new TextRun({ text: `: ${agencyName}` }),
+      ],
+      spacing: { after: 100 },
+    }),
+  );
+
+  // Agency signature image
+  if (sigBuffer) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: "Signature:", bold: true })],
+        spacing: { after: 50 },
+      }),
+      new Paragraph({
+        children: [
+          new ImageRun({
+            data: sigBuffer,
+            transformation: { width: 100, height: 30 },
+            type: "png",
+          }),
+        ],
+        spacing: { after: 50 },
+      }),
+    );
+  } else {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: "Signature: ____________________________" })],
+        spacing: { after: 50 },
+      }),
+    );
+  }
+
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Name: ", bold: true }),
+        new TextRun({ text: `${doc.agencySignerName || "Peter Tu"}    ` }),
+        new TextRun({ text: "Date: ", bold: true }),
+        new TextRun({ text: doc.agencySignedAt ? formatDate(doc.agencySignedAt) : "____________________" }),
+      ],
+      spacing: { after: 200 },
+    }),
+  );
+
+  const docxDoc = new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: { top: 720, right: 720, bottom: 720, left: 720 },
+          },
+        },
+        children,
+      },
+    ],
+  });
+
+  const buffer = await Packer.toBuffer(docxDoc);
+  return Buffer.from(buffer);
+}
+
+// ── Lexical → docx rendering ──
+
+function lexicalToDocx(nodes: any[], level?: number): Paragraph[] {
+  const result: Paragraph[] = [];
+  for (const node of nodes) {
+    switch (node.type) {
+      case "paragraph":
+        result.push(
+          new Paragraph({
+            children: lexicalInlineRuns(node.children || []),
+            spacing: { after: 80 },
+          }),
+        );
+        break;
+
+      case "heading": {
+        const headingLevel =
+          node.tag === "h1" ? HeadingLevel.HEADING_1
+            : node.tag === "h2" ? HeadingLevel.HEADING_2
+              : HeadingLevel.HEADING_3;
+        result.push(
+          new Paragraph({
+            children: lexicalInlineRuns(node.children || []),
+            heading: headingLevel,
+            spacing: { before: 120, after: 80 },
+          }),
+        );
+        break;
+      }
+
+      case "list": {
+        const isOrdered = node.listType === "number";
+        for (const item of node.children || []) {
+          if (item.type === "listitem") {
+            result.push(...lexicalListItemToDocx(item, isOrdered, level || 0));
+          }
+        }
+        break;
+      }
+
+      default:
+        if (node.children) {
+          result.push(...lexicalToDocx(node.children, level));
+        } else if (node.text !== undefined) {
+          result.push(
+            new Paragraph({
+              children: [lexicalTextRun(node)],
+              spacing: { after: 80 },
+            }),
+          );
+        }
+        break;
+    }
+  }
+  return result;
+}
+
+function lexicalListItemToDocx(item: any, isOrdered: boolean, level: number): Paragraph[] {
+  const result: Paragraph[] = [];
+  const inlineChildren: any[] = [];
+  const nestedLists: any[] = [];
+
+  for (const child of item.children || []) {
+    if (child.type === "list") {
+      nestedLists.push(child);
+    } else {
+      inlineChildren.push(child);
+    }
+  }
+
+  // The list item text
+  if (inlineChildren.length > 0) {
+    result.push(
+      new Paragraph({
+        children: lexicalInlineRuns(inlineChildren),
+        bullet: { level },
+        spacing: { after: 60 },
+      }),
+    );
+  }
+
+  // Nested lists
+  for (const nested of nestedLists) {
+    const nestedOrdered = nested.listType === "number";
+    for (const nestedItem of nested.children || []) {
+      if (nestedItem.type === "listitem") {
+        result.push(...lexicalListItemToDocx(nestedItem, nestedOrdered, level + 1));
+      }
+    }
+  }
+
+  return result;
+}
+
+function lexicalInlineRuns(children: any[]): TextRun[] {
+  const runs: TextRun[] = [];
+  for (const child of children) {
+    if (child.text !== undefined) {
+      runs.push(lexicalTextRun(child));
+    } else if (child.children) {
+      runs.push(...lexicalInlineRuns(child.children));
+    }
+  }
+  return runs;
+}
+
+function lexicalTextRun(node: any): TextRun {
+  const isBold = !!(node.format & 1);
+  const isItalic = !!(node.format & 2);
+  return new TextRun({
+    text: node.text || "",
+    bold: isBold || undefined,
+    italics: isItalic || undefined,
+  });
+}
+
+// ── Helpers ──
+
+function textPara(text: string, size: number, bold?: boolean): Paragraph {
+  return new Paragraph({
+    children: [new TextRun({ text, size, bold })],
+    spacing: { after: 100 },
+  });
+}
+
+function labelValuePara(label: string, value: string, afterSpacing?: number): Paragraph {
+  return new Paragraph({
+    children: [
+      new TextRun({ text: `${label}: `, bold: true }),
+      new TextRun({ text: value }),
+    ],
+    spacing: { after: afterSpacing || 50 },
+  });
+}
+
+function thickRule(): Paragraph {
+  return new Paragraph({
+    border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "111111" } },
+    spacing: { after: 200 },
+  });
+}
+
+function thinRule(): Paragraph {
+  return new Paragraph({
+    border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } },
+    spacing: { after: 200 },
+  });
+}
+
+async function resolveMediaBuffer(
+  payload: any,
+  agencySignature: any,
+): Promise<Buffer | null> {
+  if (!agencySignature) return null;
+
+  let url: string | null = null;
+
+  if (typeof agencySignature === "object" && agencySignature?.url) {
+    url = agencySignature.url;
+  } else if (typeof agencySignature === "string" || typeof agencySignature === "number") {
+    try {
+      const media = await payload.findByID({
+        collection: "media",
+        id: agencySignature,
+        overrideAccess: true,
+      });
+      url = media?.url || null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!url) return null;
+
+  try {
+    let fetchUrl = url;
+    if (url.startsWith("/")) {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_SERVER_URL ||
+        (process.env.VERCEL_PROJECT_PRODUCTION_URL
+          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+          : "http://localhost:3004");
+      fetchUrl = `${baseUrl}${url}`;
+    }
+    const res = await fetch(fetchUrl);
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}

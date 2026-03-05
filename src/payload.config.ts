@@ -30,6 +30,7 @@ import { GscDaily } from "./collections/GscDaily";
 import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
 import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
+import { Contracts } from "./collections/Contracts";
 import { ApiCostRates } from "./globals/ApiCostRates";
 import { SheetsAuth } from "./globals/SheetsAuth";
 
@@ -65,13 +66,13 @@ export default buildConfig({
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
       afterLogin: ["./components/ShowPasswordToggle"],
-      providers: ["./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/PomodoroTimer"],
+      providers: ["./components/RocketLoader", "./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/PomodoroTimer"],
       beforeDashboard: ["./components/Dashboard"],
     },
   },
   collections: [
     // Clients
-    Clients, ClientProposals,
+    Clients, ClientProposals, Contracts,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO
@@ -102,7 +103,7 @@ export default buildConfig({
         ? { authToken: process.env.DATABASE_AUTH_TOKEN }
         : {}),
     },
-    push: true,
+    push: false,
   }),
   sharp,
   plugins: [

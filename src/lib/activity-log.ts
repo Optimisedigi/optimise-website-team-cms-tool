@@ -14,7 +14,12 @@ type ActivityType =
   | "google_ads_proposal_created"
   | "link_suggestion_created"
   | "negative_sweep_completed"
-  | "negative_sweep_synced";
+  | "negative_sweep_synced"
+  | "contract_created"
+  | "contract_agency_signed"
+  | "contract_sent"
+  | "contract_client_signed"
+  | "contract_link_generated";
 
 interface ActivityEntry {
   type: ActivityType;

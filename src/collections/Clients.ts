@@ -351,7 +351,26 @@ export const Clients: CollectionConfig = {
               type: "upload",
               relationTo: "media",
               admin: {
-                description: "Client contract document",
+                description: "Client contract document (legacy upload)",
+                condition: (data: any) => !data?.isAgency,
+              },
+            },
+            {
+              name: "signedContractUrl",
+              type: "text",
+              admin: {
+                readOnly: true,
+                description: "URL of the signed contract PDF (from e-signature flow)",
+                condition: (data: any) => !data?.isAgency,
+              },
+            },
+            {
+              name: "signedContract",
+              type: "relationship",
+              relationTo: "contracts",
+              admin: {
+                readOnly: true,
+                description: "Linked signed contract record",
                 condition: (data: any) => !data?.isAgency,
               },
             },

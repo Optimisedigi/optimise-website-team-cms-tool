@@ -22,7 +22,7 @@ Still actively expanding — core audit/proposal/content/GSC features are built,
 - **Email:** Postmark (audit report emails)
 - **AI:** Google Gemini (blog prompts, blog images)
 - **Deploy:** Vercel (production: `optimise-website-team-cms-tool.vercel.app`)
-- **Dev port:** 3001
+- **Dev port:** 3004 (hardcoded in package.json, just run `npm run dev`)
 
 ## External Services
 
