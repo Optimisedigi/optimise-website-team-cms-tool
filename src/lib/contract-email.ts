@@ -57,13 +57,13 @@ export function generateSigningInviteEmail(opts: {
   const content = `
     <p style="margin:0 0 16px;font-size:15px;color:#334155;">Hi ${escapeHtml(opts.recipientName)},</p>
     <p style="margin:0 0 16px;font-size:15px;color:#334155;">
-      ${escapeHtml(opts.senderName)} has prepared a contract for your review and signature.
+      Optimise Digital has prepared a contract for your review and signature.
     </p>
     <p style="margin:0 0 8px;font-size:14px;color:#64748b;">
       <strong style="color:#1e293b;">Contract:</strong> ${escapeHtml(opts.contractTitle)}
     </p>
     <p style="margin:0 0 24px;font-size:14px;color:#64748b;">
-      Please click the button below to review the contract details and provide your signature. This link will expire in 7 days.
+      Please click the button below to review the contract details and provide your signature. A signed copy from both parties will be emailed to you. This link will expire in 7 days.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
