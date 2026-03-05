@@ -109,7 +109,7 @@ export default function ContractSignPage() {
         }
         setContract(data)
         setClientDisplayName(data.clientName || '')
-        setSignerName(data.clientContactName || data.clientName || '')
+        setSignerName(data.clientContactName || '')
         setSignerTitle(data.clientTitle || '')
         setClientEmail(data.clientEmail || '')
         setClientPhone(data.clientPhone || '')
