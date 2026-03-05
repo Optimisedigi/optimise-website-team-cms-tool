@@ -1136,6 +1136,9 @@ export async function POST(request: NextRequest) {
   // Fix: Payload expects agency_signature_id (upload fields use _id suffix) but table has agency_signature
   await run("contracts_rename_agency_sig", "ALTER TABLE `contracts` RENAME COLUMN `agency_signature` TO `agency_signature_id`");
 
+  // Add pdf_hash column for document integrity verification
+  await run("contracts.pdf_hash", "ALTER TABLE `contracts` ADD `pdf_hash` text");
+
   // Diagnostic: test payload.find on clients (same as /api/clients/list)
   let payloadFindTest: any = null;
   try {
