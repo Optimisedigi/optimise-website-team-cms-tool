@@ -14,13 +14,14 @@ interface Props {
 async function fetchDashboardData(
   slug: string,
   customerId: string,
+  clientName: string,
 ): Promise<{ data: GoogleAdsDashboardData | null; error: string | null }> {
   const url = process.env.GROWTH_TOOLS_URL;
   const key = process.env.INTERNAL_API_KEY;
   if (!url || !key) return { data: null, error: `Service not configured (url: ${!!url}, key: ${!!key})` };
 
   try {
-    const params = new URLSearchParams({ range: "last_month", customerId });
+    const params = new URLSearchParams({ range: "last_month", customerId, clientName });
     const endpoint = `${url}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
     const res = await fetch(endpoint, {
       headers: { "x-internal-key": key },
@@ -72,7 +73,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
   let initialData: GoogleAdsDashboardData | null = null;
   let fetchError: string | null = null;
   if (isAuthenticated) {
-    const result = await fetchDashboardData(slug, client.googleAdsCustomerId);
+    const result = await fetchDashboardData(slug, client.googleAdsCustomerId, client.name);
     initialData = result.data;
     fetchError = result.error;
   }
