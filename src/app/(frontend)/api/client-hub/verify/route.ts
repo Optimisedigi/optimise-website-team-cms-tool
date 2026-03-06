@@ -85,7 +85,9 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       select: {
         name: true,
+        slug: true,
         clientPin: true,
+        googleAdsCustomerId: true,
       },
     }),
     payload.find({
@@ -107,6 +109,8 @@ export async function POST(req: NextRequest) {
   // Check client PINs first (constant-time comparison against ALL to prevent timing attacks)
   let matchedClientId: string | null = null;
   let matchedClientName: string | null = null;
+  let matchedClientSlug: string | null = null;
+  let matchedHasGoogleAds = false;
 
   for (const client of clients.docs) {
     const c = client as any;
@@ -116,6 +120,8 @@ export async function POST(req: NextRequest) {
     if (constantTimeCompare(pin, storedPin)) {
       matchedClientId = String(client.id);
       matchedClientName = c.name as string;
+      matchedClientSlug = (c.slug as string) || null;
+      matchedHasGoogleAds = !!(c.googleAdsCustomerId as string);
     }
   }
 
@@ -233,6 +239,9 @@ export async function POST(req: NextRequest) {
             overallScore: (gadsAudit as any).overallScore,
             createdAt: (gadsAudit as any).createdAt,
           }
+        : null,
+      googleAdsDashboard: matchedHasGoogleAds && matchedClientSlug
+        ? { slug: matchedClientSlug, url: `/google-dashboard/${matchedClientSlug}` }
         : null,
     });
   }
