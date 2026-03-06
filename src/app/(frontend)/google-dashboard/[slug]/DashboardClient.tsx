@@ -9,12 +9,13 @@ interface DashboardClientProps {
   clientName: string;
   isAuthenticated: boolean;
   initialData: GoogleAdsDashboardData | null;
+  initialError: string | null;
 }
 
-export function DashboardClient({ slug, clientName, isAuthenticated, initialData }: DashboardClientProps) {
+export function DashboardClient({ slug, clientName, isAuthenticated, initialData, initialError }: DashboardClientProps) {
   const [authed, setAuthed] = useState(isAuthenticated);
   const [data, setData] = useState<GoogleAdsDashboardData | null>(initialData);
-  const [error, setError] = useState(isAuthenticated && !initialData ? "Failed to load dashboard data" : "");
+  const [error, setError] = useState(initialError || "");
 
   // PIN entry screen
   if (!authed) {
@@ -30,12 +31,18 @@ export function DashboardClient({ slug, clientName, isAuthenticated, initialData
   }
 
   // Error
-  if (error) {
+  if (error && !data) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">Something went wrong</h2>
-          <p className="text-sm text-slate-500">{error}</p>
+          <p className="text-sm text-slate-500 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
