@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { GoogleAdsDashboard } from "@/components/dashboards/googleads/GoogleAdsDashboard";
 import type { GoogleAdsDashboardData } from "@/lib/dashboard-types";
 
@@ -11,6 +12,7 @@ interface DashboardClientProps {
 }
 
 export function DashboardClient({ slug, clientName, isAuthenticated }: DashboardClientProps) {
+  const router = useRouter();
   const [authed, setAuthed] = useState(isAuthenticated);
   const [data, setData] = useState<GoogleAdsDashboardData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -46,7 +48,7 @@ export function DashboardClient({ slug, clientName, isAuthenticated }: Dashboard
           <h1 className="text-2xl font-bold text-white mb-2">{clientName}</h1>
           <p className="text-slate-400">Enter your 4-digit access code to view the dashboard</p>
         </div>
-        <PinEntry slug={slug} onSuccess={() => setAuthed(true)} />
+        <PinEntry slug={slug} onSuccess={() => router.refresh()} />
       </div>
     );
   }
