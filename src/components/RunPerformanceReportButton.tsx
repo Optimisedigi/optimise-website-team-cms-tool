@@ -36,6 +36,9 @@ const RunPerformanceReportButton = () => {
 
   if (!id) return null
 
+  const performanceReportEnabled = fields?.['gadsAuto.performanceReportEnabled']?.value as boolean | undefined
+  if (!performanceReportEnabled) return null
+
   const googleAdsCustomerId = fields?.googleAdsCustomerId?.value as string | undefined
   const hasCid = !!googleAdsCustomerId?.trim()
 

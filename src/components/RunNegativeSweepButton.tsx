@@ -28,6 +28,9 @@ const RunNegativeSweepButton = () => {
 
   if (!id) return null
 
+  const negativeSweepEnabled = fields?.['gadsAuto.negativeSweepEnabled']?.value as boolean | undefined
+  if (!negativeSweepEnabled) return null
+
   const googleAdsCustomerId = fields?.googleAdsCustomerId?.value as string | undefined
   const hasCid = !!googleAdsCustomerId?.trim()
 

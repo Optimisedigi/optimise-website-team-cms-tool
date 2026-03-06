@@ -706,7 +706,6 @@ export const Clients: CollectionConfig = {
                   type: "ui",
                   admin: {
                     components: { Field: "./components/RunNegativeSweepButton" },
-                    condition: (data: any) => data?.gadsAuto?.negativeSweepEnabled,
                   },
                 },
 
@@ -784,7 +783,6 @@ export const Clients: CollectionConfig = {
                   type: "ui",
                   admin: {
                     components: { Field: "./components/RunPerformanceReportButton" },
-                    condition: (data: any) => data?.gadsAuto?.performanceReportEnabled,
                   },
                 },
 
