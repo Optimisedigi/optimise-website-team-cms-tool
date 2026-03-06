@@ -627,6 +627,13 @@ export const Clients: CollectionConfig = {
                     description: "Enable Google Ads dashboard & monthly quality score snapshots",
                   },
                 },
+                {
+                  name: "viewDashboard",
+                  type: "ui",
+                  admin: {
+                    components: { Field: "./components/ViewGoogleDashboardButton" },
+                  },
+                },
                 // Negative Keyword Sweep
                 {
                   name: "negativeSweepEnabled",

@@ -870,6 +870,13 @@ export const GoogleAdsAudits: CollectionConfig = {
           label: "Performance Reports",
           fields: [
             {
+              name: "viewDashboardFromAudit",
+              type: "ui",
+              admin: {
+                components: { Field: "./components/ViewGoogleDashboardButton" },
+              },
+            },
+            {
               name: "performanceReports",
               type: "array",
               admin: {
