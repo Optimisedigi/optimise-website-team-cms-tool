@@ -835,66 +835,66 @@ export const Clients: CollectionConfig = {
                     condition: (data: any) => data?.gadsAuto?.optimateEnabled,
                   },
                 },
-              ],
-            },
 
-            // ─ Weekly Performance Report ─
-            {
-              name: "weeklyReport",
-              type: "group",
-              label: "Weekly Report",
-              fields: [
+                // ─ Weekly Performance Report ─
                 {
-                  name: "weeklyReportEnabled",
-                  type: "checkbox",
-                  defaultValue: false,
-                  label: "Enable Weekly Reports",
-                },
-                {
-                  name: "weeklyReportTemplate",
-                  type: "select",
-                  defaultValue: "lead_gen",
-                  options: [
-                    { label: "Lead Gen", value: "lead_gen" },
-                    { label: "Ecommerce", value: "ecommerce" },
-                    { label: "Brand Awareness", value: "brand_awareness" },
-                  ],
-                  admin: {
-                    description: "Controls which KPIs appear in the report email",
-                    condition: (data: any) => data?.gadsAuto?.weeklyReport?.weeklyReportEnabled,
-                  },
-                },
-                {
-                  name: "weeklyReportSendDay",
-                  type: "select",
-                  defaultValue: "monday",
-                  options: [
-                    { label: "Monday", value: "monday" },
-                    { label: "Tuesday", value: "tuesday" },
-                    { label: "Wednesday", value: "wednesday" },
-                    { label: "Thursday", value: "thursday" },
-                    { label: "Friday", value: "friday" },
-                    { label: "Saturday", value: "saturday" },
-                    { label: "Sunday", value: "sunday" },
-                  ],
-                  admin: {
-                    description: "Day of week to send the report (covers previous Mon-Sun)",
-                    condition: (data: any) => data?.gadsAuto?.weeklyReport?.weeklyReportEnabled,
-                  },
-                },
-                {
-                  name: "weeklyReportRecipientEmails",
-                  type: "array",
-                  dbName: "gads_weekly_emails",
-                  admin: {
-                    description: "Email addresses to receive weekly reports",
-                    condition: (data: any) => data?.gadsAuto?.weeklyReport?.weeklyReportEnabled,
-                  },
+                  name: "weeklyReport",
+                  type: "group",
+                  label: "Weekly Report",
                   fields: [
                     {
-                      name: "email",
-                      type: "email",
-                      required: true,
+                      name: "weeklyReportEnabled",
+                      type: "checkbox",
+                      defaultValue: false,
+                      label: "Enable Weekly Reports",
+                    },
+                    {
+                      name: "weeklyReportTemplate",
+                      type: "select",
+                      defaultValue: "lead_gen",
+                      options: [
+                        { label: "Lead Gen", value: "lead_gen" },
+                        { label: "Ecommerce", value: "ecommerce" },
+                        { label: "Brand Awareness", value: "brand_awareness" },
+                      ],
+                      admin: {
+                        description: "Controls which KPIs appear in the report email",
+                        condition: (data: any) => data?.gadsAuto?.weeklyReport?.weeklyReportEnabled,
+                      },
+                    },
+                    {
+                      name: "weeklyReportSendDay",
+                      type: "select",
+                      defaultValue: "monday",
+                      options: [
+                        { label: "Monday", value: "monday" },
+                        { label: "Tuesday", value: "tuesday" },
+                        { label: "Wednesday", value: "wednesday" },
+                        { label: "Thursday", value: "thursday" },
+                        { label: "Friday", value: "friday" },
+                        { label: "Saturday", value: "saturday" },
+                        { label: "Sunday", value: "sunday" },
+                      ],
+                      admin: {
+                        description: "Day of week to send the report (covers previous Mon-Sun)",
+                        condition: (data: any) => data?.gadsAuto?.weeklyReport?.weeklyReportEnabled,
+                      },
+                    },
+                    {
+                      name: "weeklyReportRecipientEmails",
+                      type: "array",
+                      dbName: "gads_weekly_emails",
+                      admin: {
+                        description: "Email addresses to receive weekly reports",
+                        condition: (data: any) => data?.gadsAuto?.weeklyReport?.weeklyReportEnabled,
+                      },
+                      fields: [
+                        {
+                          name: "email",
+                          type: "email",
+                          required: true,
+                        },
+                      ],
                     },
                   ],
                 },
