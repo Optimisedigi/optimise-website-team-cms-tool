@@ -449,6 +449,10 @@ export interface Client {
    */
   gadsAuto?: {
     /**
+     * Enable Google Ads dashboard & monthly quality score snapshots
+     */
+    dashboardEnabled?: boolean | null;
+    /**
      * Enable weekly negative keyword sweeps
      */
     negativeSweepEnabled?: boolean | null;
@@ -3285,6 +3289,7 @@ export interface ClientsSelect<T extends boolean = true> {
   gadsAuto?:
     | T
     | {
+        dashboardEnabled?: T;
         negativeSweepEnabled?: T;
         negativeSweepMode?: T;
         negativeSweepWeekday?: T;

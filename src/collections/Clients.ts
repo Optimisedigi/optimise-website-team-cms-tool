@@ -701,6 +701,14 @@ export const Clients: CollectionConfig = {
                     condition: (data: any) => data?.gadsAuto?.negativeSweepEnabled,
                   },
                 },
+                {
+                  name: "runNegativeSweep",
+                  type: "ui",
+                  admin: {
+                    components: { Field: "./components/RunNegativeSweepButton" },
+                    condition: (data: any) => data?.gadsAuto?.negativeSweepEnabled,
+                  },
+                },
 
                 // Re-audit
                 {
@@ -768,6 +776,14 @@ export const Clients: CollectionConfig = {
                   defaultValue: true,
                   admin: {
                     description: "Make report data available via the client hub API",
+                    condition: (data: any) => data?.gadsAuto?.performanceReportEnabled,
+                  },
+                },
+                {
+                  name: "runPerformanceReport",
+                  type: "ui",
+                  admin: {
+                    components: { Field: "./components/RunPerformanceReportButton" },
                     condition: (data: any) => data?.gadsAuto?.performanceReportEnabled,
                   },
                 },
