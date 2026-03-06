@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { DashboardClient } from "./DashboardClient";
+import "../globals.css";
 
 interface Props {
   params: Promise<{ slug: string }>;
