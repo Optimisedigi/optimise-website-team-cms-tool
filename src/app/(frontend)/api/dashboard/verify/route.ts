@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
   res.cookies.set("dashboard_token", tokenValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: "lax",
     path: "/",
     maxAge: COOKIE_MAX_AGE,
   });
