@@ -7,6 +7,7 @@ const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
   const range = req.nextUrl.searchParams.get("range") || "last_month";
+  const customerId = req.nextUrl.searchParams.get("customerId") || "";
 
   if (!slug) {
     return NextResponse.json({ error: "Missing slug" }, { status: 400 });
@@ -26,7 +27,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}?range=${encodeURIComponent(range)}`;
+    const params = new URLSearchParams({ range });
+    if (customerId) params.set("customerId", customerId);
+    const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },
       next: { revalidate: 0 },
