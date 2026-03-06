@@ -525,26 +525,26 @@ export interface Client {
      * Alert on WoW CPA spikes exceeding this % (e.g. 30 = 30% spike)
      */
     optimateCpaSpikeThreshold?: number | null;
-  };
-  weeklyReport?: {
-    weeklyReportEnabled?: boolean | null;
-    /**
-     * Controls which KPIs appear in the report email
-     */
-    weeklyReportTemplate?: ('lead_gen' | 'ecommerce' | 'brand_awareness') | null;
-    /**
-     * Day of week to send the report (covers previous Mon-Sun)
-     */
-    weeklyReportSendDay?: ('monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday') | null;
-    /**
-     * Email addresses to receive weekly reports
-     */
-    weeklyReportRecipientEmails?:
-      | {
-          email: string;
-          id?: string | null;
-        }[]
-      | null;
+    weeklyReport?: {
+      weeklyReportEnabled?: boolean | null;
+      /**
+       * Controls which KPIs appear in the report email
+       */
+      weeklyReportTemplate?: ('lead_gen' | 'ecommerce' | 'brand_awareness') | null;
+      /**
+       * Day of week to send the report (covers previous Mon-Sun)
+       */
+      weeklyReportSendDay?: ('monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday') | null;
+      /**
+       * Email addresses to receive weekly reports
+       */
+      weeklyReportRecipientEmails?:
+        | {
+            email: string;
+            id?: string | null;
+          }[]
+        | null;
+    };
   };
   /**
    * Computed on each re-audit
@@ -3312,18 +3312,18 @@ export interface ClientsSelect<T extends boolean = true> {
         optimateBudgetThreshold?: T;
         optimateCtrDropThreshold?: T;
         optimateCpaSpikeThreshold?: T;
-      };
-  weeklyReport?:
-    | T
-    | {
-        weeklyReportEnabled?: T;
-        weeklyReportTemplate?: T;
-        weeklyReportSendDay?: T;
-        weeklyReportRecipientEmails?:
+        weeklyReport?:
           | T
           | {
-              email?: T;
-              id?: T;
+              weeklyReportEnabled?: T;
+              weeklyReportTemplate?: T;
+              weeklyReportSendDay?: T;
+              weeklyReportRecipientEmails?:
+                | T
+                | {
+                    email?: T;
+                    id?: T;
+                  };
             };
       };
   gadsTrajectory?:
