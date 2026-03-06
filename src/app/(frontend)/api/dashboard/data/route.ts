@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}?range=${encodeURIComponent(range)}`;
     const res = await fetch(url, {
-      headers: { "x-api-key": GROWTH_TOOLS_API_KEY },
+      headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },
       next: { revalidate: 0 },
     });
 

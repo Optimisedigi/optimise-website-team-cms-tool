@@ -6,7 +6,7 @@ const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
 
 function getHeaders() {
   return {
-    "x-api-key": GROWTH_TOOLS_API_KEY!,
+    "x-internal-key": GROWTH_TOOLS_API_KEY!,
     "Content-Type": "application/json",
   };
 }
@@ -71,7 +71,7 @@ export async function DELETE(req: NextRequest) {
     const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/notes/${encodeURIComponent(noteId)}`;
     const res = await fetch(url, {
       method: "DELETE",
-      headers: { "x-api-key": GROWTH_TOOLS_API_KEY },
+      headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },
     });
 
     if (!res.ok) {

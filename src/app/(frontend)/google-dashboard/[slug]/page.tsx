@@ -21,7 +21,7 @@ async function fetchDashboardData(
   try {
     const endpoint = `${url}/api/google-ads/dashboard/${encodeURIComponent(slug)}?range=last_month`;
     const res = await fetch(endpoint, {
-      headers: { "x-api-key": key },
+      headers: { "x-internal-key": key },
       cache: "no-store",
     });
     if (!res.ok) {
