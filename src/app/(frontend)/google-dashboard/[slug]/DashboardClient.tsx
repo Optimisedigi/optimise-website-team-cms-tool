@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { GoogleAdsDashboard } from "@/components/dashboards/googleads/GoogleAdsDashboard";
 import type { GoogleAdsDashboardData } from "@/lib/dashboard-types";
 
@@ -8,35 +8,13 @@ interface DashboardClientProps {
   slug: string;
   clientName: string;
   isAuthenticated: boolean;
+  initialData: GoogleAdsDashboardData | null;
 }
 
-export function DashboardClient({ slug, clientName, isAuthenticated }: DashboardClientProps) {
+export function DashboardClient({ slug, clientName, isAuthenticated, initialData }: DashboardClientProps) {
   const [authed, setAuthed] = useState(isAuthenticated);
-  const [data, setData] = useState<GoogleAdsDashboardData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!authed) return;
-
-    setLoading(true);
-    fetch(`/api/dashboard/data?slug=${encodeURIComponent(slug)}`, { credentials: "include" })
-      .then(async (res) => {
-        if (res.status === 401) {
-          setAuthed(false);
-          return;
-        }
-        if (!res.ok) {
-          const text = await res.text();
-          setError(`Failed to load dashboard: ${text}`);
-          return;
-        }
-        const json = await res.json();
-        setData(json);
-      })
-      .catch(() => setError("Failed to load dashboard data"))
-      .finally(() => setLoading(false));
-  }, [authed, slug]);
+  const [data, setData] = useState<GoogleAdsDashboardData | null>(initialData);
+  const [error, setError] = useState(isAuthenticated && !initialData ? "Failed to load dashboard data" : "");
 
   // PIN entry screen
   if (!authed) {
@@ -47,26 +25,6 @@ export function DashboardClient({ slug, clientName, isAuthenticated }: Dashboard
           <p className="text-slate-400">Enter your 4-digit access code to view the dashboard</p>
         </div>
         <PinEntry slug={slug} onSuccess={() => window.location.reload()} />
-      </div>
-    );
-  }
-
-  // Loading
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="flex items-center gap-3 text-slate-500">
-          <svg
-            className="animate-spin h-5 w-5 text-blue-600"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          Loading dashboard...
-        </div>
       </div>
     );
   }

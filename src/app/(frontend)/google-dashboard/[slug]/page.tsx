@@ -4,10 +4,31 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { DashboardClient } from "./DashboardClient";
 import { validateDashboardToken } from "../../api/dashboard/verify/route";
+import type { GoogleAdsDashboardData } from "@/lib/dashboard-types";
 import "../globals.css";
 
 interface Props {
   params: Promise<{ slug: string }>;
+}
+
+async function fetchDashboardData(slug: string): Promise<GoogleAdsDashboardData | null> {
+  const url = process.env.GROWTH_TOOLS_URL;
+  const key = process.env.INTERNAL_API_KEY;
+  if (!url || !key) return null;
+
+  try {
+    const res = await fetch(
+      `${url}/api/google-ads/dashboard/${encodeURIComponent(slug)}?range=last_month`,
+      {
+        headers: { "x-api-key": key },
+        cache: "no-store",
+      },
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 export default async function GoogleDashboardPage({ params }: Props) {
@@ -42,5 +63,18 @@ export default async function GoogleDashboardPage({ params }: Props) {
   const tokenCookie = cookieStore.get("dashboard_token")?.value;
   const isAuthenticated = validateDashboardToken(tokenCookie, slug);
 
-  return <DashboardClient slug={slug} clientName={client.name} isAuthenticated={isAuthenticated} />;
+  // If authenticated, fetch dashboard data server-side (avoids client cookie issues)
+  let initialData: GoogleAdsDashboardData | null = null;
+  if (isAuthenticated) {
+    initialData = await fetchDashboardData(slug);
+  }
+
+  return (
+    <DashboardClient
+      slug={slug}
+      clientName={client.name}
+      isAuthenticated={isAuthenticated}
+      initialData={initialData}
+    />
+  );
 }
