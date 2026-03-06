@@ -29,6 +29,7 @@ export function NotesSection({ notes: initialNotes, workDone, slug }: NotesSecti
       const res = await fetch(`/api/dashboard/notes?slug=${encodeURIComponent(slug)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ text, author: "Team" }),
       });
       if (res.ok) {
@@ -47,7 +48,7 @@ export function NotesSection({ notes: initialNotes, workDone, slug }: NotesSecti
     try {
       const res = await fetch(
         `/api/dashboard/notes?slug=${encodeURIComponent(slug)}&noteId=${encodeURIComponent(noteId)}`,
-        { method: "DELETE" },
+        { method: "DELETE", credentials: "include" },
       );
       if (res.ok) {
         setNotes((prev) => prev.filter((n) => n.id !== noteId));

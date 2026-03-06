@@ -56,6 +56,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
       try {
         const res = await fetch(
           `/api/dashboard/data?slug=${encodeURIComponent(data.slug)}&range=${encodeURIComponent(newRange)}`,
+          { credentials: "include" },
         );
         if (res.ok) {
           const newData = await res.json();
@@ -77,6 +78,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
         try {
           const res = await fetch(
             `/api/dashboard/quality-scores?slug=${encodeURIComponent(data.slug)}`,
+            { credentials: "include" },
           );
           if (res.ok) {
             setQualityData(await res.json());

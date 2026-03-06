@@ -20,7 +20,7 @@ export function DashboardClient({ slug, clientName, isAuthenticated }: Dashboard
     if (!authed) return;
 
     setLoading(true);
-    fetch(`/api/dashboard/data?slug=${encodeURIComponent(slug)}`)
+    fetch(`/api/dashboard/data?slug=${encodeURIComponent(slug)}`, { credentials: "include" })
       .then(async (res) => {
         if (res.status === 401) {
           setAuthed(false);
@@ -106,6 +106,7 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
         const res = await fetch("/api/dashboard/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ pin, slug }),
         });
 
