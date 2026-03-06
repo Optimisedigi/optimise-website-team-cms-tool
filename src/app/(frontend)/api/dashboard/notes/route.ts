@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateDashboardToken } from "../verify/route";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
-const GROWTH_TOOLS_API_KEY = process.env.GROWTH_TOOLS_API_KEY;
+const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
 
 function getHeaders() {
   return {
