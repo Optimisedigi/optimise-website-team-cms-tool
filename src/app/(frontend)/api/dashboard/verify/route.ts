@@ -33,6 +33,39 @@ function constantTimeCompare(a: string, b: string): boolean {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+// HMAC-signed cookie: works across serverless instances (no shared memory needed)
+const COOKIE_SECRET = process.env.PAYLOAD_SECRET || process.env.INTERNAL_API_KEY || "dashboard-fallback-secret";
+const COOKIE_MAX_AGE = 4 * 60 * 60; // 4 hours in seconds
+
+function signToken(slug: string, expiresAt: number): string {
+  const payload = `${slug}:${expiresAt}`;
+  const sig = crypto.createHmac("sha256", COOKIE_SECRET).update(payload).digest("hex");
+  return `${payload}:${sig}`;
+}
+
+export function validateDashboardToken(
+  cookieValue: string | undefined,
+  requiredSlug: string,
+): boolean {
+  if (!cookieValue) return false;
+
+  const parts = cookieValue.split(":");
+  if (parts.length !== 3) return false;
+
+  const [slug, expiresAtStr, sig] = parts;
+  const expiresAt = parseInt(expiresAtStr, 10);
+
+  if (isNaN(expiresAt) || Date.now() > expiresAt) return false;
+  if (slug !== requiredSlug) return false;
+
+  const expectedSig = crypto
+    .createHmac("sha256", COOKIE_SECRET)
+    .update(`${slug}:${expiresAtStr}`)
+    .digest("hex");
+
+  return constantTimeCompare(sig, expectedSig);
+}
+
 export async function POST(req: NextRequest) {
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
@@ -64,7 +97,7 @@ export async function POST(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
-  // Find client by slug with dashboard enabled
+  // Find client by slug
   const clientResult = await payload.find({
     collection: "clients",
     where: {
@@ -90,43 +123,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  // Verified — set a session cookie so subsequent data fetches are authenticated
-  const token = crypto.randomBytes(32).toString("hex");
-  const res = NextResponse.json({ ok: true });
+  // Verified — set HMAC-signed cookie (stateless, works across serverless instances)
+  const expiresAt = Date.now() + COOKIE_MAX_AGE * 1000;
+  const tokenValue = signToken(slug, expiresAt);
 
-  res.cookies.set("dashboard_token", `${slug}:${token}`, {
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set("dashboard_token", tokenValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
     path: "/",
-    maxAge: 60 * 60 * 4, // 4 hours
-  });
-
-  // Store token server-side for validation
-  dashboardTokens.set(`${slug}:${token}`, {
-    slug,
-    expiresAt: Date.now() + 4 * 60 * 60_000,
+    maxAge: COOKIE_MAX_AGE,
   });
 
   return res;
-}
-
-// In-memory token store (resets on deploy, which is fine for dashboard sessions)
-export const dashboardTokens = new Map<
-  string,
-  { slug: string; expiresAt: number }
->();
-
-export function validateDashboardToken(
-  cookieValue: string | undefined,
-  requiredSlug: string,
-): boolean {
-  if (!cookieValue) return false;
-  const entry = dashboardTokens.get(cookieValue);
-  if (!entry) return false;
-  if (Date.now() > entry.expiresAt) {
-    dashboardTokens.delete(cookieValue);
-    return false;
-  }
-  return entry.slug === requiredSlug;
 }

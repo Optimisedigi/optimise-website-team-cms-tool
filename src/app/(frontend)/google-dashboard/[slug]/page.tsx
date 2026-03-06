@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { DashboardClient } from "./DashboardClient";
+import { validateDashboardToken } from "../../api/dashboard/verify/route";
 import "../globals.css";
 
 interface Props {
@@ -36,10 +37,10 @@ export default async function GoogleDashboardPage({ params }: Props) {
     notFound();
   }
 
-  // Check if user has a valid dashboard session
+  // Check if user has a valid dashboard session (HMAC-signed cookie)
   const cookieStore = await cookies();
   const tokenCookie = cookieStore.get("dashboard_token")?.value;
-  const isAuthenticated = tokenCookie?.startsWith(`${slug}:`) ?? false;
+  const isAuthenticated = validateDashboardToken(tokenCookie, slug);
 
   return <DashboardClient slug={slug} clientName={client.name} isAuthenticated={isAuthenticated} />;
 }
