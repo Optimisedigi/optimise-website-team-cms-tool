@@ -55,15 +55,15 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
 
   // Services select (hasMany stored as separate table in Payload v3 SQLite)
   await db.run(sql`CREATE TABLE IF NOT EXISTS \`sales_leads_services\` (
-    \`_order\` integer NOT NULL,
-    \`_parent_id\` integer NOT NULL,
+    \`order\` integer NOT NULL,
+    \`parent_id\` integer NOT NULL,
     \`id\` integer PRIMARY KEY NOT NULL,
     \`value\` text,
-    FOREIGN KEY (\`_parent_id\`) REFERENCES \`sales_leads\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    FOREIGN KEY (\`parent_id\`) REFERENCES \`sales_leads\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );`)
 
-  await db.run(sql`CREATE INDEX IF NOT EXISTS \`sales_leads_services_parent_idx\` ON \`sales_leads_services\` (\`_parent_id\`);`)
-  await db.run(sql`CREATE INDEX IF NOT EXISTS \`sales_leads_services_order_idx\` ON \`sales_leads_services\` (\`_order\`);`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS \`sales_leads_services_parent_idx\` ON \`sales_leads_services\` (\`parent_id\`);`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS \`sales_leads_services_order_idx\` ON \`sales_leads_services\` (\`order\`);`)
 
   // Add sales_leads_id to payload_locked_documents_rels for Payload's document locking
   try { await db.run(sql`ALTER TABLE \`payload_locked_documents_rels\` ADD \`sales_leads_id\` integer;`) } catch { /* exists */ }
