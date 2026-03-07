@@ -151,10 +151,16 @@ export const SalesLeads: CollectionConfig = {
                     description: "How this lead was acquired",
                   },
                   options: [
+                    // Online channels (auto-attributed from website forms)
+                    { label: "Organic Search", value: "organic_search" },
+                    { label: "Paid Search (Google Ads)", value: "paid_search" },
+                    { label: "Paid Social (Meta Ads)", value: "paid_social" },
+                    { label: "Organic Social", value: "organic_social" },
+                    { label: "Website (Other)", value: "website_other" },
+                    // Offline / manual channels
                     { label: "Referral", value: "referral" },
-                    { label: "Website", value: "website" },
-                    { label: "BNI", value: "bni" },
-                    { label: "Advertising", value: "advertising" },
+                    { label: "Referral Partner", value: "referral_partner" },
+                    { label: "BNI Referral", value: "bni_referral" },
                     { label: "Cold Outreach", value: "cold_outreach" },
                   ],
                 },
@@ -247,6 +253,117 @@ export const SalesLeads: CollectionConfig = {
               admin: {
                 description: "Additional context on why this lead was lost",
                 condition: (data: any) => data?.stage === "lost",
+              },
+            },
+          ],
+        },
+        {
+          label: "Attribution",
+          fields: [
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "utmSource",
+                  type: "text",
+                  admin: {
+                    readOnly: true,
+                    description: "UTM source (auto-captured)",
+                  },
+                },
+                {
+                  name: "utmMedium",
+                  type: "text",
+                  admin: {
+                    readOnly: true,
+                    description: "UTM medium (auto-captured)",
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "utmCampaign",
+                  type: "text",
+                  admin: {
+                    readOnly: true,
+                    description: "UTM campaign (auto-captured)",
+                  },
+                },
+                {
+                  name: "utmTerm",
+                  type: "text",
+                  admin: {
+                    readOnly: true,
+                    description: "UTM term / keyword (auto-captured)",
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "gclid",
+                  type: "text",
+                  admin: {
+                    readOnly: true,
+                    description: "Google Ads click ID",
+                  },
+                },
+                {
+                  name: "fbclid",
+                  type: "text",
+                  admin: {
+                    readOnly: true,
+                    description: "Meta/Facebook click ID",
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "landingPage",
+                  type: "text",
+                  admin: {
+                    readOnly: true,
+                    description: "First page the lead landed on",
+                  },
+                },
+                {
+                  name: "referrerUrl",
+                  type: "text",
+                  admin: {
+                    readOnly: true,
+                    description: "HTTP referrer URL",
+                  },
+                },
+              ],
+            },
+            {
+              name: "leadSource",
+              type: "select",
+              admin: {
+                readOnly: true,
+                description: "How this lead was created",
+              },
+              options: [
+                { label: "Website Form", value: "website_form" },
+                { label: "Growth Tool Audit", value: "growth_tool" },
+                { label: "Manual Entry", value: "manual" },
+              ],
+            },
+            {
+              name: "heardAbout",
+              type: "text",
+              admin: {
+                readOnly: true,
+                description:
+                  "Self-reported: where they heard about us (from contact form)",
               },
             },
           ],
