@@ -1757,3 +1757,538 @@ $svg-close: "%3C/svg%3E";
   color: #111827;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
+
+// ============================================================
+// Sales Funnel Dashboard
+// ============================================================
+
+.od-funnel {
+  margin-top: 24px;
+}
+
+.od-funnel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.od-funnel__title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.od-funnel__subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 4px 0 0;
+}
+
+.od-funnel__controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.od-funnel__periods {
+  display: flex;
+  gap: 2px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.od-funnel__period-btn {
+  background: none;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+
+  &:hover {
+    color: #374151;
+  }
+}
+
+.od-funnel__period-btn--active {
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.od-funnel__add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #6366f1;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 150ms;
+
+  &:hover {
+    background: #4f46e5;
+    color: #ffffff;
+  }
+}
+
+// Summary cards
+.od-funnel__summary {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 1px;
+  background: #e5e7eb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.od-funnel__card {
+  background: #ffffff;
+  padding: 16px 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.od-funnel__card-value {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #111827;
+}
+
+.od-funnel__card-label {
+  font-size: 10px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+// Layout
+.od-funnel__layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  align-items: start;
+}
+
+.od-funnel__main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.od-funnel__side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// Clear filter button
+.od-funnel__clear-filter {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #4338ca;
+  cursor: pointer;
+  transition: background 150ms;
+
+  &:hover {
+    background: #e0e7ff;
+  }
+}
+
+// Funnel visualization
+.od-funnel__visual {
+  padding: 24px 20px;
+}
+
+.od-funnel__viz {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.od-funnel__stage {
+  display: grid;
+  grid-template-columns: 140px 1fr 48px;
+  align-items: center;
+  gap: 12px;
+}
+
+.od-funnel__stage-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.od-funnel__stage-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.od-funnel__stage-bar-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.od-funnel__stage-bar {
+  height: 36px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 12px;
+  min-width: 40px;
+  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.od-funnel__stage-count {
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.od-funnel__stage-channels {
+  display: flex;
+  gap: 4px;
+}
+
+.od-funnel__stage-ch-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.od-funnel__dropoff {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ef4444;
+  text-align: right;
+}
+
+// Channel performance table
+.od-funnel__channels {
+  overflow-x: auto;
+}
+
+.od-funnel__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #9ca3af;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f3f4f6;
+    color: #374151;
+  }
+
+  th:not(:first-child),
+  td:not(:first-child) {
+    text-align: right;
+  }
+
+  tfoot td {
+    border-top: 2px solid #e5e7eb;
+    background: #f9fafb;
+  }
+}
+
+.od-funnel__channel-row {
+  cursor: pointer;
+  transition: background 150ms;
+
+  &:hover {
+    background: #f9fafb;
+  }
+}
+
+.od-funnel__channel-row--selected {
+  background: #eef2ff !important;
+}
+
+.od-funnel__channel-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.od-funnel__channel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.od-funnel__rate {
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.od-funnel__rate--good {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.od-funnel__rate--ok {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.od-funnel__rate--low {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+// Donut chart
+.od-funnel__mix {
+  padding: 20px;
+}
+
+.od-funnel__donut-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.od-funnel__donut {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.od-funnel__donut-center {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.od-funnel__donut-total {
+  font-size: 24px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1;
+}
+
+.od-funnel__donut-label {
+  font-size: 10px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.od-funnel__donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.od-funnel__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+  transition: background 150ms;
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+
+  &:hover {
+    background: #f9fafb;
+  }
+}
+
+.od-funnel__legend-item--selected {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.od-funnel__legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.od-funnel__legend-label {
+  font-weight: 600;
+  color: #374151;
+  flex: 1;
+}
+
+.od-funnel__legend-value {
+  font-weight: 600;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+// Lost reasons
+.od-funnel__lost-reasons {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.od-funnel__lost-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.od-funnel__lost-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #374151;
+}
+
+.od-funnel__lost-count {
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.od-funnel__lost-bar-bg {
+  height: 6px;
+  background: #f3f4f6;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.od-funnel__lost-bar {
+  height: 100%;
+  background: #ef4444;
+  border-radius: 3px;
+  transition: width 300ms ease;
+}
+
+// Monthly trend chart
+.od-funnel__trend {
+  padding: 0;
+}
+
+.od-funnel__chart {
+  padding: 20px;
+}
+
+.od-funnel__chart-area {
+  width: 100%;
+}
+
+.od-funnel__chart-labels {
+  display: flex;
+  margin-top: 6px;
+}
+
+.od-funnel__chart-label {
+  text-align: center;
+  font-size: 10px;
+  color: #6b7280;
+}
+
+// Nav icon for Sales Leads
+.nav a.nav__link[href="/admin/collections/sales-leads"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M22 12h-4l-3 9L9 3l-3 9H2'/%3E#{$svg-close}");
+}
+
+// ── Responsive ──
+@media (max-width: 768px) {
+  .od-funnel__summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .od-funnel__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .od-funnel__header {
+    flex-direction: column;
+  }
+
+  .od-funnel__controls {
+    flex-wrap: wrap;
+  }
+
+  .od-funnel__stage {
+    grid-template-columns: 100px 1fr 36px;
+    gap: 8px;
+  }
+
+  .od-funnel__stage-label {
+    font-size: 11px;
+  }
+
+  .od-funnel__table {
+    font-size: 11px;
+
+    th, td {
+      padding: 8px 8px;
+    }
+  }
+}

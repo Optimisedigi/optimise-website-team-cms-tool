@@ -31,6 +31,7 @@ import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
 import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
 import { Contracts } from "./collections/Contracts";
+import { SalesLeads } from "./collections/SalesLeads";
 import { ApiCostRates } from "./globals/ApiCostRates";
 import { SheetsAuth } from "./globals/SheetsAuth";
 
@@ -72,7 +73,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientProposals, Contracts,
+    Clients, ClientProposals, Contracts, SalesLeads,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO

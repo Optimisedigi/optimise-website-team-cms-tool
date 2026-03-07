@@ -70,6 +70,7 @@ export interface Config {
     clients: Client;
     'client-proposals': ClientProposal;
     contracts: Contract;
+    'sales-leads': SalesLead;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
     'job-posts': JobPost;
@@ -109,6 +110,7 @@ export interface Config {
     clients: ClientsSelect<false> | ClientsSelect<true>;
     'client-proposals': ClientProposalsSelect<false> | ClientProposalsSelect<true>;
     contracts: ContractsSelect<false> | ContractsSelect<true>;
+    'sales-leads': SalesLeadsSelect<false> | SalesLeadsSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
@@ -2417,6 +2419,122 @@ export interface GscSnapshot {
   createdAt: string;
 }
 /**
+ * Track leads through the sales funnel by channel
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sales-leads".
+ */
+export interface SalesLead {
+  id: number;
+  /**
+   * Business or prospect name
+   */
+  businessName: string;
+  /**
+   * Business website URL
+   */
+  websiteUrl?: string | null;
+  /**
+   * Primary contact name
+   */
+  contactName?: string | null;
+  /**
+   * Contact email
+   */
+  contactEmail?: string | null;
+  /**
+   * Contact phone
+   */
+  contactPhone?: string | null;
+  /**
+   * How this lead was acquired
+   */
+  channel: 'referral' | 'website' | 'bni' | 'advertising' | 'cold_outreach';
+  /**
+   * Extra detail (e.g. referrer name, ad campaign, BNI chapter)
+   */
+  channelDetail?: string | null;
+  /**
+   * Estimated monthly retainer value ($)
+   */
+  estimatedValue?: number | null;
+  /**
+   * Type of business
+   */
+  businessType?:
+    | (
+        | 'trades'
+        | 'services'
+        | 'ecommerce'
+        | 'healthcare'
+        | 'hospitality'
+        | 'realestate'
+        | 'education'
+        | 'saas'
+        | 'other'
+      )
+    | null;
+  /**
+   * Services the lead is interested in
+   */
+  services?:
+    | ('google_ads' | 'seo' | 'meta_ads' | 'cro' | 'website_build' | 'ai_automations' | 'content' | 'full_service')[]
+    | null;
+  /**
+   * Internal notes about this lead
+   */
+  notes?: string | null;
+  /**
+   * Why this lead was lost
+   */
+  lostReason?: ('price' | 'competitor' | 'not_ready' | 'no_response' | 'bad_fit' | 'other') | null;
+  /**
+   * Additional context on why this lead was lost
+   */
+  lostNotes?: string | null;
+  /**
+   * Linked proposal (if created)
+   */
+  proposal?: (number | null) | ClientProposal;
+  /**
+   * Linked contract (if sent)
+   */
+  contract?: (number | null) | Contract;
+  /**
+   * Linked client (if converted)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Automatic log of stage transitions
+   */
+  stageHistory?:
+    | {
+        fromStage?: string | null;
+        toStage?: string | null;
+        transitionDate?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Current funnel stage
+   */
+  stage: 'new_lead' | 'contacted' | 'meeting_booked' | 'proposal_sent' | 'contract_sent' | 'client' | 'lost';
+  /**
+   * When this lead first came in
+   */
+  firstContactDate?: string | null;
+  /**
+   * Expected close date
+   */
+  expectedCloseDate?: string | null;
+  /**
+   * Lead priority
+   */
+  priority?: ('high' | 'medium' | 'low') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Create and manage blog posts for clients
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3009,7 +3127,9 @@ export interface ActivityLog {
     | 'contract_created'
     | 'contract_agency_signed'
     | 'contract_sent'
-    | 'contract_client_signed';
+    | 'contract_client_signed'
+    | 'lead_created'
+    | 'lead_stage_changed';
   title: string;
   description?: string | null;
   /**
@@ -3084,6 +3204,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'contracts';
         value: number | Contract;
+      } | null)
+    | ({
+        relationTo: 'sales-leads';
+        value: number | SalesLead;
       } | null)
     | ({
         relationTo: 'blog-posts';
@@ -3515,6 +3639,42 @@ export interface ContractsSelect<T extends boolean = true> {
   signingTokenExpiresAt?: T;
   sentAt?: T;
   isTemplate?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sales-leads_select".
+ */
+export interface SalesLeadsSelect<T extends boolean = true> {
+  businessName?: T;
+  websiteUrl?: T;
+  contactName?: T;
+  contactEmail?: T;
+  contactPhone?: T;
+  channel?: T;
+  channelDetail?: T;
+  estimatedValue?: T;
+  businessType?: T;
+  services?: T;
+  notes?: T;
+  lostReason?: T;
+  lostNotes?: T;
+  proposal?: T;
+  contract?: T;
+  client?: T;
+  stageHistory?:
+    | T
+    | {
+        fromStage?: T;
+        toStage?: T;
+        transitionDate?: T;
+        id?: T;
+      };
+  stage?: T;
+  firstContactDate?: T;
+  expectedCloseDate?: T;
+  priority?: T;
   updatedAt?: T;
   createdAt?: T;
 }

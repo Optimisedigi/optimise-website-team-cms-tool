@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import RocketSplash from './RocketSplash'
+import SalesFunnelDashboard from './SalesFunnelDashboard'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -97,6 +98,8 @@ const typeLabels: Record<string, string> = {
   proposal_created: 'Proposal',
   gsc_snapshot: 'GSC',
   time_tracked: 'Time Tracked',
+  lead_created: 'New Lead',
+  lead_stage_changed: 'Lead Update',
 }
 
 function timeAgo(dateStr: string): string {
@@ -359,6 +362,9 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* ── Sales Funnel (full-width below main grid) ── */}
+      <SalesFunnelDashboard />
     </div>
   )
 }

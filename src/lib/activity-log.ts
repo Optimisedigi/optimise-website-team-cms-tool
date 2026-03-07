@@ -19,7 +19,9 @@ type ActivityType =
   | "contract_agency_signed"
   | "contract_sent"
   | "contract_client_signed"
-  | "contract_link_generated";
+  | "contract_link_generated"
+  | "lead_created"
+  | "lead_stage_changed";
 
 interface ActivityEntry {
   type: ActivityType;

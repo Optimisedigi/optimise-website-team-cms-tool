@@ -44,6 +44,8 @@ export const ActivityLog: CollectionConfig = {
         { label: "Contract Agency Signed", value: "contract_agency_signed" },
         { label: "Contract Sent", value: "contract_sent" },
         { label: "Contract Client Signed", value: "contract_client_signed" },
+        { label: "Lead Created", value: "lead_created" },
+        { label: "Lead Stage Changed", value: "lead_stage_changed" },
       ],
     },
     {
