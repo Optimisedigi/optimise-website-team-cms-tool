@@ -149,11 +149,23 @@ export async function GET() {
 
         // Group by the month the data covers (periodEnd), not when snapshot was taken
         // Use slice(0,7) to extract "YYYY-MM" — handles both "YYYY-MM-DD" and full ISO strings
+        // Keep the snapshot with the MOST data per month (highest impressions) since
+        // multiple snapshots can exist per month and early-month ones may have zeros
         const byMonth = new Map<string, any>();
         for (const snap of snapshots.docs) {
           const dateStr = (snap.periodEnd as string) || (snap.snapshotDate as string);
           const key = dateStr.slice(0, 7); // "YYYY-MM"
-          if (!byMonth.has(key)) byMonth.set(key, snap);
+          const existing = byMonth.get(key);
+          if (!existing) {
+            byMonth.set(key, snap);
+          } else {
+            // Prefer the snapshot with more impressions (most complete data)
+            const existingImpressions = (existing.totalImpressions as number) || 0;
+            const newImpressions = (snap.totalImpressions as number) || 0;
+            if (newImpressions > existingImpressions) {
+              byMonth.set(key, snap);
+            }
+          }
         }
 
         // Build gscMonthly array: every month from Jan 2026 to current month (zeros for missing)
@@ -170,8 +182,10 @@ export async function GET() {
           });
         }
 
-        // Get the latest snapshot for current stats
-        const latestSnap = snapshots.docs[0];
+        // Get the best snapshot for current stats (most recent month, most data)
+        // byMonth already has the best snapshot per month; use the most recent month's best snapshot
+        const sortedMonthKeys = Array.from(byMonth.keys()).sort().reverse();
+        const latestSnap = sortedMonthKeys.length > 0 ? byMonth.get(sortedMonthKeys[0]) : null;
         if (!latestSnap) return { gsc: clientMeta, gscMonthly };
 
         // Compute unique keywords (clicks > 0) and unique pages (clicks > 0)
@@ -259,7 +273,11 @@ export async function GET() {
       limit: 20,
       sort: "-createdAt",
       depth: 1,
-    }).catch(() => ({ docs: [] })),
+      overrideAccess: true,
+    }).catch((err) => {
+      console.error("[dashboard] Activity feed error:", err);
+      return { docs: [] };
+    }),
 
     // This month's counts
     payload.count({ collection: "seo-audits", where: { createdAt: { greater_than: monthStart } } }).catch(() => ({ totalDocs: 0 })),
