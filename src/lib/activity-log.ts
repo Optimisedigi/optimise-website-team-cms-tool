@@ -21,7 +21,8 @@ type ActivityType =
   | "contract_client_signed"
   | "contract_link_generated"
   | "lead_created"
-  | "lead_stage_changed";
+  | "lead_stage_changed"
+  | "tag_audit_completed";
 
 interface ActivityEntry {
   type: ActivityType;

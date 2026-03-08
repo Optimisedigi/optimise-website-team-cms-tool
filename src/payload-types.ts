@@ -79,6 +79,7 @@ export interface Config {
     'seo-audits': SeoAudit;
     'cro-audits': CroAudit;
     'google-ads-audits': GoogleAdsAudit;
+    'tag-setup-audits': TagSetupAudit;
     'keyword-snapshots': KeywordSnapshot;
     'competitor-analyses': CompetitorAnalysis;
     'content-researches': ContentResearch;
@@ -101,6 +102,7 @@ export interface Config {
   collectionsJoins: {
     clients: {
       googleAdsAudits: 'google-ads-audits';
+      tagSetupAudits: 'tag-setup-audits';
     };
     'client-proposals': {
       contracts: 'contracts';
@@ -119,6 +121,7 @@ export interface Config {
     'seo-audits': SeoAuditsSelect<false> | SeoAuditsSelect<true>;
     'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
     'google-ads-audits': GoogleAdsAuditsSelect<false> | GoogleAdsAuditsSelect<true>;
+    'tag-setup-audits': TagSetupAuditsSelect<false> | TagSetupAuditsSelect<true>;
     'keyword-snapshots': KeywordSnapshotsSelect<false> | KeywordSnapshotsSelect<true>;
     'competitor-analyses': CompetitorAnalysesSelect<false> | CompetitorAnalysesSelect<true>;
     'content-researches': ContentResearchesSelect<false> | ContentResearchesSelect<true>;
@@ -615,6 +618,26 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
+  /**
+   * GA4 Measurement ID (e.g., G-XXXXXXXXXX)
+   */
+  ga4MeasurementId?: string | null;
+  /**
+   * GTM Container ID (e.g., GTM-XXXXXXX)
+   */
+  gtmContainerId?: string | null;
+  /**
+   * Expected GA4 events to check for (one per line, e.g., purchase, add_to_cart, generate_lead)
+   */
+  expectedEvents?: string | null;
+  /**
+   * Tag setup audit history for this client
+   */
+  tagSetupAudits?: {
+    docs?: (number | TagSetupAudit)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   /**
    * Whether Google Search Console is connected
    */
@@ -2256,6 +2279,125 @@ export interface GoogleAdsAudit {
   createdAt: string;
 }
 /**
+ * GA4 and GTM tag validation results
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tag-setup-audits".
+ */
+export interface TagSetupAudit {
+  id: number;
+  client: number | Client;
+  /**
+   * URL that was audited
+   */
+  url: string;
+  status?: ('pending' | 'running' | 'healthy' | 'warnings' | 'critical_issues' | 'not_configured' | 'error') | null;
+  /**
+   * Website is built by us - we can apply fixes directly
+   */
+  canAutoFix?: boolean | null;
+  /**
+   * Auto-fixes have been applied
+   */
+  autoFixApplied?: boolean | null;
+  /**
+   * Quick overview of the audit results
+   */
+  summary?: {
+    gtmLoaded?: boolean | null;
+    ga4Configured?: boolean | null;
+    eventsDetected?: number | null;
+    issuesCount?: number | null;
+    /**
+     * GTM container IDs found
+     */
+    gtmContainerIds?: string | null;
+    /**
+     * GA4 Measurement IDs found
+     */
+    measurementIds?: string | null;
+    consentModeDetected?: boolean | null;
+  };
+  /**
+   * Issues found during the audit with fix instructions
+   */
+  issues?:
+    | {
+        severity: 'critical' | 'warning' | 'info';
+        category: 'installation' | 'configuration' | 'measurement_id' | 'events' | 'consent';
+        /**
+         * Can be auto-fixed for built-by-us sites
+         */
+        autoFixable?: boolean | null;
+        /**
+         * Has been resolved
+         */
+        fixed?: boolean | null;
+        /**
+         * What is wrong
+         */
+        message: string;
+        /**
+         * How to fix it
+         */
+        fix?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * GA4 events captured during the audit
+   */
+  events?:
+    | {
+        name?: string | null;
+        measurementId?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Expected events that were not found
+   */
+  missingEvents?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Events found in the dataLayer
+   */
+  dataLayerEvents?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Full raw response from the validation service
+   */
+  rawResult?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Error message if the audit failed
+   */
+  error?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Monthly Google Search Console data snapshots
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2449,7 +2591,16 @@ export interface SalesLead {
   /**
    * How this lead was acquired
    */
-  channel: 'referral' | 'website' | 'bni' | 'advertising' | 'cold_outreach';
+  channel:
+    | 'organic_search'
+    | 'paid_search'
+    | 'paid_social'
+    | 'organic_social'
+    | 'website_other'
+    | 'referral'
+    | 'referral_partner'
+    | 'bni_referral'
+    | 'cold_outreach';
   /**
    * Extra detail (e.g. referrer name, ad campaign, BNI chapter)
    */
@@ -2492,6 +2643,46 @@ export interface SalesLead {
    * Additional context on why this lead was lost
    */
   lostNotes?: string | null;
+  /**
+   * UTM source (auto-captured)
+   */
+  utmSource?: string | null;
+  /**
+   * UTM medium (auto-captured)
+   */
+  utmMedium?: string | null;
+  /**
+   * UTM campaign (auto-captured)
+   */
+  utmCampaign?: string | null;
+  /**
+   * UTM term / keyword (auto-captured)
+   */
+  utmTerm?: string | null;
+  /**
+   * Google Ads click ID
+   */
+  gclid?: string | null;
+  /**
+   * Meta/Facebook click ID
+   */
+  fbclid?: string | null;
+  /**
+   * First page the lead landed on
+   */
+  landingPage?: string | null;
+  /**
+   * HTTP referrer URL
+   */
+  referrerUrl?: string | null;
+  /**
+   * How this lead was created
+   */
+  leadSource?: ('website_form' | 'growth_tool' | 'manual') | null;
+  /**
+   * Self-reported: where they heard about us (from contact form)
+   */
+  heardAbout?: string | null;
   /**
    * Linked proposal (if created)
    */
@@ -3242,6 +3433,10 @@ export interface PayloadLockedDocument {
         value: number | GoogleAdsAudit;
       } | null)
     | ({
+        relationTo: 'tag-setup-audits';
+        value: number | TagSetupAudit;
+      } | null)
+    | ({
         relationTo: 'keyword-snapshots';
         value: number | KeywordSnapshot;
       } | null)
@@ -3483,6 +3678,10 @@ export interface ClientsSelect<T extends boolean = true> {
             };
         id?: T;
       };
+  ga4MeasurementId?: T;
+  gtmContainerId?: T;
+  expectedEvents?: T;
+  tagSetupAudits?: T;
   gscConnected?: T;
   gscPropertyUrl?: T;
   gscAccessToken?: T;
@@ -3660,6 +3859,16 @@ export interface SalesLeadsSelect<T extends boolean = true> {
   notes?: T;
   lostReason?: T;
   lostNotes?: T;
+  utmSource?: T;
+  utmMedium?: T;
+  utmCampaign?: T;
+  utmTerm?: T;
+  gclid?: T;
+  fbclid?: T;
+  landingPage?: T;
+  referrerUrl?: T;
+  leadSource?: T;
+  heardAbout?: T;
   proposal?: T;
   contract?: T;
   client?: T;
@@ -4010,6 +4219,52 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   client?: T;
   proposal?: T;
   createProposal?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tag-setup-audits_select".
+ */
+export interface TagSetupAuditsSelect<T extends boolean = true> {
+  client?: T;
+  url?: T;
+  status?: T;
+  canAutoFix?: T;
+  autoFixApplied?: T;
+  summary?:
+    | T
+    | {
+        gtmLoaded?: T;
+        ga4Configured?: T;
+        eventsDetected?: T;
+        issuesCount?: T;
+        gtmContainerIds?: T;
+        measurementIds?: T;
+        consentModeDetected?: T;
+      };
+  issues?:
+    | T
+    | {
+        severity?: T;
+        category?: T;
+        autoFixable?: T;
+        fixed?: T;
+        message?: T;
+        fix?: T;
+        id?: T;
+      };
+  events?:
+    | T
+    | {
+        name?: T;
+        measurementId?: T;
+        id?: T;
+      };
+  missingEvents?: T;
+  dataLayerEvents?: T;
+  rawResult?: T;
+  error?: T;
   updatedAt?: T;
   createdAt?: T;
 }

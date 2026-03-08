@@ -32,6 +32,7 @@ import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
 import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
 import { Contracts } from "./collections/Contracts";
 import { SalesLeads } from "./collections/SalesLeads";
+import { TagSetupAudits } from "./collections/TagSetupAudits";
 import { ApiCostRates } from "./globals/ApiCostRates";
 import { SheetsAuth } from "./globals/SheetsAuth";
 
@@ -79,7 +80,7 @@ export default buildConfig({
     // SEO
     InternalLinkSuggestions,
     // Audits
-    SeoAudits, CroAudits, GoogleAdsAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, NegativeSweepCandidates,
+    SeoAudits, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, NegativeSweepCandidates,
     // Finance
     BusinessCosts, CostCategories, CostRules,
     // Admin

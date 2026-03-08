@@ -4,6 +4,8 @@ import * as migration_20260306_120000_add_contracts from './20260306_120000_add_
 import * as migration_20260305_120000_contracts_signature_upload_template from './20260305_120000_contracts_signature_upload_template';
 import * as migration_20260305_130000_add_content_researches_client from './20260305_130000_add_content_researches_client';
 import * as migration_20260307_120000_add_sales_leads from './20260307_120000_add_sales_leads';
+import * as migration_20260307_130000_add_lead_attribution from './20260307_130000_add_lead_attribution';
+import * as migration_20260308_120000_add_tag_setup_audits from './20260308_120000_add_tag_setup_audits';
 
 export const migrations = [
   {
@@ -35,5 +37,15 @@ export const migrations = [
     up: migration_20260307_120000_add_sales_leads.up,
     down: migration_20260307_120000_add_sales_leads.down,
     name: '20260307_120000_add_sales_leads'
+  },
+  {
+    up: migration_20260307_130000_add_lead_attribution.up,
+    down: migration_20260307_130000_add_lead_attribution.down,
+    name: '20260307_130000_add_lead_attribution'
+  },
+  {
+    up: migration_20260308_120000_add_tag_setup_audits.up,
+    down: migration_20260308_120000_add_tag_setup_audits.down,
+    name: '20260308_120000_add_tag_setup_audits'
   },
 ];

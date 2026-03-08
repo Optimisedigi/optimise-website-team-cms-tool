@@ -1083,6 +1083,70 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Tracking",
+          fields: [
+            // ─ Check Tag Setup Button ─
+            {
+              name: "checkTagSetup",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/CheckTagSetupButton",
+                },
+              },
+            },
+            {
+              name: "ga4MeasurementId",
+              type: "text",
+              admin: {
+                description: "GA4 Measurement ID (e.g., G-XXXXXXXXXX)",
+                placeholder: "G-",
+              },
+              validate: (value: string | null | undefined) => {
+                if (!value) return true;
+                if (!/^G-[A-Z0-9]+$/i.test(value)) {
+                  return "Must be a valid GA4 Measurement ID (e.g., G-ABC123DEF4)";
+                }
+                return true;
+              },
+            },
+            {
+              name: "gtmContainerId",
+              type: "text",
+              admin: {
+                description: "GTM Container ID (e.g., GTM-XXXXXXX)",
+                placeholder: "GTM-",
+              },
+              validate: (value: string | null | undefined) => {
+                if (!value) return true;
+                if (!/^GTM-[A-Z0-9]+$/i.test(value)) {
+                  return "Must be a valid GTM Container ID (e.g., GTM-ABC123D)";
+                }
+                return true;
+              },
+            },
+            {
+              name: "expectedEvents",
+              type: "textarea",
+              admin: {
+                description:
+                  "Expected GA4 events to check for (one per line, e.g., purchase, add_to_cart, generate_lead)",
+              },
+            },
+            // ─ Linked Audits ─
+            {
+              name: "tagSetupAudits",
+              type: "join",
+              collection: "tag-setup-audits",
+              on: "client",
+              admin: {
+                description: "Tag setup audit history for this client",
+                defaultColumns: ["url", "status", "createdAt"],
+              },
+            },
+          ],
+        },
+        {
           label: "Search Console",
           fields: [
             {
