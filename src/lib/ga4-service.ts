@@ -172,7 +172,7 @@ export async function fetchGa4Report(
           { name: "sessions" },
           { name: "bounceRate" },
           { name: "averageSessionDuration" },
-          { name: "keyEvents" },
+          { name: "conversions" },
         ],
         orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
         limit: "20",
