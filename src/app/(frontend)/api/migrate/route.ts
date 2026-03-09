@@ -1029,6 +1029,165 @@ export async function POST(request: NextRequest) {
   // --- clients.gads_auto_dashboard_enabled (Quality Score tab + monthly snapshots) ---
   await run("clients.gads_auto_dashboard_enabled", "ALTER TABLE `clients` ADD `gads_auto_dashboard_enabled` integer DEFAULT false");
 
+  // ── Sales Leads (2026-03-07) ──
+
+  await run("sales_leads", `CREATE TABLE IF NOT EXISTS \`sales_leads\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`business_name\` text NOT NULL,
+    \`website_url\` text,
+    \`contact_name\` text,
+    \`contact_email\` text,
+    \`contact_phone\` text,
+    \`channel\` text NOT NULL,
+    \`channel_detail\` text,
+    \`estimated_value\` numeric,
+    \`business_type\` text,
+    \`notes\` text,
+    \`lost_reason\` text,
+    \`lost_notes\` text,
+    \`proposal_id\` integer,
+    \`contract_id\` integer,
+    \`client_id\` integer,
+    \`stage\` text DEFAULT 'new_lead' NOT NULL,
+    \`first_contact_date\` text,
+    \`expected_close_date\` text,
+    \`priority\` text DEFAULT 'medium',
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`contract_id\`) REFERENCES \`contracts\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("sales_leads_channel_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_channel_idx` ON `sales_leads` (`channel`)");
+  await run("sales_leads_stage_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_stage_idx` ON `sales_leads` (`stage`)");
+  await run("sales_leads_proposal_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_proposal_idx` ON `sales_leads` (`proposal_id`)");
+  await run("sales_leads_client_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_client_idx` ON `sales_leads` (`client_id`)");
+  await run("sales_leads_created_at_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_created_at_idx` ON `sales_leads` (`created_at`)");
+  await run("sales_leads_updated_at_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_updated_at_idx` ON `sales_leads` (`updated_at`)");
+  await run("sales_leads_first_contact_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_first_contact_idx` ON `sales_leads` (`first_contact_date`)");
+
+  // Stage history array table
+  await run("sales_leads_stage_history", `CREATE TABLE IF NOT EXISTS \`sales_leads_stage_history\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`from_stage\` text,
+    \`to_stage\` text,
+    \`transition_date\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`sales_leads\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("sales_leads_stage_history_parent_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_stage_history_parent_idx` ON `sales_leads_stage_history` (`_parent_id`)");
+  await run("sales_leads_stage_history_order_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_stage_history_order_idx` ON `sales_leads_stage_history` (`_order`)");
+
+  // Services select (hasMany stored as separate table)
+  await run("sales_leads_services", `CREATE TABLE IF NOT EXISTS \`sales_leads_services\` (
+    \`order\` integer NOT NULL,
+    \`parent_id\` integer NOT NULL,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`value\` text,
+    FOREIGN KEY (\`parent_id\`) REFERENCES \`sales_leads\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("sales_leads_services_parent_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_services_parent_idx` ON `sales_leads_services` (`parent_id`)");
+  await run("sales_leads_services_order_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_services_order_idx` ON `sales_leads_services` (`order`)");
+
+  // locked_docs_rels for sales_leads
+  await run("locked_docs_rels.sales_leads_id", "ALTER TABLE `payload_locked_documents_rels` ADD `sales_leads_id` integer");
+
+  // ── Lead Attribution (2026-03-07) ──
+
+  await run("sales_leads.utm_source", "ALTER TABLE `sales_leads` ADD `utm_source` text");
+  await run("sales_leads.utm_medium", "ALTER TABLE `sales_leads` ADD `utm_medium` text");
+  await run("sales_leads.utm_campaign", "ALTER TABLE `sales_leads` ADD `utm_campaign` text");
+  await run("sales_leads.utm_term", "ALTER TABLE `sales_leads` ADD `utm_term` text");
+  await run("sales_leads.gclid", "ALTER TABLE `sales_leads` ADD `gclid` text");
+  await run("sales_leads.fbclid", "ALTER TABLE `sales_leads` ADD `fbclid` text");
+  await run("sales_leads.landing_page", "ALTER TABLE `sales_leads` ADD `landing_page` text");
+  await run("sales_leads.referrer_url", "ALTER TABLE `sales_leads` ADD `referrer_url` text");
+  await run("sales_leads.lead_source", "ALTER TABLE `sales_leads` ADD `lead_source` text");
+  await run("sales_leads.heard_about", "ALTER TABLE `sales_leads` ADD `heard_about` text");
+
+  // ── Tag Setup Audits (2026-03-08) ──
+
+  await run("tag_setup_audits", `CREATE TABLE IF NOT EXISTS \`tag_setup_audits\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`client_id\` integer,
+    \`url\` text NOT NULL,
+    \`status\` text DEFAULT 'pending',
+    \`can_auto_fix\` integer DEFAULT false,
+    \`auto_fix_applied\` integer DEFAULT false,
+    \`summary_gtm_loaded\` integer DEFAULT false,
+    \`summary_ga4_configured\` integer DEFAULT false,
+    \`summary_events_detected\` numeric DEFAULT 0,
+    \`summary_issues_count\` numeric DEFAULT 0,
+    \`summary_gtm_container_ids\` text,
+    \`summary_measurement_ids\` text,
+    \`summary_consent_mode_detected\` integer DEFAULT false,
+    \`missing_events\` text,
+    \`data_layer_events\` text,
+    \`raw_result\` text,
+    \`error\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("tag_setup_audits_client_idx", "CREATE INDEX IF NOT EXISTS `tag_setup_audits_client_idx` ON `tag_setup_audits` (`client_id`)");
+  await run("tag_setup_audits_status_idx", "CREATE INDEX IF NOT EXISTS `tag_setup_audits_status_idx` ON `tag_setup_audits` (`status`)");
+  await run("tag_setup_audits_created_at_idx", "CREATE INDEX IF NOT EXISTS `tag_setup_audits_created_at_idx` ON `tag_setup_audits` (`created_at`)");
+  await run("tag_setup_audits_updated_at_idx", "CREATE INDEX IF NOT EXISTS `tag_setup_audits_updated_at_idx` ON `tag_setup_audits` (`updated_at`)");
+
+  // Issues array table
+  await run("tag_setup_audits_issues", `CREATE TABLE IF NOT EXISTS \`tag_setup_audits_issues\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`severity\` text NOT NULL,
+    \`category\` text NOT NULL,
+    \`auto_fixable\` integer DEFAULT false,
+    \`fixed\` integer DEFAULT false,
+    \`message\` text NOT NULL,
+    \`fix\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`tag_setup_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("tag_setup_audits_issues_order_idx", "CREATE INDEX IF NOT EXISTS `tag_setup_audits_issues_order_idx` ON `tag_setup_audits_issues` (`_order`)");
+  await run("tag_setup_audits_issues_parent_idx", "CREATE INDEX IF NOT EXISTS `tag_setup_audits_issues_parent_idx` ON `tag_setup_audits_issues` (`_parent_id`)");
+
+  // Events array table
+  await run("tag_setup_audits_events", `CREATE TABLE IF NOT EXISTS \`tag_setup_audits_events\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`name\` text,
+    \`measurement_id\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`tag_setup_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("tag_setup_audits_events_order_idx", "CREATE INDEX IF NOT EXISTS `tag_setup_audits_events_order_idx` ON `tag_setup_audits_events` (`_order`)");
+  await run("tag_setup_audits_events_parent_idx", "CREATE INDEX IF NOT EXISTS `tag_setup_audits_events_parent_idx` ON `tag_setup_audits_events` (`_parent_id`)");
+
+  // locked_docs_rels for tag_setup_audits
+  await run("locked_docs_rels.tag_setup_audits_id", "ALTER TABLE `payload_locked_documents_rels` ADD `tag_setup_audits_id` integer REFERENCES `tag_setup_audits`(`id`) ON DELETE CASCADE");
+
+  // Tracking fields on clients
+  await run("clients.ga4_measurement_id", "ALTER TABLE `clients` ADD `ga4_measurement_id` text");
+  await run("clients.gtm_container_id", "ALTER TABLE `clients` ADD `gtm_container_id` text");
+  await run("clients.expected_events", "ALTER TABLE `clients` ADD `expected_events` text");
+
+  // ── Mark ALL registered migrations as executed in payload_migrations ──
+  // Payload with push: false will block operations if it detects migrations
+  // in the index that aren't recorded in payload_migrations.
+  const allMigrationNames = [
+    '20260210_034208_add_client_analysis_fields',
+    '20260304_120000_add_gsc_indexing_audits',
+    '20260305_120000_contracts_signature_upload_template',
+    '20260305_130000_add_content_researches_client',
+    '20260306_120000_add_contracts',
+    '20260307_120000_add_sales_leads',
+    '20260307_130000_add_lead_attribution',
+    '20260308_120000_add_tag_setup_audits',
+  ];
+  for (const migName of allMigrationNames) {
+    await run(`mark_migration:${migName}`, `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('${migName}', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
+  }
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
@@ -1036,7 +1195,7 @@ export async function POST(request: NextRequest) {
   // ╚══════════════════════════════════════════════════════════════════╝
 
   // --- Schema diagnostics ---
-  const tables = ["media", "clients", "clients_one_off_projects", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels", "activity_log", "job_posts", "gsc_snapshots", "gsc_alerts", "cost_categories", "cost_rules", "business_costs", "api_cost_rates", "blog_prompts", "google_ads_audits", "contracts"];
+  const tables = ["media", "clients", "clients_one_off_projects", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels", "activity_log", "job_posts", "gsc_snapshots", "gsc_alerts", "cost_categories", "cost_rules", "business_costs", "api_cost_rates", "blog_prompts", "google_ads_audits", "contracts", "sales_leads", "sales_leads_stage_history", "sales_leads_services", "tag_setup_audits", "tag_setup_audits_issues", "tag_setup_audits_events"];
   const schema: Record<string, string[]> = {};
   for (const table of tables) {
     try {
@@ -1183,7 +1342,7 @@ export async function POST(request: NextRequest) {
     contractsTest.create = { ok: false, error: err?.message || String(err), stack: err?.stack?.split("\n").slice(0, 5) };
   }
 
-  return NextResponse.json({ ok: true, version: "2026-03-05", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  return NextResponse.json({ ok: true, version: "2026-03-08", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**

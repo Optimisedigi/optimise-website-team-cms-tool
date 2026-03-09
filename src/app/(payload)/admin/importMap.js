@@ -23,7 +23,11 @@ import { UnderlineFeatureClient as UnderlineFeatureClient_e70f5e05f09f93e00b997e
 import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_fb5d37b90851b3851c29f4b754a04aca } from '../../../components/RunGoogleAdsAuditFromClientButton'
+import { default as default_d4ebfcd7dcd43ec537c0f248f26cef22 } from '../../../components/ViewGoogleDashboardButton'
+import { default as default_c48582730ce567b18023caac0e161ded } from '../../../components/RunNegativeSweepButton'
+import { default as default_522f40213ad4b7c13dfb4e9b8621e85b } from '../../../components/RunPerformanceReportButton'
 import { default as default_b0745460f96744dbbe5a3465bced6bcf } from '../../../components/ClientBlogPostsList'
+import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_da47157ebc74588a3650c3de3faf920e } from '../../../components/MockupUpload'
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
@@ -55,9 +59,6 @@ import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../co
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
 import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
 import { default as default_d7691cd6896b18804e19a29368edb888 } from '../../../components/ConnectSheetsButton'
-import { default as default_a1b2c3d4e5f6789012345678abcdef01 } from '../../../components/RunNegativeSweepButton'
-import { default as default_b2c3d4e5f6789012345678abcdef0102 } from '../../../components/RunPerformanceReportButton'
-import { default as default_c3d4e5f6789012345678abcdef010203 } from '../../../components/ViewGoogleDashboardButton'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_4a8985253bad55ee72042259cf28f1d7 } from '../../../components/UserDisplayName'
@@ -99,7 +100,11 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#BoldFeatureClient": BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/RunGoogleAdsAuditFromClientButton#default": default_fb5d37b90851b3851c29f4b754a04aca,
+  "./components/ViewGoogleDashboardButton#default": default_d4ebfcd7dcd43ec537c0f248f26cef22,
+  "./components/RunNegativeSweepButton#default": default_c48582730ce567b18023caac0e161ded,
+  "./components/RunPerformanceReportButton#default": default_522f40213ad4b7c13dfb4e9b8621e85b,
   "./components/ClientBlogPostsList#default": default_b0745460f96744dbbe5a3465bced6bcf,
+  "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/MockupUpload#default": default_da47157ebc74588a3650c3de3faf920e,
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
@@ -143,9 +148,6 @@ export const importMap = {
   "./components/NavigationRecovery#default": default_30b462c31bfed4dfe63e7ef34d180475,
   "./components/MiniSidebar#default": default_47cb45239198beef21a512f6c005e728,
   "./components/PomodoroTimer#default": default_02b1efea3bcfc49be1b8b522d8ca967d,
-  "./components/RunNegativeSweepButton#default": default_a1b2c3d4e5f6789012345678abcdef01,
-  "./components/RunPerformanceReportButton#default": default_b2c3d4e5f6789012345678abcdef0102,
-  "./components/ViewGoogleDashboardButton#default": default_c3d4e5f6789012345678abcdef010203,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

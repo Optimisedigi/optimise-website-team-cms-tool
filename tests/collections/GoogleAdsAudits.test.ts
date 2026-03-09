@@ -62,7 +62,7 @@ describe("GoogleAdsAudits Collection", () => {
   });
 
   it("should be in Audits admin group", () => {
-    expect(GoogleAdsAudits.admin?.group).toBe("Audits");
+    expect(GoogleAdsAudits.admin?.group).toBe("Growth Tools");
   });
 
   it("should have required businessName field", () => {
@@ -136,10 +136,13 @@ describe("GoogleAdsAudits Collection", () => {
     const actionField = field.fields.find((f: any) => f.name === "action");
     expect(actionField).toBeDefined();
     expect(actionField.required).toBe(true);
-    const priorityField = field.fields.find((f: any) => f.name === "priority");
+    // priority and status are inside a row wrapper
+    const rowField = field.fields.find((f: any) => f.type === "row");
+    expect(rowField).toBeDefined();
+    const priorityField = rowField.fields.find((f: any) => f.name === "priority");
     expect(priorityField).toBeDefined();
     expect(priorityField.defaultValue).toBe("medium");
-    const statusField = field.fields.find((f: any) => f.name === "status");
+    const statusField = rowField.fields.find((f: any) => f.name === "status");
     expect(statusField).toBeDefined();
     expect(statusField.defaultValue).toBe("pending");
   });

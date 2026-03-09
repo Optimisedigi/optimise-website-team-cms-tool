@@ -75,8 +75,12 @@ describe("dbName ↔ migration sync", () => {
     for (const { slug, path: fieldPath, dbName } of allDbNames) {
       // The migration must contain a CREATE TABLE with the exact dbName
       // or a RENAME TO that dbName
-      const hasCreate = migrationSql.includes(`CREATE TABLE IF NOT EXISTS \`${dbName}\``);
-      const hasRename = migrationSql.includes(`RENAME TO \`${dbName}\``);
+      // Note: template literals in the source use \` (escaped backtick) while
+      // regular strings use plain backticks, so check both patterns
+      const hasCreate = migrationSql.includes(`CREATE TABLE IF NOT EXISTS \`${dbName}\``) ||
+        migrationSql.includes(`CREATE TABLE IF NOT EXISTS \\\`${dbName}\\\``);
+      const hasRename = migrationSql.includes(`RENAME TO \`${dbName}\``) ||
+        migrationSql.includes(`RENAME TO \\\`${dbName}\\\``);
 
       expect(
         hasCreate || hasRename,

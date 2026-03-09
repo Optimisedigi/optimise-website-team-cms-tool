@@ -66,10 +66,15 @@ interface SalesFunnelData {
 // ─── Constants ────────────────────────────────────────────
 
 const CHANNEL_ICONS: Record<string, string> = {
+  // Online (auto-attributed)
+  organic_search: '\uD83D\uDD0D',
+  paid_search: '\uD83C\uDFAF',
+  paid_social: '\uD83D\uDCF1',
+  website_other: '\uD83C\uDF10',
+  // Offline (manual)
   referral: '\uD83E\uDD1D',
-  website: '\uD83C\uDF10',
-  bni: '\uD83C\uDFE2',
-  advertising: '\uD83D\uDCE3',
+  referral_partner: '\uD83E\uDD1D',
+  bni_referral: '\uD83C\uDFE2',
   cold_outreach: '\u2744\uFE0F',
 }
 
