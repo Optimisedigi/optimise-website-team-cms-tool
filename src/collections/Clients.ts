@@ -2,6 +2,13 @@ import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
 
+function monthsBetween(start: Date, end: Date): number {
+  const months =
+    (end.getFullYear() - start.getFullYear()) * 12 +
+    (end.getMonth() - start.getMonth());
+  return Math.max(0, months);
+}
+
 const trackRetainerChange: CollectionBeforeChangeHook = async ({
   data,
   originalDoc,
@@ -68,12 +75,64 @@ export const Clients: CollectionConfig = {
         }
       },
     ],
+    afterRead: [
+      ({ doc }) => {
+        if (doc?.isAgency) return doc;
+
+        const monthlyRetainer = Number(doc?.monthlyRetainer) || 0;
+        const historicalRevenue = Number(doc?.historicalRevenue) || 0;
+        const clientStartDate = doc?.clientStartDate as string | null;
+        const oneOffProjects = Array.isArray(doc?.oneOffProjects) ? doc.oneOffProjects : [];
+        const retainerHistory = Array.isArray(doc?.retainerHistory) ? doc.retainerHistory : [];
+
+        // One-off totals
+        const oneOffTotal = oneOffProjects.reduce(
+          (sum: number, p: any) => sum + (Number(p?.amount) || 0),
+          0,
+        );
+
+        // Retainer revenue to date
+        let retainerRevenue = 0;
+        if (monthlyRetainer > 0) {
+          const now = new Date();
+          if (clientStartDate) {
+            const sortedHistory = [...retainerHistory]
+              .filter((h: any) => h?.effectiveDate && h?.amount != null)
+              .sort(
+                (a: any, b: any) =>
+                  new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime(),
+              );
+            const start = new Date(clientStartDate);
+            if (sortedHistory.length > 0) {
+              let periodStart = start;
+              for (const entry of sortedHistory) {
+                const changeDate = new Date(entry.effectiveDate);
+                if (changeDate > periodStart) {
+                  const months = monthsBetween(periodStart, changeDate);
+                  retainerRevenue += months * (Number(entry.previousAmount) || 0);
+                  periodStart = changeDate;
+                }
+              }
+              retainerRevenue += monthsBetween(periodStart, now) * monthlyRetainer;
+            } else {
+              retainerRevenue = monthsBetween(start, now) * monthlyRetainer;
+            }
+          } else {
+            retainerRevenue = monthlyRetainer;
+          }
+        }
+
+        doc.billingSummary = retainerRevenue + oneOffTotal + historicalRevenue;
+        return doc;
+      },
+    ],
   },
   fields: [
     {
       name: "billingSummary",
       label: "Billing Summary",
-      type: "ui",
+      type: "number",
+      virtual: true,
       admin: {
         components: {
           Field: "./components/ClientBillingSummary",
