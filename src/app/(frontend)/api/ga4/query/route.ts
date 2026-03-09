@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
-import { fetchGa4Report, ensureValidToken } from "@/lib/ga4-service";
+import { fetchGa4Report, ensureValidToken, listGa4Properties } from "@/lib/ga4-service";
 
 /**
  * GET /api/ga4/query?clientId=X&period=30d|90d|12m
@@ -102,6 +102,13 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("[ga4-query] error:", err);
+    // List accessible properties for debugging
+    let accessibleProperties: { propertyId: string; displayName: string }[] = [];
+    try {
+      if (client?.ga4AccessToken) {
+        accessibleProperties = await listGa4Properties(client.ga4AccessToken);
+      }
+    } catch { /* ignore */ }
     return NextResponse.json(
       {
         error: "Failed to fetch GA4 data",
@@ -113,6 +120,7 @@ export async function GET(req: NextRequest) {
           hasAccessToken: !!client?.ga4AccessToken,
           hasRefreshToken: !!client?.ga4RefreshToken,
           tokenExpiry: client?.ga4TokenExpiry,
+          accessibleProperties,
         },
       },
       { status: 500 },
