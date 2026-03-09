@@ -58,6 +58,7 @@ export async function GET(
       contractStartDate: doc.contractStartDate,
       monthlyRetainer: doc.monthlyRetainer,
       setupFee: doc.setupFee,
+      monthlyHosting: doc.monthlyHosting,
       contractTerm: doc.contractTerm,
       paymentTerms: doc.paymentTerms,
       pricingNotes: pricingNotesText,

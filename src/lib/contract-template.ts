@@ -15,6 +15,7 @@ export interface ContractData {
   contractStartDate?: string;
   monthlyRetainer?: number;
   setupFee?: number;
+  monthlyHosting?: number;
   contractTerm?: string;
   paymentTerms?: string;
   pricingNotes?: string;
@@ -146,6 +147,12 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       value: `${formatCurrency(data.monthlyRetainer)}/month`,
     });
   }
+  if (data.monthlyHosting) {
+    pricingRows.push({
+      label: "Monthly hosting",
+      value: `${formatCurrency(data.monthlyHosting)}/month`,
+    });
+  }
   if (pricingRows.length > 0) {
     sections.push({
       type: "heading",
@@ -180,14 +187,21 @@ export function generateContractSections(data: ContractData): ContractSection[] 
   } else {
     const setupAmount = data.setupFee ? formatCurrency(data.setupFee) : "$0";
     const retainerAmount = data.monthlyRetainer ? formatCurrency(data.monthlyRetainer) : "$0";
+    const hostingAmount = data.monthlyHosting ? formatCurrency(data.monthlyHosting) : null;
+    const items = [
+      `The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`,
+      `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
+    ];
+    if (hostingAmount) {
+      items.push(`The monthly hosting fee of ${hostingAmount} will be invoiced alongside the monthly retainer.`);
+    }
+    items.push(
+      "Invoices are due within 14 days of issue.",
+      "This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.",
+    );
     sections.push({
       type: "bullets",
-      items: [
-        `The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`,
-        `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
-        "Invoices are due within 14 days of issue.",
-        "This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.",
-      ],
+      items,
     });
   }
 

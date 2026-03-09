@@ -643,7 +643,7 @@ export interface Client {
    */
   ga4Connected?: boolean | null;
   /**
-   * The GA4 property ID (numeric, e.g. 202886563)
+   * The GA4 property ID (numeric, e.g. 202886563). Set this before connecting OAuth.
    */
   ga4PropertyId?: string | null;
   ga4AccessToken?: string | null;
@@ -785,6 +785,10 @@ export interface Contract {
    * One-time setup fee ($)
    */
   setupFee?: number | null;
+  /**
+   * Monthly hosting cost ($)
+   */
+  monthlyHosting?: number | null;
   /**
    * Additional pricing details shown below the pricing table (e.g. bundle pricing, ad spend thresholds)
    */
@@ -3830,6 +3834,7 @@ export interface ContractsSelect<T extends boolean = true> {
   contractDate?: T;
   monthlyRetainer?: T;
   setupFee?: T;
+  monthlyHosting?: T;
   pricingNotes?: T;
   contractTerm?: T;
   paymentTerms?: T;

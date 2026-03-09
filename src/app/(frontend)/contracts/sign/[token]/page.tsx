@@ -15,6 +15,7 @@ interface ContractInfo {
   contractStartDate?: string
   monthlyRetainer?: number
   setupFee?: number
+  monthlyHosting?: number
   contractTerm?: string
   paymentTerms?: string
   scopeOfWork?: string
@@ -354,6 +355,7 @@ export default function ContractSignPage() {
   const agencyContactPhone = contract.agencyContactPhone || '0493053188'
   const setupAmount = contract.setupFee ? formatCurrency(contract.setupFee) : '$0'
   const retainerAmount = contract.monthlyRetainer ? formatCurrency(contract.monthlyRetainer) : '$0'
+  const hostingAmount = contract.monthlyHosting ? formatCurrency(contract.monthlyHosting) : null
 
   return (
     <div style={pageStyle}>
@@ -529,7 +531,7 @@ export default function ContractSignPage() {
         )}
 
         {/* Pricing */}
-        {(contract.setupFee || contract.monthlyRetainer) && (
+        {(contract.setupFee || contract.monthlyRetainer || contract.monthlyHosting) && (
           <>
             <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Pricing</h2>
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, border: '1px solid #111' }}>
@@ -552,11 +554,21 @@ export default function ContractSignPage() {
                 )}
                 {contract.monthlyRetainer != null && contract.monthlyRetainer > 0 && (
                   <tr>
-                    <td style={{ padding: '10px 12px', borderRight: '1px solid #111', fontWeight: 700 }}>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', borderRight: '1px solid #111', fontWeight: 700 }}>
                       Monthly management retainer
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>
                       {formatCurrency(contract.monthlyRetainer)}/month
+                    </td>
+                  </tr>
+                )}
+                {contract.monthlyHosting != null && contract.monthlyHosting > 0 && (
+                  <tr>
+                    <td style={{ padding: '10px 12px', borderRight: '1px solid #111', fontWeight: 700 }}>
+                      Monthly hosting
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      {formatCurrency(contract.monthlyHosting)}/month
                     </td>
                   </tr>
                 )}
@@ -596,6 +608,9 @@ export default function ContractSignPage() {
           <ul style={{ margin: '0 0 8px', paddingLeft: 28, lineHeight: 1.7 }}>
             <li style={{ marginBottom: 8 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
             <li style={{ marginBottom: 8 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
+            {hostingAmount && (
+              <li style={{ marginBottom: 8 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
+            )}
             <li style={{ marginBottom: 8 }}>Invoices are due within 14 days of issue.</li>
             <li style={{ marginBottom: 8 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
           </ul>

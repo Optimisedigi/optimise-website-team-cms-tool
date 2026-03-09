@@ -1196,6 +1196,9 @@ export async function POST(request: NextRequest) {
   await run("clients.ga4_refresh_token", "ALTER TABLE `clients` ADD `ga4_refresh_token` text");
   await run("clients.ga4_token_expiry", "ALTER TABLE `clients` ADD `ga4_token_expiry` text");
 
+  // Contracts: monthly hosting
+  await run("contracts.monthly_hosting", "ALTER TABLE `contracts` ADD `monthly_hosting` integer");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║

@@ -165,6 +165,15 @@ export const Contracts: CollectionConfig = {
                     step: 1,
                   },
                 },
+                {
+                  name: "monthlyHosting",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "Monthly hosting cost ($)",
+                    step: 1,
+                  },
+                },
               ],
             },
             {
