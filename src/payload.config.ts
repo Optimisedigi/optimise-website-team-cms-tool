@@ -1,5 +1,6 @@
 import { sqliteAdapter } from "@payloadcms/db-sqlite";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
+import { MarkdownPasteFeature } from "./lib/markdown-paste-feature";
 import { vercelBlobStorage } from "@payloadcms/storage-vercel-blob";
 import path from "path";
 import { buildConfig } from "payload";
@@ -98,7 +99,9 @@ export default buildConfig({
     },
   })),
   globals: [SheetsAuth, ApiCostRates],
-  editor: lexicalEditor(),
+  editor: lexicalEditor({
+    features: ({ defaultFeatures }) => [...defaultFeatures, MarkdownPasteFeature()],
+  }),
   secret: (() => {
     const s = process.env.PAYLOAD_SECRET;
     if (!s) throw new Error("PAYLOAD_SECRET environment variable is required");

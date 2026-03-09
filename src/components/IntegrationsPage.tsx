@@ -30,7 +30,9 @@ const IntegrationsPage = () => {
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           setClients(data)
-          setSelectedClientId(data[0].id)
+          // Default to Optimise Digital (agency) if present, otherwise first client
+          const agency = data.find((c: ClientOption) => c.name.toLowerCase().includes('optimise digital'))
+          setSelectedClientId(agency ? agency.id : data[0].id)
         }
         setLoading(false)
       })

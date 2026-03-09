@@ -206,14 +206,14 @@ export const Contracts: CollectionConfig = {
               name: "scopeOfWork",
               type: "richText",
               admin: {
-                description: "Deliverables and scope of work",
+                description: "Deliverables and scope of work. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.",
               },
             },
             {
               name: "paymentTermsOverride",
               type: "richText",
               admin: {
-                description: "If filled in, this replaces the default payment terms section entirely",
+                description: "If filled in, this replaces the default payment terms section. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.",
               },
             },
           ],

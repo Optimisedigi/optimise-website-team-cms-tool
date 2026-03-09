@@ -72,11 +72,23 @@ export const Clients: CollectionConfig = {
     {
       name: "billingSummary",
       type: "ui",
+      label: " ",
       admin: {
         components: {
           Field: "./components/ClientBillingSummary",
         },
         condition: (data: any) => !data?.isAgency && data?.id,
+      },
+    },
+    {
+      name: "agencyBadge",
+      type: "ui",
+      label: " ",
+      admin: {
+        components: {
+          Field: "./components/AgencyBadge",
+        },
+        condition: (data: any) => !!data?.isAgency,
       },
     },
     {
