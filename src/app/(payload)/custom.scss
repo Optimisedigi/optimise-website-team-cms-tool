@@ -383,9 +383,13 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E#{$svg-close}");
 }
 
-// Ensure nav icons persist on active links
+// Ensure nav icons persist on active links (Payload may override ::before on active state)
 .nav a.nav__link.active::before {
   display: inline-block !important;
+  width: 14px !important;
+  height: 14px !important;
+  background: currentColor !important;
+  flex-shrink: 0 !important;
 }
 
 // Bottom controls
@@ -593,6 +597,10 @@ $svg-close: "%3C/svg%3E";
 
 .od-box__stats--7 {
   grid-template-columns: repeat(7, 1fr);
+}
+
+.od-box__stats--8 {
+  grid-template-columns: repeat(8, 1fr);
 }
 
 .od-box__stats--4 {
@@ -1405,6 +1413,7 @@ $svg-close: "%3C/svg%3E";
   }
 
   .od-box__stats,
+  .od-box__stats--8,
   .od-box__stats--7,
   .od-box__stats--6,
   .od-box__stats--4 {
@@ -2255,6 +2264,11 @@ $svg-close: "%3C/svg%3E";
 // Nav icon for Sales Leads
 .nav a.nav__link[href="/admin/collections/sales-leads"] {
   @include nav-icon("#{$svg-open}%3Cpath d='M22 12h-4l-3 9L9 3l-3 9H2'/%3E#{$svg-close}");
+}
+
+// Nav icon for Tag Setup Audits (shield + check)
+.nav a.nav__link[href="/admin/collections/tag-setup-audits"] {
+  @include nav-icon("#{$svg-open}%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpath d='M9 12l2 2 4-4'/%3E#{$svg-close}");
 }
 
 // ── Responsive ──

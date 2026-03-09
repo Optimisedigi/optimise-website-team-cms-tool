@@ -28,6 +28,7 @@ export const SalesLeads: CollectionConfig = {
       "updatedAt",
     ],
   },
+  disableDuplicate: false,
   access: {
     read: ({ req }) => !!req.user,
     create: ({ req }) => !!req.user,

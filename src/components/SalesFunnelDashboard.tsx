@@ -61,6 +61,7 @@ interface SalesFunnelData {
   lostReasons: Record<string, number>
   recentLeads: RecentLead[]
   stageLabels: Record<string, string>
+  ga4Connected?: boolean
 }
 
 // ─── Constants ────────────────────────────────────────────
@@ -196,6 +197,49 @@ const SalesFunnelDashboard = () => {
           </a>
         </div>
       </div>
+
+      {/* GA4 Connection Status */}
+      {!data.ga4Connected && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 16px',
+          marginBottom: 16,
+          background: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
+          borderRadius: 8,
+          fontSize: 13,
+          color: '#f59e0b',
+        }}>
+          <span style={{ fontSize: 16 }}>&#x26A0;</span>
+          <span>
+            <strong>GA4 not connected</strong> — Online channels (Organic Search, Paid Search, Paid Social, Website Other) require GA4 to auto-attribute leads.{' '}
+            <a href="/admin/collections/clients" style={{ color: '#f59e0b', textDecoration: 'underline' }}>
+              Add GA4 Measurement ID
+            </a> to your agency client record.
+          </span>
+        </div>
+      )}
+      {data.ga4Connected && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 16px',
+          marginBottom: 16,
+          background: 'rgba(34, 197, 94, 0.08)',
+          border: '1px solid rgba(34, 197, 94, 0.2)',
+          borderRadius: 8,
+          fontSize: 13,
+          color: '#22c55e',
+        }}>
+          <span style={{ fontSize: 16 }}>&#x2705;</span>
+          <span>
+            <strong>GA4 connected</strong> — Online channels (Organic Search, Paid Search, Paid Social, Website Other) can auto-attribute leads.
+          </span>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="od-funnel__summary">

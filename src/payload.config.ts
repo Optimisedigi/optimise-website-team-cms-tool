@@ -87,7 +87,16 @@ export default buildConfig({
     Users, UsageReports, ActivityLog,
     // Hidden (no group impact)
     GscSnapshots, GscDaily,
-  ],
+  ].map((c) => ({
+    ...c,
+    admin: {
+      ...c.admin,
+      pagination: {
+        ...c.admin?.pagination,
+        defaultLimit: c.admin?.pagination?.defaultLimit ?? 25,
+      },
+    },
+  })),
   globals: [SheetsAuth, ApiCostRates],
   editor: lexicalEditor(),
   secret: (() => {

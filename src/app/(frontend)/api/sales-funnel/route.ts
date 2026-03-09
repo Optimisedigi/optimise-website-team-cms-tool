@@ -272,6 +272,21 @@ export async function GET(request: Request) {
         )
       : null;
 
+    // ── GA4 connection status ──
+    // Check if the agency has GA4 configured (needed for auto-attributing online channels)
+    let ga4Connected = false;
+    try {
+      const odClient = await payload.find({
+        collection: "clients",
+        where: { slug: { equals: "optimise-digital" } },
+        limit: 1,
+        select: { ga4MeasurementId: true } as any,
+        overrideAccess: true,
+      });
+      const od = odClient.docs[0] as any;
+      ga4Connected = !!(od?.ga4MeasurementId);
+    } catch { /* ignore */ }
+
     // ── Recent leads (last 10) ──
     const recentLeads = leads.slice(0, 10).map((l: any) => ({
       id: l.id,
@@ -307,6 +322,7 @@ export async function GET(request: Request) {
       lostReasons,
       recentLeads,
       stageLabels: STAGE_LABELS,
+      ga4Connected,
     });
   } catch (err) {
     console.error("[sales-funnel] API error:", err);

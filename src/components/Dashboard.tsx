@@ -79,6 +79,7 @@ interface DashboardData {
     total: number
   }
   costHistory: CostHistoryEntry[]
+  totalLeads?: number
   businessCosts?: {
     totalThisMonth: number
     uncategorisedCount: number
@@ -256,10 +257,14 @@ const Dashboard = () => {
             <div className="od-box__head">
               <span className="od-box__title">Topline Agency Data</span>
             </div>
-            <div className="od-box__stats od-box__stats--7">
+            <div className="od-box__stats od-box__stats--8">
               <div className="od-box__stat">
                 <span className="od-box__stat-value">{data.activeClients}</span>
                 <span className="od-box__stat-label">Active Clients</span>
+              </div>
+              <div className="od-box__stat">
+                <span className="od-box__stat-value">{data.totalLeads ?? 0}</span>
+                <span className="od-box__stat-label">Total Leads</span>
               </div>
               <div className="od-box__stat">
                 <span className="od-box__stat-value">${data.totalRetainer.toLocaleString()}</span>

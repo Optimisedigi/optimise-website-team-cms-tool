@@ -121,6 +121,7 @@ export async function GET() {
     activeProposals,
     convertedProposals,
     totalProposals,
+    totalLeadsCount,
     ...historicalCounts
   ] = await Promise.all([
     // Latest GSC snapshot + 13-month history for Optimise Digital
@@ -307,6 +308,9 @@ export async function GET() {
     // Total proposals ever
     payload.count({ collection: "client-proposals" }).catch(() => ({ totalDocs: 0 })),
 
+    // Total sales leads
+    payload.count({ collection: "sales-leads" as any }).catch(() => ({ totalDocs: 0 })),
+
     // Historical counts per month (for chart) — count all auditable collections per month
     ...monthRanges.map(async (range) => {
       const where = {
@@ -435,6 +439,7 @@ export async function GET() {
       total: totalCost,
     },
     costHistory: historicalCounts,
+    totalLeads: totalLeadsCount.totalDocs,
     businessCosts: businessCostsSummary,
     month: now.toLocaleString("en-AU", { month: "long", year: "numeric" }),
   });
