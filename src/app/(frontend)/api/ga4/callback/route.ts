@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { exchangeGa4Code, listGa4Properties } from "@/lib/ga4-service";
+import { exchangeGa4Code } from "@/lib/ga4-service";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
@@ -23,7 +23,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const tokens = await exchangeGa4Code(code);
-    const properties = await listGa4Properties(tokens.accessToken);
 
     const payloadConfig = await config;
     const payload = await getPayload({ config: payloadConfig });
@@ -34,26 +33,10 @@ export async function GET(req: NextRequest) {
       overrideAccess: true,
     });
 
-    // Try to match by domain, fall back to first property
-    let selectedProperty = properties[0];
-    if (client.websiteUrl && properties.length > 1) {
-      const clientDomain = (client.websiteUrl as string)
-        .replace(/^https?:\/\//, "")
-        .replace(/^www\./, "")
-        .replace(/\/$/, "")
-        .toLowerCase();
-
-      const match = properties.find((p) =>
-        p.displayName.toLowerCase().includes(clientDomain) ||
-        clientDomain.includes(p.displayName.toLowerCase())
-      );
-      if (match) selectedProperty = match;
-    }
-
-    if (!selectedProperty) {
+    if (!client.ga4PropertyId) {
       return NextResponse.redirect(
         new URL(
-          `/admin/collections/clients/${clientId}?ga4_error=${encodeURIComponent("No GA4 properties found for this Google account")}`,
+          `/admin/collections/clients/${clientId}?ga4_error=${encodeURIComponent("Set the GA4 Property ID on the client before connecting OAuth")}`,
           req.url
         )
       );
@@ -65,7 +48,6 @@ export async function GET(req: NextRequest) {
       overrideAccess: true,
       data: {
         ga4Connected: true,
-        ga4PropertyId: selectedProperty.propertyId,
         ga4AccessToken: tokens.accessToken,
         ga4RefreshToken: tokens.refreshToken,
         ga4TokenExpiry: tokens.expiry,

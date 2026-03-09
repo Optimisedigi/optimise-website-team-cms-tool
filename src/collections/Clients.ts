@@ -1162,8 +1162,7 @@ export const Clients: CollectionConfig = {
               name: "ga4PropertyId",
               type: "text",
               admin: {
-                readOnly: true,
-                description: "The GA4 property ID (numeric, e.g. 202886563)",
+                description: "The GA4 property ID (numeric, e.g. 202886563). Set this before connecting OAuth.",
               },
             },
             {
