@@ -64,16 +64,19 @@ export async function listGa4Properties(accessToken: string) {
   oauth2Client.setCredentials({ access_token: accessToken });
 
   const analyticsAdmin = google.analyticsadmin({ version: "v1beta", auth: oauth2Client });
-  const res = await analyticsAdmin.properties.list({
-    filter: "parent:accounts/-",
-    pageSize: 200,
-  });
+  const res = await analyticsAdmin.accountSummaries.list({ pageSize: 200 });
 
-  return (res.data.properties || []).map((p) => ({
-    name: p.name || "", // e.g. "properties/202886563"
-    displayName: p.displayName || "",
-    propertyId: p.name?.replace("properties/", "") || "",
-  }));
+  const properties: { name: string; displayName: string; propertyId: string }[] = [];
+  for (const account of res.data.accountSummaries || []) {
+    for (const ps of account.propertySummaries || []) {
+      properties.push({
+        name: ps.property || "",
+        displayName: ps.displayName || "",
+        propertyId: ps.property?.replace("properties/", "") || "",
+      });
+    }
+  }
+  return properties;
 }
 
 // ── GA4 Data API Queries ──
