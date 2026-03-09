@@ -1188,6 +1188,14 @@ export async function POST(request: NextRequest) {
     await run(`mark_migration:${migName}`, `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('${migName}', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
   }
 
+  // ── GA4 OAuth fields on clients (2026-03-09) ──
+
+  await run("clients.ga4_connected", "ALTER TABLE `clients` ADD `ga4_connected` integer DEFAULT false");
+  await run("clients.ga4_property_id", "ALTER TABLE `clients` ADD `ga4_property_id` text");
+  await run("clients.ga4_access_token", "ALTER TABLE `clients` ADD `ga4_access_token` text");
+  await run("clients.ga4_refresh_token", "ALTER TABLE `clients` ADD `ga4_refresh_token` text");
+  await run("clients.ga4_token_expiry", "ALTER TABLE `clients` ADD `ga4_token_expiry` text");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║

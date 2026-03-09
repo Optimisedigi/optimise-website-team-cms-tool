@@ -335,18 +335,8 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* GA4 placeholder */}
-          <div className="od-box od-box--muted">
-            <div className="od-box__head">
-              <span className="od-box__title">Google Analytics</span>
-              <span className="od-box__badge">Coming Soon</span>
-            </div>
-            <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
-              <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
-                GA4 integration will show live visitors, form fills, and conversion data.
-              </p>
-            </div>
-          </div>
+          {/* Google Analytics */}
+          <Ga4Card />
         </div>
 
         {/* ── Right Column ── */}
@@ -899,6 +889,199 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── GA4 Card ────────────────────────────────────────────
+
+interface Ga4Data {
+  ga4Connected: boolean
+  overview?: {
+    users: number
+    newUsers: number
+    sessions: number
+    pageviews: number
+    bounceRate: number
+    avgSessionDuration: number
+    engagementRate: number
+    conversions: number
+  }
+  channels?: { channel: string; users: number; sessions: number; conversions: number }[]
+  topPages?: { pagePath: string; pageTitle: string; users: number; pageviews: number }[]
+  daily?: { date: string; users: number; sessions: number; pageviews: number }[]
+  periodStart?: string
+  periodEnd?: string
+}
+
+function Ga4Card() {
+  const [data, setData] = useState<Ga4Data | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState('30d')
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/ga4/query?period=${period}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setData(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [period])
+
+  if (loading && !data) {
+    return (
+      <div className="od-box od-box--muted">
+        <div className="od-box__head">
+          <span className="od-box__title">Google Analytics</span>
+        </div>
+        <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>Loading GA4 data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!data?.ga4Connected) {
+    return (
+      <div className="od-box od-box--muted">
+        <div className="od-box__head">
+          <span className="od-box__title">Google Analytics</span>
+        </div>
+        <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: '0 0 8px' }}>
+            Connect GA4 in <a href="/admin/settings/integrations" style={{ color: 'var(--theme-elevation-600)', textDecoration: 'underline' }}>Settings &rarr; Integrations</a> to see live traffic and conversion data.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const ov = data.overview
+  const formatDuration = (s: number) => {
+    const mins = Math.floor(s / 60)
+    const secs = Math.round(s % 60)
+    return `${mins}:${String(secs).padStart(2, '0')}`
+  }
+
+  return (
+    <div className="od-box">
+      <div className="od-box__head">
+        <span className="od-box__title">Google Analytics</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {data.periodStart && data.periodEnd && (
+            <span className="od-box__period">
+              {new Date(data.periodStart).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+              {' \u2013 '}
+              {new Date(data.periodEnd).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+            </span>
+          )}
+          {(['30d', '90d', '12m'] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPeriod(p)}
+              style={{
+                fontSize: 11,
+                padding: '3px 8px',
+                borderRadius: 4,
+                border: '1px solid',
+                borderColor: period === p ? 'var(--theme-elevation-400)' : 'var(--theme-elevation-150)',
+                background: period === p ? 'var(--theme-elevation-100)' : 'transparent',
+                color: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              {p === '30d' ? '30d' : p === '90d' ? '90d' : '12m'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {ov && (
+        <div className="od-box__stats od-box__stats--6">
+          <div className="od-box__stat">
+            <span className="od-box__stat-value">{ov.users.toLocaleString()}</span>
+            <span className="od-box__stat-label">Users</span>
+          </div>
+          <div className="od-box__stat">
+            <span className="od-box__stat-value">{ov.sessions.toLocaleString()}</span>
+            <span className="od-box__stat-label">Sessions</span>
+          </div>
+          <div className="od-box__stat">
+            <span className="od-box__stat-value">{ov.pageviews.toLocaleString()}</span>
+            <span className="od-box__stat-label">Pageviews</span>
+          </div>
+          <div className="od-box__stat">
+            <span className="od-box__stat-value">{(ov.bounceRate * 100).toFixed(1)}%</span>
+            <span className="od-box__stat-label">Bounce Rate</span>
+          </div>
+          <div className="od-box__stat">
+            <span className="od-box__stat-value">{formatDuration(ov.avgSessionDuration)}</span>
+            <span className="od-box__stat-label">Avg Duration</span>
+          </div>
+          <div className="od-box__stat">
+            <span className="od-box__stat-value">{ov.conversions.toLocaleString()}</span>
+            <span className="od-box__stat-label">Conversions</span>
+          </div>
+        </div>
+      )}
+
+      {/* Daily chart */}
+      {data.daily && data.daily.length > 0 && (
+        <div style={{ padding: '12px 20px 4px' }}>
+          <Ga4Chart data={data.daily} />
+        </div>
+      )}
+
+      {/* Traffic channels + Top pages side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, borderTop: '1px solid var(--theme-elevation-100)' }}>
+        {data.channels && data.channels.length > 0 && (
+          <div style={{ padding: '12px 20px', borderRight: '1px solid var(--theme-elevation-100)' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--theme-elevation-500)' }}>Traffic Channels</div>
+            {data.channels.slice(0, 8).map((ch) => (
+              <div key={ch.channel} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', color: 'var(--theme-elevation-600)' }}>
+                <span>{ch.channel}</span>
+                <span style={{ fontWeight: 600 }}>{ch.sessions.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {data.topPages && data.topPages.length > 0 && (
+          <div style={{ padding: '12px 20px' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--theme-elevation-500)' }}>Top Pages</div>
+            {data.topPages.slice(0, 8).map((pg) => (
+              <div key={pg.pagePath} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', color: 'var(--theme-elevation-600)', gap: 8 }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={pg.pagePath}>{pg.pagePath}</span>
+                <span style={{ fontWeight: 600, flexShrink: 0 }}>{pg.pageviews.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Simple sparkline chart for daily GA4 data
+function Ga4Chart({ data }: { data: { date: string; users: number; sessions: number }[] }) {
+  const maxVal = Math.max(...data.map((d) => d.sessions), 1)
+  const w = 100 / data.length
+
+  return (
+    <div style={{ height: 60, display: 'flex', alignItems: 'flex-end', gap: 1 }}>
+      {data.map((d, i) => (
+        <div
+          key={i}
+          title={`${d.date}: ${d.sessions} sessions, ${d.users} users`}
+          style={{
+            width: `${w}%`,
+            height: `${Math.max((d.sessions / maxVal) * 100, 2)}%`,
+            background: '#468D8B',
+            borderRadius: '2px 2px 0 0',
+            minHeight: 2,
+            transition: 'height 300ms',
+          }}
+        />
+      ))}
     </div>
   )
 }

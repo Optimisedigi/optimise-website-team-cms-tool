@@ -639,6 +639,17 @@ export interface Client {
     totalDocs?: number;
   };
   /**
+   * Whether Google Analytics 4 is connected via OAuth
+   */
+  ga4Connected?: boolean | null;
+  /**
+   * The GA4 property ID (numeric, e.g. 202886563)
+   */
+  ga4PropertyId?: string | null;
+  ga4AccessToken?: string | null;
+  ga4RefreshToken?: string | null;
+  ga4TokenExpiry?: string | null;
+  /**
    * Whether Google Search Console is connected
    */
   gscConnected?: boolean | null;
@@ -3682,6 +3693,11 @@ export interface ClientsSelect<T extends boolean = true> {
   gtmContainerId?: T;
   expectedEvents?: T;
   tagSetupAudits?: T;
+  ga4Connected?: T;
+  ga4PropertyId?: T;
+  ga4AccessToken?: T;
+  ga4RefreshToken?: T;
+  ga4TokenExpiry?: T;
   gscConnected?: T;
   gscPropertyUrl?: T;
   gscAccessToken?: T;

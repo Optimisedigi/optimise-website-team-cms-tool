@@ -1147,6 +1147,43 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Google Analytics",
+          fields: [
+            {
+              name: "ga4Connected",
+              type: "checkbox",
+              defaultValue: false,
+              admin: {
+                readOnly: true,
+                description: "Whether Google Analytics 4 is connected via OAuth",
+              },
+            },
+            {
+              name: "ga4PropertyId",
+              type: "text",
+              admin: {
+                readOnly: true,
+                description: "The GA4 property ID (numeric, e.g. 202886563)",
+              },
+            },
+            {
+              name: "ga4AccessToken",
+              type: "text",
+              admin: { hidden: true },
+            },
+            {
+              name: "ga4RefreshToken",
+              type: "text",
+              admin: { hidden: true },
+            },
+            {
+              name: "ga4TokenExpiry",
+              type: "date",
+              admin: { hidden: true },
+            },
+          ],
+        },
+        {
           label: "Search Console",
           fields: [
             {
