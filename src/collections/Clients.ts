@@ -60,6 +60,14 @@ export const Clients: CollectionConfig = {
     description: "Manage client websites",
     defaultColumns: ["name", "monthlyRetainer", "billingSummary", "clientPin", "isActive"],
   },
+  forceSelect: {
+    historicalRevenue: true,
+    clientStartDate: true,
+    oneOffProjects: true,
+    retainerHistory: true,
+    isAgency: true,
+    monthlyRetainer: true,
+  },
   hooks: {
     beforeChange: [trackRetainerChange],
     afterChange: [
@@ -138,7 +146,6 @@ export const Clients: CollectionConfig = {
           Field: "./components/ClientBillingSummary",
           Cell: "./components/BillingSummaryCell",
         },
-        condition: (data: any) => !data?.isAgency && data?.id,
       },
     },
     {
@@ -405,7 +412,10 @@ export const Clients: CollectionConfig = {
               admin: {
                 description: "Monthly revenue amount ($)",
                 step: 1,
-                condition: (data: any) => !data?.isAgency,
+                components: {
+                  Field: "./components/MonthlyRetainerField",
+                  Cell: "./components/MonthlyRetainerCell",
+                },
               },
             },
             {

@@ -8,7 +8,13 @@ import type { DefaultCellComponentProps } from 'payload'
  * It represents total revenue to date: retainer revenue + historical revenue + one-off projects.
  */
 function BillingSummaryCell({ cellData, rowData }: DefaultCellComponentProps) {
-  if (rowData?.isAgency) return null
+  if (rowData?.isAgency) {
+    return (
+      <span style={{ fontWeight: 600, color: 'var(--theme-elevation-500)', fontStyle: 'italic' }}>
+        Agency
+      </span>
+    )
+  }
 
   const total = Number(cellData) || 0
 
