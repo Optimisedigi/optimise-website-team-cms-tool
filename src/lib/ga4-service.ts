@@ -95,8 +95,11 @@ interface Ga4OverviewData {
 interface Ga4ChannelData {
   channel: string;
   users: number;
+  newUsers: number;
   sessions: number;
-  conversions: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+  keyEvents: number;
 }
 
 interface Ga4PageData {
@@ -165,8 +168,11 @@ export async function fetchGa4Report(
         dimensions: [{ name: "sessionDefaultChannelGroup" }],
         metrics: [
           { name: "activeUsers" },
+          { name: "newUsers" },
           { name: "sessions" },
-          { name: "conversions" },
+          { name: "bounceRate" },
+          { name: "averageSessionDuration" },
+          { name: "keyEvents" },
         ],
         orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
         limit: "20",
@@ -224,8 +230,11 @@ export async function fetchGa4Report(
   const channels: Ga4ChannelData[] = (channelRes.data.rows || []).map((row) => ({
     channel: row.dimensionValues?.[0]?.value || "Unknown",
     users: parseInt(row.metricValues?.[0]?.value || "0", 10),
-    sessions: parseInt(row.metricValues?.[1]?.value || "0", 10),
-    conversions: parseInt(row.metricValues?.[2]?.value || "0", 10),
+    newUsers: parseInt(row.metricValues?.[1]?.value || "0", 10),
+    sessions: parseInt(row.metricValues?.[2]?.value || "0", 10),
+    bounceRate: parseFloat(row.metricValues?.[3]?.value || "0"),
+    avgSessionDuration: parseFloat(row.metricValues?.[4]?.value || "0"),
+    keyEvents: parseInt(row.metricValues?.[5]?.value || "0", 10),
   }));
 
   // Parse top pages

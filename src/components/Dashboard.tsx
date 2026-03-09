@@ -907,7 +907,7 @@ interface Ga4Data {
     engagementRate: number
     conversions: number
   }
-  channels?: { channel: string; users: number; sessions: number; conversions: number }[]
+  channels?: { channel: string; users: number; newUsers: number; sessions: number; bounceRate: number; avgSessionDuration: number; keyEvents: number }[]
   topPages?: { pagePath: string; pageTitle: string; users: number; pageviews: number }[]
   daily?: { date: string; users: number; sessions: number; pageviews: number }[]
   periodStart?: string
@@ -1032,31 +1032,33 @@ function Ga4Card() {
         </div>
       )}
 
-      {/* Traffic channels + Top pages side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, borderTop: '1px solid var(--theme-elevation-100)' }}>
-        {data.channels && data.channels.length > 0 && (
-          <div style={{ padding: '12px 20px', borderRight: '1px solid var(--theme-elevation-100)' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--theme-elevation-500)' }}>Traffic Channels</div>
-            {data.channels.slice(0, 8).map((ch) => (
-              <div key={ch.channel} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', color: 'var(--theme-elevation-600)' }}>
-                <span>{ch.channel}</span>
-                <span style={{ fontWeight: 600 }}>{ch.sessions.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {data.topPages && data.topPages.length > 0 && (
-          <div style={{ padding: '12px 20px' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--theme-elevation-500)' }}>Top Pages</div>
-            {data.topPages.slice(0, 8).map((pg) => (
-              <div key={pg.pagePath} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', color: 'var(--theme-elevation-600)', gap: 8 }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={pg.pagePath}>{pg.pagePath}</span>
-                <span style={{ fontWeight: 600, flexShrink: 0 }}>{pg.pageviews.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Channel grouping table */}
+      {data.channels && data.channels.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--theme-elevation-100)', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--theme-elevation-100)' }}>
+                {['Channel', 'Sessions', 'Users', 'New Users', 'Bounce Rate', 'Avg Duration', 'Key Events'].map((h) => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Channel' ? 'left' : 'right', fontWeight: 600, color: 'var(--theme-elevation-500)', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.channels.slice(0, 10).map((ch) => (
+                <tr key={ch.channel} style={{ borderBottom: '1px solid var(--theme-elevation-50)' }}>
+                  <td style={{ padding: '6px 12px', fontWeight: 500, color: 'var(--theme-elevation-700)' }}>{ch.channel}</td>
+                  <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600 }}>{ch.sessions.toLocaleString()}</td>
+                  <td style={{ padding: '6px 12px', textAlign: 'right' }}>{ch.users.toLocaleString()}</td>
+                  <td style={{ padding: '6px 12px', textAlign: 'right' }}>{ch.newUsers.toLocaleString()}</td>
+                  <td style={{ padding: '6px 12px', textAlign: 'right' }}>{(ch.bounceRate * 100).toFixed(1)}%</td>
+                  <td style={{ padding: '6px 12px', textAlign: 'right' }}>{formatDuration(ch.avgSessionDuration)}</td>
+                  <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600 }}>{ch.keyEvents.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

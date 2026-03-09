@@ -75,7 +75,9 @@ export async function GET(req: NextRequest) {
     let startDate: string;
     const endDate = new Date(now.getTime() - 86400000).toISOString().slice(0, 10); // yesterday
 
-    if (period === "90d") {
+    if (period === "7d") {
+      startDate = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
+    } else if (period === "90d") {
       startDate = new Date(now.getTime() - 90 * 86400000).toISOString().slice(0, 10);
     } else if (period === "12m") {
       const d = new Date(now);
