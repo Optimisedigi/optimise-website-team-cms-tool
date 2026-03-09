@@ -51,6 +51,7 @@ export const Clients: CollectionConfig = {
     useAsTitle: "name",
     group: "Clients",
     description: "Manage client websites",
+    defaultColumns: ["name", "monthlyRetainer", "billingSummary", "clientPin", "isActive"],
   },
   hooks: {
     beforeChange: [trackRetainerChange],
@@ -71,11 +72,12 @@ export const Clients: CollectionConfig = {
   fields: [
     {
       name: "billingSummary",
+      label: "Billing Summary",
       type: "ui",
-      label: " ",
       admin: {
         components: {
           Field: "./components/ClientBillingSummary",
+          Cell: "./components/BillingSummaryCell",
         },
         condition: (data: any) => !data?.isAgency && data?.id,
       },
@@ -83,7 +85,6 @@ export const Clients: CollectionConfig = {
     {
       name: "agencyBadge",
       type: "ui",
-      label: " ",
       admin: {
         components: {
           Field: "./components/AgencyBadge",
@@ -349,6 +350,42 @@ export const Clients: CollectionConfig = {
               },
             },
             {
+              name: "oneOffProjects",
+              type: "array",
+              admin: {
+                description: "One-off projects (website builds, audits, etc.)",
+                condition: (data: any) => !data?.isAgency,
+              },
+              fields: [
+                {
+                  name: "projectName",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description: "Project name",
+                  },
+                },
+                {
+                  name: "amount",
+                  type: "number",
+                  required: true,
+                  min: 0,
+                  admin: {
+                    description: "Project amount ($)",
+                    step: 1,
+                  },
+                },
+                {
+                  name: "date",
+                  type: "date",
+                  required: true,
+                  admin: {
+                    description: "Project date",
+                  },
+                },
+              ],
+            },
+            {
               name: "historicalRevenue",
               type: "number",
               min: 0,
@@ -385,42 +422,6 @@ export const Clients: CollectionConfig = {
                 description: "Linked signed contract record",
                 condition: (data: any) => !data?.isAgency,
               },
-            },
-            {
-              name: "oneOffProjects",
-              type: "array",
-              admin: {
-                description: "One-off projects (website builds, audits, etc.)",
-                condition: (data: any) => !data?.isAgency,
-              },
-              fields: [
-                {
-                  name: "projectName",
-                  type: "text",
-                  required: true,
-                  admin: {
-                    description: "Project name",
-                  },
-                },
-                {
-                  name: "amount",
-                  type: "number",
-                  required: true,
-                  min: 0,
-                  admin: {
-                    description: "Project amount ($)",
-                    step: 1,
-                  },
-                },
-                {
-                  name: "date",
-                  type: "date",
-                  required: true,
-                  admin: {
-                    description: "Project date",
-                  },
-                },
-              ],
             },
             {
               name: "googleAdsCustomerId",
