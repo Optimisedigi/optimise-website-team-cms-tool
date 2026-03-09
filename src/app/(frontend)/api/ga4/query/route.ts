@@ -9,6 +9,7 @@ import { fetchGa4Report, ensureValidToken } from "@/lib/ga4-service";
  * Fetches live GA4 data for a client (or Optimise Digital by default).
  */
 export async function GET(req: NextRequest) {
+  let client: any;
   try {
     const payload = await getPayload({ config });
     const headersList = await nextHeaders();
@@ -19,9 +20,6 @@ export async function GET(req: NextRequest) {
 
     const clientId = req.nextUrl.searchParams.get("clientId");
     const period = req.nextUrl.searchParams.get("period") || "30d";
-
-    // Find the client
-    let client: any;
     if (clientId) {
       client = await payload.findByID({
         collection: "clients",
@@ -105,7 +103,18 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error("[ga4-query] error:", err);
     return NextResponse.json(
-      { error: "Failed to fetch GA4 data", details: String(err) },
+      {
+        error: "Failed to fetch GA4 data",
+        details: String(err),
+        debug: {
+          clientId: client?.id,
+          propertyId: client?.ga4PropertyId,
+          ga4Connected: client?.ga4Connected,
+          hasAccessToken: !!client?.ga4AccessToken,
+          hasRefreshToken: !!client?.ga4RefreshToken,
+          tokenExpiry: client?.ga4TokenExpiry,
+        },
+      },
       { status: 500 },
     );
   }
