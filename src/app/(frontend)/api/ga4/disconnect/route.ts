@@ -33,7 +33,6 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       data: {
         ga4Connected: false,
-        ga4PropertyId: "",
         ga4AccessToken: "",
         ga4RefreshToken: "",
         ga4TokenExpiry: null,
