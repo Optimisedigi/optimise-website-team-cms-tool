@@ -62,54 +62,14 @@ async function ensureFreshToken(
 }
 
 /**
- * Start a new indexing audit for a client.
- * Creates the audit record, discovers URLs, and runs the first batch.
+ * Run the heavy audit work (discover URLs + inspect first batch).
+ * Called in the background via after() — must not throw to the caller.
  */
-export async function startIndexingAudit(
+export async function runAuditWork(
   payload: any,
-  clientId: string
-): Promise<{ auditId: string }> {
-  // Verify client has GSC connected
-  const client = await payload.findByID({
-    collection: "clients",
-    id: clientId,
-    overrideAccess: true,
-  });
-
-  if (!client.gscConnected || !client.gscAccessToken || !client.gscRefreshToken || !client.gscPropertyUrl) {
-    throw new Error("Client does not have GSC connected");
-  }
-
-  // Check for active audit
-  const activeAudit = await payload.find({
-    collection: "gsc-indexing-audits",
-    where: {
-      client: { equals: clientId },
-      status: { in: ["discovering", "inspecting"] },
-    },
-    limit: 1,
-    overrideAccess: true,
-  });
-
-  if (activeAudit.docs[0]) {
-    return { auditId: String(activeAudit.docs[0].id) };
-  }
-
-  // Create audit record
-  const audit = await payload.create({
-    collection: "gsc-indexing-audits",
-    overrideAccess: true,
-    data: {
-      client: clientId,
-      status: "discovering",
-      totalUrls: 0,
-      inspectedCount: 0,
-      startedAt: new Date().toISOString(),
-    },
-  });
-
-  const auditId = String(audit.id);
-
+  auditId: string,
+  client: any
+): Promise<void> {
   try {
     const accessToken = await ensureFreshToken(payload, client);
 
@@ -131,7 +91,7 @@ export async function startIndexingAudit(
           completedAt: new Date().toISOString(),
         },
       });
-      return { auditId };
+      return;
     }
 
     await payload.update({
@@ -180,8 +140,57 @@ export async function startIndexingAudit(
       },
     });
   }
+}
 
-  return { auditId };
+/**
+ * Start a new indexing audit for a client.
+ * Creates the audit record and returns the auditId + client.
+ * Caller is responsible for scheduling runAuditWork() via after().
+ */
+export async function startIndexingAudit(
+  payload: any,
+  clientId: string
+): Promise<{ auditId: string; client: any }> {
+  // Verify client has GSC connected
+  const client = await payload.findByID({
+    collection: "clients",
+    id: clientId,
+    overrideAccess: true,
+  });
+
+  if (!client.gscConnected || !client.gscAccessToken || !client.gscRefreshToken || !client.gscPropertyUrl) {
+    throw new Error("Client does not have GSC connected");
+  }
+
+  // Check for active audit
+  const activeAudit = await payload.find({
+    collection: "gsc-indexing-audits",
+    where: {
+      client: { equals: clientId },
+      status: { in: ["discovering", "inspecting"] },
+    },
+    limit: 1,
+    overrideAccess: true,
+  });
+
+  if (activeAudit.docs[0]) {
+    return { auditId: String(activeAudit.docs[0].id), client: null };
+  }
+
+  // Create audit record
+  const audit = await payload.create({
+    collection: "gsc-indexing-audits",
+    overrideAccess: true,
+    data: {
+      client: clientId,
+      status: "discovering",
+      totalUrls: 0,
+      inspectedCount: 0,
+      startedAt: new Date().toISOString(),
+    },
+  });
+
+  return { auditId: String(audit.id), client };
 }
 
 /**

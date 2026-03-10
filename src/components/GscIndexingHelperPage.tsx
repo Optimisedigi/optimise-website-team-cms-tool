@@ -76,6 +76,9 @@ export default function GscIndexingHelperPage() {
   const [selectedSiteUrl, setSelectedSiteUrl] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
+  const [auditId, setAuditId] = useState<string | null>(null)
+  const [auditStatus, setAuditStatus] = useState<string>('')
+  const [auditProgress, setAuditProgress] = useState<{ inspected: number; total: number }>({ inspected: 0, total: 0 })
   const [result, setResult] = useState<IndexingResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState<string | null>(null)
@@ -129,6 +132,9 @@ export default function GscIndexingHelperPage() {
     setError(null)
     setResult(null)
     setRefreshResult(null)
+    setAuditId(null)
+    setAuditStatus('')
+    setAuditProgress({ inspected: 0, total: 0 })
 
     try {
       const res = await fetch('/api/gsc/indexing-helper/run', {
@@ -137,14 +143,64 @@ export default function GscIndexingHelperPage() {
         body: JSON.stringify({ siteUrl: selectedSiteUrl, clientId: selectedClientId }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || data.message || 'Failed to run indexing helper')
-      setResult(data)
+      if (!res.ok) throw new Error(data.error || data.message || 'Failed to start indexing helper')
+      if (data.ok && data.auditId) {
+        setAuditId(data.auditId)
+        setAuditStatus('discovering')
+      } else {
+        throw new Error('Unexpected response')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
       setRunning(false)
     }
   }
+
+  // Poll for indexing helper results
+  useEffect(() => {
+    if (!auditId || !running) return
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/gsc/indexing-helper/run?auditId=${auditId}`)
+        if (!res.ok) return
+        const text = await res.text()
+        let data: any
+        try { data = JSON.parse(text) } catch { return }
+
+        setAuditStatus(data.status || '')
+        setAuditProgress({
+          inspected: data.inspectedCount ?? 0,
+          total: data.totalUrls ?? 0,
+        })
+
+        if (data.status === 'completed') {
+          // Build the result from the audit data
+          const stats = data.summaryStats || {}
+          setResult({
+            siteUrl: selectedSiteUrl,
+            summary: {
+              totalPages: (stats.indexed || 0) + (stats.notIndexed || 0),
+              indexed: stats.indexed || 0,
+              notIndexed: stats.notIndexed || 0,
+              indexRate: stats.indexRate || 'N/A',
+            },
+            actionItems: stats.actionItems || [],
+            sitemapPingResult: stats.sitemapPingResult || null,
+            note: 'To request indexing, open each GSC link in your browser and click \'Request Indexing\'. This tells Google to re-crawl the page within 1-2 days.',
+          })
+          setRunning(false)
+          setAuditId(null)
+        } else if (data.status === 'failed') {
+          setError(data.error || 'Indexing helper failed')
+          setRunning(false)
+          setAuditId(null)
+        }
+      } catch { /* ignore poll errors */ }
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [auditId, running, selectedSiteUrl])
 
   const handleContentRefresh = async (url: string) => {
     if (refreshing) return
@@ -228,6 +284,28 @@ export default function GscIndexingHelperPage() {
           {running ? 'Running...' : 'Run Indexing Helper'}
         </button>
       </div>
+
+      {/* Progress */}
+      {running && auditId && (
+        <div style={{ padding: '16px', background: '#f0f9ff', borderRadius: 8, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: '#1e3a5f', marginBottom: 8 }}>
+            {auditStatus === 'discovering'
+              ? 'Discovering URLs from sitemaps and search analytics...'
+              : `Inspecting URLs: ${auditProgress.inspected}/${auditProgress.total}`}
+          </div>
+          {auditStatus === 'inspecting' && auditProgress.total > 0 && (
+            <div style={{ height: 6, background: '#dbeafe', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${(auditProgress.inspected / auditProgress.total) * 100}%`,
+                background: '#3b82f6',
+                borderRadius: 3,
+                transition: 'width 0.3s ease',
+              }} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Error */}
       {error && (

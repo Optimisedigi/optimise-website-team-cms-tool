@@ -2306,3 +2306,21 @@ $svg-close: "%3C/svg%3E";
     }
   }
 }
+
+// ── Hide auto-generated labels on UI-only fields ──
+// Payload wraps fields in #field-{name}. UI fields auto-generate
+// a label from the field name which we don't want shown.
+#field-billingSummary,
+#field-agencyBadge {
+  > .field-label,
+  > label,
+  > .ui-field-label,
+  > .field-header {
+    display: none !important;
+  }
+
+  // Remove default padding/margins that leave whitespace when label is hidden
+  .field-type {
+    padding-top: 0;
+  }
+}

@@ -318,12 +318,35 @@ const SearchConsolePage = () => {
       })
       const data = await res.json()
       if (data.ok && data.auditId) {
-        setIndexingAudit({ id: data.auditId, status: data.status || 'discovering', inspectedCount: 0, totalUrls: 0 })
+        setIndexingAudit({ id: data.auditId, status: 'discovering', inspectedCount: 0, totalUrls: 0 })
       }
     } catch { /* ignore */ } finally {
       setAuditLoading(false)
     }
   }
+
+  // Poll audit status while it's in progress
+  useEffect(() => {
+    if (!indexingAudit) return
+    if (indexingAudit.status !== 'discovering' && indexingAudit.status !== 'inspecting') return
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/gsc/indexing-audit/${indexingAudit.id}`)
+        if (!res.ok) return
+        const data = await res.json()
+        setIndexingAudit({
+          id: data.id ?? indexingAudit.id,
+          status: data.status,
+          inspectedCount: data.inspectedCount ?? 0,
+          totalUrls: data.totalUrls ?? 0,
+          summaryStats: data.summaryStats,
+        })
+      } catch { /* ignore poll errors */ }
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [indexingAudit?.id, indexingAudit?.status])
 
   if (loading) {
     return <RocketSplash />

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { startIndexingAudit } from "@/lib/gsc-indexing";
+import { startIndexingAudit, runAuditWork } from "@/lib/gsc-indexing";
 
 export async function POST(req: NextRequest) {
   let body: { clientId?: string };
@@ -28,7 +29,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { auditId } = await startIndexingAudit(payload, clientId);
+    const { auditId, client } = await startIndexingAudit(payload, clientId);
+
+    // If client is returned, this is a new audit that needs background work.
+    // (client is null when returning an existing active audit)
+    if (client) {
+      after(async () => {
+        try {
+          await runAuditWork(payload, auditId, client);
+        } catch (err) {
+          console.error(`[gsc-indexing] Unexpected audit error ${auditId}:`, err);
+        }
+      });
+    }
 
     return NextResponse.json({ ok: true, auditId });
   } catch (err) {
