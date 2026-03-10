@@ -61,6 +61,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
         if (data.customerId) {
           params.set("customerId", data.customerId);
         }
+        if (data.clientName) {
+          params.set("clientName", data.clientName);
+        }
         const res = await fetch(
           `/api/dashboard/data?${params}`,
           { credentials: "include" },
@@ -136,6 +139,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
                 </option>
               ))}
             </select>
+            {data.dateRangeLabel && (
+              <span className="text-xs text-slate-500">{data.dateRangeLabel}</span>
+            )}
 
             {activeTab === "overview" && (
               <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">

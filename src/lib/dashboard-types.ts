@@ -100,6 +100,7 @@ export interface GoogleAdsDashboardData {
   customerId: string;
   slug?: string;
   range?: string;
+  dateRangeLabel?: string;
   logoUrl?: string;
   lastUpdated: string;
   kpis: GoogleAdsDashboardKpis;
