@@ -54,8 +54,15 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
       setRange(newRange);
       setLoading(true);
       try {
+        const params = new URLSearchParams({
+          slug: data.slug,
+          range: newRange,
+        });
+        if (data.customerId) {
+          params.set("customerId", data.customerId);
+        }
         const res = await fetch(
-          `/api/dashboard/data?slug=${encodeURIComponent(data.slug)}&range=${encodeURIComponent(newRange)}`,
+          `/api/dashboard/data?${params}`,
           { credentials: "include" },
         );
         if (res.ok) {
@@ -66,7 +73,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
         setLoading(false);
       }
     },
-    [range, data.slug],
+    [range, data.slug, data.customerId],
   );
 
   const handleTabChange = useCallback(
