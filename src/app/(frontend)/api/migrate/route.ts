@@ -1312,6 +1312,143 @@ export async function POST(request: NextRequest) {
   // Add pdf_hash column for document integrity verification
   await run("contracts.pdf_hash", "ALTER TABLE `contracts` ADD `pdf_hash` text");
 
+  // ── Process Templates ──
+  await run("process_templates", `CREATE TABLE IF NOT EXISTS \`process_templates\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`name\` text NOT NULL,
+    \`slug\` text NOT NULL,
+    \`retainer_type\` text NOT NULL,
+    \`description\` text,
+    \`is_default\` integer DEFAULT false,
+    \`is_active\` integer DEFAULT true,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("process_templates_slug_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `process_templates_slug_idx` ON `process_templates` (`slug`)");
+  await run("process_templates_created_at_idx", "CREATE INDEX IF NOT EXISTS `process_templates_created_at_idx` ON `process_templates` (`created_at`)");
+  await run("process_templates_updated_at_idx", "CREATE INDEX IF NOT EXISTS `process_templates_updated_at_idx` ON `process_templates` (`updated_at`)");
+
+  await run("process_templates_phases", `CREATE TABLE IF NOT EXISTS \`process_templates_phases\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`phase_name\` text NOT NULL,
+    \`phase_order\` numeric NOT NULL,
+    \`phase_description\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`process_templates\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("process_templates_phases_order_idx", "CREATE INDEX IF NOT EXISTS `process_templates_phases_order_idx` ON `process_templates_phases` (`_order`)");
+  await run("process_templates_phases_parent_idx", "CREATE INDEX IF NOT EXISTS `process_templates_phases_parent_idx` ON `process_templates_phases` (`_parent_id`)");
+
+  await run("process_templates_phases_steps", `CREATE TABLE IF NOT EXISTS \`process_templates_phases_steps\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` text NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`step_name\` text NOT NULL,
+    \`step_order\` numeric NOT NULL,
+    \`step_description\` text,
+    \`step_type\` text,
+    \`is_automatable\` integer DEFAULT false,
+    \`automation_notes\` text,
+    \`default_assignee\` text,
+    \`estimated_duration\` text,
+    \`email_template_subject\` text,
+    \`email_template_body\` text,
+    \`reminder_days\` numeric,
+    \`required_before_next\` integer DEFAULT false,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`process_templates_phases\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("process_templates_phases_steps_order_idx", "CREATE INDEX IF NOT EXISTS `process_templates_phases_steps_order_idx` ON `process_templates_phases_steps` (`_order`)");
+  await run("process_templates_phases_steps_parent_idx", "CREATE INDEX IF NOT EXISTS `process_templates_phases_steps_parent_idx` ON `process_templates_phases_steps` (`_parent_id`)");
+
+  await run("locked_docs_rels.process_templates_id", "ALTER TABLE `payload_locked_documents_rels` ADD `process_templates_id` integer");
+
+  // ── Client Processes ──
+  await run("client_processes", `CREATE TABLE IF NOT EXISTS \`client_processes\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`process_title\` text NOT NULL,
+    \`template_id\` integer,
+    \`retainer_type\` text,
+    \`client_id\` integer,
+    \`sales_lead_id\` integer,
+    \`proposal_id\` integer,
+    \`assigned_to_id\` integer,
+    \`overall_status\` text DEFAULT 'not_started' NOT NULL,
+    \`started_at\` text,
+    \`completed_at\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`template_id\`) REFERENCES \`process_templates\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`sales_lead_id\`) REFERENCES \`sales_leads\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`assigned_to_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("client_processes_template_idx", "CREATE INDEX IF NOT EXISTS `client_processes_template_idx` ON `client_processes` (`template_id`)");
+  await run("client_processes_client_idx", "CREATE INDEX IF NOT EXISTS `client_processes_client_idx` ON `client_processes` (`client_id`)");
+  await run("client_processes_sales_lead_idx", "CREATE INDEX IF NOT EXISTS `client_processes_sales_lead_idx` ON `client_processes` (`sales_lead_id`)");
+  await run("client_processes_proposal_idx", "CREATE INDEX IF NOT EXISTS `client_processes_proposal_idx` ON `client_processes` (`proposal_id`)");
+  await run("client_processes_assigned_to_idx", "CREATE INDEX IF NOT EXISTS `client_processes_assigned_to_idx` ON `client_processes` (`assigned_to_id`)");
+  await run("client_processes_overall_status_idx", "CREATE INDEX IF NOT EXISTS `client_processes_overall_status_idx` ON `client_processes` (`overall_status`)");
+  await run("client_processes_created_at_idx", "CREATE INDEX IF NOT EXISTS `client_processes_created_at_idx` ON `client_processes` (`created_at`)");
+  await run("client_processes_updated_at_idx", "CREATE INDEX IF NOT EXISTS `client_processes_updated_at_idx` ON `client_processes` (`updated_at`)");
+
+  await run("client_processes_phases", `CREATE TABLE IF NOT EXISTS \`client_processes_phases\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`phase_name\` text NOT NULL,
+    \`phase_order\` numeric NOT NULL,
+    \`phase_description\` text,
+    \`phase_status\` text DEFAULT 'not_started',
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_processes\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("client_processes_phases_order_idx", "CREATE INDEX IF NOT EXISTS `client_processes_phases_order_idx` ON `client_processes_phases` (`_order`)");
+  await run("client_processes_phases_parent_idx", "CREATE INDEX IF NOT EXISTS `client_processes_phases_parent_idx` ON `client_processes_phases` (`_parent_id`)");
+
+  await run("client_processes_phases_steps", `CREATE TABLE IF NOT EXISTS \`client_processes_phases_steps\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` text NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`step_name\` text NOT NULL,
+    \`step_order\` numeric NOT NULL,
+    \`step_description\` text,
+    \`step_type\` text,
+    \`step_status\` text DEFAULT 'not_started',
+    \`completed_at\` text,
+    \`default_assignee\` text,
+    \`estimated_duration\` text,
+    \`is_automatable\` integer DEFAULT false,
+    \`automation_notes\` text,
+    \`email_template_subject\` text,
+    \`email_template_body\` text,
+    \`reminder_days\` numeric,
+    \`required_before_next\` integer DEFAULT false,
+    \`notes\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_processes_phases\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("client_processes_phases_steps_order_idx", "CREATE INDEX IF NOT EXISTS `client_processes_phases_steps_order_idx` ON `client_processes_phases_steps` (`_order`)");
+  await run("client_processes_phases_steps_parent_idx", "CREATE INDEX IF NOT EXISTS `client_processes_phases_steps_parent_idx` ON `client_processes_phases_steps` (`_parent_id`)");
+
+  await run("client_processes_timeline", `CREATE TABLE IF NOT EXISTS \`client_processes_timeline\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`action\` text NOT NULL,
+    \`performed_at\` text NOT NULL,
+    \`performed_by_id\` integer,
+    \`notes\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_processes\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    FOREIGN KEY (\`performed_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("client_processes_timeline_order_idx", "CREATE INDEX IF NOT EXISTS `client_processes_timeline_order_idx` ON `client_processes_timeline` (`_order`)");
+  await run("client_processes_timeline_parent_idx", "CREATE INDEX IF NOT EXISTS `client_processes_timeline_parent_idx` ON `client_processes_timeline` (`_parent_id`)");
+
+  await run("locked_docs_rels.client_processes_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_processes_id` integer");
+
+  // Mark Payload migration as executed so `npx payload migrate` doesn't re-run it
+  await run("mark_migration:20260310_120000_add_process_templates_and_client_processes", `INSERT INTO payload_migrations (name, batch, created_at, updated_at) SELECT '20260310_120000_add_process_templates_and_client_processes', 1, datetime('now'), datetime('now') WHERE NOT EXISTS (SELECT 1 FROM payload_migrations WHERE name = '20260310_120000_add_process_templates_and_client_processes')`);
+
   // Diagnostic: test payload.find on clients (same as /api/clients/list)
   let payloadFindTest: any = null;
   try {
@@ -1353,7 +1490,7 @@ export async function POST(request: NextRequest) {
     contractsTest.create = { ok: false, error: err?.message || String(err), stack: err?.stack?.split("\n").slice(0, 5) };
   }
 
-  return NextResponse.json({ ok: true, version: "2026-03-08", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  return NextResponse.json({ ok: true, version: "2026-03-10", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
