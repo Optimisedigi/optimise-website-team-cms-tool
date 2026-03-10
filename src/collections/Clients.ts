@@ -513,6 +513,31 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Processes",
+          fields: [
+            {
+              name: "startProcess",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/StartProcessButton",
+                },
+                condition: (data: any) => !!data?.id,
+              },
+            },
+            {
+              name: "linkedProcesses",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/LinkedProcesses",
+                },
+                condition: (data: any) => !!data?.id,
+              },
+            },
+          ],
+        },
+        {
           label: "Analysis",
           fields: [
             {

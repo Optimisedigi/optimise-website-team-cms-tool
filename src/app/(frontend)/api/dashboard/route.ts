@@ -122,6 +122,7 @@ export async function GET() {
     convertedProposals,
     totalProposals,
     totalLeadsCount,
+    processesData,
     ...historicalCounts
   ] = await Promise.all([
     // Latest GSC snapshot + 13-month history for Optimise Digital
@@ -311,6 +312,65 @@ export async function GET() {
     // Total sales leads
     payload.count({ collection: "sales-leads" as any }).catch(() => ({ totalDocs: 0 })),
 
+    // Client processes counts by status
+    (async () => {
+      try {
+        const [activeCount, notStartedCount, completedCount, onHoldCount, recentResult] = await Promise.all([
+          payload.count({ collection: "client-processes" as any, where: { overallStatus: { equals: "in_progress" } } }),
+          payload.count({ collection: "client-processes" as any, where: { overallStatus: { equals: "not_started" } } }),
+          payload.count({ collection: "client-processes" as any, where: { overallStatus: { equals: "completed" } } }),
+          payload.count({ collection: "client-processes" as any, where: { overallStatus: { equals: "on_hold" } } }),
+          payload.find({
+            collection: "client-processes" as any,
+            sort: "-updatedAt",
+            limit: 5,
+            depth: 0,
+            overrideAccess: true,
+          }),
+        ]);
+
+        const recentProcesses = recentResult.docs.map((doc: any) => {
+          // Compute completion percentage from phases/steps
+          const phases = Array.isArray(doc.phases) ? doc.phases : [];
+          let totalSteps = 0;
+          let completedSteps = 0;
+          let currentPhase = '';
+          for (const phase of phases) {
+            const steps = Array.isArray(phase.steps) ? phase.steps : [];
+            totalSteps += steps.length;
+            completedSteps += steps.filter((s: any) => s.stepStatus === 'completed' || s.stepStatus === 'skipped').length;
+            if (!currentPhase && (phase.phaseStatus === 'in_progress' || phase.phaseStatus === 'not_started')) {
+              currentPhase = phase.phaseName || '';
+            }
+          }
+          // If all phases are completed, show the last phase
+          if (!currentPhase && phases.length > 0) {
+            currentPhase = phases[phases.length - 1]?.phaseName || '';
+          }
+          const completionPercentage = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+
+          return {
+            id: doc.id,
+            processTitle: doc.processTitle || 'Untitled',
+            overallStatus: doc.overallStatus || 'not_started',
+            currentPhase,
+            completionPercentage,
+            updatedAt: doc.updatedAt,
+          };
+        });
+
+        return {
+          active: activeCount.totalDocs,
+          notStarted: notStartedCount.totalDocs,
+          completed: completedCount.totalDocs,
+          onHold: onHoldCount.totalDocs,
+          recentProcesses,
+        };
+      } catch {
+        return null;
+      }
+    })(),
+
     // Historical counts per month (for chart) — count all auditable collections per month
     ...monthRanges.map(async (range) => {
       const where = {
@@ -441,6 +501,7 @@ export async function GET() {
     costHistory: historicalCounts,
     totalLeads: totalLeadsCount.totalDocs,
     businessCosts: businessCostsSummary,
+    processes: processesData || null,
     month: now.toLocaleString("en-AU", { month: "long", year: "numeric" }),
   });
   } catch (err) {

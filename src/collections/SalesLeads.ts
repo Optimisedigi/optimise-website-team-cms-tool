@@ -256,6 +256,26 @@ export const SalesLeads: CollectionConfig = {
                 condition: (data: any) => data?.stage === "lost",
               },
             },
+            {
+              name: "startProcess",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/StartProcessFromLeadButton",
+                },
+                condition: (data: any) => !!data?.id,
+              },
+            },
+            {
+              name: "linkedProcesses",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/LinkedProcesses",
+                },
+                condition: (data: any) => !!data?.id,
+              },
+            },
           ],
         },
         {

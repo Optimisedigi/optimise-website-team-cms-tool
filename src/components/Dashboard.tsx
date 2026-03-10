@@ -46,6 +46,23 @@ interface CostHistoryEntry {
   llm: number
 }
 
+interface RecentProcess {
+  id: number
+  processTitle: string
+  overallStatus: string
+  currentPhase: string
+  completionPercentage: number
+  updatedAt: string
+}
+
+interface ProcessesData {
+  active: number
+  notStarted: number
+  completed: number
+  onHold: number
+  recentProcesses: RecentProcess[]
+}
+
 interface DashboardData {
   gsc: GscData | null
   gscMonthly: GscMonthlyEntry[]
@@ -84,6 +101,7 @@ interface DashboardData {
     totalThisMonth: number
     uncategorisedCount: number
   }
+  processes?: ProcessesData | null
   month: string
 }
 
@@ -334,6 +352,9 @@ const Dashboard = () => {
               </div>
             </div>
           )}
+
+          {/* Client Processes */}
+          <ProcessesCard processes={data.processes} />
 
           {/* Google Analytics */}
           <Ga4Card />
@@ -1059,6 +1080,149 @@ function Ga4Card() {
           </table>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Processes Card ──────────────────────────────────────
+
+const PROCESS_STATUS_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+  in_progress: { bg: '#dbeafe', color: '#1d4ed8', label: 'Active' },
+  not_started: { bg: '#f3f4f6', color: '#6b7280', label: 'Not Started' },
+  completed: { bg: '#dcfce7', color: '#15803d', label: 'Completed' },
+  on_hold: { bg: '#fef3c7', color: '#b45309', label: 'On Hold' },
+  cancelled: { bg: '#fee2e2', color: '#b91c1c', label: 'Cancelled' },
+}
+
+function ProcessesCard({ processes }: { processes?: ProcessesData | null }) {
+  if (!processes) {
+    return (
+      <div className="od-box od-box--muted">
+        <div className="od-box__head">
+          <span className="od-box__title">Client Processes</span>
+        </div>
+        <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
+            No process data available.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const total = processes.active + processes.notStarted + processes.completed + processes.onHold
+
+  return (
+    <div className="od-box">
+      <div className="od-box__head">
+        <span className="od-box__title">Client Processes</span>
+        <a
+          href="/admin/collections/client-processes"
+          style={{ fontSize: 12, color: 'var(--theme-elevation-500)', textDecoration: 'none' }}
+        >
+          View all &rarr;
+        </a>
+      </div>
+
+      {/* Status counts */}
+      <div className="od-box__stats od-box__stats--4">
+        <div className="od-box__stat">
+          <span className="od-box__stat-value" style={{ color: '#1d4ed8' }}>{processes.active}</span>
+          <span className="od-box__stat-label">Active</span>
+        </div>
+        <div className="od-box__stat">
+          <span className="od-box__stat-value" style={{ color: '#6b7280' }}>{processes.notStarted}</span>
+          <span className="od-box__stat-label">Not Started</span>
+        </div>
+        <div className="od-box__stat">
+          <span className="od-box__stat-value" style={{ color: '#15803d' }}>{processes.completed}</span>
+          <span className="od-box__stat-label">Completed</span>
+        </div>
+        <div className="od-box__stat">
+          <span className="od-box__stat-value" style={{ color: '#b45309' }}>{processes.onHold}</span>
+          <span className="od-box__stat-label">On Hold</span>
+        </div>
+      </div>
+
+      {/* Recent processes table */}
+      {processes.recentProcesses.length > 0 ? (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>Process</th>
+                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>Phase</th>
+                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>Status</th>
+                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap', minWidth: 100 }}>Progress</th>
+                <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {processes.recentProcesses.map((proc) => {
+                const statusInfo = PROCESS_STATUS_COLORS[proc.overallStatus] || PROCESS_STATUS_COLORS.not_started
+                return (
+                  <tr key={proc.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 500, color: '#111827', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <a
+                        href={`/admin/collections/client-processes/${proc.id}`}
+                        style={{ color: '#111827', textDecoration: 'none' }}
+                        onMouseEnter={(e) => { (e.target as HTMLElement).style.textDecoration = 'underline' }}
+                        onMouseLeave={(e) => { (e.target as HTMLElement).style.textDecoration = 'none' }}
+                      >
+                        {proc.processTitle}
+                      </a>
+                    </td>
+                    <td style={{ padding: '8px 12px', color: '#6b7280', whiteSpace: 'nowrap', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {proc.currentPhase || '\u2014'}
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        background: statusInfo.bg,
+                        color: statusInfo.color,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {statusInfo.label}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ flex: 1, height: 6, borderRadius: 3, background: '#e5e7eb', overflow: 'hidden' }}>
+                          <div style={{
+                            width: `${proc.completionPercentage}%`,
+                            height: '100%',
+                            borderRadius: 3,
+                            background: proc.completionPercentage === 100 ? '#22c55e' : '#468D8B',
+                            transition: 'width 300ms',
+                          }} />
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', minWidth: 28, textAlign: 'right' }}>
+                          {proc.completionPercentage}%
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#9ca3af', fontSize: 11, whiteSpace: 'nowrap' }}>
+                      {timeAgo(proc.updatedAt)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : total === 0 ? (
+        <div style={{ padding: '16px 20px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
+            No processes created yet. Start one from a client or template.
+          </p>
+        </div>
+      ) : null}
     </div>
   )
 }

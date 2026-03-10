@@ -71,6 +71,8 @@ export interface Config {
     'client-proposals': ClientProposal;
     contracts: Contract;
     'sales-leads': SalesLead;
+    'process-templates': ProcessTemplate;
+    'client-processes': ClientProcess;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
     'job-posts': JobPost;
@@ -113,6 +115,8 @@ export interface Config {
     'client-proposals': ClientProposalsSelect<false> | ClientProposalsSelect<true>;
     contracts: ContractsSelect<false> | ContractsSelect<true>;
     'sales-leads': SalesLeadsSelect<false> | SalesLeadsSelect<true>;
+    'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
+    'client-processes': ClientProcessesSelect<false> | ClientProcessesSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
@@ -189,6 +193,7 @@ export interface UserAuthOperations {
  */
 export interface Client {
   id: number;
+  billingSummary?: number | null;
   /**
    * Client/business name (e.g., 'Acme Corp')
    */
@@ -300,22 +305,6 @@ export interface Client {
    */
   monthlyRetainer?: number | null;
   /**
-   * Pre-CMS revenue ($). Added to auto-calculated total for clients who started before the CMS was set up.
-   */
-  historicalRevenue?: number | null;
-  /**
-   * Client contract document (legacy upload)
-   */
-  contract?: (number | null) | Media;
-  /**
-   * URL of the signed contract PDF (from e-signature flow)
-   */
-  signedContractUrl?: string | null;
-  /**
-   * Linked signed contract record
-   */
-  signedContract?: (number | null) | Contract;
-  /**
    * One-off projects (website builds, audits, etc.)
    */
   oneOffProjects?:
@@ -335,6 +324,22 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Pre-CMS revenue ($). Added to auto-calculated total for clients who started before the CMS was set up.
+   */
+  historicalRevenue?: number | null;
+  /**
+   * Client contract document (legacy upload)
+   */
+  contract?: (number | null) | Media;
+  /**
+   * URL of the signed contract PDF (from e-signature flow)
+   */
+  signedContractUrl?: string | null;
+  /**
+   * Linked signed contract record
+   */
+  signedContract?: (number | null) | Contract;
   /**
    * Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.
    */
@@ -816,7 +821,7 @@ export interface Contract {
    */
   paymentTerms?: string | null;
   /**
-   * Deliverables and scope of work
+   * Deliverables and scope of work. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.
    */
   scopeOfWork?: {
     root: {
@@ -834,7 +839,7 @@ export interface Contract {
     [k: string]: unknown;
   } | null;
   /**
-   * If filled in, this replaces the default payment terms section entirely
+   * If filled in, this replaces the default payment terms section. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.
    */
   paymentTermsOverride?: {
     root: {
@@ -2741,6 +2746,278 @@ export interface SalesLead {
   createdAt: string;
 }
 /**
+ * Standardised client process templates from lead to ongoing management
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "process-templates".
+ */
+export interface ProcessTemplate {
+  id: number;
+  /**
+   * Template name, e.g. "Google Ads Only", "Full Integration"
+   */
+  name: string;
+  /**
+   * URL-friendly identifier (auto-generated from name)
+   */
+  slug: string;
+  /**
+   * Which retainer type this template applies to
+   */
+  retainerType:
+    | 'google_ads_only'
+    | 'meta_ads_only'
+    | 'seo_only'
+    | 'website_build_only'
+    | 'website_seo'
+    | 'website_seo_google_ads'
+    | 'full_integration'
+    | 'ai_automations'
+    | 'custom';
+  /**
+   * What this template covers
+   */
+  description?: string | null;
+  /**
+   * Default template for its retainer type
+   */
+  isDefault?: boolean | null;
+  /**
+   * Enable or disable this template
+   */
+  isActive?: boolean | null;
+  /**
+   * Ordered phases of the process
+   */
+  phases?:
+    | {
+        /**
+         * Phase name, e.g. "Lead Generation", "Qualification & Proposal"
+         */
+        phaseName: string;
+        /**
+         * Display order (1 = first phase)
+         */
+        phaseOrder: number;
+        /**
+         * What this phase covers
+         */
+        phaseDescription?: string | null;
+        /**
+         * Steps within this phase
+         */
+        steps?:
+          | {
+              /**
+               * Step name, e.g. "Send brief analysis"
+               */
+              stepName: string;
+              /**
+               * Display order within the phase
+               */
+              stepOrder: number;
+              /**
+               * Detailed instructions for what to do
+               */
+              stepDescription?: string | null;
+              /**
+               * What kind of step this is
+               */
+              stepType?: ('action' | 'communication' | 'decision' | 'automated' | 'milestone') | null;
+              /**
+               * Can this step be automated in future?
+               */
+              isAutomatable?: boolean | null;
+              /**
+               * What automation would look like
+               */
+              automationNotes?: string | null;
+              /**
+               * Who should handle this step by default
+               */
+              defaultAssignee?:
+                | ('account_manager' | 'strategist' | 'developer' | 'founder' | 'client' | 'system')
+                | null;
+              /**
+               * e.g. "30 mins", "1 day", "1 week"
+               */
+              estimatedDuration?: string | null;
+              /**
+               * Pre-fill subject for email prep
+               */
+              emailTemplateSubject?: string | null;
+              /**
+               * Draft email template (approval required before send)
+               */
+              emailTemplateBody?: string | null;
+              /**
+               * Days after previous step to trigger reminder (future use)
+               */
+              reminderDays?: number | null;
+              /**
+               * Must complete before moving to next step
+               */
+              requiredBeforeNext?: boolean | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Live client onboarding/management processes
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-processes".
+ */
+export interface ClientProcess {
+  id: number;
+  completionPercentage?: number | null;
+  /**
+   * e.g. "Acme Corp - Full Integration"
+   */
+  processTitle: string;
+  /**
+   * Template this process was created from
+   */
+  template?: (number | null) | ProcessTemplate;
+  /**
+   * Retainer type for this process
+   */
+  retainerType?:
+    | (
+        | 'google_ads_only'
+        | 'meta_ads_only'
+        | 'seo_only'
+        | 'website_build_only'
+        | 'website_seo'
+        | 'website_seo_google_ads'
+        | 'full_integration'
+        | 'ai_automations'
+        | 'custom'
+      )
+    | null;
+  /**
+   * Linked client (if converted)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Linked sales lead
+   */
+  salesLead?: (number | null) | SalesLead;
+  /**
+   * Linked proposal
+   */
+  proposal?: (number | null) | ClientProposal;
+  /**
+   * Primary person responsible for this process
+   */
+  assignedTo?: (number | null) | User;
+  /**
+   * Phases copied from the template with live status tracking
+   */
+  phases?:
+    | {
+        phaseName: string;
+        phaseOrder: number;
+        phaseDescription?: string | null;
+        phaseStatus?: ('not_started' | 'in_progress' | 'completed' | 'skipped') | null;
+        steps?:
+          | {
+              stepName: string;
+              stepOrder: number;
+              stepDescription?: string | null;
+              stepType?: ('action' | 'communication' | 'decision' | 'automated' | 'milestone') | null;
+              stepStatus?: ('not_started' | 'in_progress' | 'completed' | 'skipped') | null;
+              /**
+               * When this step was completed
+               */
+              completedAt?: string | null;
+              defaultAssignee?:
+                | ('account_manager' | 'strategist' | 'developer' | 'founder' | 'client' | 'system')
+                | null;
+              estimatedDuration?: string | null;
+              isAutomatable?: boolean | null;
+              automationNotes?: string | null;
+              emailTemplateSubject?: string | null;
+              emailTemplateBody?: string | null;
+              reminderDays?: number | null;
+              requiredBeforeNext?: boolean | null;
+              /**
+               * Notes specific to this step for this client
+               */
+              notes?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Chronological log of process events
+   */
+  timeline?:
+    | {
+        action: string;
+        performedAt: string;
+        performedBy?: (number | null) | User;
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Overall process status
+   */
+  overallStatus: 'not_started' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
+  /**
+   * When this process was started
+   */
+  startedAt?: string | null;
+  /**
+   * When this process was completed
+   */
+  completedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users".
+ */
+export interface User {
+  id: number;
+  name: string;
+  role: 'admin' | 'manager' | 'specialist';
+  /**
+   * Whether this user has completed their first-login setup
+   */
+  setupCompleted?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
+  collection: 'users';
+}
+/**
  * Create and manage blog posts for clients
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3219,40 +3496,6 @@ export interface CostRule {
   createdAt: string;
 }
 /**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
- */
-export interface User {
-  id: number;
-  name: string;
-  role: 'admin' | 'manager' | 'specialist';
-  /**
-   * Whether this user has completed their first-login setup
-   */
-  setupCompleted?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-  enableAPIKey?: boolean | null;
-  apiKey?: string | null;
-  apiKeyIndex?: string | null;
-  email: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
-  sessions?:
-    | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
-      }[]
-    | null;
-  password?: string | null;
-  collection: 'users';
-}
-/**
  * Monthly usage and estimated API cost reports from the growth tools
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3335,7 +3578,8 @@ export interface ActivityLog {
     | 'contract_sent'
     | 'contract_client_signed'
     | 'lead_created'
-    | 'lead_stage_changed';
+    | 'lead_stage_changed'
+    | 'template_created';
   title: string;
   description?: string | null;
   /**
@@ -3414,6 +3658,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'sales-leads';
         value: number | SalesLead;
+      } | null)
+    | ({
+        relationTo: 'process-templates';
+        value: number | ProcessTemplate;
+      } | null)
+    | ({
+        relationTo: 'client-processes';
+        value: number | ClientProcess;
       } | null)
     | ({
         relationTo: 'blog-posts';
@@ -3554,6 +3806,7 @@ export interface PayloadMigration {
  * via the `definition` "clients_select".
  */
 export interface ClientsSelect<T extends boolean = true> {
+  billingSummary?: T;
   name?: T;
   slug?: T;
   websiteUrl?: T;
@@ -3578,10 +3831,6 @@ export interface ClientsSelect<T extends boolean = true> {
   secondaryConversionGoal?: T;
   clientStartDate?: T;
   monthlyRetainer?: T;
-  historicalRevenue?: T;
-  contract?: T;
-  signedContractUrl?: T;
-  signedContract?: T;
   oneOffProjects?:
     | T
     | {
@@ -3590,6 +3839,10 @@ export interface ClientsSelect<T extends boolean = true> {
         date?: T;
         id?: T;
       };
+  historicalRevenue?: T;
+  contract?: T;
+  signedContractUrl?: T;
+  signedContract?: T;
   googleAdsCustomerId?: T;
   notes?: T;
   retainerHistory?:
@@ -3905,6 +4158,102 @@ export interface SalesLeadsSelect<T extends boolean = true> {
   firstContactDate?: T;
   expectedCloseDate?: T;
   priority?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "process-templates_select".
+ */
+export interface ProcessTemplatesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  retainerType?: T;
+  description?: T;
+  isDefault?: T;
+  isActive?: T;
+  phases?:
+    | T
+    | {
+        phaseName?: T;
+        phaseOrder?: T;
+        phaseDescription?: T;
+        steps?:
+          | T
+          | {
+              stepName?: T;
+              stepOrder?: T;
+              stepDescription?: T;
+              stepType?: T;
+              isAutomatable?: T;
+              automationNotes?: T;
+              defaultAssignee?: T;
+              estimatedDuration?: T;
+              emailTemplateSubject?: T;
+              emailTemplateBody?: T;
+              reminderDays?: T;
+              requiredBeforeNext?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-processes_select".
+ */
+export interface ClientProcessesSelect<T extends boolean = true> {
+  completionPercentage?: T;
+  processTitle?: T;
+  template?: T;
+  retainerType?: T;
+  client?: T;
+  salesLead?: T;
+  proposal?: T;
+  assignedTo?: T;
+  phases?:
+    | T
+    | {
+        phaseName?: T;
+        phaseOrder?: T;
+        phaseDescription?: T;
+        phaseStatus?: T;
+        steps?:
+          | T
+          | {
+              stepName?: T;
+              stepOrder?: T;
+              stepDescription?: T;
+              stepType?: T;
+              stepStatus?: T;
+              completedAt?: T;
+              defaultAssignee?: T;
+              estimatedDuration?: T;
+              isAutomatable?: T;
+              automationNotes?: T;
+              emailTemplateSubject?: T;
+              emailTemplateBody?: T;
+              reminderDays?: T;
+              requiredBeforeNext?: T;
+              notes?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  timeline?:
+    | T
+    | {
+        action?: T;
+        performedAt?: T;
+        performedBy?: T;
+        notes?: T;
+        id?: T;
+      };
+  overallStatus?: T;
+  startedAt?: T;
+  completedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

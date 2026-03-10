@@ -33,6 +33,8 @@ import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
 import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
 import { Contracts } from "./collections/Contracts";
 import { SalesLeads } from "./collections/SalesLeads";
+import { ProcessTemplates } from "./collections/ProcessTemplates";
+import { ClientProcesses } from "./collections/ClientProcesses";
 import { TagSetupAudits } from "./collections/TagSetupAudits";
 import { ApiCostRates } from "./globals/ApiCostRates";
 import { SheetsAuth } from "./globals/SheetsAuth";
@@ -75,7 +77,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientProposals, Contracts, SalesLeads,
+    Clients, ClientProposals, Contracts, SalesLeads, ProcessTemplates, ClientProcesses,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO
