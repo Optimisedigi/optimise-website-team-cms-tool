@@ -29,6 +29,7 @@ function timeAgo(iso: string): string {
 
 const RANGE_OPTIONS = [
   { value: "last_month", label: "Last month" },
+  { value: "last_30_days", label: "Last 30 days" },
   { value: "last_3_months", label: "Last 3 months" },
   { value: "last_6_months", label: "Last 6 months" },
   { value: "this_year", label: "This year" },
@@ -46,6 +47,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
   const [loading, setLoading] = useState(false);
   const [qualityData, setQualityData] = useState<GoogleAdsDashboardQualityData | null>(mockQualityData ?? null);
   const [qualityLoading, setQualityLoading] = useState(false);
+  const [qualityError, setQualityError] = useState("");
   const qualityFetched = useRef(!!mockQualityData);
 
   const changeRange = useCallback(
@@ -79,26 +81,43 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
     [range, data.slug, data.customerId],
   );
 
-  const handleTabChange = useCallback(
-    async (tab: Tab) => {
-      setActiveTab(tab);
-      if (tab === "quality" && !qualityFetched.current && data.slug) {
-        qualityFetched.current = true;
-        setQualityLoading(true);
-        try {
-          const res = await fetch(
-            `/api/dashboard/quality-scores?slug=${encodeURIComponent(data.slug)}`,
-            { credentials: "include" },
-          );
-          if (res.ok) {
-            setQualityData(await res.json());
-          }
-        } finally {
-          setQualityLoading(false);
+  const fetchQualityData = useCallback(
+    async () => {
+      if (!data.slug) return;
+      setQualityLoading(true);
+      setQualityError("");
+      try {
+        const res = await fetch(
+          `/api/dashboard/quality-scores?slug=${encodeURIComponent(data.slug)}`,
+          { credentials: "include" },
+        );
+        if (res.ok) {
+          const result = await res.json();
+          setQualityData(result);
+          qualityFetched.current = true;
+        } else {
+          const text = await res.text().catch(() => "");
+          console.error(`[QualityScore] Fetch failed (${res.status}):`, text);
+          setQualityError(`Failed to load quality scores (${res.status})`);
         }
+      } catch (err) {
+        console.error("[QualityScore] Fetch error:", err);
+        setQualityError("Failed to load quality scores. Please try again.");
+      } finally {
+        setQualityLoading(false);
       }
     },
     [data.slug],
+  );
+
+  const handleTabChange = useCallback(
+    async (tab: Tab) => {
+      setActiveTab(tab);
+      if (tab === "quality" && !qualityFetched.current) {
+        await fetchQualityData();
+      }
+    },
+    [fetchQualityData],
   );
 
   const rangeLabel =
@@ -280,6 +299,16 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
                 Loading quality score data...
+              </div>
+            ) : qualityError ? (
+              <div className="py-12 text-center">
+                <p className="text-sm text-red-500 mb-3">{qualityError}</p>
+                <button
+                  onClick={() => fetchQualityData()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             ) : qualityData ? (
               <QualityScoreTab data={qualityData} />
