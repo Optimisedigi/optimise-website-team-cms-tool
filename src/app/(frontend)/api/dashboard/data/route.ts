@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
   const range = req.nextUrl.searchParams.get("range") || "last_month";
   const customerId = req.nextUrl.searchParams.get("customerId") || "";
+  const clientName = req.nextUrl.searchParams.get("clientName") || "";
 
   if (!slug) {
     return NextResponse.json({ error: "Missing slug" }, { status: 400 });
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest) {
   try {
     const params = new URLSearchParams({ range });
     if (customerId) params.set("customerId", customerId);
+    if (clientName) params.set("clientName", clientName);
     const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },

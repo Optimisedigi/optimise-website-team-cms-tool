@@ -117,6 +117,22 @@ export interface GoogleAdsDashboardData {
   workDone: Array<{ description: string; date: string }>;
 }
 
+/** Top Ads type */
+
+export interface GoogleAdsDashboardTopAd {
+  adId: string;
+  campaignName: string;
+  adGroupName: string;
+  headlines: string[];
+  descriptions: string[];
+  finalUrl: string | null;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  conversions: number;
+  ctr: number;
+}
+
 /** Quality Score tracking types */
 
 export interface GoogleAdsDashboardQualityKeyword {
@@ -131,7 +147,12 @@ export interface GoogleAdsDashboardQualityKeyword {
   searchPredictedCtr: string | null;
   landingPageQuality: string | null;
   avgCpc: number;
+  clicks: number;
   impressions: number;
+  spend: number;
+  conversions: number;
+  costPerConversion: number | null;
+  finalUrl: string | null;
 }
 
 export interface GoogleAdsDashboardQualitySnapshot {
@@ -142,4 +163,5 @@ export interface GoogleAdsDashboardQualitySnapshot {
 export interface GoogleAdsDashboardQualityData {
   campaigns: Array<{ id: string; name: string }>;
   snapshots: GoogleAdsDashboardQualitySnapshot[];
+  topAds: GoogleAdsDashboardTopAd[];
 }

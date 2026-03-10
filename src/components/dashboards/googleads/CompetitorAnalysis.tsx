@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { DataTable, type Column } from "@/components/dashboards/shared/DataTable";
 import type {
   GoogleAdsDashboardAuctionInsight,
@@ -113,12 +113,142 @@ function ImpressionKpiCard({
   );
 }
 
+/** Aggregate competitors across all campaigns, returning the top N */
+interface AggregatedCompetitor {
+  domain: string;
+  avgImpressionShare: number;
+  avgOverlapRate: number;
+  avgPositionAboveRate: number;
+  avgOutrankingShare: number;
+  campaignCount: number;
+}
+
+function aggregateCompetitors(
+  insights: GoogleAdsDashboardAuctionInsight[],
+  topN: number,
+): AggregatedCompetitor[] {
+  const map = new Map<
+    string,
+    {
+      impressionShare: number;
+      overlapRate: number;
+      positionAboveRate: number;
+      outrankingShare: number;
+      count: number;
+    }
+  >();
+
+  for (const insight of insights) {
+    for (const comp of insight.competitors) {
+      const existing = map.get(comp.domain) || {
+        impressionShare: 0,
+        overlapRate: 0,
+        positionAboveRate: 0,
+        outrankingShare: 0,
+        count: 0,
+      };
+      existing.impressionShare += comp.impressionShare;
+      existing.overlapRate += comp.overlapRate;
+      existing.positionAboveRate += comp.positionAboveRate;
+      existing.outrankingShare += comp.outrankingShare;
+      existing.count += 1;
+      map.set(comp.domain, existing);
+    }
+  }
+
+  return Array.from(map.entries())
+    .map(([domain, d]) => ({
+      domain,
+      avgImpressionShare: d.impressionShare / d.count,
+      avgOverlapRate: d.overlapRate / d.count,
+      avgPositionAboveRate: d.positionAboveRate / d.count,
+      avgOutrankingShare: d.outrankingShare / d.count,
+      campaignCount: d.count,
+    }))
+    .sort((a, b) => b.avgImpressionShare - a.avgImpressionShare)
+    .slice(0, topN);
+}
+
+function ThreatBadge({ level }: { level: "high" | "medium" | "low" }) {
+  const styles = {
+    high: "bg-red-100 text-red-700 border-red-200",
+    medium: "bg-amber-100 text-amber-700 border-amber-200",
+    low: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  };
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${styles[level]}`}>
+      {level === "high" ? "High Threat" : level === "medium" ? "Medium Threat" : "Low Threat"}
+    </span>
+  );
+}
+
+function getThreatLevel(comp: AggregatedCompetitor): "high" | "medium" | "low" {
+  if (comp.avgImpressionShare >= 50 && comp.avgPositionAboveRate >= 40) return "high";
+  if (comp.avgImpressionShare >= 30 || comp.avgPositionAboveRate >= 30) return "medium";
+  return "low";
+}
+
+function TopCompetitorCard({ comp, rank }: { comp: AggregatedCompetitor; rank: number }) {
+  const threat = getThreatLevel(comp);
+
+  return (
+    <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 text-sm font-bold">
+            #{rank}
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">{comp.domain}</p>
+            <p className="text-xs text-slate-400">
+              Appears in {comp.campaignCount} campaign{comp.campaignCount !== 1 ? "s" : ""}
+            </p>
+          </div>
+        </div>
+        <ThreatBadge level={threat} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <p className="text-xs text-slate-500">Shows For</p>
+          <p className="text-lg font-bold text-slate-700">{pct(comp.avgImpressionShare)}</p>
+          <p className="text-[10px] text-slate-400">of your target searches</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <p className="text-xs text-slate-500">Overlap Rate</p>
+          <p className="text-lg font-bold text-slate-700">{pct(comp.avgOverlapRate)}</p>
+          <p className="text-[10px] text-slate-400">you both appear together</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <p className="text-xs text-slate-500">Above You</p>
+          <p className={`text-lg font-bold ${comp.avgPositionAboveRate >= 40 ? "text-red-600" : comp.avgPositionAboveRate >= 20 ? "text-amber-600" : "text-emerald-600"}`}>
+            {pct(comp.avgPositionAboveRate)}
+          </p>
+          <p className="text-[10px] text-slate-400">of the time</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <p className="text-xs text-slate-500">Outranks You</p>
+          <p className={`text-lg font-bold ${comp.avgOutrankingShare >= 50 ? "text-red-600" : comp.avgOutrankingShare >= 30 ? "text-amber-600" : "text-emerald-600"}`}>
+            {pct(comp.avgOutrankingShare)}
+          </p>
+          <p className="text-[10px] text-slate-400">overall outranking share</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CompetitorAnalysis({
   auctionInsights,
   impressionShare,
 }: CompetitorAnalysisProps) {
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(
     () => new Set(auctionInsights.map((i) => i.campaignName))
+  );
+
+  const topCompetitors = useMemo(
+    () => aggregateCompetitors(auctionInsights, 2),
+    [auctionInsights],
   );
 
   function toggleCampaign(name: string) {
@@ -153,6 +283,20 @@ export function CompetitorAnalysis({
           color="red"
         />
       </div>
+
+      {/* Top 2 Biggest Competitors */}
+      {topCompetitors.length > 0 && (
+        <div>
+          <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-3">
+            Biggest Competitors
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {topCompetitors.map((comp, i) => (
+              <TopCompetitorCard key={comp.domain} comp={comp} rank={i + 1} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Per-campaign impression share */}
       {impressionShare.byCampaign.length > 0 && (
@@ -222,11 +366,12 @@ export function CompetitorAnalysis({
         impressionShare.byCampaign.length === 0 && (
           <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-12 text-center">
             <h2 className="text-lg font-semibold text-slate-900">
-              No Competitor Data Yet
+              No Competitor Data Available
             </h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Auction insights will appear once there is enough search campaign
-              data
+            <p className="mt-2 text-sm text-slate-500 max-w-lg mx-auto">
+              Auction insights and impression share data are only available for
+              Search campaigns. If this account runs only Performance Max,
+              Shopping, or Display campaigns, this section will remain empty.
             </p>
           </div>
         )}

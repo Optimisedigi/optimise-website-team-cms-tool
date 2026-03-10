@@ -11,6 +11,7 @@ import { KeywordDeepDive } from "./KeywordDeepDive";
 import { CompetitorAnalysis } from "./CompetitorAnalysis";
 import { ActivityStats } from "./ActivityStats";
 import { QualityScoreTab } from "./QualityScoreTab";
+import { ProgressTab } from "./ProgressTab";
 
 interface GoogleAdsDashboardProps {
   data: GoogleAdsDashboardData;
@@ -37,7 +38,7 @@ const RANGE_OPTIONS = [
   { value: "all_time", label: "All time" },
 ] as const;
 
-type Tab = "overview" | "competitors" | "keywords" | "quality";
+type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress";
 
 export function GoogleAdsDashboard({ data: initialData, mockQualityData }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
@@ -197,6 +198,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm mb-5">
           {([
             { key: "overview" as Tab, label: "Overview" },
+            { key: "progress" as Tab, label: "Progress" },
             { key: "competitors" as Tab, label: "Competitor Analysis" },
             { key: "keywords" as Tab, label: "Keyword Deep Dive" },
             { key: "quality" as Tab, label: "Quality Score" },
@@ -270,6 +272,14 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
             </>
           )}
 
+          {activeTab === "progress" && (
+            <ProgressTab
+              monthlyTrend={data.monthlyTrend}
+              budgetWasters={data.budgetWasters}
+              kpis={data.kpis}
+            />
+          )}
+
           {activeTab === "competitors" && (
             <CompetitorAnalysis
               auctionInsights={data.auctionInsights}
@@ -283,6 +293,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
               budgetWasters={data.budgetWasters}
               irrelevantTerms={data.irrelevantTerms}
               customerId={data.customerId}
+              slug={data.slug}
             />
           )}
 
@@ -322,8 +333,13 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
 
         {/* Managed by badge */}
         <div className="mt-8 flex justify-end">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
-            <span>Managed by Optimise Digital</span>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span>Managed by</span>
+            <img
+              src="/optimise-logo-animated.gif"
+              alt="Optimise Digital"
+              className="h-6 w-auto"
+            />
           </div>
         </div>
       </div>

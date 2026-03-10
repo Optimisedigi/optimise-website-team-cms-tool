@@ -16,6 +16,20 @@ export function DashboardClient({ slug, clientName, isAuthenticated, initialData
   const [authed, setAuthed] = useState(isAuthenticated);
   const [data, setData] = useState<GoogleAdsDashboardData | null>(initialData);
   const [error, setError] = useState(initialError || "");
+  const [verified, setVerified] = useState(false);
+
+  // Show rocket animation after PIN verified, then reload
+  useEffect(() => {
+    if (verified) {
+      const timer = setTimeout(() => window.location.reload(), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [verified]);
+
+  // Rocket loading screen (after PIN success, before reload)
+  if (verified) {
+    return <RocketLoading />;
+  }
 
   // PIN entry screen
   if (!authed) {
@@ -25,7 +39,7 @@ export function DashboardClient({ slug, clientName, isAuthenticated, initialData
           <h1 className="text-2xl font-bold text-white mb-2">{clientName}</h1>
           <p className="text-slate-400">Enter your 4-digit access code to view the dashboard</p>
         </div>
-        <PinEntry slug={slug} onSuccess={() => window.location.reload()} />
+        <PinEntry slug={slug} onSuccess={() => setVerified(true)} />
       </div>
     );
   }
@@ -54,6 +68,53 @@ export function DashboardClient({ slug, clientName, isAuthenticated, initialData
   }
 
   return null;
+}
+
+function RocketLoading() {
+  return (
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
+      <div className="relative w-20 h-36">
+        {/* Flames */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-16 animate-[rocketLoop_2.6s_cubic-bezier(0.4,0,0.2,1)_infinite]">
+          <div className="absolute bottom-0 w-2.5 h-7 left-[5px] rounded-[50%_50%_40%_40%] bg-gradient-to-t from-transparent via-amber-500 to-red-500 opacity-0 animate-[flameLoop_2.6s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
+          <div className="absolute bottom-0 w-1.5 h-[18px] left-[2px] rounded-[50%_50%_40%_40%] bg-gradient-to-t from-transparent to-amber-400 opacity-0 animate-[flameLoop_2.6s_cubic-bezier(0.4,0,0.2,1)_0.08s_infinite]" />
+          <div className="absolute bottom-0 w-1.5 h-5 left-[10px] rounded-[50%_50%_40%_40%] bg-gradient-to-t from-transparent to-orange-400 opacity-0 animate-[flameLoop_2.6s_cubic-bezier(0.4,0,0.2,1)_0.04s_infinite]" />
+        </div>
+        {/* Rocket */}
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 animate-[rocketLoop_2.6s_cubic-bezier(0.4,0,0.2,1)_infinite]">
+          <img
+            src="/optimise-rocket-logo-black.png"
+            alt=""
+            width={48}
+            height={48}
+            className="block w-12 h-12 object-contain -rotate-[30deg] brightness-0 invert"
+          />
+        </div>
+      </div>
+      <p className="mt-6 text-sm text-slate-400 tracking-wide">Loading dashboard…</p>
+
+      <style>{`
+        @keyframes rocketLoop {
+          0% { transform: translateX(-50%) translateY(0); opacity: 0; }
+          8% { transform: translateX(-50%) translateY(0); opacity: 1; }
+          18% { transform: translateX(-50%) translateY(2px); opacity: 1; }
+          32% { transform: translateX(-50%) translateY(-6px); opacity: 1; }
+          78% { transform: translateX(-50%) translateY(-130px); opacity: 1; }
+          92% { transform: translateX(-50%) translateY(-220px); opacity: 0; }
+          100% { transform: translateX(-50%) translateY(-220px); opacity: 0; }
+        }
+        @keyframes flameLoop {
+          0% { opacity: 0; transform: scaleY(0.2); }
+          10% { opacity: 0.6; transform: scaleY(0.4); }
+          22% { opacity: 0.9; transform: scaleY(0.6); }
+          36% { opacity: 1; transform: scaleY(1); }
+          76% { opacity: 1; transform: scaleY(1.4); }
+          90% { opacity: 0; transform: scaleY(1.8); }
+          100% { opacity: 0; transform: scaleY(0.2); }
+        }
+      `}</style>
+    </div>
+  );
 }
 
 function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) {

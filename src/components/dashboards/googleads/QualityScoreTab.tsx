@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import type {
   GoogleAdsDashboardQualityData,
   GoogleAdsDashboardQualityKeyword,
+  GoogleAdsDashboardTopAd,
 } from "@/lib/dashboard-types";
 
 interface QualityScoreTabProps {
@@ -90,6 +91,23 @@ function avgCpc(keywords: GoogleAdsDashboardQualityKeyword[]): number | null {
   const withCpc = keywords.filter((k) => k.avgCpc > 0);
   if (withCpc.length === 0) return null;
   return withCpc.reduce((sum, k) => sum + k.avgCpc, 0) / withCpc.length;
+}
+
+function formatDollars(n: number | null | undefined): string {
+  if (n == null) return "\u2014";
+  return n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${n.toFixed(2)}`;
+}
+
+function truncateUrl(url: string | null, maxLen = 40): string {
+  if (!url) return "\u2014";
+  try {
+    const u = new URL(url);
+    const path = u.pathname === "/" ? "" : u.pathname;
+    const display = u.hostname + path;
+    return display.length > maxLen ? display.slice(0, maxLen - 1) + "\u2026" : display;
+  } catch {
+    return url.length > maxLen ? url.slice(0, maxLen - 1) + "\u2026" : url;
+  }
 }
 
 /** Most common rating across keywords (weighted by impressions) */
@@ -337,6 +355,135 @@ function DualAxisChart({ points, metric }: DualAxisChartProps) {
   );
 }
 
+// Top Ads Section
+
+function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  return (
+    <div className="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100">
+        <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
+          Top Ads by Impressions
+        </h2>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {ads.map((ad) => {
+          const isOpen = expanded === ad.adId;
+          return (
+            <div key={ad.adId}>
+              <button
+                onClick={() => setExpanded(isOpen ? null : ad.adId)}
+                className="w-full px-5 py-3 flex items-center gap-4 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-700 truncate">
+                    {ad.headlines[0] || "Untitled ad"}
+                  </p>
+                  <p className="text-xs text-slate-500 truncate mt-0.5">
+                    {ad.campaignName} / {ad.adGroupName}
+                  </p>
+                </div>
+                <div className="flex items-center gap-5 text-xs text-slate-500 shrink-0">
+                  <div className="text-right">
+                    <p className="font-medium text-slate-700">{ad.impressions.toLocaleString()}</p>
+                    <p>impr</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium text-slate-700">{ad.clicks.toLocaleString()}</p>
+                    <p>clicks</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium text-slate-700">{(ad.ctr * 100).toFixed(1)}%</p>
+                    <p>CTR</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium text-slate-700">{formatDollars(ad.spend)}</p>
+                    <p>spend</p>
+                  </div>
+                  {ad.conversions > 0 && (
+                    <div className="text-right">
+                      <p className="font-medium text-emerald-600">{Math.round(ad.conversions)}</p>
+                      <p>conv</p>
+                    </div>
+                  )}
+                  <svg
+                    className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+              {isOpen && (
+                <div className="px-5 pb-4 pt-1 bg-slate-50 border-t border-slate-100">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Ad preview card */}
+                    <div className="rounded-lg border border-slate-200 bg-white p-4">
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">Ad Preview</p>
+                      <div className="space-y-1">
+                        <p className="text-blue-700 text-base font-medium leading-tight">
+                          {ad.headlines.slice(0, 3).join(" | ")}
+                        </p>
+                        {ad.finalUrl && (
+                          <p className="text-xs text-green-700">{truncateUrl(ad.finalUrl, 60)}</p>
+                        )}
+                        {ad.descriptions.length > 0 && (
+                          <p className="text-sm text-slate-600 leading-snug mt-1">
+                            {ad.descriptions[0]}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {/* All headlines + descriptions */}
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Headlines ({ad.headlines.length})</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ad.headlines.map((h, i) => (
+                            <span key={i} className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded border border-blue-100">
+                              {h}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Descriptions ({ad.descriptions.length})</p>
+                        <div className="space-y-1">
+                          {ad.descriptions.map((d, i) => (
+                            <p key={i} className="text-xs text-slate-600 leading-snug">
+                              {d}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                      {ad.finalUrl && (
+                        <div>
+                          <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Final URL</p>
+                          <a
+                            href={ad.finalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline break-all"
+                          >
+                            {ad.finalUrl}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Main component
 
 export function QualityScoreTab({ data }: QualityScoreTabProps) {
@@ -398,8 +545,8 @@ export function QualityScoreTab({ data }: QualityScoreTabProps) {
   const adRelevance = dominantRating(latestKeywords, "creativeQuality");
   const lpRating = dominantRating(latestKeywords, "landingPageQuality");
 
-  // Sort keywords by impressions desc
-  const sortedKeywords = [...latestKeywords].sort((a, b) => b.impressions - a.impressions);
+  // Sort keywords by spend desc, take top 10
+  const sortedKeywords = [...latestKeywords].sort((a, b) => b.spend - a.spend).slice(0, 10);
 
   const currentQs = weightedQs(latestKeywords);
 
@@ -502,12 +649,17 @@ export function QualityScoreTab({ data }: QualityScoreTabProps) {
         })}
       </div>
 
+      {/* Top Ads */}
+      {data.topAds && data.topAds.length > 0 && (
+        <TopAdsSection ads={data.topAds} />
+      )}
+
       {/* Keyword table */}
       {sortedKeywords.length > 0 && (
         <div className="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-100">
             <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
-              Keyword Quality Scores
+              Top 10 Keywords by Spend
             </h2>
           </div>
           <div className="overflow-x-auto">
@@ -515,21 +667,24 @@ export function QualityScoreTab({ data }: QualityScoreTabProps) {
               <thead>
                 <tr className="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
                   <th className="px-4 py-2.5 font-medium">Keyword</th>
-                  <th className="px-4 py-2.5 font-medium">Match</th>
                   <th className="px-4 py-2.5 font-medium text-center">QS</th>
-                  <th className="px-4 py-2.5 font-medium">Ad Relevance</th>
-                  <th className="px-4 py-2.5 font-medium">CTR Rating</th>
-                  <th className="px-4 py-2.5 font-medium">Landing Page</th>
-                  <th className="px-4 py-2.5 font-medium text-right">Avg CPC</th>
+                  <th className="px-4 py-2.5 font-medium">Ad Rel.</th>
+                  <th className="px-4 py-2.5 font-medium">CTR</th>
+                  <th className="px-4 py-2.5 font-medium">LP</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Spend</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Clicks</th>
                   <th className="px-4 py-2.5 font-medium text-right">Impr.</th>
+                  <th className="px-4 py-2.5 font-medium text-center">Conv</th>
+                  <th className="px-4 py-2.5 font-medium text-right">CPA</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Avg CPC</th>
+                  <th className="px-4 py-2.5 font-medium">Landing Page</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {sortedKeywords.map((kw, i) => (
                   <tr key={`${kw.keywordText}-${i}`} className="hover:bg-slate-50">
-                    <td className="px-4 py-2.5 font-medium text-slate-700">{kw.keywordText}</td>
-                    <td className="px-4 py-2.5 text-slate-500 text-xs">
-                      {kw.matchType.replace("_", " ").toLowerCase()}
+                    <td className="px-4 py-2.5 font-medium text-slate-700 max-w-[220px] truncate" title={kw.keywordText}>
+                      {kw.keywordText}
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       {kw.qualityScore != null ? (
@@ -557,11 +712,44 @@ export function QualityScoreTab({ data }: QualityScoreTabProps) {
                     <td className={`px-4 py-2.5 text-xs ${ratingColor(kw.landingPageQuality)}`}>
                       {ratingLabel(kw.landingPageQuality)}
                     </td>
+                    <td className="px-4 py-2.5 text-right text-slate-600 font-medium">
+                      {formatDollars(kw.spend)}
+                    </td>
                     <td className="px-4 py-2.5 text-right text-slate-600">
-                      ${kw.avgCpc.toFixed(2)}
+                      {(kw.clicks ?? 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-2.5 text-right text-slate-500">
                       {kw.impressions.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-slate-600">
+                      {kw.conversions > 0 ? (
+                        <span className="font-medium text-emerald-600">
+                          {Math.round(kw.conversions)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">0</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-slate-600">
+                      {formatDollars(kw.costPerConversion)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-slate-600">
+                      ${kw.avgCpc.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-500 text-xs max-w-[200px] truncate">
+                      {kw.finalUrl ? (
+                        <a
+                          href={kw.finalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-700 hover:underline"
+                          title={kw.finalUrl}
+                        >
+                          {truncateUrl(kw.finalUrl)}
+                        </a>
+                      ) : (
+                        <span className="text-slate-300">{"\u2014"}</span>
+                      )}
                     </td>
                   </tr>
                 ))}
