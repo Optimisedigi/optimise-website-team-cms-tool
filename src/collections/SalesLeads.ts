@@ -86,26 +86,30 @@ export const SalesLeads: CollectionConfig = {
           }).catch(() => {});
 
           // Sync: when lead moves to "client", update linked proposal status
+          // Fire-and-forget to avoid SQLite lock conflicts with the current save
           if (doc.stage === "client" && doc.proposal) {
-            const proposalId = typeof doc.proposal === "object" ? doc.proposal.id : doc.proposal;
+            const proposalId = typeof doc.proposal === "object" ? (doc.proposal as any).id : doc.proposal;
             if (proposalId) {
-              try {
-                const proposal = await req.payload.findByID({
-                  collection: "client-proposals",
-                  id: proposalId,
-                  overrideAccess: true,
-                });
-                if ((proposal as any).proposalStatus !== "client") {
-                  await req.payload.update({
+              const syncPayload = req.payload;
+              setTimeout(async () => {
+                try {
+                  const proposal = await syncPayload.findByID({
                     collection: "client-proposals",
                     id: proposalId,
-                    data: { proposalStatus: "client" } as any,
                     overrideAccess: true,
                   });
+                  if ((proposal as any).proposalStatus !== "client") {
+                    await syncPayload.update({
+                      collection: "client-proposals",
+                      id: proposalId,
+                      data: { proposalStatus: "client" } as any,
+                      overrideAccess: true,
+                    });
+                  }
+                } catch {
+                  // Best effort — proposal may not exist or was already deleted
                 }
-              } catch {
-                // Best effort
-              }
+              }, 500);
             }
           }
         }

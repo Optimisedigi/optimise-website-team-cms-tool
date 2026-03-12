@@ -1070,32 +1070,37 @@ export const ClientProposals: CollectionConfig = {
         }
 
         // Sync: when proposal moves to "client", update linked sales lead stage
+        // Fire-and-forget to avoid SQLite lock conflicts with the current save
         if (
           operation === "update" &&
           doc.proposalStatus === "client" &&
           previousDoc?.proposalStatus !== "client"
         ) {
-          try {
-            const linkedLeads = await req.payload.find({
-              collection: "sales-leads" as any,
-              where: { proposal: { equals: doc.id } },
-              limit: 1,
-              overrideAccess: true,
-            });
-            if (linkedLeads.totalDocs > 0) {
-              const lead = linkedLeads.docs[0] as any;
-              if (lead.stage !== "client") {
-                await req.payload.update({
-                  collection: "sales-leads" as any,
-                  id: lead.id,
-                  data: { stage: "client" },
-                  overrideAccess: true,
-                });
+          const syncPayload = req.payload;
+          const docId = doc.id;
+          setTimeout(async () => {
+            try {
+              const linkedLeads = await syncPayload.find({
+                collection: "sales-leads" as any,
+                where: { proposal: { equals: docId } },
+                limit: 1,
+                overrideAccess: true,
+              });
+              if (linkedLeads.totalDocs > 0) {
+                const lead = linkedLeads.docs[0] as any;
+                if (lead.stage !== "client") {
+                  await syncPayload.update({
+                    collection: "sales-leads" as any,
+                    id: lead.id,
+                    data: { stage: "client" },
+                    overrideAccess: true,
+                  });
+                }
               }
+            } catch {
+              // Best effort
             }
-          } catch {
-            // Best effort — don't block the proposal update
-          }
+          }, 500);
         }
       },
     ],
