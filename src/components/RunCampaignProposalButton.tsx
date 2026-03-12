@@ -3,6 +3,90 @@
 import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
 import { useState, useRef, useCallback, useEffect } from 'react'
 
+const STEPS = [
+  {
+    title: '1. Website Crawl',
+    desc: 'Crawls up to 30 pages, identifies service/product pages, extracts seed phrases from headings and content.',
+  },
+  {
+    title: '2. Google Ads Account Review',
+    desc: 'If a Customer ID is linked, fetches existing campaigns, ad groups, keywords, and landing pages to compare against.',
+  },
+  {
+    title: '3. Keyword Research',
+    desc: 'For each discovered page, queries Google Ads Keyword Planner for keyword ideas and search volumes. Uses AI to split large keyword sets into tighter ad groups.',
+  },
+  {
+    title: '4. Campaign Structure',
+    desc: 'Builds a brand campaign (exact-match brand terms) and generic campaigns (~7 ad groups each, phrase-match keywords, 1 landing page per group).',
+  },
+  {
+    title: '5. Competitor Intelligence',
+    desc: 'Runs SERP queries for top keywords to identify competing domains. Checks Meta Ad Library for active advertisers.',
+  },
+  {
+    title: '6. Landing Page Assessment',
+    desc: 'Scores existing landing pages for CRO quality. Identifies pages that need to be created or improved.',
+  },
+  {
+    title: '7. Mismatch Analysis',
+    desc: 'Compares proposed structure against the existing account to find services not advertised, bad landing pages, and brand/generic keyword mixing.',
+  },
+]
+
+function HowItWorks() {
+  const [show, setShow] = useState(false)
+
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <span
+        style={{
+          fontSize: 12,
+          color: '#7c3aed',
+          cursor: 'pointer',
+          fontWeight: 600,
+          textDecoration: 'underline',
+          textDecorationStyle: 'dotted',
+          textUnderlineOffset: 2,
+        }}
+      >
+        How it works
+      </span>
+      {show && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            marginTop: 8,
+            width: 420,
+            padding: 16,
+            background: '#faf5ff',
+            border: '1px solid #ddd6fe',
+            borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(124,58,237,0.12)',
+            zIndex: 1000,
+          }}
+        >
+          <h4 style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 700, color: '#5b21b6' }}>
+            Campaign Proposal Engine (7 Steps)
+          </h4>
+          {STEPS.map((s) => (
+            <div key={s.title} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#5b21b6' }}>{s.title}</div>
+              <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.5 }}>{s.desc}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </span>
+  )
+}
+
 const RunCampaignProposalButton = () => {
   const { id } = useDocumentInfo()
   const [fields] = useAllFormFields()
@@ -135,6 +219,8 @@ const RunCampaignProposalButton = () => {
               ? 'Regenerate Campaign Proposal'
               : 'Generate Campaign Proposal'}
         </button>
+
+        <HowItWorks />
 
         {hasProposal && formattedDate && (
           <span style={{ fontSize: 12, color: '#6b7280' }}>
