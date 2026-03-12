@@ -1200,6 +1200,12 @@ export async function POST(request: NextRequest) {
   // Contracts: monthly hosting
   await run("contracts.monthly_hosting", "ALTER TABLE `contracts` ADD `monthly_hosting` integer");
 
+  // Campaign Proposal fields on google_ads_audits
+  await run("google_ads_audits.campaign_proposal_status", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_status` text");
+  await run("google_ads_audits.campaign_proposal", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal` text");
+  await run("google_ads_audits.campaign_proposal_email_html", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_email_html` text");
+  await run("google_ads_audits.campaign_proposal_generated_at", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_generated_at` text");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
