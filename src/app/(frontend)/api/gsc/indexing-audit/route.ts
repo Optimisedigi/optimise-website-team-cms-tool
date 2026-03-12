@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { startIndexingAudit, runDiscovery, runInspectionWork } from "@/lib/gsc-indexing";
@@ -44,21 +43,15 @@ export async function POST(req: NextRequest) {
       const discoveryResult = await runDiscovery(payload, auditId, client);
 
       if (discoveryResult && discoveryResult.urls.length > 0) {
-        step = "schedule-inspection";
-        // Schedule inspection as background work
-        after(async () => {
-          try {
-            await runInspectionWork(
-              payload,
-              auditId,
-              client,
-              discoveryResult.urls,
-              discoveryResult.accessToken,
-            );
-          } catch (err) {
-            console.error(`[gsc-indexing] Unexpected audit error ${auditId}:`, err);
-          }
-        });
+        step = "run-inspection";
+        // Run inspection synchronously — after() is unreliable on Vercel
+        await runInspectionWork(
+          payload,
+          auditId,
+          client,
+          discoveryResult.urls,
+          discoveryResult.accessToken,
+        );
       }
     }
 

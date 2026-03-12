@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import {
@@ -296,14 +295,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // --- INSPECTION: scheduled as background work via after() ---
-    after(async () => {
-      try {
-        await runInspectionPhase(payload, auditId, accessToken, siteUrl, urls);
-      } catch (err) {
-        console.error(`[gsc/indexing-helper] Unexpected error ${auditId}:`, err);
-      }
-    });
+    // --- INSPECTION: run synchronously (after() is unreliable on Vercel) ---
+    await runInspectionPhase(payload, auditId, accessToken, siteUrl, urls);
 
     return NextResponse.json({ ok: true, auditId });
   } catch (err) {
@@ -360,14 +353,8 @@ export async function GET(req: NextRequest) {
           const urls: string[] = (audit as any).discoveredUrls || [];
 
           if (urls.length > 0) {
-            // Re-trigger inspection in background
-            after(async () => {
-              try {
-                await runInspectionPhase(payload, auditId, accessToken, siteUrl, urls);
-              } catch (err) {
-                console.error(`[gsc/indexing-helper] Retry inspection ${auditId} failed:`, err);
-              }
-            });
+            // Re-trigger inspection synchronously
+            await runInspectionPhase(payload, auditId, accessToken, siteUrl, urls);
           }
         }
       }
