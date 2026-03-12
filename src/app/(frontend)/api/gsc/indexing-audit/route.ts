@@ -4,6 +4,8 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { startIndexingAudit, runDiscovery, runInspectionWork } from "@/lib/gsc-indexing";
 
+export const maxDuration = 120;
+
 export async function POST(req: NextRequest) {
   let body: { clientId?: string };
   try {

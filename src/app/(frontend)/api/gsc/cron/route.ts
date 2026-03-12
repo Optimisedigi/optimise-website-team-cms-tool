@@ -4,6 +4,8 @@ import sgMail from "@sendgrid/mail";
 import { runGscMonitor } from "@/lib/gsc-monitor";
 import { processIndexingBatches } from "@/lib/gsc-indexing";
 
+export const maxDuration = 120;
+
 export async function GET(req: NextRequest) {
   // Authenticate via CRON_SECRET bearer token
   const authHeader = req.headers.get("authorization");

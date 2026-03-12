@@ -10,6 +10,8 @@ import {
   type InspectionResult,
 } from "@/lib/gsc-service";
 
+export const maxDuration = 120;
+
 /**
  * Build action items from non-indexed inspection results.
  */

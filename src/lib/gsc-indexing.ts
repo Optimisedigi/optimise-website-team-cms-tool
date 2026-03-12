@@ -201,7 +201,21 @@ export async function startIndexingAudit(
   });
 
   if (activeAudit.docs[0]) {
-    return { auditId: String(activeAudit.docs[0].id), client: null };
+    const existing = activeAudit.docs[0];
+    const updatedAt = new Date(existing.updatedAt as string).getTime();
+    const stuckMinutes = (Date.now() - updatedAt) / 60000;
+
+    // If stuck for >5 minutes, mark as failed so a new audit can start
+    if (stuckMinutes > 5) {
+      await payload.update({
+        collection: "gsc-indexing-audits",
+        id: existing.id,
+        overrideAccess: true,
+        data: { status: "failed", error: "Timed out (stuck for over 5 minutes)" },
+      });
+    } else {
+      return { auditId: String(existing.id), client: null };
+    }
   }
 
   // Create audit record
