@@ -298,7 +298,7 @@ const Dashboard = () => {
               </div>
               <div className="od-box__stat">
                 <span className="od-box__stat-value">{data.proposals.conversionRate}%</span>
-                <span className="od-box__stat-label">Proposal Conversion Rate</span>
+                <span className="od-box__stat-label">Lead Conversion Rate</span>
               </div>
               <div className="od-box__stat">
                 <span className="od-box__stat-value">${data.costs.total.toFixed(2)}</span>

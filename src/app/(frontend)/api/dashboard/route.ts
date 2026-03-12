@@ -466,9 +466,9 @@ export async function GET() {
   const llmTotal = round(Object.values(LLM_MONTHLY_AUD).reduce((a, b) => a + b, 0));
   const totalCost = round(infraTotal + apiTotal + llmTotal);
 
-  // Proposal conversion: converted / total
-  const conversionRate = totalProposals.totalDocs > 0
-    ? round((convertedProposals.totalDocs / totalProposals.totalDocs) * 100)
+  // Lead conversion: active clients / total leads
+  const conversionRate = totalLeadsCount.totalDocs > 0
+    ? round((clientCount.totalDocs / totalLeadsCount.totalDocs) * 100)
     : 0;
 
   return NextResponse.json({
