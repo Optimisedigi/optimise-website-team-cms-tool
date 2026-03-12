@@ -5,6 +5,54 @@ import { startIndexingAudit, runDiscovery, runInspectionWork } from "@/lib/gsc-i
 
 export const maxDuration = 120;
 
+/**
+ * GET: List indexing audits for a client.
+ * Returns summary data for each audit (no heavy fields like discoveredUrls/inspectionResults).
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const payload = await getPayload({ config: await config });
+    const { user } = await payload.auth({ headers: req.headers });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const clientId = req.nextUrl.searchParams.get("clientId");
+    if (!clientId) {
+      return NextResponse.json({ error: "clientId is required" }, { status: 400 });
+    }
+
+    const audits = await payload.find({
+      collection: "gsc-indexing-audits",
+      where: {
+        client: { equals: Number(clientId) },
+        status: { in: ["completed", "failed"] },
+      },
+      sort: "-createdAt",
+      limit: 20,
+      overrideAccess: true,
+    });
+
+    // Return lightweight summaries (skip large JSON fields)
+    const items = audits.docs.map((a) => ({
+      id: a.id,
+      status: a.status,
+      totalUrls: a.totalUrls,
+      inspectedCount: a.inspectedCount,
+      summaryStats: a.summaryStats,
+      completedAt: a.completedAt,
+      createdAt: a.createdAt,
+      error: a.error,
+    }));
+
+    return NextResponse.json({ audits: items });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to list audits";
+    console.error("[gsc-indexing-audit]", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   let step = "parse-body";
   try {
