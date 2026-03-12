@@ -1928,6 +1928,30 @@ export interface GoogleAdsAudit {
    */
   teamNotes?: string | null;
   /**
+   * Current campaign proposal generation status
+   */
+  campaignProposalStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
+  /**
+   * Full CampaignProposalResults data (auto-populated from Growth Tools)
+   */
+  campaignProposal?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Generated proposal email HTML
+   */
+  campaignProposalEmailHtml?: string | null;
+  /**
+   * When the campaign proposal was generated
+   */
+  campaignProposalGeneratedAt?: string | null;
+  /**
    * Previous audit run summaries (auto-populated on re-run)
    */
   history?:
@@ -4482,6 +4506,10 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   presentationPublished?: T;
   presentationData?: T;
   teamNotes?: T;
+  campaignProposalStatus?: T;
+  campaignProposal?: T;
+  campaignProposalEmailHtml?: T;
+  campaignProposalGeneratedAt?: T;
   history?:
     | T
     | {

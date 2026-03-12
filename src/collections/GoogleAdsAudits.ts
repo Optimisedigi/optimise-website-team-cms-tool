@@ -455,7 +455,69 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 6: History ──
+        // ── Tab 6: Campaign Proposal ──
+        {
+          label: "Campaign Proposal",
+          fields: [
+            {
+              name: "runCampaignProposal",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunCampaignProposalButton",
+                },
+              },
+            },
+            {
+              name: "campaignProposalPreview",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/CampaignProposalPreview",
+                },
+              },
+            },
+            {
+              name: "campaignProposalStatus",
+              type: "select",
+              admin: {
+                readOnly: true,
+                description: "Current campaign proposal generation status",
+              },
+              options: [
+                { label: "Pending", value: "pending" },
+                { label: "Running", value: "running" },
+                { label: "Completed", value: "completed" },
+                { label: "Failed", value: "failed" },
+              ],
+            },
+            {
+              name: "campaignProposal",
+              type: "json",
+              admin: {
+                description: "Full CampaignProposalResults data (auto-populated from Growth Tools)",
+              },
+            },
+            {
+              name: "campaignProposalEmailHtml",
+              type: "textarea",
+              admin: {
+                readOnly: true,
+                description: "Generated proposal email HTML",
+              },
+            },
+            {
+              name: "campaignProposalGeneratedAt",
+              type: "date",
+              admin: {
+                readOnly: true,
+                description: "When the campaign proposal was generated",
+              },
+            },
+          ],
+        },
+
+        // ── Tab 7: History ──
         {
           label: "History",
           fields: [
@@ -497,7 +559,7 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 7: Action Items (OptiMate prep) ──
+        // ── Tab 8: Action Items (OptiMate prep) ──
         {
           label: "Action Items",
           fields: [
@@ -592,7 +654,7 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 8: Automations (Legacy — configure from Client record) ──
+        // ── Tab 9: Automations (Legacy — configure from Client record) ──
         {
           label: "Automations",
           fields: [
