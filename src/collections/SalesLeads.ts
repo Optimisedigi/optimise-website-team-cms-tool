@@ -84,6 +84,30 @@ export const SalesLeads: CollectionConfig = {
             description: `${previousDoc.stage} → ${doc.stage}`,
             user: req.user?.id,
           }).catch(() => {});
+
+          // Sync: when lead moves to "client", update linked proposal status
+          if (doc.stage === "client" && doc.proposal) {
+            const proposalId = typeof doc.proposal === "object" ? doc.proposal.id : doc.proposal;
+            if (proposalId) {
+              try {
+                const proposal = await req.payload.findByID({
+                  collection: "client-proposals",
+                  id: proposalId,
+                  overrideAccess: true,
+                });
+                if ((proposal as any).proposalStatus !== "client") {
+                  await req.payload.update({
+                    collection: "client-proposals",
+                    id: proposalId,
+                    data: { proposalStatus: "client" } as any,
+                    overrideAccess: true,
+                  });
+                }
+              } catch {
+                // Best effort
+              }
+            }
+          }
         }
       },
     ],

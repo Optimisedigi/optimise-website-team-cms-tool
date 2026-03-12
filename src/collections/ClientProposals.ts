@@ -1059,7 +1059,7 @@ export const ClientProposals: CollectionConfig = {
   hooks: {
     afterChange: [
       convertToClientHook,
-      async ({ doc, operation, req }) => {
+      async ({ doc, operation, req, previousDoc }) => {
         if (operation === "create") {
           logActivity(req.payload, {
             type: "proposal_created",
@@ -1067,6 +1067,35 @@ export const ClientProposals: CollectionConfig = {
             description: doc.websiteUrl || "",
             user: req.user?.id,
           }).catch(() => {});
+        }
+
+        // Sync: when proposal moves to "client", update linked sales lead stage
+        if (
+          operation === "update" &&
+          doc.proposalStatus === "client" &&
+          previousDoc?.proposalStatus !== "client"
+        ) {
+          try {
+            const linkedLeads = await req.payload.find({
+              collection: "sales-leads" as any,
+              where: { proposal: { equals: doc.id } },
+              limit: 1,
+              overrideAccess: true,
+            });
+            if (linkedLeads.totalDocs > 0) {
+              const lead = linkedLeads.docs[0] as any;
+              if (lead.stage !== "client") {
+                await req.payload.update({
+                  collection: "sales-leads" as any,
+                  id: lead.id,
+                  data: { stage: "client" },
+                  overrideAccess: true,
+                });
+              }
+            }
+          } catch {
+            // Best effort — don't block the proposal update
+          }
         }
       },
     ],
