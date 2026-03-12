@@ -235,7 +235,7 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
 // Component
 // ---------------------------------------------------------------------------
 
-const CampaignProposalPreview = () => {
+const CampaignProposalPreviewInner = () => {
   const [fields] = useAllFormFields()
   const [activeTab, setActiveTab] = useState<Tab>('detailed')
 
@@ -960,6 +960,30 @@ function EmailView({ emailHtml }: { emailHtml?: string }) {
       </div>
     </div>
   )
+}
+
+const CampaignProposalPreview = () => {
+  const [renderError, setRenderError] = useState<string | null>(null)
+
+  if (renderError) {
+    return (
+      <div style={{ padding: 12, background: '#fee2e2', borderRadius: 6, fontSize: 13, color: '#991b1b' }}>
+        Campaign Proposal Preview error: {renderError}
+      </div>
+    )
+  }
+
+  try {
+    return <CampaignProposalPreviewInner />
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (!renderError) setRenderError(msg)
+    return (
+      <div style={{ padding: 12, background: '#fee2e2', borderRadius: 6, fontSize: 13, color: '#991b1b' }}>
+        Campaign Proposal Preview error: {msg}
+      </div>
+    )
+  }
 }
 
 export default CampaignProposalPreview

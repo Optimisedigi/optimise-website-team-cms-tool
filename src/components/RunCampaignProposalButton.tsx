@@ -49,9 +49,7 @@ function HowItWorks() {
           color: '#7c3aed',
           cursor: 'pointer',
           fontWeight: 600,
-          textDecoration: 'underline',
-          textDecorationStyle: 'dotted',
-          textUnderlineOffset: 2,
+          borderBottom: '1px dotted #7c3aed',
         }}
       >
         How it works
@@ -87,7 +85,7 @@ function HowItWorks() {
   )
 }
 
-const RunCampaignProposalButton = () => {
+const RunCampaignProposalButtonInner = () => {
   const { id } = useDocumentInfo()
   const [fields] = useAllFormFields()
   const [loading, setLoading] = useState(false)
@@ -377,6 +375,30 @@ function Stat({ label, value }: { label: string; value: string | number }) {
       <div style={{ fontSize: 11, color: '#6b7280' }}>{label}</div>
     </div>
   )
+}
+
+const RunCampaignProposalButton = () => {
+  const [renderError, setRenderError] = useState<string | null>(null)
+
+  if (renderError) {
+    return (
+      <div style={{ padding: 12, background: '#fee2e2', borderRadius: 6, fontSize: 13, color: '#991b1b' }}>
+        Campaign Proposal Button error: {renderError}
+      </div>
+    )
+  }
+
+  try {
+    return <RunCampaignProposalButtonInner />
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (!renderError) setRenderError(msg)
+    return (
+      <div style={{ padding: 12, background: '#fee2e2', borderRadius: 6, fontSize: 13, color: '#991b1b' }}>
+        Campaign Proposal Button error: {msg}
+      </div>
+    )
+  }
 }
 
 export default RunCampaignProposalButton
