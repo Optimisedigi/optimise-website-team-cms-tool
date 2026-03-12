@@ -146,7 +146,7 @@ export default function GscIndexingHelperPage() {
       if (!res.ok) throw new Error(data.error || data.message || 'Failed to start indexing helper')
       if (data.ok && data.auditId) {
         setAuditId(data.auditId)
-        setAuditStatus('discovering')
+        setAuditStatus('inspecting')
       } else {
         throw new Error('Unexpected response')
       }
@@ -281,19 +281,19 @@ export default function GscIndexingHelperPage() {
           }}
           type="button"
         >
-          {running ? 'Running...' : 'Run Indexing Helper'}
+          {running && !auditId ? 'Discovering URLs...' : running ? 'Running...' : 'Run Indexing Helper'}
         </button>
       </div>
 
       {/* Progress */}
-      {running && auditId && (
+      {running && (
         <div style={{ padding: '16px', background: '#f0f9ff', borderRadius: 8, marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: '#1e3a5f', marginBottom: 8 }}>
-            {auditStatus === 'discovering'
+            {!auditId
               ? 'Discovering URLs from sitemaps and search analytics...'
               : `Inspecting URLs: ${auditProgress.inspected}/${auditProgress.total}`}
           </div>
-          {auditStatus === 'inspecting' && auditProgress.total > 0 && (
+          {auditId && auditProgress.total > 0 && (
             <div style={{ height: 6, background: '#dbeafe', borderRadius: 3, overflow: 'hidden' }}>
               <div style={{
                 height: '100%',

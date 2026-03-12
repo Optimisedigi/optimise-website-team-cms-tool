@@ -3311,6 +3311,10 @@ export interface GscIndexingAudit {
    * The client this audit belongs to
    */
   client: number | Client;
+  /**
+   * The GSC property URL audited
+   */
+  siteUrl?: string | null;
   status: 'discovering' | 'inspecting' | 'completed' | 'failed';
   /**
    * Total URLs discovered
@@ -4713,6 +4717,7 @@ export interface GscAlertsSelect<T extends boolean = true> {
  */
 export interface GscIndexingAuditsSelect<T extends boolean = true> {
   client?: T;
+  siteUrl?: T;
   status?: T;
   totalUrls?: T;
   inspectedCount?: T;

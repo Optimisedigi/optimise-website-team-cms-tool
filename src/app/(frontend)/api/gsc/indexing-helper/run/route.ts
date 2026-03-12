@@ -77,67 +77,45 @@ function buildActionItems(results: InspectionResult[], siteUrl: string) {
 }
 
 /**
- * Background worker: discover URLs, inspect them, store results in the audit record.
+ * Ensure the client's GSC access token is fresh.
  */
-async function runIndexingHelper(
+async function ensureFreshToken(
   payload: any,
-  auditId: string,
   client: any,
-  siteUrl: string,
-): Promise<void> {
-  try {
-    let accessToken = client.gscAccessToken as string;
-    const tokenExpiry = client.gscTokenExpiry
-      ? new Date(client.gscTokenExpiry as string)
-      : null;
+): Promise<string> {
+  let accessToken = client.gscAccessToken as string;
+  const tokenExpiry = client.gscTokenExpiry
+    ? new Date(client.gscTokenExpiry as string)
+    : null;
 
-    if (!tokenExpiry || tokenExpiry <= new Date()) {
-      const refreshed = await refreshAccessToken(client.gscRefreshToken as string);
-      accessToken = refreshed.accessToken;
-      await payload.update({
-        collection: "clients",
-        id: client.id,
-        overrideAccess: true,
-        data: {
-          gscAccessToken: refreshed.accessToken,
-          gscTokenExpiry: refreshed.expiry,
-        },
-      });
-    }
-
-    // Discover URLs
-    const { urls, sources } = await discoverAllUrls(accessToken, siteUrl);
-
-    if (urls.length === 0) {
-      await payload.update({
-        collection: "gsc-indexing-audits",
-        id: auditId,
-        overrideAccess: true,
-        data: {
-          status: "completed",
-          totalUrls: 0,
-          discoveredUrls: [],
-          urlSources: sources,
-          inspectionResults: [],
-          summaryStats: { indexed: 0, notIndexed: 0, byReason: {} },
-          completedAt: new Date().toISOString(),
-        },
-      });
-      return;
-    }
-
+  if (!tokenExpiry || tokenExpiry <= new Date()) {
+    const refreshed = await refreshAccessToken(client.gscRefreshToken as string);
+    accessToken = refreshed.accessToken;
     await payload.update({
-      collection: "gsc-indexing-audits",
-      id: auditId,
+      collection: "clients",
+      id: client.id,
       overrideAccess: true,
       data: {
-        status: "inspecting",
-        totalUrls: urls.length,
-        discoveredUrls: urls,
-        urlSources: sources,
+        gscAccessToken: refreshed.accessToken,
+        gscTokenExpiry: refreshed.expiry,
       },
     });
+  }
 
+  return accessToken;
+}
+
+/**
+ * Run the inspection phase: inspect URLs, build summary, update audit to completed.
+ */
+async function runInspectionPhase(
+  payload: any,
+  auditId: string,
+  accessToken: string,
+  siteUrl: string,
+  urls: string[],
+): Promise<void> {
+  try {
     // Inspect URLs (cap at 500)
     const toInspect = urls.slice(0, 500);
     const results = await inspectUrlBatch(accessToken, siteUrl, toInspect);
@@ -187,7 +165,6 @@ async function runIndexingHelper(
           indexed,
           notIndexed,
           byReason,
-          // Store indexing-helper-specific data alongside summary
           actionItems,
           sitemapPingResult,
           indexRate: indexed + notIndexed > 0
@@ -198,8 +175,8 @@ async function runIndexingHelper(
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Indexing helper failed";
-    console.error(`[gsc/indexing-helper] Job ${auditId} failed:`, message);
+    const message = err instanceof Error ? err.message : "Inspection failed";
+    console.error(`[gsc/indexing-helper] Inspection ${auditId} failed:`, message);
     await payload.update({
       collection: "gsc-indexing-audits",
       id: auditId,
@@ -208,13 +185,14 @@ async function runIndexingHelper(
         status: "failed",
         error: message,
       },
-    });
+    }).catch(() => {}); // prevent double-fault
   }
 }
 
 /**
  * POST: Start the indexing helper.
- * Creates an audit record, kicks off background work, returns the audit ID immediately.
+ * Performs URL discovery synchronously (so it always completes),
+ * then schedules inspection as background work via after().
  */
 export async function POST(req: NextRequest) {
   try {
@@ -247,12 +225,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create audit record so we can track progress
+    // Create audit record
     const audit = await payload.create({
       collection: "gsc-indexing-audits",
       overrideAccess: true,
       data: {
         client: clientId,
+        siteUrl,
         status: "discovering",
         totalUrls: 0,
         inspectedCount: 0,
@@ -262,10 +241,63 @@ export async function POST(req: NextRequest) {
 
     const auditId = String(audit.id);
 
-    // Schedule background work — after() runs AFTER the response is sent
+    // --- URL DISCOVERY: done synchronously so it always completes ---
+    let accessToken: string;
+    let urls: string[];
+    let sources: { sitemap: string[]; searchAnalytics: string[] };
+
+    try {
+      accessToken = await ensureFreshToken(payload, client);
+      const discovered = await discoverAllUrls(accessToken, siteUrl);
+      urls = discovered.urls;
+      sources = discovered.sources;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "URL discovery failed";
+      console.error(`[gsc/indexing-helper] Discovery ${auditId} failed:`, message);
+      await payload.update({
+        collection: "gsc-indexing-audits",
+        id: auditId,
+        overrideAccess: true,
+        data: { status: "failed", error: message },
+      });
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+
+    if (urls.length === 0) {
+      await payload.update({
+        collection: "gsc-indexing-audits",
+        id: auditId,
+        overrideAccess: true,
+        data: {
+          status: "completed",
+          totalUrls: 0,
+          discoveredUrls: [],
+          urlSources: sources,
+          inspectionResults: [],
+          summaryStats: { indexed: 0, notIndexed: 0, byReason: {} },
+          completedAt: new Date().toISOString(),
+        },
+      });
+      return NextResponse.json({ ok: true, auditId });
+    }
+
+    // Update audit with discovered URLs — status becomes "inspecting"
+    await payload.update({
+      collection: "gsc-indexing-audits",
+      id: auditId,
+      overrideAccess: true,
+      data: {
+        status: "inspecting",
+        totalUrls: urls.length,
+        discoveredUrls: urls,
+        urlSources: sources,
+      },
+    });
+
+    // --- INSPECTION: scheduled as background work via after() ---
     after(async () => {
       try {
-        await runIndexingHelper(payload, auditId, client, siteUrl);
+        await runInspectionPhase(payload, auditId, accessToken, siteUrl, urls);
       } catch (err) {
         console.error(`[gsc/indexing-helper] Unexpected error ${auditId}:`, err);
       }
@@ -282,7 +314,8 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET: Poll for indexing helper results.
- * Returns only the fields the frontend needs (not the full inspection data).
+ * Returns only the fields the frontend needs.
+ * If the audit is stuck at "inspecting" (after() failed), re-triggers the inspection.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -303,7 +336,42 @@ export async function GET(req: NextRequest) {
       overrideAccess: true,
     });
 
-    // Return only what the frontend needs — skip the massive inspectionResults/discoveredUrls
+    // Fallback: if audit is stuck at "inspecting" with 0 inspected for >30s, re-trigger
+    if (
+      audit.status === "inspecting" &&
+      (audit.inspectedCount === 0 || audit.inspectedCount === null) &&
+      audit.updatedAt
+    ) {
+      const updatedAt = new Date(audit.updatedAt as string).getTime();
+      const stuckFor = Date.now() - updatedAt;
+      if (stuckFor > 30000) {
+        const clientId = typeof audit.client === "object" ? (audit.client as any).id : audit.client;
+        const client = await payload.findByID({
+          collection: "clients",
+          id: clientId,
+          overrideAccess: true,
+        });
+
+        const siteUrl = (audit as any).siteUrl || client.gscPropertyUrl;
+        if (siteUrl && client.gscRefreshToken) {
+          const accessToken = await ensureFreshToken(payload, client);
+          const urls: string[] = (audit as any).discoveredUrls || [];
+
+          if (urls.length > 0) {
+            // Re-trigger inspection in background
+            after(async () => {
+              try {
+                await runInspectionPhase(payload, auditId, accessToken, siteUrl, urls);
+              } catch (err) {
+                console.error(`[gsc/indexing-helper] Retry inspection ${auditId} failed:`, err);
+              }
+            });
+          }
+        }
+      }
+    }
+
+    // Return only what the frontend needs
     return NextResponse.json({
       id: audit.id,
       status: audit.status,

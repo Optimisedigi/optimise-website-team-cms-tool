@@ -7,6 +7,7 @@ import * as migration_20260307_120000_add_sales_leads from './20260307_120000_ad
 import * as migration_20260307_130000_add_lead_attribution from './20260307_130000_add_lead_attribution';
 import * as migration_20260308_120000_add_tag_setup_audits from './20260308_120000_add_tag_setup_audits';
 import * as migration_20260310_120000_add_process_templates_and_client_processes from './20260310_120000_add_process_templates_and_client_processes';
+import * as migration_20260312_120000_add_site_url_to_gsc_indexing_audits from './20260312_120000_add_site_url_to_gsc_indexing_audits';
 
 export const migrations = [
   {
@@ -53,5 +54,10 @@ export const migrations = [
     up: migration_20260310_120000_add_process_templates_and_client_processes.up,
     down: migration_20260310_120000_add_process_templates_and_client_processes.down,
     name: '20260310_120000_add_process_templates_and_client_processes'
+  },
+  {
+    up: migration_20260312_120000_add_site_url_to_gsc_indexing_audits.up,
+    down: migration_20260312_120000_add_site_url_to_gsc_indexing_audits.down,
+    name: '20260312_120000_add_site_url_to_gsc_indexing_audits'
   },
 ];

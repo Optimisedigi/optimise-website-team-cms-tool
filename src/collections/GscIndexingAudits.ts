@@ -48,6 +48,14 @@ export const GscIndexingAudits: CollectionConfig = {
               },
             },
             {
+              name: "siteUrl",
+              type: "text",
+              admin: {
+                readOnly: true,
+                description: "The GSC property URL audited",
+              },
+            },
+            {
               name: "status",
               type: "select",
               required: true,

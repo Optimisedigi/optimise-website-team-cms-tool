@@ -62,18 +62,18 @@ async function ensureFreshToken(
 }
 
 /**
- * Run the heavy audit work (discover URLs + inspect first batch).
- * Called in the background via after() — must not throw to the caller.
+ * Run URL discovery only (no inspection).
+ * Called synchronously from the POST handler so discovery always completes.
+ * Returns the discovered URLs and access token, or null if 0 URLs found (audit auto-completed).
  */
-export async function runAuditWork(
+export async function runDiscovery(
   payload: any,
   auditId: string,
   client: any
-): Promise<void> {
+): Promise<{ urls: string[]; accessToken: string } | null> {
   try {
     const accessToken = await ensureFreshToken(payload, client);
 
-    // Discover URLs
     const { urls, sources } = await discoverAllUrls(accessToken, client.gscPropertyUrl);
 
     if (urls.length === 0) {
@@ -91,7 +91,7 @@ export async function runAuditWork(
           completedAt: new Date().toISOString(),
         },
       });
-      return;
+      return null;
     }
 
     await payload.update({
@@ -105,6 +105,36 @@ export async function runAuditWork(
         urlSources: sources,
       },
     });
+
+    return { urls, accessToken };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Discovery failed";
+    console.error(`[gsc-indexing] Discovery ${auditId} failed:`, message);
+    await payload.update({
+      collection: "gsc-indexing-audits",
+      id: auditId,
+      overrideAccess: true,
+      data: { status: "failed", error: message },
+    }).catch(() => {}); // prevent double-fault
+    return null;
+  }
+}
+
+/**
+ * Run the inspection phase: inspect the first batch of URLs and update the audit.
+ * Called as background work via after().
+ */
+export async function runInspectionWork(
+  payload: any,
+  auditId: string,
+  client: any,
+  urls: string[],
+  accessToken?: string,
+): Promise<void> {
+  try {
+    if (!accessToken) {
+      accessToken = await ensureFreshToken(payload, client);
+    }
 
     // Run first batch immediately (max 200 URLs)
     const firstBatch = urls.slice(0, 200);
@@ -128,24 +158,21 @@ export async function runAuditWork(
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Audit failed";
-    console.error(`[gsc-indexing] Audit ${auditId} failed:`, message);
+    const message = err instanceof Error ? err.message : "Inspection failed";
+    console.error(`[gsc-indexing] Inspection ${auditId} failed:`, message);
     await payload.update({
       collection: "gsc-indexing-audits",
       id: auditId,
       overrideAccess: true,
-      data: {
-        status: "failed",
-        error: message,
-      },
-    });
+      data: { status: "failed", error: message },
+    }).catch(() => {}); // prevent double-fault
   }
 }
 
 /**
  * Start a new indexing audit for a client.
  * Creates the audit record and returns the auditId + client.
- * Caller is responsible for scheduling runAuditWork() via after().
+ * Caller is responsible for running discovery + scheduling inspection.
  */
 export async function startIndexingAudit(
   payload: any,
@@ -183,6 +210,7 @@ export async function startIndexingAudit(
     overrideAccess: true,
     data: {
       client: clientId,
+      siteUrl: client.gscPropertyUrl,
       status: "discovering",
       totalUrls: 0,
       inspectedCount: 0,
@@ -195,7 +223,7 @@ export async function startIndexingAudit(
 
 /**
  * Process pending indexing audit batches. Called from cron.
- * Finds all audits with status "inspecting" and runs the next batch for each.
+ * Handles both "discovering" (stuck) and "inspecting" audits.
  */
 export async function processIndexingBatches(payload?: any): Promise<void> {
   if (!payload) {
@@ -203,6 +231,54 @@ export async function processIndexingBatches(payload?: any): Promise<void> {
     payload = await getPayload({ config: payloadConfig });
   }
 
+  // Also pick up stuck "discovering" audits (after() may have failed)
+  const stuckDiscovering = await payload.find({
+    collection: "gsc-indexing-audits",
+    where: {
+      status: { equals: "discovering" },
+    },
+    limit: 10,
+    overrideAccess: true,
+  });
+
+  for (const audit of stuckDiscovering.docs) {
+    try {
+      const clientId = typeof audit.client === "object" ? audit.client.id : audit.client;
+      const client = await payload.findByID({
+        collection: "clients",
+        id: clientId,
+        overrideAccess: true,
+      });
+
+      if (!client.gscRefreshToken || !client.gscPropertyUrl) {
+        await payload.update({
+          collection: "gsc-indexing-audits",
+          id: audit.id,
+          overrideAccess: true,
+          data: { status: "failed", error: "Client GSC credentials missing" },
+        });
+        continue;
+      }
+
+      // Run full discovery + first batch
+      const discoveryResult = await runDiscovery(payload, String(audit.id), client);
+      if (discoveryResult && discoveryResult.urls.length > 0) {
+        await runInspectionWork(
+          payload,
+          String(audit.id),
+          client,
+          discoveryResult.urls,
+          discoveryResult.accessToken,
+        );
+      }
+
+      console.log(`[gsc-indexing] Recovered stuck audit ${audit.id}`);
+    } catch (err) {
+      console.error(`[gsc-indexing] Failed to recover stuck audit ${audit.id}:`, err);
+    }
+  }
+
+  // Process "inspecting" audits with remaining URLs
   const activeAudits = await payload.find({
     collection: "gsc-indexing-audits",
     where: { status: { equals: "inspecting" } },

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { startIndexingAudit, runAuditWork } from "@/lib/gsc-indexing";
+import { startIndexingAudit, runDiscovery, runInspectionWork } from "@/lib/gsc-indexing";
 
 export async function POST(req: NextRequest) {
   let body: { clientId?: string };
@@ -31,16 +31,28 @@ export async function POST(req: NextRequest) {
 
     const { auditId, client } = await startIndexingAudit(payload, clientId);
 
-    // If client is returned, this is a new audit that needs background work.
+    // If client is returned, this is a new audit that needs work.
     // (client is null when returning an existing active audit)
     if (client) {
-      after(async () => {
-        try {
-          await runAuditWork(payload, auditId, client);
-        } catch (err) {
-          console.error(`[gsc-indexing] Unexpected audit error ${auditId}:`, err);
-        }
-      });
+      // Do URL discovery synchronously so it always completes
+      const discoveryResult = await runDiscovery(payload, auditId, client);
+
+      if (discoveryResult && discoveryResult.urls.length > 0) {
+        // Schedule inspection as background work
+        after(async () => {
+          try {
+            await runInspectionWork(
+              payload,
+              auditId,
+              client,
+              discoveryResult.urls,
+              discoveryResult.accessToken,
+            );
+          } catch (err) {
+            console.error(`[gsc-indexing] Unexpected audit error ${auditId}:`, err);
+          }
+        });
+      }
     }
 
     return NextResponse.json({ ok: true, auditId });
