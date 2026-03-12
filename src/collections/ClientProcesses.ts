@@ -26,6 +26,9 @@ export const ClientProcesses: CollectionConfig = {
       "assignedTo",
       "updatedAt",
     ],
+    components: {
+      beforeListTable: ["./components/CreateProcessFromTemplate"],
+    },
   },
   access: {
     read: ({ req }) => !!req.user,
