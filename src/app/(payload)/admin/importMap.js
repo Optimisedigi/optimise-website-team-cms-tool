@@ -63,6 +63,8 @@ import { default as default_96a982169d7094c7232bb687c5c863a6 } from '../../../co
 import { default as default_47af8c78950b0c47a8049a44d7cef06c } from '../../../components/GoogleAdsAuditPreview'
 import { default as default_909a54b4f02f1428884a878a4fce4a5f } from '../../../components/GoogleAdsFindingCuration'
 import { default as default_10fccc7885acbd99c8b1f5d8e310047f } from '../../../components/RegenerateEmailButton'
+import { default as default_2eca85eea20f05062ddd72e60518b25f } from '../../../components/RunCampaignProposalButton'
+import { default as default_60c16b01b604a3bf2312f924f0ece75b } from '../../../components/CampaignProposalPreview'
 import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../components/GscIndexingAuditInfo'
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
@@ -149,6 +151,8 @@ export const importMap = {
   "./components/GoogleAdsAuditPreview#default": default_47af8c78950b0c47a8049a44d7cef06c,
   "./components/GoogleAdsFindingCuration#default": default_909a54b4f02f1428884a878a4fce4a5f,
   "./components/RegenerateEmailButton#default": default_10fccc7885acbd99c8b1f5d8e310047f,
+  "./components/RunCampaignProposalButton#default": default_2eca85eea20f05062ddd72e60518b25f,
+  "./components/CampaignProposalPreview#default": default_60c16b01b604a3bf2312f924f0ece75b,
   "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/GscIndexingAuditInfo#default": default_6d638ae0812e4c3b3793e2cfa8990bb7,
   "./components/GscIndexingAuditResults#default": default_14da33fa7cd5bda0159f477250995b44,
