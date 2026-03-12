@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
       collection: "gsc-indexing-audits",
       overrideAccess: true,
       data: {
-        client: clientId,
+        client: Number(clientId),
         siteUrl,
         status: "discovering",
         totalUrls: 0,

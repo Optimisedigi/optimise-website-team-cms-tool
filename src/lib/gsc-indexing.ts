@@ -223,7 +223,7 @@ export async function startIndexingAudit(
     collection: "gsc-indexing-audits",
     overrideAccess: true,
     data: {
-      client: clientId,
+      client: Number(clientId),
       siteUrl: client.gscPropertyUrl,
       status: "discovering",
       totalUrls: 0,
