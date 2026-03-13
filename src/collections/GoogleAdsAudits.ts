@@ -537,6 +537,7 @@ export const GoogleAdsAudits: CollectionConfig = {
             {
               name: "campaignProposalEmailHtml",
               type: "textarea",
+              maxLength: 500000,
               admin: {
                 description: "Generated proposal email HTML. Edit before sending if needed.",
               },
