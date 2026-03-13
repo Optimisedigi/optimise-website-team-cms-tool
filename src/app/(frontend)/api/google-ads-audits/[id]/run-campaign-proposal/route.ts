@@ -39,7 +39,7 @@ export async function POST(
     return NextResponse.json({ error: "Audit not found" }, { status: 404 });
   }
 
-  const { websiteUrl, businessName, customerId, brandTerms } = audit;
+  const { websiteUrl, businessName, customerId, brandTerms, campaignProposalNegativeKeywords } = audit;
   if (!websiteUrl || !businessName) {
     return NextResponse.json(
       { error: "Missing required fields: websiteUrl and businessName must be set on the audit" },
@@ -85,6 +85,13 @@ export async function POST(
             customerId: customerId ?? undefined,
             location: audit.location ?? "au",
             brandTerms: parsedBrandTerms.length > 0 ? parsedBrandTerms : undefined,
+            negativeKeywords: Array.isArray(campaignProposalNegativeKeywords) && campaignProposalNegativeKeywords.length > 0
+              ? campaignProposalNegativeKeywords.map((nk: any) => ({
+                  pattern: nk.pattern,
+                  scope: nk.scope || "global",
+                  ...(nk.category ? { category: nk.category } : {}),
+                }))
+              : undefined,
           }),
         }
       );

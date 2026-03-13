@@ -499,11 +499,44 @@ export const GoogleAdsAudits: CollectionConfig = {
               },
             },
             {
+              name: "campaignProposalNegativeKeywords",
+              type: "array",
+              admin: {
+                description: "Keywords to exclude from specific categories or globally. Set these BEFORE running the proposal.",
+              },
+              fields: [
+                {
+                  name: "pattern",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description: "Keyword pattern to exclude (e.g. 'sodastream', 'pool pump')",
+                  },
+                },
+                {
+                  name: "scope",
+                  type: "select",
+                  defaultValue: "global",
+                  options: [
+                    { label: "Global (all categories)", value: "global" },
+                    { label: "Category-specific", value: "category" },
+                  ],
+                },
+                {
+                  name: "category",
+                  type: "text",
+                  admin: {
+                    description: "Category name to apply this negative to (only when scope is 'category')",
+                    condition: (data: any, siblingData: any) => siblingData?.scope === "category",
+                  },
+                },
+              ],
+            },
+            {
               name: "campaignProposalEmailHtml",
               type: "textarea",
               admin: {
-                readOnly: true,
-                description: "Generated proposal email HTML",
+                description: "Generated proposal email HTML. Edit before sending if needed.",
               },
             },
             {
