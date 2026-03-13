@@ -1207,17 +1207,20 @@ export async function POST(request: NextRequest) {
   await run("google_ads_audits.campaign_proposal_generated_at", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_generated_at` text");
 
   // Campaign Proposal Negative Keywords (array table for google_ads_audits)
-  await run("google_ads_audits_campaign_proposal_negative_keywords_table", `
-    CREATE TABLE IF NOT EXISTS \`google_ads_audits_campaign_proposal_negative_keywords\` (
+  // Note: dbName shortened to "gads_proposal_negatives" to avoid 63-char enum name limit
+  await run("gads_proposal_negatives_table", `
+    CREATE TABLE IF NOT EXISTS \`gads_proposal_negatives\` (
       \`_order\` integer NOT NULL,
       \`_parent_id\` integer NOT NULL,
       \`id\` text PRIMARY KEY NOT NULL,
       \`pattern\` text NOT NULL,
-      \`scope\` text DEFAULT 'global',
+      \`neg_scope\` text DEFAULT 'global',
       \`category\` text,
       FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
     )
   `);
+  // Drop old long-named table if it exists (was created before dbName fix)
+  await run("drop_old_negatives_table", "DROP TABLE IF EXISTS \`google_ads_audits_campaign_proposal_negative_keywords\`");
 
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║

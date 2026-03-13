@@ -501,6 +501,7 @@ export const GoogleAdsAudits: CollectionConfig = {
             {
               name: "campaignProposalNegativeKeywords",
               type: "array",
+              dbName: "gads_proposal_negatives",
               admin: {
                 description: "Keywords to exclude from specific categories or globally. Set these BEFORE running the proposal.",
               },
@@ -517,6 +518,7 @@ export const GoogleAdsAudits: CollectionConfig = {
                   name: "scope",
                   type: "select",
                   defaultValue: "global",
+                  dbName: "neg_scope",
                   options: [
                     { label: "Global (all categories)", value: "global" },
                     { label: "Category-specific", value: "category" },
