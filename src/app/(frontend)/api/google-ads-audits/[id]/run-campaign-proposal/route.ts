@@ -99,12 +99,19 @@ export async function POST(
           overrideAccess: true,
         });
       } else {
-        // Growth Tools pushes results directly via CMS API (pushCampaignProposalToCms),
-        // but we also update the status to completed here as a fallback
+        // Parse the response and save directly (avoids auth issues with reverse push)
+        const gtData = await gtRes.json();
+        const { emailHtml, ...proposalResults } = gtData;
+
         await payload.update({
           collection: "google-ads-audits",
           id,
-          data: { campaignProposalStatus: "completed" } as any,
+          data: {
+            campaignProposal: proposalResults,
+            campaignProposalEmailHtml: emailHtml || "",
+            campaignProposalGeneratedAt: new Date().toISOString(),
+            campaignProposalStatus: "completed",
+          } as any,
           overrideAccess: true,
         });
       }
