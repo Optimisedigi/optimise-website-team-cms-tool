@@ -1,7 +1,7 @@
 'use client'
 
 import { useAllFormFields } from '@payloadcms/ui'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 
 // ---------------------------------------------------------------------------
 // Types (mirror the Growth Tools CampaignProposalResults shape)
@@ -35,6 +35,7 @@ interface ProposedCampaign {
   name: string
   campaignType: 'brand' | 'generic'
   channelType: 'SEARCH'
+  campaignCategory?: string
   adGroups: ProposedAdGroup[]
   totalMonthlyVolume: number
 }
@@ -124,6 +125,10 @@ interface CampaignProposalData {
   createdAt: string
 }
 
+// Selection state: which campaigns and ad groups are checked
+// Key: "c{campaignIdx}" for campaigns, "c{campaignIdx}-ag{adGroupIdx}" for ad groups
+type SelectionMap = Record<string, boolean>
+
 // ---------------------------------------------------------------------------
 // Style helpers
 // ---------------------------------------------------------------------------
@@ -153,6 +158,7 @@ const styles = {
   } as React.CSSProperties,
   td: { padding: '8px 12px', borderBottom: '1px solid #e5e7eb' } as React.CSSProperties,
   tdEven: { padding: '8px 12px', borderBottom: '1px solid #e5e7eb', background: '#f8fafc' } as React.CSSProperties,
+  checkbox: { width: 16, height: 16, cursor: 'pointer', accentColor: '#2563eb' } as React.CSSProperties,
 }
 
 const badgeBase: React.CSSProperties = {
@@ -171,19 +177,6 @@ const statusBadge = (status: string): React.CSSProperties => {
       return { ...badgeBase, background: '#fef3c7', color: '#92400e' }
     case 'create':
       return { ...badgeBase, background: '#fee2e2', color: '#991b1b' }
-    default:
-      return { ...badgeBase, background: '#f1f5f9', color: '#475569' }
-  }
-}
-
-const priorityBadge = (priority: string): React.CSSProperties => {
-  switch (priority) {
-    case 'high':
-      return { ...badgeBase, background: '#fee2e2', color: '#991b1b' }
-    case 'medium':
-      return { ...badgeBase, background: '#fef3c7', color: '#92400e' }
-    case 'low':
-      return { ...badgeBase, background: '#dcfce7', color: '#166534' }
     default:
       return { ...badgeBase, background: '#f1f5f9', color: '#475569' }
   }
@@ -218,7 +211,7 @@ function fmt(n: number): string {
 // Tab bar
 // ---------------------------------------------------------------------------
 
-type Tab = 'detailed' | 'summary' | 'email'
+type Tab = 'structure' | 'summary' | 'email'
 
 const tabStyle = (active: boolean): React.CSSProperties => ({
   padding: '8px 16px',
@@ -231,13 +224,58 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   cursor: 'pointer',
 })
 
+const btnStyle = (color: string): React.CSSProperties => ({
+  padding: '6px 14px',
+  background: color,
+  color: '#fff',
+  border: 'none',
+  borderRadius: 6,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+})
+
+// ---------------------------------------------------------------------------
+// Selection helpers
+// ---------------------------------------------------------------------------
+
+function buildInitialSelection(proposal: CampaignProposalData): SelectionMap {
+  const sel: SelectionMap = {}
+  proposal.proposedCampaigns.forEach((campaign, ci) => {
+    sel[`c${ci}`] = true
+    campaign.adGroups.forEach((_, agi) => {
+      sel[`c${ci}-ag${agi}`] = true
+    })
+  })
+  return sel
+}
+
+function getSelectedCampaigns(
+  proposal: CampaignProposalData,
+  selection: SelectionMap,
+): ProposedCampaign[] {
+  return proposal.proposedCampaigns
+    .map((campaign, ci) => {
+      if (!selection[`c${ci}`]) return null
+      const selectedAdGroups = campaign.adGroups.filter((_, agi) => selection[`c${ci}-ag${agi}`])
+      if (selectedAdGroups.length === 0) return null
+      return {
+        ...campaign,
+        adGroups: selectedAdGroups,
+        totalMonthlyVolume: selectedAdGroups.reduce((s, ag) => s + ag.totalMonthlyVolume, 0),
+      }
+    })
+    .filter(Boolean) as ProposedCampaign[]
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 const CampaignProposalPreviewInner = () => {
   const [fields] = useAllFormFields()
-  const [activeTab, setActiveTab] = useState<Tab>('detailed')
+  const [activeTab, setActiveTab] = useState<Tab>('structure')
+  const [editableHtml, setEditableHtml] = useState<string | null>(null)
 
   const proposalRaw = fields?.campaignProposal?.value
   const emailHtml = fields?.campaignProposalEmailHtml?.value as string | undefined
@@ -254,14 +292,101 @@ const CampaignProposalPreviewInner = () => {
     }
   }
 
-  // CSV Export
+  // Selection state
+  const [selection, setSelection] = useState<SelectionMap>(() =>
+    proposal ? buildInitialSelection(proposal) : {},
+  )
+
+  // Initialize editable HTML from email when first available
+  const currentHtml = editableHtml ?? emailHtml ?? ''
+
+  // Selected campaigns for summary/email
+  const selectedCampaigns = useMemo(
+    () => (proposal ? getSelectedCampaigns(proposal, selection) : []),
+    [proposal, selection],
+  )
+
+  const selectedStats = useMemo(() => {
+    const totalCampaigns = selectedCampaigns.length
+    const totalAdGroups = selectedCampaigns.reduce((s, c) => s + c.adGroups.length, 0)
+    const totalVolume = selectedCampaigns.reduce((s, c) => s + c.totalMonthlyVolume, 0)
+    const uniqueLandingPages = new Set(
+      selectedCampaigns.flatMap((c) => c.adGroups.map((ag) => ag.landingPage.url).filter(Boolean)),
+    ).size
+    return { totalCampaigns, totalAdGroups, totalVolume, uniqueLandingPages }
+  }, [selectedCampaigns])
+
+  // Toggle handlers
+  const toggleCampaign = useCallback(
+    (ci: number) => {
+      if (!proposal) return
+      setSelection((prev) => {
+        const next = { ...prev }
+        const newVal = !prev[`c${ci}`]
+        next[`c${ci}`] = newVal
+        proposal!.proposedCampaigns[ci].adGroups.forEach((_, agi) => {
+          next[`c${ci}-ag${agi}`] = newVal
+        })
+        return next
+      })
+    },
+    [proposal],
+  )
+
+  const toggleAdGroup = useCallback(
+    (ci: number, agi: number) => {
+      if (!proposal) return
+      setSelection((prev) => {
+        const next = { ...prev }
+        next[`c${ci}-ag${agi}`] = !prev[`c${ci}-ag${agi}`]
+        // Update campaign checkbox: checked if any ad group is checked
+        const anyChecked = proposal!.proposedCampaigns[ci].adGroups.some(
+          (_, i) => next[`c${ci}-ag${i}`],
+        )
+        next[`c${ci}`] = anyChecked
+        return next
+      })
+    },
+    [proposal],
+  )
+
+  // CSV Export - includes all proposed campaigns (not just structureComparison)
   const handleExportCSV = useCallback(() => {
     if (!proposal) return
 
     const rows: string[][] = []
 
-    // Headers
+    // Always include the full proposed structure
+    rows.push([
+      'Selected',
+      'Campaign',
+      'Campaign Type',
+      'Ad Group',
+      'Monthly Volume',
+      'Landing Page',
+      'LP Status',
+      'Keywords',
+    ])
+    proposal.proposedCampaigns.forEach((campaign, ci) => {
+      for (const ag of campaign.adGroups) {
+        const isSelected = selection[`c${ci}-ag${campaign.adGroups.indexOf(ag)}`] ? 'Yes' : 'No'
+        rows.push([
+          isSelected,
+          campaign.name,
+          campaign.campaignType,
+          ag.name,
+          String(ag.totalMonthlyVolume),
+          ag.landingPage.url || '(create)',
+          ag.landingPage.status,
+          ag.keywords.map((k) => `${k.text} (${k.monthlySearchVolume})`).join('; '),
+        ])
+      }
+    })
+
+    // If there's a structure comparison, add it as a second section
     if (proposal.structureComparison && proposal.structureComparison.length > 0) {
+      rows.push([]) // blank separator
+      rows.push(['--- BEFORE vs AFTER COMPARISON ---'])
       rows.push([
         'Change',
         'Current Campaign',
@@ -288,20 +413,6 @@ const CampaignProposalPreviewInner = () => {
           row.notes,
         ])
       }
-    } else {
-      rows.push(['Campaign', 'Type', 'Ad Group', 'Monthly Volume', 'Landing Page', 'LP Status'])
-      for (const campaign of proposal.proposedCampaigns) {
-        for (const ag of campaign.adGroups) {
-          rows.push([
-            campaign.name,
-            campaign.campaignType,
-            ag.name,
-            String(ag.totalMonthlyVolume),
-            ag.landingPage.url || '(create)',
-            ag.landingPage.status,
-          ])
-        }
-      }
     }
 
     const csv = rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -310,6 +421,18 @@ const CampaignProposalPreviewInner = () => {
     const a = document.createElement('a')
     a.href = url
     a.download = `campaign-proposal-${(proposal.businessName || 'export').replace(/[^a-z0-9]/gi, '-').slice(0, 40)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [proposal, selection])
+
+  // Export raw JSON
+  const handleExportJSON = useCallback(() => {
+    if (!proposal) return
+    const blob = new Blob([JSON.stringify(proposal, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `campaign-proposal-raw-${(proposal.businessName || 'export').replace(/[^a-z0-9]/gi, '-').slice(0, 40)}.json`
     a.click()
     URL.revokeObjectURL(url)
   }, [proposal])
@@ -325,258 +448,199 @@ const CampaignProposalPreviewInner = () => {
   return (
     <div style={styles.container}>
       {/* Tab bar */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #e5e7eb', marginBottom: 16 }}>
-        <button type="button" style={tabStyle(activeTab === 'detailed')} onClick={() => setActiveTab('detailed')}>
-          Detailed Analysis
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #e5e7eb', marginBottom: 16, flexWrap: 'wrap', gap: 4 }}>
+        <button type="button" style={tabStyle(activeTab === 'structure')} onClick={() => setActiveTab('structure')}>
+          Campaign Structure
         </button>
         <button type="button" style={tabStyle(activeTab === 'summary')} onClick={() => setActiveTab('summary')}>
           Client Summary
         </button>
         <button type="button" style={tabStyle(activeTab === 'email')} onClick={() => setActiveTab('email')}>
-          Email Preview
+          Email Editor
         </button>
         <div style={{ flex: 1 }} />
-        <button
-          type="button"
-          onClick={handleExportCSV}
-          style={{
-            padding: '6px 14px',
-            background: '#059669',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 6,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          Export CSV
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={handleExportCSV} style={btnStyle('#059669')}>
+            Export CSV
+          </button>
+          <button type="button" onClick={handleExportJSON} style={btnStyle('#6366f1')}>
+            Export Raw Data
+          </button>
+        </div>
       </div>
 
-      {activeTab === 'detailed' && <DetailedView proposal={proposal} />}
-      {activeTab === 'summary' && <SummaryView proposal={proposal} />}
-      {activeTab === 'email' && <EmailView emailHtml={emailHtml} />}
+      {/* Stats bar */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Campaigns', value: selectedStats.totalCampaigns },
+          { label: 'Ad Groups', value: selectedStats.totalAdGroups },
+          { label: 'Monthly Searches', value: fmt(selectedStats.totalVolume) },
+          { label: 'Landing Pages', value: selectedStats.uniqueLandingPages },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            style={{
+              flex: '1 1 120px',
+              background: '#eff6ff',
+              borderRadius: 8,
+              padding: '12px 16px',
+              textAlign: 'center',
+              border: '1px solid #bfdbfe',
+            }}
+          >
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#1e293b' }}>{stat.value}</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{stat.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {activeTab === 'structure' && (
+        <StructureView
+          proposal={proposal}
+          selection={selection}
+          toggleCampaign={toggleCampaign}
+          toggleAdGroup={toggleAdGroup}
+        />
+      )}
+      {activeTab === 'summary' && <SummaryView proposal={proposal} selectedCampaigns={selectedCampaigns} stats={selectedStats} />}
+      {activeTab === 'email' && (
+        <EmailEditorView
+          emailHtml={currentHtml}
+          onHtmlChange={setEditableHtml}
+        />
+      )}
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// View 1: Detailed Analysis
+// View 1: Campaign Structure (with checkboxes)
 // ---------------------------------------------------------------------------
 
-function DetailedView({ proposal }: { proposal: CampaignProposalData }) {
+function StructureView({
+  proposal,
+  selection,
+  toggleCampaign,
+  toggleAdGroup,
+}: {
+  proposal: CampaignProposalData
+  selection: SelectionMap
+  toggleCampaign: (ci: number) => void
+  toggleAdGroup: (ci: number, agi: number) => void
+}) {
   return (
     <div style={styles.body}>
-      {/* Discovered Pages */}
-      {proposal.discoveredPages.length > 0 && (
-        <section>
-          <h4 style={styles.sectionHeader}>Discovered Pages ({proposal.discoveredPages.length})</h4>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>URL</th>
-                <th style={styles.th}>Page Type</th>
-                <th style={styles.th}>H1</th>
-              </tr>
-            </thead>
-            <tbody>
-              {proposal.discoveredPages.map((page, i) => (
-                <tr key={i}>
-                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
-                    <a href={page.url} target="_blank" rel="noopener noreferrer" style={styles.link}>
-                      {page.url.replace(/^https?:\/\//, '').slice(0, 60)}
-                    </a>
-                  </td>
-                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
-                    <span style={{ ...badgeBase, background: '#f1f5f9', color: '#475569' }}>{page.pageType}</span>
-                  </td>
-                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{page.h1 || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+      <p style={{ ...styles.muted, marginBottom: 12 }}>
+        Use checkboxes to select which campaigns and ad groups to include in the client summary and email.
+        Deselected items will be excluded.
+      </p>
 
-      {/* Proposed Campaign Structure */}
-      <section style={{ marginTop: 20 }}>
-        <h4 style={styles.sectionHeader}>Proposed Campaign Structure</h4>
-        {proposal.proposedCampaigns.map((campaign, ci) => (
+      {proposal.proposedCampaigns.map((campaign, ci) => {
+        const campaignChecked = !!selection[`c${ci}`]
+        const checkedCount = campaign.adGroups.filter((_, agi) => selection[`c${ci}-ag${agi}`]).length
+        const allChecked = checkedCount === campaign.adGroups.length
+        const someChecked = checkedCount > 0 && !allChecked
+
+        return (
           <div
             key={ci}
             style={{
               marginBottom: 16,
               padding: 12,
-              background: '#fff',
+              background: campaignChecked ? '#fff' : '#f9fafb',
               borderRadius: 8,
-              border: '1px solid #e2e8f0',
+              border: `1px solid ${campaignChecked ? '#e2e8f0' : '#e5e7eb'}`,
+              opacity: campaignChecked ? 1 : 0.6,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            {/* Campaign header with checkbox */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <input
+                type="checkbox"
+                checked={campaignChecked}
+                ref={(el) => {
+                  if (el) el.indeterminate = someChecked
+                }}
+                onChange={() => toggleCampaign(ci)}
+                style={styles.checkbox}
+              />
               <strong style={{ fontSize: 14 }}>{campaign.name}</strong>
               <span style={typeBadge(campaign.campaignType)}>{campaign.campaignType}</span>
-              <span style={styles.muted}>({fmt(campaign.totalMonthlyVolume)} vol/mo)</span>
+              <span style={styles.muted}>
+                {checkedCount}/{campaign.adGroups.length} ad groups |{' '}
+                {fmt(
+                  campaign.adGroups
+                    .filter((_, agi) => selection[`c${ci}-ag${agi}`])
+                    .reduce((s, ag) => s + ag.totalMonthlyVolume, 0),
+                )}{' '}
+                vol/mo
+              </span>
             </div>
 
-            {campaign.adGroups.map((ag, agi) => (
-              <div key={agi} style={{ marginLeft: 16, marginBottom: 10, paddingLeft: 12, borderLeft: '2px solid #e5e7eb' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <strong style={{ fontSize: 13 }}>{ag.name}</strong>
-                  <span style={styles.muted}>{fmt(ag.totalMonthlyVolume)} vol/mo</span>
-                  <span style={statusBadge(ag.landingPage.status)}>{ag.landingPage.status}</span>
-                  {ag.landingPage.url && (
-                    <a href={ag.landingPage.url} target="_blank" rel="noopener noreferrer" style={{ ...styles.link, fontSize: 12 }}>
-                      {ag.landingPage.url.replace(/^https?:\/\//, '').slice(0, 50)}
-                    </a>
-                  )}
-                </div>
-
-                {ag.keywords.length > 0 && (
-                  <details style={{ marginTop: 6 }}>
-                    <summary style={{ cursor: 'pointer', fontSize: 12, color: '#6b7280' }}>
-                      {ag.keywords.length} keywords
-                    </summary>
-                    <table style={{ ...styles.table, marginTop: 4 }}>
-                      <thead>
-                        <tr>
-                          <th style={{ ...styles.th, fontSize: 11 }}>Keyword</th>
-                          <th style={{ ...styles.th, fontSize: 11 }}>Match</th>
-                          <th style={{ ...styles.th, fontSize: 11 }}>Vol/mo</th>
-                          <th style={{ ...styles.th, fontSize: 11 }}>Competition</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ag.keywords.map((kw, ki) => (
-                          <tr key={ki}>
-                            <td style={styles.td}>{kw.text}</td>
-                            <td style={styles.td}>
-                              <span style={{ ...badgeBase, background: '#f1f5f9', color: '#475569' }}>{kw.matchType}</span>
-                            </td>
-                            <td style={styles.td}>{fmt(kw.monthlySearchVolume)}</td>
-                            <td style={styles.td}>{kw.competition}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </details>
-                )}
-              </div>
-            ))}
-          </div>
-        ))}
-      </section>
-
-      {/* Priority Ranking */}
-      {proposal.priorityRanking && proposal.priorityRanking.length > 0 && (
-        <section style={{ marginTop: 20 }}>
-          <h4 style={styles.sectionHeader}>Priority Ranking</h4>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Priority</th>
-                <th style={styles.th}>Campaign</th>
-                <th style={styles.th}>Ad Group</th>
-                <th style={styles.th}>Volume</th>
-                <th style={styles.th}>LP Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {proposal.priorityRanking
-                .sort((a, b) => b.monthlyVolume - a.monthlyVolume)
-                .map((item, i) => (
-                  <tr key={i}>
-                    <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
-                      <span style={priorityBadge(item.priority)}>{item.priority}</span>
-                    </td>
-                    <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{item.campaignName}</td>
-                    <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{item.adGroupName}</td>
-                    <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{fmt(item.monthlyVolume)}</td>
-                    <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
-                      <span style={statusBadge(item.landingPageStatus)}>{item.landingPageStatus}</span>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </section>
-      )}
-
-      {/* Landing Page Gaps */}
-      {(proposal.landingPagesToCreate.length > 0 || proposal.landingPagesToImprove.length > 0) && (
-        <section style={{ marginTop: 20 }}>
-          <h4 style={styles.sectionHeader}>Landing Page Gaps</h4>
-
-          {proposal.landingPagesToCreate.length > 0 && (
-            <>
-              <h5 style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', margin: '8px 0' }}>
-                Pages to Create ({proposal.landingPagesToCreate.length})
-              </h5>
-              {proposal.landingPagesToCreate.map((lp, i) => (
+            {/* Ad groups */}
+            {campaign.adGroups.map((ag, agi) => {
+              const agChecked = !!selection[`c${ci}-ag${agi}`]
+              return (
                 <div
-                  key={i}
+                  key={agi}
                   style={{
-                    padding: 10,
+                    marginLeft: 28,
                     marginBottom: 8,
-                    background: '#fff',
-                    borderRadius: 6,
-                    border: '1px solid #fecaca',
+                    paddingLeft: 12,
+                    borderLeft: `2px solid ${agChecked ? '#bfdbfe' : '#e5e7eb'}`,
+                    opacity: agChecked ? 1 : 0.5,
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <strong style={{ fontSize: 13 }}>{lp.suggestedPath}</strong>
-                    <span style={priorityBadge(lp.priority)}>{lp.priority}</span>
-                    <span style={styles.muted}>{fmt(lp.monthlyVolume)} vol/mo</span>
+                    <input
+                      type="checkbox"
+                      checked={agChecked}
+                      onChange={() => toggleAdGroup(ci, agi)}
+                      style={styles.checkbox}
+                    />
+                    <strong style={{ fontSize: 13 }}>{ag.name}</strong>
+                    <span style={styles.muted}>{fmt(ag.totalMonthlyVolume)} vol/mo</span>
+                    <span style={statusBadge(ag.landingPage.status)}>{ag.landingPage.status}</span>
+                    {ag.landingPage.url && (
+                      <a
+                        href={ag.landingPage.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ ...styles.link, fontSize: 12 }}
+                      >
+                        {ag.landingPage.url.replace(/^https?:\/\//, '').slice(0, 50)}
+                      </a>
+                    )}
                   </div>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
-                    Keywords: {lp.targetKeywords.join(', ')}
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
 
-          {proposal.landingPagesToImprove.length > 0 && (
-            <>
-              <h5 style={{ fontSize: 13, fontWeight: 600, color: '#92400e', margin: '12px 0 8px' }}>
-                Pages to Improve ({proposal.landingPagesToImprove.length})
-              </h5>
-              {proposal.landingPagesToImprove.map((lp, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: 10,
-                    marginBottom: 8,
-                    background: '#fff',
-                    borderRadius: 6,
-                    border: '1px solid #fde68a',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <a href={lp.url} target="_blank" rel="noopener noreferrer" style={styles.link}>
-                      {lp.url.replace(/^https?:\/\//, '').slice(0, 60)}
-                    </a>
-                    <span style={{ ...badgeBase, background: '#fef3c7', color: '#92400e' }}>
-                      CRO: {lp.croScore}/100
-                    </span>
-                  </div>
-                  {lp.issues.length > 0 && (
-                    <ul style={{ margin: '4px 0 0 16px', padding: 0, fontSize: 12, color: '#6b7280' }}>
-                      {lp.issues.map((issue, j) => (
-                        <li key={j}>{issue}</li>
-                      ))}
-                    </ul>
+                  {ag.keywords.length > 0 && (
+                    <details style={{ marginTop: 4, marginLeft: 24 }}>
+                      <summary style={{ cursor: 'pointer', fontSize: 12, color: '#6b7280' }}>
+                        {ag.keywords.length} keywords
+                      </summary>
+                      <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4, lineHeight: 1.8 }}>
+                        {ag.keywords
+                          .sort((a, b) => b.monthlySearchVolume - a.monthlySearchVolume)
+                          .map((kw, ki) => (
+                            <span key={ki} style={{ marginRight: 12, whiteSpace: 'nowrap' }}>
+                              {kw.text}{' '}
+                              <strong style={{ color: '#334155' }}>({fmt(kw.monthlySearchVolume)})</strong>
+                              {ki < ag.keywords.length - 1 ? ',' : ''}
+                            </span>
+                          ))}
+                      </div>
+                    </details>
                   )}
                 </div>
-              ))}
-            </>
-          )}
-        </section>
-      )}
+              )
+            })}
+          </div>
+        )
+      })}
 
       {/* Before vs After Comparison */}
       {proposal.structureComparison && proposal.structureComparison.length > 0 && (
-        <section style={{ marginTop: 20 }}>
+        <section style={{ marginTop: 24 }}>
           <h4 style={styles.sectionHeader}>Before vs After Comparison</h4>
           <div style={{ overflowX: 'auto' }}>
             <table style={styles.table}>
@@ -597,7 +661,11 @@ function DetailedView({ proposal }: { proposal: CampaignProposalData }) {
                     </td>
                     <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
                       <div style={{ fontSize: 12 }}>
-                        {row.currentCampaign && <div><strong>{row.currentCampaign}</strong></div>}
+                        {row.currentCampaign && (
+                          <div>
+                            <strong>{row.currentCampaign}</strong>
+                          </div>
+                        )}
                         {row.currentAdGroup && <div>{row.currentAdGroup}</div>}
                         {row.currentLandingPage && (
                           <div style={{ color: '#6b7280', fontSize: 11 }}>{row.currentLandingPage}</div>
@@ -607,7 +675,11 @@ function DetailedView({ proposal }: { proposal: CampaignProposalData }) {
                     <td style={{ ...styles.td, textAlign: 'center', fontSize: 16, color: '#9ca3af' }}>&#8594;</td>
                     <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
                       <div style={{ fontSize: 12 }}>
-                        {row.proposedCampaign && <div><strong>{row.proposedCampaign}</strong></div>}
+                        {row.proposedCampaign && (
+                          <div>
+                            <strong>{row.proposedCampaign}</strong>
+                          </div>
+                        )}
                         {row.proposedAdGroup && <div>{row.proposedAdGroup}</div>}
                         {row.proposedLandingPage && (
                           <div style={{ color: '#6b7280', fontSize: 11 }}>{row.proposedLandingPage}</div>
@@ -628,18 +700,17 @@ function DetailedView({ proposal }: { proposal: CampaignProposalData }) {
       {/* Mismatch Analysis */}
       {proposal.mismatchAnalysis && (
         <section style={{ marginTop: 20 }}>
-          <h4 style={styles.sectionHeader}>Mismatch Analysis</h4>
+          <h4 style={styles.sectionHeader}>Account Mismatch Analysis</h4>
 
           {proposal.mismatchAnalysis.servicesNotAdvertised.length > 0 && (
-            <>
-              <h5 style={{ fontSize: 13, fontWeight: 600, margin: '8px 0', color: '#991b1b' }}>
-                Services Not Advertised
-              </h5>
-              <table style={styles.table}>
+            <details style={{ marginBottom: 8 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#991b1b' }}>
+                Services Not Advertised ({proposal.mismatchAnalysis.servicesNotAdvertised.length})
+              </summary>
+              <table style={{ ...styles.table, marginTop: 4 }}>
                 <thead>
                   <tr>
                     <th style={styles.th}>Page</th>
-                    <th style={styles.th}>Title</th>
                     <th style={styles.th}>Est. Volume</th>
                   </tr>
                 </thead>
@@ -648,29 +719,27 @@ function DetailedView({ proposal }: { proposal: CampaignProposalData }) {
                     <tr key={i}>
                       <td style={styles.td}>
                         <a href={s.pageUrl} target="_blank" rel="noopener noreferrer" style={styles.link}>
-                          {s.pageUrl.replace(/^https?:\/\//, '').slice(0, 50)}
+                          {s.pageTitle}
                         </a>
                       </td>
-                      <td style={styles.td}>{s.pageTitle}</td>
                       <td style={styles.td}>{fmt(s.estimatedVolume)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </>
+            </details>
           )}
 
           {proposal.mismatchAnalysis.adGroupsWithBadLandingPages.length > 0 && (
-            <>
-              <h5 style={{ fontSize: 13, fontWeight: 600, margin: '12px 0 8px', color: '#92400e' }}>
-                Bad Landing Pages
-              </h5>
-              <table style={styles.table}>
+            <details style={{ marginBottom: 8 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+                Bad Landing Pages ({proposal.mismatchAnalysis.adGroupsWithBadLandingPages.length})
+              </summary>
+              <table style={{ ...styles.table, marginTop: 4 }}>
                 <thead>
                   <tr>
                     <th style={styles.th}>Ad Group</th>
                     <th style={styles.th}>Campaign</th>
-                    <th style={styles.th}>URL</th>
                     <th style={styles.th}>Issue</th>
                   </tr>
                 </thead>
@@ -679,46 +748,47 @@ function DetailedView({ proposal }: { proposal: CampaignProposalData }) {
                     <tr key={i}>
                       <td style={styles.td}>{a.adGroupName}</td>
                       <td style={styles.td}>{a.campaignName}</td>
-                      <td style={styles.td} title={a.currentUrl}>
-                        {a.currentUrl.slice(0, 40)}
-                      </td>
                       <td style={styles.td}>{a.issue}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </>
+            </details>
           )}
 
           {proposal.mismatchAnalysis.brandGenericMixed.length > 0 && (
-            <>
-              <h5 style={{ fontSize: 13, fontWeight: 600, margin: '12px 0 8px', color: '#92400e' }}>
-                Brand/Generic Mixed Campaigns
-              </h5>
+            <details>
+              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+                Brand/Generic Mixed ({proposal.mismatchAnalysis.brandGenericMixed.length})
+              </summary>
               {proposal.mismatchAnalysis.brandGenericMixed.map((m, i) => (
-                <div key={i} style={{ padding: 8, marginBottom: 6, background: '#fef3c7', borderRadius: 6, fontSize: 12 }}>
+                <div
+                  key={i}
+                  style={{ padding: 8, marginTop: 4, background: '#fef3c7', borderRadius: 6, fontSize: 12 }}
+                >
                   <strong>{m.campaignName}</strong>
                   <div>Brand: {m.brandKeywords.join(', ')}</div>
                   <div>Generic: {m.genericKeywords.join(', ')}</div>
                 </div>
               ))}
-            </>
+            </details>
           )}
         </section>
       )}
 
       {/* Competitor Landscape */}
       {proposal.competitors.length > 0 && (
-        <section style={{ marginTop: 20 }}>
-          <h4 style={styles.sectionHeader}>Competitor Landscape</h4>
-          <table style={styles.table}>
+        <details style={{ marginTop: 20 }}>
+          <summary style={{ ...styles.sectionHeader, cursor: 'pointer' }}>
+            Competitor Landscape ({proposal.competitors.length})
+          </summary>
+          <table style={{ ...styles.table, marginTop: 8 }}>
             <thead>
               <tr>
                 <th style={styles.th}>Domain</th>
                 <th style={styles.th}>Overlapping KWs</th>
                 <th style={styles.th}>Avg Position</th>
                 <th style={styles.th}>Running Ads</th>
-                <th style={styles.th}>Ad Count</th>
               </tr>
             </thead>
             <tbody>
@@ -728,32 +798,32 @@ function DetailedView({ proposal }: { proposal: CampaignProposalData }) {
                   <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.overlappingKeywords}</td>
                   <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.averagePosition.toFixed(1)}</td>
                   <td style={i % 2 === 0 ? styles.td : styles.tdEven}>
-                    <span style={c.isRunningAds ? statusBadge('exists') : statusBadge('')}>
-                      {c.isRunningAds ? 'Yes' : 'No'}
-                    </span>
+                    {c.isRunningAds ? 'Yes' : 'No'}
+                    {c.adCopyCount ? ` (${c.adCopyCount} ads)` : ''}
                   </td>
-                  <td style={i % 2 === 0 ? styles.td : styles.tdEven}>{c.adCopyCount ?? '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </section>
+        </details>
       )}
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// View 2: Client Summary
+// View 2: Client Summary (print-friendly, based on selected items)
 // ---------------------------------------------------------------------------
 
-function SummaryView({ proposal }: { proposal: CampaignProposalData }) {
-  const totalVolume = proposal.proposedCampaigns.reduce((s, c) => s + c.totalMonthlyVolume, 0)
-  const totalAdGroups = proposal.proposedCampaigns.reduce((s, c) => s + c.adGroups.length, 0)
-  const topPriorities = (proposal.priorityRanking || [])
-    .sort((a, b) => b.monthlyVolume - a.monthlyVolume)
-    .slice(0, 5)
-
+function SummaryView({
+  proposal,
+  selectedCampaigns,
+  stats,
+}: {
+  proposal: CampaignProposalData
+  selectedCampaigns: ProposedCampaign[]
+  stats: { totalCampaigns: number; totalAdGroups: number; totalVolume: number; uniqueLandingPages: number }
+}) {
   const generatedDate = proposal.createdAt
     ? new Date(proposal.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
     : ''
@@ -761,20 +831,7 @@ function SummaryView({ proposal }: { proposal: CampaignProposalData }) {
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 8, color: '#1e293b', lineHeight: 1.7, fontSize: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          style={{
-            padding: '6px 14px',
-            background: '#374151',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 6,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
+        <button type="button" onClick={() => window.print()} style={btnStyle('#374151')}>
           Print
         </button>
       </div>
@@ -787,69 +844,67 @@ function SummaryView({ proposal }: { proposal: CampaignProposalData }) {
         </div>
       </div>
 
-      {/* Executive Summary */}
-      <section style={{ marginBottom: 20 }}>
-        <h4 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>Executive Summary</h4>
-        <p style={{ margin: 0 }}>
-          {proposal.discoveredPages.length} service pages analysed.{' '}
-          {fmt(totalVolume)} monthly searches across {totalAdGroups} keyword themes.{' '}
-          {proposal.landingPagesToCreate.length > 0
-            ? `${proposal.landingPagesToCreate.length} page${proposal.landingPagesToCreate.length !== 1 ? 's' : ''} to create`
-            : 'No new pages needed'}
-          {proposal.landingPagesToImprove.length > 0
-            ? `, ${proposal.landingPagesToImprove.length} to improve`
-            : ''}.
-        </p>
-      </section>
+      {/* Summary stats */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Campaigns', value: stats.totalCampaigns },
+          { label: 'Ad Groups', value: stats.totalAdGroups },
+          { label: 'Monthly Searches', value: fmt(stats.totalVolume) },
+          { label: 'Landing Pages', value: stats.uniqueLandingPages },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            style={{
+              flex: '1 1 100px',
+              background: '#eff6ff',
+              borderRadius: 8,
+              padding: '10px 14px',
+              textAlign: 'center',
+              border: '1px solid #bfdbfe',
+            }}
+          >
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{stat.value}</div>
+            <div style={{ fontSize: 11, color: '#64748b' }}>{stat.label}</div>
+          </div>
+        ))}
+      </div>
 
-      {/* Proposed Structure */}
+      {/* Proposed Structure (only selected items) */}
       <section style={{ marginBottom: 20 }}>
         <h4 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>Proposed Structure</h4>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Campaign</th>
-              <th style={styles.th}>Ad Group</th>
-              <th style={styles.th}>Monthly Searches</th>
-              <th style={styles.th}>Landing Page</th>
-              <th style={styles.th}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {proposal.proposedCampaigns.flatMap((campaign) =>
-              campaign.adGroups.map((ag, agi) => (
-                <tr key={`${campaign.name}-${agi}`}>
-                  <td style={styles.td}>{agi === 0 ? campaign.name : ''}</td>
-                  <td style={styles.td}>{ag.name}</td>
-                  <td style={styles.td}>{fmt(ag.totalMonthlyVolume)}</td>
-                  <td style={styles.td}>
-                    {ag.landingPage.url
-                      ? ag.landingPage.url.replace(/^https?:\/\//, '').slice(0, 40)
-                      : '(create)'}
-                  </td>
-                  <td style={styles.td}>
-                    <span style={statusBadge(ag.landingPage.status)}>{ag.landingPage.status}</span>
-                  </td>
-                </tr>
-              )),
-            )}
-          </tbody>
-        </table>
+        {selectedCampaigns.length === 0 ? (
+          <p style={{ color: '#9ca3af' }}>No campaigns selected. Go to Campaign Structure tab to select items.</p>
+        ) : (
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Campaign</th>
+                <th style={styles.th}>Ad Group</th>
+                <th style={styles.th}>Monthly Searches</th>
+                <th style={styles.th}>Landing Page</th>
+                <th style={styles.th}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedCampaigns.flatMap((campaign) =>
+                campaign.adGroups.map((ag, agi) => (
+                  <tr key={`${campaign.name}-${agi}`}>
+                    <td style={styles.td}>{agi === 0 ? campaign.name : ''}</td>
+                    <td style={styles.td}>{ag.name}</td>
+                    <td style={styles.td}>{fmt(ag.totalMonthlyVolume)}</td>
+                    <td style={styles.td}>
+                      {ag.landingPage.url ? ag.landingPage.url.replace(/^https?:\/\//, '').slice(0, 40) : '(create)'}
+                    </td>
+                    <td style={styles.td}>
+                      <span style={statusBadge(ag.landingPage.status)}>{ag.landingPage.status}</span>
+                    </td>
+                  </tr>
+                )),
+              )}
+            </tbody>
+          </table>
+        )}
       </section>
-
-      {/* Top 5 Priorities */}
-      {topPriorities.length > 0 && (
-        <section style={{ marginBottom: 20 }}>
-          <h4 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>Top {topPriorities.length} Priorities</h4>
-          <ol style={{ margin: 0, paddingLeft: 20 }}>
-            {topPriorities.map((item, i) => (
-              <li key={i} style={{ marginBottom: 4 }}>
-                <strong>{item.adGroupName}</strong> ({item.campaignName}) -- {fmt(item.monthlyVolume)} searches/mo
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
 
       {/* Landing Page Recommendations */}
       {(proposal.landingPagesToCreate.length > 0 || proposal.landingPagesToImprove.length > 0) && (
@@ -889,11 +944,18 @@ function SummaryView({ proposal }: { proposal: CampaignProposalData }) {
 }
 
 // ---------------------------------------------------------------------------
-// View 3: Email Preview
+// View 3: Email Editor
 // ---------------------------------------------------------------------------
 
-function EmailView({ emailHtml }: { emailHtml?: string }) {
+function EmailEditorView({
+  emailHtml,
+  onHtmlChange,
+}: {
+  emailHtml: string
+  onHtmlChange: (html: string) => void
+}) {
   const [copied, setCopied] = useState(false)
+  const [showSource, setShowSource] = useState(false)
 
   const handleCopy = useCallback(async () => {
     if (!emailHtml) return
@@ -902,7 +964,6 @@ function EmailView({ emailHtml }: { emailHtml?: string }) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Fallback
       const ta = document.createElement('textarea')
       ta.value = emailHtml
       document.body.appendChild(ta)
@@ -916,48 +977,67 @@ function EmailView({ emailHtml }: { emailHtml?: string }) {
 
   if (!emailHtml) {
     return (
-      <div style={{ color: '#9ca3af', fontSize: 13, padding: 16 }}>
-        No email HTML generated yet.
-      </div>
+      <div style={{ color: '#9ca3af', fontSize: 13, padding: 16 }}>No email HTML generated yet.</div>
     )
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setShowSource(!showSource)}
+            style={btnStyle(showSource ? '#2563eb' : '#64748b')}
+          >
+            {showSource ? 'Preview' : 'Edit HTML'}
+          </button>
+        </div>
         <button
           type="button"
           onClick={handleCopy}
-          style={{
-            padding: '6px 14px',
-            background: copied ? '#16a34a' : '#374151',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 6,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            transition: 'background 0.2s',
-          }}
+          style={btnStyle(copied ? '#16a34a' : '#374151')}
         >
           {copied ? 'Copied!' : 'Copy HTML'}
         </button>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <iframe
-          srcDoc={emailHtml}
+
+      {showSource ? (
+        <textarea
+          value={emailHtml}
+          onChange={(e) => onHtmlChange(e.target.value)}
           style={{
             width: '100%',
-            maxWidth: 700,
-            height: 600,
+            minHeight: 500,
+            fontFamily: 'monospace',
+            fontSize: 12,
+            padding: 12,
             border: '1px solid #e2e8f0',
             borderRadius: 8,
-            background: '#fff',
+            background: '#1e293b',
+            color: '#e2e8f0',
+            resize: 'vertical',
+            lineHeight: 1.5,
           }}
-          title="Campaign proposal email preview"
-          sandbox=""
+          spellCheck={false}
         />
-      </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <iframe
+            srcDoc={emailHtml}
+            style={{
+              width: '100%',
+              maxWidth: 700,
+              height: 600,
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              background: '#fff',
+            }}
+            title="Campaign proposal email preview"
+            sandbox=""
+          />
+        </div>
+      )}
     </div>
   )
 }

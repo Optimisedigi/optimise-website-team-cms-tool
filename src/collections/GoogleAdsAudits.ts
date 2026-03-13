@@ -495,7 +495,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               name: "campaignProposal",
               type: "json",
               admin: {
-                description: "Full CampaignProposalResults data (auto-populated from Growth Tools)",
+                hidden: true,
               },
             },
             {
@@ -539,7 +539,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               type: "textarea",
               maxLength: 500000,
               admin: {
-                description: "Generated proposal email HTML. Edit before sending if needed.",
+                hidden: true,
               },
             },
             {
