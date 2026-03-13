@@ -1855,11 +1855,28 @@ export async function GET(request: NextRequest) {
   await run("contracts.is_template", "ALTER TABLE `contracts` ADD `is_template` integer DEFAULT 0");
   await run("contracts.pdf_hash", "ALTER TABLE `contracts` ADD `pdf_hash` text");
 
+  // ── Client Notes (2026-03-14) ──
+  // Rename legacy notes column
+  await run("clients.rename_notes_to_legacy", "ALTER TABLE `clients` RENAME COLUMN `notes` TO `legacy_notes`");
+
+  // Array table for client notes (dbName: client_notes)
+  await run("client_notes", `CREATE TABLE IF NOT EXISTS \`client_notes\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`category\` text DEFAULT 'general',
+    \`date\` text NOT NULL,
+    \`author\` text,
+    \`content\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("client_notes_order_idx", "CREATE INDEX IF NOT EXISTS `client_notes_order_idx` ON `client_notes` (`_order`)");
+  await run("client_notes_parent_idx", "CREATE INDEX IF NOT EXISTS `client_notes_parent_idx` ON `client_notes` (`_parent_id`)");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-05-contracts-v2", results, allTables });
+  return NextResponse.json({ ok: true, version: "2026-03-14-client-notes", results, allTables });
 }

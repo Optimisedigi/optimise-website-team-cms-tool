@@ -490,10 +490,10 @@ export const Clients: CollectionConfig = {
               },
             },
             {
-              name: "notes",
+              name: "legacyNotes",
               type: "textarea",
               admin: {
-                description: "Goals, notes, and context about this client",
+                description: "Goals, notes, and context about this client (legacy — use Notes tab for new notes)",
               },
             },
             {
@@ -508,6 +508,73 @@ export const Clients: CollectionConfig = {
                 { name: "previousAmount", type: "number" },
                 { name: "effectiveDate", type: "date" },
                 { name: "changedBy", type: "text" },
+              ],
+            },
+          ],
+        },
+        {
+          label: "Notes",
+          fields: [
+            {
+              name: "clientNotes",
+              type: "array",
+              dbName: "client_notes",
+              admin: {
+                description: "Add timestamped notes about this client — meetings, decisions, updates, etc.",
+                initCollapsed: false,
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "category",
+                      type: "select",
+                      defaultValue: "general",
+                      admin: {
+                        width: "30%",
+                      },
+                      options: [
+                        { label: "General", value: "general" },
+                        { label: "Meeting", value: "meeting" },
+                        { label: "Strategy", value: "strategy" },
+                        { label: "Issue", value: "issue" },
+                        { label: "Win", value: "win" },
+                        { label: "Feedback", value: "feedback" },
+                        { label: "Internal", value: "internal" },
+                      ],
+                    },
+                    {
+                      name: "date",
+                      type: "date",
+                      required: true,
+                      defaultValue: () => new Date().toISOString(),
+                      admin: {
+                        width: "30%",
+                        date: {
+                          pickerAppearance: "dayOnly",
+                          displayFormat: "d MMM yyyy",
+                        },
+                      },
+                    },
+                    {
+                      name: "author",
+                      type: "text",
+                      admin: {
+                        width: "40%",
+                        description: "Who wrote this note",
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: "content",
+                  type: "textarea",
+                  required: true,
+                  admin: {
+                    description: "Note content",
+                  },
+                },
               ],
             },
           ],
