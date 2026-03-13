@@ -60,6 +60,10 @@ export async function POST(
     overrideAccess: true,
   });
 
+  // Fire-and-forget: trigger Growth Tools, which will push results back to CMS
+  // via PATCH /api/google-ads-audits/:id when done (sets status to "completed").
+  // Using after() so the response returns immediately, but NOT awaiting the GT call
+  // since it can take 5-10 minutes and would exceed Vercel's function timeout.
   after(async () => {
     try {
       // Mark as running
@@ -70,7 +74,9 @@ export async function POST(
         overrideAccess: true,
       });
 
-      const gtRes = await fetch(
+      // Fire and forget — do NOT await this fetch.
+      // Growth Tools will push results directly to CMS via API-Key auth when done.
+      fetch(
         `${GROWTH_TOOLS_URL}/api/google-ads/campaign-proposal/cms`,
         {
           method: "POST",
@@ -94,42 +100,11 @@ export async function POST(
               : undefined,
           }),
         }
-      );
-
-      if (!gtRes.ok) {
-        const errorText = await gtRes.text();
-        console.error(`[run-campaign-proposal] Growth Tools error: ${errorText}`);
-        await payload.update({
-          collection: "google-ads-audits",
-          id,
-          data: { campaignProposalStatus: "failed" } as any,
-          overrideAccess: true,
-        });
-      } else {
-        // Parse the response and save directly (avoids auth issues with reverse push)
-        const gtData = await gtRes.json();
-        const { emailHtml, ...proposalResults } = gtData;
-
-        await payload.update({
-          collection: "google-ads-audits",
-          id,
-          data: {
-            campaignProposal: proposalResults,
-            campaignProposalEmailHtml: emailHtml || "",
-            campaignProposalGeneratedAt: new Date().toISOString(),
-            campaignProposalStatus: "completed",
-          } as any,
-          overrideAccess: true,
-        });
-      }
-    } catch (error) {
-      console.error(`[run-campaign-proposal] Failed to call Growth Tools:`, error);
-      await payload.update({
-        collection: "google-ads-audits",
-        id,
-        data: { campaignProposalStatus: "failed" } as any,
-        overrideAccess: true,
+      ).catch((err) => {
+        console.error(`[run-campaign-proposal] Failed to call Growth Tools:`, err);
       });
+    } catch (error) {
+      console.error(`[run-campaign-proposal] Failed to set running status:`, error);
     }
   });
 
