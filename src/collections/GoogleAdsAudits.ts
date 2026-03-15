@@ -123,6 +123,17 @@ export const GoogleAdsAudits: CollectionConfig = {
     description: "Google Ads audit pipeline. Requires client to grant access to the Optimise Digital MCC (manager account) before the audit can pull data.",
   },
   hooks: {
+    afterRead: [
+      // Strip large fields from API responses to keep document under Vercel's 4.5MB body limit.
+      // rawData (full Google Ads API dump) is only written once during audit and never read back.
+      // Without this, Payload sends the full document on every admin save, causing 413 errors.
+      ({ doc }) => {
+        if (doc?.rawData) {
+          doc.rawData = null;
+        }
+        return doc;
+      },
+    ],
     beforeChange: [
       autoGenerateSlug,
       // Process action items: auto-copy description to notes, auto-complete logged work

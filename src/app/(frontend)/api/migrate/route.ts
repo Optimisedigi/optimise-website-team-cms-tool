@@ -1266,6 +1266,11 @@ export async function POST(request: NextRequest) {
   // Clear oversized campaign proposal data that causes 413 on Vercel (one-time cleanup)
   await run("clear_oversized_proposals", "UPDATE `google_ads_audits` SET `campaign_proposal` = NULL, `campaign_proposal_email_html` = NULL, `campaign_proposal_status` = 'pending' WHERE `campaign_proposal` IS NOT NULL");
 
+  // Clear rawData (full Google Ads API dump, multi-MB) — it's only needed during scoring and
+  // causes 413 on every admin save since Payload sends the full document body.
+  // The afterRead hook now also strips it on read, but this clears existing data from the DB.
+  await run("clear_raw_data_for_413_fix", "UPDATE `google_ads_audits` SET `raw_data` = NULL WHERE `raw_data` IS NOT NULL");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
