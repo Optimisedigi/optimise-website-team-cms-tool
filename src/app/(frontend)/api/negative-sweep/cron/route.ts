@@ -10,7 +10,7 @@ import {
 import { logActivity } from "@/lib/activity-log";
 
 const KIMI_BASE_URL = process.env.KIMI_BASE_URL || "https://api.moonshot.ai/v1";
-const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2.5";
+const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2-0905-preview";
 
 const WEEKDAYS = [
   "sunday",
@@ -408,9 +408,8 @@ For each term, return a JSON object with:
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage },
         ],
-        temperature: 1.0,
+        temperature: 0.3,
         max_tokens: 4000,
-        chat_template_kwargs: { thinking: false },
       }),
       signal: AbortSignal.timeout(60_000),
     });
