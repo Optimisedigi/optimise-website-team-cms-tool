@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const KIMI_BASE_URL = process.env.KIMI_BASE_URL || "https://api.moonshot.ai/v1";
-const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2";
+const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2.5";
 
 export async function POST(req: NextRequest) {
   const KIMI_API_KEY = process.env.KIMI_API_KEY;

@@ -10,7 +10,7 @@ import {
 import { logActivity } from "@/lib/activity-log";
 
 const KIMI_BASE_URL = process.env.KIMI_BASE_URL || "https://api.moonshot.ai/v1";
-const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2";
+const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2.5";
 
 const WEEKDAYS = [
   "sunday",
