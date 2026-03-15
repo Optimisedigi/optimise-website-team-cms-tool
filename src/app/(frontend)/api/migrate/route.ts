@@ -1222,6 +1222,26 @@ export async function POST(request: NextRequest) {
   // Drop old long-named table if it exists (was created before dbName fix)
   await run("drop_old_negatives_table", "DROP TABLE IF EXISTS \`google_ads_audits_campaign_proposal_negative_keywords\`");
 
+  // ── Client Notes (2026-03-14) ──
+  // Rename legacy notes column
+  await run("clients.rename_notes_to_legacy", "ALTER TABLE `clients` RENAME COLUMN `notes` TO `legacy_notes`");
+
+  // Array table for client notes (dbName: client_notes)
+  await run("client_notes", `CREATE TABLE IF NOT EXISTS \`client_notes\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`category\` text DEFAULT 'general',
+    \`date\` text NOT NULL,
+    \`author\` text,
+    \`content\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("client_notes_order_idx", "CREATE INDEX IF NOT EXISTS `client_notes_order_idx` ON `client_notes` (`_order`)");
+  await run("client_notes_parent_idx", "CREATE INDEX IF NOT EXISTS `client_notes_parent_idx` ON `client_notes` (`_parent_id`)");
+
+  // Mark migration as executed
+  await run("mark_migration:20260312_120000_add_site_url_to_gsc_indexing_audits", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260312_120000_add_site_url_to_gsc_indexing_audits', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
