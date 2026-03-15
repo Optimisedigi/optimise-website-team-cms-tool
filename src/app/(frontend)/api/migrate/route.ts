@@ -1335,6 +1335,9 @@ export async function POST(request: NextRequest) {
   // Add pdf_hash column for document integrity verification
   await run("contracts.pdf_hash", "ALTER TABLE `contracts` ADD `pdf_hash` text");
 
+  // Add monthly_hosting column (must be after contracts table creation)
+  await run("contracts.monthly_hosting_post", "ALTER TABLE `contracts` ADD `monthly_hosting` integer");
+
   // ── Process Templates ──
   await run("process_templates", `CREATE TABLE IF NOT EXISTS \`process_templates\` (
     \`id\` integer PRIMARY KEY NOT NULL,
@@ -1854,6 +1857,7 @@ export async function GET(request: NextRequest) {
   await run("contracts.agency_signature_idx", "CREATE INDEX IF NOT EXISTS `contracts_agency_signature_idx` ON `contracts` (`agency_signature_id`)");
   await run("contracts.is_template", "ALTER TABLE `contracts` ADD `is_template` integer DEFAULT 0");
   await run("contracts.pdf_hash", "ALTER TABLE `contracts` ADD `pdf_hash` text");
+  await run("contracts.monthly_hosting", "ALTER TABLE `contracts` ADD `monthly_hosting` integer");
 
   // ── Client Notes (2026-03-14) ──
   // Rename legacy notes column
