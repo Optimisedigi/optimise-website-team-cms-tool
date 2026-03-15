@@ -57,12 +57,20 @@ export async function POST(
     : [];
 
   // Mark proposal as pending
-  await payload.update({
-    collection: "google-ads-audits",
-    id,
-    data: { campaignProposalStatus: "pending" } as any,
-    overrideAccess: true,
-  });
+  try {
+    await payload.update({
+      collection: "google-ads-audits",
+      id,
+      data: { campaignProposalStatus: "pending" } as any,
+      overrideAccess: true,
+    });
+  } catch (err) {
+    console.error(`[run-campaign-proposal] Failed to set pending status:`, err);
+    return NextResponse.json(
+      { error: "Failed to update audit status. Check server logs." },
+      { status: 500 }
+    );
+  }
 
   // Fire-and-forget: trigger Growth Tools, which will push results back to CMS
   // via PATCH /api/google-ads-audits/:id when done (sets status to "completed").

@@ -524,6 +524,13 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "Service Business", value: "service" },
                 { label: "Auto-detect", value: "other" },
               ],
+              // Allow empty string from SQLite for unset values
+              validate: (value: unknown) => {
+                if (!value || value === "") return true;
+                const valid = ["distributor", "ecommerce", "service", "other"];
+                if (typeof value === "string" && !valid.includes(value)) return "Invalid selection";
+                return true;
+              },
             },
             {
               name: "proposalConversionGoal",
@@ -538,6 +545,13 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "Bookings (appointments)", value: "bookings" },
                 { label: "Signups (registrations)", value: "signups" },
               ],
+              // Allow empty string from SQLite for unset values
+              validate: (value: unknown) => {
+                if (!value || value === "") return true;
+                const valid = ["leads", "sales", "bookings", "signups"];
+                if (typeof value === "string" && !valid.includes(value)) return "Invalid selection";
+                return true;
+              },
             },
             {
               name: "proposalServiceRadius",
@@ -552,6 +566,13 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "State", value: "state" },
                 { label: "National", value: "national" },
               ],
+              // Allow empty string from SQLite for unset values
+              validate: (value: unknown) => {
+                if (!value || value === "") return true;
+                const valid = ["local", "metro", "state", "national"];
+                if (typeof value === "string" && !valid.includes(value)) return "Invalid selection";
+                return true;
+              },
             },
             // ── Advanced Overrides (collapsible) ──
             {
