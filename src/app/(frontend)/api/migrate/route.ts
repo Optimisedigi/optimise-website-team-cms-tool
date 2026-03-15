@@ -1263,6 +1263,9 @@ export async function POST(request: NextRequest) {
 
   await run("mark_migration:20260315_120000_campaign_proposal_engine_config", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260315_120000_campaign_proposal_engine_config', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
 
+  // Clear oversized campaign proposal data that causes 413 on Vercel (one-time cleanup)
+  await run("clear_oversized_proposals", "UPDATE `google_ads_audits` SET `campaign_proposal` = NULL, `campaign_proposal_email_html` = NULL, `campaign_proposal_status` = 'pending' WHERE `campaign_proposal` IS NOT NULL");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
