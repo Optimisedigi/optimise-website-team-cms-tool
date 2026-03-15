@@ -498,6 +498,99 @@ export const GoogleAdsAudits: CollectionConfig = {
                 hidden: true,
               },
             },
+            // ── Engine Configuration ──
+            {
+              name: "proposalBusinessType",
+              type: "select",
+              dbName: "proposal_biz_type",
+              defaultValue: "other",
+              admin: {
+                description: "Drives campaign structure, volume thresholds, and AI prompts. 'Other' auto-detects from crawl.",
+              },
+              options: [
+                { label: "Distributor (multi-brand, products + services)", value: "distributor" },
+                { label: "Ecommerce (online store)", value: "ecommerce" },
+                { label: "Service Business", value: "service" },
+                { label: "Auto-detect", value: "other" },
+              ],
+            },
+            {
+              name: "proposalConversionGoal",
+              type: "select",
+              dbName: "proposal_conv_goal",
+              admin: {
+                description: "Primary conversion goal. Influences AI keyword filtering and landing page suggestions.",
+              },
+              options: [
+                { label: "Leads (forms, calls)", value: "leads" },
+                { label: "Sales (purchases)", value: "sales" },
+                { label: "Bookings (appointments)", value: "bookings" },
+                { label: "Signups (registrations)", value: "signups" },
+              ],
+            },
+            {
+              name: "proposalServiceRadius",
+              type: "select",
+              dbName: "proposal_svc_radius",
+              admin: {
+                description: "Service area. Influences geo-targeted ad groups and volume thresholds.",
+              },
+              options: [
+                { label: "Local (single city)", value: "local" },
+                { label: "Metro (city + suburbs)", value: "metro" },
+                { label: "State", value: "state" },
+                { label: "National", value: "national" },
+              ],
+            },
+            // ── Advanced Overrides (collapsible) ──
+            {
+              type: "collapsible",
+              label: "Advanced Overrides",
+              admin: {
+                initCollapsed: true,
+                description: "Override default preset values. Leave blank to use business type defaults.",
+              },
+              fields: [
+                {
+                  name: "proposalEnabledCampaigns",
+                  type: "select",
+                  hasMany: true,
+                  admin: {
+                    description: "Which campaign types to build. Leave empty for preset defaults.",
+                  },
+                  options: [
+                    { label: "Brand", value: "brand" },
+                    { label: "Products", value: "products" },
+                    { label: "Services", value: "services" },
+                    { label: "Services - Geo", value: "services-geo" },
+                    { label: "Industry Verticals", value: "industry" },
+                  ],
+                },
+                {
+                  name: "proposalMinAdGroupVolume",
+                  type: "number",
+                  admin: {
+                    description: "Minimum monthly searches for an ad group to qualify. Defaults: distributor=150, ecommerce=100, service=30.",
+                    step: 10,
+                  },
+                },
+                {
+                  name: "proposalMinBrandImpressions",
+                  type: "number",
+                  admin: {
+                    description: "Minimum monthly impressions for a 3rd-party brand to get its own ad group. Defaults: distributor=20, ecommerce=50.",
+                    step: 5,
+                  },
+                },
+                {
+                  name: "proposalBrandVolumeExempt",
+                  type: "checkbox",
+                  admin: {
+                    description: "Exempt brand ad groups from the volume threshold. Default: on for distributors, off for others.",
+                  },
+                },
+              ],
+            },
             {
               name: "campaignProposalNegativeKeywords",
               type: "array",

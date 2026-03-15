@@ -1242,6 +1242,27 @@ export async function POST(request: NextRequest) {
   // Mark migration as executed
   await run("mark_migration:20260312_120000_add_site_url_to_gsc_indexing_audits", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260312_120000_add_site_url_to_gsc_indexing_audits', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
 
+  // --- Campaign Proposal Engine Config columns on google_ads_audits ---
+  await run("google_ads_audits.proposal_biz_type", "ALTER TABLE `google_ads_audits` ADD `proposal_biz_type` text DEFAULT 'other'");
+  await run("google_ads_audits.proposal_conv_goal", "ALTER TABLE `google_ads_audits` ADD `proposal_conv_goal` text");
+  await run("google_ads_audits.proposal_svc_radius", "ALTER TABLE `google_ads_audits` ADD `proposal_svc_radius` text");
+  // Collapsible children are top-level columns (Payload auto-names from camelCase → snake_case)
+  await run("google_ads_audits.proposal_min_ad_group_volume", "ALTER TABLE `google_ads_audits` ADD `proposal_min_ad_group_volume` numeric");
+  await run("google_ads_audits.proposal_min_brand_impressions", "ALTER TABLE `google_ads_audits` ADD `proposal_min_brand_impressions` numeric");
+  await run("google_ads_audits.proposal_brand_volume_exempt", "ALTER TABLE `google_ads_audits` ADD `proposal_brand_volume_exempt` integer DEFAULT 0");
+
+  // hasMany select for enabled campaigns (Payload creates sub-table from collection + field name)
+  await run("google_ads_audits_proposal_enabled_campaigns", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_proposal_enabled_campaigns\` (
+    \`order\` integer NOT NULL, \`parent_id\` integer NOT NULL,
+    \`value\` text,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    FOREIGN KEY (\`parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("google_ads_audits_proposal_enabled_campaigns_order_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audits_proposal_enabled_campaigns_order_idx` ON `google_ads_audits_proposal_enabled_campaigns` (`order`)");
+  await run("google_ads_audits_proposal_enabled_campaigns_parent_id_idx", "CREATE INDEX IF NOT EXISTS `google_ads_audits_proposal_enabled_campaigns_parent_id_idx` ON `google_ads_audits_proposal_enabled_campaigns` (`parent_id`)");
+
+  await run("mark_migration:20260315_120000_campaign_proposal_engine_config", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260315_120000_campaign_proposal_engine_config', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║

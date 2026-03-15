@@ -39,7 +39,11 @@ export async function POST(
     return NextResponse.json({ error: "Audit not found" }, { status: 404 });
   }
 
-  const { websiteUrl, businessName, customerId, brandTerms, campaignProposalNegativeKeywords } = audit;
+  const {
+    websiteUrl, businessName, customerId, brandTerms, campaignProposalNegativeKeywords,
+    proposalBusinessType, proposalConversionGoal, proposalServiceRadius,
+    proposalEnabledCampaigns, proposalMinAdGroupVolume, proposalMinBrandImpressions, proposalBrandVolumeExempt,
+  } = audit;
   if (!websiteUrl || !businessName) {
     return NextResponse.json(
       { error: "Missing required fields: websiteUrl and businessName must be set on the audit" },
@@ -98,6 +102,16 @@ export async function POST(
                   ...(nk.category ? { category: nk.category } : {}),
                 }))
               : undefined,
+            // Business type engine config
+            businessType: proposalBusinessType || undefined,
+            conversionGoal: proposalConversionGoal || undefined,
+            serviceRadius: proposalServiceRadius || undefined,
+            enabledCampaigns: Array.isArray(proposalEnabledCampaigns) && proposalEnabledCampaigns.length > 0
+              ? proposalEnabledCampaigns
+              : undefined,
+            minAdGroupVolume: proposalMinAdGroupVolume != null ? Number(proposalMinAdGroupVolume) : undefined,
+            minBrandImpressions: proposalMinBrandImpressions != null ? Number(proposalMinBrandImpressions) : undefined,
+            brandVolumeExempt: proposalBrandVolumeExempt != null ? Boolean(proposalBrandVolumeExempt) : undefined,
           }),
         }
       ).catch((err) => {
