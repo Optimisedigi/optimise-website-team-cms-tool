@@ -408,8 +408,9 @@ For each term, return a JSON object with:
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage },
         ],
-        temperature: 0.3,
+        temperature: 1.0,
         max_tokens: 4000,
+        chat_template_kwargs: { thinking: false },
       }),
       signal: AbortSignal.timeout(60_000),
     });

@@ -53,8 +53,9 @@ export async function POST(req: NextRequest) {
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage },
         ],
-        temperature: 0.9,
+        temperature: 1.0,
         max_tokens: 300,
+        chat_template_kwargs: { thinking: false },
       }),
       signal: AbortSignal.timeout(30_000),
     });
