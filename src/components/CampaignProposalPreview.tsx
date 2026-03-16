@@ -378,7 +378,7 @@ const CampaignProposalPreviewInner = () => {
           String(ag.totalMonthlyVolume),
           ag.landingPage.url || '(create)',
           ag.landingPage.status,
-          ag.keywords.map((k) => `${k.text} (${k.monthlySearchVolume})`).join('; '),
+          (ag.keywords ?? []).map((k) => `${k.text} (${k.monthlySearchVolume})`).join('; '),
         ])
       }
     })
@@ -613,7 +613,7 @@ function StructureView({
                     )}
                   </div>
 
-                  {ag.keywords.length > 0 && (
+                  {(ag.keywords?.length ?? 0) > 0 && (
                     <details style={{ marginTop: 4, marginLeft: 24 }}>
                       <summary style={{ cursor: 'pointer', fontSize: 12, color: '#6b7280' }}>
                         {ag.keywords.length} keywords
@@ -931,7 +931,7 @@ function SummaryView({
                 {proposal.landingPagesToImprove.map((lp, i) => (
                   <li key={i} style={{ marginBottom: 4 }}>
                     <strong>{lp.url.replace(/^https?:\/\//, '')}</strong> -- CRO score {lp.croScore}/100
-                    {lp.issues.length > 0 && ` (${lp.issues.join(', ')})`}
+                    {(lp.issues?.length ?? 0) > 0 && ` (${lp.issues.join(', ')})`}
                   </li>
                 ))}
               </ul>
