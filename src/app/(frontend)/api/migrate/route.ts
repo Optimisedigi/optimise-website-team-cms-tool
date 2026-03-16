@@ -1965,6 +1965,11 @@ export async function GET(request: NextRequest) {
   await run("gaa_proposal_enabled_campaigns_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_proposal_enabled_campaigns_order_idx` ON `google_ads_audits_proposal_enabled_campaigns` (`order`)");
   await run("gaa_proposal_enabled_campaigns_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_proposal_enabled_campaigns_parent_idx` ON `google_ads_audits_proposal_enabled_campaigns` (`parent_id`)");
 
+  // Clean empty-string select values that cause Payload validation failures on PATCH
+  await run("clean_empty_proposal_selects", "UPDATE `google_ads_audits` SET `proposal_biz_type` = NULL WHERE `proposal_biz_type` = ''");
+  await run("clean_empty_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conv_goal` = NULL WHERE `proposal_conv_goal` = ''");
+  await run("clean_empty_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_svc_radius` = NULL WHERE `proposal_svc_radius` = ''");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
