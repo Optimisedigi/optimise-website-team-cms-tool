@@ -72,6 +72,7 @@ export async function POST(
         id,
         data: { campaignProposalStatus: "pending" } as any,
         overrideAccess: true,
+        validate: false,
       });
     } catch (err) {
       console.error(`[run-campaign-proposal] Failed to set pending status:`, err);
@@ -94,6 +95,7 @@ export async function POST(
           id,
           data: { campaignProposalStatus: "running" } as any,
           overrideAccess: true,
+          validate: false,
         });
 
         // Fire and forget — do NOT await this fetch.
