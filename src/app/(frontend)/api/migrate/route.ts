@@ -1263,6 +1263,11 @@ export async function POST(request: NextRequest) {
 
   await run("mark_migration:20260315_120000_campaign_proposal_engine_config", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260315_120000_campaign_proposal_engine_config', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
 
+  // Clean up empty-string select values that cause Payload validation failures on save
+  await run("clean_empty_proposal_selects", "UPDATE `google_ads_audits` SET `proposal_biz_type` = NULL WHERE `proposal_biz_type` = ''");
+  await run("clean_empty_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conv_goal` = NULL WHERE `proposal_conv_goal` = ''");
+  await run("clean_empty_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_svc_radius` = NULL WHERE `proposal_svc_radius` = ''");
+
   // Clear oversized campaign proposal data that causes 413 on Vercel (one-time cleanup)
   await run("clear_oversized_proposals", "UPDATE `google_ads_audits` SET `campaign_proposal` = NULL, `campaign_proposal_email_html` = NULL, `campaign_proposal_status` = 'pending' WHERE `campaign_proposal` IS NOT NULL");
 

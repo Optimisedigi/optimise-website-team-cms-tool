@@ -136,6 +136,16 @@ export const GoogleAdsAudits: CollectionConfig = {
     ],
     beforeChange: [
       autoGenerateSlug,
+      // Sanitise empty-string select values from SQLite → null so Payload validation passes
+      ({ data }) => {
+        if (data) {
+          const selectFields = ["proposalBusinessType", "proposalConversionGoal", "proposalServiceRadius"];
+          for (const field of selectFields) {
+            if (data[field] === "") data[field] = null;
+          }
+        }
+        return data;
+      },
       // Process action items: auto-copy description to notes, auto-complete logged work
       async ({ data }) => {
         if (data?.actionItems && Array.isArray(data.actionItems)) {
@@ -517,6 +527,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               defaultValue: "other",
               admin: {
                 description: "Drives campaign structure, volume thresholds, and AI prompts. 'Other' auto-detects from crawl.",
+                isClearable: true,
               },
               options: [
                 { label: "Distributor (multi-brand, products + services)", value: "distributor" },
@@ -524,13 +535,6 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "Service Business", value: "service" },
                 { label: "Auto-detect", value: "other" },
               ],
-              // Allow empty string from SQLite for unset values
-              validate: (value: unknown) => {
-                if (!value || value === "") return true;
-                const valid = ["distributor", "ecommerce", "service", "other"];
-                if (typeof value === "string" && !valid.includes(value)) return "Invalid selection";
-                return true;
-              },
             },
             {
               name: "proposalConversionGoal",
@@ -538,6 +542,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               dbName: "proposal_conv_goal",
               admin: {
                 description: "Primary conversion goal. Influences AI keyword filtering and landing page suggestions.",
+                isClearable: true,
               },
               options: [
                 { label: "Leads (forms, calls)", value: "leads" },
@@ -545,13 +550,6 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "Bookings (appointments)", value: "bookings" },
                 { label: "Signups (registrations)", value: "signups" },
               ],
-              // Allow empty string from SQLite for unset values
-              validate: (value: unknown) => {
-                if (!value || value === "") return true;
-                const valid = ["leads", "sales", "bookings", "signups"];
-                if (typeof value === "string" && !valid.includes(value)) return "Invalid selection";
-                return true;
-              },
             },
             {
               name: "proposalServiceRadius",
@@ -559,6 +557,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               dbName: "proposal_svc_radius",
               admin: {
                 description: "Service area. Influences geo-targeted ad groups and volume thresholds.",
+                isClearable: true,
               },
               options: [
                 { label: "Local (single city)", value: "local" },
@@ -566,13 +565,6 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "State", value: "state" },
                 { label: "National", value: "national" },
               ],
-              // Allow empty string from SQLite for unset values
-              validate: (value: unknown) => {
-                if (!value || value === "") return true;
-                const valid = ["local", "metro", "state", "national"];
-                if (typeof value === "string" && !valid.includes(value)) return "Invalid selection";
-                return true;
-              },
             },
             // ── Advanced Overrides (collapsible) ──
             {
