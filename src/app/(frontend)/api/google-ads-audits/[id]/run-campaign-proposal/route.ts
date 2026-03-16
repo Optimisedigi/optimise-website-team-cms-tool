@@ -95,10 +95,10 @@ export async function POST(
           args: ["running", id],
         });
 
-        // Call Growth Tools — await the initial response to ensure the request is sent
-        // before the Vercel function terminates. GT responds quickly (200/202) and then
-        // processes in the background, pushing results back to CMS via PATCH when done.
-        const gtRes = await fetch(
+        // Fire-and-forget: GT processes synchronously (5-10 min) then pushes results
+        // back to CMS via PATCH. Do NOT await — Vercel kills after() within seconds.
+        // GT also handles marking status as "failed" on error via its own PATCH.
+        fetch(
           `${GROWTH_TOOLS_URL}/api/google-ads/campaign-proposal/cms`,
           {
             method: "POST",
@@ -120,7 +120,6 @@ export async function POST(
                     ...(nk.category ? { category: nk.category } : {}),
                   }))
                 : undefined,
-              // Business type engine config
               businessType: proposalBusinessType || undefined,
               conversionGoal: proposalConversionGoal || undefined,
               serviceRadius: proposalServiceRadius || undefined,
@@ -130,30 +129,15 @@ export async function POST(
               minAdGroupVolume: proposalMinAdGroupVolume != null ? Number(proposalMinAdGroupVolume) : undefined,
               minBrandImpressions: proposalMinBrandImpressions != null ? Number(proposalMinBrandImpressions) : undefined,
               brandVolumeExempt: proposalBrandVolumeExempt != null ? Boolean(proposalBrandVolumeExempt) : undefined,
-              // GT expects this as an array — send empty default to prevent "not iterable" crash
               extraGenericBrandWords: [],
             }),
           }
-        );
-        if (!gtRes.ok) {
-          const errorText = await gtRes.text().catch(() => "unknown");
-          const errMsg = `Growth Tools returned ${gtRes.status}: ${errorText.slice(0, 500)}`;
-          console.error(`[run-campaign-proposal] ${errMsg}`);
-          await dbClient.execute({
-            sql: "UPDATE google_ads_audits SET campaign_proposal_status = ?, audit_error = ? WHERE id = ?",
-            args: ["failed", errMsg, id],
-          });
-        }
+        ).catch((err) => {
+          console.error(`[run-campaign-proposal] Failed to send request to Growth Tools:`, err);
+        });
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
         console.error(`[run-campaign-proposal] after() error:`, errMsg);
-        try {
-          const dbClient = (payload.db as any).client;
-          await dbClient.execute({
-            sql: "UPDATE google_ads_audits SET campaign_proposal_status = ?, audit_error = ? WHERE id = ?",
-            args: ["failed", `CMS error: ${errMsg.slice(0, 500)}`, id],
-          });
-        } catch { /* best effort */ }
       }
     });
 
