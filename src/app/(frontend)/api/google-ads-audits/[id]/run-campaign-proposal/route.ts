@@ -120,9 +120,9 @@ export async function POST(
                     ...(nk.category ? { category: nk.category } : {}),
                   }))
                 : undefined,
-              businessType: proposalBusinessType || undefined,
-              conversionGoal: proposalConversionGoal || undefined,
-              serviceRadius: proposalServiceRadius || undefined,
+              businessType: ["distributor", "ecommerce", "service", "other"].includes(proposalBusinessType) ? proposalBusinessType : undefined,
+              conversionGoal: ["leads", "sales", "bookings", "signups"].includes(proposalConversionGoal) ? proposalConversionGoal : undefined,
+              serviceRadius: ["local", "metro", "state", "national"].includes(proposalServiceRadius) ? proposalServiceRadius : undefined,
               enabledCampaigns: Array.isArray(proposalEnabledCampaigns) && proposalEnabledCampaigns.length > 0
                 ? proposalEnabledCampaigns
                 : undefined,
