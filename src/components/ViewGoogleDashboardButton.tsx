@@ -7,6 +7,7 @@ const ViewGoogleDashboardButton = () => {
   const { id } = useDocumentInfo()
   const [fields] = useAllFormFields()
   const [clientSlug, setClientSlug] = useState<string | null>(null)
+  const [showHelp, setShowHelp] = useState(false)
 
   // Direct slug from Clients collection
   const slug = fields?.slug?.value as string | undefined
@@ -39,6 +40,57 @@ const ViewGoogleDashboardButton = () => {
   if (resolvedSlug) {
     return (
       <div style={{ marginBottom: 20 }}>
+        {/* How it works */}
+        <div
+          style={{
+            marginBottom: 16,
+            border: '1px solid #e5e7eb',
+            borderRadius: 8,
+            overflow: 'hidden',
+            background: '#f9fafb',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setShowHelp(!showHelp)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#374151',
+            }}
+          >
+            <span>{'\uD83D\uDCD6'} How this works</span>
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>{showHelp ? 'Hide' : 'Show'}</span>
+          </button>
+          {showHelp && (
+            <div style={{ padding: '0 14px 14px', fontSize: 13, lineHeight: 1.6, color: '#4b5563' }}>
+              <p style={{ margin: '0 0 8px' }}>
+                <strong>What it does:</strong> Opens the Google Ads performance dashboard for this client in a new tab. The dashboard shows campaign metrics, quality scores, and trends over time.
+              </p>
+              <p style={{ margin: '0 0 8px' }}><strong>Prerequisites:</strong></p>
+              <ul style={{ margin: '0 0 8px', paddingLeft: 18 }}>
+                <li>The client must have a slug (auto-generated from name).</li>
+                <li>Google Ads dashboard must be enabled in the &quot;Google Ads Automations&quot; section above.</li>
+                <li>The client must have a Google Ads Customer ID configured.</li>
+              </ul>
+              <p style={{ margin: '0 0 8px' }}>
+                <strong>What you&apos;ll see:</strong> The dashboard page at <code>/google-dashboard/{'{slug}'}</code> showing live Google Ads data including campaign performance, quality score snapshots, spend tracking, and conversion metrics.
+              </p>
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#6b7280' }}>
+                💡 <strong>Tip:</strong> This dashboard can be shared with clients via a PIN-protected link or embedded in client reports.
+              </p>
+            </div>
+          )}
+        </div>
+
         <a
           href={`/google-dashboard/${resolvedSlug}`}
           target="_blank"
