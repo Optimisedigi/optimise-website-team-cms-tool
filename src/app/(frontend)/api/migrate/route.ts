@@ -1925,11 +1925,46 @@ export async function GET(request: NextRequest) {
   await run("client_notes_order_idx", "CREATE INDEX IF NOT EXISTS `client_notes_order_idx` ON `client_notes` (`_order`)");
   await run("client_notes_parent_idx", "CREATE INDEX IF NOT EXISTS `client_notes_parent_idx` ON `client_notes` (`_parent_id`)");
 
+  // ── Campaign Proposal fields on google_ads_audits (2026-03-16) ──
+  await run("gaa.campaign_proposal_status", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_status` text");
+  await run("gaa.campaign_proposal", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal` text");
+  await run("gaa.proposal_biz_type", "ALTER TABLE `google_ads_audits` ADD `proposal_biz_type` text DEFAULT 'other'");
+  await run("gaa.proposal_conv_goal", "ALTER TABLE `google_ads_audits` ADD `proposal_conv_goal` text");
+  await run("gaa.proposal_svc_radius", "ALTER TABLE `google_ads_audits` ADD `proposal_svc_radius` text");
+  await run("gaa.proposal_min_ad_group_volume", "ALTER TABLE `google_ads_audits` ADD `proposal_min_ad_group_volume` numeric");
+  await run("gaa.proposal_min_brand_impressions", "ALTER TABLE `google_ads_audits` ADD `proposal_min_brand_impressions` numeric");
+  await run("gaa.proposal_brand_volume_exempt", "ALTER TABLE `google_ads_audits` ADD `proposal_brand_volume_exempt` integer");
+  await run("gaa.campaign_proposal_email_html", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_email_html` text");
+  await run("gaa.campaign_proposal_generated_at", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_generated_at` text");
+
+  // Negative keywords array table (dbName: gads_proposal_negatives)
+  await run("gads_proposal_negatives", `CREATE TABLE IF NOT EXISTS \`gads_proposal_negatives\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`pattern\` text NOT NULL,
+    \`neg_scope\` text DEFAULT 'global',
+    \`category\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gads_proposal_negatives_order_idx", "CREATE INDEX IF NOT EXISTS `gads_proposal_negatives_order_idx` ON `gads_proposal_negatives` (`_order`)");
+  await run("gads_proposal_negatives_parent_idx", "CREATE INDEX IF NOT EXISTS `gads_proposal_negatives_parent_idx` ON `gads_proposal_negatives` (`_parent_id`)");
+
+  // Enabled campaigns hasMany select → join table
+  await run("gaa_proposal_enabled_campaigns", `CREATE TABLE IF NOT EXISTS \`google_ads_audits_proposal_enabled_campaigns\` (
+    \`order\` integer NOT NULL, \`parent_id\` integer NOT NULL,
+    \`value\` text,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    FOREIGN KEY (\`parent_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("gaa_proposal_enabled_campaigns_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_proposal_enabled_campaigns_order_idx` ON `google_ads_audits_proposal_enabled_campaigns` (`order`)");
+  await run("gaa_proposal_enabled_campaigns_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_proposal_enabled_campaigns_parent_idx` ON `google_ads_audits_proposal_enabled_campaigns` (`parent_id`)");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-14-client-notes", results, allTables });
+  return NextResponse.json({ ok: true, version: "2026-03-16-campaign-proposal", results, allTables });
 }
