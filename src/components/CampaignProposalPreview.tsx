@@ -702,7 +702,7 @@ function StructureView({
         <section style={{ marginTop: 20 }}>
           <h4 style={styles.sectionHeader}>Account Mismatch Analysis</h4>
 
-          {proposal.mismatchAnalysis.servicesNotAdvertised.length > 0 && (
+          {(proposal.mismatchAnalysis.servicesNotAdvertised?.length ?? 0) > 0 && (
             <details style={{ marginBottom: 8 }}>
               <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#991b1b' }}>
                 Services Not Advertised ({proposal.mismatchAnalysis.servicesNotAdvertised.length})
@@ -730,7 +730,7 @@ function StructureView({
             </details>
           )}
 
-          {proposal.mismatchAnalysis.adGroupsWithBadLandingPages.length > 0 && (
+          {(proposal.mismatchAnalysis.adGroupsWithBadLandingPages?.length ?? 0) > 0 && (
             <details style={{ marginBottom: 8 }}>
               <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#92400e' }}>
                 Bad Landing Pages ({proposal.mismatchAnalysis.adGroupsWithBadLandingPages.length})
@@ -756,7 +756,7 @@ function StructureView({
             </details>
           )}
 
-          {proposal.mismatchAnalysis.brandGenericMixed.length > 0 && (
+          {(proposal.mismatchAnalysis.brandGenericMixed?.length ?? 0) > 0 && (
             <details>
               <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#92400e' }}>
                 Brand/Generic Mixed ({proposal.mismatchAnalysis.brandGenericMixed.length})
@@ -777,7 +777,7 @@ function StructureView({
       )}
 
       {/* Competitor Landscape */}
-      {proposal.competitors.length > 0 && (
+      {(proposal.competitors?.length ?? 0) > 0 && (
         <details style={{ marginTop: 20 }}>
           <summary style={{ ...styles.sectionHeader, cursor: 'pointer' }}>
             Competitor Landscape ({proposal.competitors.length})
@@ -907,11 +907,11 @@ function SummaryView({
       </section>
 
       {/* Landing Page Recommendations */}
-      {(proposal.landingPagesToCreate.length > 0 || proposal.landingPagesToImprove.length > 0) && (
+      {((proposal.landingPagesToCreate?.length ?? 0) > 0 || (proposal.landingPagesToImprove?.length ?? 0) > 0) && (
         <section style={{ marginBottom: 20 }}>
           <h4 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>Landing Page Recommendations</h4>
 
-          {proposal.landingPagesToCreate.length > 0 && (
+          {(proposal.landingPagesToCreate?.length ?? 0) > 0 && (
             <>
               <h5 style={{ fontSize: 14, fontWeight: 600, margin: '8px 0', color: '#991b1b' }}>Pages to Create</h5>
               <ul style={{ margin: 0, paddingLeft: 20 }}>
@@ -924,7 +924,7 @@ function SummaryView({
             </>
           )}
 
-          {proposal.landingPagesToImprove.length > 0 && (
+          {(proposal.landingPagesToImprove?.length ?? 0) > 0 && (
             <>
               <h5 style={{ fontSize: 14, fontWeight: 600, margin: '12px 0 8px', color: '#92400e' }}>Pages to Improve</h5>
               <ul style={{ margin: 0, paddingLeft: 20 }}>
