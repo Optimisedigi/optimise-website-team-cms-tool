@@ -1971,12 +1971,35 @@ export async function GET(request: NextRequest) {
   await run("clean_invalid_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conv_goal` = NULL WHERE `proposal_conv_goal` NOT IN ('leads', 'sales', 'bookings', 'signups') OR `proposal_conv_goal` = ''");
   await run("clean_invalid_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_svc_radius` = NULL WHERE `proposal_svc_radius` NOT IN ('local', 'metro', 'state', 'national') OR `proposal_svc_radius` = ''");
 
-  // Diagnostic: check current values for audit 4
+  // Diagnostic: check current values and table structures
   let proposalDiag: any = null;
   try {
     const diagResult = await client.execute("SELECT id, proposal_biz_type, proposal_conv_goal, proposal_svc_radius, length(scored_report) as scored_report_size, length(campaign_proposal) as campaign_proposal_size, length(campaign_proposal_email_html) as email_html_size, length(raw_data) as raw_data_size, length(presentation_data) as presentation_data_size, campaign_proposal_status FROM `google_ads_audits` WHERE id = 4");
     proposalDiag = diagResult.rows[0] || null;
-  } catch { /* ignore */ }
+  } catch (e: any) { proposalDiag = { error: e?.message }; }
+
+  // Check table structures for proposal-related tables
+  let tableStructures: Record<string, any> = {};
+  for (const t of ["gads_proposal_negatives", "google_ads_audits_proposal_enabled_campaigns"]) {
+    try {
+      const info = await client.execute(`PRAGMA table_info(${t})`);
+      tableStructures[t] = info.rows.map((r: any) => r.name || r[1]);
+    } catch { tableStructures[t] = "NOT_FOUND"; }
+  }
+
+  // Test if payload.update works on audit 3
+  let updateTest: any = null;
+  try {
+    await payload.update({
+      collection: "google-ads-audits",
+      id: 3,
+      data: { notes: "test-" + Date.now() } as any,
+      overrideAccess: true,
+    });
+    updateTest = { ok: true };
+  } catch (e: any) {
+    updateTest = { ok: false, error: e?.message, stack: e?.stack?.split("\n").slice(0, 5) };
+  }
 
   let allTables: string[] = [];
   try {
@@ -1984,5 +2007,5 @@ export async function GET(request: NextRequest) {
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-16-campaign-proposal", results, allTables, proposalDiag });
+  return NextResponse.json({ ok: true, version: "2026-03-16-campaign-proposal", results, allTables, proposalDiag, tableStructures, updateTest });
 }
