@@ -127,9 +127,15 @@ export const GoogleAdsAudits: CollectionConfig = {
       // Strip large fields from API responses to keep document under Vercel's 4.5MB body limit.
       // rawData (full Google Ads API dump) is only written once during audit and never read back.
       // Without this, Payload sends the full document on every admin save, causing 413 errors.
+      // Also sanitise empty-string select values from SQLite → null so the admin UI
+      // doesn't send them back on save (Payload rejects "" as an invalid option).
       ({ doc }) => {
         if (doc?.rawData) {
           doc.rawData = null;
+        }
+        const selectFields = ["proposalBusinessType", "proposalConversionGoal", "proposalServiceRadius"];
+        for (const field of selectFields) {
+          if (doc?.[field] === "") doc[field] = null;
         }
         return doc;
       },
