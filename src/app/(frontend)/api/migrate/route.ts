@@ -1974,7 +1974,7 @@ export async function GET(request: NextRequest) {
   // Diagnostic: check current values for audit 4
   let proposalDiag: any = null;
   try {
-    const diagResult = await client.execute("SELECT id, proposal_biz_type, proposal_conv_goal, proposal_svc_radius FROM `google_ads_audits` WHERE id = 4");
+    const diagResult = await client.execute("SELECT id, proposal_biz_type, proposal_conv_goal, proposal_svc_radius, length(scored_report) as scored_report_size, length(campaign_proposal) as campaign_proposal_size, length(campaign_proposal_email_html) as email_html_size, length(raw_data) as raw_data_size, length(presentation_data) as presentation_data_size, campaign_proposal_status FROM `google_ads_audits` WHERE id = 4");
     proposalDiag = diagResult.rows[0] || null;
   } catch { /* ignore */ }
 
