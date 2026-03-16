@@ -65,14 +65,13 @@ export async function POST(
       ? brandTerms.split("\n").map((t: string) => t.trim()).filter(Boolean)
       : [];
 
-    // Mark proposal as pending
+    // Mark proposal as pending (direct DB update to avoid Payload re-validating
+    // unset select fields like proposalBusinessType which store "" in SQLite)
     try {
-      await payload.update({
-        collection: "google-ads-audits",
-        id,
-        data: { campaignProposalStatus: "pending" } as any,
-        overrideAccess: true,
-        validate: false,
+      const dbClient = (payload.db as any).client;
+      await dbClient.execute({
+        sql: "UPDATE google_ads_audits SET campaign_proposal_status = ? WHERE id = ?",
+        args: ["pending", id],
       });
     } catch (err) {
       console.error(`[run-campaign-proposal] Failed to set pending status:`, err);
@@ -89,13 +88,11 @@ export async function POST(
     // since it can take 5-10 minutes and would exceed Vercel's function timeout.
     after(async () => {
       try {
-        // Mark as running
-        await payload.update({
-          collection: "google-ads-audits",
-          id,
-          data: { campaignProposalStatus: "running" } as any,
-          overrideAccess: true,
-          validate: false,
+        // Mark as running (direct DB to avoid validation issues with empty select fields)
+        const dbClient = (payload.db as any).client;
+        await dbClient.execute({
+          sql: "UPDATE google_ads_audits SET campaign_proposal_status = ? WHERE id = ?",
+          args: ["running", id],
         });
 
         // Fire and forget — do NOT await this fetch.
