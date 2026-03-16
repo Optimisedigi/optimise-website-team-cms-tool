@@ -541,7 +541,7 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "Service Business", value: "service" },
                 { label: "Auto-detect", value: "other" },
               ],
-              validate: () => true,
+              validate: () => true as true,
             },
             {
               name: "proposalConversionGoal",
@@ -557,7 +557,7 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "Bookings (appointments)", value: "bookings" },
                 { label: "Signups (registrations)", value: "signups" },
               ],
-              validate: () => true,
+              validate: () => true as true,
             },
             {
               name: "proposalServiceRadius",
@@ -573,7 +573,7 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "State", value: "state" },
                 { label: "National", value: "national" },
               ],
-              validate: () => true,
+              validate: () => true as true,
             },
             // ── Advanced Overrides (collapsible) ──
             {
