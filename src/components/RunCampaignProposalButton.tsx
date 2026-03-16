@@ -122,7 +122,7 @@ const RunCampaignProposalButtonInner = () => {
           stopPolling()
           setLoading(false)
           setStage('Failed')
-          setError('Campaign proposal generation failed. Check server logs.')
+          setError(data.error || 'Campaign proposal generation failed. Check server logs.')
         }
       } catch {
         // Network hiccup -- keep polling

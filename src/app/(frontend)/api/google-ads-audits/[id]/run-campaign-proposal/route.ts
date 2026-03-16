@@ -135,21 +135,21 @@ export async function POST(
         );
         if (!gtRes.ok) {
           const errorText = await gtRes.text().catch(() => "unknown");
-          console.error(`[run-campaign-proposal] Growth Tools returned ${gtRes.status}: ${errorText}`);
-          // Mark as failed so the UI doesn't stay stuck
+          const errMsg = `Growth Tools returned ${gtRes.status}: ${errorText.slice(0, 500)}`;
+          console.error(`[run-campaign-proposal] ${errMsg}`);
           await dbClient.execute({
-            sql: "UPDATE google_ads_audits SET campaign_proposal_status = ? WHERE id = ?",
-            args: ["failed", id],
+            sql: "UPDATE google_ads_audits SET campaign_proposal_status = ?, audit_error = ? WHERE id = ?",
+            args: ["failed", errMsg, id],
           });
         }
       } catch (error) {
-        console.error(`[run-campaign-proposal] after() error:`, error);
-        // Mark as failed so the UI doesn't stay stuck on "running"
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[run-campaign-proposal] after() error:`, errMsg);
         try {
           const dbClient = (payload.db as any).client;
           await dbClient.execute({
-            sql: "UPDATE google_ads_audits SET campaign_proposal_status = ? WHERE id = ?",
-            args: ["failed", id],
+            sql: "UPDATE google_ads_audits SET campaign_proposal_status = ?, audit_error = ? WHERE id = ?",
+            args: ["failed", `CMS error: ${errMsg.slice(0, 500)}`, id],
           });
         } catch { /* best effort */ }
       }

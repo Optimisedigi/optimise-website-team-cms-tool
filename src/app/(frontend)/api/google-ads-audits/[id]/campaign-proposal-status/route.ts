@@ -30,6 +30,7 @@ export async function GET(
       generatedAt: a.campaignProposalGeneratedAt || null,
       hasProposal: !!a.campaignProposal,
       hasEmail: !!a.campaignProposalEmailHtml,
+      error: a.campaignProposalStatus === "failed" ? (a.auditError || "Unknown error") : null,
     });
   } catch {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
