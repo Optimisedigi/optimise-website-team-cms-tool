@@ -130,6 +130,8 @@ export async function POST(
               minAdGroupVolume: proposalMinAdGroupVolume != null ? Number(proposalMinAdGroupVolume) : undefined,
               minBrandImpressions: proposalMinBrandImpressions != null ? Number(proposalMinBrandImpressions) : undefined,
               brandVolumeExempt: proposalBrandVolumeExempt != null ? Boolean(proposalBrandVolumeExempt) : undefined,
+              // GT expects this as an array — send empty default to prevent "not iterable" crash
+              extraGenericBrandWords: [],
             }),
           }
         );
