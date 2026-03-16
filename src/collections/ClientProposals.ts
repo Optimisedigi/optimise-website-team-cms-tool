@@ -119,7 +119,6 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
           clientGoals: doc.businessGoals,
           competitors,
           tam: doc.tam,
-          notes: doc.notes || `Converted from proposal: ${doc.businessName}`,
           keywords: keywords || undefined,
           leadConversionRate: doc.leadConversionRate,
           leadToSaleConversionRate: doc.leadToSaleConversionRate,
