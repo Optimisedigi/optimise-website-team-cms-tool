@@ -345,9 +345,9 @@ export interface Client {
    */
   googleAdsCustomerId?: string | null;
   /**
-   * Goals, notes, and context about this client
+   * Goals, notes, and context about this client (legacy — use Notes tab for new notes)
    */
-  notes?: string | null;
+  legacyNotes?: string | null;
   /**
    * Automatic log of revenue changes
    */
@@ -357,6 +357,24 @@ export interface Client {
         previousAmount?: number | null;
         effectiveDate?: string | null;
         changedBy?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Add timestamped notes about this client — meetings, decisions, updates, etc.
+   */
+  clientNotes?:
+    | {
+        category?: ('general' | 'meeting' | 'strategy' | 'issue' | 'win' | 'feedback' | 'internal') | null;
+        date: string;
+        /**
+         * Who wrote this note
+         */
+        author?: string | null;
+        /**
+         * Note content
+         */
+        content: string;
         id?: string | null;
       }[]
     | null;
@@ -1931,9 +1949,6 @@ export interface GoogleAdsAudit {
    * Current campaign proposal generation status
    */
   campaignProposalStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
-  /**
-   * Full CampaignProposalResults data (auto-populated from Growth Tools)
-   */
   campaignProposal?:
     | {
         [k: string]: unknown;
@@ -1944,8 +1959,50 @@ export interface GoogleAdsAudit {
     | boolean
     | null;
   /**
-   * Generated proposal email HTML
+   * Drives campaign structure, volume thresholds, and AI prompts. 'Other' auto-detects from crawl.
    */
+  proposalBusinessType?: ('distributor' | 'ecommerce' | 'service' | 'other') | null;
+  /**
+   * Primary conversion goal. Influences AI keyword filtering and landing page suggestions.
+   */
+  proposalConversionGoal?: ('leads' | 'sales' | 'bookings' | 'signups') | null;
+  /**
+   * Service area. Influences geo-targeted ad groups and volume thresholds.
+   */
+  proposalServiceRadius?: ('local' | 'metro' | 'state' | 'national') | null;
+  /**
+   * Which campaign types to build. Leave empty for preset defaults.
+   */
+  proposalEnabledCampaigns?: ('brand' | 'products' | 'services' | 'services-geo' | 'industry')[] | null;
+  /**
+   * Minimum monthly searches for an ad group to qualify. Defaults: distributor=150, ecommerce=100, service=30.
+   */
+  proposalMinAdGroupVolume?: number | null;
+  /**
+   * Minimum monthly impressions for a 3rd-party brand to get its own ad group. Defaults: distributor=20, ecommerce=50.
+   */
+  proposalMinBrandImpressions?: number | null;
+  /**
+   * Exempt brand ad groups from the volume threshold. Default: on for distributors, off for others.
+   */
+  proposalBrandVolumeExempt?: boolean | null;
+  /**
+   * Keywords to exclude from specific categories or globally. Set these BEFORE running the proposal.
+   */
+  campaignProposalNegativeKeywords?:
+    | {
+        /**
+         * Keyword pattern to exclude (e.g. 'sodastream', 'pool pump')
+         */
+        pattern: string;
+        scope?: ('global' | 'category') | null;
+        /**
+         * Category name to apply this negative to (only when scope is 'category')
+         */
+        category?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   campaignProposalEmailHtml?: string | null;
   /**
    * When the campaign proposal was generated
@@ -3872,7 +3929,7 @@ export interface ClientsSelect<T extends boolean = true> {
   signedContractUrl?: T;
   signedContract?: T;
   googleAdsCustomerId?: T;
-  notes?: T;
+  legacyNotes?: T;
   retainerHistory?:
     | T
     | {
@@ -3880,6 +3937,15 @@ export interface ClientsSelect<T extends boolean = true> {
         previousAmount?: T;
         effectiveDate?: T;
         changedBy?: T;
+        id?: T;
+      };
+  clientNotes?:
+    | T
+    | {
+        category?: T;
+        date?: T;
+        author?: T;
+        content?: T;
         id?: T;
       };
   businessType?: T;
@@ -4508,6 +4574,21 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   teamNotes?: T;
   campaignProposalStatus?: T;
   campaignProposal?: T;
+  proposalBusinessType?: T;
+  proposalConversionGoal?: T;
+  proposalServiceRadius?: T;
+  proposalEnabledCampaigns?: T;
+  proposalMinAdGroupVolume?: T;
+  proposalMinBrandImpressions?: T;
+  proposalBrandVolumeExempt?: T;
+  campaignProposalNegativeKeywords?:
+    | T
+    | {
+        pattern?: T;
+        scope?: T;
+        category?: T;
+        id?: T;
+      };
   campaignProposalEmailHtml?: T;
   campaignProposalGeneratedAt?: T;
   history?:

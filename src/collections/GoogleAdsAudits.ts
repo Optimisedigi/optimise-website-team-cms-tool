@@ -529,7 +529,6 @@ export const GoogleAdsAudits: CollectionConfig = {
             {
               name: "proposalBusinessType",
               type: "select",
-              dbName: "proposal_biz_type",
               defaultValue: "other",
               admin: {
                 description: "Drives campaign structure, volume thresholds, and AI prompts. 'Other' auto-detects from crawl.",
@@ -546,7 +545,6 @@ export const GoogleAdsAudits: CollectionConfig = {
             {
               name: "proposalConversionGoal",
               type: "select",
-              dbName: "proposal_conv_goal",
               admin: {
                 description: "Primary conversion goal. Influences AI keyword filtering and landing page suggestions.",
                 isClearable: true,
@@ -562,7 +560,6 @@ export const GoogleAdsAudits: CollectionConfig = {
             {
               name: "proposalServiceRadius",
               type: "select",
-              dbName: "proposal_svc_radius",
               admin: {
                 description: "Service area. Influences geo-targeted ad groups and volume thresholds.",
                 isClearable: true,

@@ -73,18 +73,23 @@ describe("dbName ↔ migration sync", () => {
     expect(allDbNames.length).toBeGreaterThan(0);
 
     for (const { slug, path: fieldPath, dbName } of allDbNames) {
-      // The migration must contain a CREATE TABLE with the exact dbName
-      // or a RENAME TO that dbName
+      // The migration must contain:
+      // 1. A CREATE TABLE with the exact dbName (for array/table-level dbName), OR
+      // 2. A RENAME TO that dbName, OR
+      // 3. The dbName as a column within a CREATE TABLE (for column-level dbName)
       // Note: template literals in the source use \` (escaped backtick) while
       // regular strings use plain backticks, so check both patterns
       const hasCreate = migrationSql.includes(`CREATE TABLE IF NOT EXISTS \`${dbName}\``) ||
         migrationSql.includes(`CREATE TABLE IF NOT EXISTS \\\`${dbName}\\\``);
       const hasRename = migrationSql.includes(`RENAME TO \`${dbName}\``) ||
         migrationSql.includes(`RENAME TO \\\`${dbName}\\\``);
+      // Column-level dbName: the name appears as a column definition inside a CREATE TABLE
+      const hasColumn = migrationSql.includes(`\`${dbName}\``) ||
+        migrationSql.includes(`\\\`${dbName}\\\``);
 
       expect(
-        hasCreate || hasRename,
-        `Collection "${slug}" field "${fieldPath}" has dbName="${dbName}" but the migration has no CREATE TABLE or RENAME TO for \`${dbName}\`. ` +
+        hasCreate || hasRename || hasColumn,
+        `Collection "${slug}" field "${fieldPath}" has dbName="${dbName}" but the migration has no CREATE TABLE, RENAME TO, or column definition for \`${dbName}\`. ` +
         `This will cause a 500 error on every query to the ${slug} collection.`,
       ).toBe(true);
     }

@@ -1263,10 +1263,16 @@ export async function POST(request: NextRequest) {
 
   await run("mark_migration:20260315_120000_campaign_proposal_engine_config", `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('20260315_120000_campaign_proposal_engine_config', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
 
+  // Rename proposal select columns: old dbName overrides → Payload's default camelCase-to-snake_case names
+  // Without this, Payload generates SQL referencing proposal_business_type etc. but DB has proposal_biz_type etc.
+  await run("rename_proposal_biz_type", "ALTER TABLE `google_ads_audits` RENAME COLUMN `proposal_biz_type` TO `proposal_business_type`");
+  await run("rename_proposal_conv_goal", "ALTER TABLE `google_ads_audits` RENAME COLUMN `proposal_conv_goal` TO `proposal_conversion_goal`");
+  await run("rename_proposal_svc_radius", "ALTER TABLE `google_ads_audits` RENAME COLUMN `proposal_svc_radius` TO `proposal_service_radius`");
+
   // Clean up empty-string select values that cause Payload validation failures on save
-  await run("clean_empty_proposal_selects", "UPDATE `google_ads_audits` SET `proposal_biz_type` = NULL WHERE `proposal_biz_type` = ''");
-  await run("clean_empty_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conv_goal` = NULL WHERE `proposal_conv_goal` = ''");
-  await run("clean_empty_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_svc_radius` = NULL WHERE `proposal_svc_radius` = ''");
+  await run("clean_empty_proposal_selects", "UPDATE `google_ads_audits` SET `proposal_business_type` = NULL WHERE `proposal_business_type` = ''");
+  await run("clean_empty_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conversion_goal` = NULL WHERE `proposal_conversion_goal` = ''");
+  await run("clean_empty_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_service_radius` = NULL WHERE `proposal_service_radius` = ''");
 
   // Clear oversized campaign proposal data that causes 413 on Vercel (one-time cleanup)
   await run("clear_oversized_proposals", "UPDATE `google_ads_audits` SET `campaign_proposal` = NULL, `campaign_proposal_email_html` = NULL, `campaign_proposal_status` = 'pending' WHERE `campaign_proposal` IS NOT NULL");
@@ -1965,16 +1971,21 @@ export async function GET(request: NextRequest) {
   await run("gaa_proposal_enabled_campaigns_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_proposal_enabled_campaigns_order_idx` ON `google_ads_audits_proposal_enabled_campaigns` (`order`)");
   await run("gaa_proposal_enabled_campaigns_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_proposal_enabled_campaigns_parent_idx` ON `google_ads_audits_proposal_enabled_campaigns` (`parent_id`)");
 
+  // Rename proposal select columns: old dbName overrides → Payload's default names
+  await run("rename_proposal_biz_type", "ALTER TABLE `google_ads_audits` RENAME COLUMN `proposal_biz_type` TO `proposal_business_type`");
+  await run("rename_proposal_conv_goal", "ALTER TABLE `google_ads_audits` RENAME COLUMN `proposal_conv_goal` TO `proposal_conversion_goal`");
+  await run("rename_proposal_svc_radius", "ALTER TABLE `google_ads_audits` RENAME COLUMN `proposal_svc_radius` TO `proposal_service_radius`");
+
   // Clean invalid select values that cause Payload validation failures on PATCH
   // Set to NULL if value is not in the valid options list
-  await run("clean_invalid_proposal_biz_type", "UPDATE `google_ads_audits` SET `proposal_biz_type` = NULL WHERE `proposal_biz_type` NOT IN ('distributor', 'ecommerce', 'service', 'other') OR `proposal_biz_type` = ''");
-  await run("clean_invalid_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conv_goal` = NULL WHERE `proposal_conv_goal` NOT IN ('leads', 'sales', 'bookings', 'signups') OR `proposal_conv_goal` = ''");
-  await run("clean_invalid_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_svc_radius` = NULL WHERE `proposal_svc_radius` NOT IN ('local', 'metro', 'state', 'national') OR `proposal_svc_radius` = ''");
+  await run("clean_invalid_proposal_biz_type", "UPDATE `google_ads_audits` SET `proposal_business_type` = NULL WHERE `proposal_business_type` NOT IN ('distributor', 'ecommerce', 'service', 'other') OR `proposal_business_type` = ''");
+  await run("clean_invalid_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conversion_goal` = NULL WHERE `proposal_conversion_goal` NOT IN ('leads', 'sales', 'bookings', 'signups') OR `proposal_conversion_goal` = ''");
+  await run("clean_invalid_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_service_radius` = NULL WHERE `proposal_service_radius` NOT IN ('local', 'metro', 'state', 'national') OR `proposal_service_radius` = ''");
 
   // Diagnostic: check current values and table structures
   let proposalDiag: any = null;
   try {
-    const diagResult = await client.execute("SELECT id, proposal_biz_type, proposal_conv_goal, proposal_svc_radius, length(scored_report) as scored_report_size, length(campaign_proposal) as campaign_proposal_size, length(campaign_proposal_email_html) as email_html_size, length(raw_data) as raw_data_size, length(presentation_data) as presentation_data_size, campaign_proposal_status FROM `google_ads_audits` WHERE id = 4");
+    const diagResult = await client.execute("SELECT id, proposal_business_type, proposal_conversion_goal, proposal_service_radius, length(scored_report) as scored_report_size, length(campaign_proposal) as campaign_proposal_size, length(campaign_proposal_email_html) as email_html_size, length(raw_data) as raw_data_size, length(presentation_data) as presentation_data_size, campaign_proposal_status FROM `google_ads_audits` WHERE id = 4");
     proposalDiag = diagResult.rows[0] || null;
   } catch (e: any) { proposalDiag = { error: e?.message }; }
 
