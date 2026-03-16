@@ -160,10 +160,15 @@ const RunCampaignProposalButtonInner = () => {
         credentials: 'include',
       })
 
-      const data = await res.json()
-
       if (!res.ok) {
-        setError(data.error || `Failed (${res.status})`)
+        let errorMsg = `Failed (${res.status})`
+        try {
+          const data = await res.json()
+          if (data.error) errorMsg = data.error
+        } catch {
+          // Response wasn't JSON (e.g. HTML error page)
+        }
+        setError(errorMsg)
         setLoading(false)
         return
       }
