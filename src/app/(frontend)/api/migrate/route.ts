@@ -1965,10 +1965,18 @@ export async function GET(request: NextRequest) {
   await run("gaa_proposal_enabled_campaigns_order_idx", "CREATE INDEX IF NOT EXISTS `gaa_proposal_enabled_campaigns_order_idx` ON `google_ads_audits_proposal_enabled_campaigns` (`order`)");
   await run("gaa_proposal_enabled_campaigns_parent_idx", "CREATE INDEX IF NOT EXISTS `gaa_proposal_enabled_campaigns_parent_idx` ON `google_ads_audits_proposal_enabled_campaigns` (`parent_id`)");
 
-  // Clean empty-string select values that cause Payload validation failures on PATCH
-  await run("clean_empty_proposal_selects", "UPDATE `google_ads_audits` SET `proposal_biz_type` = NULL WHERE `proposal_biz_type` = ''");
-  await run("clean_empty_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conv_goal` = NULL WHERE `proposal_conv_goal` = ''");
-  await run("clean_empty_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_svc_radius` = NULL WHERE `proposal_svc_radius` = ''");
+  // Clean invalid select values that cause Payload validation failures on PATCH
+  // Set to NULL if value is not in the valid options list
+  await run("clean_invalid_proposal_biz_type", "UPDATE `google_ads_audits` SET `proposal_biz_type` = NULL WHERE `proposal_biz_type` NOT IN ('distributor', 'ecommerce', 'service', 'other') OR `proposal_biz_type` = ''");
+  await run("clean_invalid_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conv_goal` = NULL WHERE `proposal_conv_goal` NOT IN ('leads', 'sales', 'bookings', 'signups') OR `proposal_conv_goal` = ''");
+  await run("clean_invalid_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_svc_radius` = NULL WHERE `proposal_svc_radius` NOT IN ('local', 'metro', 'state', 'national') OR `proposal_svc_radius` = ''");
+
+  // Diagnostic: check current values for audit 4
+  let proposalDiag: any = null;
+  try {
+    const diagResult = await client.execute("SELECT id, proposal_biz_type, proposal_conv_goal, proposal_svc_radius FROM `google_ads_audits` WHERE id = 4");
+    proposalDiag = diagResult.rows[0] || null;
+  } catch { /* ignore */ }
 
   let allTables: string[] = [];
   try {
@@ -1976,5 +1984,5 @@ export async function GET(request: NextRequest) {
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-16-campaign-proposal", results, allTables });
+  return NextResponse.json({ ok: true, version: "2026-03-16-campaign-proposal", results, allTables, proposalDiag });
 }
