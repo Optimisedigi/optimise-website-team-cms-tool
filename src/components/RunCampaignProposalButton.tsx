@@ -112,7 +112,7 @@ const RunCampaignProposalButtonInner = () => {
         const data = await res.json()
 
         if (data.status === 'running') {
-          setStage('Generating proposal (this takes 2-5 minutes)...')
+          setStage('Generating proposal (this takes 5-10 minutes)...')
         } else if (data.status === 'completed') {
           stopPolling()
           setLoading(false)
