@@ -75,8 +75,9 @@ export async function POST(
       });
     } catch (err) {
       console.error(`[run-campaign-proposal] Failed to set pending status:`, err);
+      const detail = err instanceof Error ? err.message : String(err);
       return NextResponse.json(
-        { error: "Failed to update audit status. Check server logs." },
+        { error: `Failed to update audit status: ${detail}` },
         { status: 500 }
       );
     }
