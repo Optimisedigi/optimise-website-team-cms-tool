@@ -1282,6 +1282,13 @@ export async function POST(request: NextRequest) {
   // The afterRead hook now also strips it on read, but this clears existing data from the DB.
   await run("clear_raw_data_for_413_fix", "UPDATE `google_ads_audits` SET `raw_data` = NULL WHERE `raw_data` IS NOT NULL");
 
+  // ── Revert tag_audits back to tag_setup_audits (undo premature rename) ──
+  await run("revert_tag_audits_to_tag_setup_audits", "ALTER TABLE `tag_audits` RENAME TO `tag_setup_audits`");
+  await run("revert_tag_audits_audit_history", "ALTER TABLE `tag_audits_audit_history` RENAME TO `tag_setup_audits_audit_history`");
+  await run("revert_tag_audits_verify_history", "ALTER TABLE `tag_audits_verify_history` RENAME TO `tag_setup_audits_verify_history`");
+  // Revert column rename
+  await run("revert_website_url_to_url", "ALTER TABLE `tag_setup_audits` RENAME COLUMN `website_url` TO `url`");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
