@@ -1289,6 +1289,12 @@ export async function POST(request: NextRequest) {
   // Revert column rename
   await run("revert_website_url_to_url", "ALTER TABLE `tag_setup_audits` RENAME COLUMN `website_url` TO `url`");
 
+  // ── Campaign Proposal Layer 1 config fields ──
+  await run("add_proposal_service_split", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_service_split` text");
+  await run("add_proposal_max_industry_verticals", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_max_industry_verticals` numeric");
+  await run("add_proposal_max_ad_groups_per_campaign", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_max_ad_groups_per_campaign` numeric");
+  await run("add_proposal_primary_focus", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_primary_focus` text");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║

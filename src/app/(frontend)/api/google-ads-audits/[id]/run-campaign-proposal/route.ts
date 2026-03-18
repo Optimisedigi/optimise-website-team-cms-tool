@@ -52,6 +52,7 @@ export async function POST(
       websiteUrl, businessName, customerId, brandTerms, campaignProposalNegativeKeywords,
       proposalBusinessType, proposalConversionGoal, proposalServiceRadius,
       proposalEnabledCampaigns, proposalMinAdGroupVolume, proposalMinBrandImpressions, proposalBrandVolumeExempt,
+      proposalServiceSplit, proposalMaxIndustryVerticals, proposalMaxAdGroupsPerCampaign, proposalPrimaryFocus,
     } = audit;
     if (!websiteUrl || !businessName) {
       return NextResponse.json(
@@ -129,6 +130,10 @@ export async function POST(
               minAdGroupVolume: proposalMinAdGroupVolume != null ? Number(proposalMinAdGroupVolume) : undefined,
               minBrandImpressions: proposalMinBrandImpressions != null ? Number(proposalMinBrandImpressions) : undefined,
               brandVolumeExempt: proposalBrandVolumeExempt != null ? Boolean(proposalBrandVolumeExempt) : undefined,
+              serviceSplitPreference: ["single", "auto"].includes(proposalServiceSplit) ? proposalServiceSplit : undefined,
+              maxIndustryVerticals: proposalMaxIndustryVerticals != null ? Number(proposalMaxIndustryVerticals) : undefined,
+              maxAdGroupsPerCampaign: proposalMaxAdGroupsPerCampaign != null ? Number(proposalMaxAdGroupsPerCampaign) : undefined,
+              primaryFocus: ["services", "products", "equal"].includes(proposalPrimaryFocus) ? proposalPrimaryFocus : undefined,
               extraGenericBrandWords: [],
             }),
           }

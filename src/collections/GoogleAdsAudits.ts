@@ -590,6 +590,7 @@ export const GoogleAdsAudits: CollectionConfig = {
                   },
                   options: [
                     { label: "Brand", value: "brand" },
+                    { label: "Brand Products", value: "brand-product" },
                     { label: "Products", value: "products" },
                     { label: "Services", value: "services" },
                     { label: "Services - Geo", value: "services-geo" },
@@ -618,6 +619,49 @@ export const GoogleAdsAudits: CollectionConfig = {
                   admin: {
                     description: "Exempt brand ad groups from the volume threshold. Default: on for distributors, off for others.",
                   },
+                },
+                {
+                  name: "proposalServiceSplit",
+                  type: "select",
+                  admin: {
+                    description: "How to split service campaigns. Auto splits into Repair/Manufacturing/etc. Default: auto.",
+                  },
+                  options: [
+                    { label: "Auto (split by type)", value: "auto" },
+                    { label: "Single campaign", value: "single" },
+                  ],
+                },
+                {
+                  name: "proposalMaxIndustryVerticals",
+                  type: "number",
+                  admin: {
+                    description: "Max industry vertical ad groups to include (sorted by volume). Default: 5.",
+                    step: 1,
+                  },
+                  min: 1,
+                  max: 20,
+                },
+                {
+                  name: "proposalMaxAdGroupsPerCampaign",
+                  type: "number",
+                  admin: {
+                    description: "Max ad groups before splitting into sub-campaigns. Default: 10.",
+                    step: 1,
+                  },
+                  min: 1,
+                  max: 50,
+                },
+                {
+                  name: "proposalPrimaryFocus",
+                  type: "select",
+                  admin: {
+                    description: "Which side to prioritise in the proposal. Default: services.",
+                  },
+                  options: [
+                    { label: "Services", value: "services" },
+                    { label: "Products", value: "products" },
+                    { label: "Equal", value: "equal" },
+                  ],
                 },
               ],
             },
