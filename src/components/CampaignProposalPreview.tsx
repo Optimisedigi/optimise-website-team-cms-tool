@@ -543,6 +543,8 @@ const CampaignProposalPreviewInner = () => {
     input.click()
   }, [id])
 
+  const [showImportFormat, setShowImportFormat] = useState(false)
+
   // Export raw JSON
   const handleExportJSON = useCallback(() => {
     if (!proposal) return
@@ -593,6 +595,56 @@ const CampaignProposalPreviewInner = () => {
             Export Raw Data
           </button>
         </div>
+      </div>
+
+      {/* Import format info */}
+      <div style={{ marginBottom: 8 }}>
+        <button
+          type="button"
+          onClick={() => setShowImportFormat(!showImportFormat)}
+          style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 12, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+        >
+          {showImportFormat ? 'Hide' : 'Show'} required CSV format for import
+        </button>
+        {showImportFormat && (
+          <div style={{ marginTop: 8, padding: '10px 14px', background: '#f1f5f9', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, lineHeight: 1.7 }}>
+            <strong style={{ fontSize: 13 }}>CSV columns (in this order):</strong>
+            <table style={{ marginTop: 6, borderCollapse: 'collapse', width: '100%' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+                  <th style={{ textAlign: 'left', padding: '3px 8px', color: '#475569' }}>#</th>
+                  <th style={{ textAlign: 'left', padding: '3px 8px', color: '#475569' }}>Column</th>
+                  <th style={{ textAlign: 'left', padding: '3px 8px', color: '#475569' }}>Used on import</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['1', 'Proposed Campaign', 'Yes — campaign name'],
+                  ['2', 'Proposed Ad Group', 'Yes — ad group name'],
+                  ['3', 'Keyword', 'Yes — keyword text'],
+                  ['4', 'Proposed Landing Page', 'Yes — landing page URL'],
+                  ['5', 'Current Campaign', 'No (reference only)'],
+                  ['6', 'Current Ad Group', 'No (reference only)'],
+                  ['7', 'Clicks', 'No (reference only)'],
+                  ['8', 'Impressions', 'No (reference only)'],
+                  ['9', 'Cost ($)', 'No (reference only)'],
+                  ['10', 'Conversions', 'No (reference only)'],
+                  ['11', 'Mapped', 'No (reference only)'],
+                  ['12', 'Landing Page Status', 'Yes — exists / needs-improvement / create'],
+                ].map(([num, col, used]) => (
+                  <tr key={num} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '3px 8px', color: '#94a3b8' }}>{num}</td>
+                    <td style={{ padding: '3px 8px', fontFamily: 'monospace' }}>{col}</td>
+                    <td style={{ padding: '3px 8px', color: used.startsWith('Yes') ? '#059669' : '#94a3b8' }}>{used}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ marginTop: 8, color: '#64748b' }}>
+              Tip: Export the CSV first, edit it (move keywords, rename campaigns, remove rows), then import it back. Columns 5-11 are for reference only and are ignored on import.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Import status */}
