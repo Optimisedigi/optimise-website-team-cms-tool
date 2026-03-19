@@ -516,6 +516,7 @@ export const GoogleAdsAudits: CollectionConfig = {
                 { label: "Running", value: "running" },
                 { label: "Completed", value: "completed" },
                 { label: "Failed", value: "failed" },
+                { label: "Approved", value: "approved" },
               ],
             },
             {
@@ -523,6 +524,14 @@ export const GoogleAdsAudits: CollectionConfig = {
               type: "json",
               admin: {
                 hidden: true,
+              },
+            },
+            {
+              name: "approvedCampaignStructure",
+              type: "json",
+              admin: {
+                hidden: true,
+                description: "Client-approved campaign structure imported from CSV",
               },
             },
             // ── Engine Configuration ──

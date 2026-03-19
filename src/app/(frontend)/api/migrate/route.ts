@@ -1295,6 +1295,9 @@ export async function POST(request: NextRequest) {
   await run("add_proposal_max_ad_groups_per_campaign", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_max_ad_groups_per_campaign` numeric");
   await run("add_proposal_primary_focus", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_primary_focus` text");
 
+  // ── Approved campaign structure (CSV import) ──
+  await run("add_approved_campaign_structure", "ALTER TABLE `google_ads_audits` ADD COLUMN `approved_campaign_structure` text");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
