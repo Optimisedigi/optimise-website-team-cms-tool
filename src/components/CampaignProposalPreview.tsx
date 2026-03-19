@@ -1,6 +1,6 @@
 'use client'
 
-import { useAllFormFields } from '@payloadcms/ui'
+import { useAllFormFields, useDocumentInfo } from '@payloadcms/ui'
 import { useState, useCallback, useMemo } from 'react'
 
 // ---------------------------------------------------------------------------
@@ -15,6 +15,20 @@ interface ProposalKeyword {
   competitionIndex: number
   lowCpcMicros: number
   highCpcMicros: number
+  existingCampaign?: string
+  existingAdGroup?: string
+  existingClicks?: number
+  existingImpressions?: number
+  existingCost?: number
+  existingConversions?: number
+}
+
+interface ProposalNegativeKeyword {
+  phrase: string
+  matchType: 'PHRASE'
+  scope: 'account' | 'campaign'
+  campaign?: string
+  reason: string
 }
 
 interface ProposedAdGroup {
@@ -122,6 +136,7 @@ interface CampaignProposalData {
   landingPagesToImprove: LandingPageToImprove[]
   structureComparison: StructureComparisonRow[]
   priorityRanking: PriorityItem[]
+  recommendedNegatives?: ProposalNegativeKeyword[]
   createdAt: string
 }
 
@@ -273,6 +288,7 @@ function getSelectedCampaigns(
 // ---------------------------------------------------------------------------
 
 const CampaignProposalPreviewInner = () => {
+  const { id } = useDocumentInfo()
   const [fields] = useAllFormFields()
   const [activeTab, setActiveTab] = useState<Tab>('structure')
   const [editableHtml, setEditableHtml] = useState<string | null>(null)
@@ -350,80 +366,182 @@ const CampaignProposalPreviewInner = () => {
     [proposal],
   )
 
-  // CSV Export - includes all proposed campaigns (not just structureComparison)
-  const handleExportCSV = useCallback(() => {
-    if (!proposal) return
-
-    const rows: string[][] = []
-
-    // Always include the full proposed structure
-    rows.push([
-      'Selected',
-      'Campaign',
-      'Campaign Type',
-      'Ad Group',
-      'Monthly Volume',
-      'Landing Page',
-      'LP Status',
-      'Keywords',
-    ])
-    proposal.proposedCampaigns.forEach((campaign, ci) => {
-      for (const ag of campaign.adGroups) {
-        const isSelected = selection[`c${ci}-ag${campaign.adGroups.indexOf(ag)}`] ? 'Yes' : 'No'
-        rows.push([
-          isSelected,
-          campaign.name,
-          campaign.campaignType,
-          ag.name,
-          String(ag.totalMonthlyVolume),
-          ag.landingPage.url || '(create)',
-          ag.landingPage.status,
-          (ag.keywords ?? []).map((k) => `${k.text} (${k.monthlySearchVolume})`).join('; '),
-        ])
-      }
-    })
-
-    // If there's a structure comparison, add it as a second section
-    if (proposal.structureComparison && proposal.structureComparison.length > 0) {
-      rows.push([]) // blank separator
-      rows.push(['--- BEFORE vs AFTER COMPARISON ---'])
-      rows.push([
-        'Change',
-        'Current Campaign',
-        'Current Ad Group',
-        'Current Landing Page',
-        'Current Volume',
-        'Proposed Campaign',
-        'Proposed Ad Group',
-        'Proposed Landing Page',
-        'Proposed Volume',
-        'Notes',
-      ])
-      for (const row of proposal.structureComparison) {
-        rows.push([
-          row.change,
-          row.currentCampaign,
-          row.currentAdGroup,
-          row.currentLandingPage,
-          row.currentMonthlyVolume != null ? String(row.currentMonthlyVolume) : '',
-          row.proposedCampaign,
-          row.proposedAdGroup,
-          row.proposedLandingPage,
-          row.proposedMonthlyVolume != null ? String(row.proposedMonthlyVolume) : '',
-          row.notes,
-        ])
-      }
-    }
-
-    const csv = rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
+  // Helper: trigger CSV file download
+  const downloadCsv = useCallback((csv: string, filename: string) => {
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `campaign-proposal-${(proposal.businessName || 'export').replace(/[^a-z0-9]/gi, '-').slice(0, 40)}.csv`
+    a.download = filename
     a.click()
     URL.revokeObjectURL(url)
-  }, [proposal, selection])
+  }, [])
+
+  const escapeCsv = (val: string) => {
+    if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+      return `"${val.replace(/"/g, '""')}"`
+    }
+    return val
+  }
+
+  // CSV Export — one row per keyword with account mapping
+  const handleExportCSV = useCallback(() => {
+    if (!proposal) return
+
+    const headers = [
+      'Proposed Campaign', 'Proposed Ad Group', 'Keyword', 'Proposed Landing Page',
+      'Current Campaign', 'Current Ad Group', 'Clicks', 'Impressions',
+      'Cost ($)', 'Conversions', 'Mapped', 'Landing Page Status',
+    ]
+    const rows: string[] = [headers.join(',')]
+
+    for (const campaign of proposal.proposedCampaigns) {
+      for (const ag of campaign.adGroups) {
+        for (const kw of (ag.keywords ?? [])) {
+          const mapped = kw.existingCampaign || kw.existingAdGroup
+          rows.push([
+            escapeCsv(campaign.name),
+            escapeCsv(ag.name),
+            escapeCsv(kw.text),
+            escapeCsv(ag.landingPage.url || ''),
+            escapeCsv(kw.existingCampaign || ''),
+            escapeCsv(kw.existingAdGroup || ''),
+            kw.existingClicks?.toString() || '',
+            kw.existingImpressions?.toString() || '',
+            kw.existingCost != null ? kw.existingCost.toFixed(2) : '',
+            kw.existingConversions?.toString() || '',
+            mapped ? 'Yes' : 'No',
+            escapeCsv(ag.landingPage.status),
+          ].join(','))
+        }
+      }
+    }
+
+    const name = (proposal.businessName || 'export').replace(/[^a-z0-9]/gi, '-').slice(0, 40)
+    downloadCsv(rows.join('\n'), `campaign-proposal-${name}.csv`)
+  }, [proposal, downloadCsv])
+
+  // Negatives CSV Export
+  const handleExportNegatives = useCallback(() => {
+    if (!proposal?.recommendedNegatives?.length) return
+
+    const headers = ['Negative Keyword', 'Match Type', 'Scope', 'Campaign', 'Reason']
+    const rows: string[] = [headers.join(',')]
+
+    for (const neg of proposal.recommendedNegatives) {
+      rows.push([
+        escapeCsv(neg.phrase),
+        neg.matchType,
+        neg.scope,
+        escapeCsv(neg.campaign || ''),
+        escapeCsv(neg.reason),
+      ].join(','))
+    }
+
+    const name = (proposal.businessName || 'export').replace(/[^a-z0-9]/gi, '-').slice(0, 40)
+    downloadCsv(rows.join('\n'), `campaign-negatives-${name}.csv`)
+  }, [proposal, downloadCsv])
+
+  // CSV Import — parse approved structure and save to document
+  const [importStatus, setImportStatus] = useState<string | null>(null)
+  const handleImportCSV = useCallback(() => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      setImportStatus('Reading CSV...')
+      const csvContent = await file.text()
+
+      try {
+        // Parse CSV locally into campaign structure
+        const lines = csvContent.split('\n').filter((l) => l.trim())
+        if (lines.length < 2) {
+          setImportStatus('Error: CSV must have a header row and data rows')
+          return
+        }
+
+        // Parse CSV fields (handles quoted fields)
+        function parseLine(line: string): string[] {
+          const fields: string[] = []
+          let current = ''
+          let inQuotes = false
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i]
+            if (inQuotes) {
+              if (ch === '"' && line[i + 1] === '"') { current += '"'; i++ }
+              else if (ch === '"') { inQuotes = false }
+              else { current += ch }
+            } else {
+              if (ch === '"') { inQuotes = true }
+              else if (ch === ',') { fields.push(current); current = '' }
+              else { current += ch }
+            }
+          }
+          fields.push(current)
+          return fields
+        }
+
+        const campaignMap = new Map<string, Map<string, { keywords: string[]; landingPage: string; status: string }>>()
+        for (const line of lines.slice(1)) {
+          const f = parseLine(line)
+          const camp = f[0]?.trim()
+          const ag = f[1]?.trim()
+          const kw = f[2]?.trim()
+          const lp = f[3]?.trim() || ''
+          const status = f[11]?.trim() || 'exists'
+          if (!camp || !ag || !kw) continue
+
+          if (!campaignMap.has(camp)) campaignMap.set(camp, new Map())
+          const agMap = campaignMap.get(camp)!
+          if (!agMap.has(ag)) agMap.set(ag, { keywords: [], landingPage: lp, status })
+          agMap.get(ag)!.keywords.push(kw)
+        }
+
+        const totalCampaigns = campaignMap.size
+        const totalAdGroups = Array.from(campaignMap.values()).reduce((s, m) => s + m.size, 0)
+        const totalKeywords = Array.from(campaignMap.values()).reduce((s, m) => {
+          for (const ag of m.values()) s += ag.keywords.length
+          return s
+        }, 0)
+
+        setImportStatus(`Parsed: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Saving...`)
+
+        // Save to CMS via PATCH
+        const res = await fetch(`/api/google-ads-audits/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            campaignProposalStatus: 'approved',
+            approvedCampaignStructure: Array.from(campaignMap.entries()).map(([campName, agMap]) => ({
+              name: campName,
+              campaignType: campName.toLowerCase().includes('brand') ? 'brand' : 'generic',
+              channelType: 'SEARCH',
+              adGroups: Array.from(agMap.entries()).map(([agName, data]) => ({
+                name: agName,
+                keywords: data.keywords,
+                landingPage: data.landingPage,
+                landingPageStatus: data.status,
+              })),
+            })),
+          }),
+        })
+
+        if (res.ok) {
+          setImportStatus(`Saved: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Status set to Approved.`)
+        } else {
+          const err = await res.json().catch(() => ({}))
+          setImportStatus(`Error saving: ${(err as any).message || res.statusText}`)
+        }
+      } catch (err) {
+        setImportStatus(`Error: ${err instanceof Error ? err.message : 'Failed to parse CSV'}`)
+      }
+    }
+    input.click()
+  }, [id])
 
   // Export raw JSON
   const handleExportJSON = useCallback(() => {
@@ -459,15 +577,35 @@ const CampaignProposalPreviewInner = () => {
           Email Editor
         </button>
         <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" onClick={handleExportCSV} style={btnStyle('#059669')}>
             Export CSV
+          </button>
+          {proposal?.recommendedNegatives && proposal.recommendedNegatives.length > 0 && (
+            <button type="button" onClick={handleExportNegatives} style={btnStyle('#d97706')}>
+              Export Negatives
+            </button>
+          )}
+          <button type="button" onClick={handleImportCSV} style={btnStyle('#2563eb')}>
+            Import Approved CSV
           </button>
           <button type="button" onClick={handleExportJSON} style={btnStyle('#6366f1')}>
             Export Raw Data
           </button>
         </div>
       </div>
+
+      {/* Import status */}
+      {importStatus && (
+        <div style={{
+          padding: '8px 12px', marginBottom: 12, borderRadius: 6, fontSize: 13,
+          background: importStatus.startsWith('Error') ? '#fee2e2' : '#ecfdf5',
+          color: importStatus.startsWith('Error') ? '#991b1b' : '#065f46',
+          border: `1px solid ${importStatus.startsWith('Error') ? '#fecaca' : '#a7f3d0'}`,
+        }}>
+          {importStatus}
+        </div>
+      )}
 
       {/* Stats bar */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
