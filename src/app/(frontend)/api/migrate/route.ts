@@ -2028,11 +2028,15 @@ export async function GET(request: NextRequest) {
     updateTest = { ok: false, error: e?.message, stack: e?.stack?.split("\n").slice(0, 5) };
   }
 
+  // ── Yearly Sales Target (2026-03-20) ──
+  await run("clients.yearly_sales_target", "ALTER TABLE `clients` ADD `yearly_sales_target` real");
+  await run("clients.target_deadline_date", "ALTER TABLE `clients` ADD `target_deadline_date` text");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-16-campaign-proposal", results, allTables, proposalDiag, tableStructures, updateTest });
+  return NextResponse.json({ ok: true, version: "2026-03-20", results, allTables, proposalDiag, tableStructures, updateTest });
 }
