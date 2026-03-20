@@ -428,6 +428,9 @@ export const Clients: CollectionConfig = {
                 description: "Monthly revenue amount ($)",
                 step: 1,
                 condition: (data: any) => !data?.isAgency,
+                components: {
+                  Cell: "./components/MonthlyRetainerCell",
+                },
               },
             },
             {
