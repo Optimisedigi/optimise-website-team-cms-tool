@@ -467,6 +467,25 @@ export async function GET() {
   const totalCost = round(infraTotal + apiTotal + llmTotal);
 
   // Lead conversion: leads that reached "client" stage / total leads
+  // Fetch agency yearly sales target
+  let salesTarget: { target: number; deadline: string } | null = null;
+  try {
+    const agencyClient = await payload.find({
+      collection: "clients",
+      where: { isAgency: { equals: true } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    });
+    const agency = agencyClient.docs[0] as any;
+    if (agency?.yearlySalesTarget && agency.yearlySalesTarget > 0) {
+      salesTarget = {
+        target: agency.yearlySalesTarget,
+        deadline: agency.targetDeadlineDate || `${now.getFullYear()}-12-31T00:00:00.000Z`,
+      };
+    }
+  } catch { /* agency not configured */ }
+
   let convertedLeadsCount = 0;
   try {
     const cl = await payload.count({
@@ -510,6 +529,7 @@ export async function GET() {
     totalLeads: totalLeadsCount.totalDocs,
     businessCosts: businessCostsSummary,
     processes: processesData || null,
+    salesTarget,
     month: now.toLocaleString("en-AU", { month: "long", year: "numeric" }),
   });
   } catch (err) {

@@ -217,6 +217,28 @@ export const Clients: CollectionConfig = {
               },
             },
             {
+              name: "yearlySalesTarget",
+              type: "number",
+              min: 0,
+              admin: {
+                description: "Yearly revenue target ($). Shown as a progress bar on the dashboard.",
+                step: 1,
+                condition: (data: any) => !!data?.isAgency,
+              },
+            },
+            {
+              name: "targetDeadlineDate",
+              type: "date",
+              admin: {
+                description: "Target deadline (defaults to Dec 31 of current year if not set)",
+                condition: (data: any) => !!data?.isAgency,
+                date: {
+                  pickerAppearance: "dayOnly",
+                  displayFormat: "d MMM yyyy",
+                },
+              },
+            },
+            {
               name: "clientPin",
               type: "text",
               unique: true,

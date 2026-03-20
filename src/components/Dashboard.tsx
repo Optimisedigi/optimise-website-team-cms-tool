@@ -102,6 +102,10 @@ interface DashboardData {
     uncategorisedCount: number
   }
   processes?: ProcessesData | null
+  salesTarget?: {
+    target: number
+    deadline: string
+  } | null
   month: string
 }
 
@@ -265,6 +269,15 @@ const Dashboard = () => {
       <div className="od-dash__header">
         <span className="od-dash__month">{data.month}</span>
       </div>
+
+      {/* Yearly Sales Target Progress Bar */}
+      {data.salesTarget && data.salesTarget.target > 0 && (
+        <YearlySalesTargetBar
+          target={data.salesTarget.target}
+          current={data.ytdRevenue}
+          deadline={data.salesTarget.deadline}
+        />
+      )}
 
       <div className="od-dash__layout">
         {/* ── Left Column ── */}
@@ -1248,6 +1261,79 @@ function Ga4Chart({ data }: { data: { date: string; users: number; sessions: num
           }}
         />
       ))}
+    </div>
+  )
+}
+
+// ─── Yearly Sales Target Bar ─────────────────────────────
+
+function YearlySalesTargetBar({ target, current, deadline }: { target: number; current: number; deadline: string }) {
+  const percentage = Math.min(100, Math.round((current / target) * 100))
+  const remaining = target - current
+  const deadlineDate = new Date(deadline)
+  const now = new Date()
+  const daysRemaining = Math.max(0, Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+
+  return (
+    <div style={{
+      background: '#ffffff',
+      border: '1px solid #e5e7eb',
+      borderRadius: 10,
+      padding: '16px 20px',
+      marginBottom: 20,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+            🎯 Yearly Sales Target
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: percentage >= 100 ? '#22c55e' : '#6b7280' }}>
+            {percentage}%
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#6b7280' }}>
+          <span>
+            <strong style={{ color: '#111827' }}>${current.toLocaleString()}</strong> / ${target.toLocaleString()}
+          </span>
+          <span>
+            {remaining > 0 ? `$${remaining.toLocaleString()} to go` : '🎉 Target reached!'}
+          </span>
+          <span>
+            {daysRemaining} days left · {deadlineDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </span>
+        </div>
+      </div>
+      {/* Progress bar */}
+      <div style={{
+        height: 12,
+        background: '#f3f4f6',
+        borderRadius: 6,
+        overflow: 'hidden',
+        position: 'relative',
+      }}>
+        <div style={{
+          height: '100%',
+          width: `${percentage}%`,
+          background: percentage >= 100 ? '#22c55e' : 'linear-gradient(90deg, #22c55e, #4ade80)',
+          borderRadius: 6,
+          transition: 'width 1s ease-in-out',
+        }} />
+        {/* Pace marker — where you should be based on time elapsed */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: `${Math.round(((now.getMonth() + (now.getDate() / 30)) / 12) * 100)}%`,
+          width: 2,
+          height: '100%',
+          background: '#9ca3af',
+          opacity: 0.6,
+        }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: '#9ca3af' }}>
+        <span>Jan</span>
+        <span style={{ opacity: 0.6 }}>▲ Expected pace</span>
+        <span>Dec 31</span>
+      </div>
     </div>
   )
 }
