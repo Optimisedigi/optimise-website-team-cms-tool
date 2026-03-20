@@ -1274,6 +1274,14 @@ function YearlySalesTargetBar({ target, current, deadline }: { target: number; c
   const now = new Date()
   const daysRemaining = Math.max(0, Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
 
+  // Pace: $160k / 12 months = ~$13,333/mo. By March 20 we're ~2.65 months in → should be at ~$35,333
+  // Calculate as: (days elapsed since Jan 1) / (total days Jan 1 → deadline) × 100
+  const yearStart = new Date(now.getFullYear(), 0, 1)
+  const totalDays = Math.max(1, Math.ceil((deadlineDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)))
+  const elapsedDays = Math.ceil((now.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24))
+  const pacePercent = Math.min(100, Math.round((elapsedDays / totalDays) * 100))
+  const expectedAmount = Math.round((elapsedDays / totalDays) * target)
+
   return (
     <div style={{
       background: '#ffffff',
@@ -1322,17 +1330,19 @@ function YearlySalesTargetBar({ target, current, deadline }: { target: number; c
         <div style={{
           position: 'absolute',
           top: 0,
-          left: `${Math.round(((now.getMonth() + (now.getDate() / 30)) / 12) * 100)}%`,
+          left: `${pacePercent}%`,
           width: 2,
           height: '100%',
           background: '#9ca3af',
           opacity: 0.6,
         }} />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: '#9ca3af' }}>
-        <span>Jan</span>
-        <span style={{ opacity: 0.6 }}>▲ Expected pace</span>
-        <span>Dec 31</span>
+      <div style={{ position: 'relative', marginTop: 4, fontSize: 10, color: '#9ca3af', height: 14 }}>
+        <span style={{ position: 'absolute', left: 0 }}>Jan</span>
+        <span style={{ position: 'absolute', left: `${pacePercent}%`, transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
+          ▲ ${expectedAmount.toLocaleString()} expected
+        </span>
+        <span style={{ position: 'absolute', right: 0 }}>Dec 31</span>
       </div>
     </div>
   )
