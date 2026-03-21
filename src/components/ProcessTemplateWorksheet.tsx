@@ -1,7 +1,7 @@
 'use client'
 
 import { useAllFormFields, useForm } from '@payloadcms/ui'
-import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -59,6 +59,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
 }
 
 const GRID_COLS = '44px 1.2fr 1fr 100px 90px 80px 80px 65px 70px'
+const GRID_COLS_EXPANDED = '44px 1.5fr 1.5fr 120px 110px 90px 80px 65px 70px'
 
 /* ------------------------------------------------------------------ */
 /* Extract phases from flat form field map                             */
@@ -198,6 +199,28 @@ function ProcessTemplateWorksheet(props: any) {
   const [fields, dispatchFields] = useAllFormFields()
   const { addFieldRow, removeFieldRow, moveFieldRow } = useForm()
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set())
+  const [fullscreen, setFullscreen] = useState(false)
+  const gridCols = fullscreen ? GRID_COLS_EXPANDED : GRID_COLS
+
+  // Close fullscreen on Escape
+  useEffect(() => {
+    if (!fullscreen) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false)
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [fullscreen])
+
+  // Lock body scroll when fullscreen
+  useEffect(() => {
+    if (fullscreen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [fullscreen])
 
   const phases = useMemo(() => extractPhases(fields, path), [fields, path])
 
@@ -277,8 +300,22 @@ function ProcessTemplateWorksheet(props: any) {
     })
   }, [])
 
+  const containerStyle: React.CSSProperties = fullscreen
+    ? {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 10000,
+        background: 'var(--theme-elevation-0, #fff)',
+        padding: '20px 28px',
+        overflow: 'auto',
+      }
+    : { margin: '20px 0' }
+
   return (
-    <div style={{ margin: '20px 0' }}>
+    <div style={containerStyle}>
       <style>{`
         .ws-input {
           width: 100%;
@@ -390,25 +427,51 @@ function ProcessTemplateWorksheet(props: any) {
           marginBottom: 12,
         }}
       >
-        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--theme-elevation-800)' }}>
+        <label style={{ fontSize: fullscreen ? 16 : 13, fontWeight: 600, color: 'var(--theme-elevation-800)' }}>
           Phases & Steps
         </label>
-        <button
-          type="button"
-          onClick={handleAddPhase}
-          style={{
-            padding: '6px 14px',
-            fontSize: 12,
-            fontWeight: 600,
-            background: 'var(--theme-elevation-100)',
-            border: '1px solid var(--theme-elevation-200)',
-            borderRadius: 6,
-            cursor: 'pointer',
-            color: 'var(--theme-elevation-700)',
-          }}
-        >
-          + Add Phase
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={handleAddPhase}
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              background: 'var(--theme-elevation-100)',
+              border: '1px solid var(--theme-elevation-200)',
+              borderRadius: 6,
+              cursor: 'pointer',
+              color: 'var(--theme-elevation-700)',
+            }}
+          >
+            + Add Phase
+          </button>
+          <button
+            type="button"
+            onClick={() => setFullscreen(!fullscreen)}
+            style={{
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 600,
+              background: fullscreen ? '#EF4444' : 'var(--theme-elevation-100)',
+              border: fullscreen ? '1px solid #DC2626' : '1px solid var(--theme-elevation-200)',
+              borderRadius: 6,
+              cursor: 'pointer',
+              color: fullscreen ? '#fff' : 'var(--theme-elevation-700)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+            title={fullscreen ? 'Close fullscreen (Esc)' : 'Expand to fullscreen'}
+          >
+            {fullscreen ? (
+              <><span style={{ fontSize: 14, lineHeight: 1 }}>&#x2715;</span> Close</>
+            ) : (
+              <><span style={{ fontSize: 14, lineHeight: 1 }}>&#x26F6;</span> Expand</>
+            )}
+          </button>
+        </div>
       </div>
 
       {phases.length === 0 ? (
@@ -436,7 +499,7 @@ function ProcessTemplateWorksheet(props: any) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: GRID_COLS,
+              gridTemplateColumns: gridCols,
               background: 'var(--theme-elevation-50)',
               borderBottom: '2px solid var(--theme-elevation-200)',
               fontSize: 10,
@@ -545,7 +608,7 @@ function ProcessTemplateWorksheet(props: any) {
                       className="ws-step-row"
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: GRID_COLS,
+                        gridTemplateColumns: gridCols,
                         borderBottom: '1px solid var(--theme-elevation-100)',
                         alignItems: 'center',
                       }}
