@@ -49,6 +49,7 @@ import { default as default_6b51bfc7ff3d088aa145c86f447b8fec } from '../../../co
 import { default as default_03f868076ce9f068b848044dba6c2e81 } from '../../../components/ProcessTrackerCell'
 import { default as default_c942878b95bb76e4edb6703d0af13ae3 } from '../../../components/ProcessTracker'
 import { default as default_f3192da0e1eaceb3549701f5cee70cf7 } from '../../../components/CreateProcessFromTemplate'
+import { default as default_8a2f5c3e9d7b4061e5f2a8c7d4b9e6f3 } from '../../../components/ProcessTemplateWorksheet'
 import { default as default_2b563fa0e9b70d98b73119ee8b081564 } from '../../../components/MarkdownGuide'
 import { default as default_8793146990086de56e1b564ebb701778 } from '../../../components/GenerateBlogImageButton'
 import { default as default_7e7701142b7068d2cf11592b7f0f90ce } from '../../../components/ClientCategorySelect'
@@ -137,6 +138,7 @@ export const importMap = {
   "./components/ProcessTrackerCell#default": default_03f868076ce9f068b848044dba6c2e81,
   "./components/ProcessTracker#default": default_c942878b95bb76e4edb6703d0af13ae3,
   "./components/CreateProcessFromTemplate#default": default_f3192da0e1eaceb3549701f5cee70cf7,
+  "./components/ProcessTemplateWorksheet#default": default_8a2f5c3e9d7b4061e5f2a8c7d4b9e6f3,
   "./components/MarkdownGuide#default": default_2b563fa0e9b70d98b73119ee8b081564,
   "./components/GenerateBlogImageButton#default": default_8793146990086de56e1b564ebb701778,
   "./components/ClientCategorySelect#default": default_7e7701142b7068d2cf11592b7f0f90ce,

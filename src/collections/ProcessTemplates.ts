@@ -35,6 +35,20 @@ const generateUniqueSlug: CollectionBeforeChangeHook = async ({
   return data;
 };
 
+const normalizeOrders: CollectionBeforeChangeHook = async ({ data }) => {
+  if (data?.phases && Array.isArray(data.phases)) {
+    data.phases.forEach((phase: any, i: number) => {
+      phase.phaseOrder = i + 1;
+      if (phase.steps && Array.isArray(phase.steps)) {
+        phase.steps.forEach((step: any, j: number) => {
+          step.stepOrder = j + 1;
+        });
+      }
+    });
+  }
+  return data;
+};
+
 const logTemplateCreated: CollectionAfterChangeHook = async ({
   doc,
   operation,
@@ -80,7 +94,7 @@ export const ProcessTemplates: CollectionConfig = {
   },
   defaultSort: "name",
   hooks: {
-    beforeChange: [generateUniqueSlug],
+    beforeChange: [generateUniqueSlug, normalizeOrders],
     afterChange: [logTemplateCreated],
   },
   fields: [
@@ -150,6 +164,9 @@ export const ProcessTemplates: CollectionConfig = {
       type: "array",
       admin: {
         description: "Ordered phases of the process",
+        components: {
+          Field: "./components/ProcessTemplateWorksheet#default",
+        },
       },
       fields: [
         {
