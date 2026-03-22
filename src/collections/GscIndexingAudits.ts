@@ -142,6 +142,7 @@ export const GscIndexingAudits: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "Summary stats — { indexed, notIndexed, byReason: { [reason]: count } }",
+                condition: () => false, // Hidden — displayed via the Results UI
               },
             },
             {
@@ -150,6 +151,7 @@ export const GscIndexingAudits: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "URL discovery sources — { sitemap: string[], searchAnalytics: string[] }",
+                condition: () => false, // Hidden — displayed via the Results UI
               },
             },
           ],
@@ -172,6 +174,7 @@ export const GscIndexingAudits: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "All discovered URLs — string[]",
+                condition: () => false, // Hidden — displayed via the Results UI above
               },
             },
             {
@@ -180,6 +183,7 @@ export const GscIndexingAudits: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "Inspection results — InspectionResult[]",
+                condition: () => false, // Hidden — displayed via the Results UI above
               },
             },
           ],
