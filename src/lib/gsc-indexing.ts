@@ -121,8 +121,41 @@ export async function runDiscovery(
 }
 
 /**
- * Run the inspection phase: inspect the first batch of URLs and update the audit.
- * Called as background work via after().
+ * Save current inspection progress to the database.
+ * Called after each sub-batch so partial results survive timeouts.
+ */
+async function saveInspectionProgress(
+  payload: any,
+  auditId: string,
+  results: InspectionResult[],
+  totalUrls: number,
+): Promise<void> {
+  const summaryStats = buildSummaryStats(results);
+  const isComplete = results.length >= totalUrls;
+
+  await payload.update({
+    collection: "gsc-indexing-audits",
+    id: auditId,
+    overrideAccess: true,
+    data: {
+      inspectedCount: results.length,
+      inspectionResults: results,
+      summaryStats,
+      lastBatchDate: new Date().toISOString(),
+      ...(isComplete
+        ? { status: "completed", completedAt: new Date().toISOString() }
+        : {}),
+    },
+  });
+}
+
+/** Sub-batch size: save progress to DB every N URLs */
+const SUB_BATCH_SIZE = 25;
+
+/**
+ * Run the inspection phase: inspect URLs in small sub-batches, saving
+ * progress after each one so partial results survive Vercel timeouts.
+ * Caps at 100 URLs per invocation to stay well within the 120s limit.
  */
 export async function runInspectionWork(
   payload: any,
@@ -136,35 +169,39 @@ export async function runInspectionWork(
       accessToken = await ensureFreshToken(payload, client);
     }
 
-    // Run first batch immediately (max 200 URLs)
-    const firstBatch = urls.slice(0, 200);
-    const results = await inspectUrlBatch(accessToken, client.gscPropertyUrl, firstBatch);
+    // Cap first run at 100 URLs (~70s at 700ms/URL) to fit in 120s timeout
+    const firstBatch = urls.slice(0, 100);
+    const allResults: InspectionResult[] = [];
 
-    const summaryStats = buildSummaryStats(results);
-    const isComplete = results.length >= urls.length;
+    // Process in sub-batches of 25, saving after each
+    for (let i = 0; i < firstBatch.length; i += SUB_BATCH_SIZE) {
+      const subBatch = firstBatch.slice(i, i + SUB_BATCH_SIZE);
+      const subResults = await inspectUrlBatch(accessToken!, client.gscPropertyUrl, subBatch);
+      allResults.push(...subResults);
 
+      // Save progress after each sub-batch
+      await saveInspectionProgress(payload, auditId, allResults, urls.length);
+      console.log(`[gsc-indexing] Audit ${auditId}: saved ${allResults.length}/${urls.length} (sub-batch ${Math.floor(i / SUB_BATCH_SIZE) + 1})`);
+
+      // If rate-limited (inspectUrlBatch returns fewer than requested), stop
+      if (subResults.length < subBatch.length) {
+        console.log(`[gsc-indexing] Audit ${auditId}: rate limited, stopping early`);
+        break;
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Inspection failed";
+    console.error(`[gsc-indexing] Inspection ${auditId} failed:`, message);
+    // Don't mark as failed — partial results may have been saved above,
+    // and the cron will pick up remaining URLs
     await payload.update({
       collection: "gsc-indexing-audits",
       id: auditId,
       overrideAccess: true,
       data: {
-        inspectedCount: results.length,
-        inspectionResults: results,
-        summaryStats,
+        error: `Inspection interrupted: ${message}. Remaining URLs will be processed by cron.`,
         lastBatchDate: new Date().toISOString(),
-        ...(isComplete
-          ? { status: "completed", completedAt: new Date().toISOString() }
-          : {}),
       },
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Inspection failed";
-    console.error(`[gsc-indexing] Inspection ${auditId} failed:`, message);
-    await payload.update({
-      collection: "gsc-indexing-audits",
-      id: auditId,
-      overrideAccess: true,
-      data: { status: "failed", error: message },
     }).catch(() => {}); // prevent double-fault
   }
 }
@@ -351,29 +388,21 @@ export async function processIndexingBatches(payload?: any): Promise<void> {
       }
 
       const batch = remaining.slice(0, batchSize);
-      const newResults = await inspectUrlBatch(accessToken, client.gscPropertyUrl, batch);
+      const allResults = [...existingResults];
 
-      const allResults = [...existingResults, ...newResults];
-      const summaryStats = buildSummaryStats(allResults);
-      const isComplete = allResults.length >= discoveredUrls.length;
+      // Process in sub-batches, saving after each
+      for (let i = 0; i < batch.length; i += SUB_BATCH_SIZE) {
+        const subBatch = batch.slice(i, i + SUB_BATCH_SIZE);
+        const subResults = await inspectUrlBatch(accessToken, client.gscPropertyUrl, subBatch);
+        allResults.push(...subResults);
 
-      await payload.update({
-        collection: "gsc-indexing-audits",
-        id: audit.id,
-        overrideAccess: true,
-        data: {
-          inspectedCount: allResults.length,
-          inspectionResults: allResults,
-          summaryStats,
-          lastBatchDate: new Date().toISOString(),
-          ...(isComplete
-            ? { status: "completed", completedAt: new Date().toISOString() }
-            : {}),
-        },
-      });
+        await saveInspectionProgress(payload, String(audit.id), allResults, discoveredUrls.length);
+
+        if (subResults.length < subBatch.length) break; // rate limited
+      }
 
       console.log(
-        `[gsc-indexing] Audit ${audit.id}: inspected ${newResults.length} URLs (${allResults.length}/${discoveredUrls.length} total)`
+        `[gsc-indexing] Audit ${audit.id}: inspected ${allResults.length - existingResults.length} URLs (${allResults.length}/${discoveredUrls.length} total)`
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Batch processing failed";
