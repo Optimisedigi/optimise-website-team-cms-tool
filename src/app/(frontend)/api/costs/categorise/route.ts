@@ -20,10 +20,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the transaction's category
+    // Payload SQLite adapter requires numeric IDs for relationship fields
     const updated = await payload.update({
       collection: "business-costs",
-      id: transactionId,
-      data: { category: categoryId },
+      id: Number(transactionId),
+      data: { category: Number(categoryId) },
       overrideAccess: true,
     });
 
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
           collection: "cost-rules",
           data: {
             pattern: description,
-            category: categoryId,
+            category: Number(categoryId),
           },
           overrideAccess: true,
         });

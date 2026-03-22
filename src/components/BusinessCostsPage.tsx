@@ -240,11 +240,21 @@ const BusinessCostsPage = () => {
   }
 
   const handleCategorise = async (transactionId: string | number, categoryId: string | number, saveRule: boolean) => {
-    await fetch('/api/costs/categorise', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transactionId, categoryId, saveRule }),
-    })
+    try {
+      const res = await fetch('/api/costs/categorise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactionId: Number(transactionId), categoryId: Number(categoryId), saveRule }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(`Failed to save category: ${err.error || res.statusText}`)
+        return
+      }
+    } catch {
+      alert('Failed to save category. Check your connection.')
+      return
+    }
     fetchData(selectedMonth)
   }
 

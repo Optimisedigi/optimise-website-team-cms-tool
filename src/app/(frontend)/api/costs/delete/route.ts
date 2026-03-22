@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       try {
         await payload.delete({
           collection: "business-costs",
-          id,
+          id: Number(id),
           overrideAccess: true,
         });
         deleted++;

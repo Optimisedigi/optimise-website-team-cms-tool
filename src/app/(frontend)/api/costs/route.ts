@@ -66,13 +66,14 @@ export async function GET(request: NextRequest) {
       overrideAccess: true,
     });
 
-    // Fetch uncategorised
+    // Fetch uncategorised (null, missing, or 0 in SQLite)
     const uncategorisedResult = await payload.find({
       collection: "business-costs",
       where: {
         or: [
           { category: { exists: false } },
           { category: { equals: null as any } },
+          { category: { equals: 0 as any } },
         ],
       },
       limit: 100,
@@ -97,11 +98,12 @@ export async function GET(request: NextRequest) {
     const uncatItems: any[] = [];
 
     for (const cost of currentCosts.docs) {
-      const catId = typeof cost.category === "object" && cost.category
-        ? String((cost.category as any).id)
-        : cost.category ? String(cost.category) : null;
+      const rawCat = cost.category;
+      const catId = typeof rawCat === "object" && rawCat
+        ? String((rawCat as any).id)
+        : (rawCat && rawCat !== 0) ? String(rawCat) : null;
 
-      if (catId && categoryMap.has(catId)) {
+      if (catId && catId !== "0" && categoryMap.has(catId)) {
         const entry = categoryMap.get(catId)!;
         entry.total += (cost.amount as number) || 0;
         entry.count++;
@@ -141,8 +143,8 @@ export async function GET(request: NextRequest) {
       }
       let uncatSum = 0;
       for (const cost of monthCosts) {
-        const catId = cost.category ? String(cost.category) : null;
-        if (catId && byCategory[catId] !== undefined) {
+        const catId = (cost.category && cost.category !== 0) ? String(cost.category) : null;
+        if (catId && catId !== "0" && byCategory[catId] !== undefined) {
           byCategory[catId] += (cost.amount as number) || 0;
         } else {
           uncatSum += (cost.amount as number) || 0;

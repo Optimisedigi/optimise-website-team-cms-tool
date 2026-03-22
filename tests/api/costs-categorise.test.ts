@@ -91,8 +91,8 @@ describe('POST /api/costs/categorise', () => {
 
     expect(mockPayload.update).toHaveBeenCalledWith({
       collection: 'business-costs',
-      id: '1',
-      data: { category: '5' },
+      id: 1,
+      data: { category: 5 },
       overrideAccess: true,
     })
   })
@@ -118,7 +118,7 @@ describe('POST /api/costs/categorise', () => {
 
     expect(mockPayload.create).toHaveBeenCalledWith({
       collection: 'cost-rules',
-      data: { pattern: 'Monthly hosting', category: '5' },
+      data: { pattern: 'Monthly hosting', category: 5 },
       overrideAccess: true,
     })
   })
