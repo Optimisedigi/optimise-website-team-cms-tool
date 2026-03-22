@@ -490,7 +490,7 @@ const BusinessCostsPage = () => {
           <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Uncategorised Transactions ({data.uncategorised.length})</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {data.uncategorised.map((tx) => (
-              <UncategorisedRow key={String(tx.id)} tx={tx} categories={data.categories} onCategorise={handleCategorise} onCategoryCreated={handleCategoryCreated} />
+              <UncategorisedRow key={String(tx.id)} tx={tx} categories={data.categories} onCategorise={handleCategorise} onCategoryCreated={handleCategoryCreated} onDelete={handleDelete} />
             ))}
           </div>
         </div>
@@ -601,11 +601,13 @@ function UncategorisedRow({
   categories,
   onCategorise,
   onCategoryCreated,
+  onDelete,
 }: {
   tx: CostEntry
   categories: Category[]
   onCategorise: (txId: string | number, catId: string | number, saveRule: boolean) => void
   onCategoryCreated: (cat: Category) => void
+  onDelete: (ids: (string | number)[]) => void
 }) {
   const [selectedCat, setSelectedCat] = useState('')
   const [saveRule, setSaveRule] = useState(true)
@@ -636,6 +638,16 @@ function UncategorisedRow({
         style={{ ...btnStyle, fontSize: 11, padding: '4px 10px', opacity: selectedCat ? 1 : 0.4 }}
       >
         Save
+      </button>
+      <button
+        type="button"
+        onClick={() => onDelete([tx.id])}
+        title="Delete transaction"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--theme-elevation-400)', fontSize: 14, padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}
+        onMouseEnter={(e) => { (e.target as HTMLElement).style.color = '#dc2626'; (e.target as HTMLElement).style.background = '#fef2f2' }}
+        onMouseLeave={(e) => { (e.target as HTMLElement).style.color = 'var(--theme-elevation-400)'; (e.target as HTMLElement).style.background = 'none' }}
+      >
+        {'\u2715'}
       </button>
     </div>
   )
