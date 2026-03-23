@@ -6,7 +6,7 @@ import { useState } from 'react'
 /**
  * Parse bulk keywords input. Rules:
  * - One keyword per line
- * - [keyword] = phrase match
+ * - 'keyword' = phrase match
  * - "keyword" = phrase match (alternative syntax)
  * - Everything else = exact match (default)
  * - Empty lines are skipped
@@ -21,8 +21,8 @@ function parseKeywords(text: string): Array<{ keyword: string; matchType: string
     let keyword = line
     let matchType = 'exact'
 
-    // [keyword] = phrase match
-    if (keyword.startsWith('[') && keyword.endsWith(']')) {
+    // 'keyword' = phrase match
+    if (keyword.startsWith("'") && keyword.endsWith("'")) {
       keyword = keyword.slice(1, -1).trim()
       matchType = 'phrase'
     }
@@ -143,7 +143,7 @@ export default function NegativeKeywordBulkAdd() {
         >
           <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)', marginBottom: 8, lineHeight: 1.5 }}>
             Paste keywords one per line. Default match type is <strong>exact</strong>.
-            Wrap in square brackets for phrase match: <code>[keyword]</code>
+            Wrap in single quotes for phrase match: <code>'keyword'</code>
           </div>
           <div
             style={{
@@ -159,8 +159,8 @@ export default function NegativeKeywordBulkAdd() {
           >
 {`free
 cheap deals
-[digital marketing]
-[seo services]
+'digital marketing'
+'seo services'
 competitor brand name`}
           </div>
           <textarea
