@@ -20,7 +20,7 @@ export default async function NegativeKeywordsPage({
   });
 
   const client = clientResult.docs[0] as any;
-  if (!client || !client.negativeKeywordsPin) return notFound();
+  if (!client || !client.clientPin) return notFound();
 
   // Fetch all active keyword lists for this client
   const listsResult = await payload.find({

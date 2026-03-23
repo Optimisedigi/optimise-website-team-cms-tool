@@ -356,10 +356,6 @@ export interface Client {
    */
   googleAdsCustomerId?: string | null;
   /**
-   * PIN for client access to the negative keywords view page (e.g. 1234)
-   */
-  negativeKeywordsPin?: string | null;
-  /**
    * Negative keyword lists managed for this client
    */
   negativeKeywordLists?: {
@@ -2459,7 +2455,7 @@ export interface NegativeKeywordList {
    */
   adGroupName?: string | null;
   /**
-   * Regex pattern for auto-assigning this list to matching campaigns in Google Ads (e.g. .*Search.*)
+   * Pattern for auto-assigning this list to matching campaigns. Use .* to match anything. Examples: .*Search.* (any campaign with 'Search' in the name), .*Brand.* (any campaign with 'Brand'), .* (all campaigns). Leave blank to skip auto-assignment.
    */
   campaignRegex?: string | null;
   /**
@@ -4043,7 +4039,6 @@ export interface ClientsSelect<T extends boolean = true> {
   signedContractUrl?: T;
   signedContract?: T;
   googleAdsCustomerId?: T;
-  negativeKeywordsPin?: T;
   negativeKeywordLists?: T;
   legacyNotes?: T;
   retainerHistory?:

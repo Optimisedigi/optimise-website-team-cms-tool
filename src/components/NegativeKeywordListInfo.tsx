@@ -208,7 +208,7 @@ export default function NegativeKeywordListInfo() {
             </a>
           </div>
           <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-            Share this link with the client. They'll need the PIN set on their client record to view.
+            Share this link with the client. They'll need the Client PIN to view.
           </div>
         </div>
       )}

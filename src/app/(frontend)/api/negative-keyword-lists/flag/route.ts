@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       overrideAccess: true,
     });
 
-    if (!client || (client as any).negativeKeywordsPin !== pin) {
+    if (!client || (client as any).clientPin !== pin) {
       return NextResponse.json({ error: "Invalid PIN" }, { status: 403 });
     }
 
