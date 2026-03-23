@@ -104,6 +104,7 @@ export interface Config {
   };
   collectionsJoins: {
     clients: {
+      negativeKeywordLists: 'negative-keyword-lists';
       googleAdsAudits: 'google-ads-audits';
       tagSetupAudits: 'tag-setup-audits';
     };
@@ -358,6 +359,14 @@ export interface Client {
    * PIN for client access to the negative keywords view page (e.g. 1234)
    */
   negativeKeywordsPin?: string | null;
+  /**
+   * Negative keyword lists managed for this client
+   */
+  negativeKeywordLists?: {
+    docs?: (number | NegativeKeywordList)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   /**
    * Goals, notes, and context about this client (legacy — use Notes tab for new notes)
    */
@@ -2424,6 +2433,61 @@ export interface GoogleAdsAudit {
   createdAt: string;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "negative-keyword-lists".
+ */
+export interface NegativeKeywordList {
+  id: number;
+  /**
+   * The client this negative keyword list belongs to
+   */
+  client: number | Client;
+  /**
+   * List name (e.g. "Brand Terms", "Competitor Terms")
+   */
+  name: string;
+  /**
+   * Where this negative keyword list applies
+   */
+  scope: 'account' | 'campaign' | 'ad_group';
+  /**
+   * Campaign name (for campaign or ad group scope)
+   */
+  campaignName?: string | null;
+  /**
+   * Ad group name (for ad group scope)
+   */
+  adGroupName?: string | null;
+  /**
+   * Regex pattern for auto-assigning this list to matching campaigns in Google Ads (e.g. .*Search.*)
+   */
+  campaignRegex?: string | null;
+  /**
+   * Negative keywords in this list
+   */
+  keywords?:
+    | {
+        keyword: string;
+        matchType: 'broad' | 'phrase' | 'exact';
+        /**
+         * Flagged by client for removal review
+         */
+        flaggedForRemoval?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Auto-calculated keyword count
+   */
+  keywordCount?: number | null;
+  /**
+   * Inactive lists are excluded from the Google Ads sync
+   */
+  isActive?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * GA4 and GTM tag validation results
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3556,61 +3620,6 @@ export interface NegativeSweepCandidate {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "negative-keyword-lists".
- */
-export interface NegativeKeywordList {
-  id: number;
-  /**
-   * The client this negative keyword list belongs to
-   */
-  client: number | Client;
-  /**
-   * List name (e.g. "Brand Terms", "Competitor Terms")
-   */
-  name: string;
-  /**
-   * Where this negative keyword list applies
-   */
-  scope: 'account' | 'campaign' | 'ad_group';
-  /**
-   * Campaign name (for campaign or ad group scope)
-   */
-  campaignName?: string | null;
-  /**
-   * Ad group name (for ad group scope)
-   */
-  adGroupName?: string | null;
-  /**
-   * Regex pattern for auto-assigning this list to matching campaigns in Google Ads (e.g. .*Search.*)
-   */
-  campaignRegex?: string | null;
-  /**
-   * Negative keywords in this list
-   */
-  keywords?:
-    | {
-        keyword: string;
-        matchType: 'broad' | 'phrase' | 'exact';
-        /**
-         * Flagged by client for removal review
-         */
-        flaggedForRemoval?: boolean | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Auto-calculated keyword count
-   */
-  keywordCount?: number | null;
-  /**
-   * Inactive lists are excluded from the Google Ads sync
-   */
-  isActive?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "business-costs".
  */
 export interface BusinessCost {
@@ -4035,6 +4044,7 @@ export interface ClientsSelect<T extends boolean = true> {
   signedContract?: T;
   googleAdsCustomerId?: T;
   negativeKeywordsPin?: T;
+  negativeKeywordLists?: T;
   legacyNotes?: T;
   retainerHistory?:
     | T

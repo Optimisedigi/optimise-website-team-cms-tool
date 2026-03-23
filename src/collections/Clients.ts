@@ -522,6 +522,15 @@ export const Clients: CollectionConfig = {
               },
             },
             {
+              name: "negativeKeywordLists",
+              type: "join",
+              collection: "negative-keyword-lists",
+              on: "client",
+              admin: {
+                description: "Negative keyword lists managed for this client",
+              },
+            },
+            {
               name: "legacyNotes",
               type: "textarea",
               admin: {
