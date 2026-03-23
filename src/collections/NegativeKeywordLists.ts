@@ -67,10 +67,19 @@ export const NegativeKeywordLists: CollectionConfig = {
       },
     },
     {
+      name: "campaignSelect",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/NegativeKeywordCampaignSelect",
+        },
+      },
+    },
+    {
       name: "campaignName",
       type: "text",
       admin: {
-        description: "Campaign name (for campaign or ad group scope)",
+        description: "Campaign name (for campaign or ad group scope). Use 'Fetch Campaigns' above to load from Google Ads, or type manually.",
         condition: (data) => data?.scope === "campaign" || data?.scope === "ad_group",
       },
     },
