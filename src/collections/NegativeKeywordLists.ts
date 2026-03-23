@@ -99,10 +99,20 @@ export const NegativeKeywordLists: CollectionConfig = {
       },
     },
     {
+      name: "keywordTable",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/NegativeKeywordTable",
+        },
+      },
+    },
+    {
       name: "keywords",
       type: "array",
       admin: {
         description: "Negative keywords in this list",
+        condition: () => false, // Hidden — managed via the table UI above
       },
       fields: [
         {
@@ -138,6 +148,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       admin: {
         readOnly: true,
         description: "Auto-calculated keyword count",
+        condition: () => false, // Hidden — shown in the table header
       },
     },
     {

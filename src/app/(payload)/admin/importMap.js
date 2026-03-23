@@ -72,6 +72,7 @@ import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../co
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
 import { default as default_c99210795b28d20ce793bfa990d64a2d } from '../../../components/NegativeKeywordListInfo'
 import { default as default_67cd75f7dc15172a4e21290c38ac2619 } from '../../../components/NegativeKeywordBulkAdd'
+import { default as default_5cc9c48eac9f9681086cee91da012e9f } from '../../../components/NegativeKeywordTable'
 import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
 import { default as default_d7691cd6896b18804e19a29368edb888 } from '../../../components/ConnectSheetsButton'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
@@ -164,6 +165,7 @@ export const importMap = {
   "./components/GscIndexingAuditResults#default": default_14da33fa7cd5bda0159f477250995b44,
   "./components/NegativeKeywordListInfo#default": default_c99210795b28d20ce793bfa990d64a2d,
   "./components/NegativeKeywordBulkAdd#default": default_67cd75f7dc15172a4e21290c38ac2619,
+  "./components/NegativeKeywordTable#default": default_5cc9c48eac9f9681086cee91da012e9f,
   "./components/BusinessCostsListView#default": default_6f9be25dea842550674d5a5331ed4ffe,
   "./components/ConnectSheetsButton#default": default_d7691cd6896b18804e19a29368edb888,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
