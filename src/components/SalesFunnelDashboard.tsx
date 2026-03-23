@@ -126,6 +126,7 @@ const SalesFunnelDashboard = () => {
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState('all')
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const fetchData = (p: string) => {
     setLoading(true)
@@ -136,6 +137,22 @@ const SalesFunnelDashboard = () => {
         setLoading(false)
       })
       .catch(() => setLoading(false))
+  }
+
+  const deleteLead = async (id: string, name: string) => {
+    if (!confirm(`Delete "${name}" from sales leads?`)) return
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/sales-leads/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        fetchData(period)
+      } else {
+        alert('Failed to delete lead. You may not have admin access.')
+      }
+    } catch {
+      alert('Failed to delete lead.')
+    }
+    setDeletingId(null)
   }
 
   useEffect(() => {
@@ -455,33 +472,63 @@ const SalesFunnelDashboard = () => {
                 </div>
               ) : (
                 recentLeads.map((lead) => (
-                  <a
+                  <div
                     key={lead.id}
-                    href={`/admin/collections/sales-leads/${lead.id}`}
                     className="od-feed__item"
-                    style={{ textDecoration: 'none', color: 'inherit' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 0 }}
                   >
-                    <div className="od-feed__dot" style={{
-                      background: lead.stage === 'client' ? '#22c55e' : lead.stage === 'lost' ? '#ef4444' : '#6366f1',
-                    }} />
-                    <div className="od-feed__body">
-                      <div className="od-feed__title">
-                        <span className="od-feed__badge">
-                          {CHANNEL_ICONS[lead.channel]} {channels.find((c) => c.channel === lead.channel)?.label}
-                        </span>
-                        {lead.businessName}
+                    <a
+                      href={`/admin/collections/sales-leads/${lead.id}`}
+                      style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'flex-start', gap: 12, flex: 1, minWidth: 0 }}
+                    >
+                      <div className="od-feed__dot" style={{
+                        background: lead.stage === 'client' ? '#22c55e' : lead.stage === 'lost' ? '#ef4444' : '#6366f1',
+                      }} />
+                      <div className="od-feed__body">
+                        <div className="od-feed__title">
+                          <span className="od-feed__badge">
+                            {CHANNEL_ICONS[lead.channel]} {channels.find((c) => c.channel === lead.channel)?.label}
+                          </span>
+                          {lead.businessName}
+                        </div>
+                        <div className="od-feed__desc">
+                          {STAGE_ICONS[lead.stage]} {data.stageLabels[lead.stage]}
+                          {lead.estimatedValue ? ` | $${lead.estimatedValue.toLocaleString()}/mo` : ''}
+                        </div>
+                        <div className="od-feed__meta">
+                          {lead.contactName || 'No contact'}
+                          {' \u00B7 '}
+                          {timeAgo(lead.updatedAt)}
+                        </div>
                       </div>
-                      <div className="od-feed__desc">
-                        {STAGE_ICONS[lead.stage]} {data.stageLabels[lead.stage]}
-                        {lead.estimatedValue ? ` | $${lead.estimatedValue.toLocaleString()}/mo` : ''}
-                      </div>
-                      <div className="od-feed__meta">
-                        {lead.contactName || 'No contact'}
-                        {' \u00B7 '}
-                        {timeAgo(lead.updatedAt)}
-                      </div>
-                    </div>
-                  </a>
+                    </a>
+                    <button
+                      type="button"
+                      title="Delete lead"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        deleteLead(lead.id, lead.businessName)
+                      }}
+                      disabled={deletingId === lead.id}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: deletingId === lead.id ? 'wait' : 'pointer',
+                        padding: '6px 8px',
+                        borderRadius: 6,
+                        fontSize: 14,
+                        color: '#94a3b8',
+                        flexShrink: 0,
+                        opacity: deletingId === lead.id ? 0.4 : 1,
+                        transition: 'color 0.15s, background 0.15s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}
+                    >
+                      {deletingId === lead.id ? '\u23F3' : '\uD83D\uDDD1\uFE0F'}
+                    </button>
+                  </div>
                 ))
               )}
             </div>

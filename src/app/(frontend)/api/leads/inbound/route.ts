@@ -184,6 +184,10 @@ interface InboundLeadBody {
   attribution?: Attribution;
   // Source identifier
   formType?: "contact" | "audit" | "other";
+  // Auto-reply notification (set by website when auto-reply email sent)
+  autoReplySent?: boolean;
+  autoReplySubject?: string;
+  autoReplySentAt?: string;
 }
 
 export async function POST(request: Request) {
@@ -215,6 +219,8 @@ export async function POST(request: Request) {
 
     // Build notes from form context
     const notesParts: string[] = [];
+    if (body.autoReplySent)
+      notesParts.push(`Auto-reply sent: "${body.autoReplySubject || "Yes"}" at ${body.autoReplySentAt || new Date().toISOString()}`);
     if (body.growthJourney)
       notesParts.push(`Growth journey: ${body.growthJourney}`);
     if (body.focusAreas?.length)
@@ -262,7 +268,7 @@ export async function POST(request: Request) {
         channelDetail,
         services: cmsServices,
         notes: notesParts.length > 0 ? notesParts.join("\n") : undefined,
-        stage: "new_lead",
+        stage: body.autoReplySent ? "contacted" : "new_lead",
         priority: "medium",
         // Attribution fields
         utmSource: attrs.utmSource || undefined,
