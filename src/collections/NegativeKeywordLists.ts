@@ -86,7 +86,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       name: "campaignRegex",
       type: "text",
       admin: {
-        description: "Regex pattern for auto-assigning this list to matching campaigns in Google Ads (e.g. .*Search.*)",
+        description: "Pattern for auto-assigning this list to matching campaigns. Use .* to match anything. Examples: .*Search.* (any campaign with 'Search' in the name), .*Brand.* (any campaign with 'Brand'), .* (all campaigns). Leave blank to skip auto-assignment.",
       },
     },
     {
