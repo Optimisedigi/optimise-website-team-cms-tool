@@ -1,5 +1,6 @@
 'use client'
 
+import { useDocumentInfo } from '@payloadcms/ui'
 import { useState } from 'react'
 
 const GOOGLE_ADS_SCRIPT = `// ═══════════════════════════════════════════════════════════════
@@ -105,13 +106,30 @@ function main() {
 }`
 
 export default function NegativeKeywordListInfo() {
+  const { initialData } = useDocumentInfo()
+  const data = initialData as any
+  const clientId = typeof data?.client === 'object' ? data?.client?.id : data?.client
+
   const [copied, setCopied] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
   const [showScript, setShowScript] = useState(false)
+
+  const clientViewUrl = clientId
+    ? `${window.location.origin}/negative-keywords/${clientId}`
+    : null
 
   const handleCopy = () => {
     navigator.clipboard.writeText(GOOGLE_ADS_SCRIPT).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const handleCopyLink = () => {
+    if (!clientViewUrl) return
+    navigator.clipboard.writeText(clientViewUrl).then(() => {
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2000)
     })
   }
 
@@ -128,6 +146,54 @@ export default function NegativeKeywordListInfo() {
         color: '#1e3a5f',
       }}
     >
+      {/* Client share link */}
+      {clientViewUrl && (
+        <div style={{ marginBottom: 14, padding: '10px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bae6fd' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Client View Link</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <code style={{ flex: 1, fontSize: 12, color: '#2563eb', wordBreak: 'break-all' }}>{clientViewUrl}</code>
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 4,
+                border: 'none',
+                background: '#2563eb',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {copiedLink ? 'Copied!' : 'Copy Link'}
+            </button>
+            <a
+              href={clientViewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: '4px 10px',
+                borderRadius: 4,
+                border: '1px solid #bae6fd',
+                background: '#fff',
+                color: '#1e3a5f',
+                fontSize: 12,
+                fontWeight: 500,
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Preview
+            </a>
+          </div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+            Share this link with the client. They'll need the PIN set on their client record to view.
+          </div>
+        </div>
+      )}
+
       <h4 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700 }}>
         Google Ads Script Setup
       </h4>
