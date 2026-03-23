@@ -121,6 +121,7 @@ export default function NegativeKeywordListInfo() {
 
   const [copied, setCopied] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
+  const [showSetup, setShowSetup] = useState(false)
   const [showScript, setShowScript] = useState(false)
   const [clientSlug, setClientSlug] = useState<string | null>(clientObj?.slug || null)
 
@@ -213,83 +214,103 @@ export default function NegativeKeywordListInfo() {
         </div>
       )}
 
-      <h4 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700 }}>
+      <button
+        type="button"
+        onClick={() => setShowSetup(!showSetup)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          fontSize: 14,
+          fontWeight: 700,
+          color: '#1e3a5f',
+        }}
+      >
+        <span style={{ fontSize: 10 }}>{showSetup ? '\u25BC' : '\u25B6'}</span>
         Google Ads Script Setup
-      </h4>
+      </button>
 
-      <p style={{ margin: '0 0 8px' }}>
-        To sync these negative keywords to Google Ads automatically:
-      </p>
+      {showSetup && (
+        <div style={{ marginTop: 8 }}>
+          <p style={{ margin: '0 0 8px' }}>
+            To sync these negative keywords to Google Ads automatically:
+          </p>
 
-      <ol style={{ margin: '0 0 12px', paddingLeft: 20 }}>
-        <li>Open the Google Ads account for this client</li>
-        <li>Go to <strong>Tools &amp; Settings &gt; Bulk Actions &gt; Scripts</strong></li>
-        <li>Click <strong>+ New Script</strong></li>
-        <li><strong>Delete everything</strong> in the script editor (including the default <code>function main() {'{'} {'}'}</code>)</li>
-        <li>Paste the full script below (it replaces everything, API key is pre-filled)</li>
-        <li>Click <strong>Authorize</strong>, then <strong>Save</strong></li>
-        <li>Set the frequency to <strong>Daily</strong> (syncs keywords from CMS once per day)</li>
-        <li>Click <strong>Run</strong> to test</li>
-      </ol>
+          <ol style={{ margin: '0 0 12px', paddingLeft: 20 }}>
+            <li>Open the Google Ads account for this client</li>
+            <li>Go to <strong>Tools &amp; Settings &gt; Bulk Actions &gt; Scripts</strong></li>
+            <li>Click <strong>+ New Script</strong></li>
+            <li><strong>Delete everything</strong> in the script editor (including the default <code>function main() {'{'} {'}'}</code>)</li>
+            <li>Paste the full script below (it replaces everything, API key is pre-filled)</li>
+            <li>Click <strong>Authorize</strong>, then <strong>Save</strong></li>
+            <li>Set the frequency to <strong>Daily</strong> (syncs keywords from CMS once per day)</li>
+            <li>Click <strong>Run</strong> to test</li>
+          </ol>
 
-      <p style={{ margin: '0 0 4px', fontSize: 12, color: '#64748b' }}>
-        The script automatically detects the Google Ads customer ID and fetches the correct keyword
-        lists from the CMS. Make sure the client's <strong>Google Ads Customer ID</strong> is set on
-        their client record in the CMS.
-      </p>
+          <p style={{ margin: '0 0 4px', fontSize: 12, color: '#64748b' }}>
+            The script automatically detects the Google Ads customer ID and fetches the correct keyword
+            lists from the CMS. Make sure the client's <strong>Google Ads Customer ID</strong> is set on
+            their client record in the CMS.
+          </p>
 
-      <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-        <button
-          type="button"
-          onClick={() => setShowScript(!showScript)}
-          style={{
-            padding: '6px 14px',
-            borderRadius: 6,
-            border: '1px solid #bae6fd',
-            background: '#fff',
-            color: '#1e3a5f',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          {showScript ? 'Hide Script' : 'View Google Ads Script'}
-        </button>
-        <button
-          type="button"
-          onClick={handleCopy}
-          style={{
-            padding: '6px 14px',
-            borderRadius: 6,
-            border: 'none',
-            background: '#2563eb',
-            color: '#fff',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          {copied ? 'Copied!' : 'Copy Script'}
-        </button>
-      </div>
+          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setShowScript(!showScript)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: '1px solid #bae6fd',
+                background: '#fff',
+                color: '#1e3a5f',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              {showScript ? 'Hide Script' : 'View Google Ads Script'}
+            </button>
+            <button
+              type="button"
+              onClick={handleCopy}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: 'none',
+                background: '#2563eb',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              {copied ? 'Copied!' : 'Copy Script'}
+            </button>
+          </div>
 
-      {showScript && (
-        <pre
-          style={{
-            marginTop: 10,
-            padding: 14,
-            background: '#1e293b',
-            color: '#e2e8f0',
-            borderRadius: 6,
-            fontSize: 11,
-            lineHeight: 1.5,
-            overflowX: 'auto',
-            whiteSpace: 'pre',
-            maxHeight: 400,
-          }}
-        >
-          {GOOGLE_ADS_SCRIPT}
-        </pre>
+          {showScript && (
+            <pre
+              style={{
+                marginTop: 10,
+                padding: 14,
+                background: '#1e293b',
+                color: '#e2e8f0',
+                borderRadius: 6,
+                fontSize: 11,
+                lineHeight: 1.5,
+                overflowX: 'auto',
+                whiteSpace: 'pre',
+                maxHeight: 400,
+              }}
+            >
+              {GOOGLE_ADS_SCRIPT}
+            </pre>
+          )}
+        </div>
       )}
     </div>
   )

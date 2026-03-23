@@ -1,7 +1,7 @@
 'use client'
 
-import { useDocumentInfo, useField } from '@payloadcms/ui'
-import { useState, useEffect } from 'react'
+import { useDocumentInfo } from '@payloadcms/ui'
+import { useState } from 'react'
 
 interface Campaign {
   name: string
@@ -22,11 +22,8 @@ export default function NegativeKeywordCampaignSelect() {
   const [fetched, setFetched] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Only show for campaign/ad_group scope
-  if (scope !== 'campaign' && scope !== 'ad_group') return null
-
   const fetchCampaigns = async () => {
-    if (!clientId || fetched) return
+    if (!clientId) return
     setLoading(true)
     setError(null)
     try {
@@ -46,12 +43,8 @@ export default function NegativeKeywordCampaignSelect() {
     }
   }
 
-  const currentCampaign = data?.campaignName || ''
-  const currentAdGroup = data?.adGroupName || ''
-
-  // Get ad groups for the selected campaign
-  const selectedCampaign = campaigns.find((c) => c.name === currentCampaign)
-  const adGroups = selectedCampaign?.adGroups || []
+  // Only show for campaign/ad_group scope
+  if (scope !== 'campaign' && scope !== 'ad_group') return null
 
   if (!clientId) {
     return (
@@ -60,6 +53,11 @@ export default function NegativeKeywordCampaignSelect() {
       </div>
     )
   }
+
+  const currentCampaign = data?.campaignName || ''
+  const currentAdGroup = data?.adGroupName || ''
+  const selectedCampaign = campaigns.find((c) => c.name === currentCampaign)
+  const adGroups = selectedCampaign?.adGroups || []
 
   return (
     <div style={{
@@ -70,7 +68,7 @@ export default function NegativeKeywordCampaignSelect() {
       marginBottom: 12,
       fontSize: 13,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: campaigns.length > 0 ? 8 : 0 }}>
         <strong style={{ fontSize: 13 }}>Load from Google Ads</strong>
         <button
           type="button"
@@ -92,7 +90,7 @@ export default function NegativeKeywordCampaignSelect() {
       </div>
 
       {error && (
-        <div style={{ fontSize: 12, color: '#b45309', marginBottom: 8 }}>{error}</div>
+        <div style={{ fontSize: 12, color: '#b45309', marginTop: 6 }}>{error}</div>
       )}
 
       {campaigns.length > 0 && (
@@ -104,7 +102,6 @@ export default function NegativeKeywordCampaignSelect() {
             <select
               value={currentCampaign}
               onChange={(e) => {
-                // Update the campaignName field via Payload's REST API
                 if (data?.id) {
                   fetch(`/api/negative-keyword-lists/${data.id}`, {
                     method: 'PATCH',
@@ -125,7 +122,7 @@ export default function NegativeKeywordCampaignSelect() {
             >
               <option value="">Select a campaign...</option>
               {campaigns.map((c) => (
-                <option key={c.id} value={c.name}>{c.name}</option>
+                <option key={c.id} value={c.name}>{c.name} ({c.status})</option>
               ))}
             </select>
           </div>
@@ -167,8 +164,8 @@ export default function NegativeKeywordCampaignSelect() {
       )}
 
       {fetched && campaigns.length === 0 && !error && (
-        <div style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>
-          No campaigns found. You can still type the campaign name manually in the field below.
+        <div style={{ fontSize: 12, color: 'var(--theme-elevation-400)', marginTop: 6 }}>
+          No campaigns found. You can type the campaign name manually below.
         </div>
       )}
     </div>
