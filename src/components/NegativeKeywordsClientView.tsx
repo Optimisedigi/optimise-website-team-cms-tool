@@ -135,14 +135,14 @@ export default function NegativeKeywordsClientView({
   // Group campaign/ad group lists by campaign name
   const campaignGroups = new Map<string, KeywordList[]>();
   for (const list of campaignLists) {
-    const key = list.campaignName || "Unknown Campaign";
+    const key = list.campaignName || list.name;
     if (!campaignGroups.has(key)) campaignGroups.set(key, []);
     campaignGroups.get(key)!.push(list);
   }
 
   const adGroupGroups = new Map<string, KeywordList[]>();
   for (const list of adGroupLists) {
-    const key = `${list.campaignName || "Unknown Campaign"} > ${list.adGroupName || "Unknown Ad Group"}`;
+    const key = `${list.campaignName || list.name} > ${list.adGroupName || "All Ad Groups"}`;
     if (!adGroupGroups.has(key)) adGroupGroups.set(key, []);
     adGroupGroups.get(key)!.push(list);
   }
@@ -193,9 +193,16 @@ export default function NegativeKeywordsClientView({
       <div style={{ maxWidth: 900, margin: "0 auto", width: "100%" }}>
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px", color: "#111827" }}>
-            Negative Keywords
-          </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+            <img
+              src="/optimise-logo-animated.gif"
+              alt="Optimise Digital"
+              style={{ height: 36, width: "auto" }}
+            />
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>
+              Negative Keywords
+            </h1>
+          </div>
           <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>
             {clientName}
             {lastUpdated > 0 && (
@@ -263,8 +270,13 @@ export default function NegativeKeywordsClientView({
         )}
 
         {/* Footer */}
-        <div style={{ textAlign: "center", padding: "32px 0 16px", fontSize: 12, color: "#9ca3af" }}>
-          Managed by Optimise Digital
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "32px 0 16px" }}>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>Managed by</span>
+          <img
+            src="/optimise-logo-animated.gif"
+            alt="Optimise Digital"
+            style={{ height: 28, width: "auto" }}
+          />
         </div>
       </div>
     </div>
