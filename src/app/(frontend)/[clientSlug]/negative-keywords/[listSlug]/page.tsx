@@ -49,6 +49,7 @@ export default async function NegativeKeywordsPage({
     slug: slugify(list.name),
     scope: list.scope,
     campaignName: list.campaignName || null,
+    campaigns: (list.campaigns || []).map((c: any) => c.campaignName).filter(Boolean),
     adGroupName: list.adGroupName || null,
     keywords: (list.keywords || []).map((kw: any, i: number) => ({
       index: i,

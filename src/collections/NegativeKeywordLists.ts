@@ -79,9 +79,24 @@ export const NegativeKeywordLists: CollectionConfig = {
       name: "campaignName",
       type: "text",
       admin: {
-        description: "Campaign name (for campaign or ad group scope). Use 'Fetch Campaigns' above to load from Google Ads, or type manually.",
+        description: "Primary campaign name (legacy, use campaigns array instead).",
+        condition: () => false, // Hidden — replaced by campaigns array
+      },
+    },
+    {
+      name: "campaigns",
+      type: "array",
+      admin: {
+        description: "Campaigns this negative keyword list is applied to",
         condition: (data) => data?.scope === "campaign" || data?.scope === "ad_group",
       },
+      fields: [
+        {
+          name: "campaignName",
+          type: "text",
+          required: true,
+        },
+      ],
     },
     {
       name: "adGroupName",

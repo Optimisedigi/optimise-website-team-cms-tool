@@ -15,6 +15,7 @@ interface KeywordList {
   slug?: string;
   scope: string;
   campaignName: string | null;
+  campaigns: string[];
   adGroupName: string | null;
   keywords: Keyword[];
   updatedAt: string;
@@ -320,9 +321,12 @@ function ListCard({
             {list.keywords.length} keyword{list.keywords.length !== 1 ? "s" : ""}
           </span>
         </h4>
-        {(list.campaignName || list.adGroupName) && (
-          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, display: "flex", gap: 8 }}>
-            {list.campaignName && (
+        {(list.campaigns.length > 0 || list.campaignName || list.adGroupName) && (
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+            {list.campaigns.length > 0 && (
+              <span>Applied to: <strong>{list.campaigns.join(", ")}</strong></span>
+            )}
+            {list.campaigns.length === 0 && list.campaignName && (
               <span>Campaign: <strong>{list.campaignName}</strong></span>
             )}
             {list.adGroupName && (

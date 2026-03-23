@@ -2447,9 +2447,18 @@ export interface NegativeKeywordList {
    */
   scope: 'account' | 'campaign' | 'ad_group';
   /**
-   * Campaign name (for campaign or ad group scope)
+   * Primary campaign name (legacy, use campaigns array instead).
    */
   campaignName?: string | null;
+  /**
+   * Campaigns this negative keyword list is applied to
+   */
+  campaigns?:
+    | {
+        campaignName: string;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Ad group name (for ad group scope)
    */
@@ -4991,6 +5000,12 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
   name?: T;
   scope?: T;
   campaignName?: T;
+  campaigns?:
+    | T
+    | {
+        campaignName?: T;
+        id?: T;
+      };
   adGroupName?: T;
   campaignRegex?: T;
   keywords?:

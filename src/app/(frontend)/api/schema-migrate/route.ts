@@ -953,6 +953,17 @@ export async function POST(request: NextRequest) {
   await run("locked_docs_rels.negative_keyword_lists_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_keyword_lists_id` integer REFERENCES `negative_keyword_lists`(`id`) ON DELETE cascade");
   await run("clients.negative_keywords_pin", "ALTER TABLE `clients` ADD `negative_keywords_pin` text");
 
+  // ── Negative Keyword Lists: campaigns array sub-table ──
+  await run("negative_keyword_lists_campaigns", `CREATE TABLE IF NOT EXISTS \`negative_keyword_lists_campaigns\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`campaign_name\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`negative_keyword_lists\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("nkl_camp_order_idx", "CREATE INDEX IF NOT EXISTS `nkl_camp_order_idx` ON `negative_keyword_lists_campaigns` (`_order`)");
+  await run("nkl_camp_parent_idx", "CREATE INDEX IF NOT EXISTS `nkl_camp_parent_idx` ON `negative_keyword_lists_campaigns` (`_parent_id`)");
+
   // Diagnostic: list clients
   let clients: any[] = [];
   try {

@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
       name: list.name,
       scope: list.scope,
       campaignName: list.campaignName || null,
+      campaigns: (list.campaigns || []).map((c: any) => c.campaignName).filter(Boolean),
       adGroupName: list.adGroupName || null,
       campaignRegex: list.campaignRegex || null,
       keywords: (list.keywords || []).map((kw: any) => ({
