@@ -355,13 +355,32 @@ export default function InternalLinkSuggestionsPage() {
 
             return (
               <div key={s.id} style={{ ...card, opacity: isActing ? 0.6 : 1 }}>
-                {/* Source → Target */}
-                <div style={{ fontSize: 14, fontWeight: 600, wordBreak: 'break-all' }}>
-                  <span style={{ color: 'var(--theme-elevation-600)' }}>
-                    {stripDomain(s.sourceUrl)}
-                  </span>
-                  <span style={{ margin: '0 6px', color: 'var(--theme-elevation-400)' }}>→</span>
-                  <span>{stripDomain(s.targetUrl)}</span>
+                {/* From / To with labels */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ fontSize: 12, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ color: 'var(--theme-elevation-400)', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 55, flexShrink: 0 }}>Add to</span>
+                    <a
+                      href={s.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: 13, fontWeight: 600, color: 'var(--theme-elevation-600)', wordBreak: 'break-all', textDecoration: 'none' }}
+                      title={s.sourceUrl}
+                    >
+                      {stripDomain(s.sourceUrl)}
+                    </a>
+                  </div>
+                  <div style={{ fontSize: 12, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ color: '#2563eb', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 55, flexShrink: 0 }}>Links to</span>
+                    <a
+                      href={s.targetUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: 13, fontWeight: 600, color: '#2563eb', wordBreak: 'break-all', textDecoration: 'none' }}
+                      title={s.targetUrl}
+                    >
+                      {stripDomain(s.targetUrl)}
+                    </a>
+                  </div>
                 </div>
 
                 {/* Meta row */}
