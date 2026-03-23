@@ -105,17 +105,26 @@ function main() {
   Logger.log('Negative keyword sync complete.');
 }`
 
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 export default function NegativeKeywordListInfo() {
   const { initialData } = useDocumentInfo()
   const data = initialData as any
-  const clientId = typeof data?.client === 'object' ? data?.client?.id : data?.client
+  const clientObj = typeof data?.client === 'object' ? data?.client : null
+  const clientSlug = clientObj?.slug
+  const listName = data?.name
 
   const [copied, setCopied] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [showScript, setShowScript] = useState(false)
 
-  const clientViewUrl = clientId
-    ? `${window.location.origin}/negative-keywords/${clientId}`
+  const clientViewUrl = clientSlug && listName
+    ? `${window.location.origin}/${clientSlug}/negative-keywords/${slugify(listName)}`
     : null
 
   const handleCopy = () => {

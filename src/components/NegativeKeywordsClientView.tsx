@@ -12,6 +12,7 @@ interface Keyword {
 interface KeywordList {
   id: number;
   name: string;
+  slug?: string;
   scope: string;
   campaignName: string | null;
   adGroupName: string | null;
@@ -34,11 +35,15 @@ const MATCH_COLORS: Record<string, { bg: string; color: string }> = {
 export default function NegativeKeywordsClientView({
   clientId,
   clientName,
+  clientSlug,
   lists: initialLists,
+  activeListSlug,
 }: {
   clientId: number;
   clientName: string;
+  clientSlug?: string;
   lists: KeywordList[];
+  activeListSlug?: string;
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
