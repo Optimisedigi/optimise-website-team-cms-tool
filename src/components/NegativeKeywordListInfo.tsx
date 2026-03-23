@@ -16,7 +16,7 @@ const GOOGLE_ADS_SCRIPT = `// ════════════════�
 // ═══════════════════════════════════════════════════════════════
 
 var CMS_URL = 'https://cms.optimisedigital.online/api/negative-keyword-lists/export';
-var CMS_API_KEY = 'YOUR_API_KEY_HERE'; // Replace with your AUDIT_API_KEY
+var CMS_API_KEY = '8f2fa5b8b97ab933ae306ccdfad2ce1df0de16f926e97cb1'; // Read-only key for negative keyword export
 
 function main() {
   var customerId = AdsApp.currentAccount().getCustomerId();
@@ -140,7 +140,7 @@ export default function NegativeKeywordListInfo() {
         <li>Open the Google Ads account for this client</li>
         <li>Go to <strong>Tools &amp; Settings &gt; Bulk Actions &gt; Scripts</strong></li>
         <li>Click <strong>+ New Script</strong></li>
-        <li>Paste the script below and replace <code>YOUR_API_KEY_HERE</code> with the CMS API key</li>
+        <li>Paste the script below (API key is pre-filled, ready to use)</li>
         <li>Click <strong>Authorize</strong>, then <strong>Save</strong></li>
         <li>Set the frequency to <strong>Daily</strong></li>
         <li>Click <strong>Run</strong> to test</li>

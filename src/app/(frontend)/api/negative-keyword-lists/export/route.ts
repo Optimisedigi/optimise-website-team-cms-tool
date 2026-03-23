@@ -4,8 +4,10 @@ import config from "@/payload.config";
 
 export async function GET(request: NextRequest) {
   try {
+    // Accept either the dedicated read-only export key or the admin API key
+    const NKL_EXPORT_KEY = "8f2fa5b8b97ab933ae306ccdfad2ce1df0de16f926e97cb1";
     const apiKey = request.headers.get("x-api-key");
-    if (!apiKey || apiKey !== process.env.AUDIT_API_KEY) {
+    if (!apiKey || (apiKey !== NKL_EXPORT_KEY && apiKey !== process.env.AUDIT_API_KEY)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
