@@ -2032,11 +2032,80 @@ export async function GET(request: NextRequest) {
   await run("clients.yearly_sales_target", "ALTER TABLE `clients` ADD `yearly_sales_target` real");
   await run("clients.target_deadline_date", "ALTER TABLE `clients` ADD `target_deadline_date` text");
 
+  // ── Email Templates global (2026-03-24) ──
+  await run("email_templates", `CREATE TABLE IF NOT EXISTS \`email_templates\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`seo_opener\` text,
+    \`cro_opener\` text,
+    \`google_ads_opener\` text,
+    \`facebook_ads_opener\` text,
+    \`ai_automation_opener\` text,
+    \`ai_search_opener\` text,
+    \`integrated_strategy_opener\` text,
+    \`open_to_recommendations_opener\` text,
+    \`multi_service_opener\` text,
+    \`getting_started\` text,
+    \`growing_steadily\` text,
+    \`scaling\` text,
+    \`investing_heavily\` text,
+    \`qualified_leads\` text,
+    \`conversion_rate\` text,
+    \`lower_cac\` text,
+    \`growth_strategy\` text,
+    \`measurement\` text,
+    \`focus_sentence_template\` text,
+    \`not_sure\` text,
+    \`inconsistent\` text,
+    \`know_what_works\` text,
+    \`need_efficiency\` text,
+    \`closing_paragraph\` text,
+    \`subject_template\` text,
+    \`questions_intro\` text,
+    \`updated_at\` text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    \`created_at\` text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  )`);
+
+  await run("email_templates_service_questions", `CREATE TABLE IF NOT EXISTS \`email_templates_service_questions\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`service_slug\` text,
+    \`theme\` text,
+    \`question\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`email_templates\`(\`id\`) ON DELETE CASCADE
+  )`);
+  await run("email_templates_service_questions_order_idx", "CREATE INDEX IF NOT EXISTS `email_templates_service_questions_order_idx` ON `email_templates_service_questions` (`_order`)");
+  await run("email_templates_service_questions_parent_id_idx", "CREATE INDEX IF NOT EXISTS `email_templates_service_questions_parent_id_idx` ON `email_templates_service_questions` (`_parent_id`)");
+
+  await run("email_templates_focus_questions", `CREATE TABLE IF NOT EXISTS \`email_templates_focus_questions\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`focus_slug\` text,
+    \`theme\` text,
+    \`question\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`email_templates\`(\`id\`) ON DELETE CASCADE
+  )`);
+  await run("email_templates_focus_questions_order_idx", "CREATE INDEX IF NOT EXISTS `email_templates_focus_questions_order_idx` ON `email_templates_focus_questions` (`_order`)");
+  await run("email_templates_focus_questions_parent_id_idx", "CREATE INDEX IF NOT EXISTS `email_templates_focus_questions_parent_id_idx` ON `email_templates_focus_questions` (`_parent_id`)");
+
+  await run("email_templates_setup_questions", `CREATE TABLE IF NOT EXISTS \`email_templates_setup_questions\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`setup_slug\` text,
+    \`theme\` text,
+    \`question\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`email_templates\`(\`id\`) ON DELETE CASCADE
+  )`);
+  await run("email_templates_setup_questions_order_idx", "CREATE INDEX IF NOT EXISTS `email_templates_setup_questions_order_idx` ON `email_templates_setup_questions` (`_order`)");
+  await run("email_templates_setup_questions_parent_id_idx", "CREATE INDEX IF NOT EXISTS `email_templates_setup_questions_parent_id_idx` ON `email_templates_setup_questions` (`_parent_id`)");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-20", results, allTables, proposalDiag, tableStructures, updateTest });
+  return NextResponse.json({ ok: true, version: "2026-03-24", results, allTables, proposalDiag, tableStructures, updateTest });
 }

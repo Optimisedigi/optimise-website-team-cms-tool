@@ -39,6 +39,7 @@ import { ClientProcesses } from "./collections/ClientProcesses";
 import { TagSetupAudits } from "./collections/TagSetupAudits";
 import { ApiCostRates } from "./globals/ApiCostRates";
 import { SheetsAuth } from "./globals/SheetsAuth";
+import { EmailTemplates } from "./globals/EmailTemplates";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -101,7 +102,7 @@ export default buildConfig({
       },
     },
   })),
-  globals: [SheetsAuth, ApiCostRates],
+  globals: [SheetsAuth, ApiCostRates, EmailTemplates],
   editor: lexicalEditor({
     features: ({ defaultFeatures }) => [...defaultFeatures, MarkdownPasteFeature()],
   }),
