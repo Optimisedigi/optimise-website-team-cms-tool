@@ -41,21 +41,35 @@ export async function GET(request: NextRequest) {
 
     // Fetch campaign structure from Growth Tools
     const cleanCustomerId = customerId.replace(/-/g, "");
-    const res = await fetch(
-      `${GROWTH_TOOLS_URL}/api/google-ads/campaigns?customerId=${cleanCustomerId}`,
-      {
-        headers: { "x-internal-key": INTERNAL_API_KEY },
-        next: { revalidate: 0 },
-      },
-    );
+    let res: Response;
+    try {
+      res = await fetch(
+        `${GROWTH_TOOLS_URL}/api/google-ads/campaigns?customerId=${cleanCustomerId}`,
+        {
+          headers: { "x-internal-key": INTERNAL_API_KEY },
+          signal: AbortSignal.timeout(30000),
+        },
+      );
+    } catch (fetchErr) {
+      console.error("[negative-keyword-lists/campaigns] Growth Tools fetch failed:", fetchErr);
+      return NextResponse.json({
+        ok: true,
+        campaigns: [],
+        note: "Could not reach Growth Tools. The endpoint may not be deployed yet. You can type the campaign name manually.",
+      });
+    }
 
     if (!res.ok) {
-      // If Growth Tools doesn't have this endpoint yet, return empty
-      if (res.status === 404) {
-        return NextResponse.json({ ok: true, campaigns: [], note: "Campaign listing not yet available in Growth Tools" });
-      }
-      const text = await res.text();
-      return NextResponse.json({ error: `Growth Tools: ${text}` }, { status: res.status });
+      // If Growth Tools doesn't have this endpoint yet, return empty with a note
+      const text = await res.text().catch(() => "");
+      console.error(`[negative-keyword-lists/campaigns] Growth Tools returned ${res.status}: ${text}`);
+      return NextResponse.json({
+        ok: true,
+        campaigns: [],
+        note: res.status === 404
+          ? "Campaign listing endpoint not yet deployed in Growth Tools. You can type the campaign name manually."
+          : `Growth Tools error (${res.status}). You can type the campaign name manually.`,
+      });
     }
 
     const data = await res.json();
