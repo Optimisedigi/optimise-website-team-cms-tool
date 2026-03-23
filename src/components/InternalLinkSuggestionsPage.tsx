@@ -135,12 +135,63 @@ export default function InternalLinkSuggestionsPage() {
   const selfLinks = suggestions.filter(s => s.sourceUrl === s.targetUrl)
   const validSuggestions = suggestions.filter(s => s.sourceUrl !== s.targetUrl)
 
+  // Detect quality issues on each suggestion
+  const getWarnings = (s: Suggestion): string[] => {
+    const warnings: string[] = []
+    const sourcePath = stripDomain(s.sourceUrl)
+    const targetPath = stripDomain(s.targetUrl)
+
+    // Homepage as source: avoid unless very high confidence
+    if (sourcePath === '/') {
+      warnings.push('Homepage source: avoid adding links from the homepage unless highly relevant')
+    }
+
+    // Anchor text looks like a heading (H1/H2) — typically a full page title
+    // Heuristic: if anchor matches the target page slug closely, it's likely a heading
+    const anchorLower = s.anchorText.toLowerCase().trim()
+    const targetSlug = targetPath.split('/').filter(Boolean).pop() || ''
+    const targetWords = targetSlug.replace(/-/g, ' ').toLowerCase()
+    if (targetWords && anchorLower === targetWords) {
+      warnings.push('Anchor matches page title exactly: likely an H1/H2 heading, not body copy')
+    }
+    // Also flag if anchor is very long (>60 chars) and title-case — likely a heading
+    if (s.anchorText.length > 60 && /^[A-Z]/.test(s.anchorText) && !s.anchorText.includes('.')) {
+      warnings.push('Anchor text is very long and title-case: may be a heading rather than body copy')
+    }
+
+    // Anchor text is the homepage tagline or generic
+    const genericAnchors = [
+      'click here', 'read more', 'learn more', 'find out more',
+      'home', 'homepage',
+    ]
+    if (genericAnchors.includes(anchorLower)) {
+      warnings.push('Generic anchor text: not useful for SEO')
+    }
+
+    // Source already likely links to target (same anchor as target page title from homepage)
+    if (sourcePath === '/' && targetWords && anchorLower.includes(targetWords)) {
+      warnings.push('Homepage likely already links to this page via its title')
+    }
+
+    // Duplicate: another suggestion with same source→target pair
+    const dupes = validSuggestions.filter(
+      o => o.id !== s.id && stripDomain(o.sourceUrl) === sourcePath && stripDomain(o.targetUrl) === targetPath
+    )
+    if (dupes.length > 0) {
+      warnings.push('Duplicate: another suggestion links the same source to the same target')
+    }
+
+    return warnings
+  }
+
   const counts = {
     pending: validSuggestions.filter(s => s.status === 'pending').length,
     approved: validSuggestions.filter(s => s.status === 'approved').length,
     rejected: validSuggestions.filter(s => s.status === 'rejected').length,
     total: validSuggestions.length,
   }
+
+  const flaggedCount = validSuggestions.filter(s => s.status === 'pending' && getWarnings(s).length > 0).length
 
   const clusters = [...new Set(validSuggestions.map(s => s.clusterName).filter(Boolean))] as string[]
 
@@ -151,12 +202,18 @@ export default function InternalLinkSuggestionsPage() {
   if (clusterFilter !== 'all') {
     filtered = filtered.filter(s => s.clusterName === clusterFilter)
   }
-  filtered.sort((a, b) =>
-    sortDesc ? b.confidenceScore - a.confidenceScore : a.confidenceScore - b.confidenceScore
-  )
+  filtered.sort((a, b) => {
+    // Sort flagged items to the bottom within pending
+    if (a.status === 'pending' && b.status === 'pending') {
+      const aFlags = getWarnings(a).length
+      const bFlags = getWarnings(b).length
+      if (aFlags !== bFlags) return aFlags - bFlags // clean first
+    }
+    return sortDesc ? b.confidenceScore - a.confidenceScore : a.confidenceScore - b.confidenceScore
+  })
 
   const bulkEligibleCount = filtered.filter(
-    s => s.status === 'pending' && s.confidenceScore >= 80
+    s => s.status === 'pending' && s.confidenceScore >= 80 && getWarnings(s).length === 0
   ).length
 
   // ─── Styles ───────────────────────────────────────────
@@ -252,6 +309,9 @@ export default function InternalLinkSuggestionsPage() {
         <span style={badge('#dbeafe', '#1e40af')}>{counts.pending} pending</span>
         <span style={badge('#dcfce7', '#166534')}>{counts.approved} approved</span>
         <span style={badge('#fee2e2', '#991b1b')}>{counts.rejected} rejected</span>
+        {flaggedCount > 0 && (
+          <span style={badge('#fef3c7', '#92400e')}>{flaggedCount} flagged</span>
+        )}
         <span style={badge('var(--theme-elevation-150)', 'var(--theme-text)')}>
           {counts.total} total
         </span>
@@ -352,9 +412,10 @@ export default function InternalLinkSuggestionsPage() {
           {filtered.map(s => {
             const cc = confidenceColor(s.confidenceScore)
             const isActing = acting.has(s.id)
+            const warnings = getWarnings(s)
 
             return (
-              <div key={s.id} style={{ ...card, opacity: isActing ? 0.6 : 1 }}>
+              <div key={s.id} style={{ ...card, opacity: isActing ? 0.6 : 1, borderColor: warnings.length > 0 && s.status === 'pending' ? '#fbbf24' : 'var(--theme-elevation-150)' }}>
                 {/* From / To with labels */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ fontSize: 12, display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -430,6 +491,25 @@ export default function InternalLinkSuggestionsPage() {
                     }}
                   >
                     {s.contextSnippet}
+                  </div>
+                )}
+
+                {/* Warnings */}
+                {warnings.length > 0 && s.status === 'pending' && (
+                  <div style={{
+                    background: '#fffbeb',
+                    border: '1px solid #fde68a',
+                    borderRadius: 6,
+                    padding: '8px 12px',
+                    fontSize: 12,
+                    color: '#92400e',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                  }}>
+                    {warnings.map((w, i) => (
+                      <div key={i}>&#9888; {w}</div>
+                    ))}
                   </div>
                 )}
 
