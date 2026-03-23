@@ -1154,11 +1154,45 @@ export async function GET(request: NextRequest) {
   await run("gsc_daily_client_date_unique", "CREATE UNIQUE INDEX IF NOT EXISTS `gsc_daily_client_date_unique` ON `gsc_daily` (`client_id`, `date`)");
   await run("locked_docs_rels.gsc_daily_id", "ALTER TABLE `payload_locked_documents_rels` ADD `gsc_daily_id` integer REFERENCES `gsc_daily`(`id`) ON DELETE cascade");
 
+  // ── Negative Keyword Lists ──
+  await run("negative_keyword_lists", `CREATE TABLE IF NOT EXISTS \`negative_keyword_lists\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`name\` text NOT NULL,
+    \`scope\` text DEFAULT 'account',
+    \`campaign_name\` text,
+    \`ad_group_name\` text,
+    \`campaign_regex\` text,
+    \`keyword_count\` numeric DEFAULT 0,
+    \`is_active\` integer DEFAULT true,
+    \`client_id\` integer NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("negative_keyword_lists_keywords", `CREATE TABLE IF NOT EXISTS \`negative_keyword_lists_keywords\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`keyword\` text NOT NULL,
+    \`match_type\` text DEFAULT 'exact',
+    \`flagged_for_removal\` integer DEFAULT false,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`negative_keyword_lists\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("nkl_client_idx", "CREATE INDEX IF NOT EXISTS `nkl_client_idx` ON `negative_keyword_lists` (`client_id`)");
+  await run("nkl_created_idx", "CREATE INDEX IF NOT EXISTS `nkl_created_idx` ON `negative_keyword_lists` (`created_at`)");
+  await run("nkl_updated_idx", "CREATE INDEX IF NOT EXISTS `nkl_updated_idx` ON `negative_keyword_lists` (`updated_at`)");
+  await run("nkl_kw_order_idx", "CREATE INDEX IF NOT EXISTS `nkl_kw_order_idx` ON `negative_keyword_lists_keywords` (`_order`)");
+  await run("nkl_kw_parent_idx", "CREATE INDEX IF NOT EXISTS `nkl_kw_parent_idx` ON `negative_keyword_lists_keywords` (`_parent_id`)");
+  await run("locked_docs_rels.negative_keyword_lists_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_keyword_lists_id` integer REFERENCES `negative_keyword_lists`(`id`) ON DELETE cascade");
+
+  // ── Clients: negativeKeywordsPin ──
+  await run("clients.negative_keywords_pin", "ALTER TABLE `clients` ADD `negative_keywords_pin` text");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-02-27c", results, allTables });
+  return NextResponse.json({ ok: true, version: "2026-03-23a", results, allTables });
 }

@@ -515,6 +515,13 @@ export const Clients: CollectionConfig = {
               },
             },
             {
+              name: "negativeKeywordsPin",
+              type: "text",
+              admin: {
+                description: "PIN for client access to the negative keywords view page (e.g. 1234)",
+              },
+            },
+            {
               name: "legacyNotes",
               type: "textarea",
               admin: {

@@ -88,6 +88,7 @@ export interface Config {
     'gsc-alerts': GscAlert;
     'gsc-indexing-audits': GscIndexingAudit;
     'negative-sweep-candidates': NegativeSweepCandidate;
+    'negative-keyword-lists': NegativeKeywordList;
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
@@ -132,6 +133,7 @@ export interface Config {
     'gsc-alerts': GscAlertsSelect<false> | GscAlertsSelect<true>;
     'gsc-indexing-audits': GscIndexingAuditsSelect<false> | GscIndexingAuditsSelect<true>;
     'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
+    'negative-keyword-lists': NegativeKeywordListsSelect<false> | NegativeKeywordListsSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
@@ -218,6 +220,14 @@ export interface Client {
    * Check if this is the agency itself (hides revenue fields)
    */
   isAgency?: boolean | null;
+  /**
+   * Yearly revenue target ($). Shown as a progress bar on the dashboard.
+   */
+  yearlySalesTarget?: number | null;
+  /**
+   * Target deadline (defaults to Dec 31 of current year if not set)
+   */
+  targetDeadlineDate?: string | null;
   /**
    * 4-digit PIN for client hub access (auto-generated)
    */
@@ -344,6 +354,10 @@ export interface Client {
    * Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.
    */
   googleAdsCustomerId?: string | null;
+  /**
+   * PIN for client access to the negative keywords view page (e.g. 1234)
+   */
+  negativeKeywordsPin?: string | null;
   /**
    * Goals, notes, and context about this client (legacy — use Notes tab for new notes)
    */
@@ -1948,8 +1962,20 @@ export interface GoogleAdsAudit {
   /**
    * Current campaign proposal generation status
    */
-  campaignProposalStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
+  campaignProposalStatus?: ('pending' | 'running' | 'completed' | 'failed' | 'approved') | null;
   campaignProposal?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Client-approved campaign structure imported from CSV
+   */
+  approvedCampaignStructure?:
     | {
         [k: string]: unknown;
       }
@@ -1973,7 +1999,9 @@ export interface GoogleAdsAudit {
   /**
    * Which campaign types to build. Leave empty for preset defaults.
    */
-  proposalEnabledCampaigns?: ('brand' | 'products' | 'services' | 'services-geo' | 'industry')[] | null;
+  proposalEnabledCampaigns?:
+    | ('brand' | 'brand-product' | 'products' | 'services' | 'services-geo' | 'industry')[]
+    | null;
   /**
    * Minimum monthly searches for an ad group to qualify. Defaults: distributor=150, ecommerce=100, service=30.
    */
@@ -1986,6 +2014,22 @@ export interface GoogleAdsAudit {
    * Exempt brand ad groups from the volume threshold. Default: on for distributors, off for others.
    */
   proposalBrandVolumeExempt?: boolean | null;
+  /**
+   * How to split service campaigns. Auto splits into Repair/Manufacturing/etc. Default: auto.
+   */
+  proposalServiceSplit?: ('auto' | 'single') | null;
+  /**
+   * Max industry vertical ad groups to include (sorted by volume). Default: 5.
+   */
+  proposalMaxIndustryVerticals?: number | null;
+  /**
+   * Max ad groups before splitting into sub-campaigns. Default: 10.
+   */
+  proposalMaxAdGroupsPerCampaign?: number | null;
+  /**
+   * Which side to prioritise in the proposal. Default: services.
+   */
+  proposalPrimaryFocus?: ('services' | 'products' | 'equal') | null;
   /**
    * Keywords to exclude from specific categories or globally. Set these BEFORE running the proposal.
    */
@@ -3512,6 +3556,61 @@ export interface NegativeSweepCandidate {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "negative-keyword-lists".
+ */
+export interface NegativeKeywordList {
+  id: number;
+  /**
+   * The client this negative keyword list belongs to
+   */
+  client: number | Client;
+  /**
+   * List name (e.g. "Brand Terms", "Competitor Terms")
+   */
+  name: string;
+  /**
+   * Where this negative keyword list applies
+   */
+  scope: 'account' | 'campaign' | 'ad_group';
+  /**
+   * Campaign name (for campaign or ad group scope)
+   */
+  campaignName?: string | null;
+  /**
+   * Ad group name (for ad group scope)
+   */
+  adGroupName?: string | null;
+  /**
+   * Regex pattern for auto-assigning this list to matching campaigns in Google Ads (e.g. .*Search.*)
+   */
+  campaignRegex?: string | null;
+  /**
+   * Negative keywords in this list
+   */
+  keywords?:
+    | {
+        keyword: string;
+        matchType: 'broad' | 'phrase' | 'exact';
+        /**
+         * Flagged by client for removal review
+         */
+        flaggedForRemoval?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Auto-calculated keyword count
+   */
+  keywordCount?: number | null;
+  /**
+   * Inactive lists are excluded from the Google Ads sync
+   */
+  isActive?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "business-costs".
  */
 export interface BusinessCost {
@@ -3813,6 +3912,10 @@ export interface PayloadLockedDocument {
         value: number | NegativeSweepCandidate;
       } | null)
     | ({
+        relationTo: 'negative-keyword-lists';
+        value: number | NegativeKeywordList;
+      } | null)
+    | ({
         relationTo: 'business-costs';
         value: number | BusinessCost;
       } | null)
@@ -3898,6 +4001,8 @@ export interface ClientsSelect<T extends boolean = true> {
   apiKey?: T;
   isActive?: T;
   isAgency?: T;
+  yearlySalesTarget?: T;
+  targetDeadlineDate?: T;
   clientPin?: T;
   websiteType?: T;
   externalCms?: T;
@@ -3929,6 +4034,7 @@ export interface ClientsSelect<T extends boolean = true> {
   signedContractUrl?: T;
   signedContract?: T;
   googleAdsCustomerId?: T;
+  negativeKeywordsPin?: T;
   legacyNotes?: T;
   retainerHistory?:
     | T
@@ -4574,6 +4680,7 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   teamNotes?: T;
   campaignProposalStatus?: T;
   campaignProposal?: T;
+  approvedCampaignStructure?: T;
   proposalBusinessType?: T;
   proposalConversionGoal?: T;
   proposalServiceRadius?: T;
@@ -4581,6 +4688,10 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   proposalMinAdGroupVolume?: T;
   proposalMinBrandImpressions?: T;
   proposalBrandVolumeExempt?: T;
+  proposalServiceSplit?: T;
+  proposalMaxIndustryVerticals?: T;
+  proposalMaxAdGroupsPerCampaign?: T;
+  proposalPrimaryFocus?: T;
   campaignProposalNegativeKeywords?:
     | T
     | {
@@ -4863,6 +4974,30 @@ export interface NegativeSweepCandidatesSelect<T extends boolean = true> {
   sweepDate?: T;
   writtenToSheet?: T;
   writtenAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "negative-keyword-lists_select".
+ */
+export interface NegativeKeywordListsSelect<T extends boolean = true> {
+  client?: T;
+  name?: T;
+  scope?: T;
+  campaignName?: T;
+  adGroupName?: T;
+  campaignRegex?: T;
+  keywords?:
+    | T
+    | {
+        keyword?: T;
+        matchType?: T;
+        flaggedForRemoval?: T;
+        id?: T;
+      };
+  keywordCount?: T;
+  isActive?: T;
   updatedAt?: T;
   createdAt?: T;
 }
