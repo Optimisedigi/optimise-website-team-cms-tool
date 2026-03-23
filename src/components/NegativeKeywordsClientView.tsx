@@ -193,16 +193,9 @@ export default function NegativeKeywordsClientView({
       <div style={{ maxWidth: 900, margin: "0 auto", width: "100%" }}>
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-            <img
-              src="/optimise-logo-animated.gif"
-              alt="Optimise Digital"
-              style={{ height: 36, width: "auto" }}
-            />
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#111827" }}>
-              Negative Keywords
-            </h1>
-          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px", color: "#111827" }}>
+            Negative Keywords
+          </h1>
           <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>
             {clientName}
             {lastUpdated > 0 && (
@@ -270,12 +263,12 @@ export default function NegativeKeywordsClientView({
         )}
 
         {/* Footer */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "32px 0 16px" }}>
-          <span style={{ fontSize: 12, color: "#9ca3af" }}>Managed by</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "32px 0 16px" }}>
+          <span style={{ fontSize: 11, color: "#9ca3af" }}>Managed by</span>
           <img
             src="/optimise-logo-animated.gif"
             alt="Optimise Digital"
-            style={{ height: 28, width: "auto" }}
+            style={{ height: 14, width: "auto" }}
           />
         </div>
       </div>
@@ -313,19 +306,31 @@ function ListCard({
   return (
     <div
       style={{
-        background: "#fff",
+        background: "#f3f4f6",
         border: "1px solid #e5e7eb",
         borderRadius: 8,
         padding: 16,
         marginBottom: 12,
       }}
     >
-      <h4 style={{ fontSize: 14, fontWeight: 600, margin: "0 0 10px", color: "#111827" }}>
-        {list.name}
-        <span style={{ fontSize: 12, fontWeight: 400, color: "#9ca3af", marginLeft: 8 }}>
-          {list.keywords.length} keyword{list.keywords.length !== 1 ? "s" : ""}
-        </span>
-      </h4>
+      <div style={{ marginBottom: 10 }}>
+        <h4 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#111827" }}>
+          {list.name}
+          <span style={{ fontSize: 12, fontWeight: 400, color: "#9ca3af", marginLeft: 8 }}>
+            {list.keywords.length} keyword{list.keywords.length !== 1 ? "s" : ""}
+          </span>
+        </h4>
+        {(list.campaignName || list.adGroupName) && (
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, display: "flex", gap: 8 }}>
+            {list.campaignName && (
+              <span>Campaign: <strong>{list.campaignName}</strong></span>
+            )}
+            {list.adGroupName && (
+              <span>Ad Group: <strong>{list.adGroupName}</strong></span>
+            )}
+          </div>
+        )}
+      </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {list.keywords.map((kw) => {
           const mc = MATCH_COLORS[kw.matchType] || MATCH_COLORS.broad;
@@ -340,7 +345,7 @@ function ListCard({
                 padding: "4px 10px",
                 borderRadius: 6,
                 fontSize: 13,
-                background: kw.flaggedForRemoval ? "#fef2f2" : "#f9fafb",
+                background: kw.flaggedForRemoval ? "#fef2f2" : "#ffffff",
                 border: `1px solid ${kw.flaggedForRemoval ? "#fecaca" : "#e5e7eb"}`,
                 textDecoration: kw.flaggedForRemoval ? "line-through" : "none",
                 color: kw.flaggedForRemoval ? "#9ca3af" : "#374151",
@@ -389,7 +394,7 @@ function ListCard({
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#f3f4f6",
+  background: "#ffffff",
   padding: "40px 20px",
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
 };
