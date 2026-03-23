@@ -26,6 +26,15 @@ export const NegativeKeywordLists: CollectionConfig = {
   },
   fields: [
     {
+      name: "infoPanel",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/NegativeKeywordListInfo",
+        },
+      },
+    },
+    {
       name: "client",
       type: "relationship",
       relationTo: "clients",
@@ -78,6 +87,15 @@ export const NegativeKeywordLists: CollectionConfig = {
       type: "text",
       admin: {
         description: "Regex pattern for auto-assigning this list to matching campaigns in Google Ads (e.g. .*Search.*)",
+      },
+    },
+    {
+      name: "bulkAdd",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/NegativeKeywordBulkAdd",
+        },
       },
     },
     {
