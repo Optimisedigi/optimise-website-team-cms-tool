@@ -1,7 +1,7 @@
 'use client'
 
 import { useDocumentInfo } from '@payloadcms/ui'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const GOOGLE_ADS_SCRIPT = `// ═══════════════════════════════════════════════════════════════
 // Negative Keyword Sync — Optimise Digital CMS
@@ -116,12 +116,22 @@ export default function NegativeKeywordListInfo() {
   const { initialData } = useDocumentInfo()
   const data = initialData as any
   const clientObj = typeof data?.client === 'object' ? data?.client : null
-  const clientSlug = clientObj?.slug
+  const clientId = clientObj?.id || data?.client
   const listName = data?.name
 
   const [copied, setCopied] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [showScript, setShowScript] = useState(false)
+  const [clientSlug, setClientSlug] = useState<string | null>(clientObj?.slug || null)
+
+  // Fetch client slug if not populated
+  useEffect(() => {
+    if (clientSlug || !clientId) return
+    fetch(`/api/clients/${clientId}?depth=0`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((c) => { if (c?.slug) setClientSlug(c.slug) })
+      .catch(() => {})
+  }, [clientId, clientSlug])
 
   const clientViewUrl = clientSlug && listName
     ? `${window.location.origin}/${clientSlug}/negative-keywords/${slugify(listName)}`
