@@ -140,9 +140,10 @@ export default function NegativeKeywordListInfo() {
         <li>Open the Google Ads account for this client</li>
         <li>Go to <strong>Tools &amp; Settings &gt; Bulk Actions &gt; Scripts</strong></li>
         <li>Click <strong>+ New Script</strong></li>
-        <li>Paste the script below (API key is pre-filled, ready to use)</li>
+        <li><strong>Delete everything</strong> in the script editor (including the default <code>function main() {'{'} {'}'}</code>)</li>
+        <li>Paste the full script below (it replaces everything, API key is pre-filled)</li>
         <li>Click <strong>Authorize</strong>, then <strong>Save</strong></li>
-        <li>Set the frequency to <strong>Daily</strong></li>
+        <li>Set the frequency to <strong>Daily</strong> (syncs keywords from CMS once per day)</li>
         <li>Click <strong>Run</strong> to test</li>
       </ol>
 
