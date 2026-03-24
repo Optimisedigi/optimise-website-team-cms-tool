@@ -261,13 +261,14 @@ function ListCard({
             <span
               key={name}
               style={{
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 400,
-                padding: "2px 8px",
-                borderRadius: 10,
-                background: "#ffffff",
-                color: "#374151",
-                border: "1px solid #d1d5db",
+                padding: "1px 6px",
+                borderRadius: 8,
+                background: "#f0f7ff",
+                color: "#2563eb",
+                border: "1px solid #bfdbfe",
+                lineHeight: 1.4,
               }}
             >
               {name}
@@ -276,13 +277,14 @@ function ListCard({
           {list.adGroupName && (
             <span
               style={{
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 400,
-                padding: "2px 8px",
-                borderRadius: 10,
-                background: "#ffffff",
-                color: "#374151",
-                border: "1px solid #d1d5db",
+                padding: "1px 6px",
+                borderRadius: 8,
+                background: "#f0f7ff",
+                color: "#2563eb",
+                border: "1px solid #bfdbfe",
+                lineHeight: 1.4,
               }}
             >
               {list.adGroupName}
@@ -301,10 +303,11 @@ function ListCard({
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                padding: "4px 10px",
-                borderRadius: 6,
-                fontSize: 13,
+                gap: 5,
+                padding: "2px 8px",
+                borderRadius: 4,
+                fontSize: 12,
+                lineHeight: 1.3,
                 background: kw.flaggedForRemoval ? "#fef2f2" : "#ffffff",
                 border: `1px solid ${kw.flaggedForRemoval ? "#fecaca" : "#e5e7eb"}`,
                 textDecoration: kw.flaggedForRemoval ? "line-through" : "none",
