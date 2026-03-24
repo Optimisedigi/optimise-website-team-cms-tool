@@ -21,12 +21,6 @@ interface KeywordList {
   updatedAt: string;
 }
 
-const SCOPE_LABELS: Record<string, string> = {
-  account: "Account Level",
-  campaign: "Campaign Level",
-  ad_group: "Ad Group Level",
-};
-
 const MATCH_COLORS: Record<string, { bg: string; color: string }> = {
   broad: { bg: "#dbeafe", color: "#1e40af" },
   phrase: { bg: "#e0e7ff", color: "#3730a3" },
@@ -58,9 +52,6 @@ export default function NegativeKeywordsClientView({
     setPinError("");
     setPinLoading(true);
 
-    // Validate by attempting a flag call with a dummy request
-    // Or we can just store the PIN and validate on flag actions
-    // For simplicity, we'll validate the PIN client-side by checking via the flag endpoint
     try {
       const res = await fetch("/api/negative-keyword-lists/flag", {
         method: "POST",
@@ -68,14 +59,13 @@ export default function NegativeKeywordsClientView({
         body: JSON.stringify({
           clientId,
           listId: lists[0]?.id || 0,
-          keywordIndex: -1, // invalid index, will return 400 if PIN is valid, 403 if not
+          keywordIndex: -1,
           pin,
         }),
       });
       if (res.status === 403) {
         setPinError("Incorrect PIN");
       } else {
-        // PIN is valid (got 400 for invalid index, or 200, or list not found — all fine)
         setUnlocked(true);
       }
     } catch {
@@ -89,7 +79,6 @@ export default function NegativeKeywordsClientView({
     const key = `${listId}-${keywordIndex}`;
     setFlagging(key);
 
-    // Optimistic update
     setLists((prev) =>
       prev.map((l) =>
         l.id === listId
@@ -110,7 +99,6 @@ export default function NegativeKeywordsClientView({
         body: JSON.stringify({ clientId, listId, keywordIndex, pin, unflag }),
       });
     } catch {
-      // Revert on error
       setLists((prev) =>
         prev.map((l) =>
           l.id === listId
@@ -128,26 +116,6 @@ export default function NegativeKeywordsClientView({
     }
   };
 
-  // Group lists by scope
-  const accountLists = lists.filter((l) => l.scope === "account");
-  const campaignLists = lists.filter((l) => l.scope === "campaign");
-  const adGroupLists = lists.filter((l) => l.scope === "ad_group");
-
-  // Group campaign/ad group lists by campaign name
-  const campaignGroups = new Map<string, KeywordList[]>();
-  for (const list of campaignLists) {
-    const key = list.campaignName || list.name;
-    if (!campaignGroups.has(key)) campaignGroups.set(key, []);
-    campaignGroups.get(key)!.push(list);
-  }
-
-  const adGroupGroups = new Map<string, KeywordList[]>();
-  for (const list of adGroupLists) {
-    const key = `${list.campaignName || list.name} > ${list.adGroupName || "All Ad Groups"}`;
-    if (!adGroupGroups.has(key)) adGroupGroups.set(key, []);
-    adGroupGroups.get(key)!.push(list);
-  }
-
   const flaggedCount = lists.reduce(
     (sum, l) => sum + l.keywords.filter((kw) => kw.flaggedForRemoval).length,
     0
@@ -163,7 +131,7 @@ export default function NegativeKeywordsClientView({
       <div style={pageStyle}>
         <div style={gateCard}>
           <div style={{ marginBottom: 20, textAlign: "center" }}>
-            <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px" }}>Negative Keywords</h1>
+            <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px" }}>Negative Keywords List</h1>
             <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>{clientName}</p>
           </div>
           <p style={{ fontSize: 14, color: "#6b7280", textAlign: "center", margin: "0 0 20px" }}>
@@ -193,9 +161,9 @@ export default function NegativeKeywordsClientView({
     <div style={pageStyle}>
       <div style={{ maxWidth: 900, margin: "0 auto", width: "100%" }}>
         {/* Header */}
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px", color: "#111827" }}>
-            Negative Keywords
+            Negative Keywords List
           </h1>
           <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>
             {clientName}
@@ -204,13 +172,13 @@ export default function NegativeKeywordsClientView({
             )}
           </p>
           {flaggedCount > 0 && (
-            <p style={{ fontSize: 13, color: "#b45309", margin: "8px 0 0" }}>
+            <p style={{ fontSize: 13, color: "#b45309", margin: "6px 0 0" }}>
               {flaggedCount} keyword{flaggedCount !== 1 ? "s" : ""} flagged for removal review
             </p>
           )}
         </div>
 
-        <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 13, color: "#6b7280", margin: "0 0 16px", lineHeight: 1.5 }}>
           These are the negative keywords applied to your Google Ads account to prevent your ads
           from showing for irrelevant searches. If you believe a keyword should be removed, click
           the flag button and our team will review it.
@@ -222,49 +190,13 @@ export default function NegativeKeywordsClientView({
           </p>
         )}
 
-        {/* Account Level */}
-        {accountLists.length > 0 && (
-          <ScopeSection title="Account Level" subtitle="Applied to all campaigns">
-            {accountLists.map((list) => (
-              <ListCard key={list.id} list={list} onFlag={handleFlag} flagging={flagging} />
-            ))}
-          </ScopeSection>
-        )}
-
-        {/* Campaign Level */}
-        {campaignGroups.size > 0 && (
-          <ScopeSection title="Campaign Level" subtitle="Applied to specific campaigns">
-            {[...campaignGroups.entries()].map(([campaign, campaignLists]) => (
-              <div key={campaign}>
-                <h4 style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: "12px 0 8px" }}>
-                  {campaign}
-                </h4>
-                {campaignLists.map((list) => (
-                  <ListCard key={list.id} list={list} onFlag={handleFlag} flagging={flagging} />
-                ))}
-              </div>
-            ))}
-          </ScopeSection>
-        )}
-
-        {/* Ad Group Level */}
-        {adGroupGroups.size > 0 && (
-          <ScopeSection title="Ad Group Level" subtitle="Applied to specific ad groups">
-            {[...adGroupGroups.entries()].map(([group, groupLists]) => (
-              <div key={group}>
-                <h4 style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: "12px 0 8px" }}>
-                  {group}
-                </h4>
-                {groupLists.map((list) => (
-                  <ListCard key={list.id} list={list} onFlag={handleFlag} flagging={flagging} />
-                ))}
-              </div>
-            ))}
-          </ScopeSection>
-        )}
+        {/* All lists rendered flat — no grouping by scope header since campaigns are shown on each card */}
+        {lists.map((list) => (
+          <ListCard key={list.id} list={list} onFlag={handleFlag} flagging={flagging} />
+        ))}
 
         {/* Footer */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "32px 0 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "24px 0 16px" }}>
           <span style={{ fontSize: 11, color: "#9ca3af" }}>Managed by</span>
           <img
             src="/optimise-logo-animated.gif"
@@ -273,24 +205,6 @@ export default function NegativeKeywordsClientView({
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-function ScopeSection({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div style={{ marginBottom: 28 }}>
-      <h3 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 2px", color: "#111827" }}>{title}</h3>
-      <p style={{ fontSize: 12, color: "#9ca3af", margin: "0 0 12px" }}>{subtitle}</p>
-      {children}
     </div>
   );
 }
@@ -304,6 +218,11 @@ function ListCard({
   onFlag: (listId: number, keywordIndex: number, unflag: boolean) => void;
   flagging: string | null;
 }) {
+  // Collect all linked campaigns/ad groups
+  const linkedCampaigns = list.campaigns.length > 0
+    ? list.campaigns
+    : list.campaignName ? [list.campaignName] : [];
+
   return (
     <div
       style={{
@@ -321,20 +240,57 @@ function ListCard({
             {list.keywords.length} keyword{list.keywords.length !== 1 ? "s" : ""}
           </span>
         </h4>
-        {(list.campaigns.length > 0 || list.campaignName || list.adGroupName) && (
-          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-            {list.campaigns.length > 0 && (
-              <span>Applied to: <strong>{list.campaigns.join(", ")}</strong></span>
-            )}
-            {list.campaigns.length === 0 && list.campaignName && (
-              <span>Campaign: <strong>{list.campaignName}</strong></span>
-            )}
-            {list.adGroupName && (
-              <span>Ad Group: <strong>{list.adGroupName}</strong></span>
-            )}
-          </div>
-        )}
+
+        {/* Scope badge */}
+        <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            padding: "2px 8px",
+            borderRadius: 4,
+            background: list.scope === "account" ? "#dbeafe" : list.scope === "campaign" ? "#e0e7ff" : "#fef3c7",
+            color: list.scope === "account" ? "#1e40af" : list.scope === "campaign" ? "#3730a3" : "#92400e",
+          }}>
+            {list.scope === "account" ? "Account Level" : list.scope === "campaign" ? "Campaign Level" : "Ad Group Level"}
+          </span>
+
+          {/* Campaign/ad group pills */}
+          {linkedCampaigns.map((name) => (
+            <span
+              key={name}
+              style={{
+                fontSize: 11,
+                fontWeight: 400,
+                padding: "2px 8px",
+                borderRadius: 10,
+                background: "#ffffff",
+                color: "#374151",
+                border: "1px solid #d1d5db",
+              }}
+            >
+              {name}
+            </span>
+          ))}
+          {list.adGroupName && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 400,
+                padding: "2px 8px",
+                borderRadius: 10,
+                background: "#ffffff",
+                color: "#374151",
+                border: "1px solid #d1d5db",
+              }}
+            >
+              {list.adGroupName}
+            </span>
+          )}
+        </div>
       </div>
+
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {list.keywords.map((kw) => {
           const mc = MATCH_COLORS[kw.matchType] || MATCH_COLORS.broad;
@@ -399,7 +355,7 @@ function ListCard({
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
   background: "#ffffff",
-  padding: "40px 20px",
+  padding: "20px 20px",
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
 };
 
