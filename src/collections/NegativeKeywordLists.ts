@@ -88,7 +88,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       type: "array",
       admin: {
         description: "Campaigns this negative keyword list is applied to",
-        condition: (data) => data?.scope === "campaign" || data?.scope === "ad_group",
+        condition: () => false, // Hidden — managed via the campaign select UI above
       },
       fields: [
         {
