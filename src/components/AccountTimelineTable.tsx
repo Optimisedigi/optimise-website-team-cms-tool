@@ -16,16 +16,33 @@ const SERVICE_AREAS = [
   { label: 'Analytics / Tracking', value: 'analytics' },
   { label: 'Website', value: 'website' },
   { label: 'Social / Meta', value: 'social' },
+  { label: 'Content', value: 'content' },
+  { label: 'Contracts / Legal', value: 'contracts' },
+  { label: 'Onboarding', value: 'onboarding' },
   { label: 'General', value: 'general' },
 ]
 
 const ACTION_TYPES = [
+  // Account lifecycle
   { label: 'Account Takeover', value: 'account_takeover' },
   { label: 'Account Access Granted', value: 'access_granted' },
+  { label: 'Onboarding Started', value: 'onboarding_started' },
+  { label: 'Onboarding Completed', value: 'onboarding_completed' },
+  // Contracts & agreements
+  { label: 'Contract Signed', value: 'contract_signed' },
+  { label: 'Contract Renewed', value: 'contract_renewed' },
+  { label: 'Scope of Work Changed', value: 'scope_changed' },
+  // Meetings & communication
+  { label: 'Kickoff Meeting', value: 'kickoff_meeting' },
+  { label: 'Strategy Meeting', value: 'strategy_meeting' },
+  { label: 'Review Meeting', value: 'review_meeting' },
+  { label: 'Client Presentation', value: 'client_presentation' },
+  // Tracking & tagging
   { label: 'Tagging Updated', value: 'tagging_updated' },
   { label: 'Conversion Tracking Changed', value: 'conversion_tracking_changed' },
   { label: 'GA4 Setup / Migration', value: 'ga4_setup' },
   { label: 'GTM Setup / Updated', value: 'gtm_updated' },
+  // Google Ads
   { label: 'Campaign Structure Proposed', value: 'campaign_structure_proposed' },
   { label: 'Campaign Structure Implemented', value: 'campaign_structure_implemented' },
   { label: 'Budget Changed', value: 'budget_changed' },
@@ -33,9 +50,12 @@ const ACTION_TYPES = [
   { label: 'Bid Strategy Changed', value: 'bid_strategy_changed' },
   { label: 'Ad Copy Updated', value: 'ad_copy_updated' },
   { label: 'Landing Pages Changed', value: 'landing_pages_changed' },
+  // Reporting & dashboards
   { label: 'Dashboard Created', value: 'dashboard_created' },
   { label: 'Reporting Started', value: 'reporting_started' },
+  // General
   { label: 'Strategy Change', value: 'strategy_change' },
+  { label: 'Process Milestone', value: 'process_milestone' },
   { label: 'Other', value: 'other' },
 ]
 
