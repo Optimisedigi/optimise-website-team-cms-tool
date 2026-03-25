@@ -313,25 +313,22 @@ function ProcessTracker() {
             >
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 6,
                   marginBottom: 4,
                 }}
               >
-                <span
+                <div
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
                     color: isActive ? statusColor : 'var(--theme-elevation-800)',
-                    whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    marginBottom: 4,
                   }}
                 >
                   {phase.phaseName}
-                </span>
+                </div>
                 <span
                   style={{
                     fontSize: 9,
