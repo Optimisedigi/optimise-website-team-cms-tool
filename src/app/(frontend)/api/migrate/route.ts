@@ -1184,6 +1184,8 @@ export async function POST(request: NextRequest) {
     '20260307_120000_add_sales_leads',
     '20260307_130000_add_lead_attribution',
     '20260308_120000_add_tag_setup_audits',
+    '20260320_120000_add_yearly_sales_target',
+    '20260325_120000_add_client_account_timeline',
   ];
   for (const migName of allMigrationNames) {
     await run(`mark_migration:${migName}`, `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('${migName}', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
@@ -2170,11 +2172,26 @@ export async function GET(request: NextRequest) {
   await run("email_templates_setup_questions_order_idx", "CREATE INDEX IF NOT EXISTS `email_templates_setup_questions_order_idx` ON `email_templates_setup_questions` (`_order`)");
   await run("email_templates_setup_questions_parent_id_idx", "CREATE INDEX IF NOT EXISTS `email_templates_setup_questions_parent_id_idx` ON `email_templates_setup_questions` (`_parent_id`)");
 
+  // --- Client Account Timeline array table ---
+  await run("client_account_timeline", `CREATE TABLE IF NOT EXISTS \`client_account_timeline\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`date\` text NOT NULL,
+    \`service_area\` text DEFAULT 'google_ads',
+    \`action_type\` text NOT NULL,
+    \`description\` text NOT NULL,
+    \`added_by\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("client_account_timeline_order_idx", "CREATE INDEX IF NOT EXISTS `client_account_timeline_order_idx` ON `client_account_timeline` (`_order`)");
+  await run("client_account_timeline_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_account_timeline_parent_id_idx` ON `client_account_timeline` (`_parent_id`)");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-24", results, allTables, proposalDiag, tableStructures, updateTest });
+  return NextResponse.json({ ok: true, version: "2026-03-25", results, allTables, proposalDiag, tableStructures, updateTest });
 }
