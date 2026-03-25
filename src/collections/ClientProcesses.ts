@@ -179,6 +179,9 @@ export const ClientProcesses: CollectionConfig = {
               type: "array",
               admin: {
                 description: "Phases copied from the template with live status tracking",
+                components: {
+                  Field: "./components/ClientProcessWorksheet",
+                },
               },
               fields: [
                 {

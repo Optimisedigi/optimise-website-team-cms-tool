@@ -5,6 +5,7 @@ import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../co
 import { default as default_1a2b8d9a179321ad34f0f546c6575e98 } from '../../../components/StartProcessButton'
 import { default as default_b625d4fd2a78fb543eb54574c50e62fc } from '../../../components/LinkedProcesses'
 import { default as default_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6 } from '../../../components/AccountTimelineTable'
+import { default as default_b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7 } from '../../../components/ClientProcessWorksheet'
 import { RscEntryLexicalCell as RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { RscEntryLexicalField as RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { LexicalDiffComponent as LexicalDiffComponent_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
@@ -100,6 +101,7 @@ export const importMap = {
   "./components/StartProcessButton#default": default_1a2b8d9a179321ad34f0f546c6575e98,
   "./components/LinkedProcesses#default": default_b625d4fd2a78fb543eb54574c50e62fc,
   "./components/AccountTimelineTable#default": default_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6,
+  "./components/ClientProcessWorksheet#default": default_b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalCell": RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalField": RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e,
   "@payloadcms/richtext-lexical/rsc#LexicalDiffComponent": LexicalDiffComponent_44fe37237e0ebf4470c9990d8cb7b07e,
