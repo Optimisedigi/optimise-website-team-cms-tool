@@ -634,7 +634,7 @@ export const Clients: CollectionConfig = {
                       required: true,
                       defaultValue: () => new Date().toISOString(),
                       admin: {
-                        width: "25%",
+                        width: "15%",
                         date: {
                           pickerAppearance: "dayOnly",
                           displayFormat: "d MMM yyyy",
@@ -646,8 +646,7 @@ export const Clients: CollectionConfig = {
                       type: "select",
                       defaultValue: "google_ads",
                       admin: {
-                        width: "25%",
-                        description: "Which service this relates to",
+                        width: "15%",
                       },
                       options: [
                         { label: "Google Ads", value: "google_ads" },
@@ -663,8 +662,7 @@ export const Clients: CollectionConfig = {
                       type: "select",
                       required: true,
                       admin: {
-                        width: "50%",
-                        description: "What happened",
+                        width: "25%",
                       },
                       options: [
                         { label: "Account Takeover", value: "account_takeover" },
@@ -686,22 +684,16 @@ export const Clients: CollectionConfig = {
                         { label: "Other", value: "other" },
                       ],
                     },
+                    {
+                      name: "description",
+                      type: "text",
+                      required: true,
+                      admin: {
+                        width: "45%",
+                        placeholder: "Brief description of what was done",
+                      },
+                    },
                   ],
-                },
-                {
-                  name: "description",
-                  type: "textarea",
-                  required: true,
-                  admin: {
-                    description: "Details of what was done and any context for future reference",
-                  },
-                },
-                {
-                  name: "addedBy",
-                  type: "text",
-                  admin: {
-                    description: "Who logged this entry",
-                  },
                 },
               ],
             },
