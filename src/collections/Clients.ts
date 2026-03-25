@@ -621,8 +621,10 @@ export const Clients: CollectionConfig = {
               type: "array",
               dbName: "client_account_timeline",
               admin: {
-                description: "Log of significant account milestones — tagging changes, account takeovers, campaign restructures, etc.",
-                initCollapsed: false,
+                components: {
+                  RowLabel: false as any,
+                  Field: "./components/AccountTimelineTable",
+                },
               },
               fields: [
                 {
@@ -634,7 +636,6 @@ export const Clients: CollectionConfig = {
                       required: true,
                       defaultValue: () => new Date().toISOString(),
                       admin: {
-                        width: "15%",
                         date: {
                           pickerAppearance: "dayOnly",
                           displayFormat: "d MMM yyyy",
@@ -645,9 +646,6 @@ export const Clients: CollectionConfig = {
                       name: "serviceArea",
                       type: "select",
                       defaultValue: "google_ads",
-                      admin: {
-                        width: "15%",
-                      },
                       options: [
                         { label: "Google Ads", value: "google_ads" },
                         { label: "SEO", value: "seo" },
@@ -661,9 +659,6 @@ export const Clients: CollectionConfig = {
                       name: "actionType",
                       type: "select",
                       required: true,
-                      admin: {
-                        width: "25%",
-                      },
                       options: [
                         { label: "Account Takeover", value: "account_takeover" },
                         { label: "Account Access Granted", value: "access_granted" },
@@ -688,10 +683,6 @@ export const Clients: CollectionConfig = {
                       name: "description",
                       type: "text",
                       required: true,
-                      admin: {
-                        width: "45%",
-                        placeholder: "Brief description of what was done",
-                      },
                     },
                   ],
                 },
