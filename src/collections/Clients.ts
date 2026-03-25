@@ -614,6 +614,100 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Account Timeline",
+          fields: [
+            {
+              name: "accountTimeline",
+              type: "array",
+              dbName: "client_account_timeline",
+              admin: {
+                description: "Log of significant account milestones — tagging changes, account takeovers, campaign restructures, etc.",
+                initCollapsed: false,
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "date",
+                      type: "date",
+                      required: true,
+                      defaultValue: () => new Date().toISOString(),
+                      admin: {
+                        width: "25%",
+                        date: {
+                          pickerAppearance: "dayOnly",
+                          displayFormat: "d MMM yyyy",
+                        },
+                      },
+                    },
+                    {
+                      name: "serviceArea",
+                      type: "select",
+                      defaultValue: "google_ads",
+                      admin: {
+                        width: "25%",
+                        description: "Which service this relates to",
+                      },
+                      options: [
+                        { label: "Google Ads", value: "google_ads" },
+                        { label: "SEO", value: "seo" },
+                        { label: "Analytics / Tracking", value: "analytics" },
+                        { label: "Website", value: "website" },
+                        { label: "Social / Meta", value: "social" },
+                        { label: "General", value: "general" },
+                      ],
+                    },
+                    {
+                      name: "actionType",
+                      type: "select",
+                      required: true,
+                      admin: {
+                        width: "50%",
+                        description: "What happened",
+                      },
+                      options: [
+                        { label: "Account Takeover", value: "account_takeover" },
+                        { label: "Account Access Granted", value: "access_granted" },
+                        { label: "Tagging Updated", value: "tagging_updated" },
+                        { label: "Conversion Tracking Changed", value: "conversion_tracking_changed" },
+                        { label: "GA4 Setup / Migration", value: "ga4_setup" },
+                        { label: "GTM Setup / Updated", value: "gtm_updated" },
+                        { label: "Campaign Structure Proposed", value: "campaign_structure_proposed" },
+                        { label: "Campaign Structure Implemented", value: "campaign_structure_implemented" },
+                        { label: "Budget Changed", value: "budget_changed" },
+                        { label: "Negative Keyword List Added", value: "negative_keywords_added" },
+                        { label: "Bid Strategy Changed", value: "bid_strategy_changed" },
+                        { label: "Ad Copy Updated", value: "ad_copy_updated" },
+                        { label: "Landing Pages Changed", value: "landing_pages_changed" },
+                        { label: "Dashboard Created", value: "dashboard_created" },
+                        { label: "Reporting Started", value: "reporting_started" },
+                        { label: "Strategy Change", value: "strategy_change" },
+                        { label: "Other", value: "other" },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  name: "description",
+                  type: "textarea",
+                  required: true,
+                  admin: {
+                    description: "Details of what was done and any context for future reference",
+                  },
+                },
+                {
+                  name: "addedBy",
+                  type: "text",
+                  admin: {
+                    description: "Who logged this entry",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        {
           label: "Processes",
           fields: [
             {
