@@ -321,9 +321,6 @@ function ProcessTracker() {
                     fontSize: 12,
                     fontWeight: 700,
                     color: isActive ? statusColor : 'var(--theme-elevation-800)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
                     marginBottom: 4,
                   }}
                 >
