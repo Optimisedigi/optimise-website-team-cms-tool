@@ -99,6 +99,20 @@ function AccountTimelineTable(props: any) {
 
   const entries = useMemo(() => extractEntries(fields, path), [fields, path])
 
+  // Sorted indices — earliest date first, entries without dates go to the end
+  const sortedIndices = useMemo(() => {
+    return entries
+      .map((_, i) => i)
+      .sort((a, b) => {
+        const dateA = entries[a].date
+        const dateB = entries[b].date
+        if (!dateA && !dateB) return 0
+        if (!dateA) return 1
+        if (!dateB) return -1
+        return dateA.localeCompare(dateB)
+      })
+  }, [entries])
+
   const updateValue = useCallback(
     (fieldPath: string, value: any) => {
       dispatchFields({ type: 'UPDATE', path: fieldPath, value })
@@ -175,71 +189,74 @@ function AccountTimelineTable(props: any) {
                 </td>
               </tr>
             )}
-            {entries.map((entry, i) => (
-              <tr key={i}>
-                <td style={cellStyle}>
-                  <input
-                    type="date"
-                    value={entry.date ? entry.date.split('T')[0] : ''}
-                    onChange={(e) => updateValue(`${path}.${i}.date`, e.target.value ? new Date(e.target.value + 'T12:00:00').toISOString() : '')}
-                    style={{ ...inputStyle, width: 130 }}
-                  />
-                </td>
-                <td style={cellStyle}>
-                  <select
-                    value={entry.serviceArea}
-                    onChange={(e) => updateValue(`${path}.${i}.serviceArea`, e.target.value)}
-                    style={selectStyle}
-                  >
-                    {SERVICE_AREAS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </td>
-                <td style={cellStyle}>
-                  <select
-                    value={entry.actionType}
-                    onChange={(e) => updateValue(`${path}.${i}.actionType`, e.target.value)}
-                    style={selectStyle}
-                  >
-                    <option value="">— Select —</option>
-                    {ACTION_TYPES.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </td>
-                <td style={cellStyle}>
-                  <input
-                    type="text"
-                    value={entry.description}
-                    onChange={(e) => updateValue(`${path}.${i}.description`, e.target.value)}
-                    placeholder="What was done..."
-                    style={inputStyle}
-                  />
-                </td>
-                <td style={{ ...cellStyle, textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(i)}
-                    title="Remove entry"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--theme-elevation-400, #9ca3af)',
-                      fontSize: 16,
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      lineHeight: 1,
-                    }}
-                    onMouseOver={(e) => (e.currentTarget.style.color = '#ef4444')}
-                    onMouseOut={(e) => (e.currentTarget.style.color = 'var(--theme-elevation-400, #9ca3af)')}
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {sortedIndices.map((i) => {
+              const entry = entries[i]
+              return (
+                <tr key={i}>
+                  <td style={cellStyle}>
+                    <input
+                      type="date"
+                      value={entry.date ? entry.date.split('T')[0] : ''}
+                      onChange={(e) => updateValue(`${path}.${i}.date`, e.target.value ? new Date(e.target.value + 'T12:00:00').toISOString() : '')}
+                      style={{ ...inputStyle, width: 130 }}
+                    />
+                  </td>
+                  <td style={cellStyle}>
+                    <select
+                      value={entry.serviceArea}
+                      onChange={(e) => updateValue(`${path}.${i}.serviceArea`, e.target.value)}
+                      style={selectStyle}
+                    >
+                      {SERVICE_AREAS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td style={cellStyle}>
+                    <select
+                      value={entry.actionType}
+                      onChange={(e) => updateValue(`${path}.${i}.actionType`, e.target.value)}
+                      style={selectStyle}
+                    >
+                      <option value="">— Select —</option>
+                      {ACTION_TYPES.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td style={cellStyle}>
+                    <input
+                      type="text"
+                      value={entry.description}
+                      onChange={(e) => updateValue(`${path}.${i}.description`, e.target.value)}
+                      placeholder="What was done..."
+                      style={inputStyle}
+                    />
+                  </td>
+                  <td style={{ ...cellStyle, textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(i)}
+                      title="Remove entry"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--theme-elevation-400, #9ca3af)',
+                        fontSize: 16,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        lineHeight: 1,
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.color = '#ef4444')}
+                      onMouseOut={(e) => (e.currentTarget.style.color = 'var(--theme-elevation-400, #9ca3af)')}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
