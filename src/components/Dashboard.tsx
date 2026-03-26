@@ -44,6 +44,7 @@ interface CostHistoryEntry {
   infrastructure: number
   api: number
   llm: number
+  business: number
 }
 
 interface RecentProcess {
@@ -176,6 +177,7 @@ const CHART_COLORS = {
   infrastructure: '#213843', // dark
   api: '#468D8B',            // mid
   llm: '#74B3A8',            // light
+  business: '#E67E22',       // orange
 }
 
 // ─── Main ─────────────────────────────────────────────────
@@ -710,7 +712,7 @@ function GscChart({ data }: { data: GscMonthlyEntry[] }) {
 function CostChart({ history }: { history: CostHistoryEntry[] }) {
   if (!history || history.length === 0) return null
 
-  const maxTotal = Math.max(...history.map((h) => h.infrastructure + h.api + h.llm), 1)
+  const maxTotal = Math.max(...history.map((h) => h.infrastructure + h.api + h.llm + (h.business || 0)), 1)
   const chartHeight = 160
   const barWidth = 100 / history.length
 
@@ -718,7 +720,9 @@ function CostChart({ history }: { history: CostHistoryEntry[] }) {
     <div className="od-chart">
       <div className="od-chart__area" style={{ height: chartHeight }}>
         {history.map((entry, i) => {
-          const total = entry.infrastructure + entry.api + entry.llm
+          const biz = entry.business || 0
+          const total = entry.infrastructure + entry.api + entry.llm + biz
+          const bizH = (biz / maxTotal) * chartHeight
           const infraH = (entry.infrastructure / maxTotal) * chartHeight
           const apiH = (entry.api / maxTotal) * chartHeight
           const llmH = (entry.llm / maxTotal) * chartHeight
@@ -740,9 +744,14 @@ function CostChart({ history }: { history: CostHistoryEntry[] }) {
                   title={`API: $${entry.api.toFixed(2)}`}
                 />
                 <div
-                  className="od-chart__segment od-chart__segment--label"
+                  className="od-chart__segment"
                   style={{ height: infraH, background: CHART_COLORS.infrastructure }}
                   title={`Infra: $${entry.infrastructure.toFixed(2)}`}
+                />
+                <div
+                  className="od-chart__segment od-chart__segment--label"
+                  style={{ height: bizH, background: CHART_COLORS.business }}
+                  title={`Business: $${biz.toFixed(2)}`}
                 >
                   <span className="od-chart__bar-value">${total.toFixed(0)}</span>
                 </div>
@@ -753,6 +762,10 @@ function CostChart({ history }: { history: CostHistoryEntry[] }) {
         })}
       </div>
       <div className="od-chart__legend">
+        <span className="od-chart__legend-item">
+          <span className="od-chart__legend-dot" style={{ background: CHART_COLORS.business }} />
+          Business Costs
+        </span>
         <span className="od-chart__legend-item">
           <span className="od-chart__legend-dot" style={{ background: CHART_COLORS.infrastructure }} />
           Infrastructure

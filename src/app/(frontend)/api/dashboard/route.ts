@@ -371,7 +371,7 @@ export async function GET() {
       }
     })(),
 
-    // Historical counts per month (for chart) — count all auditable collections per month
+    // Historical counts per month (for chart) — count all auditable collections per month + business costs
     ...monthRanges.map(async (range) => {
       const where = {
         createdAt: {
@@ -379,13 +379,24 @@ export async function GET() {
           less_than: range.end,
         },
       };
-      const [seo, cro, kw, comp, content, media] = await Promise.all([
+      // Derive YYYY-MM key from range start date for business costs query
+      const rangeDate = new Date(range.start);
+      const monthKey = `${rangeDate.getFullYear()}-${String(rangeDate.getMonth() + 1).padStart(2, '0')}`;
+
+      const [seo, cro, kw, comp, content, media, bcMonth] = await Promise.all([
         payload.count({ collection: "seo-audits", where }).catch(() => ({ totalDocs: 0 })),
         payload.count({ collection: "cro-audits", where }).catch(() => ({ totalDocs: 0 })),
         payload.count({ collection: "keyword-snapshots", where }).catch(() => ({ totalDocs: 0 })),
         payload.count({ collection: "competitor-analyses", where }).catch(() => ({ totalDocs: 0 })),
         payload.count({ collection: "content-researches", where }).catch(() => ({ totalDocs: 0 })),
         payload.count({ collection: "media", where }).catch(() => ({ totalDocs: 0 })),
+        payload.find({
+          collection: 'business-costs' as any,
+          where: { month: { equals: monthKey } },
+          limit: 5000,
+          depth: 0,
+          overrideAccess: true,
+        }).catch(() => ({ docs: [] })),
       ]);
       const apiCost =
         seo.totalDocs * COST_PER_AUD.seoAudit +
@@ -395,11 +406,14 @@ export async function GET() {
         content.totalDocs * COST_PER_AUD.contentResearch +
         media.totalDocs * COST_PER_AUD.blogImage;
 
+      const businessCostTotal = bcMonth.docs.reduce((sum: number, c: any) => sum + ((c.amount as number) || 0), 0);
+
       return {
         label: range.label,
         infrastructure: round(Object.values(INFRA_MONTHLY_AUD).reduce((a, b) => a + b, 0)),
         api: round(apiCost),
         llm: round(Object.values(LLM_MONTHLY_AUD).reduce((a, b) => a + b, 0)),
+        business: round(businessCostTotal),
       };
     }),
   ]);
