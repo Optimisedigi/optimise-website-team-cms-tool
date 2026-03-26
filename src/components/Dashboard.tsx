@@ -314,7 +314,7 @@ const Dashboard = () => {
                 <span className="od-box__stat-label">Lead Conversion Rate</span>
               </div>
               <div className="od-box__stat">
-                <span className="od-box__stat-value">${data.costs.total.toFixed(2)}</span>
+                <span className="od-box__stat-value">${(data.costs.total + (data.businessCosts?.totalThisMonth || 0)).toFixed(2)}</span>
                 <span className="od-box__stat-label">MTD Costs (AUD)</span>
               </div>
               <div className="od-box__stat">
