@@ -799,12 +799,17 @@ function CostBreakdown({ data }: { data: DashboardData }) {
 
   return (
     <div className="od-costs">
-      {/* 4-column summary: Total | Infrastructure | API Usage | LLM Models */}
+      {/* 5-column summary: Total | Business | Infrastructure | API Usage | LLM Models */}
       <div className="od-costs__summary-row">
         <div className="od-costs__summary od-costs__summary--total">
           <span className="od-costs__summary-label">Total</span>
-          <span className="od-costs__summary-value">${data.costs.total.toFixed(2)}</span>
+          <span className="od-costs__summary-value">${(data.costs.total + (data.businessCosts?.totalThisMonth || 0)).toFixed(2)}</span>
           <span className="od-costs__summary-sub">AUD / month</span>
+        </div>
+        <div className="od-costs__summary">
+          <span className="od-costs__summary-dot" style={{ background: CHART_COLORS.business }} />
+          <span className="od-costs__summary-label">Business Costs</span>
+          <span className="od-costs__summary-value">${(data.businessCosts?.totalThisMonth || 0).toFixed(2)}</span>
         </div>
         <div className="od-costs__summary">
           <span className="od-costs__summary-dot" style={{ background: CHART_COLORS.infrastructure }} />
