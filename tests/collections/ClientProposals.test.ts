@@ -370,11 +370,15 @@ describe("ClientProposals: convertToClient hook", () => {
       }),
     );
 
-    // Verify proposal is deleted after conversion
-    expect(mockPayload.delete).toHaveBeenCalledWith(
+    // Verify proposal is linked to the new client (not deleted)
+    expect(mockPayload.update).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: "client-proposals",
         id: "prop-1",
+        data: expect.objectContaining({
+          client: "new-client-id",
+          proposalStatus: "client",
+        }),
       }),
     );
   });

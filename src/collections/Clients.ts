@@ -1471,6 +1471,21 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Proposal",
+          fields: [
+            {
+              name: "clientProposals",
+              type: "join",
+              collection: "client-proposals",
+              on: "client",
+              admin: {
+                description: "Original proposal that became this client",
+                defaultColumns: ["businessName", "proposalStatus", "slug", "createdAt"],
+              },
+            },
+          ],
+        },
+        {
           label: "Search Console",
           fields: [
             {

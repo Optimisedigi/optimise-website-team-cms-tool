@@ -173,10 +173,14 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         }),
       );
 
-      // Delete the proposal now that all data is re-linked
-      await payload.delete({
+      // Link the proposal to the new client (keep it for reference)
+      await payload.update({
         collection: "client-proposals",
         id: doc.id,
+        data: {
+          client: newClient.id,
+          proposalStatus: "client",
+        },
         overrideAccess: true,
       });
     } catch (error) {
@@ -1014,6 +1018,16 @@ export const ClientProposals: CollectionConfig = {
         position: "sidebar",
         description:
           "Toggle on and save to create an active Client from this proposal",
+      },
+    },
+    {
+      name: "client",
+      type: "relationship",
+      relationTo: "clients",
+      admin: {
+        position: "sidebar",
+        description: "Linked client (set automatically on conversion)",
+        readOnly: true,
       },
     },
     {

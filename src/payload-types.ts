@@ -714,6 +714,10 @@ export interface Client {
    * Most recent GSC data snapshot
    */
   latestGscSnapshot?: (number | null) | GscSnapshot;
+  clientProposals?: {
+    docs?: (number | ClientProposal)[] | null;
+    hasNextPage?: boolean | null;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1409,6 +1413,10 @@ export interface ClientProposal {
    * Toggle on and save to create an active Client from this proposal
    */
   convertToClient?: boolean | null;
+  /**
+   * Linked client (set automatically on conversion)
+   */
+  client?: (number | null) | Client;
   /**
    * 4-digit PIN for prospect report access (auto-generated)
    */
@@ -4280,6 +4288,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   contracts?: T;
   proposalStatus?: T;
   convertToClient?: T;
+  client?: T;
   proposalPin?: T;
   updatedAt?: T;
   createdAt?: T;
