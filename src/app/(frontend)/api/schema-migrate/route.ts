@@ -889,6 +889,63 @@ export async function POST(request: NextRequest) {
   await run("clients_gads_report_emails_order_idx", "CREATE INDEX IF NOT EXISTS `clients_gads_report_emails_order_idx` ON `clients_gads_report_emails` (`_order`)");
   await run("clients_gads_report_emails_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_gads_report_emails_parent_idx` ON `clients_gads_report_emails` (`_parent_id`)");
 
+  // ── Site Health Reports (2026-03-27) ──
+
+  await run("site_health_reports", `CREATE TABLE IF NOT EXISTS \`site_health_reports\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`site_url\` text NOT NULL,
+    \`report_date\` text NOT NULL,
+    \`health_score\` numeric,
+    \`crawl_stats_total_pages_crawled\` numeric,
+    \`crawl_stats_total_pages_in_sitemap\` numeric,
+    \`crawl_stats_crawl_duration_ms\` numeric,
+    \`issues_summary_critical\` numeric,
+    \`issues_summary_warning\` numeric,
+    \`issues_summary_notice\` numeric,
+    \`issues_summary_total\` numeric,
+    \`issues_by_category\` text,
+    \`comparison_previous_score\` numeric,
+    \`comparison_score_change\` numeric,
+    \`comparison_new_issues\` numeric,
+    \`comparison_fixed_issues\` numeric,
+    \`comparison_previous_date\` text,
+    \`issues\` text,
+    \`pages\` text,
+    \`gsc_data_indexed_pages\` numeric,
+    \`gsc_data_not_indexed_pages\` numeric,
+    \`gsc_data_total_clicks\` numeric,
+    \`gsc_data_total_impressions\` numeric,
+    \`gsc_data_average_ctr\` numeric,
+    \`gsc_data_average_position\` numeric,
+    \`gsc_data_indexing_issues\` text,
+    \`gsc_data_canonical_mismatches\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("site_health_reports_client_idx", "CREATE INDEX IF NOT EXISTS `site_health_reports_client_idx` ON `site_health_reports` (`client_id`)");
+  await run("site_health_reports_created_at_idx", "CREATE INDEX IF NOT EXISTS `site_health_reports_created_at_idx` ON `site_health_reports` (`created_at`)");
+  await run("site_health_reports_updated_at_idx", "CREATE INDEX IF NOT EXISTS `site_health_reports_updated_at_idx` ON `site_health_reports` (`updated_at`)");
+  await run("locked_docs_rels.site_health_reports_id", "ALTER TABLE `payload_locked_documents_rels` ADD `site_health_reports_id` integer REFERENCES `site_health_reports`(`id`) ON DELETE cascade");
+
+  // SEO Health Monitor config on clients
+  await run("clients.seo_auto_monthly_health_enabled", "ALTER TABLE `clients` ADD `seo_auto_monthly_health_enabled` integer DEFAULT false");
+  await run("clients.seo_auto_site_url", "ALTER TABLE `clients` ADD `seo_auto_site_url` text");
+  await run("clients.seo_auto_gsc_site_url", "ALTER TABLE `clients` ADD `seo_auto_gsc_site_url` text");
+  await run("clients.seo_auto_health_report_day_of_month", "ALTER TABLE `clients` ADD `seo_auto_health_report_day_of_month` numeric DEFAULT 1");
+  await run("clients.seo_auto_max_pages", "ALTER TABLE `clients` ADD `seo_auto_max_pages` numeric DEFAULT 200");
+  await run("clients.seo_auto_check_external_links", "ALTER TABLE `clients` ADD `seo_auto_check_external_links` integer DEFAULT false");
+  await run("clients_seo_auto_notification_emails", `CREATE TABLE IF NOT EXISTS \`clients_seo_auto_notification_emails\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`email\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_seo_auto_notif_order_idx", "CREATE INDEX IF NOT EXISTS `clients_seo_auto_notif_order_idx` ON `clients_seo_auto_notification_emails` (`_order`)");
+  await run("clients_seo_auto_notif_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_seo_auto_notif_parent_idx` ON `clients_seo_auto_notification_emails` (`_parent_id`)");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
