@@ -66,12 +66,15 @@ function buildRequirements(servicePages?: string): string {
 - Each unique URL should only be linked once in the entire blog post. Do not link multiple anchor texts to the same destination.
 - If the blog mentions Facebook Ads, Instagram Ads, Meta Ads, and/or LinkedIn Ads and they all point to the same service page, only add one internal link using "Meta Ads" as the anchor text.
 - Blog content answers real user questions, not generic filler.
-- Include estimated reading time in minutes and a TLDR at the start.
+- Include estimated reading time in minutes and a TLDR at the start, formatted exactly as: > **TL;DR**
 - Make it easy and enjoyable to read.
 - Support internal linking to service or product pages.
 - Avoid thin or generic content.
 - Write fully in markdown so it can be copied and pasted cleanly, including internal URLs.
-- Add meta title (under 90 characters), meta description (under 160 characters) and excerpt (under 160 characters), clearly labelled.
+- Add meta title (under 90 characters), meta description (under 160 characters) and excerpt (under 160 characters), formatted exactly as:
+Meta Title: [Title]
+Meta Description: [Description]
+Excerpt: [Short excerpt]
 - Add relevant, non overlapping FAQs that reflect real search behaviour.
 - Consider all primary and secondary keywords.
 - Do not include anything listed in 'What are points I don't want to add'.
@@ -93,30 +96,40 @@ Blockquote        > Quote text
 Line Break        Empty line between paragraphs
 FAQ Section       ## FAQ **Q: Question?** A: Answer...
 
-- Use these spacing rules consistently:
-After every H2 (##) and H3 (###) heading, add one blank line.
-Before every list, add one blank line.
-Between paragraphs, add one blank line.
-Before and after every code block, add one blank line.
-If a line ends with a colon and a list follows, add one blank line after the colon line.
-Keep paragraphs short. Aim for one to three sentences per paragraph block.
+## Markdown formatting rules (strict)
 
-- Use this blog snippet example to match and maintain formatting consistency across the site:
->TL;DR If you want more high intent local customers, your Google Business Profile needs to be treated as a core growth channel, not an afterthought. Strong reviews, accurate information, regular updates, and geo-optimised landing pages build long term visibility that compounds.
+Follow these formatting rules exactly. Do not deviate.
 
-Why this matters commercially
+* Do not add a blank line after any heading (## or ###)
+* Always have a single blank line before a new heading
+* Do not add blank lines between paragraphs unless absolutely necessary
+* Do not add blank lines before bullet point lists
+* Lists must start immediately after the preceding sentence or colon
+* You may include a single blank line after a bullet point list before continuing the next paragraph
+* Paragraphs should otherwise flow continuously without unnecessary spacing
+* Keep spacing tight and compact, not blog-style spaced out
+* Avoid "air gaps" between sections
 
-Content paragraph with **bold text** for emphasis and [internal links](/page-path) where relevant.
+## Correct format example (follow this exactly)
+## Heading example
+This is the opening paragraph that continues directly under the heading without spacing. If introducing a list, continue the sentence and place the list immediately after:
+* Point one
+* Point two
+* Point three
 
-- Bullet points for key takeaways
-- Keep them actionable
+This next paragraph is allowed to have a single space after the list.
 
-**Q: Example FAQ question?**
-A: Example answer.
+## Next heading
+This heading should have a gap before it. But the paragraph continues immediately under the heading with no spacing. This rule applies to every heading consistently.
 
-Meta Title: [Title] | Optimise Digital
-Meta Description: [Description]
-Excerpt: [Short excerpt]`
+## Incorrect format (do not do this)
+## Heading example
+
+This paragraph has a gap above it.
+
+* This list has unnecessary spacing
+
+Another paragraph with gaps.`
 }
 
 function buildPrompt(f: BriefFields, clientName?: string, servicePages?: string): string {
