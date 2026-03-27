@@ -33,6 +33,44 @@ export const SiteHealthReports: CollectionConfig = {
       },
     },
     {
+      name: "runAudit",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/RunSiteHealthButton",
+        },
+      },
+    },
+    {
+      name: "auditStatus",
+      type: "select",
+      options: [
+        { label: "Pending", value: "pending" },
+        { label: "Running", value: "running" },
+        { label: "Completed", value: "completed" },
+        { label: "Failed", value: "failed" },
+      ],
+      defaultValue: "pending",
+      admin: { position: "sidebar" },
+    },
+    {
+      name: "auditProgress",
+      type: "text",
+      admin: {
+        position: "sidebar",
+        description: "Stage|percentage format",
+        readOnly: true,
+      },
+    },
+    {
+      name: "auditError",
+      type: "text",
+      admin: {
+        position: "sidebar",
+        readOnly: true,
+      },
+    },
+    {
       type: "tabs",
       tabs: [
         {
@@ -49,9 +87,12 @@ export const SiteHealthReports: CollectionConfig = {
                 },
                 {
                   name: "reportDate",
-                  type: "text",
+                  type: "date",
                   required: true,
-                  admin: { width: "25%", description: "ISO date string" },
+                  admin: {
+                    width: "25%",
+                    date: { pickerAppearance: "dayOnly", displayFormat: "d MMM yyyy" },
+                  },
                 },
                 {
                   name: "healthScore",

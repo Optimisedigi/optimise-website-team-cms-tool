@@ -2616,10 +2616,13 @@ export interface SiteHealthReport {
    * Client this report belongs to
    */
   client: number | Client;
-  siteUrl: string;
+  auditStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
   /**
-   * ISO date string
+   * Stage|percentage format
    */
+  auditProgress?: string | null;
+  auditError?: string | null;
+  siteUrl: string;
   reportDate: string;
   /**
    * % of URLs free of critical issues
@@ -5287,6 +5290,9 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
  */
 export interface SiteHealthReportsSelect<T extends boolean = true> {
   client?: T;
+  auditStatus?: T;
+  auditProgress?: T;
+  auditError?: T;
   siteUrl?: T;
   reportDate?: T;
   healthScore?: T;

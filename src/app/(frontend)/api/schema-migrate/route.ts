@@ -929,6 +929,11 @@ export async function POST(request: NextRequest) {
   await run("site_health_reports_updated_at_idx", "CREATE INDEX IF NOT EXISTS `site_health_reports_updated_at_idx` ON `site_health_reports` (`updated_at`)");
   await run("locked_docs_rels.site_health_reports_id", "ALTER TABLE `payload_locked_documents_rels` ADD `site_health_reports_id` integer REFERENCES `site_health_reports`(`id`) ON DELETE cascade");
 
+  // Site Health Reports — audit status columns (2026-03-27)
+  await run("site_health_reports.audit_status", "ALTER TABLE `site_health_reports` ADD `audit_status` text DEFAULT 'pending'");
+  await run("site_health_reports.audit_progress", "ALTER TABLE `site_health_reports` ADD `audit_progress` text");
+  await run("site_health_reports.audit_error", "ALTER TABLE `site_health_reports` ADD `audit_error` text");
+
   // SEO Health Monitor config on clients
   await run("clients.seo_auto_monthly_health_enabled", "ALTER TABLE `clients` ADD `seo_auto_monthly_health_enabled` integer DEFAULT false");
   await run("clients.seo_auto_site_url", "ALTER TABLE `clients` ADD `seo_auto_site_url` text");
