@@ -77,6 +77,7 @@ import { default as default_782e1e631e6dbac23bb6406c8354b517 } from '../../../co
 import { default as default_67cd75f7dc15172a4e21290c38ac2619 } from '../../../components/NegativeKeywordBulkAdd'
 import { default as default_5cc9c48eac9f9681086cee91da012e9f } from '../../../components/NegativeKeywordTable'
 import { default as default_20396e04db8c07a5e3383d2e16b34dc4 } from '../../../components/RunSiteHealthButton'
+import { default as default_b058368eb7c5859811170004e5dd59a8 } from '../../../components/SiteHealthReportView'
 import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
 import { default as default_d7691cd6896b18804e19a29368edb888 } from '../../../components/ConnectSheetsButton'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
@@ -174,6 +175,7 @@ export const importMap = {
   "./components/NegativeKeywordBulkAdd#default": default_67cd75f7dc15172a4e21290c38ac2619,
   "./components/NegativeKeywordTable#default": default_5cc9c48eac9f9681086cee91da012e9f,
   "./components/RunSiteHealthButton#default": default_20396e04db8c07a5e3383d2e16b34dc4,
+  "./components/SiteHealthReportView#default": default_b058368eb7c5859811170004e5dd59a8,
   "./components/BusinessCostsListView#default": default_6f9be25dea842550674d5a5331ed4ffe,
   "./components/ConnectSheetsButton#default": default_d7691cd6896b18804e19a29368edb888,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,

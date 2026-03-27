@@ -42,6 +42,15 @@ export const SiteHealthReports: CollectionConfig = {
       },
     },
     {
+      name: "reportView",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/SiteHealthReportView",
+        },
+      },
+    },
+    {
       name: "auditStatus",
       type: "select",
       options: [
