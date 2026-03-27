@@ -78,6 +78,7 @@ Excerpt: [Short excerpt]
 - Add relevant, non overlapping FAQs that reflect real search behaviour.
 - Consider all primary and secondary keywords.
 - Do not include anything listed in 'What are points I don't want to add'.
+- Do not end the blog post with "Thanks," "Thank you," "Peter Tu," "Optimise Digital" or any sign-off. End naturally after the final paragraph, right before the FAQ section.
 
 - Make sure you stick to this markdown formatting:
 Bold          **text**
@@ -96,40 +97,25 @@ Blockquote        > Quote text
 Line Break        Empty line between paragraphs
 FAQ Section       ## FAQ **Q: Question?** A: Answer...
 
-## Markdown formatting rules (strict)
+## STRICT MARKDOWN FORMATTING RULES (MUST FOLLOW EXACTLY)
 
-Follow these formatting rules exactly. Do not deviate.
+- After every heading (## or ###), the very next line must be the opening paragraph or list with **NO blank line**.
+- Never insert a blank line immediately after a heading.
+- Only insert a single blank line **before** the next heading.
+- Bullet lists must start on the immediate next line after the introducing sentence (no blank line before the first *).
+- After a bullet list ends, you may have **one** blank line before the next paragraph if needed, but keep overall spacing tight and compact.
+- Do not create "air gaps" between sections.
+- Follow the exact example below:
 
-* Do not add a blank line after any heading (## or ###)
-* Always have a single blank line before a new heading
-* Do not add blank lines between paragraphs unless absolutely necessary
-* Do not add blank lines before bullet point lists
-* Lists must start immediately after the preceding sentence or colon
-* You may include a single blank line after a bullet point list before continuing the next paragraph
-* Paragraphs should otherwise flow continuously without unnecessary spacing
-* Keep spacing tight and compact, not blog-style spaced out
-* Avoid "air gaps" between sections
-
-## Correct format example (follow this exactly)
-## Heading example
-This is the opening paragraph that continues directly under the heading without spacing. If introducing a list, continue the sentence and place the list immediately after:
+## Example heading
+This paragraph sits directly under the heading with no blank line. Lists start immediately:
 * Point one
 * Point two
-* Point three
 
-This next paragraph is allowed to have a single space after the list.
+This paragraph can follow the list after one blank line only if required.
 
 ## Next heading
-This heading should have a gap before it. But the paragraph continues immediately under the heading with no spacing. This rule applies to every heading consistently.
-
-## Incorrect format (do not do this)
-## Heading example
-
-This paragraph has a gap above it.
-
-* This list has unnecessary spacing
-
-Another paragraph with gaps.`
+Continues the same tight rule.`
 }
 
 function buildPrompt(f: BriefFields, clientName?: string, servicePages?: string): string {
