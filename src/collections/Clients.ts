@@ -1241,6 +1241,110 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "SEO Health",
+          fields: [
+            {
+              name: "seoAuto",
+              type: "group",
+              label: "Monthly SEO Health Monitor",
+              admin: {
+                description: "Configure Ahrefs-style monthly site health audits. Crawls the site, checks for issues, and pushes a report to CMS.",
+              },
+              fields: [
+                {
+                  name: "monthlyHealthEnabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Enable monthly site health monitoring for this client",
+                  },
+                },
+                {
+                  name: "siteUrl",
+                  type: "text",
+                  admin: {
+                    description: "Full URL of the site to crawl (e.g. https://www.example.com)",
+                    condition: (data: any) => data?.seoAuto?.monthlyHealthEnabled,
+                  },
+                },
+                {
+                  name: "gscSiteUrl",
+                  type: "text",
+                  admin: {
+                    description: "Google Search Console property URL (if different from site URL). Leave empty to skip GSC checks.",
+                    condition: (data: any) => data?.seoAuto?.monthlyHealthEnabled,
+                  },
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "healthReportDayOfMonth",
+                      type: "number",
+                      defaultValue: 1,
+                      min: 1,
+                      max: 28,
+                      admin: {
+                        description: "Day of month to run the audit (1-28)",
+                        width: "33%",
+                        condition: (data: any) => data?.seoAuto?.monthlyHealthEnabled,
+                      },
+                    },
+                    {
+                      name: "maxPages",
+                      type: "number",
+                      defaultValue: 200,
+                      min: 10,
+                      max: 500,
+                      admin: {
+                        description: "Max pages to crawl",
+                        width: "33%",
+                        condition: (data: any) => data?.seoAuto?.monthlyHealthEnabled,
+                      },
+                    },
+                    {
+                      name: "checkExternalLinks",
+                      type: "checkbox",
+                      defaultValue: false,
+                      admin: {
+                        description: "Check external links (slower)",
+                        width: "33%",
+                        condition: (data: any) => data?.seoAuto?.monthlyHealthEnabled,
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: "notificationEmails",
+                  type: "array",
+                  admin: {
+                    description: "Email addresses to receive the monthly health report",
+                    condition: (data: any) => data?.seoAuto?.monthlyHealthEnabled,
+                  },
+                  fields: [
+                    {
+                      name: "email",
+                      type: "email",
+                      required: true,
+                    },
+                  ],
+                },
+              ],
+            },
+            // Join field: linked site health reports
+            {
+              name: "siteHealthReports",
+              type: "join",
+              collection: "site-health-reports",
+              on: "client",
+              admin: {
+                description: "Monthly site health reports for this client",
+                defaultColumns: ["healthScore", "reportDate", "issuesSummary"],
+              },
+            },
+          ],
+        },
+        {
           label: "Blog Settings",
           fields: [
             {

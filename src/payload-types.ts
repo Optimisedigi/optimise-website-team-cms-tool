@@ -89,6 +89,7 @@ export interface Config {
     'gsc-indexing-audits': GscIndexingAudit;
     'negative-sweep-candidates': NegativeSweepCandidate;
     'negative-keyword-lists': NegativeKeywordList;
+    'site-health-reports': SiteHealthReport;
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
@@ -106,7 +107,9 @@ export interface Config {
     clients: {
       negativeKeywordLists: 'negative-keyword-lists';
       googleAdsAudits: 'google-ads-audits';
+      siteHealthReports: 'site-health-reports';
       tagSetupAudits: 'tag-setup-audits';
+      clientProposals: 'client-proposals';
     };
     'client-proposals': {
       contracts: 'contracts';
@@ -135,6 +138,7 @@ export interface Config {
     'gsc-indexing-audits': GscIndexingAuditsSelect<false> | GscIndexingAuditsSelect<true>;
     'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
     'negative-keyword-lists': NegativeKeywordListsSelect<false> | NegativeKeywordListsSelect<true>;
+    'site-health-reports': SiteHealthReportsSelect<false> | SiteHealthReportsSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
@@ -155,10 +159,12 @@ export interface Config {
   globals: {
     'sheets-auth': SheetsAuth;
     'api-cost-rates': ApiCostRate;
+    'email-templates': EmailTemplate;
   };
   globalsSelect: {
     'sheets-auth': SheetsAuthSelect<false> | SheetsAuthSelect<true>;
     'api-cost-rates': ApiCostRatesSelect<false> | ApiCostRatesSelect<true>;
+    'email-templates': EmailTemplatesSelect<false> | EmailTemplatesSelect<true>;
   };
   locale: null;
   widgets: {
@@ -397,6 +403,54 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
+  accountTimeline?:
+    | {
+        date: string;
+        serviceArea?:
+          | (
+              | 'google_ads'
+              | 'seo'
+              | 'analytics'
+              | 'website'
+              | 'social'
+              | 'content'
+              | 'contracts'
+              | 'onboarding'
+              | 'general'
+            )
+          | null;
+        actionType:
+          | 'account_takeover'
+          | 'access_granted'
+          | 'onboarding_started'
+          | 'onboarding_completed'
+          | 'contract_signed'
+          | 'contract_renewed'
+          | 'scope_changed'
+          | 'kickoff_meeting'
+          | 'strategy_meeting'
+          | 'review_meeting'
+          | 'client_presentation'
+          | 'tagging_updated'
+          | 'conversion_tracking_changed'
+          | 'ga4_setup'
+          | 'gtm_updated'
+          | 'campaign_structure_proposed'
+          | 'campaign_structure_implemented'
+          | 'budget_changed'
+          | 'negative_keywords_added'
+          | 'bid_strategy_changed'
+          | 'ad_copy_updated'
+          | 'landing_pages_changed'
+          | 'dashboard_created'
+          | 'reporting_started'
+          | 'strategy_change'
+          | 'process_milestone'
+          | 'other';
+        description: string;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Type of business — used for report weighting and presentation
    */
@@ -603,6 +657,52 @@ export interface Client {
     trend?: ('improving' | 'stable' | 'declining') | null;
   };
   /**
+   * Configure Ahrefs-style monthly site health audits. Crawls the site, checks for issues, and pushes a report to CMS.
+   */
+  seoAuto?: {
+    /**
+     * Enable monthly site health monitoring for this client
+     */
+    monthlyHealthEnabled?: boolean | null;
+    /**
+     * Full URL of the site to crawl (e.g. https://www.example.com)
+     */
+    siteUrl?: string | null;
+    /**
+     * Google Search Console property URL (if different from site URL). Leave empty to skip GSC checks.
+     */
+    gscSiteUrl?: string | null;
+    /**
+     * Day of month to run the audit (1-28)
+     */
+    healthReportDayOfMonth?: number | null;
+    /**
+     * Max pages to crawl
+     */
+    maxPages?: number | null;
+    /**
+     * Check external links (slower)
+     */
+    checkExternalLinks?: boolean | null;
+    /**
+     * Email addresses to receive the monthly health report
+     */
+    notificationEmails?:
+      | {
+          email: string;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Monthly site health reports for this client
+   */
+  siteHealthReports?: {
+    docs?: (number | SiteHealthReport)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  /**
    * Blog categories for this client (one per line)
    */
   blogCategories?: string | null;
@@ -692,6 +792,14 @@ export interface Client {
   ga4RefreshToken?: string | null;
   ga4TokenExpiry?: string | null;
   /**
+   * Original proposal that became this client
+   */
+  clientProposals?: {
+    docs?: (number | ClientProposal)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  /**
    * Whether Google Search Console is connected
    */
   gscConnected?: boolean | null;
@@ -714,10 +822,6 @@ export interface Client {
    * Most recent GSC data snapshot
    */
   latestGscSnapshot?: (number | null) | GscSnapshot;
-  clientProposals?: {
-    docs?: (number | ClientProposal)[] | null;
-    hasNextPage?: boolean | null;
-  };
   updatedAt: string;
   createdAt: string;
 }
@@ -2501,6 +2605,122 @@ export interface NegativeKeywordList {
   createdAt: string;
 }
 /**
+ * Monthly Ahrefs-style SEO health audit reports
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-health-reports".
+ */
+export interface SiteHealthReport {
+  id: number;
+  /**
+   * Client this report belongs to
+   */
+  client: number | Client;
+  siteUrl: string;
+  /**
+   * ISO date string
+   */
+  reportDate: string;
+  /**
+   * % of URLs free of critical issues
+   */
+  healthScore?: number | null;
+  crawlStats?: {
+    totalPagesCrawled?: number | null;
+    totalPagesInSitemap?: number | null;
+    crawlDurationMs?: number | null;
+  };
+  issuesSummary?: {
+    critical?: number | null;
+    warning?: number | null;
+    notice?: number | null;
+    total?: number | null;
+  };
+  /**
+   * Issues grouped by category with counts per severity
+   */
+  issuesByCategory?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Month-over-month comparison (if previous report exists)
+   */
+  comparison?: {
+    previousScore?: number | null;
+    scoreChange?: number | null;
+    newIssues?: number | null;
+    fixedIssues?: number | null;
+    previousDate?: string | null;
+  };
+  /**
+   * Full list of SiteHealthIssue objects (severity, category, type, message, url, details)
+   */
+  issues?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Per-page summary data (SiteHealthPageSummary objects)
+   */
+  pages?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Google Search Console data (if available)
+   */
+  gscData?: {
+    indexedPages?: number | null;
+    notIndexedPages?: number | null;
+    totalClicks?: number | null;
+    totalImpressions?: number | null;
+    averageCtr?: number | null;
+    averagePosition?: number | null;
+    /**
+     * Array of {url, reason}
+     */
+    indexingIssues?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * Array of {url, userCanonical, googleCanonical}
+     */
+    canonicalMismatches?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * GA4 and GTM tag validation results
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3938,6 +4158,10 @@ export interface PayloadLockedDocument {
         value: number | NegativeKeywordList;
       } | null)
     | ({
+        relationTo: 'site-health-reports';
+        value: number | SiteHealthReport;
+      } | null)
+    | ({
         relationTo: 'business-costs';
         value: number | BusinessCost;
       } | null)
@@ -4076,6 +4300,15 @@ export interface ClientsSelect<T extends boolean = true> {
         content?: T;
         id?: T;
       };
+  accountTimeline?:
+    | T
+    | {
+        date?: T;
+        serviceArea?: T;
+        actionType?: T;
+        description?: T;
+        id?: T;
+      };
   businessType?: T;
   targetLocation?: T;
   clientGoals?: T;
@@ -4143,6 +4376,23 @@ export interface ClientsSelect<T extends boolean = true> {
         scoreChange?: T;
         trend?: T;
       };
+  seoAuto?:
+    | T
+    | {
+        monthlyHealthEnabled?: T;
+        siteUrl?: T;
+        gscSiteUrl?: T;
+        healthReportDayOfMonth?: T;
+        maxPages?: T;
+        checkExternalLinks?: T;
+        notificationEmails?:
+          | T
+          | {
+              email?: T;
+              id?: T;
+            };
+      };
+  siteHealthReports?: T;
   blogCategories?: T;
   blogTags?: T;
   servicePages?: T;
@@ -4177,6 +4427,7 @@ export interface ClientsSelect<T extends boolean = true> {
   ga4AccessToken?: T;
   ga4RefreshToken?: T;
   ga4TokenExpiry?: T;
+  clientProposals?: T;
   gscConnected?: T;
   gscPropertyUrl?: T;
   gscAccessToken?: T;
@@ -5032,6 +5283,57 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-health-reports_select".
+ */
+export interface SiteHealthReportsSelect<T extends boolean = true> {
+  client?: T;
+  siteUrl?: T;
+  reportDate?: T;
+  healthScore?: T;
+  crawlStats?:
+    | T
+    | {
+        totalPagesCrawled?: T;
+        totalPagesInSitemap?: T;
+        crawlDurationMs?: T;
+      };
+  issuesSummary?:
+    | T
+    | {
+        critical?: T;
+        warning?: T;
+        notice?: T;
+        total?: T;
+      };
+  issuesByCategory?: T;
+  comparison?:
+    | T
+    | {
+        previousScore?: T;
+        scoreChange?: T;
+        newIssues?: T;
+        fixedIssues?: T;
+        previousDate?: T;
+      };
+  issues?: T;
+  pages?: T;
+  gscData?:
+    | T
+    | {
+        indexedPages?: T;
+        notIndexedPages?: T;
+        totalClicks?: T;
+        totalImpressions?: T;
+        averageCtr?: T;
+        averagePosition?: T;
+        indexingIssues?: T;
+        canonicalMismatches?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "business-costs_select".
  */
 export interface BusinessCostsSelect<T extends boolean = true> {
@@ -5290,6 +5592,99 @@ export interface ApiCostRate {
   createdAt?: string | null;
 }
 /**
+ * Auto-reply email template fragments sent to new leads. Edit any field to customise; leave blank to use the default.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-templates".
+ */
+export interface EmailTemplate {
+  id: number;
+  seoOpener?: string | null;
+  croOpener?: string | null;
+  googleAdsOpener?: string | null;
+  facebookAdsOpener?: string | null;
+  aiAutomationOpener?: string | null;
+  aiSearchOpener?: string | null;
+  integratedStrategyOpener?: string | null;
+  openToRecommendationsOpener?: string | null;
+  /**
+   * Used when the lead selects more than one service. Use {serviceList} as a placeholder for the comma-separated list of service names.
+   */
+  multiServiceOpener?: string | null;
+  gettingStarted?: string | null;
+  growingSteadily?: string | null;
+  scaling?: string | null;
+  investingHeavily?: string | null;
+  qualifiedLeads?: string | null;
+  conversionRate?: string | null;
+  lowerCac?: string | null;
+  growthStrategy?: string | null;
+  measurement?: string | null;
+  /**
+   * Wrapping sentence. Use {focus} as the placeholder for the joined focus fragments.
+   */
+  focusSentenceTemplate?: string | null;
+  notSure?: string | null;
+  inconsistent?: string | null;
+  knowWhatWorks?: string | null;
+  needEfficiency?: string | null;
+  questionsIntro?: string | null;
+  /**
+   * One question per service slug. Themes are used to avoid asking duplicate questions on the same topic.
+   */
+  serviceQuestions?:
+    | {
+        serviceSlug?:
+          | (
+              | 'seo'
+              | 'cro'
+              | 'google-ads'
+              | 'facebook-ads'
+              | 'ai-automation'
+              | 'ai-search-optimisation'
+              | 'integrated-digital-growth-strategy'
+              | 'open-to-recommendations'
+            )
+          | null;
+        /**
+         * De-duplication key. Questions with the same theme won't both appear.
+         */
+        theme?: string | null;
+        question?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * One question per focus area slug.
+   */
+  focusQuestions?:
+    | {
+        focusSlug?: ('qualified-leads' | 'conversion-rate' | 'lower-cac' | 'growth-strategy' | 'measurement') | null;
+        theme?: string | null;
+        question?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * One question per current-setup slug.
+   */
+  setupQuestions?:
+    | {
+        setupSlug?: ('not-sure' | 'inconsistent' | 'know-what-works' | 'need-efficiency') | null;
+        theme?: string | null;
+        question?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  closingParagraph?: string | null;
+  /**
+   * Use {firstName} as a placeholder for the lead's first name.
+   */
+  subjectTemplate?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "sheets-auth_select".
  */
@@ -5322,6 +5717,65 @@ export interface ApiCostRatesSelect<T extends boolean = true> {
         isActive?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-templates_select".
+ */
+export interface EmailTemplatesSelect<T extends boolean = true> {
+  seoOpener?: T;
+  croOpener?: T;
+  googleAdsOpener?: T;
+  facebookAdsOpener?: T;
+  aiAutomationOpener?: T;
+  aiSearchOpener?: T;
+  integratedStrategyOpener?: T;
+  openToRecommendationsOpener?: T;
+  multiServiceOpener?: T;
+  gettingStarted?: T;
+  growingSteadily?: T;
+  scaling?: T;
+  investingHeavily?: T;
+  qualifiedLeads?: T;
+  conversionRate?: T;
+  lowerCac?: T;
+  growthStrategy?: T;
+  measurement?: T;
+  focusSentenceTemplate?: T;
+  notSure?: T;
+  inconsistent?: T;
+  knowWhatWorks?: T;
+  needEfficiency?: T;
+  questionsIntro?: T;
+  serviceQuestions?:
+    | T
+    | {
+        serviceSlug?: T;
+        theme?: T;
+        question?: T;
+        id?: T;
+      };
+  focusQuestions?:
+    | T
+    | {
+        focusSlug?: T;
+        theme?: T;
+        question?: T;
+        id?: T;
+      };
+  setupQuestions?:
+    | T
+    | {
+        setupSlug?: T;
+        theme?: T;
+        question?: T;
+        id?: T;
+      };
+  closingParagraph?: T;
+  subjectTemplate?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

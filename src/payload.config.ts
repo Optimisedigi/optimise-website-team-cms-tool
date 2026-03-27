@@ -37,6 +37,7 @@ import { SalesLeads } from "./collections/SalesLeads";
 import { ProcessTemplates } from "./collections/ProcessTemplates";
 import { ClientProcesses } from "./collections/ClientProcesses";
 import { TagSetupAudits } from "./collections/TagSetupAudits";
+import { SiteHealthReports } from "./collections/SiteHealthReports";
 import { ApiCostRates } from "./globals/ApiCostRates";
 import { SheetsAuth } from "./globals/SheetsAuth";
 import { EmailTemplates } from "./globals/EmailTemplates";
@@ -85,7 +86,7 @@ export default buildConfig({
     // SEO
     InternalLinkSuggestions,
     // Audits
-    SeoAudits, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, NegativeSweepCandidates, NegativeKeywordLists,
+    SeoAudits, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, NegativeSweepCandidates, NegativeKeywordLists, SiteHealthReports,
     // Finance
     BusinessCosts, CostCategories, CostRules,
     // Admin
