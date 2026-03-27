@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { hasValidApiKey } from "./api-key-access";
 
 export const SiteHealthReports: CollectionConfig = {
   slug: "site-health-reports",
@@ -13,13 +14,13 @@ export const SiteHealthReports: CollectionConfig = {
     description: "Monthly Ahrefs-style SEO health audit reports",
   },
   access: {
-    read: ({ req }) => !!req.user,
-    update: ({ req }) => !!req.user,
+    read: ({ req }) => !!req.user || hasValidApiKey(req),
+    update: ({ req }) => !!req.user || hasValidApiKey(req),
     delete: ({ req }) => {
       if (!req.user) return false;
       return req.user.role === "admin";
     },
-    create: ({ req }) => !!req.user,
+    create: ({ req }) => !!req.user || hasValidApiKey(req),
   },
   fields: [
     {
