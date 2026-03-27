@@ -2202,11 +2202,15 @@ export async function GET(request: NextRequest) {
   await run("client_account_timeline_order_idx", "CREATE INDEX IF NOT EXISTS `client_account_timeline_order_idx` ON `client_account_timeline` (`_order`)");
   await run("client_account_timeline_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_account_timeline_parent_id_idx` ON `client_account_timeline` (`_parent_id`)");
 
+  // ── Link proposals to clients (2026-03-27) ──
+  await run("client_proposals.client_id", "ALTER TABLE `client_proposals` ADD `client_id` integer REFERENCES `clients`(`id`) ON DELETE set null");
+  await run("client_proposals_client_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_client_idx` ON `client_proposals` (`client_id`)");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-25", results, allTables, proposalDiag, tableStructures, updateTest });
+  return NextResponse.json({ ok: true, version: "2026-03-27", results, allTables, proposalDiag, tableStructures, updateTest });
 }
