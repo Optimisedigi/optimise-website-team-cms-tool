@@ -62,7 +62,7 @@ export async function POST(
     audit = await payload.create({
       collection: "tag-setup-audits",
       data: {
-        client: id,
+        client: Number(id),
         url: websiteUrl,
         status: "running",
         canAutoFix: client.websiteType === "built_by_us",
@@ -70,9 +70,9 @@ export async function POST(
       overrideAccess: true,
     });
   } catch (err: any) {
-    console.error("[TagSetupAudit] Failed to create audit record:", err.message);
+    console.error("[TagSetupAudit] Failed to create audit record:", err.message, err.stack);
     return NextResponse.json(
-      { error: "Failed to create audit record. The tag-setup-audits table may not exist — run migrations." },
+      { error: `Failed to create audit record: ${err.message}` },
       { status: 500 }
     );
   }
