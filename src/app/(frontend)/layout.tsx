@@ -1,5 +1,11 @@
 import React from 'react'
+import type { Viewport } from 'next'
 import './styles.css'
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+}
 
 export const metadata = {
   description: 'Optimise Digital Client Manager',
