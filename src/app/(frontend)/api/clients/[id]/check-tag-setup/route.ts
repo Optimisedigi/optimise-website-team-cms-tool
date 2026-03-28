@@ -57,16 +57,25 @@ export async function POST(
     : undefined;
 
   // Create the audit record
-  const audit = await payload.create({
-    collection: "tag-setup-audits",
-    data: {
-      client: id,
-      url: websiteUrl,
-      status: "running",
-      canAutoFix: client.websiteType === "built_by_us",
-    } as any,
-    overrideAccess: true,
-  });
+  let audit: any;
+  try {
+    audit = await payload.create({
+      collection: "tag-setup-audits",
+      data: {
+        client: id,
+        url: websiteUrl,
+        status: "running",
+        canAutoFix: client.websiteType === "built_by_us",
+      } as any,
+      overrideAccess: true,
+    });
+  } catch (err: any) {
+    console.error("[TagSetupAudit] Failed to create audit record:", err.message);
+    return NextResponse.json(
+      { error: "Failed to create audit record. The tag-setup-audits table may not exist — run migrations." },
+      { status: 500 }
+    );
+  }
 
   // Run audit in background
   const auditWork = async () => {

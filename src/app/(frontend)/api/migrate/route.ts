@@ -1186,6 +1186,7 @@ export async function POST(request: NextRequest) {
     '20260308_120000_add_tag_setup_audits',
     '20260320_120000_add_yearly_sales_target',
     '20260325_120000_add_client_account_timeline',
+    '20260327_120000_add_client_to_proposals',
   ];
   for (const migName of allMigrationNames) {
     await run(`mark_migration:${migName}`, `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('${migName}', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
