@@ -48,10 +48,10 @@ export async function POST(
     );
   }
 
-  // Parse expected events from textarea (one per line)
+  // Parse expected events from textarea (comma or newline separated)
   const expectedEvents = client.expectedEvents
     ? client.expectedEvents
-        .split("\n")
+        .split(/[\n,]+/)
         .map((e: string) => e.trim())
         .filter(Boolean)
     : undefined;
