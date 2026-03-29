@@ -457,12 +457,43 @@ $svg-close: "%3C/svg%3E";
 }
 
 // ============================================================
-// Login page — no sidebar offset
+// Login page — no sidebar offset + mobile friendly
 // ============================================================
 // When on login/create-first-user, Payload doesn't open the nav, but we also
 // need to remove the 48px mini-sidebar margin since MiniSidebar hides itself.
 .template-default.template-default--login .template-default__wrap {
   margin-left: 0 !important;
+}
+
+// Mobile login — center form, prevent overflow, proper padding
+@media (max-width: 768px) {
+  .template-default.template-default--login .template-default__wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100svh;
+    padding: 24px 16px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  .login {
+    width: 100% !important;
+    max-width: 400px !important;
+    padding: 0 16px;
+    box-sizing: border-box;
+  }
+
+  .login__brand {
+    margin-bottom: 24px !important;
+  }
+
+  .login__brand img,
+  .login__brand svg {
+    max-width: 200px;
+    height: auto;
+  }
 }
 
 // ============================================================

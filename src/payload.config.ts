@@ -74,7 +74,7 @@ export default buildConfig({
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
       afterLogin: ["./components/ShowPasswordToggle"],
-      providers: ["./components/RocketLoader", "./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/PomodoroTimer"],
+      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/PomodoroTimer"],
       beforeDashboard: ["./components/Dashboard"],
     },
   },

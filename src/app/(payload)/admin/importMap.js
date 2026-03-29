@@ -87,6 +87,7 @@ import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../co
 import { default as default_5c16f7aa63b8992f2b26b1a5603015ac } from '../../../components/SidebarNavExtras'
 import { default as default_c22c6ded068ed0e94e9b6d1c50d7f3ee } from '../../../components/Dashboard'
 import { default as default_cc474ecbeaf676f497427d66a0f4dd38 } from '../../../components/SidebarLogo'
+import { default as default_33065b9984d3bdded8a6f86ee55a36a3 } from '../../../components/ViewportMeta'
 import { default as default_e04f18ecb5b37d25b0e6d09a3fc98708 } from '../../../components/RocketLoader'
 import { default as default_f79b4ca75381164e95f118cd1e894463 } from '../../../components/FirstLoginSetup'
 import { default as default_30b462c31bfed4dfe63e7ef34d180475 } from '../../../components/NavigationRecovery'
@@ -185,6 +186,7 @@ export const importMap = {
   "./components/SidebarNavExtras#default": default_5c16f7aa63b8992f2b26b1a5603015ac,
   "./components/Dashboard#default": default_c22c6ded068ed0e94e9b6d1c50d7f3ee,
   "./components/SidebarLogo#default": default_cc474ecbeaf676f497427d66a0f4dd38,
+  "./components/ViewportMeta#default": default_33065b9984d3bdded8a6f86ee55a36a3,
   "./components/RocketLoader#default": default_e04f18ecb5b37d25b0e6d09a3fc98708,
   "./components/FirstLoginSetup#default": default_f79b4ca75381164e95f118cd1e894463,
   "./components/NavigationRecovery#default": default_30b462c31bfed4dfe63e7ef34d180475,
