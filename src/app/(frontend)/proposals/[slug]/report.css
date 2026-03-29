@@ -1501,7 +1501,7 @@
   background: #0b1120;
   min-height: 100vh;
   font-family: system-ui, -apple-system, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 html.scroll-ready .report-presentation {
@@ -1517,8 +1517,7 @@ html.scroll-ready .report-presentation {
   padding: 60px 24px;
   position: relative;
   box-sizing: border-box;
-  overflow: hidden;
-  max-width: 100vw;
+  overflow-x: clip;
 }
 
 .slide-expandable {
