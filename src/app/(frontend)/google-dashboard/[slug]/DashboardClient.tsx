@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { GoogleAdsDashboard } from "@/components/dashboards/googleads/GoogleAdsDashboard";
-import type { GoogleAdsDashboardData } from "@/lib/dashboard-types";
+import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData } from "@/lib/dashboard-types";
 
 interface DashboardClientProps {
   slug: string;
@@ -10,9 +10,10 @@ interface DashboardClientProps {
   isAuthenticated: boolean;
   initialData: GoogleAdsDashboardData | null;
   initialError: string | null;
+  initialQualityData?: GoogleAdsDashboardQualityData | null;
 }
 
-export function DashboardClient({ slug, clientName, isAuthenticated, initialData, initialError }: DashboardClientProps) {
+export function DashboardClient({ slug, clientName, isAuthenticated, initialData, initialError, initialQualityData }: DashboardClientProps) {
   const [authed, setAuthed] = useState(isAuthenticated);
   const [data, setData] = useState<GoogleAdsDashboardData | null>(initialData);
   const [error, setError] = useState(initialError || "");
@@ -64,7 +65,7 @@ export function DashboardClient({ slug, clientName, isAuthenticated, initialData
 
   // Dashboard
   if (data) {
-    return <GoogleAdsDashboard data={data} />;
+    return <GoogleAdsDashboard data={data} initialQualityData={initialQualityData ?? undefined} />;
   }
 
   return null;

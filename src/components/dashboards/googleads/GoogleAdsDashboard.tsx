@@ -16,6 +16,7 @@ import { ProgressTab } from "./ProgressTab";
 interface GoogleAdsDashboardProps {
   data: GoogleAdsDashboardData;
   mockQualityData?: GoogleAdsDashboardQualityData;
+  initialQualityData?: GoogleAdsDashboardQualityData;
 }
 
 function timeAgo(iso: string): string {
@@ -40,16 +41,16 @@ const RANGE_OPTIONS = [
 
 type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress";
 
-export function GoogleAdsDashboard({ data: initialData, mockQualityData }: GoogleAdsDashboardProps) {
+export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
   const [compareMode, setCompareMode] = useState<"month" | "year">("month");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [range, setRange] = useState(initialData.range || "last_month");
   const [loading, setLoading] = useState(false);
-  const [qualityData, setQualityData] = useState<GoogleAdsDashboardQualityData | null>(mockQualityData ?? null);
+  const [qualityData, setQualityData] = useState<GoogleAdsDashboardQualityData | null>(initialQualityData ?? mockQualityData ?? null);
   const [qualityLoading, setQualityLoading] = useState(false);
   const [qualityError, setQualityError] = useState("");
-  const qualityFetched = useRef(!!mockQualityData);
+  const qualityFetched = useRef(!!initialQualityData || !!mockQualityData);
 
   const changeRange = useCallback(
     async (newRange: string) => {
@@ -123,6 +124,16 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
 
   const rangeLabel =
     RANGE_OPTIONS.find((r) => r.value === range)?.label || "Last month";
+
+  // For specific clients with inflated pre-Oct 2025 conversions, start data from March 2026
+  const DATA_START_OVERRIDES: Record<string, string> = {
+    'berendsen-client': '2026-03',
+    'mtp-client': '2026-03',
+  }
+  const dataStartMonth = data.slug ? DATA_START_OVERRIDES[data.slug] : undefined
+  const filteredMonthlyTrend = dataStartMonth
+    ? data.monthlyTrend.filter((m) => m.month >= dataStartMonth)
+    : data.monthlyTrend
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -249,7 +260,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
             <>
               <KpiRow kpis={data.kpis} compareMode={compareMode} />
               <div className="mt-6">
-                <MonthlyChart data={data.monthlyTrend} />
+                <MonthlyChart data={filteredMonthlyTrend} />
               </div>
               <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <CategoryBreakdown campaigns={data.campaignBreakdown} />
@@ -338,7 +349,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData }: Googl
             <img
               src="/optimise-logo-animated.gif"
               alt="Optimise Digital"
-              className="h-6 w-auto"
+              className="h-4 w-auto"
             />
           </div>
         </div>

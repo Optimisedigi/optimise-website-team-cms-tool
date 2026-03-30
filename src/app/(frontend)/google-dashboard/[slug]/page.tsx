@@ -4,7 +4,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { DashboardClient } from "./DashboardClient";
 import { validateDashboardToken } from "../../api/dashboard/verify/route";
-import type { GoogleAdsDashboardData } from "@/lib/dashboard-types";
+import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData } from "@/lib/dashboard-types";
 import "../globals.css";
 
 interface Props {
@@ -69,13 +69,31 @@ export default async function GoogleDashboardPage({ params }: Props) {
   const tokenCookie = cookieStore.get("dashboard_token")?.value;
   const isAuthenticated = validateDashboardToken(tokenCookie, slug);
 
-  // If authenticated, fetch dashboard data server-side (avoids client cookie issues)
+  // If authenticated, fetch dashboard data and quality scores server-side
   let initialData: GoogleAdsDashboardData | null = null;
   let fetchError: string | null = null;
+  let initialQualityData: GoogleAdsDashboardQualityData | null = null;
   if (isAuthenticated) {
     const result = await fetchDashboardData(slug, client.googleAdsCustomerId, client.name);
     initialData = result.data;
     fetchError = result.error;
+
+    // Fetch quality scores server-side to avoid cookie auth issues on client
+    const growthUrl = process.env.GROWTH_TOOLS_URL;
+    const apiKey = process.env.INTERNAL_API_KEY;
+    if (growthUrl && apiKey) {
+      try {
+        const qsRes = await fetch(
+          `${growthUrl}/api/google-ads/quality-scores/${encodeURIComponent(slug)}?customerId=${encodeURIComponent(client.googleAdsCustomerId)}`,
+          { headers: { "x-internal-key": apiKey }, cache: "no-store" },
+        );
+        if (qsRes.ok) {
+          initialQualityData = await qsRes.json();
+        }
+      } catch {
+        // Quality scores are supplementary — fail silently
+      }
+    }
   }
 
   return (
@@ -85,6 +103,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
       isAuthenticated={isAuthenticated}
       initialData={initialData}
       initialError={fetchError}
+      initialQualityData={initialQualityData}
     />
   );
 }
