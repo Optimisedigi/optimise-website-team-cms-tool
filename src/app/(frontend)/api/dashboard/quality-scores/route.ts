@@ -6,9 +6,14 @@ const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
 
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
+  const customerId = req.nextUrl.searchParams.get("customerId") || "";
 
   if (!slug) {
     return NextResponse.json({ error: "Missing slug" }, { status: 400 });
+  }
+
+  if (!customerId) {
+    return NextResponse.json({ error: "Missing customerId" }, { status: 400 });
   }
 
   const token = req.cookies.get("dashboard_token")?.value;
@@ -24,24 +29,36 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores`;
+    const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?customerId=${encodeURIComponent(customerId)}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },
       next: { revalidate: 0 },
     });
 
+    const contentType = res.headers.get("content-type") || "";
+
     if (!res.ok) {
       const text = await res.text();
+      console.error("[Dashboard Quality Scores] Growth Tools error:", res.status, text.slice(0, 200));
       return NextResponse.json(
-        { error: `Growth Tools returned ${res.status}: ${text}` },
+        { error: `Growth Tools returned ${res.status}` },
         { status: res.status }
+      );
+    }
+
+    if (!contentType.includes("application/json")) {
+      const text = await res.text();
+      console.error("[Dashboard Quality Scores] Non-JSON response:", contentType, text.slice(0, 200));
+      return NextResponse.json(
+        { error: "Growth Tools returned non-JSON response" },
+        { status: 502 }
       );
     }
 
     const data = await res.json();
     return NextResponse.json(data);
   } catch (err) {
-    console.error("[Dashboard Quality Scores]", err);
+    console.error("[Dashboard Quality Scores] Exception:", err);
     return NextResponse.json(
       { error: "Failed to fetch quality score data" },
       { status: 500 }

@@ -68,6 +68,12 @@ export interface GoogleAdsDashboardAuctionInsight {
   competitors: GoogleAdsDashboardCompetitor[];
 }
 
+export interface GoogleAdsDashboardAdGroupAuctionInsight {
+  campaignName: string;
+  adGroupName: string;
+  competitors: GoogleAdsDashboardCompetitor[];
+}
+
 export interface GoogleAdsDashboardImpressionShare {
   overallVisibility: number;
   budgetLost: number;
@@ -111,6 +117,7 @@ export interface GoogleAdsDashboardData {
   budgetWasters: GoogleAdsDashboardSearchTerm[];
   irrelevantTerms: GoogleAdsDashboardSearchTerm[];
   auctionInsights: GoogleAdsDashboardAuctionInsight[];
+  adGroupAuctionInsights?: GoogleAdsDashboardAdGroupAuctionInsight[];
   impressionShare: GoogleAdsDashboardImpressionShare;
   activityStats: GoogleAdsDashboardActivityStats;
   notes: GoogleAdsDashboardNote[];

@@ -84,7 +84,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
     if (growthUrl && apiKey) {
       try {
         const qsRes = await fetch(
-          `${growthUrl}/api/google-ads/quality-scores/${encodeURIComponent(slug)}?customerId=${encodeURIComponent(client.googleAdsCustomerId)}`,
+          `${growthUrl}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?customerId=${encodeURIComponent(client.googleAdsCustomerId)}`,
           { headers: { "x-internal-key": apiKey }, cache: "no-store" },
         );
         if (qsRes.ok) {

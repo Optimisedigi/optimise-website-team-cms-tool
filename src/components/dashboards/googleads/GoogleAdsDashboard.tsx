@@ -85,12 +85,12 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
 
   const fetchQualityData = useCallback(
     async () => {
-      if (!data.slug) return;
+      if (!data.slug || !data.customerId) return;
       setQualityLoading(true);
       setQualityError("");
       try {
         const res = await fetch(
-          `/api/dashboard/quality-scores?slug=${encodeURIComponent(data.slug)}`,
+          `/api/dashboard/quality-scores?slug=${encodeURIComponent(data.slug)}&customerId=${encodeURIComponent(data.customerId)}`,
           { credentials: "include" },
         );
         if (res.ok) {
@@ -109,7 +109,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         setQualityLoading(false);
       }
     },
-    [data.slug],
+    [data.slug, data.customerId],
   );
 
   const handleTabChange = useCallback(
@@ -294,6 +294,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
           {activeTab === "competitors" && (
             <CompetitorAnalysis
               auctionInsights={data.auctionInsights}
+              adGroupAuctionInsights={data.adGroupAuctionInsights}
               impressionShare={data.impressionShare}
             />
           )}
@@ -349,7 +350,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             <img
               src="/optimise-logo-animated.gif"
               alt="Optimise Digital"
-              className="h-4 w-auto"
+              style={{ height: '14px', width: 'auto', mixBlendMode: 'multiply' }}
             />
           </div>
         </div>
