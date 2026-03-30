@@ -98,7 +98,7 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            zIndex: 1,
+            zIndex: 100,
             borderRight: '1px solid rgba(255, 255, 255, 0.08)',
             cursor: 'pointer',
           }}

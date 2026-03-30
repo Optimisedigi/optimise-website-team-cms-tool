@@ -475,7 +475,6 @@ $svg-close: "%3C/svg%3E";
     min-height: 100svh;
     padding: 24px 16px;
     box-sizing: border-box;
-    overflow-x: hidden;
   }
 
   .login {
@@ -1422,103 +1421,218 @@ $svg-close: "%3C/svg%3E";
 // Mobile-friendly admin dashboard
 // ============================================================
 @media (max-width: 768px) {
+  // ── Payload admin shell ──
   // Remove mini-sidebar offset — mini sidebar not useful on mobile
   .template-default:not(.template-default--nav-open) .template-default__wrap {
-    margin-left: 0;
+    margin-left: 0 !important;
   }
 
-  // Hide the mini-sidebar on mobile (too narrow to be useful)
+  // Hide the mini-sidebar on mobile
   .mini-sidebar {
     display: none !important;
   }
 
-  // Full-width content on mobile
+  // Payload wrap — kill fixed padding, fit viewport
   .template-default__wrap {
-    padding-left: 12px;
-    padding-right: 12px;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
+
+  // Payload's gutter wrapper — kills the 60px/40px side padding
+  .gutter--left {
+    padding-left: 12px !important;
+  }
+  .gutter--right {
+    padding-right: 12px !important;
+  }
+  .gutter--left.gutter--right {
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  // ── Dashboard container ──
+  .dashboard {
+    max-width: 100vw !important;
+  }
+
+  .od-dash {
+    padding-top: 16px;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   // Custom dashboard — single column on mobile
   .od-dash__layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 
+  // ── Stat grids — 2 columns on mobile ──
   .od-box__stats,
   .od-box__stats--8,
   .od-box__stats--7,
   .od-box__stats--6,
   .od-box__stats--4 {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .od-costs__summary-row,
-  .od-costs__detail-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .od-dash__header {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  // Table cells — tighter padding on mobile
-  .table .row .cell {
-    padding: 8px 10px;
-    font-size: 13px;
-  }
-
-  // Collection list — tighter spacing
-  .collection-list .cell-container {
-    padding: 6px 8px;
-  }
-
-  // Step nav (breadcrumbs) — wrap on mobile
-  .step-nav {
-    flex-wrap: wrap;
-  }
-
-  // Document header actions — wrap on mobile
-  .doc-controls {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  // Field rows — stack side-by-side fields on mobile
-  .field-type.row .row-fields {
-    flex-direction: column;
-  }
-
-  // GSC page — single column on mobile
-  .od-gsc-page > div[style*="grid-template-columns"] {
-    grid-template-columns: 1fr !important;
-  }
-
-  // Settings grid — single column on mobile
-  .od-settings__grid {
-    grid-template-columns: 1fr;
-  }
-
-  // GSC split — stack on mobile
-  .od-gsc__split {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr) !important;
   }
 
   .od-box__stats--2 {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  // Brand section — stack on mobile
+  // Smaller stat values on mobile
+  .od-box__stat-value {
+    font-size: 14px !important;
+    word-break: break-word;
+  }
+
+  .od-box__stat {
+    padding: 10px 6px;
+  }
+
+  .od-box__stat-label {
+    font-size: 9px;
+  }
+
+  // ── Costs — 2 columns on mobile ──
+  .od-costs__summary-row,
+  .od-costs__detail-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .od-costs__summary-value {
+    font-size: 13px;
+  }
+
+  .od-costs__summary {
+    padding: 8px 4px;
+  }
+
+  .od-costs__summary-label {
+    font-size: 9px;
+  }
+
+  .od-costs {
+    padding: 12px 8px;
+  }
+
+  // ── Headers ──
+  .od-dash__header {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .od-dash__title {
+    font-size: 18px;
+  }
+
+  // Box head — wrap title & controls
+  .od-box__head {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 12px;
+  }
+
+  .od-box__title {
+    font-size: 13px;
+  }
+
+  // GSC refresh buttons — smaller on mobile
+  .od-gsc__refresh {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  // ── Tables — horizontal scroll within card ──
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  thead, tbody, tfoot {
+    display: table;
+    width: 100%;
+  }
+
+  .table .row .cell {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .collection-list .cell-container {
+    padding: 6px 8px;
+  }
+
+  // ── Payload UI elements ──
+  .step-nav {
+    flex-wrap: wrap;
+  }
+
+  .doc-controls {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .field-type.row .row-fields {
+    flex-direction: column;
+  }
+
+  // ── Sub-page grids — single column ──
+  .od-gsc-page > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .od-settings__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .od-gsc__split {
+    grid-template-columns: 1fr;
+  }
+
   .od-brand-section__layout {
     grid-template-columns: 1fr;
   }
 
-  // Date picker — stack on mobile
+  // ── Date picker ──
   .od-gsc-page__datepicker {
     flex-wrap: wrap;
   }
 
   .od-gsc-page__presets {
     flex-wrap: wrap;
+  }
+
+  // ── Charts ──
+  .od-chart__legend {
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 10px;
+  }
+
+  .od-gsc-chart {
+    padding: 10px 8px 0;
+  }
+
+  .od-gsc-chart__labels {
+    margin-left: 24px;
+    margin-right: 28px;
+  }
+
+  .od-gsc-chart__label {
+    font-size: 8px;
+  }
+
+  // ── Boxes overflow containment ──
+  .od-box {
+    max-width: 100%;
+  }
+
+  .od-box__body {
+    max-width: 100%;
   }
 }
 
@@ -2304,8 +2418,21 @@ $svg-close: "%3C/svg%3E";
 
 // ── Responsive ──
 @media (max-width: 768px) {
+  .od-funnel {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
   .od-funnel__summary {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .od-funnel__card-value {
+    font-size: 15px;
+  }
+
+  .od-funnel__card {
+    padding: 12px 8px;
   }
 
   .od-funnel__layout {
@@ -2321,12 +2448,25 @@ $svg-close: "%3C/svg%3E";
   }
 
   .od-funnel__stage {
-    grid-template-columns: 100px 1fr 36px;
-    gap: 8px;
+    grid-template-columns: 80px 1fr 32px;
+    gap: 6px;
   }
 
   .od-funnel__stage-label {
-    font-size: 11px;
+    font-size: 10px;
+  }
+
+  .od-funnel__stage-bar {
+    height: 28px;
+    padding-right: 8px;
+  }
+
+  .od-funnel__stage-count {
+    font-size: 12px;
+  }
+
+  .od-funnel__visual {
+    padding: 16px 12px;
   }
 
   .od-funnel__table {
@@ -2335,6 +2475,25 @@ $svg-close: "%3C/svg%3E";
     th, td {
       padding: 8px 8px;
     }
+  }
+
+  .od-funnel__channels {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .od-funnel__donut {
+    width: 140px;
+    height: 140px;
+  }
+
+  .od-funnel__donut-center {
+    width: 80px;
+    height: 80px;
+  }
+
+  .od-funnel__donut-total {
+    font-size: 20px;
   }
 }
 
@@ -2354,4 +2513,397 @@ $svg-close: "%3C/svg%3E";
   .field-type {
     padding-top: 0;
   }
+}
+
+// ─── Drip Email Tracker ──────────────────────────────────
+
+.od-drip {
+  margin-top: 24px;
+  background: var(--theme-elevation-50, #fff);
+  border: 1px solid var(--theme-elevation-150, #e5e7eb);
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.od-drip__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.od-drip__title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.od-drip__count {
+  font-size: 13px;
+  color: var(--theme-elevation-500, #6b7280);
+  background: var(--theme-elevation-100, #f3f4f6);
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.od-drip__loading,
+.od-drip__empty {
+  color: var(--theme-elevation-500, #6b7280);
+  font-size: 14px;
+}
+
+.od-drip__error {
+  color: #ef4444;
+  font-size: 14px;
+}
+
+.od-drip__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.od-drip__card {
+  border: 1px solid var(--theme-elevation-150, #e5e7eb);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+
+  &:hover {
+    border-color: var(--theme-elevation-300, #d1d5db);
+  }
+}
+
+.od-drip__card--expanded {
+  border-color: var(--theme-elevation-300, #d1d5db);
+}
+
+.od-drip__row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+
+  &:hover {
+    background: var(--theme-elevation-50, #fafafa);
+  }
+}
+
+.od-drip__lead-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.od-drip__name {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.od-drip__email {
+  font-size: 13px;
+  color: var(--theme-elevation-500, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.od-drip__type-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.od-drip__status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.od-drip__status-badge--unsub {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.od-drip__status-badge--access {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.od-drip__meta {
+  flex-shrink: 0;
+}
+
+.od-drip__date {
+  font-size: 13px;
+  color: var(--theme-elevation-500, #6b7280);
+  white-space: nowrap;
+}
+
+.od-drip__timeline {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.od-drip__timeline-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.od-drip__timeline-line {
+  position: absolute;
+  top: 9px;
+  right: 100%;
+  width: 20px;
+  height: 2px;
+  background: var(--theme-elevation-200, #e5e7eb);
+}
+
+.od-drip__timeline-line--sent {
+  background: #22c55e;
+}
+
+.od-drip__dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--theme-elevation-200, #d1d5db);
+  background: var(--theme-elevation-50, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 10px;
+}
+
+.od-drip__dot--sent {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+.od-drip__timeline-label {
+  font-size: 10px;
+  color: var(--theme-elevation-400, #9ca3af);
+  margin-top: 2px;
+}
+
+.od-drip__chevron {
+  font-size: 10px;
+  color: var(--theme-elevation-400, #9ca3af);
+  flex-shrink: 0;
+}
+
+// ─── Expanded detail ─────────────────────────────────────
+
+.od-drip__detail {
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--theme-elevation-100, #f3f4f6);
+}
+
+.od-drip__detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.od-drip__detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.od-drip__detail-item--full {
+  grid-column: 1 / -1;
+}
+
+.od-drip__detail-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--theme-elevation-400, #9ca3af);
+}
+
+.od-drip__detail-value {
+  font-size: 14px;
+
+  a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+}
+
+// ─── Email sequence rows ─────────────────────────────────
+
+.od-drip__emails {
+  margin-top: 8px;
+}
+
+.od-drip__emails-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--theme-elevation-400, #9ca3af);
+  margin: 0 0 12px;
+}
+
+.od-drip__email-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  background: var(--theme-elevation-50, #fafafa);
+  border: 1px solid var(--theme-elevation-100, #f3f4f6);
+}
+
+.od-drip__email-row--sent {
+  background: #f0fdf4;
+  border-color: #dcfce7;
+}
+
+.od-drip__email-indicator {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.od-drip__email-pending {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--theme-elevation-200, #d1d5db);
+}
+
+.od-drip__email-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.od-drip__email-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.od-drip__email-desc {
+  font-size: 12px;
+  color: var(--theme-elevation-400, #9ca3af);
+}
+
+.od-drip__email-sent-at {
+  font-size: 12px;
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.od-drip__preview-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--theme-elevation-100, #f3f4f6);
+  border: 1px solid var(--theme-elevation-200, #e5e7eb);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--theme-elevation-200, #e5e7eb);
+  }
+}
+
+// ─── Email preview modal ─────────────────────────────────
+
+.od-drip__modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.od-drip__modal {
+  background: var(--theme-elevation-50, #fff);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 700px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.od-drip__modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--theme-elevation-150, #e5e7eb);
+}
+
+.od-drip__modal-subject {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.od-drip__modal-close {
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--theme-elevation-400, #9ca3af);
+  padding: 4px 8px;
+  font-family: inherit;
+
+  &:hover {
+    color: var(--theme-elevation-800, #1f2937);
+  }
+}
+
+.od-drip__modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+.od-drip__modal-iframe {
+  width: 100%;
+  height: 70vh;
+  border: none;
 }

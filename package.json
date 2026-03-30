@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.41.0",
+    "@neondatabase/serverless": "^1.0.2",
     "@payloadcms/db-sqlite": "^3.17.0",
     "@payloadcms/next": "^3.17.0",
     "@payloadcms/richtext-lexical": "^3.17.0",

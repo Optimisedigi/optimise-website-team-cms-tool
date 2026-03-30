@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import RocketSplash from './RocketSplash'
 import SalesFunnelDashboard from './SalesFunnelDashboard'
+import DripEmailTracker from './DripEmailTracker'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -396,6 +397,9 @@ const Dashboard = () => {
 
       {/* ── Sales Funnel (full-width below main grid) ── */}
       <SalesFunnelDashboard />
+
+      {/* ── Drip Email Tracker (below sales funnel) ── */}
+      <DripEmailTracker />
     </div>
   )
 }
@@ -1307,8 +1311,9 @@ function YearlySalesTargetBar({ target, current, deadline }: { target: number; c
       borderRadius: 10,
       padding: '16px 20px',
       marginBottom: 20,
+      overflow: 'hidden',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' as const, gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
             🎯 Yearly Sales Target
@@ -1317,7 +1322,7 @@ function YearlySalesTargetBar({ target, current, deadline }: { target: number; c
             {percentage}%
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#6b7280' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7280', flexWrap: 'wrap' as const }}>
           <span>
             <strong style={{ color: '#111827' }}>${current.toLocaleString()}</strong> / ${target.toLocaleString()}
           </span>
