@@ -1316,6 +1316,99 @@ export async function POST(request: NextRequest) {
   await run("client_account_timeline_order_idx", "CREATE INDEX IF NOT EXISTS `client_account_timeline_order_idx` ON `client_account_timeline` (`_order`)");
   await run("client_account_timeline_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_account_timeline_parent_id_idx` ON `client_account_timeline` (`_parent_id`)");
 
+  // ── Negative Keyword Lists ──
+  await run("negative_keyword_lists", `CREATE TABLE IF NOT EXISTS \`negative_keyword_lists\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`name\` text NOT NULL, \`scope\` text DEFAULT 'account',
+    \`campaign_name\` text, \`ad_group_name\` text, \`campaign_regex\` text,
+    \`keyword_count\` numeric DEFAULT 0, \`is_active\` integer DEFAULT true,
+    \`client_id\` integer NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("negative_keyword_lists_keywords", `CREATE TABLE IF NOT EXISTS \`negative_keyword_lists_keywords\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL, \`keyword\` text NOT NULL,
+    \`match_type\` text DEFAULT 'exact', \`flagged_for_removal\` integer DEFAULT false,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`negative_keyword_lists\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("nkl_client_idx", "CREATE INDEX IF NOT EXISTS `nkl_client_idx` ON `negative_keyword_lists` (`client_id`)");
+  await run("nkl_created_idx", "CREATE INDEX IF NOT EXISTS `nkl_created_idx` ON `negative_keyword_lists` (`created_at`)");
+  await run("nkl_updated_idx", "CREATE INDEX IF NOT EXISTS `nkl_updated_idx` ON `negative_keyword_lists` (`updated_at`)");
+  await run("nkl_kw_order_idx", "CREATE INDEX IF NOT EXISTS `nkl_kw_order_idx` ON `negative_keyword_lists_keywords` (`_order`)");
+  await run("nkl_kw_parent_idx", "CREATE INDEX IF NOT EXISTS `nkl_kw_parent_idx` ON `negative_keyword_lists_keywords` (`_parent_id`)");
+  await run("locked_docs_rels.negative_keyword_lists_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_keyword_lists_id` integer REFERENCES `negative_keyword_lists`(`id`) ON DELETE cascade");
+  await run("negative_keyword_lists_campaigns", `CREATE TABLE IF NOT EXISTS \`negative_keyword_lists_campaigns\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL, \`campaign_name\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`negative_keyword_lists\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("nkl_camp_order_idx", "CREATE INDEX IF NOT EXISTS `nkl_camp_order_idx` ON `negative_keyword_lists_campaigns` (`_order`)");
+  await run("nkl_camp_parent_idx", "CREATE INDEX IF NOT EXISTS `nkl_camp_parent_idx` ON `negative_keyword_lists_campaigns` (`_parent_id`)");
+
+  // ── SEO Auto Notification Emails (Payload array: seoAuto.notificationEmails on Clients) ──
+  await run("clients_seo_auto_notification_emails", `CREATE TABLE IF NOT EXISTS \`clients_seo_auto_notification_emails\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL, \`email\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_seo_auto_notification_emails_order_idx", "CREATE INDEX IF NOT EXISTS `clients_seo_auto_notification_emails_order_idx` ON `clients_seo_auto_notification_emails` (`_order`)");
+  await run("clients_seo_auto_notification_emails_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_seo_auto_notification_emails_parent_id_idx` ON `clients_seo_auto_notification_emails` (`_parent_id`)");
+
+  // ── Site Health Reports ──
+  await run("site_health_reports", `CREATE TABLE IF NOT EXISTS \`site_health_reports\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`audit_status\` text DEFAULT 'pending',
+    \`audit_progress\` text,
+    \`audit_error\` text,
+    \`site_url\` text NOT NULL,
+    \`report_date\` text NOT NULL,
+    \`health_score\` numeric,
+    \`crawl_stats_total_pages_crawled\` numeric,
+    \`crawl_stats_total_pages_in_sitemap\` numeric,
+    \`crawl_stats_crawl_duration_ms\` numeric,
+    \`issues_summary_critical\` numeric,
+    \`issues_summary_warning\` numeric,
+    \`issues_summary_notice\` numeric,
+    \`issues_summary_total\` numeric,
+    \`issues_by_category\` text,
+    \`comparison_previous_score\` numeric,
+    \`comparison_score_change\` numeric,
+    \`comparison_new_issues\` numeric,
+    \`comparison_fixed_issues\` numeric,
+    \`comparison_previous_date\` text,
+    \`issues\` text,
+    \`pages\` text,
+    \`gsc_data_indexed_pages\` numeric,
+    \`gsc_data_not_indexed_pages\` numeric,
+    \`gsc_data_total_clicks\` numeric,
+    \`gsc_data_total_impressions\` numeric,
+    \`gsc_data_average_ctr\` numeric,
+    \`gsc_data_average_position\` numeric,
+    \`gsc_data_indexing_issues\` text,
+    \`gsc_data_canonical_mismatches\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("site_health_reports_client_idx", "CREATE INDEX IF NOT EXISTS `site_health_reports_client_idx` ON `site_health_reports` (`client_id`)");
+  await run("site_health_reports_created_at_idx", "CREATE INDEX IF NOT EXISTS `site_health_reports_created_at_idx` ON `site_health_reports` (`created_at`)");
+  await run("site_health_reports_updated_at_idx", "CREATE INDEX IF NOT EXISTS `site_health_reports_updated_at_idx` ON `site_health_reports` (`updated_at`)");
+  await run("locked_docs_rels.site_health_reports_id", "ALTER TABLE `payload_locked_documents_rels` ADD `site_health_reports_id` integer REFERENCES `site_health_reports`(`id`) ON DELETE cascade");
+
+  // ── SEO Health columns on clients table ──
+  await run("clients.seo_auto_monthly_health_enabled", "ALTER TABLE `clients` ADD `seo_auto_monthly_health_enabled` integer DEFAULT false");
+  await run("clients.seo_auto_site_url", "ALTER TABLE `clients` ADD `seo_auto_site_url` text");
+  await run("clients.seo_auto_gsc_site_url", "ALTER TABLE `clients` ADD `seo_auto_gsc_site_url` text");
+  await run("clients.seo_auto_health_report_day_of_month", "ALTER TABLE `clients` ADD `seo_auto_health_report_day_of_month` numeric DEFAULT 1");
+  await run("clients.seo_auto_max_pages", "ALTER TABLE `clients` ADD `seo_auto_max_pages` numeric DEFAULT 200");
+  await run("clients.seo_auto_check_external_links", "ALTER TABLE `clients` ADD `seo_auto_check_external_links` integer DEFAULT false");
+
+  // ── Client Proposals: client_id column (links proposal to converted client) ──
+  await run("client_proposals.client_id", "ALTER TABLE `client_proposals` ADD `client_id` integer REFERENCES `clients`(`id`) ON DELETE set null");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
@@ -1679,7 +1772,67 @@ export async function POST(request: NextRequest) {
   await run("email_templates_setup_questions_order_idx", "CREATE INDEX IF NOT EXISTS `email_templates_setup_questions_order_idx` ON `email_templates_setup_questions` (`_order`)");
   await run("email_templates_setup_questions_parent_id_idx", "CREATE INDEX IF NOT EXISTS `email_templates_setup_questions_parent_id_idx` ON `email_templates_setup_questions` (`_parent_id`)");
 
-  return NextResponse.json({ ok: true, version: "2026-03-24", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // --- Meeting Schedulers ---
+  await run("meeting_schedulers", `CREATE TABLE IF NOT EXISTS \`meeting_schedulers\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`title\` text NOT NULL,
+    \`client_id\` integer,
+    \`meeting_topic\` text,
+    \`duration_minutes\` text DEFAULT '30',
+    \`date_range_start\` text,
+    \`date_range_end\` text,
+    \`business_hours_start\` text DEFAULT '09:00',
+    \`business_hours_end\` text DEFAULT '17:00',
+    \`timezone\` text DEFAULT 'Australia/Sydney',
+    \`slot_interval_minutes\` numeric DEFAULT 30,
+    \`generated_slots\` text,
+    \`slots_generated_at\` text,
+    \`matched_slot\` text,
+    \`google_event_id\` text,
+    \`google_event_link\` text,
+    \`status\` text DEFAULT 'draft',
+    \`slug\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("meeting_schedulers_slug_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `meeting_schedulers_slug_idx` ON `meeting_schedulers` (`slug`)");
+  await run("meeting_schedulers_status_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_status_idx` ON `meeting_schedulers` (`status`)");
+  await run("meeting_schedulers_client_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_client_idx` ON `meeting_schedulers` (`client_id`)");
+  await run("meeting_schedulers_created_at_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_created_at_idx` ON `meeting_schedulers` (`created_at`)");
+  await run("meeting_schedulers_updated_at_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_updated_at_idx` ON `meeting_schedulers` (`updated_at`)");
+
+  await run("meeting_schedulers_attendees", `CREATE TABLE IF NOT EXISTS \`meeting_schedulers_attendees\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`name\` text NOT NULL,
+    \`email\` text NOT NULL,
+    \`token\` text,
+    \`responded\` integer DEFAULT 0,
+    \`responded_at\` text,
+    \`email_sent_at\` text,
+    \`selected_slots\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`meeting_schedulers\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("meeting_schedulers_attendees_order_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_attendees_order_idx` ON `meeting_schedulers_attendees` (`_order`)");
+  await run("meeting_schedulers_attendees_parent_idx", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_attendees_parent_idx` ON `meeting_schedulers_attendees` (`_parent_id`)");
+  await run("meeting_schedulers_attendees_token_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `meeting_schedulers_attendees_token_idx` ON `meeting_schedulers_attendees` (`token`)");
+
+  // --- Calendar Auth global ---
+  await run("calendar_auth", `CREATE TABLE IF NOT EXISTS \`calendar_auth\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`refresh_token\` text,
+    \`connected_email\` text,
+    \`connected_at\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+
+  // locked_documents_rels column for meeting_schedulers
+  await run("locked_docs_meeting_schedulers_id", "ALTER TABLE `payload_locked_documents_rels` ADD `meeting_schedulers_id` integer");
+
+  return NextResponse.json({ ok: true, version: "2026-03-31", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
