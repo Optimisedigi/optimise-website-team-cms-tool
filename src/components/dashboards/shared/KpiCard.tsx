@@ -43,15 +43,15 @@ export function KpiCard({ label, value, previousValue, format, invertColors, com
   }
 
   return (
-    <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-4 sm:p-5">
-      <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+    <div className="rounded-xl bg-white border border-slate-200 shadow-sm px-4" style={{ paddingTop: 4, paddingBottom: 4 }}>
+      <p className="text-xs font-medium uppercase tracking-wider text-slate-500" style={{ lineHeight: 1, marginBottom: -2 }}>
         {label}
       </p>
-      <p className="mt-1 text-2xl sm:text-3xl font-bold text-slate-900">
+      <p className="text-2xl sm:text-3xl font-bold text-slate-900" style={{ lineHeight: 1.1 }}>
         {formatValue(value, format)}
       </p>
       {change != null && (
-        <p className={`mt-1 text-sm font-medium ${arrowColor}`}>
+        <p className={`text-sm font-medium ${arrowColor}`} style={{ lineHeight: 1, marginTop: -2 }}>
           {arrowIcon} {change > 0 ? "+" : ""}{change}% {comparisonLabel}
         </p>
       )}

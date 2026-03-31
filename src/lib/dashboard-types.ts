@@ -138,6 +138,7 @@ export interface GoogleAdsDashboardTopAd {
   spend: number;
   conversions: number;
   ctr: number;
+  adType?: string;
 }
 
 /** Quality Score tracking types */

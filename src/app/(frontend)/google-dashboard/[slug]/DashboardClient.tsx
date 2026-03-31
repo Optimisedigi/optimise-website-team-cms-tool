@@ -11,9 +11,10 @@ interface DashboardClientProps {
   initialData: GoogleAdsDashboardData | null;
   initialError: string | null;
   initialQualityData?: GoogleAdsDashboardQualityData | null;
+  brandKeywords?: string;
 }
 
-export function DashboardClient({ slug, clientName, isAuthenticated, initialData, initialError, initialQualityData }: DashboardClientProps) {
+export function DashboardClient({ slug, clientName, isAuthenticated, initialData, initialError, initialQualityData, brandKeywords }: DashboardClientProps) {
   const [authed, setAuthed] = useState(isAuthenticated);
   const [data, setData] = useState<GoogleAdsDashboardData | null>(initialData);
   const [error, setError] = useState(initialError || "");
@@ -65,7 +66,7 @@ export function DashboardClient({ slug, clientName, isAuthenticated, initialData
 
   // Dashboard
   if (data) {
-    return <GoogleAdsDashboard data={data} initialQualityData={initialQualityData ?? undefined} />;
+    return <GoogleAdsDashboard data={data} initialQualityData={initialQualityData ?? undefined} brandKeywords={brandKeywords} />;
   }
 
   return null;

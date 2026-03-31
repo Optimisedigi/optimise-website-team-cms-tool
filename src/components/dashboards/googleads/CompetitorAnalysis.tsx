@@ -259,11 +259,18 @@ export function CompetitorAnalysis({
   impressionShare,
 }: CompetitorAnalysisProps) {
   const hasAdGroupData = adGroupAuctionInsights && adGroupAuctionInsights.length > 0;
-  const [viewMode, setViewMode] = useState<"campaign" | "adgroup">("campaign");
+  const [viewMode, setViewMode] = useState<"campaign" | "adgroup">(hasAdGroupData ? "adgroup" : "campaign");
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(
     () => new Set(auctionInsights.map((i) => i.campaignName))
   );
-  const [expandedAdGroups, setExpandedAdGroups] = useState<Set<string>>(new Set());
+  const [expandedAdGroups, setExpandedAdGroups] = useState<Set<string>>(
+    () => {
+      if (!adGroupAuctionInsights) return new Set<string>();
+      return new Set(
+        adGroupAuctionInsights.map((ag) => `${ag.campaignName}::${ag.adGroupName}`)
+      );
+    }
+  );
 
   const topCompetitors = useMemo(
     () => aggregateCompetitors(auctionInsights, 2),

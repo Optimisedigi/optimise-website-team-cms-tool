@@ -9,7 +9,10 @@ import type {
 
 interface QualityScoreTabProps {
   data: GoogleAdsDashboardQualityData;
+  brandKeywords?: string;
 }
+
+type KeywordFilter = "all" | "generic" | "brand";
 
 type ChartMetric = "qualityScore" | "creativeQuality" | "searchPredictedCtr" | "landingPageQuality";
 
@@ -19,6 +22,16 @@ const METRIC_LABELS: Record<ChartMetric, string> = {
   searchPredictedCtr: "Expected CTR",
   landingPageQuality: "Landing Page Experience",
 };
+
+const MONTH_NAMES_FULL = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function fullMonthLabel(yyyymm: string): string {
+  const [yyyy, mm] = yyyymm.split("-");
+  return `${MONTH_NAMES_FULL[parseInt(mm, 10) - 1] || mm} ${yyyy}`;
+}
 
 function monthLabel(yyyymm: string): string {
   const [, mm] = yyyymm.split("-");
@@ -46,6 +59,19 @@ function ratingBg(rating: string | null): string {
 function ratingLabel(rating: string | null): string {
   if (!rating) return "N/A";
   return rating.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Two-line rating label for compact table display */
+function RatingCell({ rating, className }: { rating: string | null; className?: string }) {
+  if (!rating) return <span className={`text-slate-400 ${className || ""}`}>N/A</span>;
+  if (rating === "AVERAGE") return <span className={`text-amber-500 ${className || ""}`}>Average</span>;
+  const prefix = rating === "ABOVE_AVERAGE" ? "Above" : "Below";
+  const color = rating === "ABOVE_AVERAGE" ? "text-emerald-600" : "text-red-500";
+  return (
+    <span className={`${color} text-center ${className || ""}`} style={{ lineHeight: '1.1' }}>
+      {prefix}<br />Average
+    </span>
+  );
 }
 
 /** Convert ABOVE_AVERAGE/AVERAGE/BELOW_AVERAGE to 3/2/1 for charting */
@@ -360,15 +386,27 @@ function DualAxisChart({ points, metric }: DualAxisChartProps) {
 function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // Filter to search ads only when adType is available from Growth Tools
+  const hasAdTypes = ads.some((ad) => !!ad.adType);
+  const searchAds = hasAdTypes
+    ? ads.filter((ad) => !ad.adType || ad.adType === "SEARCH" || ad.adType === "RESPONSIVE_SEARCH_AD")
+    : ads; // show all when adType field isn't present yet
+  const filteredCount = ads.length - searchAds.length;
+
   return (
     <div className="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100">
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
         <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
           Top Ads by Impressions
         </h2>
+        {filteredCount > 0 && (
+          <span className="text-xs text-slate-400">
+            Showing search ads only ({filteredCount} display/other ad{filteredCount !== 1 ? "s" : ""} filtered)
+          </span>
+        )}
       </div>
       <div className="divide-y divide-slate-100">
-        {ads.map((ad) => {
+        {searchAds.map((ad) => {
           const isOpen = expanded === ad.adId;
           return (
             <div key={ad.adId}>
@@ -486,10 +524,26 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
 
 // Main component
 
-export function QualityScoreTab({ data }: QualityScoreTabProps) {
+export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
   const [selectedCampaign, setSelectedCampaign] = useState<string>("all");
   const [selectedAdGroup, setSelectedAdGroup] = useState<string>("all");
   const [chartMetric, setChartMetric] = useState<ChartMetric>("qualityScore");
+  const [keywordFilter, setKeywordFilter] = useState<KeywordFilter>("all");
+
+  // Parse brand terms from brandKeywords (one per line)
+  const brandTerms = useMemo(() => {
+    if (!brandKeywords) return [];
+    return brandKeywords
+      .split("\n")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+  }, [brandKeywords]);
+
+  const isBrandKeyword = (keywordText: string): boolean => {
+    if (brandTerms.length === 0) return false;
+    const lower = keywordText.toLowerCase();
+    return brandTerms.some((term) => lower.includes(term));
+  };
 
   // Build ad groups for selected campaign
   const adGroups = useMemo(() => {
@@ -546,7 +600,12 @@ export function QualityScoreTab({ data }: QualityScoreTabProps) {
   const lpRating = dominantRating(latestKeywords, "landingPageQuality");
 
   // Sort keywords by spend desc, take top 10
-  const sortedKeywords = [...latestKeywords].sort((a, b) => b.spend - a.spend).slice(0, 10);
+  const filteredByBrand = keywordFilter === "all"
+    ? latestKeywords
+    : keywordFilter === "brand"
+      ? latestKeywords.filter((kw) => isBrandKeyword(kw.keywordText))
+      : latestKeywords.filter((kw) => !isBrandKeyword(kw.keywordText));
+  const sortedKeywords = [...filteredByBrand].sort((a, b) => b.spend - a.spend).slice(0, 30);
 
   const currentQs = weightedQs(latestKeywords);
 
@@ -655,41 +714,82 @@ export function QualityScoreTab({ data }: QualityScoreTabProps) {
       )}
 
       {/* Keyword table */}
-      {sortedKeywords.length > 0 && (
+      {(latestKeywords.length > 0) && (
         <div className="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100">
+          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
-              Top 10 Keywords by Spend
+              Top 30 Keywords by Spend
+              {latestSnapshot && (
+                <span className="ml-2 normal-case tracking-normal font-normal text-slate-400">
+                  — {fullMonthLabel(latestSnapshot.month)}
+                </span>
+              )}
             </h2>
+            {brandTerms.length > 0 && (
+              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+                {(["all", "generic", "brand"] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setKeywordFilter(filter)}
+                    className={`px-3 py-1 rounded-md font-medium transition-colors capitalize cursor-pointer ${
+                      keywordFilter === filter
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-[11px]">
               <thead>
-                <tr className="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                  <th className="px-4 py-2.5 font-medium">Keyword</th>
-                  <th className="px-4 py-2.5 font-medium text-center">QS</th>
-                  <th className="px-4 py-2.5 font-medium">Ad Rel.</th>
-                  <th className="px-4 py-2.5 font-medium">CTR</th>
-                  <th className="px-4 py-2.5 font-medium">LP</th>
-                  <th className="px-4 py-2.5 font-medium text-right">Spend</th>
-                  <th className="px-4 py-2.5 font-medium text-right">Clicks</th>
-                  <th className="px-4 py-2.5 font-medium text-right">Impr.</th>
-                  <th className="px-4 py-2.5 font-medium text-center">Conv</th>
-                  <th className="px-4 py-2.5 font-medium text-right">CPA</th>
-                  <th className="px-4 py-2.5 font-medium text-right">Avg CPC</th>
-                  <th className="px-4 py-2.5 font-medium">Landing Page</th>
+                <tr className="text-left text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                  <th className="px-2.5 py-2 font-medium">Keyword</th>
+                  <th className="px-2.5 py-2 font-medium text-center">QS</th>
+                  <th className="px-2.5 py-2 font-medium text-center">Ad Relevance</th>
+                  <th className="px-2.5 py-2 font-medium text-center">Landing Page</th>
+                  <th className="px-2.5 py-2 font-medium text-right">Spend</th>
+                  <th className="px-2.5 py-2 font-medium text-right">Clicks</th>
+                  <th className="px-2.5 py-2 font-medium text-center">Conv</th>
+                  <th className="px-2.5 py-2 font-medium text-right">CPA</th>
+                  <th className="px-2.5 py-2 font-medium text-right">Avg CPC</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
+                {sortedKeywords.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="px-2.5 py-8 text-center text-xs text-slate-400">
+                      No {keywordFilter === "brand" ? "brand" : "generic"} keywords found
+                    </td>
+                  </tr>
+                )}
                 {sortedKeywords.map((kw, i) => (
                   <tr key={`${kw.keywordText}-${i}`} className="hover:bg-slate-50">
-                    <td className="px-4 py-2.5 font-medium text-slate-700 max-w-[220px] truncate" title={kw.keywordText}>
-                      {kw.keywordText}
+                    <td className="px-2.5 py-1.5 font-medium text-slate-700 max-w-[220px] truncate" title={kw.keywordText}>
+                      <span className="inline-flex items-center gap-1">
+                        {kw.keywordText}
+                        {kw.finalUrl && (
+                          <a
+                            href={kw.finalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={kw.finalUrl}
+                            className="text-slate-300 hover:text-blue-600 transition-colors shrink-0"
+                          >
+                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            </svg>
+                          </a>
+                        )}
+                      </span>
                     </td>
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-2.5 py-1.5 text-center">
                       {kw.qualityScore != null ? (
                         <span
-                          className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
                             kw.qualityScore >= 7
                               ? "bg-emerald-100 text-emerald-700"
                               : kw.qualityScore >= 5
@@ -703,25 +803,19 @@ export function QualityScoreTab({ data }: QualityScoreTabProps) {
                         <span className="text-slate-300">{"\u2014"}</span>
                       )}
                     </td>
-                    <td className={`px-4 py-2.5 text-xs ${ratingColor(kw.creativeQuality)}`}>
-                      {ratingLabel(kw.creativeQuality)}
+                    <td className="px-2.5 py-1.5 text-center">
+                      <RatingCell rating={kw.creativeQuality} />
                     </td>
-                    <td className={`px-4 py-2.5 text-xs ${ratingColor(kw.searchPredictedCtr)}`}>
-                      {ratingLabel(kw.searchPredictedCtr)}
+                    <td className="px-2.5 py-1.5 text-center">
+                      <RatingCell rating={kw.landingPageQuality} />
                     </td>
-                    <td className={`px-4 py-2.5 text-xs ${ratingColor(kw.landingPageQuality)}`}>
-                      {ratingLabel(kw.landingPageQuality)}
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-slate-600 font-medium">
+                    <td className="px-2.5 py-1.5 text-right text-slate-600 font-medium">
                       {formatDollars(kw.spend)}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-slate-600">
+                    <td className="px-2.5 py-1.5 text-right text-slate-600">
                       {(kw.clicks ?? 0).toLocaleString()}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-slate-500">
-                      {kw.impressions.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2.5 text-center text-slate-600">
+                    <td className="px-2.5 py-1.5 text-center text-slate-600">
                       {kw.conversions > 0 ? (
                         <span className="font-medium text-emerald-600">
                           {Math.round(kw.conversions)}
@@ -730,26 +824,11 @@ export function QualityScoreTab({ data }: QualityScoreTabProps) {
                         <span className="text-slate-300">0</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-slate-600">
+                    <td className="px-2.5 py-1.5 text-right text-slate-600">
                       {formatDollars(kw.costPerConversion)}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-slate-600">
+                    <td className="px-2.5 py-1.5 text-right text-slate-600">
                       ${kw.avgCpc.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-2.5 text-slate-500 text-xs max-w-[200px] truncate">
-                      {kw.finalUrl ? (
-                        <a
-                          href={kw.finalUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-700 hover:underline"
-                          title={kw.finalUrl}
-                        >
-                          {truncateUrl(kw.finalUrl)}
-                        </a>
-                      ) : (
-                        <span className="text-slate-300">{"\u2014"}</span>
-                      )}
                     </td>
                   </tr>
                 ))}

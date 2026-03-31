@@ -34,6 +34,7 @@ export function StackedBarChart({
 }: StackedBarChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [hoveredBar, setHoveredBar] = useState<number | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -52,23 +53,18 @@ export function StackedBarChart({
   const maxLine = Math.max(...data.map((d) => d.lineValue ?? 0), 1);
   const hasLine = data.some((d) => d.lineValue != null && d.lineValue > 0);
 
-  // Calculate bar spacing to fill full width
+  // Layout constants — everything in one coordinate system
+  const labelHeight = 18; // space for month labels at bottom
+  const topPad = 16;      // space above bars for conversion labels
+  const baseline = height - labelHeight; // y where bars sit on
+  const chartHeight = baseline - topPad; // available height for bars & line
+
+  // Bar sizing
   const gap = data.length > 12 ? 4 : 6;
   const barSlotWidth = containerWidth > 0
     ? (containerWidth - gap * (data.length - 1)) / data.length
     : 48;
   const barWidth = Math.max(barSlotWidth * 0.65, 12);
-
-  // Build line points based on actual container width
-  const linePoints = hasLine && containerWidth > 0
-    ? data
-        .map((d, i) => {
-          const x = i * (barSlotWidth + gap) + barSlotWidth / 2;
-          const y = height - ((d.lineValue ?? 0) / maxLine) * (height - 30);
-          return `${x},${y}`;
-        })
-        .join(" ")
-    : "";
 
   // Unique legend entries
   const legendItems = new Map<string, string>();
@@ -94,85 +90,151 @@ export function StackedBarChart({
         ))}
       </div>
 
-      {/* Chart area */}
-      <div ref={containerRef} className="relative w-full">
-        <div
-          className="flex items-end justify-between w-full"
-          style={{ height, gap }}
-        >
-          {data.map((d, i) => {
-            const total = d.segments.reduce((s, seg) => s + seg.value, 0);
-            return (
-              <div
-                key={i}
-                className="flex flex-col items-center flex-1 min-w-0"
-              >
-                {/* Bar */}
-                <div
-                  className="rounded-t relative group cursor-default"
-                  style={{
-                    width: barWidth,
-                    height: `${(total / maxBarTotal) * (height - 40)}px`,
-                    minHeight: total > 0 ? 4 : 0,
-                  }}
-                >
-                  {/* Stacked segments */}
-                  <div className="absolute inset-0 flex flex-col-reverse rounded-t overflow-hidden">
-                    {d.segments.map((seg, j) => (
-                      <div
-                        key={j}
-                        style={{
-                          height: total > 0 ? `${(seg.value / total) * 100}%` : "0%",
-                          backgroundColor: seg.color,
-                        }}
-                      />
-                    ))}
-                  </div>
-                  {/* Tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
-                    <div className="bg-slate-800 rounded px-2 py-1 text-xs text-white whitespace-nowrap shadow-lg">
-                      {formatDollarsShort(total)}
-                      {d.lineValue != null && ` / ${d.lineValue} conv`}
-                    </div>
-                  </div>
-                </div>
-                {/* Label */}
-                <span className="mt-1.5 text-[10px] text-slate-400 truncate w-full text-center">
-                  {d.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Line overlay */}
-        {hasLine && containerWidth > 0 && (
-          <svg
-            className="absolute top-0 left-0 pointer-events-none"
-            width={containerWidth}
-            height={height}
-            style={{ overflow: "visible" }}
-          >
-            <polyline
-              points={linePoints}
-              fill="none"
-              stroke={lineColor}
-              strokeWidth={2}
-              strokeLinejoin="round"
+      {/* Chart — pure SVG for consistent coordinates */}
+      <div ref={containerRef} className="w-full">
+        {containerWidth > 0 && (
+          <svg width={containerWidth} height={height}>
+            {/* Baseline */}
+            <line
+              x1={0}
+              y1={baseline}
+              x2={containerWidth}
+              y2={baseline}
+              stroke="#e2e8f0"
+              strokeWidth={1}
             />
+
+            {/* Bars */}
             {data.map((d, i) => {
-              const x = i * (barSlotWidth + gap) + barSlotWidth / 2;
-              const y = height - ((d.lineValue ?? 0) / maxLine) * (height - 30);
+              const total = d.segments.reduce((s, seg) => s + seg.value, 0);
+              const barH = total > 0 ? Math.max((total / maxBarTotal) * chartHeight, 4) : 0;
+              const barX = i * (barSlotWidth + gap) + (barSlotWidth - barWidth) / 2;
+              const barY = baseline - barH;
+
+              // Build stacked segments from bottom up
+              let segY = baseline;
+              const renderedSegments = [...d.segments].reverse().map((seg, j) => {
+                const segH = total > 0 ? (seg.value / total) * barH : 0;
+                segY -= segH;
+                return (
+                  <rect
+                    key={j}
+                    x={barX}
+                    y={segY}
+                    width={barWidth}
+                    height={segH}
+                    fill={seg.color}
+                    rx={j === d.segments.length - 1 ? 3 : 0}
+                    ry={j === d.segments.length - 1 ? 3 : 0}
+                  />
+                );
+              });
+
               return (
-                <circle
+                <g
                   key={i}
-                  cx={x}
-                  cy={y}
-                  r={3}
-                  fill={lineColor}
-                />
+                  onMouseEnter={() => setHoveredBar(i)}
+                  onMouseLeave={() => setHoveredBar(null)}
+                  style={{ cursor: "default" }}
+                >
+                  {/* Hit area for hover */}
+                  <rect
+                    x={i * (barSlotWidth + gap)}
+                    y={0}
+                    width={barSlotWidth}
+                    height={height}
+                    fill="transparent"
+                  />
+                  {/* Stacked bar segments */}
+                  {renderedSegments}
+                  {/* Top rounded cap on the full bar */}
+                  {barH > 0 && (
+                    <rect
+                      x={barX}
+                      y={barY}
+                      width={barWidth}
+                      height={Math.min(6, barH)}
+                      fill={d.segments[d.segments.length - 1]?.color || d.segments[0]?.color}
+                      rx={3}
+                      ry={3}
+                    />
+                  )}
+                  {/* Tooltip */}
+                  {hoveredBar === i && (
+                    <g>
+                      <rect
+                        x={i * (barSlotWidth + gap) + barSlotWidth / 2 - 40}
+                        y={barY - 28}
+                        width={80}
+                        height={20}
+                        rx={4}
+                        fill="#1e293b"
+                      />
+                      <text
+                        x={i * (barSlotWidth + gap) + barSlotWidth / 2}
+                        y={barY - 15}
+                        textAnchor="middle"
+                        fontSize={10}
+                        fill="white"
+                      >
+                        {formatDollarsShort(total)}
+                        {d.lineValue != null ? ` / ${d.lineValue} conv` : ""}
+                      </text>
+                    </g>
+                  )}
+                  {/* Month label */}
+                  <text
+                    x={i * (barSlotWidth + gap) + barSlotWidth / 2}
+                    y={baseline + 14}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fill="#94a3b8"
+                  >
+                    {d.label}
+                  </text>
+                </g>
               );
             })}
+
+            {/* Conversion line + dots + labels — always above baseline */}
+            {hasLine && (
+              <>
+                <polyline
+                  points={data
+                    .map((d, i) => {
+                      const x = i * (barSlotWidth + gap) + barSlotWidth / 2;
+                      const y = baseline - Math.max(((d.lineValue ?? 0) / maxLine) * chartHeight, 0);
+                      return `${x},${y}`;
+                    })
+                    .join(" ")}
+                  fill="none"
+                  stroke={lineColor}
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                />
+                {data.map((d, i) => {
+                  const x = i * (barSlotWidth + gap) + barSlotWidth / 2;
+                  const y = baseline - Math.max(((d.lineValue ?? 0) / maxLine) * chartHeight, 0);
+                  return (
+                    <g key={`line-${i}`}>
+                      <circle cx={x} cy={y} r={3} fill={lineColor} />
+                      {d.lineValue != null && (
+                        <text
+                          x={x}
+                          y={y - 7}
+                          textAnchor="middle"
+                          fontSize={9}
+                          fill={lineColor}
+                          fontWeight={600}
+                        >
+                          {d.lineValue}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </>
+            )}
           </svg>
         )}
       </div>

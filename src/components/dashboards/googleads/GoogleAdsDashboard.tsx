@@ -17,6 +17,7 @@ interface GoogleAdsDashboardProps {
   data: GoogleAdsDashboardData;
   mockQualityData?: GoogleAdsDashboardQualityData;
   initialQualityData?: GoogleAdsDashboardQualityData;
+  brandKeywords?: string;
 }
 
 function timeAgo(iso: string): string {
@@ -30,6 +31,7 @@ function timeAgo(iso: string): string {
 }
 
 const RANGE_OPTIONS = [
+  { value: "this_month", label: "This month" },
   { value: "last_month", label: "Last month" },
   { value: "last_30_days", label: "Last 30 days" },
   { value: "last_3_months", label: "Last 3 months" },
@@ -41,11 +43,11 @@ const RANGE_OPTIONS = [
 
 type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress";
 
-export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData }: GoogleAdsDashboardProps) {
+export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
   const [compareMode, setCompareMode] = useState<"month" | "year">("month");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [range, setRange] = useState(initialData.range || "last_month");
+  const [range, setRange] = useState(initialData.range || "this_month");
   const [loading, setLoading] = useState(false);
   const [qualityData, setQualityData] = useState<GoogleAdsDashboardQualityData | null>(initialQualityData ?? mockQualityData ?? null);
   const [qualityLoading, setQualityLoading] = useState(false);
@@ -334,7 +336,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 </button>
               </div>
             ) : qualityData ? (
-              <QualityScoreTab data={qualityData} />
+              <QualityScoreTab data={qualityData} brandKeywords={brandKeywords} />
             ) : (
               <p className="py-12 text-center text-sm text-slate-400">
                 Quality score data is not available yet.

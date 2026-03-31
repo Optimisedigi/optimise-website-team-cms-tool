@@ -21,7 +21,7 @@ async function fetchDashboardData(
   if (!url || !key) return { data: null, error: `Service not configured (url: ${!!url}, key: ${!!key})` };
 
   try {
-    const params = new URLSearchParams({ range: "last_month", customerId, clientName });
+    const params = new URLSearchParams({ range: "this_month", customerId, clientName });
     const endpoint = `${url}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
     const res = await fetch(endpoint, {
       headers: { "x-internal-key": key },
@@ -56,6 +56,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
       name: true,
       clientPin: true,
       googleAdsCustomerId: true,
+      brandKeywords: true,
     },
   });
 
@@ -104,6 +105,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
       initialData={initialData}
       initialError={fetchError}
       initialQualityData={initialQualityData}
+      brandKeywords={client.brandKeywords || ""}
     />
   );
 }
