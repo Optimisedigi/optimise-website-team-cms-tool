@@ -45,7 +45,7 @@ type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress";
 
 export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
-  const [compareMode, setCompareMode] = useState<"month" | "year">("month");
+  const [compareMode, setCompareMode] = useState<"month" | "year">("year");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [range, setRange] = useState(initialData.range || "this_month");
   const [loading, setLoading] = useState(false);
@@ -72,7 +72,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         }
         const res = await fetch(
           `/api/dashboard/data?${params}`,
-          { credentials: "include" },
+          { credentials: "include", cache: "no-store" },
         );
         if (res.ok) {
           const newData = await res.json();
@@ -82,7 +82,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         setLoading(false);
       }
     },
-    [range, data.slug, data.customerId],
+    [range, data.slug, data.customerId, data.clientName],
   );
 
   const fetchQualityData = useCallback(
@@ -126,6 +126,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
 
   const rangeLabel =
     RANGE_OPTIONS.find((r) => r.value === range)?.label || "Last month";
+  const displayedDateLabel = data.dateRangeLabel || rangeLabel;
 
   // For specific clients with inflated pre-Oct 2025 conversions, start data from March 2026
   const DATA_START_OVERRIDES: Record<string, string> = {
@@ -172,9 +173,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 </option>
               ))}
             </select>
-            {data.dateRangeLabel && (
-              <span className="text-xs text-slate-500">{data.dateRangeLabel}</span>
-            )}
+            <span className="text-xs text-slate-500">{displayedDateLabel}</span>
 
             {activeTab === "overview" && (
               <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
