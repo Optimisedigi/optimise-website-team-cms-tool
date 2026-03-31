@@ -13,6 +13,9 @@ export const MeetingSchedulers: CollectionConfig = {
     group: "Clients",
     description: "Schedule meetings with multiple client contacts by finding overlapping availability",
     defaultColumns: ["title", "client", "status", "dateRangeStart", "createdAt"],
+    components: {
+      beforeListTable: ["./components/MeetingSchedulerInstructions"],
+    },
   },
   access: {
     read: ({ req }) => !!req.user,
