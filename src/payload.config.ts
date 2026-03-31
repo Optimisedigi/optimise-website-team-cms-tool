@@ -41,6 +41,8 @@ import { SiteHealthReports } from "./collections/SiteHealthReports";
 import { ApiCostRates } from "./globals/ApiCostRates";
 import { SheetsAuth } from "./globals/SheetsAuth";
 import { EmailTemplates } from "./globals/EmailTemplates";
+import { CalendarAuth } from "./globals/CalendarAuth";
+import { MeetingSchedulers } from "./collections/MeetingSchedulers";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -80,7 +82,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientProposals, Contracts, SalesLeads, ProcessTemplates, ClientProcesses,
+    Clients, ClientProposals, Contracts, SalesLeads, ProcessTemplates, ClientProcesses, MeetingSchedulers,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO
@@ -103,7 +105,7 @@ export default buildConfig({
       },
     },
   })),
-  globals: [SheetsAuth, ApiCostRates, EmailTemplates],
+  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates],
   editor: lexicalEditor({
     features: ({ defaultFeatures }) => [...defaultFeatures, MarkdownPasteFeature()],
   }),

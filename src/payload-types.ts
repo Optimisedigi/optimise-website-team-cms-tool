@@ -73,6 +73,7 @@ export interface Config {
     'sales-leads': SalesLead;
     'process-templates': ProcessTemplate;
     'client-processes': ClientProcess;
+    'meeting-schedulers': MeetingScheduler;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
     'job-posts': JobPost;
@@ -122,6 +123,7 @@ export interface Config {
     'sales-leads': SalesLeadsSelect<false> | SalesLeadsSelect<true>;
     'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
     'client-processes': ClientProcessesSelect<false> | ClientProcessesSelect<true>;
+    'meeting-schedulers': MeetingSchedulersSelect<false> | MeetingSchedulersSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
@@ -158,11 +160,13 @@ export interface Config {
   fallbackLocale: null;
   globals: {
     'sheets-auth': SheetsAuth;
+    'calendar-auth': CalendarAuth;
     'api-cost-rates': ApiCostRate;
     'email-templates': EmailTemplate;
   };
   globalsSelect: {
     'sheets-auth': SheetsAuthSelect<false> | SheetsAuthSelect<true>;
+    'calendar-auth': CalendarAuthSelect<false> | CalendarAuthSelect<true>;
     'api-cost-rates': ApiCostRatesSelect<false> | ApiCostRatesSelect<true>;
     'email-templates': EmailTemplatesSelect<false> | EmailTemplatesSelect<true>;
   };
@@ -3443,6 +3447,104 @@ export interface User {
   collection: 'users';
 }
 /**
+ * Schedule meetings with multiple client contacts by finding overlapping availability
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "meeting-schedulers".
+ */
+export interface MeetingScheduler {
+  id: number;
+  /**
+   * Meeting title (e.g. 'Q2 Strategy Review')
+   */
+  title: string;
+  /**
+   * Client this meeting is for
+   */
+  client?: (number | null) | Client;
+  /**
+   * Meeting duration
+   */
+  durationMinutes?: ('15' | '30' | '45' | '60' | '90' | '120') | null;
+  /**
+   * Brief description shown to attendees
+   */
+  meetingTopic?: string | null;
+  /**
+   * Start of availability window
+   */
+  dateRangeStart: string;
+  /**
+   * End of availability window
+   */
+  dateRangeEnd: string;
+  /**
+   * Business hours start (HH:MM)
+   */
+  businessHoursStart?: string | null;
+  /**
+   * Business hours end (HH:MM)
+   */
+  businessHoursEnd?: string | null;
+  /**
+   * Timezone for slots
+   */
+  timezone?: string | null;
+  /**
+   * Slot interval (mins)
+   */
+  slotIntervalMinutes?: number | null;
+  /**
+   * People who need to find a common meeting time
+   */
+  attendees?:
+    | {
+        name: string;
+        email: string;
+        token?: string | null;
+        responded?: boolean | null;
+        respondedAt?: string | null;
+        emailSentAt?: string | null;
+        /**
+         * Slots selected by this attendee
+         */
+        selectedSlots?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Available time slots from Google Calendar freebusy check
+   */
+  generatedSlots?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  slotsGeneratedAt?: string | null;
+  /**
+   * The confirmed meeting time (ISO datetime)
+   */
+  matchedSlot?: string | null;
+  googleEventId?: string | null;
+  googleEventLink?: string | null;
+  status: 'draft' | 'slots_generated' | 'invites_sent' | 'awaiting_responses' | 'confirmed' | 'no_match' | 'expired';
+  slug?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Create and manage blog posts for clients
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -4097,6 +4199,10 @@ export interface PayloadLockedDocument {
         value: number | ClientProcess;
       } | null)
     | ({
+        relationTo: 'meeting-schedulers';
+        value: number | MeetingScheduler;
+      } | null)
+    | ({
         relationTo: 'blog-posts';
         value: number | BlogPost;
       } | null)
@@ -4731,6 +4837,43 @@ export interface ClientProcessesSelect<T extends boolean = true> {
   overallStatus?: T;
   startedAt?: T;
   completedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "meeting-schedulers_select".
+ */
+export interface MeetingSchedulersSelect<T extends boolean = true> {
+  title?: T;
+  client?: T;
+  durationMinutes?: T;
+  meetingTopic?: T;
+  dateRangeStart?: T;
+  dateRangeEnd?: T;
+  businessHoursStart?: T;
+  businessHoursEnd?: T;
+  timezone?: T;
+  slotIntervalMinutes?: T;
+  attendees?:
+    | T
+    | {
+        name?: T;
+        email?: T;
+        token?: T;
+        responded?: T;
+        respondedAt?: T;
+        emailSentAt?: T;
+        selectedSlots?: T;
+        id?: T;
+      };
+  generatedSlots?: T;
+  slotsGeneratedAt?: T;
+  matchedSlot?: T;
+  googleEventId?: T;
+  googleEventLink?: T;
+  status?: T;
+  slug?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -5538,6 +5681,23 @@ export interface SheetsAuth {
   createdAt?: string | null;
 }
 /**
+ * Google Calendar OAuth token for checking availability and creating meeting events. Connect once to enable meeting scheduling.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "calendar-auth".
+ */
+export interface CalendarAuth {
+  id: number;
+  refreshToken?: string | null;
+  /**
+   * Google account connected for Calendar access
+   */
+  connectedEmail?: string | null;
+  connectedAt?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * Configurable cost-per-unit rates (AUD) and monthly subscriptions. Update when provider prices change.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -5695,6 +5855,18 @@ export interface EmailTemplate {
  * via the `definition` "sheets-auth_select".
  */
 export interface SheetsAuthSelect<T extends boolean = true> {
+  refreshToken?: T;
+  connectedEmail?: T;
+  connectedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "calendar-auth_select".
+ */
+export interface CalendarAuthSelect<T extends boolean = true> {
   refreshToken?: T;
   connectedEmail?: T;
   connectedAt?: T;

@@ -1,0 +1,140 @@
+/**
+ * Meeting scheduler email templates - HTML emails sent via Brevo.
+ */
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function baseTemplate(content: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Optimise Digital</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="background:#1e293b;padding:24px 32px;">
+              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:600;">Optimise Digital</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              ${content}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+              <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">
+                Optimise Digital Pty Ltd
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function generateScheduleInviteEmail(opts: {
+  recipientName: string;
+  meetingTitle: string;
+  meetingTopic?: string;
+  durationMinutes: string;
+  scheduleUrl: string;
+}): string {
+  const topicLine = opts.meetingTopic
+    ? `<p style="margin:0 0 16px;font-size:14px;color:#64748b;">${escapeHtml(opts.meetingTopic)}</p>`
+    : "";
+
+  const content = `
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">Hi ${escapeHtml(opts.recipientName)},</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      We would like to schedule a meeting with you. Please select your availability from the times below so we can find a time that works for everyone.
+    </p>
+    <p style="margin:0 0 8px;font-size:14px;color:#64748b;">
+      <strong style="color:#1e293b;">Meeting:</strong> ${escapeHtml(opts.meetingTitle)}
+    </p>
+    <p style="margin:0 0 16px;font-size:14px;color:#64748b;">
+      <strong style="color:#1e293b;">Duration:</strong> ${escapeHtml(opts.durationMinutes)} minutes
+    </p>
+    ${topicLine}
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center" style="padding:8px 0 24px;">
+          <a href="${escapeHtml(opts.scheduleUrl)}" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:600;">
+            Select Your Availability
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">
+      It only takes a moment. Once everyone has responded, we will send a calendar invite.
+    </p>
+  `;
+  return baseTemplate(content);
+}
+
+export function generateScheduleConfirmedEmail(opts: {
+  recipientName: string;
+  meetingTitle: string;
+  meetingDate: string;
+  meetingTime: string;
+  durationMinutes: string;
+  timezone: string;
+}): string {
+  const content = `
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">Hi ${escapeHtml(opts.recipientName)},</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      Great news! A meeting time has been confirmed that works for everyone.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border-radius:8px;margin:0 0 24px;">
+      <tr>
+        <td style="padding:20px 24px;">
+          <p style="margin:0 0 8px;font-size:16px;font-weight:600;color:#166534;">${escapeHtml(opts.meetingTitle)}</p>
+          <p style="margin:0 0 4px;font-size:14px;color:#15803d;">
+            ${escapeHtml(opts.meetingDate)} at ${escapeHtml(opts.meetingTime)}
+          </p>
+          <p style="margin:0;font-size:13px;color:#16a34a;">
+            ${escapeHtml(opts.durationMinutes)} minutes (${escapeHtml(opts.timezone)})
+          </p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:14px;color:#64748b;">
+      A Google Calendar invite has been sent to all attendees. See you there!
+    </p>
+  `;
+  return baseTemplate(content);
+}
+
+export function generateNoMatchEmail(opts: {
+  meetingTitle: string;
+  attendeeSummary: string;
+}): string {
+  const content = `
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">No matching time found</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      All attendees have responded for <strong>${escapeHtml(opts.meetingTitle)}</strong>, but no common time slot was found.
+    </p>
+    <div style="background:#fef2f2;border-radius:8px;padding:16px 20px;margin:0 0 24px;">
+      <p style="margin:0;font-size:13px;color:#991b1b;white-space:pre-line;">${escapeHtml(opts.attendeeSummary)}</p>
+    </div>
+    <p style="margin:0;font-size:14px;color:#64748b;">
+      Consider proposing new dates or reaching out to attendees directly.
+    </p>
+  `;
+  return baseTemplate(content);
+}

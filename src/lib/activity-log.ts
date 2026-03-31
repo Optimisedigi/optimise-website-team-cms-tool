@@ -25,7 +25,9 @@ type ActivityType =
   | "tag_audit_completed"
   | "template_created"
   | "process_started"
-  | "process_step_completed";
+  | "process_step_completed"
+  | "meeting_scheduled"
+  | "meeting_confirmed";
 
 interface ActivityEntry {
   type: ActivityType;
