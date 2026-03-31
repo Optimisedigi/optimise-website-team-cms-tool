@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData } from "@/lib/dashboard-types";
 import { KpiRow } from "./KpiRow";
 import { MonthlyChart } from "./MonthlyChart";
@@ -53,6 +53,22 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const [qualityLoading, setQualityLoading] = useState(false);
   const [qualityError, setQualityError] = useState("");
   const qualityFetched = useRef(!!initialQualityData || !!mockQualityData);
+  // Chart always shows last 13 months, fetched once on mount with all_time range
+  const [chartMonthlyTrend, setChartMonthlyTrend] = useState(initialData.monthlyTrend);
+
+  useEffect(() => {
+    if (!initialData.slug) return;
+    const params = new URLSearchParams({ slug: initialData.slug, range: "all_time" });
+    if (initialData.customerId) params.set("customerId", initialData.customerId);
+    if (initialData.clientName) params.set("clientName", initialData.clientName);
+    if (brandKeywords) params.set("brandKeywords", brandKeywords);
+    fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
+      .then((res) => res.ok ? res.json() : null)
+      .then((fullData) => {
+        if (fullData?.monthlyTrend) setChartMonthlyTrend(fullData.monthlyTrend);
+      })
+      .catch(() => {});
+  }, [initialData.slug, initialData.customerId, initialData.clientName, brandKeywords]);
 
   const changeRange = useCallback(
     async (newRange: string) => {
@@ -69,6 +85,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         }
         if (data.clientName) {
           params.set("clientName", data.clientName);
+        }
+        if (brandKeywords) {
+          params.set("brandKeywords", brandKeywords);
         }
         const res = await fetch(
           `/api/dashboard/data?${params}`,
@@ -144,6 +163,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     ? data.monthlyTrend.filter((m) => m.month >= dataStartMonth)
     : data.monthlyTrend
 
+  // Monthly chart always shows last 14 months, unaffected by date range or data start overrides
+  const chart14Months = chartMonthlyTrend.slice(-14);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
@@ -154,14 +176,14 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               <img
                 src={data.logoUrl}
                 alt={data.clientName}
-                className="h-10 w-auto object-contain"
+                className="w-auto object-contain" style={{ height: '28px' }}
               />
             ) : (
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+              <h1 className="font-bold tracking-tight text-slate-900" style={{ fontSize: '29px' }}>
                 {data.clientName}
               </h1>
             )}
-            <span className="text-base text-slate-400 font-normal">
+            <span className="text-slate-400 font-normal" style={{ fontSize: '18px' }}>
               Google Ads Dashboard
             </span>
           </div>
@@ -267,7 +289,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             <>
               <KpiRow kpis={data.kpis} compareMode={compareMode} />
               <div className="mt-6">
-                <MonthlyChart data={filteredMonthlyTrend} />
+                <MonthlyChart data={chart14Months} />
               </div>
               <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <CategoryBreakdown campaigns={data.campaignBreakdown} />

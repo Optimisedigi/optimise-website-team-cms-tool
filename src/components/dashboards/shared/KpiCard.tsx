@@ -47,11 +47,11 @@ export function KpiCard({ label, value, previousValue, format, invertColors, com
       <p className="text-xs font-medium uppercase tracking-wider text-slate-500" style={{ lineHeight: 1, marginBottom: -2 }}>
         {label}
       </p>
-      <p className="text-2xl sm:text-3xl font-bold text-slate-900" style={{ lineHeight: 1.1 }}>
+      <p className="font-bold text-slate-900" style={{ fontSize: '19px', lineHeight: 1.1 }}>
         {formatValue(value, format)}
       </p>
       {change != null && (
-        <p className={`text-sm font-medium ${arrowColor}`} style={{ lineHeight: 1, marginTop: -2 }}>
+        <p className={`text-[10px] font-medium ${arrowColor}`} style={{ lineHeight: 1, marginTop: -2 }}>
           {arrowIcon} {change > 0 ? "+" : ""}{change}% {comparisonLabel}
         </p>
       )}

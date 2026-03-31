@@ -250,13 +250,13 @@ export function KeywordDeepDive({
         )}
       </div>
 
-      {/* Budget Wasters */}
+      {/* Low-Converting Keywords */}
       <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
             <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
-              Budget Wasters
+              Low-Converting Keywords
             </h2>
           </div>
           {slug && budgetWasters.length > 0 && (
@@ -271,11 +271,11 @@ export function KeywordDeepDive({
           )}
         </div>
         <p className="text-xs text-slate-400 mb-3">
-          Spent over $20 with zero conversions. Select terms to add as negative keywords.
+          Keywords with spend but no conversions in the selected period. Consider adding as negatives.
         </p>
         {budgetWasters.length === 0 ? (
           <p className="text-sm text-slate-400 py-4 text-center">
-            No budget wasters found
+            No low-converting keywords found
           </p>
         ) : (
           <div className="overflow-x-auto">
