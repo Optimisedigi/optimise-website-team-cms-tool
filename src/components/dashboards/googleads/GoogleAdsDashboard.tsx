@@ -76,7 +76,13 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         );
         if (res.ok) {
           const newData = await res.json();
-          setData(newData);
+          setData((prev) => ({
+            ...prev,
+            ...newData,
+            slug: prev.slug,
+            customerId: prev.customerId,
+            clientName: prev.clientName,
+          }));
         }
       } finally {
         setLoading(false);
