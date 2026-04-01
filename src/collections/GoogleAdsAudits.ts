@@ -788,7 +788,78 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 7: History ──
+        // ── Tab 7: Ad Copy ──
+        {
+          label: "Ad Copy",
+          fields: [
+            {
+              name: "adCopyBrandHeadlines",
+              type: "textarea",
+              admin: {
+                description: "Brand-specific headlines to include in every ad group (one per line, max 30 chars each). E.g. 'Malcolm Thompson Pumps', 'Call MTP Today', 'Since 1958'",
+              },
+            },
+            {
+              name: "generateAdCopyUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GenerateAdCopyButton",
+                },
+              },
+            },
+            {
+              name: "adCopyEditorUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/AdCopyEditor",
+                },
+              },
+            },
+            {
+              name: "adCopyStatus",
+              type: "select",
+              admin: {
+                readOnly: true,
+                description: "Current status of the ad copy",
+              },
+              options: [
+                { label: "Draft", value: "draft" },
+                { label: "Generating", value: "generating" },
+                { label: "Generated", value: "generated" },
+                { label: "Published", value: "published" },
+                { label: "Approved", value: "approved" },
+              ],
+            },
+            {
+              name: "adCopyPublished",
+              type: "checkbox",
+              defaultValue: false,
+              admin: {
+                description: "Toggle to make ad copy preview publicly accessible (with PIN)",
+              },
+            },
+            {
+              name: "adCopyComments",
+              type: "json",
+              admin: {
+                hidden: true,
+                description: "Client comments on ad copy (managed via API)",
+              },
+            },
+            {
+              name: "adCopyGeneratedAt",
+              type: "date",
+              admin: {
+                readOnly: true,
+                description: "When the ad copy was generated",
+              },
+            },
+          ],
+        },
+
+        // ── Tab 8: History ──
         {
           label: "History",
           fields: [

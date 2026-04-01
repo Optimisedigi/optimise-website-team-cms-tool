@@ -73,6 +73,8 @@ import { default as default_10fccc7885acbd99c8b1f5d8e310047f } from '../../../co
 import { default as default_2eca85eea20f05062ddd72e60518b25f } from '../../../components/RunCampaignProposalButton'
 import { default as default_a1b2c3d4e5f6789build_campaigns_btn } from '../../../components/BuildCampaignsButton'
 import { default as default_60c16b01b604a3bf2312f924f0ece75b } from '../../../components/CampaignProposalPreview'
+import { default as default_ad_copy_gen_btn_001 } from '../../../components/GenerateAdCopyButton'
+import { default as default_ad_copy_editor_001 } from '../../../components/AdCopyEditor'
 import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../components/GscIndexingAuditInfo'
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
@@ -176,6 +178,8 @@ export const importMap = {
   "./components/RegenerateEmailButton#default": default_10fccc7885acbd99c8b1f5d8e310047f,
   "./components/RunCampaignProposalButton#default": default_2eca85eea20f05062ddd72e60518b25f,
   "./components/BuildCampaignsButton#default": default_a1b2c3d4e5f6789build_campaigns_btn,
+  "./components/GenerateAdCopyButton#default": default_ad_copy_gen_btn_001,
+  "./components/AdCopyEditor#default": default_ad_copy_editor_001,
   "./components/CampaignProposalPreview#default": default_60c16b01b604a3bf2312f924f0ece75b,
   "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/GscIndexingAuditInfo#default": default_6d638ae0812e4c3b3793e2cfa8990bb7,
