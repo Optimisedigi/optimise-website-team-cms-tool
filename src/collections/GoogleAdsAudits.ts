@@ -726,6 +726,65 @@ export const GoogleAdsAudits: CollectionConfig = {
                 description: "When the campaign proposal was generated",
               },
             },
+            // ── Campaign Build (Google Ads push) ──
+            {
+              name: "buildCampaigns",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/BuildCampaignsButton",
+                },
+              },
+            },
+            {
+              name: "campaignBuildStatus",
+              type: "select",
+              admin: {
+                readOnly: true,
+                description: "Status of campaign creation in Google Ads",
+              },
+              options: [
+                { label: "Not Started", value: "not_started" },
+                { label: "Building", value: "building" },
+                { label: "Completed", value: "completed" },
+                { label: "Partially Failed", value: "partial_failure" },
+                { label: "Failed", value: "failed" },
+              ],
+            },
+            {
+              name: "generatedAdCopy",
+              type: "json",
+              admin: {
+                hidden: true,
+                description: "Pre-generated RSA ad copy per ad group",
+              },
+            },
+            {
+              name: "campaignBuildResult",
+              type: "json",
+              admin: {
+                hidden: true,
+                description: "Results returned by Growth Tools after campaign creation",
+              },
+            },
+            {
+              name: "campaignBuildError",
+              type: "textarea",
+              admin: {
+                readOnly: true,
+                description: "Error details if campaign build failed",
+              },
+            },
+            {
+              name: "campaignBuildStartedAt",
+              type: "date",
+              admin: { readOnly: true },
+            },
+            {
+              name: "campaignBuildCompletedAt",
+              type: "date",
+              admin: { readOnly: true },
+            },
           ],
         },
 

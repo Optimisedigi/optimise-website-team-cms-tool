@@ -1209,6 +1209,14 @@ export async function POST(request: NextRequest) {
   await run("google_ads_audits.campaign_proposal_email_html", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_email_html` text");
   await run("google_ads_audits.campaign_proposal_generated_at", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_generated_at` text");
 
+  // Campaign build (Google Ads push) fields
+  await run("google_ads_audits.campaign_build_status", "ALTER TABLE `google_ads_audits` ADD `campaign_build_status` text");
+  await run("google_ads_audits.generated_ad_copy", "ALTER TABLE `google_ads_audits` ADD `generated_ad_copy` text");
+  await run("google_ads_audits.campaign_build_result", "ALTER TABLE `google_ads_audits` ADD `campaign_build_result` text");
+  await run("google_ads_audits.campaign_build_error", "ALTER TABLE `google_ads_audits` ADD `campaign_build_error` text");
+  await run("google_ads_audits.campaign_build_started_at", "ALTER TABLE `google_ads_audits` ADD `campaign_build_started_at` text");
+  await run("google_ads_audits.campaign_build_completed_at", "ALTER TABLE `google_ads_audits` ADD `campaign_build_completed_at` text");
+
   // Campaign Proposal Negative Keywords (array table for google_ads_audits)
   // Note: dbName shortened to "gads_proposal_negatives" to avoid 63-char enum name limit
   await run("gads_proposal_negatives_table", `
@@ -2201,6 +2209,14 @@ export async function GET(request: NextRequest) {
   await run("gaa.proposal_brand_volume_exempt", "ALTER TABLE `google_ads_audits` ADD `proposal_brand_volume_exempt` integer");
   await run("gaa.campaign_proposal_email_html", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_email_html` text");
   await run("gaa.campaign_proposal_generated_at", "ALTER TABLE `google_ads_audits` ADD `campaign_proposal_generated_at` text");
+
+  // Campaign build (Google Ads push) fields
+  await run("gaa.campaign_build_status", "ALTER TABLE `google_ads_audits` ADD `campaign_build_status` text");
+  await run("gaa.generated_ad_copy", "ALTER TABLE `google_ads_audits` ADD `generated_ad_copy` text");
+  await run("gaa.campaign_build_result", "ALTER TABLE `google_ads_audits` ADD `campaign_build_result` text");
+  await run("gaa.campaign_build_error", "ALTER TABLE `google_ads_audits` ADD `campaign_build_error` text");
+  await run("gaa.campaign_build_started_at", "ALTER TABLE `google_ads_audits` ADD `campaign_build_started_at` text");
+  await run("gaa.campaign_build_completed_at", "ALTER TABLE `google_ads_audits` ADD `campaign_build_completed_at` text");
 
   // Negative keywords array table (dbName: gads_proposal_negatives)
   await run("gads_proposal_negatives", `CREATE TABLE IF NOT EXISTS \`gads_proposal_negatives\` (

@@ -1,0 +1,772 @@
+{
+  "Brand": {
+    "AquaPlus": {
+      "headlines": [
+        "AquaPlus Pumps at MTP",
+        "Shop AquaPlus Range",
+        "AquaPlus Pump Supplier",
+        "Get a Quote Today",
+        "Authorised AquaPlus Dealer",
+        "AquaPlus Pumps Australia",
+        "Reliable Water Pumps",
+        "Call MTP for AquaPlus",
+        "Browse AquaPlus Catalogue",
+        "Expert Pump Advice"
+      ],
+      "descriptions": [
+        "Malcolm Thompson Pumps is your authorised AquaPlus dealer. Browse our full range online.",
+        "Shop AquaPlus pumps with expert advice from MTP. Service centres in Perth and Sydney.",
+        "Reliable AquaPlus pump solutions for industrial and commercial applications. Get a quote.",
+        "Australia's trusted pump supplier since 1958. Browse AquaPlus pumps at mtp.com.au today."
+      ]
+    },
+    "Flux": {
+      "headlines": [
+        "Flux Pumps at MTP",
+        "Shop Flux Pump Range",
+        "Flux Food Grade Pumps",
+        "Flux Peripower Pumps",
+        "Get a Flux Pump Quote",
+        "Authorised Flux Dealer",
+        "Flux Drum & Food Pumps",
+        "Call MTP for Flux Pumps",
+        "Flux Pumps Australia",
+        "Browse Flux Catalogue"
+      ],
+      "descriptions": [
+        "Malcolm Thompson Pumps stocks the full Flux range including food grade and drum pumps.",
+        "Flux Peripower and food pumps available from MTP. Expert advice and fast delivery.",
+        "Shop Flux pumps for food, chemical, and drum applications. Get a quote from MTP today.",
+        "Authorised Flux pump dealer in Australia. Service centres in Perth and Sydney."
+      ]
+    },
+    "Grundfos": {
+      "headlines": [
+        "Grundfos Pumps at MTP",
+        "Shop Grundfos Range",
+        "Grundfos Pumps Australia",
+        "Get a Grundfos Quote",
+        "Grundfos Pressure Pumps",
+        "Grundfos Bore Pumps",
+        "Grundfos Solar Pumps",
+        "Grundfos Dosing Pumps",
+        "Call MTP for Grundfos",
+        "Grundfos Booster Pumps"
+      ],
+      "descriptions": [
+        "Malcolm Thompson Pumps is your Grundfos specialist. Submersible, bore, and pressure pumps.",
+        "Shop Grundfos pumps in Perth and Sydney. Scala2, circulation, dosing, and booster pumps.",
+        "Grundfos water pumps for every application. Expert advice and service from MTP Australia.",
+        "Browse Grundfos solar, bore, and submersible pumps. Get a quote from MTP today."
+      ]
+    },
+    "MTP Brand": {
+      "headlines": [
+        "Malcolm Thompson Pumps",
+        "MTP Pump Experts",
+        "Call MTP Today",
+        "Pump Service & Repair",
+        "24/7 Emergency Repairs",
+        "MTP Pump Design",
+        "Get a Free Quote",
+        "Pumps Since 1958",
+        "Perth & Sydney Service",
+        "MTP Pump Servicing"
+      ],
+      "descriptions": [
+        "Malcolm Thompson Pumps: trusted Australian pump supplier since 1958. Sales and service.",
+        "MTP offers 24/7 emergency pump repair, preventative maintenance, and custom pump design.",
+        "From pump sales to servicing and emergency repairs, MTP has you covered. Call us today.",
+        "Service centres in Perth and Sydney. Expert pump advice, maintenance, and fast repairs."
+      ]
+    },
+    "ProMinent": {
+      "headlines": [
+        "ProMinent Pumps at MTP",
+        "Shop ProMinent Range",
+        "ProMinent Dosing Pumps",
+        "Get a ProMinent Quote",
+        "ProMinent Chemical Pumps",
+        "ProMinent Metering Pumps",
+        "Authorised ProMinent Dealer",
+        "Call MTP for ProMinent",
+        "ProMinent Diaphragm Pumps",
+        "ProMinent Fluid Control"
+      ],
+      "descriptions": [
+        "Malcolm Thompson Pumps is your authorised ProMinent dealer. Dosing and metering pumps.",
+        "Shop ProMinent chemical, diaphragm, and peristaltic pumps. Expert advice from MTP.",
+        "ProMinent fluid control solutions available from MTP. Service centres in Perth and Sydney.",
+        "Reliable ProMinent dosing and metering pumps for industrial applications. Get a quote."
+      ]
+    },
+    "Southern Cross": {
+      "headlines": [
+        "Southern Cross Pumps",
+        "Shop Southern Cross",
+        "Southern Cross at MTP",
+        "Get a Quote Today",
+        "Southern Cross Bore Pumps",
+        "Irrigation Pumps",
+        "Southern Cross Water Pumps",
+        "Call MTP Today",
+        "Centrifugal Pumps",
+        "Southern Cross Submersible"
+      ],
+      "descriptions": [
+        "Malcolm Thompson Pumps stocks Southern Cross pumps. Water, irrigation, and bore pumps.",
+        "Shop Southern Cross centrifugal, pressure, and submersible pumps. Expert advice from MTP.",
+        "Southern Cross pumps for agriculture, irrigation, and water supply. Get a quote from MTP.",
+        "Authorised Southern Cross dealer in Australia. Service centres in Perth and Sydney."
+      ]
+    },
+    "Stalker Pumps": {
+      "headlines": [
+        "Stalker Pumps at MTP",
+        "Shop Stalker Pumps",
+        "Stalker Pumps for Sale",
+        "Get a Stalker Quote",
+        "Stalker Water Pumps",
+        "Stalker Pump Parts",
+        "Call MTP for Stalker",
+        "Authorised Stalker Dealer",
+        "Stalker Pumps Australia",
+        "Browse Stalker Range"
+      ],
+      "descriptions": [
+        "Malcolm Thompson Pumps stocks Stalker pumps and parts. Get a quote from MTP today.",
+        "Shop Stalker water pumps and spare parts. Expert advice and fast delivery from MTP.",
+        "Stalker pumps for sale at MTP. Service centres in Perth and Sydney for all your needs.",
+        "Authorised Stalker pump dealer in Australia. Browse our full range online at mtp.com.au."
+      ]
+    }
+  },
+  "Generic - Pump Types": {
+    "Borehole Pumps": {
+      "headlines": [
+        "Borehole Pumps for Sale",
+        "Shop Bore Pumps at MTP",
+        "Solar Bore Pumps",
+        "Get a Bore Pump Quote",
+        "Submersible Bore Pumps",
+        "3 Phase Bore Pumps",
+        "240V Bore Pumps",
+        "Call MTP Today",
+        "Bore Pumps Australia",
+        "Expert Bore Pump Advice"
+      ],
+      "descriptions": [
+        "Borehole pumps from Malcolm Thompson Pumps. Solar, submersible, and 3 phase options.",
+        "Shop bore pumps for sale at MTP. Expert installation advice and service Australia wide.",
+        "Solar powered bore pumps for remote and off-grid applications. Get a quote from MTP.",
+        "Submersible bore pumps from leading brands. Service centres in Perth and Sydney."
+      ]
+    },
+    "Centrifugal Pumps": {
+      "headlines": [
+        "Centrifugal Pumps",
+        "Shop Centrifugal Pumps",
+        "Self Priming Pumps",
+        "Get a Pump Quote",
+        "Multistage Pumps at MTP",
+        "End Suction Pumps",
+        "Centrifugal Water Pumps",
+        "Call MTP Today",
+        "Slurry Pumps Available",
+        "Industrial Pumps at MTP"
+      ],
+      "descriptions": [
+        "Centrifugal pumps from Malcolm Thompson Pumps. Self priming, multistage, and end suction.",
+        "Shop centrifugal water pumps for industrial, irrigation, and commercial applications.",
+        "Vertical, horizontal, and close coupled centrifugal pumps. Get a quote from MTP today.",
+        "Australia's trusted centrifugal pump supplier. Service centres in Perth and Sydney."
+      ]
+    },
+    "Custom Pumps": {
+      "headlines": [
+        "Custom Pump Solutions",
+        "Bespoke Pump Design",
+        "Call MTP for Custom Pumps",
+        "Get a Custom Quote",
+        "On-Site Foundry",
+        "Pump Engineering Design",
+        "Custom Built Pumps",
+        "MTP Custom Solutions",
+        "Engineered Pump Systems",
+        "Tailored Pump Design"
+      ],
+      "descriptions": [
+        "Malcolm Thompson Pumps offers custom pump engineering and design with on-site foundry.",
+        "Bespoke pump solutions for unique applications. MTP's in-house foundry delivers results.",
+        "Custom pump manufacturing and engineering from MTP. Get a tailored quote today.",
+        "On-site foundry for custom pump components. Malcolm Thompson Pumps, est. 1958."
+      ]
+    },
+    "Dewatering Pumps": {
+      "headlines": [
+        "Dewatering Pumps",
+        "Shop Dewatering Pumps",
+        "Mine Dewatering Pumps",
+        "Get a Dewatering Quote",
+        "Submersible Dewatering",
+        "Construction Dewatering",
+        "Heavy Duty Dewatering",
+        "Call MTP Today",
+        "Wellpoint Dewatering",
+        "Dewatering Pumps at MTP"
+      ],
+      "descriptions": [
+        "Dewatering pumps from Malcolm Thompson Pumps. Mining, construction, and quarry solutions.",
+        "Submersible and self priming dewatering pumps. Electric, diesel, and heavy duty options.",
+        "Wellpoint dewatering systems for construction and mining. Get a quote from MTP today.",
+        "High head and large capacity dewatering pumps. Service centres in Perth and Sydney."
+      ]
+    },
+    "Diaphragm Pumps": {
+      "headlines": [
+        "Diaphragm Pumps at MTP",
+        "Shop Diaphragm Pumps",
+        "Air Operated Diaphragm",
+        "Get a Pump Quote",
+        "AODD Pumps Available",
+        "Electric Diaphragm Pumps",
+        "Double Diaphragm Pumps",
+        "Call MTP Today",
+        "Pneumatic Pumps at MTP",
+        "Diaphragm Pumps for Sale"
+      ],
+      "descriptions": [
+        "Diaphragm pumps from Malcolm Thompson Pumps. Air operated, electric, and double diaphragm.",
+        "Shop AODD and pneumatic diaphragm pumps for chemical, water, and industrial applications.",
+        "Air operated double diaphragm pumps from leading brands. Get a quote from MTP today.",
+        "Diaphragm pump specialists in Perth and Sydney. Expert advice and fast delivery."
+      ]
+    },
+    "Dosing Pumps": {
+      "headlines": [
+        "Dosing Pumps at MTP",
+        "Shop Dosing Pumps",
+        "Chemical Dosing Pumps",
+        "Get a Dosing Quote",
+        "Chlorine Dosing Pumps",
+        "Metering Pumps at MTP",
+        "Dosing Systems",
+        "Call MTP Today",
+        "Chemical Dosing Systems",
+        "Diaphragm Dosing Pumps"
+      ],
+      "descriptions": [
+        "Dosing pumps from Malcolm Thompson Pumps. Chemical, chlorine, and metering pump solutions.",
+        "Shop chemical dosing pumps and systems. Automatic dosing units available from MTP.",
+        "Chlorine dosing pumps and chemical feed systems. Get a quote from MTP Australia today.",
+        "Diaphragm dosing and metering pumps for water treatment and industrial applications."
+      ]
+    },
+    "Drum & Container Pumps": {
+      "headlines": [
+        "Drum Pumps at MTP",
+        "Shop Drum Pumps",
+        "Food Grade Drum Pumps",
+        "Get a Drum Pump Quote",
+        "IBC Container Pumps",
+        "Chemical Drum Pumps",
+        "Oil Drum Pumps",
+        "Call MTP Today",
+        "Industrial Drum Pumps",
+        "44 Gallon Drum Pumps"
+      ],
+      "descriptions": [
+        "Drum and container pumps from Malcolm Thompson Pumps. Food grade, chemical, and oil.",
+        "Shop drum pumps for IBC containers, 200L drums, and 44 gallon drums. From MTP.",
+        "Food grade, chemical, and oil drum pumps. Portable and industrial options at MTP.",
+        "Industrial drum pump specialists. Expert advice and fast delivery from MTP Australia."
+      ]
+    },
+    "End Suction Pumps": {
+      "headlines": [
+        "End Suction Pumps",
+        "Shop End Suction Pumps",
+        "Water Transfer Pumps",
+        "Get a Pump Quote",
+        "Suction Pumps at MTP",
+        "Water Suction Pumps",
+        "Call MTP Today",
+        "Industrial Suction Pumps",
+        "End Suction at MTP",
+        "Transfer Pumps for Sale"
+      ],
+      "descriptions": [
+        "End suction pumps from Malcolm Thompson Pumps. Water transfer and industrial solutions.",
+        "Shop end suction and water transfer pumps for commercial and industrial applications.",
+        "Positive suction and self priming options available. Get a quote from MTP today.",
+        "End suction pump specialists in Perth and Sydney. Expert advice and service."
+      ]
+    },
+    "Multistage Pumps": {
+      "headlines": [
+        "Multistage Pumps at MTP",
+        "Shop Multistage Pumps",
+        "Vertical Multistage",
+        "Get a Pump Quote",
+        "Booster Pumps at MTP",
+        "Horizontal Multistage",
+        "Multistage Pressure Pumps",
+        "Call MTP Today",
+        "High Pressure Pumps",
+        "Stainless Multistage"
+      ],
+      "descriptions": [
+        "Multistage pumps from Malcolm Thompson Pumps. Vertical, horizontal, and booster options.",
+        "Shop multistage centrifugal pumps from Grundfos, Lowara, Goulds, and more at MTP.",
+        "Vertical and horizontal multistage pumps for pressure boosting. Get a quote from MTP.",
+        "High pressure multistage pumps in stainless steel. Service centres in Perth and Sydney."
+      ]
+    },
+    "Peristaltic Pumps": {
+      "headlines": [
+        "Peristaltic Pumps at MTP",
+        "Shop Peristaltic Pumps",
+        "Peri Pumps for Sale",
+        "Get a Pump Quote",
+        "Industrial Peri Pumps",
+        "Call MTP Today",
+        "Peristaltic Solutions",
+        "MTP Peristaltic Range",
+        "Reliable Peri Pumps",
+        "Browse Peri Pumps"
+      ],
+      "descriptions": [
+        "Peristaltic pumps from Malcolm Thompson Pumps. Industrial grade for tough applications.",
+        "Shop peristaltic pumps for chemical, slurry, and viscous fluid handling from MTP.",
+        "Reliable peristaltic pump solutions with expert advice. Get a quote from MTP today.",
+        "Peristaltic pump specialists in Perth and Sydney. Fast delivery Australia wide."
+      ]
+    },
+    "Progressive Cavity Pumps": {
+      "headlines": [
+        "Progressive Cavity Pumps",
+        "Mono Pumps at MTP",
+        "Shop PC Pumps",
+        "Get a Cavity Pump Quote",
+        "Mono Pumps for Sale",
+        "Sewage Sludge Pumps",
+        "Call MTP Today",
+        "PC Pump Specialists",
+        "Progressive Pumps at MTP",
+        "Cavity Pumps Australia"
+      ],
+      "descriptions": [
+        "Progressive cavity pumps from Malcolm Thompson Pumps. Mono, Seepex, and Netzsch brands.",
+        "Shop mono and PC pumps for sewage, sludge, and viscous fluid applications from MTP.",
+        "Progressive cavity pump specialists in Perth and Sydney. Get a quote from MTP today.",
+        "Drum emptying systems and sewage pumps available. Expert advice from MTP Australia."
+      ]
+    },
+    "Self Priming Pumps": {
+      "headlines": [
+        "Self Priming Pumps",
+        "Shop Priming Pumps",
+        "Self Priming at MTP",
+        "Get a Pump Quote",
+        "Water Transfer Pumps",
+        "Self Priming Jet Pumps",
+        "Call MTP Today",
+        "Priming Pumps for Sale",
+        "Diesel Priming Pumps",
+        "12V Self Priming Pumps"
+      ],
+      "descriptions": [
+        "Self priming pumps from Malcolm Thompson Pumps. Water transfer, jet, and diesel options.",
+        "Shop self priming water pumps for irrigation, transfer, and industrial applications.",
+        "Self priming pumps in diesel, 12V, and stainless steel. Get a quote from MTP today.",
+        "Self priming pump specialists in Perth and Sydney. Expert advice and fast delivery."
+      ]
+    },
+    "Split Case Pumps": {
+      "headlines": [
+        "Split Case Pumps at MTP",
+        "Shop Split Case Pumps",
+        "Horizontal Split Case",
+        "Get a Pump Quote",
+        "Fire Pump Split Case",
+        "Vertical Split Case",
+        "Call MTP Today",
+        "Double Suction Pumps",
+        "Split Case Specialists",
+        "Axial Split Pumps"
+      ],
+      "descriptions": [
+        "Split case pumps from Malcolm Thompson Pumps. Horizontal, vertical, and fire pump options.",
+        "Shop split case centrifugal pumps from Aurora, Flowserve, and Goulds brands at MTP.",
+        "Double suction and axial split case pumps for high flow applications. Quote from MTP.",
+        "Split case fire pumps and centrifugal pumps. Service centres in Perth and Sydney."
+      ]
+    },
+    "Submersible Pumps": {
+      "headlines": [
+        "Submersible Pumps at MTP",
+        "Shop Submersible Pumps",
+        "Submersible Bore Pumps",
+        "Get a Pump Quote",
+        "Solar Submersible Pumps",
+        "Submersible Water Pumps",
+        "Call MTP Today",
+        "Sump Pumps at MTP",
+        "Submersible Pumps Sale",
+        "Pond Pumps Available"
+      ],
+      "descriptions": [
+        "Submersible pumps from Malcolm Thompson Pumps. Bore, sump, and solar powered options.",
+        "Shop submersible water pumps for bore, pond, and sump applications. From MTP Australia.",
+        "Solar powered submersible pumps for remote locations. Get a quote from MTP today.",
+        "Submersible pump specialists in Perth and Sydney. Expert advice and fast delivery."
+      ]
+    },
+    "Wastewater Pumps": {
+      "headlines": [
+        "Wastewater Pumps at MTP",
+        "Shop Sewage Pumps",
+        "Septic Tank Pumps",
+        "Get a Pump Quote",
+        "Sewage Pump Solutions",
+        "Septic System Pumps",
+        "Call MTP Today",
+        "Tank Pumping Solutions",
+        "Wastewater at MTP",
+        "Sewage Pumps for Sale"
+      ],
+      "descriptions": [
+        "Wastewater and sewage pumps from Malcolm Thompson Pumps. Septic and sewer solutions.",
+        "Shop septic tank pumps and sewage pump systems for residential and commercial use.",
+        "Wastewater pump solutions for septic systems and sewage. Get a quote from MTP today.",
+        "Sewage and wastewater pump specialists. Service centres in Perth and Sydney."
+      ]
+    },
+    "Water Treatment Pumps": {
+      "headlines": [
+        "Water Treatment Pumps",
+        "Water Cart Pumps at MTP",
+        "Shop Water Cart Pumps",
+        "Get a Pump Quote",
+        "Civil Water Cart Pumps",
+        "ISO Close-Coupled Pumps",
+        "Call MTP Today",
+        "Bare Shaft Pumps",
+        "Water Cart Solutions",
+        "Dust Suppression Pumps"
+      ],
+      "descriptions": [
+        "Water treatment and water cart pumps from Malcolm Thompson Pumps. Civil and mining.",
+        "Shop water cart pumps for civil earthworks and hire fleets. Expert advice from MTP.",
+        "ISO hydraulically close-coupled and bare shaft pumps available. Get a quote from MTP.",
+        "Water cart pump specialists for construction and mining. Perth and Sydney service."
+      ]
+    }
+  },
+  "Generic - Services": {
+    "System Designs": {
+      "headlines": [
+        "Pump System Design",
+        "Custom Engineering",
+        "On-Site Foundry at MTP",
+        "Get a Design Quote",
+        "Pump & Valve Casting",
+        "Industrial Casting",
+        "Call MTP Today",
+        "Stainless Steel Casting",
+        "Alloy Casting at MTP",
+        "Engineering Solutions"
+      ],
+      "descriptions": [
+        "Pump system design and custom engineering from Malcolm Thompson Pumps. On-site foundry.",
+        "Stainless steel and alloy casting manufacturer. Pump, valve, and railway components.",
+        "Industrial casting and pump engineering design services. Get a quote from MTP today.",
+        "Custom pump and valve casting from MTP's on-site foundry. Established 1958."
+      ]
+    }
+  },
+  "Generic - Industry Verticals": {
+    "Agriculture & Irrigation": {
+      "headlines": [
+        "Irrigation Pumps at MTP",
+        "Shop Irrigation Pumps",
+        "Farm Irrigation Pumps",
+        "Get an Irrigation Quote",
+        "Solar Irrigation Pumps",
+        "Agricultural Pumps",
+        "Call MTP Today",
+        "Diesel Irrigation Pumps",
+        "Irrigation Pumps Sale",
+        "Solar Farm Pumps"
+      ],
+      "descriptions": [
+        "Irrigation pumps from Malcolm Thompson Pumps. Solar, diesel, and electric options.",
+        "Shop agricultural irrigation pumps for farms and properties. Expert advice from MTP.",
+        "Solar powered irrigation systems for off-grid farming. Get a quote from MTP today.",
+        "Farm irrigation pump specialists. Diesel and solar pumps for sale at MTP Australia."
+      ]
+    },
+    "Chemical Pumps": {
+      "headlines": [
+        "Chemical Pumps at MTP",
+        "Shop Chemical Pumps",
+        "Chemical Transfer Pumps",
+        "Get a Pump Quote",
+        "Chlorine Pumps at MTP",
+        "Chemical Injection Pumps",
+        "Call MTP Today",
+        "Industrial Chemical Pumps",
+        "Chemical Pumps for Sale",
+        "Neptune Pumps at MTP"
+      ],
+      "descriptions": [
+        "Chemical pumps from Malcolm Thompson Pumps. Transfer, injection, and dosing solutions.",
+        "Shop chemical pumps for industrial, water treatment, and hazardous fluid applications.",
+        "Chemical transfer pumps in diesel, petrol, and 12V options. Get a quote from MTP.",
+        "Neptune and ProMinent chemical pumps available. Service centres in Perth and Sydney."
+      ]
+    },
+    "Commercial & Industrial": {
+      "headlines": [
+        "Commercial Water Pumps",
+        "Industrial Pumps at MTP",
+        "Shop Commercial Pumps",
+        "Get an Industrial Quote",
+        "HVAC Pump Systems",
+        "Building Water Supply",
+        "Call MTP Today",
+        "Commercial Pump Systems",
+        "Industrial Water Pumps",
+        "MTP Commercial Solutions"
+      ],
+      "descriptions": [
+        "Commercial and industrial water pumps from Malcolm Thompson Pumps. HVAC and building.",
+        "Shop commercial pump systems for buildings, HVAC, and industrial water supply from MTP.",
+        "Industrial facility water systems and commercial pumps. Get a quote from MTP today.",
+        "Commercial pump specialists in Perth and Sydney. Expert advice for your project."
+      ]
+    },
+    "Construction Pumps": {
+      "headlines": [
+        "Construction Pumps",
+        "Shop Construction Pumps",
+        "Dewatering for Sites",
+        "Get a Construction Quote",
+        "Builders Pumps at MTP",
+        "Site Water Pumps",
+        "Call MTP Today",
+        "Construction Sump Pumps",
+        "Industrial Pumps at MTP",
+        "Submersible Site Pumps"
+      ],
+      "descriptions": [
+        "Construction pumps from Malcolm Thompson Pumps. Dewatering, sump, and submersible.",
+        "Shop construction water pumps for building sites and civil projects. From MTP.",
+        "Construction dewatering and sump pumps for sale. Get a quote from MTP Australia today.",
+        "Builders and construction pump specialists. Service centres in Perth and Sydney."
+      ]
+    },
+    "Gas Production": {
+      "headlines": [
+        "Gas Production Pumps",
+        "Oil & Gas Pumps at MTP",
+        "Shop Gas Plant Pumps",
+        "Get a Gas Pump Quote",
+        "Gas Processing Pumps",
+        "Oil & Gas Solutions",
+        "Call MTP Today",
+        "Gas Plant Pump Supply",
+        "MTP Oil & Gas Pumps",
+        "Industrial Gas Pumps"
+      ],
+      "descriptions": [
+        "Oil and gas production pumps from Malcolm Thompson Pumps. Gas processing solutions.",
+        "Shop pumps for gas plants and oil refineries. Expert advice and service from MTP.",
+        "Gas production and processing pump solutions. Get a quote from MTP Australia today.",
+        "Oil and gas pump specialists. Service centres in Perth and Sydney."
+      ]
+    },
+    "Mining Pumps": {
+      "headlines": [
+        "Mining Pumps at MTP",
+        "Shop Mining Pumps",
+        "Mine Dewatering Pumps",
+        "Get a Mining Quote",
+        "Slurry Pumps for Mines",
+        "Mining Water Pumps",
+        "Call MTP Today",
+        "Mining Pump Service",
+        "Underground Mine Pumps",
+        "Dust Suppression Pumps"
+      ],
+      "descriptions": [
+        "Mining pumps from Malcolm Thompson Pumps. Dewatering, slurry, and dust suppression.",
+        "Shop mining pumps for underground, open pit, and processing plant applications.",
+        "Mine site pump servicing and supply. Get a quote from MTP Australia today.",
+        "Mining pump specialists with service centres in Perth and Sydney. 24/7 support."
+      ]
+    },
+    "Mobile Dust Suppression": {
+      "headlines": [
+        "Dust Suppression Pumps",
+        "Water Cart Pumps",
+        "Shop Dust Suppression",
+        "Get a Quote Today",
+        "Mobile Dust Control",
+        "Stalker ISO Pumps",
+        "Call MTP Today",
+        "Water Cart Series",
+        "MTP Dust Suppression",
+        "Mining Dust Control"
+      ],
+      "descriptions": [
+        "Mobile dust suppression pumps from Malcolm Thompson Pumps. Water cart solutions.",
+        "Shop Stalker ISO and water cart series pumps for mining dust suppression from MTP.",
+        "Mobile dust control and water cart pump systems. Get a quote from MTP Australia today.",
+        "Dust suppression pump specialists. Service centres in Perth and Sydney."
+      ]
+    },
+    "Petrochemicals": {
+      "headlines": [
+        "Petrochemical Pumps",
+        "Oil Refinery Pumps",
+        "Shop Petrochem Pumps",
+        "Get a Pump Quote",
+        "Refinery Feed Pumps",
+        "Oil & Gas Pumps at MTP",
+        "Call MTP Today",
+        "Refinery Pump Supply",
+        "MTP Petrochemical Pumps",
+        "Industrial Oil Pumps"
+      ],
+      "descriptions": [
+        "Petrochemical pumps from Malcolm Thompson Pumps. Refinery, feed, and processing.",
+        "Shop pumps for oil refineries and petrochemical plants. Expert advice from MTP.",
+        "Refinery feed pumps and oil processing solutions. Get a quote from MTP Australia.",
+        "Petrochemical pump specialists with service centres in Perth and Sydney."
+      ]
+    },
+    "Water Treatment": {
+      "headlines": [
+        "Water Treatment Pumps",
+        "Shop Treatment Pumps",
+        "Wastewater Pumps at MTP",
+        "Get a Treatment Quote",
+        "Commercial Treatment",
+        "Slurry Pumps at MTP",
+        "Call MTP Today",
+        "Water Treatment at MTP",
+        "Abrasive Slurry Pumps",
+        "Treatment Pump Supply"
+      ],
+      "descriptions": [
+        "Water treatment pumps from Malcolm Thompson Pumps. Commercial and wastewater solutions.",
+        "Shop water treatment and wastewater pumps for municipal and industrial applications.",
+        "Abrasive slurry and water treatment pumps available. Get a quote from MTP today.",
+        "Water treatment pump specialists. Service centres in Perth and Sydney."
+      ]
+    }
+  },
+  "Generic - Services - Pump Repair & Maintenance": {
+    "Pump Repair Emergency": {
+      "headlines": [
+        "24/7 Emergency Pump Fix",
+        "Urgent Pump Repair",
+        "Emergency Repair at MTP",
+        "Call MTP Now",
+        "24/7 Pump Service",
+        "Emergency Sump Repair",
+        "Pump Breakdown? Call Us",
+        "Fast Emergency Repair",
+        "Perth & Sydney Service",
+        "Emergency Well Repair"
+      ],
+      "descriptions": [
+        "24/7 emergency pump repair from Malcolm Thompson Pumps. Perth and Sydney service centres.",
+        "Urgent pump repair when you need it most. Call MTP for fast emergency pump service.",
+        "Emergency sump, water, and well pump repair available 24/7. Get help from MTP now.",
+        "Pump breakdown? MTP offers 24 hour emergency repair service in Perth and Sydney."
+      ]
+    },
+    "Pump Maintenance": {
+      "headlines": [
+        "Pump Maintenance at MTP",
+        "Preventative Maintenance",
+        "Pump Servicing Experts",
+        "Get a Service Quote",
+        "Commercial Maintenance",
+        "Pump Station Service",
+        "Call MTP Today",
+        "Sump Pump Maintenance",
+        "Well Pump Service",
+        "MTP Pump Servicing"
+      ],
+      "descriptions": [
+        "Preventative pump maintenance from Malcolm Thompson Pumps. Extend pump life and uptime.",
+        "Commercial and industrial pump maintenance services. Service centres in Perth and Sydney.",
+        "Pump station maintenance and servicing from MTP. Get a maintenance quote today.",
+        "Regular pump servicing prevents costly breakdowns. Call MTP for a maintenance plan."
+      ]
+    },
+    "Pump Repair": {
+      "headlines": [
+        "Pump Repair at MTP",
+        "Water Pump Repairs",
+        "Get a Repair Quote",
+        "Bore Pump Repairs",
+        "Hydraulic Pump Repair",
+        "Industrial Pump Repair",
+        "Call MTP Today",
+        "Pump Service Centre",
+        "Mining Pump Repair",
+        "Chemical Pump Repair"
+      ],
+      "descriptions": [
+        "Pump repair services from Malcolm Thompson Pumps. Water, bore, hydraulic, and industrial.",
+        "Expert pump repair and service from MTP. Service centres in Perth and Sydney.",
+        "Water pump, bore pump, and hydraulic pump repairs. Get a quote from MTP today.",
+        "Industrial and mining pump repair specialists. Fast turnaround from MTP Australia."
+      ]
+    },
+    "Pump Repair Perth": {
+      "headlines": [
+        "Pump Repairs Perth",
+        "Perth Pump Service",
+        "MTP Perth Service",
+        "Get a Perth Quote",
+        "Pool Pump Repairs Perth",
+        "Pump Servicing Perth",
+        "Call MTP Perth",
+        "Perth Pump Maintenance",
+        "Perth Service Centre",
+        "Davey Pump Repairs"
+      ],
+      "descriptions": [
+        "Pump repairs in Perth from Malcolm Thompson Pumps. Full service centre in Perth.",
+        "Perth pump servicing, maintenance, and repair. Pool pumps, bore pumps, and more at MTP.",
+        "Perth's trusted pump repair service. Get a quote from MTP Perth service centre today.",
+        "Davey pump repairs and all major brands serviced in Perth. Call MTP for fast service."
+      ]
+    },
+    "Pump Repair Sydney": {
+      "headlines": [
+        "Pump Repairs Sydney",
+        "Sydney Pump Service",
+        "MTP Sydney Service",
+        "Get a Sydney Quote",
+        "Pump Servicing Sydney",
+        "24/7 Service Sydney",
+        "Call MTP Sydney",
+        "Sydney Service Centre",
+        "Water Pump Repairs",
+        "Fire Pump Service"
+      ],
+      "descriptions": [
+        "Pump repairs in Sydney from Malcolm Thompson Pumps. Full service centre in Sydney.",
+        "Sydney pump servicing, maintenance, and repair. Water pumps and fire pumps at MTP.",
+        "Sydney's trusted pump repair service. Get a quote from MTP Sydney service centre today.",
+        "24/7 pump service in Sydney. Laser alignment and preventative maintenance from MTP."
+      ]
+    }
+  }
+}

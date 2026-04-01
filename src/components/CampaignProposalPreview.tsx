@@ -491,20 +491,43 @@ const CampaignProposalPreviewInner = () => {
           return fields
         }
 
-        const campaignMap = new Map<string, Map<string, { keywords: string[]; landingPage: string; status: string }>>()
+        type ImportedKeyword = {
+          text: string
+          existingCampaign: string
+          existingAdGroup: string
+          existingClicks: number
+          existingImpressions: number
+          existingCost: number
+          existingConversions: number
+        }
+        const campaignMap = new Map<string, Map<string, { keywords: ImportedKeyword[]; landingPage: string; status: string }>>()
         for (const line of lines.slice(1)) {
           const f = parseLine(line)
           const camp = f[0]?.trim()
           const ag = f[1]?.trim()
           const kw = f[2]?.trim()
           const lp = f[3]?.trim() || ''
+          const existingCamp = f[4]?.trim() || ''
+          const existingAg = f[5]?.trim() || ''
+          const clicks = parseFloat(f[6]) || 0
+          const impressions = parseFloat(f[7]) || 0
+          const cost = parseFloat(f[8]) || 0
+          const conversions = parseFloat(f[9]) || 0
           const status = f[11]?.trim() || 'exists'
           if (!camp || !ag || !kw) continue
 
           if (!campaignMap.has(camp)) campaignMap.set(camp, new Map())
           const agMap = campaignMap.get(camp)!
           if (!agMap.has(ag)) agMap.set(ag, { keywords: [], landingPage: lp, status })
-          agMap.get(ag)!.keywords.push(kw)
+          agMap.get(ag)!.keywords.push({
+            text: kw,
+            existingCampaign: existingCamp,
+            existingAdGroup: existingAg,
+            existingClicks: clicks,
+            existingImpressions: impressions,
+            existingCost: cost,
+            existingConversions: conversions,
+          })
         }
 
         const totalCampaigns = campaignMap.size
@@ -530,13 +553,19 @@ const CampaignProposalPreviewInner = () => {
             name: agName,
             theme: agName,
             keywords: data.keywords.map((kw) => ({
-              text: kw,
+              text: kw.text,
               matchType: 'PHRASE' as const,
               monthlySearchVolume: 0,
               competition: 'UNKNOWN',
               competitionIndex: 0,
               lowCpcMicros: 0,
               highCpcMicros: 0,
+              ...(kw.existingCampaign ? { existingCampaign: kw.existingCampaign } : {}),
+              ...(kw.existingAdGroup ? { existingAdGroup: kw.existingAdGroup } : {}),
+              ...(kw.existingClicks ? { existingClicks: kw.existingClicks } : {}),
+              ...(kw.existingImpressions ? { existingImpressions: kw.existingImpressions } : {}),
+              ...(kw.existingCost ? { existingCost: kw.existingCost } : {}),
+              ...(kw.existingConversions ? { existingConversions: kw.existingConversions } : {}),
             })),
             totalMonthlyVolume: 0,
             landingPage: {
