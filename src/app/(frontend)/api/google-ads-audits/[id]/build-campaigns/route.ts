@@ -131,7 +131,7 @@ export async function POST(
     after(async () => {
       try {
         fetch(
-          `${GROWTH_TOOLS_URL}/api/google-ads/campaign-build/cms`,
+          `${GROWTH_TOOLS_URL}/api/google-ads/campaign-builder/cms`,
           {
             method: "POST",
             headers: {
