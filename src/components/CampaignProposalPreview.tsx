@@ -521,29 +521,53 @@ const CampaignProposalPreviewInner = () => {
 
         setImportStatus(`Parsed: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Saving...`)
 
-        // Save to CMS via PATCH
+        // Build proposedCampaigns in the shape the preview UI expects
+        const importedCampaigns = Array.from(campaignMap.entries()).map(([campName, agMap]) => ({
+          name: campName,
+          campaignType: campName.toLowerCase().includes('brand') ? 'brand' as const : 'generic' as const,
+          channelType: 'SEARCH' as const,
+          adGroups: Array.from(agMap.entries()).map(([agName, data]) => ({
+            name: agName,
+            theme: agName,
+            keywords: data.keywords.map((kw) => ({
+              text: kw,
+              matchType: 'PHRASE' as const,
+              monthlySearchVolume: 0,
+              competition: 'UNKNOWN',
+              competitionIndex: 0,
+              lowCpcMicros: 0,
+              highCpcMicros: 0,
+            })),
+            totalMonthlyVolume: 0,
+            landingPage: {
+              url: data.landingPage || null,
+              status: (data.status || 'exists') as 'exists' | 'needs-improvement' | 'create',
+            },
+            sourcePageUrl: null,
+          })),
+          totalMonthlyVolume: 0,
+        }))
+
+        // Merge into existing proposal (keep metadata like discoveredPages, competitors)
+        // or create a minimal proposal shell if none exists
+        const updatedProposal = proposal
+          ? { ...proposal, proposedCampaigns: importedCampaigns }
+          : { proposedCampaigns: importedCampaigns, discoveredPages: [], competitors: [], landingPagesToCreate: [], landingPagesToImprove: [], structureComparison: [], priorityRanking: [] }
+
+        // Save to CMS via PATCH — update both campaignProposal (for UI) and approvedCampaignStructure (for reference)
         const res = await fetch(`/api/google-ads-audits/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
             campaignProposalStatus: 'approved',
-            approvedCampaignStructure: Array.from(campaignMap.entries()).map(([campName, agMap]) => ({
-              name: campName,
-              campaignType: campName.toLowerCase().includes('brand') ? 'brand' : 'generic',
-              channelType: 'SEARCH',
-              adGroups: Array.from(agMap.entries()).map(([agName, data]) => ({
-                name: agName,
-                keywords: data.keywords,
-                landingPage: data.landingPage,
-                landingPageStatus: data.status,
-              })),
-            })),
+            campaignProposal: updatedProposal,
+            approvedCampaignStructure: importedCampaigns,
           }),
         })
 
         if (res.ok) {
-          setImportStatus(`Saved: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Status set to Approved.`)
+          setImportStatus(`Saved: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Status set to Approved. Refresh the page to see updated structure.`)
         } else {
           const err = await res.json().catch(() => ({}))
           setImportStatus(`Error saving: ${(err as any).message || res.statusText}`)
