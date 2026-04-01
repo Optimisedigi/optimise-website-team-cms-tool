@@ -1217,9 +1217,6 @@ export async function POST(request: NextRequest) {
   await run("google_ads_audits.campaign_build_started_at", "ALTER TABLE `google_ads_audits` ADD `campaign_build_started_at` text");
   await run("google_ads_audits.campaign_build_completed_at", "ALTER TABLE `google_ads_audits` ADD `campaign_build_completed_at` text");
 
-  // One-time: reset stuck build status
-  await run("reset_stuck_build_status", "UPDATE `google_ads_audits` SET `campaign_build_status` = NULL, `campaign_build_error` = NULL, `campaign_build_started_at` = NULL WHERE `campaign_build_status` = 'building'");
-
   // Campaign Proposal Negative Keywords (array table for google_ads_audits)
   // Note: dbName shortened to "gads_proposal_negatives" to avoid 63-char enum name limit
   await run("gads_proposal_negatives_table", `
