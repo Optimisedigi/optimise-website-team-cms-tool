@@ -1277,8 +1277,6 @@ export async function POST(request: NextRequest) {
   await run("clean_empty_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conversion_goal` = NULL WHERE `proposal_conversion_goal` = ''");
   await run("clean_empty_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_service_radius` = NULL WHERE `proposal_service_radius` = ''");
 
-  // Clear oversized campaign proposal data that causes 413 on Vercel (one-time cleanup)
-  await run("clear_oversized_proposals", "UPDATE `google_ads_audits` SET `campaign_proposal` = NULL, `campaign_proposal_email_html` = NULL, `campaign_proposal_status` = 'pending' WHERE `campaign_proposal` IS NOT NULL");
 
   // Clear rawData (full Google Ads API dump, multi-MB) — it's only needed during scoring and
   // causes 413 on every admin save since Payload sends the full document body.

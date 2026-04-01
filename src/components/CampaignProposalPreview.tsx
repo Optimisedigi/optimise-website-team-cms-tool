@@ -448,14 +448,21 @@ const CampaignProposalPreviewInner = () => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.csv'
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (!file) return
+    // Attach to DOM so the browser keeps the reference alive until onchange fires
+    input.style.display = 'none'
+    document.body.appendChild(input)
 
-      setImportStatus('Reading CSV...')
-      const csvContent = await file.text()
+    input.onchange = async (e) => {
+      // Clean up the hidden input
+      document.body.removeChild(input)
 
       try {
+        const file = (e.target as HTMLInputElement).files?.[0]
+        if (!file) return
+
+        setImportStatus('Reading CSV...')
+        const csvContent = await file.text()
+
         // Parse CSV locally into campaign structure
         const lines = csvContent.split('\n').filter((l) => l.trim())
         if (lines.length < 2) {
@@ -506,6 +513,11 @@ const CampaignProposalPreviewInner = () => {
           for (const ag of m.values()) s += ag.keywords.length
           return s
         }, 0)
+
+        if (totalKeywords === 0) {
+          setImportStatus('Error: No valid rows found. Check that your CSV has columns: Campaign, Ad Group, Keyword, Landing Page (columns 1-4).')
+          return
+        }
 
         setImportStatus(`Parsed: ${totalCampaigns} campaigns, ${totalAdGroups} ad groups, ${totalKeywords} keywords. Saving...`)
 
