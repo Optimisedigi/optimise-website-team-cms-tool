@@ -280,6 +280,7 @@
     flex-shrink: 0 !important;
     width: 14px !important;
     height: 14px !important;
+    margin-right: 8px !important;
     background: currentColor !important;
     -webkit-mask: url("data:image/svg+xml,#{$path}") no-repeat center / contain !important;
     mask: url("data:image/svg+xml,#{$path}") no-repeat center / contain !important;
@@ -389,24 +390,6 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E#{$svg-close}");
 }
 
-// Active nav link: ensure the ::before icon remains visible
-// Payload may override ::before on the active state, so we use !important on all properties
-.od-nav-active.nav__link::before,
-.nav__link.od-nav-active::before,
-a.od-nav-active::before {
-  content: '' !important;
-  display: inline-block !important;
-  flex-shrink: 0 !important;
-  width: 14px !important;
-  height: 14px !important;
-  background: #38bdf8 !important;
-  -webkit-mask-size: contain !important;
-  mask-size: contain !important;
-  -webkit-mask-repeat: no-repeat !important;
-  mask-repeat: no-repeat !important;
-  -webkit-mask-position: center !important;
-  mask-position: center !important;
-}
 // Hide Payload's default active indicator (we use our own blue highlight)
 .od-nav-active .nav__link-indicator {
   display: none !important;
