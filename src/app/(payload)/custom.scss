@@ -388,22 +388,8 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E#{$svg-close}");
 }
 
-// Ensure nav icons persist on active/selected links and add highlight
-// Payload v3 may use .active, [aria-current], or data attributes for the active state
-.nav a.nav__link.active,
-.nav a.nav__link[aria-current="page"],
-.nav a.nav__link[aria-current="true"],
-.nav .nav__link.active,
-.nav [class*="nav-"] a[aria-current] {
-  background: rgba(56, 189, 248, 0.12) !important;
-  border-radius: 6px;
-  color: #38bdf8 !important;
-}
-.nav a.nav__link.active::before,
-.nav a.nav__link[aria-current="page"]::before,
-.nav a.nav__link[aria-current="true"]::before,
-.nav .nav__link.active::before,
-.nav [class*="nav-"] a[aria-current]::before {
+// Active nav link highlight (applied via JS in SidebarNavExtras)
+.nav a.od-nav-active::before {
   display: inline-block !important;
   width: 14px !important;
   height: 14px !important;
@@ -412,6 +398,19 @@ $svg-close: "%3C/svg%3E";
   mask-size: contain !important;
   mask-repeat: no-repeat !important;
   mask-position: center !important;
+}
+
+// Mobile: move close button to top-right so it doesn't cover logo
+@media (max-width: 768px) {
+  .nav-toggler,
+  .nav-toggler--is-open,
+  button[class*="nav-toggler"] {
+    position: absolute !important;
+    top: 12px !important;
+    right: 12px !important;
+    left: auto !important;
+    z-index: 100;
+  }
 }
 
 // Bottom controls

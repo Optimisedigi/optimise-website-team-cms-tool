@@ -59,41 +59,41 @@ const ICONS = {
 }
 
 const SidebarNavExtras = () => {
-  // Watch for active nav link changes and ensure icons + highlight persist
+  // Watch for active nav link and apply highlight + keep icon visible
   useEffect(() => {
+    let prevPath = ''
+
     function applyActiveStyles() {
-      const allLinks = document.querySelectorAll('.nav a.nav__link, [class*="nav"] a[class*="link"]')
+      const currentPath = window.location.pathname
+      if (currentPath === prevPath) return
+      prevPath = currentPath
+
+      // Find all nav links (Payload uses a.nav__link inside .nav)
+      const allLinks = document.querySelectorAll('.nav a[href]')
       allLinks.forEach((link) => {
-        const el = link as HTMLElement
-        const isActive = el.classList.contains('active') ||
-          el.getAttribute('aria-current') === 'page' ||
-          el.getAttribute('aria-current') === 'true'
+        const el = link as HTMLAnchorElement
+        const href = el.getAttribute('href') || ''
+        // Active if current path starts with the link href (and href is specific enough)
+        const isActive = href.length > 7 && currentPath.startsWith(href)
 
         if (isActive) {
           el.style.background = 'rgba(56, 189, 248, 0.12)'
           el.style.borderRadius = '6px'
           el.style.color = '#38bdf8'
+          // Ensure the ::before icon stays visible by adding a class
+          el.classList.add('od-nav-active')
         } else {
           el.style.background = ''
           el.style.borderRadius = ''
           el.style.color = ''
+          el.classList.remove('od-nav-active')
         }
       })
     }
 
     applyActiveStyles()
-    const observer = new MutationObserver(applyActiveStyles)
-    const nav = document.querySelector('.nav, nav')
-    if (nav) {
-      observer.observe(nav, { subtree: true, attributes: true, attributeFilter: ['class', 'aria-current'] })
-    }
-    // Also re-apply on route changes
-    const interval = setInterval(applyActiveStyles, 1000)
-
-    return () => {
-      observer.disconnect()
-      clearInterval(interval)
-    }
+    const interval = setInterval(applyActiveStyles, 500)
+    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
