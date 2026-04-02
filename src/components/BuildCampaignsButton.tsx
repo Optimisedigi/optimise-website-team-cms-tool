@@ -39,6 +39,8 @@ const BuildCampaignsButtonInner = () => {
   const [adCopy, setAdCopy] = useState<AdCopyMap>({})
   const [expandedAg, setExpandedAg] = useState<string | null>(null)
   const [buildResult, setBuildResult] = useState<any>(null)
+  const [previewResult, setPreviewResult] = useState<any>(null)
+  const [previewing, setPreviewing] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const stopPolling = useCallback(() => {
@@ -127,6 +129,37 @@ const BuildCampaignsButtonInner = () => {
   const totalAdGroups = campaignSummaries.reduce((s, c) => s + c.adGroupCount, 0)
   const totalKeywords = campaignSummaries.reduce((s, c) => s + c.keywordCount, 0)
 
+  const handlePreview = async () => {
+    setPreviewing(true)
+    setPreviewResult(null)
+    setError(null)
+    setMessage(null)
+
+    try {
+      const res = await fetch(`/api/google-ads-audits/${id}/preview-build`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+
+      if (!res.ok) {
+        let errorMsg = `Preview failed (${res.status})`
+        try {
+          const data = await res.json()
+          if (data.error) errorMsg = data.error
+        } catch { /* not JSON */ }
+        setError(errorMsg)
+        setPreviewing(false)
+        return
+      }
+
+      const preview = await res.json()
+      setPreviewResult(preview)
+    } catch {
+      setError('Network error during preview.')
+    }
+    setPreviewing(false)
+  }
+
   // Load saved ad copy when modal opens
   const handleOpenModal = useCallback(() => {
     if (savedAdCopy && typeof savedAdCopy === 'object') {
@@ -198,8 +231,28 @@ const BuildCampaignsButtonInner = () => {
 
   return (
     <div style={{ marginBottom: 20, marginTop: 16 }}>
-      {/* Main button */}
+      {/* Buttons */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={handlePreview}
+          disabled={isBuilding || previewing}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 20px',
+            background: previewing ? '#6b7280' : '#2563eb',
+            color: '#fff',
+            borderRadius: 8,
+            border: 'none',
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: isBuilding || previewing ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {previewing ? 'Analysing...' : 'Preview Build'}
+        </button>
         <button
           type="button"
           onClick={handleOpenModal}
@@ -253,6 +306,93 @@ const BuildCampaignsButtonInner = () => {
 
       {message && <p style={{ marginTop: 8, fontSize: 13, color: '#059669' }}>{message}</p>}
       {error && <p style={{ marginTop: 8, fontSize: 13, color: '#dc2626' }}>{error}</p>}
+
+      {/* Preview results */}
+      {previewResult && (
+        <div style={{ marginTop: 12, padding: 16, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1e40af' }}>
+              Build Preview: {previewResult.account?.name}
+            </h4>
+            <button
+              type="button"
+              onClick={() => setPreviewResult(null)}
+              style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#64748b' }}
+            >
+              x
+            </button>
+          </div>
+
+          {/* Summary stats */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Campaigns to merge', value: previewResult.summary?.campaignsToMerge, color: '#1d4ed8' },
+              { label: 'Campaigns to create', value: previewResult.summary?.campaignsToCreate, color: '#15803d' },
+              { label: 'Ad groups to merge', value: previewResult.summary?.adGroupsToMerge, color: '#1d4ed8' },
+              { label: 'Ad groups to create', value: previewResult.summary?.adGroupsToCreate, color: '#15803d' },
+              { label: 'Ad groups to pause', value: previewResult.summary?.adGroupsToPause, color: '#b45309' },
+              { label: 'Keywords to add', value: previewResult.summary?.keywordsToAdd, color: '#7c3aed' },
+            ].filter(s => s.value > 0).map((s) => (
+              <div key={s.label} style={{ padding: '6px 12px', background: '#fff', borderRadius: 6, border: '1px solid #dbeafe', textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Campaign table (shareable with agency) */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 12, background: '#fff', borderRadius: 6, overflow: 'hidden' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #dbeafe' }}>
+                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Existing Campaign</th>
+                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>New Campaign Name</th>
+                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Action</th>
+                <th style={{ textAlign: 'center', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Overlap</th>
+                <th style={{ textAlign: 'center', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Ad Groups</th>
+                <th style={{ textAlign: 'center', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Keywords</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(previewResult.campaigns || []).map((c: any, i: number) => (
+                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '8px 10px', color: '#64748b' }}>{c.existingName || '\u2014'}</td>
+                  <td style={{ padding: '8px 10px', fontWeight: 500, color: '#1e293b' }}>{c.proposedName}</td>
+                  <td style={{ padding: '8px 10px' }}>
+                    <span style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600,
+                      background: c.action === 'merge' ? '#dbeafe' : '#dcfce7',
+                      color: c.action === 'merge' ? '#1d4ed8' : '#15803d',
+                    }}>
+                      {c.action === 'merge' ? 'Merge' : 'New'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', color: '#475569' }}>{c.keywordOverlap || '\u2014'}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', color: '#475569' }}>{c.adGroups?.length || 0}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', color: '#475569' }}>{c.totalKeywords || 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Action log */}
+          <details>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#1e40af' }}>
+              Detailed action plan ({previewResult.actions?.length || 0} actions)
+            </summary>
+            <div style={{ marginTop: 6, padding: 10, background: '#fff', borderRadius: 6, maxHeight: 300, overflow: 'auto' }}>
+              {(previewResult.actions || []).map((action: string, i: number) => (
+                <div key={i} style={{ fontSize: 12, color: '#475569', lineHeight: 1.6, paddingLeft: action.startsWith('  ') ? 16 : 0 }}>
+                  {action}
+                </div>
+              ))}
+            </div>
+          </details>
+
+          <p style={{ marginTop: 10, fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>
+            This is a preview only. No changes have been made. Click "Build Campaigns in Google Ads" to execute.
+          </p>
+        </div>
+      )}
 
       {/* Detailed build report */}
       {buildResult?.actions?.length > 0 && (
