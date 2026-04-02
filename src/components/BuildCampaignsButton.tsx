@@ -309,9 +309,9 @@ const BuildCampaignsButtonInner = () => {
 
       {/* Preview results */}
       {previewResult && (
-        <div style={{ marginTop: 12, padding: 16, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+        <div style={{ marginTop: 12, padding: 16, background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1e40af' }}>
+            <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1e293b' }}>
               Build Preview: {previewResult.account?.name}
             </h4>
             <button
@@ -333,7 +333,7 @@ const BuildCampaignsButtonInner = () => {
               { label: 'Ad groups to pause', value: previewResult.summary?.adGroupsToPause, color: '#b45309' },
               { label: 'Keywords to add', value: previewResult.summary?.keywordsToAdd, color: '#7c3aed' },
             ].filter(s => s.value > 0).map((s) => (
-              <div key={s.label} style={{ padding: '6px 12px', background: '#fff', borderRadius: 6, border: '1px solid #dbeafe', textAlign: 'center' }}>
+              <div key={s.label} style={{ padding: '6px 12px', background: '#fff', borderRadius: 6, border: '1px solid #d1d5db', textAlign: 'center' }}>
                 <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
                 <div style={{ fontSize: 10, color: '#64748b' }}>{s.label}</div>
               </div>
@@ -341,27 +341,27 @@ const BuildCampaignsButtonInner = () => {
           </div>
 
           {/* Campaign table (shareable with agency) */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 12, background: '#fff', borderRadius: 6, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 12, background: '#fff', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db' }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #dbeafe' }}>
-                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Existing Campaign</th>
-                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>New Campaign Name</th>
-                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Action</th>
-                <th style={{ textAlign: 'center', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Overlap</th>
-                <th style={{ textAlign: 'center', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Ad Groups</th>
-                <th style={{ textAlign: 'center', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Keywords</th>
+              <tr style={{ borderBottom: '2px solid #9ca3af', background: '#f9fafb' }}>
+                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#374151', fontWeight: 600 }}>Existing Campaign</th>
+                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#374151', fontWeight: 600 }}>New Campaign Name</th>
+                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#374151', fontWeight: 600 }}>Action</th>
+                <th style={{ textAlign: 'center', padding: '8px 10px', color: '#374151', fontWeight: 600 }}>Overlap</th>
+                <th style={{ textAlign: 'center', padding: '8px 10px', color: '#374151', fontWeight: 600 }}>Ad Groups</th>
+                <th style={{ textAlign: 'center', padding: '8px 10px', color: '#374151', fontWeight: 600 }}>Keywords</th>
               </tr>
             </thead>
             <tbody>
               {(previewResult.campaigns || []).map((c: any, i: number) => (
-                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <tr key={i} style={{ borderBottom: '1px solid #d1d5db' }}>
                   <td style={{ padding: '8px 10px', color: '#64748b' }}>{c.existingName || '\u2014'}</td>
                   <td style={{ padding: '8px 10px', fontWeight: 500, color: '#1e293b' }}>{c.proposedName}</td>
                   <td style={{ padding: '8px 10px' }}>
                     <span style={{
                       fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600,
-                      background: c.action === 'merge' ? '#dbeafe' : '#dcfce7',
-                      color: c.action === 'merge' ? '#1d4ed8' : '#15803d',
+                      background: c.action === 'merge' ? '#e0e7ff' : '#dcfce7',
+                      color: c.action === 'merge' ? '#3730a3' : '#15803d',
                     }}>
                       {c.action === 'merge' ? 'Merge' : 'New'}
                     </span>
@@ -376,7 +376,7 @@ const BuildCampaignsButtonInner = () => {
 
           {/* Action log */}
           <details>
-            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#1e40af' }}>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#374151' }}>
               Detailed action plan ({previewResult.actions?.length || 0} actions)
             </summary>
             <div style={{ marginTop: 6, padding: 10, background: '#fff', borderRadius: 6, maxHeight: 300, overflow: 'auto' }}>
