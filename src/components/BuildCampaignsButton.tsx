@@ -38,6 +38,7 @@ const BuildCampaignsButtonInner = () => {
   const [confirmed, setConfirmed] = useState(false)
   const [adCopy, setAdCopy] = useState<AdCopyMap>({})
   const [expandedAg, setExpandedAg] = useState<string | null>(null)
+  const [buildResult, setBuildResult] = useState<any>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const stopPolling = useCallback(() => {
@@ -64,9 +65,16 @@ const BuildCampaignsButtonInner = () => {
           setLoading(false)
           setStage('')
           const r = data.result
-          setMessage(
-            `Campaigns built successfully. ${r?.campaignsCreated || 0} created, ${r?.campaignsRenamed || 0} renamed, ${r?.adGroupsCreated || 0} ad groups, ${r?.adsCreated || 0} ads.`
-          )
+          setBuildResult(r)
+          const parts = []
+          if (r?.campaignsMerged) parts.push(`${r.campaignsMerged} merged`)
+          if (r?.campaignsCreated) parts.push(`${r.campaignsCreated} created`)
+          if (r?.campaignsRenamed) parts.push(`${r.campaignsRenamed} renamed`)
+          if (r?.adGroupsMerged) parts.push(`${r.adGroupsMerged} ad groups merged`)
+          if (r?.adGroupsCreated) parts.push(`${r.adGroupsCreated} ad groups created`)
+          if (r?.adGroupsPaused) parts.push(`${r.adGroupsPaused} ad groups paused`)
+          if (r?.keywordsAdded) parts.push(`${r.keywordsAdded} keywords added`)
+          setMessage(`Build complete: ${parts.join(', ')}.`)
         } else if (data.status === 'failed' || data.status === 'partial_failure') {
           stopPolling()
           setLoading(false)
@@ -245,6 +253,54 @@ const BuildCampaignsButtonInner = () => {
 
       {message && <p style={{ marginTop: 8, fontSize: 13, color: '#059669' }}>{message}</p>}
       {error && <p style={{ marginTop: 8, fontSize: 13, color: '#dc2626' }}>{error}</p>}
+
+      {/* Detailed build report */}
+      {buildResult?.actions?.length > 0 && (
+        <details style={{ marginTop: 12 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+            Build Report ({buildResult.actions.length} actions)
+          </summary>
+          <div style={{ marginTop: 8, padding: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, maxHeight: 400, overflow: 'auto' }}>
+            {/* Campaign summary */}
+            {buildResult.campaigns?.map((c: any, i: number) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 13 }}>
+                <span style={{
+                  display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                  background: c.success ? '#22c55e' : '#ef4444',
+                }} />
+                <strong>{c.name}</strong>
+                <span style={{ color: '#64748b' }}>
+                  {c.action === 'merged' && c.mergedFrom ? `merged from "${c.mergedFrom}"` : c.action === 'created' ? 'new' : 'up to date'}
+                </span>
+                <span style={{ color: '#9ca3af' }}>
+                  ({c.adGroupCount} ad groups, {c.keywordCount} keywords)
+                </span>
+              </div>
+            ))}
+
+            {/* Action log */}
+            <div style={{ marginTop: 10, borderTop: '1px solid #e2e8f0', paddingTop: 10 }}>
+              {buildResult.actions.map((action: string, i: number) => (
+                <div key={i} style={{
+                  fontSize: 12, color: '#475569', lineHeight: 1.6,
+                  paddingLeft: action.startsWith('  ') ? 16 : 0,
+                }}>
+                  {action}
+                </div>
+              ))}
+            </div>
+
+            {buildResult.errors?.length > 0 && (
+              <div style={{ marginTop: 10, borderTop: '1px solid #fecaca', paddingTop: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#dc2626', marginBottom: 4 }}>Errors:</div>
+                {buildResult.errors.map((e: string, i: number) => (
+                  <div key={i} style={{ fontSize: 12, color: '#dc2626' }}>{e}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        </details>
+      )}
 
       {/* Confirmation Modal */}
       {showModal && (
