@@ -309,7 +309,7 @@ const BuildCampaignsButtonInner = () => {
 
       {/* Preview results */}
       {previewResult && (
-        <div style={{ marginTop: 12, padding: 16, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8 }}>
+        <div style={{ marginTop: 12, padding: 16, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1e40af' }}>
               Build Preview: {previewResult.account?.name}
