@@ -43,10 +43,11 @@ function makeEntry(text: string, pin: 1 | 2 | 3 | null): AdCopyEntry {
   return pin ? { text, pinnedPosition: pin } : { text }
 }
 
-function PinSelector({ value, onChange }: { value: 1 | 2 | 3 | null; onChange: (v: 1 | 2 | 3 | null) => void }) {
+function PinSelector({ value, onChange, maxPins = 3 }: { value: 1 | 2 | 3 | null; onChange: (v: 1 | 2 | 3 | null) => void; maxPins?: 2 | 3 }) {
+  const positions = maxPins === 2 ? [1, 2] as const : [1, 2, 3] as const;
   return (
     <div style={{ display: 'flex', gap: 2 }}>
-      {([1, 2, 3] as const).map((pos) => (
+      {positions.map((pos) => (
         <button
           key={pos}
           type="button"
@@ -81,15 +82,15 @@ function PinningInfo() {
         {open ? 'Hide' : 'About'} headline pinning
       </button>
       {open && (
-        <div style={{ marginTop: 6, padding: 12, background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, fontSize: 12, color: '#4c1d95', lineHeight: 1.6 }}>
-          <strong>Pinning controls which position a headline appears in:</strong>
+        <div style={{ marginTop: 6, padding: 12, background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12, color: '#f1f5f9', lineHeight: 1.6 }}>
+          <strong style={{ color: '#fff' }}>Pinning controls which position a headline appears in:</strong>
           <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
-            <li><strong>Pin 1</strong> — This headline will always show in the first position</li>
-            <li><strong>Pin 2</strong> — This headline will always show in the second position</li>
-            <li><strong>Pin 3</strong> — This headline is less likely to be shown (third position is often hidden)</li>
-            <li><strong>No pin</strong> — Google will rotate this headline across any position for best performance</li>
+            <li><strong style={{ color: '#fff' }}>Pin 1</strong> — This headline will always show in the first position</li>
+            <li><strong style={{ color: '#fff' }}>Pin 2</strong> — This headline will always show in the second position</li>
+            <li><strong style={{ color: '#fff' }}>Pin 3</strong> — This headline is less likely to be shown (third position is often hidden)</li>
+            <li><strong style={{ color: '#fff' }}>No pin</strong> — Google will rotate this headline across any position for best performance</li>
           </ul>
-          <p style={{ margin: '6px 0 0', fontStyle: 'italic' }}>Google recommends minimal pinning for best ad performance. Only pin when specific messaging must appear in a specific position.</p>
+          <p style={{ margin: '6px 0 0', fontStyle: 'italic', color: '#94a3b8' }}>Google recommends minimal pinning for best ad performance. Only pin when specific messaging must appear in a specific position.</p>
         </div>
       )}
     </div>
@@ -294,7 +295,7 @@ function AdCopyEditorContent({
                       <div style={{ marginBottom: 16 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Headlines (max 30 characters)</span>
-                          <span style={{ fontSize: 11, color: '#9ca3af' }}>Pin</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', marginRight: 28 }}>Click to Pin</span>
                         </div>
                         {copy.headlines.map((h, i) => {
                           const text = getText(h)
@@ -325,7 +326,7 @@ function AdCopyEditorContent({
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Descriptions (max 90 characters)</span>
-                          <span style={{ fontSize: 11, color: '#9ca3af' }}>Pin</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', marginRight: 28 }}>Click to Pin</span>
                         </div>
                         {copy.descriptions.map((d, i) => {
                           const text = getText(d)
@@ -341,7 +342,7 @@ function AdCopyEditorContent({
                                   borderRadius: 6, outline: 'none', background: overLimit ? '#fef2f2' : '#fff',
                                 }} />
                               <span style={{ fontSize: 11, color: overLimit ? '#ef4444' : '#9ca3af', minWidth: 38, textAlign: 'right' }}>{text.length}/90</span>
-                              <PinSelector value={pinPos} onChange={(v) => updatePin(campName, agName, 'descriptions', i, v)} />
+                              <PinSelector value={pinPos} onChange={(v) => updatePin(campName, agName, 'descriptions', i, v)} maxPins={2} />
                               <button type="button" onClick={() => deleteDescription(campName, agName, i)}
                                 style={{ background: 'none', border: 'none', fontSize: 16, color: '#d1d5db', cursor: 'pointer', padding: '0 4px' }} title="Remove description">x</button>
                             </div>
