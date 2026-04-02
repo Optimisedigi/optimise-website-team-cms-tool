@@ -1647,13 +1647,46 @@ $svg-close: "%3C/svg%3E";
     font-size: 8px;
   }
 
-  // ── Boxes overflow containment ──
+  // ── Global overflow containment ──
+  // Prevent any element from causing horizontal scroll
+  body,
+  #__next,
+  .template-default,
+  .template-default__wrap,
+  .dashboard,
+  .od-dash,
+  .od-dash__layout,
+  .od-box,
+  .od-box__body,
+  .od-box__stats,
+  .gutter--left,
+  .gutter--right,
+  .gutter--left.gutter--right {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  // Boxes should shrink to fit
   .od-box {
-    max-width: 100%;
+    width: 100% !important;
+    min-width: 0 !important;
   }
 
   .od-box__body {
-    max-width: 100%;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  // Stat values should wrap
+  .od-box__stat-value {
+    overflow-wrap: break-word !important;
+    word-break: break-all !important;
+  }
+
+  // Any wide content should scroll within its container, not push the page
+  .od-box__body > * {
+    max-width: 100% !important;
   }
 }
 

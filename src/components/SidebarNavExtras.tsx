@@ -134,6 +134,48 @@ const SidebarNavExtras = () => {
     injectIconToExistingLink('/admin/collections/site-health-reports', ICONS.siteHealth)
   }, [])
 
+  // Mobile: bounce-back zoom — allow pinch zoom but snap back to 1x when released
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const isMobile = window.innerWidth <= 768 || 'ontouchstart' in window
+
+    if (!isMobile) return
+
+    let bounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    function resetZoom() {
+      const viewport = document.querySelector('meta[name="viewport"]')
+      if (viewport) {
+        // Briefly allow zoom reset
+        viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1')
+        requestAnimationFrame(() => {
+          viewport.setAttribute('content', 'width=device-width, initial-scale=1')
+        })
+      }
+    }
+
+    function onTouchEnd() {
+      if (bounceTimer) clearTimeout(bounceTimer)
+      bounceTimer = setTimeout(resetZoom, 300)
+    }
+
+    function onTouchStart() {
+      if (bounceTimer) {
+        clearTimeout(bounceTimer)
+        bounceTimer = null
+      }
+    }
+
+    document.addEventListener('touchend', onTouchEnd, { passive: true })
+    document.addEventListener('touchstart', onTouchStart, { passive: true })
+
+    return () => {
+      document.removeEventListener('touchend', onTouchEnd)
+      document.removeEventListener('touchstart', onTouchStart)
+      if (bounceTimer) clearTimeout(bounceTimer)
+    }
+  }, [])
+
   return null
 }
 
