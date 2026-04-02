@@ -197,10 +197,23 @@ Top Keywords: ${ag.keywords.join(", ")}${brandNote}`;
                 return truncated || d.slice(0, 90);
               });
 
+              // Inject brand headlines — replace last N headlines with brand ones
+              if (brandHeadlines.length > 0) {
+                const numToInject = Math.min(brandHeadlines.length, 3); // max 3 brand headlines per ad group
+                const uniqueBrand = brandHeadlines.filter(bh => !headlines.some((h: string) => h.toLowerCase() === bh.toLowerCase()));
+                for (let bi = 0; bi < Math.min(uniqueBrand.length, numToInject); bi++) {
+                  if (headlines.length >= 10) {
+                    headlines[headlines.length - 1 - bi] = uniqueBrand[bi];
+                  } else {
+                    headlines.push(uniqueBrand[bi]);
+                  }
+                }
+              }
+
               return {
                 campaignName: ag.campaignName,
                 adGroupName: ag.adGroupName,
-                headlines,
+                headlines: headlines.slice(0, 10),
                 descriptions,
               };
             })
