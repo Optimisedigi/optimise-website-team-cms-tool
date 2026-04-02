@@ -20,7 +20,81 @@ function AdPreviewMock({ headlines, descriptions, url }: { headlines: string[]; 
   )
 }
 
-type AdCopyMap = Record<string, Record<string, { headlines: string[]; descriptions: string[] }>>
+type AdCopyEntry = {
+  text: string
+  pinnedPosition?: 1 | 2 | 3 | null
+}
+
+type AdGroupCopy = {
+  headlines: (string | AdCopyEntry)[]
+  descriptions: (string | AdCopyEntry)[]
+}
+
+type AdCopyMap = Record<string, Record<string, AdGroupCopy>>
+
+// Normalize: support both string[] and AdCopyEntry[] formats
+function getText(item: string | AdCopyEntry): string {
+  return typeof item === 'string' ? item : item.text
+}
+function getPin(item: string | AdCopyEntry): 1 | 2 | 3 | null {
+  return typeof item === 'string' ? null : (item.pinnedPosition || null)
+}
+function makeEntry(text: string, pin: 1 | 2 | 3 | null): AdCopyEntry {
+  return pin ? { text, pinnedPosition: pin } : { text }
+}
+
+function PinSelector({ value, onChange }: { value: 1 | 2 | 3 | null; onChange: (v: 1 | 2 | 3 | null) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 2 }}>
+      {([1, 2, 3] as const).map((pos) => (
+        <button
+          key={pos}
+          type="button"
+          onClick={() => onChange(value === pos ? null : pos)}
+          title={`Pin to position ${pos}`}
+          style={{
+            width: 22, height: 22, fontSize: 11, fontWeight: 600,
+            border: value === pos ? '2px solid #7c3aed' : '1px solid #d1d5db',
+            borderRadius: 4,
+            background: value === pos ? '#ede9fe' : '#fff',
+            color: value === pos ? '#7c3aed' : '#9ca3af',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          {pos}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function PinningInfo() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{ background: 'none', border: 'none', fontSize: 12, color: '#6366f1', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+      >
+        {open ? 'Hide' : 'About'} headline pinning
+      </button>
+      {open && (
+        <div style={{ marginTop: 6, padding: 12, background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, fontSize: 12, color: '#4c1d95', lineHeight: 1.6 }}>
+          <strong>Pinning controls which position a headline appears in:</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+            <li><strong>Pin 1</strong> — This headline will always show in the first position</li>
+            <li><strong>Pin 2</strong> — This headline will always show in the second position</li>
+            <li><strong>Pin 3</strong> — This headline is less likely to be shown (third position is often hidden)</li>
+            <li><strong>No pin</strong> — Google will rotate this headline across any position for best performance</li>
+          </ul>
+          <p style={{ margin: '6px 0 0', fontStyle: 'italic' }}>Google recommends minimal pinning for best ad performance. Only pin when specific messaging must appear in a specific position.</p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function AdCopyEditorContent({
   data, pin,
@@ -43,25 +117,41 @@ function AdCopyEditorContent({
   const campaigns = Object.entries(adCopy)
   const totalAdGroups = campaigns.reduce((s, [, ags]) => s + Object.keys(ags).length, 0)
 
-  // Check if any headline/description is over limit
   const hasErrors = campaigns.some(([, ags]) =>
     Object.values(ags).some(copy =>
-      copy.headlines.some(h => h.length > 30) || copy.descriptions.some(d => d.length > 90)
+      copy.headlines.some(h => getText(h).length > 30) || copy.descriptions.some(d => getText(d).length > 90)
     )
   )
 
-  const updateHeadline = useCallback((camp: string, ag: string, index: number, value: string) => {
+  const updateHeadline = useCallback((camp: string, ag: string, index: number, text: string) => {
     setAdCopy(prev => {
       const next = JSON.parse(JSON.stringify(prev))
-      if (next[camp]?.[ag]) next[camp][ag].headlines[index] = value
+      if (next[camp]?.[ag]) {
+        const existing = next[camp][ag].headlines[index]
+        next[camp][ag].headlines[index] = makeEntry(text, getPin(existing))
+      }
       return next
     })
   }, [])
 
-  const updateDescription = useCallback((camp: string, ag: string, index: number, value: string) => {
+  const updateDescription = useCallback((camp: string, ag: string, index: number, text: string) => {
     setAdCopy(prev => {
       const next = JSON.parse(JSON.stringify(prev))
-      if (next[camp]?.[ag]) next[camp][ag].descriptions[index] = value
+      if (next[camp]?.[ag]) {
+        const existing = next[camp][ag].descriptions[index]
+        next[camp][ag].descriptions[index] = makeEntry(text, getPin(existing))
+      }
+      return next
+    })
+  }, [])
+
+  const updatePin = useCallback((camp: string, ag: string, type: 'headlines' | 'descriptions', index: number, pinPos: 1 | 2 | 3 | null) => {
+    setAdCopy(prev => {
+      const next = JSON.parse(JSON.stringify(prev))
+      if (next[camp]?.[ag]) {
+        const existing = next[camp][ag][type][index]
+        next[camp][ag][type][index] = makeEntry(getText(existing), pinPos)
+      }
       return next
     })
   }, [])
@@ -86,28 +176,14 @@ function AdCopyEditorContent({
     if (hasErrors) return
     setSaving(true)
     setSaveMsg(null)
-
     try {
       const res = await fetch('/api/ad-copy-comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slug: data.slug,
-          pin,
-          action: 'save-edits',
-          adCopy,
-        }),
+        body: JSON.stringify({ slug: data.slug, pin, action: 'save-edits', adCopy }),
       })
-
-      if (res.ok) {
-        setSaveMsg('Changes saved successfully.')
-      } else {
-        const err = await res.json().catch(() => ({}))
-        setSaveMsg(`Error: ${(err as any).error || 'Failed to save'}`)
-      }
-    } catch {
-      setSaveMsg('Error: Network failure')
-    }
+      setSaveMsg(res.ok ? 'Changes saved successfully.' : `Error: ${((await res.json().catch(() => ({}))).error || 'Failed to save')}`)
+    } catch { setSaveMsg('Error: Network failure') }
     setSaving(false)
   }, [adCopy, data.slug, pin, hasErrors])
 
@@ -115,32 +191,24 @@ function AdCopyEditorContent({
     if (hasErrors) return
     setSubmitting(true)
     setSaveMsg(null)
-
     try {
-      // Save edits first
       await fetch('/api/ad-copy-comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug: data.slug, pin, action: 'save-edits', adCopy }),
       })
-
-      // Then submit for approval
       const res = await fetch('/api/ad-copy-comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug: data.slug, pin, action: 'submit-approval' }),
       })
-
       if (res.ok) {
         setSubmitted(true)
-        setSaveMsg('Ad copy submitted for approval. The team will review your changes.')
+        setSaveMsg('Ad copy submitted for approval.')
       } else {
-        const err = await res.json().catch(() => ({}))
-        setSaveMsg(`Error: ${(err as any).error || 'Failed to submit'}`)
+        setSaveMsg(`Error: ${((await res.json().catch(() => ({}))).error || 'Failed to submit')}`)
       }
-    } catch {
-      setSaveMsg('Error: Network failure')
-    }
+    } catch { setSaveMsg('Error: Network failure') }
     setSubmitting(false)
   }, [adCopy, data.slug, pin, hasErrors])
 
@@ -152,9 +220,7 @@ function AdCopyEditorContent({
       }}>
         <div style={{ textAlign: 'center', maxWidth: 480, padding: 32 }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✓</div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1e293b', margin: '0 0 8px' }}>
-            Ad Copy Submitted
-          </h1>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1e293b', margin: '0 0 8px' }}>Ad Copy Submitted</h1>
           <p style={{ fontSize: 15, color: '#64748b', lineHeight: 1.6 }}>
             Your changes to the ad copy for <strong>{data.businessName}</strong> have been saved and submitted for approval. The Optimise Digital team will review and finalise the ad copy.
           </p>
@@ -164,51 +230,26 @@ function AdCopyEditorContent({
   }
 
   return (
-    <div style={{
-      minHeight: '100vh', background: '#f8fafc',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       {/* Header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '20px 24px', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#1e293b' }}>
-              Ad Copy Review: {data.businessName}
-            </h1>
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Ad Copy Review: {data.businessName}</h1>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
               {campaigns.length} campaigns, {totalAdGroups} ad groups. Edit headlines and descriptions directly, then save.
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {saveMsg && (
-              <span style={{ fontSize: 12, color: saveMsg.startsWith('Error') ? '#dc2626' : '#059669' }}>
-                {saveMsg}
-              </span>
+              <span style={{ fontSize: 12, color: saveMsg.startsWith('Error') ? '#dc2626' : '#059669' }}>{saveMsg}</span>
             )}
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || hasErrors}
-              style={{
-                padding: '10px 20px', fontSize: 14, fontWeight: 600,
-                background: saving ? '#6b7280' : hasErrors ? '#9ca3af' : '#64748b',
-                color: '#fff', border: 'none', borderRadius: 8,
-                cursor: saving || hasErrors ? 'not-allowed' : 'pointer',
-              }}
-            >
+            <button type="button" onClick={handleSave} disabled={saving || hasErrors}
+              style={{ padding: '10px 20px', fontSize: 14, fontWeight: 600, background: saving ? '#6b7280' : hasErrors ? '#9ca3af' : '#64748b', color: '#fff', border: 'none', borderRadius: 8, cursor: saving || hasErrors ? 'not-allowed' : 'pointer' }}>
               {saving ? 'Saving...' : 'Save Draft'}
             </button>
-            <button
-              type="button"
-              onClick={handleSubmitForApproval}
-              disabled={submitting || hasErrors}
-              style={{
-                padding: '10px 20px', fontSize: 14, fontWeight: 600,
-                background: submitting ? '#6b7280' : hasErrors ? '#9ca3af' : '#059669',
-                color: '#fff', border: 'none', borderRadius: 8,
-                cursor: submitting || hasErrors ? 'not-allowed' : 'pointer',
-              }}
-            >
+            <button type="button" onClick={handleSubmitForApproval} disabled={submitting || hasErrors}
+              style={{ padding: '10px 20px', fontSize: 14, fontWeight: 600, background: submitting ? '#6b7280' : hasErrors ? '#9ca3af' : '#059669', color: '#fff', border: 'none', borderRadius: 8, cursor: submitting || hasErrors ? 'not-allowed' : 'pointer' }}>
               {submitting ? 'Submitting...' : 'Submit for Approval'}
             </button>
           </div>
@@ -222,11 +263,11 @@ function AdCopyEditorContent({
 
       {/* Content */}
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 24px 60px' }}>
+        <PinningInfo />
+
         {campaigns.map(([campName, adGroups]) => (
           <div key={campName} style={{ marginBottom: 32 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#334155', margin: '0 0 12px', paddingBottom: 8, borderBottom: '2px solid #e2e8f0' }}>
-              {campName}
-            </h2>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#334155', margin: '0 0 12px', paddingBottom: 8, borderBottom: '2px solid #e2e8f0' }}>{campName}</h2>
 
             {Object.entries(adGroups).map(([agName, copy]) => {
               const agKey = `${campName}::${agName}`
@@ -235,119 +276,79 @@ function AdCopyEditorContent({
 
               return (
                 <div key={agName} style={{ marginBottom: 16, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                  {/* Ad group header */}
-                  <div
-                    style={{ padding: '12px 16px', background: '#f9fafb', borderBottom: '1px solid #e2e8f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                    onClick={() => setExpandedAg(isExpanded ? null : agKey)}
-                  >
+                  <div style={{ padding: '12px 16px', background: '#f9fafb', borderBottom: '1px solid #e2e8f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    onClick={() => setExpandedAg(isExpanded ? null : agKey)}>
                     <div>
                       <span style={{ fontSize: 15, fontWeight: 600, color: '#1e293b' }}>{agName}</span>
-                      <span style={{ marginLeft: 12, fontSize: 12, color: '#64748b' }}>
-                        {copy.headlines.length}h {copy.descriptions.length}d
-                      </span>
-                      {landingPage && (
-                        <span style={{ marginLeft: 12, fontSize: 11, color: '#6366f1' }}>
-                          {landingPage.replace(/^https?:\/\//, '').slice(0, 50)}
-                        </span>
-                      )}
+                      <span style={{ marginLeft: 12, fontSize: 12, color: '#64748b' }}>{copy.headlines.length}h {copy.descriptions.length}d</span>
+                      {landingPage && <span style={{ marginLeft: 12, fontSize: 11, color: '#6366f1' }}>{landingPage.replace(/^https?:\/\//, '').slice(0, 50)}</span>}
                     </div>
                     <span style={{ fontSize: 14, color: '#9ca3af' }}>{isExpanded ? '\u25B2' : '\u25BC'}</span>
                   </div>
 
                   {isExpanded && (
                     <div style={{ padding: 16 }}>
-                      {/* Google Ads Mock */}
-                      <AdPreviewMock headlines={copy.headlines} descriptions={copy.descriptions} url={landingPage} />
+                      <AdPreviewMock headlines={copy.headlines.map(getText)} descriptions={copy.descriptions.map(getText)} url={landingPage} />
 
                       {/* Headlines */}
                       <div style={{ marginBottom: 16 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                          Headlines (max 30 characters)
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Headlines (max 30 characters)</span>
+                          <span style={{ fontSize: 11, color: '#9ca3af' }}>Pin</span>
                         </div>
                         {copy.headlines.map((h, i) => {
-                          const overLimit = h.length > 30
+                          const text = getText(h)
+                          const pinPos = getPin(h)
+                          const overLimit = text.length > 30
                           return (
                             <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
                               <span style={{ fontSize: 12, color: '#9ca3af', minWidth: 22 }}>{i + 1}.</span>
-                              <input
-                                type="text"
-                                value={h}
-                                onChange={(e) => updateHeadline(campName, agName, i, e.target.value)}
-                                maxLength={30}
+                              <input type="text" value={text} onChange={(e) => updateHeadline(campName, agName, i, e.target.value)}
                                 style={{
                                   flex: 1, padding: '8px 10px', fontSize: 14,
                                   border: `1px solid ${overLimit ? '#ef4444' : '#d1d5db'}`,
-                                  borderRadius: 6, outline: 'none',
-                                  background: overLimit ? '#fef2f2' : '#fff',
-                                }}
-                              />
-                              <span style={{ fontSize: 11, color: overLimit ? '#ef4444' : '#9ca3af', minWidth: 38, textAlign: 'right' }}>
-                                {h.length}/30
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => deleteHeadline(campName, agName, i)}
-                                style={{
-                                  background: 'none', border: 'none', fontSize: 16,
-                                  color: '#d1d5db', cursor: 'pointer', padding: '0 4px',
-                                }}
-                                title="Remove headline"
-                              >
-                                x
-                              </button>
+                                  borderRadius: 6, outline: 'none', background: overLimit ? '#fef2f2' : '#fff',
+                                }} />
+                              <span style={{ fontSize: 11, color: overLimit ? '#ef4444' : '#9ca3af', minWidth: 38, textAlign: 'right' }}>{text.length}/30</span>
+                              <PinSelector value={pinPos} onChange={(v) => updatePin(campName, agName, 'headlines', i, v)} />
+                              <button type="button" onClick={() => deleteHeadline(campName, agName, i)}
+                                style={{ background: 'none', border: 'none', fontSize: 16, color: '#d1d5db', cursor: 'pointer', padding: '0 4px' }} title="Remove headline">x</button>
                             </div>
                           )
                         })}
                         {copy.headlines.length < 3 && (
-                          <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
-                            Minimum 3 headlines required ({copy.headlines.length} currently)
-                          </div>
+                          <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>Minimum 3 headlines required ({copy.headlines.length} currently)</div>
                         )}
                       </div>
 
                       {/* Descriptions */}
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                          Descriptions (max 90 characters)
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Descriptions (max 90 characters)</span>
+                          <span style={{ fontSize: 11, color: '#9ca3af' }}>Pin</span>
                         </div>
                         {copy.descriptions.map((d, i) => {
-                          const overLimit = d.length > 90
+                          const text = getText(d)
+                          const pinPos = getPin(d)
+                          const overLimit = text.length > 90
                           return (
                             <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
                               <span style={{ fontSize: 12, color: '#9ca3af', minWidth: 22 }}>{i + 1}.</span>
-                              <input
-                                type="text"
-                                value={d}
-                                onChange={(e) => updateDescription(campName, agName, i, e.target.value)}
-                                maxLength={90}
+                              <input type="text" value={text} onChange={(e) => updateDescription(campName, agName, i, e.target.value)}
                                 style={{
                                   flex: 1, padding: '8px 10px', fontSize: 14,
                                   border: `1px solid ${overLimit ? '#ef4444' : '#d1d5db'}`,
-                                  borderRadius: 6, outline: 'none',
-                                  background: overLimit ? '#fef2f2' : '#fff',
-                                }}
-                              />
-                              <span style={{ fontSize: 11, color: overLimit ? '#ef4444' : '#9ca3af', minWidth: 38, textAlign: 'right' }}>
-                                {d.length}/90
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => deleteDescription(campName, agName, i)}
-                                style={{
-                                  background: 'none', border: 'none', fontSize: 16,
-                                  color: '#d1d5db', cursor: 'pointer', padding: '0 4px',
-                                }}
-                                title="Remove description"
-                              >
-                                x
-                              </button>
+                                  borderRadius: 6, outline: 'none', background: overLimit ? '#fef2f2' : '#fff',
+                                }} />
+                              <span style={{ fontSize: 11, color: overLimit ? '#ef4444' : '#9ca3af', minWidth: 38, textAlign: 'right' }}>{text.length}/90</span>
+                              <PinSelector value={pinPos} onChange={(v) => updatePin(campName, agName, 'descriptions', i, v)} />
+                              <button type="button" onClick={() => deleteDescription(campName, agName, i)}
+                                style={{ background: 'none', border: 'none', fontSize: 16, color: '#d1d5db', cursor: 'pointer', padding: '0 4px' }} title="Remove description">x</button>
                             </div>
                           )
                         })}
                         {copy.descriptions.length < 2 && (
-                          <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>
-                            Minimum 2 descriptions required ({copy.descriptions.length} currently)
-                          </div>
+                          <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>Minimum 2 descriptions required ({copy.descriptions.length} currently)</div>
                         )}
                       </div>
                     </div>
@@ -365,7 +366,6 @@ function AdCopyEditorContent({
 export default function AdCopyPreviewPage() {
   const params = useParams()
   const slug = params?.slug as string
-
   if (!slug) return <div>Not found</div>
 
   return (
