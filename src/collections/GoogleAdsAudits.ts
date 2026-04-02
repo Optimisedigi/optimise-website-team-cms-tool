@@ -1498,27 +1498,13 @@ export const GoogleAdsAudits: CollectionConfig = {
     {
       name: "presentationPin",
       type: "text",
-      unique: true,
       admin: {
         position: "sidebar",
-        description: "4-digit PIN for presentation access (auto-generated)",
+        description: "4-digit PIN for presentation, ad copy preview, and dashboard access. Can match the client PIN for consistency.",
       },
-      validate: async (value: string | null | undefined, { req, id }: any) => {
+      validate: (value: string | null | undefined) => {
         if (!value) return true;
         if (!/^\d{4}$/.test(value)) return "PIN must be exactly 4 digits";
-        try {
-          const existing = await req.payload.find({
-            collection: "google-ads-audits",
-            where: {
-              presentationPin: { equals: value },
-              ...(id ? { id: { not_equals: id } } : {}),
-            },
-            limit: 1,
-          });
-          if (existing.totalDocs > 0) {
-            return `PIN "${value}" is already in use by another audit (${existing.docs[0].businessName}).`;
-          }
-        } catch { /* skip check if payload not available */ }
         return true;
       },
       hooks: {
