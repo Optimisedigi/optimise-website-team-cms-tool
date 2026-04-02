@@ -275,13 +275,14 @@
 // Each ::before uses a mask-image SVG matching the mini sidebar icons.
 @mixin nav-icon($path) {
   &::before {
-    content: '';
-    display: inline-block;
-    flex-shrink: 0;
-    width: 14px;
-    height: 14px;
-    background: currentColor;
-    mask: url("data:image/svg+xml,#{$path}") no-repeat center / contain;
+    content: '' !important;
+    display: inline-block !important;
+    flex-shrink: 0 !important;
+    width: 14px !important;
+    height: 14px !important;
+    background: currentColor !important;
+    -webkit-mask: url("data:image/svg+xml,#{$path}") no-repeat center / contain !important;
+    mask: url("data:image/svg+xml,#{$path}") no-repeat center / contain !important;
   }
 }
 
@@ -388,24 +389,27 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E#{$svg-close}");
 }
 
-// Active nav link highlight (applied via JS in SidebarNavExtras)
-// The .od-nav-active class is added by JS to active links
-.od-nav-active::before,
-a.od-nav-active::before,
-.nav__link.od-nav-active::before {
+// Active nav link: ensure the ::before icon remains visible
+// Payload may override ::before on the active state, so we use !important on all properties
+.od-nav-active.nav__link::before,
+.nav__link.od-nav-active::before,
+a.od-nav-active::before {
+  content: '' !important;
   display: inline-block !important;
+  flex-shrink: 0 !important;
   width: 14px !important;
   height: 14px !important;
   background: #38bdf8 !important;
-  flex-shrink: 0 !important;
+  -webkit-mask-size: contain !important;
   mask-size: contain !important;
+  -webkit-mask-repeat: no-repeat !important;
   mask-repeat: no-repeat !important;
+  -webkit-mask-position: center !important;
   mask-position: center !important;
 }
-// Also style the Payload nav__link-indicator to match our blue theme
-.od-nav-active .nav__link-indicator,
-.od-nav-active [class*="link-indicator"] {
-  background: #38bdf8 !important;
+// Hide Payload's default active indicator (we use our own blue highlight)
+.od-nav-active .nav__link-indicator {
+  display: none !important;
 }
 
 // Mobile: move close button to top-right so it doesn't cover logo
