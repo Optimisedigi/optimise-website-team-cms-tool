@@ -2243,8 +2243,20 @@ export async function GET(request: NextRequest) {
   await run("gaa.ad_copy_generated_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_generated_at` text");
 
   // Drop unique index on presentation_pin (allow same PIN across audits)
-  await run("drop_unique_presentation_pin", "DROP INDEX IF EXISTS `google_ads_audits_presentation_pin_idx`");
-  await run("drop_unique_presentation_pin_2", "DROP INDEX IF EXISTS `google_ads_audits_presentation_pin_unique`");
+  // Payload/Drizzle names unique indexes as: {table}_{column}_unique
+  await run("drop_unique_presentation_pin_a", "DROP INDEX IF EXISTS `google_ads_audits_presentation_pin_idx`");
+  await run("drop_unique_presentation_pin_b", "DROP INDEX IF EXISTS `google_ads_audits_presentation_pin_unique`");
+  await run("drop_unique_presentation_pin_c", "DROP INDEX IF EXISTS `google_ads_audits_presentation_pin`");
+  // Find and drop any remaining unique index on presentation_pin
+  try {
+    const indexes = await client.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='google_ads_audits' AND sql LIKE '%presentation_pin%'");
+    for (const row of indexes.rows || []) {
+      const idxName = (row as any).name || (row as any)[0];
+      if (idxName) {
+        await run(`drop_pin_index_${idxName}`, `DROP INDEX IF EXISTS \`${idxName}\``);
+      }
+    }
+  } catch { /* non-fatal */ }
 
   // Account managers array table for clients
   await run("clients_account_managers", `CREATE TABLE IF NOT EXISTS \`clients_account_managers\` (
