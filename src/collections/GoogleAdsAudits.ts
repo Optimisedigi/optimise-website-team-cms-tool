@@ -113,8 +113,8 @@ const createProposalHook: CollectionAfterChangeHook = async ({
 export const GoogleAdsAudits: CollectionConfig = {
   slug: "google-ads-audits",
   labels: {
-    singular: "Google Ads Audit",
-    plural: "Google Ads Audits",
+    singular: "Google Ads",
+    plural: "Google Ads",
   },
   admin: {
     useAsTitle: "businessName",
