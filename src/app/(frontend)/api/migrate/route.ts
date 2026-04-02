@@ -2242,6 +2242,10 @@ export async function GET(request: NextRequest) {
   await run("gaa.ad_copy_comments", "ALTER TABLE `google_ads_audits` ADD `ad_copy_comments` text");
   await run("gaa.ad_copy_generated_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_generated_at` text");
 
+  // Drop unique index on presentation_pin (allow same PIN across audits)
+  await run("drop_unique_presentation_pin", "DROP INDEX IF EXISTS `google_ads_audits_presentation_pin_idx`");
+  await run("drop_unique_presentation_pin_2", "DROP INDEX IF EXISTS `google_ads_audits_presentation_pin_unique`");
+
   // Account managers array table for clients
   await run("clients_account_managers", `CREATE TABLE IF NOT EXISTS \`clients_account_managers\` (
     \`_order\` integer NOT NULL,
