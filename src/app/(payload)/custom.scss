@@ -389,12 +389,21 @@ $svg-close: "%3C/svg%3E";
 }
 
 // Ensure nav icons persist on active/selected links and add highlight
-.nav a.nav__link.active {
+// Payload v3 may use .active, [aria-current], or data attributes for the active state
+.nav a.nav__link.active,
+.nav a.nav__link[aria-current="page"],
+.nav a.nav__link[aria-current="true"],
+.nav .nav__link.active,
+.nav [class*="nav-"] a[aria-current] {
   background: rgba(56, 189, 248, 0.12) !important;
   border-radius: 6px;
   color: #38bdf8 !important;
 }
-.nav a.nav__link.active::before {
+.nav a.nav__link.active::before,
+.nav a.nav__link[aria-current="page"]::before,
+.nav a.nav__link[aria-current="true"]::before,
+.nav .nav__link.active::before,
+.nav [class*="nav-"] a[aria-current]::before {
   display: inline-block !important;
   width: 14px !important;
   height: 14px !important;

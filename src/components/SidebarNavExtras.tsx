@@ -59,6 +59,43 @@ const ICONS = {
 }
 
 const SidebarNavExtras = () => {
+  // Watch for active nav link changes and ensure icons + highlight persist
+  useEffect(() => {
+    function applyActiveStyles() {
+      const allLinks = document.querySelectorAll('.nav a.nav__link, [class*="nav"] a[class*="link"]')
+      allLinks.forEach((link) => {
+        const el = link as HTMLElement
+        const isActive = el.classList.contains('active') ||
+          el.getAttribute('aria-current') === 'page' ||
+          el.getAttribute('aria-current') === 'true'
+
+        if (isActive) {
+          el.style.background = 'rgba(56, 189, 248, 0.12)'
+          el.style.borderRadius = '6px'
+          el.style.color = '#38bdf8'
+        } else {
+          el.style.background = ''
+          el.style.borderRadius = ''
+          el.style.color = ''
+        }
+      })
+    }
+
+    applyActiveStyles()
+    const observer = new MutationObserver(applyActiveStyles)
+    const nav = document.querySelector('.nav, nav')
+    if (nav) {
+      observer.observe(nav, { subtree: true, attributes: true, attributeFilter: ['class', 'aria-current'] })
+    }
+    // Also re-apply on route changes
+    const interval = setInterval(applyActiveStyles, 1000)
+
+    return () => {
+      observer.disconnect()
+      clearInterval(interval)
+    }
+  }, [])
+
   useEffect(() => {
     // Integrations link under Settings
     injectLink(
