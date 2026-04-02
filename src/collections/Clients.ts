@@ -327,6 +327,32 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
+              name: "accountManagers",
+              type: "array",
+              admin: {
+                description: "Team members managing this client. They receive notifications for ad copy approvals, audits, etc.",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "name",
+                      type: "text",
+                      required: true,
+                      admin: { description: "Account manager name" },
+                    },
+                    {
+                      name: "email",
+                      type: "email",
+                      required: true,
+                      admin: { description: "Account manager email" },
+                    },
+                  ],
+                },
+              ],
+            },
+            {
               type: "row",
               fields: [
                 {

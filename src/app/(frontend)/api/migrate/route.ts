@@ -1224,6 +1224,16 @@ export async function POST(request: NextRequest) {
   await run("google_ads_audits.ad_copy_comments", "ALTER TABLE `google_ads_audits` ADD `ad_copy_comments` text");
   await run("google_ads_audits.ad_copy_generated_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_generated_at` text");
 
+  // Account managers array table for clients
+  await run("clients_account_managers_post", `CREATE TABLE IF NOT EXISTS \`clients_account_managers\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`name\` text NOT NULL,
+    \`email\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+
   // Campaign Proposal Negative Keywords (array table for google_ads_audits)
   // Note: dbName shortened to "gads_proposal_negatives" to avoid 63-char enum name limit
   await run("gads_proposal_negatives_table", `
@@ -2231,6 +2241,16 @@ export async function GET(request: NextRequest) {
   await run("gaa.ad_copy_published", "ALTER TABLE `google_ads_audits` ADD `ad_copy_published` integer DEFAULT 0");
   await run("gaa.ad_copy_comments", "ALTER TABLE `google_ads_audits` ADD `ad_copy_comments` text");
   await run("gaa.ad_copy_generated_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_generated_at` text");
+
+  // Account managers array table for clients
+  await run("clients_account_managers", `CREATE TABLE IF NOT EXISTS \`clients_account_managers\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`name\` text NOT NULL,
+    \`email\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
 
   // Negative keywords array table (dbName: gads_proposal_negatives)
   await run("gads_proposal_negatives", `CREATE TABLE IF NOT EXISTS \`gads_proposal_negatives\` (

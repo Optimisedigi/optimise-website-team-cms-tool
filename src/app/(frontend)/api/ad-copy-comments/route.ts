@@ -90,10 +90,26 @@ export async function POST(req: NextRequest) {
         args: ["approved", audit.id],
       });
 
-      // Send notification email to team
+      // Send notification email to account managers (from linked client) or fallback
       const POSTMARK_API_KEY = process.env.POSTMARK_API_KEY;
-      const TEAM_EMAIL = process.env.TEAM_NOTIFICATION_EMAIL || process.env.AUDIT_FROM_EMAIL || "audits@optimisedigital.online";
       const FROM_EMAIL = process.env.AUDIT_FROM_EMAIL || "audits@optimisedigital.online";
+      const FALLBACK_EMAIL = process.env.TEAM_NOTIFICATION_EMAIL || FROM_EMAIL;
+
+      // Get account manager emails from the linked client
+      let toEmails: string[] = [];
+      if (audit.client) {
+        try {
+          const clientId = typeof audit.client === "object" ? audit.client.id : audit.client;
+          const client = await payload.findByID({ collection: "clients", id: clientId, overrideAccess: true });
+          const managers = (client as any).accountManagers;
+          if (Array.isArray(managers)) {
+            toEmails = managers.map((m: any) => m.email).filter(Boolean);
+          }
+        } catch { /* client lookup failed, use fallback */ }
+      }
+
+      if (toEmails.length === 0) toEmails = [FALLBACK_EMAIL];
+      const TEAM_EMAIL = toEmails.join(",");
 
       if (POSTMARK_API_KEY) {
         try {
