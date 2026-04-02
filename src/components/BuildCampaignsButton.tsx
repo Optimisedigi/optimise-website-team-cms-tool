@@ -302,6 +302,68 @@ const BuildCampaignsButtonInner = () => {
         </details>
       )}
 
+      {/* Client-friendly summary table (copy/paste for email) */}
+      {buildResult?.campaigns?.length > 0 && (
+        <details style={{ marginTop: 12 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+            Client Summary (copy/paste for email)
+          </summary>
+          <div style={{ marginTop: 8, padding: 16, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+            <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
+              Campaign Structure Update Summary
+            </div>
+
+            {/* Campaign table */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Existing Campaign</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>New Campaign Name</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Status</th>
+                  <th style={{ textAlign: 'center', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Ad Groups</th>
+                  <th style={{ textAlign: 'center', padding: '8px 10px', color: '#475569', fontWeight: 600 }}>Keywords</th>
+                </tr>
+              </thead>
+              <tbody>
+                {buildResult.campaigns.map((c: any, i: number) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px 10px', color: '#64748b' }}>
+                      {c.mergedFrom || '\u2014'}
+                    </td>
+                    <td style={{ padding: '8px 10px', fontWeight: 500, color: '#1e293b' }}>
+                      {c.name}
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <span style={{
+                        fontSize: 11, padding: '2px 8px', borderRadius: 4,
+                        background: c.action === 'merged' ? '#dbeafe' : c.action === 'created' ? '#dcfce7' : '#f1f5f9',
+                        color: c.action === 'merged' ? '#1d4ed8' : c.action === 'created' ? '#15803d' : '#64748b',
+                        fontWeight: 600,
+                      }}>
+                        {c.action === 'merged' ? 'Merged' : c.action === 'created' ? 'New' : 'No changes'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#475569' }}>{c.adGroupCount}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center', color: '#475569' }}>{c.keywordCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Totals */}
+            <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.8 }}>
+              {buildResult.campaignsMerged > 0 && <div>{buildResult.campaignsMerged} campaign(s) merged from existing structure</div>}
+              {buildResult.campaignsCreated > 0 && <div>{buildResult.campaignsCreated} new campaign(s) created</div>}
+              {buildResult.adGroupsMerged > 0 && <div>{buildResult.adGroupsMerged} ad group(s) merged</div>}
+              {buildResult.adGroupsCreated > 0 && <div>{buildResult.adGroupsCreated} new ad group(s) created</div>}
+              {buildResult.keywordsAdded > 0 && <div>{buildResult.keywordsAdded} keyword(s) added</div>}
+              {buildResult.adGroupsPaused > 0 && <div>{buildResult.adGroupsPaused} old ad group(s) paused</div>}
+              <div style={{ marginTop: 8, fontStyle: 'italic' }}>All campaigns are created as paused. No campaigns are active until manually enabled.</div>
+            </div>
+          </div>
+        </details>
+      )}
+
       {/* Confirmation Modal */}
       {showModal && (
         <div
