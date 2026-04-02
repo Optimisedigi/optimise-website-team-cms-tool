@@ -35,6 +35,8 @@ function AdCopyEditorContent({
 }) {
   const [adCopy, setAdCopy] = useState<AdCopyMap>(data.adCopy || {})
   const [saving, setSaving] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [expandedAg, setExpandedAg] = useState<string | null>(null)
 
@@ -109,6 +111,58 @@ function AdCopyEditorContent({
     setSaving(false)
   }, [adCopy, data.slug, pin, hasErrors])
 
+  const handleSubmitForApproval = useCallback(async () => {
+    if (hasErrors) return
+    setSubmitting(true)
+    setSaveMsg(null)
+
+    try {
+      // Save edits first
+      await fetch('/api/ad-copy-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: data.slug, pin, action: 'save-edits', adCopy }),
+      })
+
+      // Then submit for approval
+      const res = await fetch('/api/ad-copy-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: data.slug, pin, action: 'submit-approval' }),
+      })
+
+      if (res.ok) {
+        setSubmitted(true)
+        setSaveMsg('Ad copy submitted for approval. The team will review your changes.')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setSaveMsg(`Error: ${(err as any).error || 'Failed to submit'}`)
+      }
+    } catch {
+      setSaveMsg('Error: Network failure')
+    }
+    setSubmitting(false)
+  }, [adCopy, data.slug, pin, hasErrors])
+
+  if (submitted) {
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#f8fafc', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}>
+        <div style={{ textAlign: 'center', maxWidth: 480, padding: 32 }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>✓</div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1e293b', margin: '0 0 8px' }}>
+            Ad Copy Submitted
+          </h1>
+          <p style={{ fontSize: 15, color: '#64748b', lineHeight: 1.6 }}>
+            Your changes to the ad copy for <strong>{data.businessName}</strong> have been saved and submitted for approval. The Optimise Digital team will review and finalise the ad copy.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{
       minHeight: '100vh', background: '#f8fafc',
@@ -136,13 +190,26 @@ function AdCopyEditorContent({
               onClick={handleSave}
               disabled={saving || hasErrors}
               style={{
-                padding: '10px 24px', fontSize: 14, fontWeight: 600,
-                background: saving ? '#6b7280' : hasErrors ? '#9ca3af' : '#7c3aed',
+                padding: '10px 20px', fontSize: 14, fontWeight: 600,
+                background: saving ? '#6b7280' : hasErrors ? '#9ca3af' : '#64748b',
                 color: '#fff', border: 'none', borderRadius: 8,
                 cursor: saving || hasErrors ? 'not-allowed' : 'pointer',
               }}
             >
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Saving...' : 'Save Draft'}
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmitForApproval}
+              disabled={submitting || hasErrors}
+              style={{
+                padding: '10px 20px', fontSize: 14, fontWeight: 600,
+                background: submitting ? '#6b7280' : hasErrors ? '#9ca3af' : '#059669',
+                color: '#fff', border: 'none', borderRadius: 8,
+                cursor: submitting || hasErrors ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {submitting ? 'Submitting...' : 'Submit for Approval'}
             </button>
           </div>
         </div>
