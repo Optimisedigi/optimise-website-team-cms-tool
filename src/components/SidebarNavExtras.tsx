@@ -68,19 +68,20 @@ const SidebarNavExtras = () => {
       if (currentPath === prevPath) return
       prevPath = currentPath
 
-      // Find all nav links (Payload uses a.nav__link inside .nav)
-      const allLinks = document.querySelectorAll('.nav a[href]')
+      // Payload v3 uses .nav__link class on links and adds a .nav__link-indicator
+      // child div to active links. Try multiple selectors to catch all nav links.
+      const allLinks = document.querySelectorAll('.nav__link, .nav a[href], a.nav__link, [class*="nav__link"]')
       allLinks.forEach((link) => {
-        const el = link as HTMLAnchorElement
+        const el = link as HTMLElement
         const href = el.getAttribute('href') || ''
-        // Active if current path starts with the link href (and href is specific enough)
-        const isActive = href.length > 7 && currentPath.startsWith(href)
+        // Check if active: either has indicator child, or pathname matches
+        const hasIndicator = !!el.querySelector('.nav__link-indicator, [class*="link-indicator"]')
+        const isActive = hasIndicator || (href.length > 7 && currentPath.startsWith(href) && ["/", undefined].includes(currentPath[href.length]))
 
         if (isActive) {
           el.style.background = 'rgba(56, 189, 248, 0.12)'
           el.style.borderRadius = '6px'
           el.style.color = '#38bdf8'
-          // Ensure the ::before icon stays visible by adding a class
           el.classList.add('od-nav-active')
         } else {
           el.style.background = ''

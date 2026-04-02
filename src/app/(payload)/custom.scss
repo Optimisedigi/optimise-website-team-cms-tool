@@ -389,7 +389,10 @@ $svg-close: "%3C/svg%3E";
 }
 
 // Active nav link highlight (applied via JS in SidebarNavExtras)
-.nav a.od-nav-active::before {
+// The .od-nav-active class is added by JS to active links
+.od-nav-active::before,
+a.od-nav-active::before,
+.nav__link.od-nav-active::before {
   display: inline-block !important;
   width: 14px !important;
   height: 14px !important;
@@ -398,6 +401,11 @@ $svg-close: "%3C/svg%3E";
   mask-size: contain !important;
   mask-repeat: no-repeat !important;
   mask-position: center !important;
+}
+// Also style the Payload nav__link-indicator to match our blue theme
+.od-nav-active .nav__link-indicator,
+.od-nav-active [class*="link-indicator"] {
+  background: #38bdf8 !important;
 }
 
 // Mobile: move close button to top-right so it doesn't cover logo
