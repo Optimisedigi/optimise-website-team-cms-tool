@@ -5,8 +5,20 @@ import { useEffect, useState } from 'react'
 export default function ConnectCalendarButton() {
   const [connected, setConnected] = useState(false)
   const [email, setEmail] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Check for OAuth error in URL params
+    const params = new URLSearchParams(window.location.search)
+    const calendarError = params.get('calendar_error')
+    if (calendarError) {
+      setError(calendarError)
+      // Clean URL without reloading
+      const url = new URL(window.location.href)
+      url.searchParams.delete('calendar_error')
+      window.history.replaceState({}, '', url.toString())
+    }
+
     fetch('/api/globals/calendar-auth')
       .then((r) => r.json())
       .then((data) => {
@@ -20,6 +32,23 @@ export default function ConnectCalendarButton() {
 
   return (
     <div style={{ marginTop: 12 }}>
+      {error && (
+        <div
+          style={{
+            padding: '10px 14px',
+            marginBottom: 12,
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: 6,
+            fontSize: 13,
+            color: '#991b1b',
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>Calendar connection failed:</strong> {error}
+        </div>
+      )}
+
       {connected ? (
         <div
           style={{

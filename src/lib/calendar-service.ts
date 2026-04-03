@@ -5,32 +5,33 @@ const SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
 ];
 
-function getOAuth2Client() {
+function getOAuth2Client(redirectUri?: string) {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.CALENDAR_REDIRECT_URI
+    redirectUri || process.env.CALENDAR_REDIRECT_URI
   );
 }
 
 /**
  * Generate the Google OAuth consent URL for Calendar access.
  */
-export function getCalendarOAuthUrl(): string {
-  const oauth2Client = getOAuth2Client();
+export function getCalendarOAuthUrl(redirectUri: string): string {
+  const oauth2Client = getOAuth2Client(redirectUri);
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     prompt: "consent",
     state: "calendar",
+    redirect_uri: redirectUri,
   });
 }
 
 /**
  * Exchange an authorization code for tokens.
  */
-export async function exchangeCalendarCode(code: string) {
-  const oauth2Client = getOAuth2Client();
+export async function exchangeCalendarCode(code: string, redirectUri?: string) {
+  const oauth2Client = getOAuth2Client(redirectUri);
   const { tokens } = await oauth2Client.getToken(code);
   return {
     accessToken: tokens.access_token!,

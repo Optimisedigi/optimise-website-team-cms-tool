@@ -23,8 +23,13 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Build redirect URI — must match what was used in the connect step
+  const redirectUri =
+    process.env.CALENDAR_REDIRECT_URI ||
+    new URL("/api/calendar/callback", req.url).toString();
+
   try {
-    const tokens = await exchangeCalendarCode(code);
+    const tokens = await exchangeCalendarCode(code, redirectUri);
     const email = await getCalendarUserEmail(tokens.accessToken);
 
     const payloadConfig = await config;
