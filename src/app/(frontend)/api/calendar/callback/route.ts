@@ -30,7 +30,15 @@ export async function GET(req: NextRequest) {
 
   try {
     const tokens = await exchangeCalendarCode(code, redirectUri);
-    const email = await getCalendarUserEmail(tokens.accessToken);
+
+    // Try to get user email — don't fail the whole connection if this fails
+    let email = "";
+    try {
+      email = await getCalendarUserEmail(tokens.accessToken);
+    } catch (emailErr) {
+      console.warn("[calendar-callback] Could not fetch user email:", emailErr);
+      email = "(connected)";
+    }
 
     const payloadConfig = await config;
     const payload = await getPayload({ config: payloadConfig });

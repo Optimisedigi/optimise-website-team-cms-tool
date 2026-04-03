@@ -3,6 +3,7 @@ import { google } from "googleapis";
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/userinfo.email",
 ];
 
 function getOAuth2Client(redirectUri?: string) {
