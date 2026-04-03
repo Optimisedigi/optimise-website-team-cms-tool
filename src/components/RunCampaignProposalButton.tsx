@@ -34,57 +34,6 @@ const STEPS = [
   },
 ]
 
-function HowItWorks() {
-  const [show, setShow] = useState(false)
-
-  return (
-    <span
-      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      <span
-        style={{
-          fontSize: 12,
-          color: '#7c3aed',
-          cursor: 'pointer',
-          fontWeight: 600,
-          borderBottom: '1px dotted #7c3aed',
-        }}
-      >
-        How it works
-      </span>
-      {show && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            marginTop: 8,
-            width: 420,
-            padding: 16,
-            background: '#faf5ff',
-            border: '1px solid #ddd6fe',
-            borderRadius: 10,
-            boxShadow: '0 8px 24px rgba(124,58,237,0.12)',
-            zIndex: 1000,
-          }}
-        >
-          <h4 style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 700, color: '#5b21b6' }}>
-            Campaign Proposal Engine (7 Steps)
-          </h4>
-          {STEPS.map((s) => (
-            <div key={s.title} style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#5b21b6' }}>{s.title}</div>
-              <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.5 }}>{s.desc}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </span>
-  )
-}
-
 const RunCampaignProposalButtonInner = () => {
   const { id } = useDocumentInfo()
   const [fields] = useAllFormFields()
@@ -92,6 +41,7 @@ const RunCampaignProposalButtonInner = () => {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [stage, setStage] = useState('')
+  const [showHelp, setShowHelp] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const stopPolling = useCallback(() => {
@@ -191,8 +141,121 @@ const RunCampaignProposalButtonInner = () => {
       })
     : null
 
+  const automatedVsManual = [
+    { action: 'Website crawl & keyword research', how: 'Automated', detail: 'the engine crawls up to 30 pages and queries Keyword Planner' },
+    { action: 'Campaign structure generation', how: 'Automated', detail: 'AI builds campaigns, ad groups, and keyword assignments' },
+    { action: 'Competitor analysis', how: 'Automated', detail: 'SERP queries and Meta Ad Library checks' },
+    { action: 'Reviewing the proposal', how: 'Manual', detail: 'you review the structure and landing page assignments' },
+    { action: 'Approving the proposal', how: 'Manual', detail: 'you set the status to Approved' },
+    { action: 'Pushing to Google Ads', how: 'Manual', detail: 'you click Build in the Build tab' },
+  ]
+
   return (
     <div style={{ marginBottom: 20 }}>
+      {/* Collapsible How It Works guide */}
+      <div
+        style={{
+          background: '#f9fafb',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          overflow: 'hidden',
+          marginBottom: 16,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setShowHelp((v) => !v)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            padding: '10px 16px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#374151',
+          }}
+        >
+          <span>How it works</span>
+          <span style={{ fontSize: 12, color: '#6b7280', transform: showHelp ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+            ▼
+          </span>
+        </button>
+
+        {showHelp && (
+          <div style={{ padding: '0 16px 16px', fontSize: 13, color: '#374151', lineHeight: 1.7 }}>
+            {/* Overview */}
+            <div style={{ marginBottom: 16 }}>
+              <h4 style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: '#111827' }}>Overview</h4>
+              <p style={{ margin: 0 }}>
+                The Campaign Proposal engine crawls the client&apos;s website, researches keywords, and builds a complete Google Ads campaign structure — campaigns, ad groups, keyword lists, and landing page assignments. It takes 5–10 minutes to run and produces a ready-to-review proposal.
+              </p>
+            </div>
+
+            {/* Step-by-step */}
+            <div style={{ marginBottom: 16 }}>
+              <h4 style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: '#111827' }}>Step-by-Step</h4>
+              <ol style={{ margin: 0, paddingLeft: 20 }}>
+                <li><strong>Fill in the basics</strong> — Make sure the Business Name and Website URL are set (on the Google Ads audit record).</li>
+                <li><strong>Link Google Ads</strong> (optional) — If the client has an existing Google Ads account, set the Customer ID. The engine will compare the proposed structure against the existing account.</li>
+                <li><strong>Click &quot;Generate Campaign Proposal&quot;</strong> — The engine runs 7 steps (see below). Takes 5–10 minutes. You can leave the page and come back.</li>
+                <li><strong>Review the proposal</strong> — Once complete, refresh the page. The proposal summary shows campaigns, ad groups, keywords, and competitors found.</li>
+                <li><strong>Check the Preview tab</strong> — The Campaign Proposal Preview tab shows the full breakdown: campaign structure, keyword lists, negative keywords, landing page assessments, and competitor analysis.</li>
+                <li><strong>Approve the proposal</strong> — Set the Campaign Proposal Status to &quot;Approved&quot; when you&apos;re happy with the structure. This unlocks Ad Copy generation.</li>
+                <li><strong>Build to Google Ads</strong> — After ad copy is generated and reviewed, go to the Build tab to push everything live.</li>
+              </ol>
+            </div>
+
+            {/* The 7 Engine Steps */}
+            <div style={{ marginBottom: 16 }}>
+              <h4 style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: '#111827' }}>The 7 Engine Steps</h4>
+              <ol style={{ margin: 0, paddingLeft: 20 }}>
+                {STEPS.map((s) => (
+                  <li key={s.title} style={{ marginBottom: 4 }}>
+                    <strong>{s.title}</strong> — {s.desc}
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            {/* Automated vs Manual */}
+            <div style={{ marginBottom: 16 }}>
+              <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#111827' }}>Automated vs Manual</h4>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #d1d5db' }}>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>Action</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>How</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {automatedVsManual.map((row) => (
+                    <tr key={row.action} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '6px 8px' }}>{row.action}</td>
+                      <td style={{ padding: '6px 8px' }}><strong>{row.how}</strong> — {row.detail}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Prerequisites */}
+            <div>
+              <h4 style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: '#111827' }}>Prerequisites</h4>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                <li>Business Name is set</li>
+                <li>Website URL is set</li>
+                <li>For account comparison: Google Ads Customer ID is linked</li>
+                <li>For building: Campaign proposal must be Approved and ad copy must be generated</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <button
           type="button"
@@ -222,8 +285,6 @@ const RunCampaignProposalButtonInner = () => {
               ? 'Regenerate Campaign Proposal'
               : 'Generate Campaign Proposal'}
         </button>
-
-        <HowItWorks />
 
         {hasProposal && formattedDate && (
           <span style={{ fontSize: 12, color: '#6b7280' }}>

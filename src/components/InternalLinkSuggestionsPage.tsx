@@ -51,6 +51,7 @@ export default function InternalLinkSuggestionsPage() {
   const [sortDesc, setSortDesc] = useState(true)
   const [acting, setActing] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<string | null>(null)
+  const [showHelp, setShowHelp] = useState(false)
 
   // ─── Fetch ────────────────────────────────────────────
 
@@ -294,6 +295,193 @@ export default function InternalLinkSuggestionsPage() {
           >
             Bulk Approve ≥80 ({bulkEligibleCount})
           </button>
+        )}
+      </div>
+
+      {/* How This Works (Team Guide) */}
+      <div
+        style={{
+          background: 'var(--theme-elevation-50)',
+          border: '1px solid var(--theme-elevation-150)',
+          borderRadius: 8,
+          overflow: 'hidden',
+          marginBottom: 16,
+        }}
+      >
+        <button
+          onClick={() => setShowHelp(h => !h)}
+          style={{
+            width: '100%',
+            padding: '10px 16px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--theme-text)',
+          }}
+        >
+          <span>How This Works (Team Guide)</span>
+          <span style={{ fontSize: 12 }}>{showHelp ? '▲' : '▼'}</span>
+        </button>
+
+        {showHelp && (
+          <div style={{ padding: '0 16px 16px', fontSize: 13, lineHeight: 1.6, color: 'var(--theme-text)' }}>
+            <p style={{ margin: '0 0 12px', fontWeight: 600 }}>Overview</p>
+            <p style={{ margin: '0 0 12px' }}>
+              Internal link suggestions are AI-generated recommendations for adding internal links
+              between pages on a client&apos;s website. The system crawls the site, identifies
+              topically related pages (using topic clusters), and suggests where to add links —
+              including the exact anchor text and which paragraph to place it in.
+            </p>
+
+            <p style={{ margin: '0 0 8px', fontWeight: 600 }}>Step-by-Step</p>
+            <ol style={{ margin: '0 0 12px', paddingLeft: 20 }}>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Suggestions are generated automatically</strong> — When a topic cluster
+                analysis runs for a client (via Growth Tools), internal link suggestions are created
+                and synced to this collection.
+              </li>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Review pending suggestions</strong> — Each card shows the source page (where
+                the link goes), the target page (where it points to), the suggested anchor text, and
+                a confidence score (0–100).
+              </li>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Check for warnings</strong> — Cards with a yellow border have quality
+                warnings (e.g. homepage as source, generic anchor text, duplicate source→target
+                pairs). Review these more carefully.
+              </li>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Approve or reject</strong> — Click Approve to accept the suggestion or
+                Reject to dismiss it. Approved suggestions are synced back to Growth Tools.
+              </li>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Bulk approve</strong> — Use the &ldquo;Bulk Approve ≥80&rdquo; button to
+                approve all high-confidence suggestions (score 80+) that have no warnings, in one
+                click.
+              </li>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Implement the links</strong> — After approval, the links need to be manually
+                added to the client&apos;s website content. The anchor text and context snippet tell
+                you exactly what text to link and where.
+              </li>
+            </ol>
+
+            <p style={{ margin: '0 0 8px', fontWeight: 600 }}>Automated vs Manual</p>
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: 13,
+                marginBottom: 12,
+              }}
+            >
+              <thead>
+                <tr>
+                  <th
+                    style={{
+                      textAlign: 'left',
+                      padding: '6px 10px',
+                      borderBottom: '2px solid var(--theme-elevation-150)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Action
+                  </th>
+                  <th
+                    style={{
+                      textAlign: 'left',
+                      padding: '6px 10px',
+                      borderBottom: '2px solid var(--theme-elevation-150)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    How
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--theme-elevation-150)' }}>
+                    Generating suggestions
+                  </td>
+                  <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--theme-elevation-150)' }}>
+                    <strong>Automated</strong> — created during topic cluster analysis via Growth
+                    Tools
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--theme-elevation-150)' }}>
+                    Reviewing suggestions
+                  </td>
+                  <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--theme-elevation-150)' }}>
+                    <strong>Manual</strong> — you review each suggestion here
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--theme-elevation-150)' }}>
+                    Approving/rejecting
+                  </td>
+                  <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--theme-elevation-150)' }}>
+                    <strong>Manual</strong> — click Approve or Reject (or use Bulk Approve)
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--theme-elevation-150)' }}>
+                    Syncing status to Growth Tools
+                  </td>
+                  <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--theme-elevation-150)' }}>
+                    <strong>Automated</strong> — approval status syncs back automatically
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--theme-elevation-150)' }}>
+                    Adding links to the website
+                  </td>
+                  <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--theme-elevation-150)' }}>
+                    <strong>Manual</strong> — someone needs to edit the page content and add the link
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <p style={{ margin: '0 0 8px', fontWeight: 600 }}>Filters</p>
+            <ul style={{ margin: '0 0 12px', paddingLeft: 20 }}>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Pending</strong> — suggestions awaiting review (default view)
+              </li>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Approved</strong> — accepted suggestions
+              </li>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Rejected</strong> — dismissed suggestions
+              </li>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Cluster filter</strong> — filter by topic cluster
+              </li>
+              <li style={{ marginBottom: 4 }}>
+                <strong>Confidence sort</strong> — toggle ascending/descending
+              </li>
+            </ul>
+
+            <p
+              style={{
+                margin: 0,
+                padding: '8px 12px',
+                background: 'var(--theme-elevation-100)',
+                borderRadius: 6,
+                fontSize: 12,
+              }}
+            >
+              <strong>Tip:</strong> Focus on pending suggestions with confidence ≥80 and no warnings
+              first — these are the highest-quality recommendations. Low-confidence suggestions may
+              have weak topical relevance.
+            </p>
+          </div>
         )}
       </div>
 

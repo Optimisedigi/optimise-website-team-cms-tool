@@ -13,9 +13,7 @@ export const MeetingSchedulers: CollectionConfig = {
     group: "Clients",
     description: "Schedule meetings with multiple client contacts by finding overlapping availability",
     defaultColumns: ["title", "client", "status", "dateRangeStart", "createdAt"],
-    components: {
-      beforeListTable: ["./components/MeetingSchedulerInstructions"],
-    },
+    components: {},
   },
   access: {
     read: ({ req }) => !!req.user,
@@ -71,6 +69,15 @@ export const MeetingSchedulers: CollectionConfig = {
         {
           label: "Setup",
           fields: [
+            {
+              name: "howItWorks",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/MeetingSchedulerInstructions",
+                },
+              },
+            },
             {
               name: "title",
               type: "text",
@@ -185,12 +192,21 @@ export const MeetingSchedulers: CollectionConfig = {
           label: "Attendees",
           fields: [
             {
+              name: "attendeesTable",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/MeetingSchedulerAttendeesTable",
+                },
+              },
+            },
+            {
               name: "attendees",
               type: "array",
-              minRows: 1,
+              minRows: 0,
               maxRows: 10,
               admin: {
-                description: "People who need to find a common meeting time",
+                condition: () => false, // Hidden — managed via the table UI above
               },
               fields: [
                 {

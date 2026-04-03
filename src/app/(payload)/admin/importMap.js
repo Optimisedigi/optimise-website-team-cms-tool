@@ -53,6 +53,8 @@ import { default as default_03f868076ce9f068b848044dba6c2e81 } from '../../../co
 import { default as default_c942878b95bb76e4edb6703d0af13ae3 } from '../../../components/ProcessTracker'
 import { default as default_e5c235401c2506e52e0da17600621f37 } from '../../../components/ClientProcessWorksheet'
 import { default as default_f3192da0e1eaceb3549701f5cee70cf7 } from '../../../components/CreateProcessFromTemplate'
+import { default as default_meeting_attendees_table_001 } from '../../../components/MeetingSchedulerAttendeesTable'
+import { default as default_meeting_scheduler_instructions_001 } from '../../../components/MeetingSchedulerInstructions'
 import { default as default_971d902ea7bb079a9f85d3af6410683c } from '../../../components/GenerateSlotsButton'
 import { default as default_0038b26ea788903db0f6afa6e94f619a } from '../../../components/SendScheduleInvitesButton'
 import { default as default_b1a172dcaa4141cf8a8a49b72ea9569b } from '../../../components/ScheduleResponseStatus'
@@ -159,6 +161,8 @@ export const importMap = {
   "./components/ProcessTracker#default": default_c942878b95bb76e4edb6703d0af13ae3,
   "./components/ClientProcessWorksheet#default": default_e5c235401c2506e52e0da17600621f37,
   "./components/CreateProcessFromTemplate#default": default_f3192da0e1eaceb3549701f5cee70cf7,
+  "./components/MeetingSchedulerAttendeesTable#default": default_meeting_attendees_table_001,
+  "./components/MeetingSchedulerInstructions#default": default_meeting_scheduler_instructions_001,
   "./components/GenerateSlotsButton#default": default_971d902ea7bb079a9f85d3af6410683c,
   "./components/SendScheduleInvitesButton#default": default_0038b26ea788903db0f6afa6e94f619a,
   "./components/ScheduleResponseStatus#default": default_b1a172dcaa4141cf8a8a49b72ea9569b,

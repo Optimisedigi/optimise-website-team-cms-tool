@@ -153,6 +153,8 @@ export default function NegativeKeywordListInfo() {
     })
   }
 
+  const [showHowItWorks, setShowHowItWorks] = useState(false)
+
   return (
     <div
       style={{
@@ -214,6 +216,114 @@ export default function NegativeKeywordListInfo() {
         </div>
       )}
 
+      {/* ── How It Works ── */}
+      <button
+        type="button"
+        onClick={() => setShowHowItWorks(!showHowItWorks)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          fontSize: 14,
+          fontWeight: 700,
+          color: '#1e3a5f',
+          marginBottom: showHowItWorks ? 0 : 10,
+        }}
+      >
+        <span style={{ fontSize: 10 }}>{showHowItWorks ? '\u25BC' : '\u25B6'}</span>
+        How This Works (Team Guide)
+      </button>
+
+      {showHowItWorks && (
+        <div style={{ marginTop: 8, marginBottom: 14, padding: '14px 16px', background: '#fff', borderRadius: 6, border: '1px solid #bae6fd' }}>
+          <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 700, color: '#0c4a6e' }}>Overview</h4>
+          <p style={{ margin: '0 0 10px' }}>
+            Negative keyword lists are managed <strong>here in the CMS</strong> and then <strong>automatically synced to Google Ads</strong> via a script that runs on a daily schedule inside the client's Google Ads account.
+            You don't need to manually add keywords in Google Ads — the CMS is the single source of truth.
+          </p>
+
+          <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#0c4a6e' }}>Step-by-Step: Adding Negative Keywords</h4>
+          <ol style={{ margin: '0 0 14px', paddingLeft: 20 }}>
+            <li><strong>Create or open a list</strong> — Each client can have multiple lists (e.g. "Brand Terms", "Competitor Terms"). Pick the right one or create a new one.</li>
+            <li><strong>Set the scope</strong> — Choose <em>Account Level</em> (applies everywhere), <em>Campaign Level</em> (specific campaigns only), or <em>Ad Group Level</em>.</li>
+            <li><strong>Set a Campaign Regex</strong> (optional) — If campaign-scoped, enter a regex pattern (e.g. <code>.*Search.*</code>) so the Google Ads script auto-assigns the list to matching campaigns.</li>
+            <li><strong>Add keywords</strong> — Use the <em>Bulk Add Keywords</em> button below. Paste one keyword per line. Default is exact match. Wrap in single quotes for phrase match: <code>'keyword'</code>.</li>
+            <li><strong>Save the list</strong> — Make sure "Is Active" is checked (sidebar). Inactive lists are excluded from the sync.</li>
+            <li><strong>Wait for the sync</strong> — The Google Ads script runs <strong>daily</strong> and pulls the latest keywords from the CMS automatically. No manual push needed.</li>
+          </ol>
+
+          <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#0c4a6e' }}>Is It Automated or Manual?</h4>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 14 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #bae6fd' }}>
+                <th style={{ textAlign: 'left', padding: '4px 8px', fontWeight: 600 }}>Action</th>
+                <th style={{ textAlign: 'left', padding: '4px 8px', fontWeight: 600 }}>How</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid #e0f2fe' }}>
+                <td style={{ padding: '4px 8px' }}>Adding/editing/removing keywords in the CMS</td>
+                <td style={{ padding: '4px 8px' }}><strong>Manual</strong> — you do this here in the list editor</td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid #e0f2fe' }}>
+                <td style={{ padding: '4px 8px' }}>Pushing keywords to Google Ads</td>
+                <td style={{ padding: '4px 8px' }}><strong>Automated</strong> — the Google Ads script syncs daily (no action needed)</td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid #e0f2fe' }}>
+                <td style={{ padding: '4px 8px' }}>Assigning lists to campaigns</td>
+                <td style={{ padding: '4px 8px' }}><strong>Automated</strong> — the script uses the Campaign Regex to auto-assign</td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid #e0f2fe' }}>
+                <td style={{ padding: '4px 8px' }}>Client flagging keywords for removal</td>
+                <td style={{ padding: '4px 8px' }}><strong>Self-service</strong> — client uses the Client View link (PIN-protected)</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '4px 8px' }}>Reviewing client-flagged keywords</td>
+                <td style={{ padding: '4px 8px' }}><strong>Manual</strong> — you review flagged keywords in the table below and decide to remove or keep</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#0c4a6e' }}>How the Sync Works (Behind the Scenes)</h4>
+          <ol style={{ margin: '0 0 14px', paddingLeft: 20 }}>
+            <li>A Google Ads Script is installed in the client's Google Ads account (one-time setup — see "Google Ads Script Setup" below).</li>
+            <li>The script runs on a <strong>daily schedule</strong> inside Google Ads.</li>
+            <li>Each run, it calls our CMS export API: <code>/api/negative-keyword-lists/export?customerId=...</code></li>
+            <li>The API returns all <strong>active</strong> lists for that client (identified by their Google Ads Customer ID).</li>
+            <li>The script creates or updates the negative keyword lists in Google Ads, clearing old keywords and replacing with the latest from the CMS.</li>
+            <li>If a Campaign Regex is set, the script also auto-assigns the list to any enabled campaigns matching the pattern.</li>
+          </ol>
+
+          <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#0c4a6e' }}>Client Flagging Flow</h4>
+          <ol style={{ margin: '0 0 14px', paddingLeft: 20 }}>
+            <li>Share the <strong>Client View Link</strong> (shown above) with the client.</li>
+            <li>The client enters their <strong>Client PIN</strong> to view their negative keyword lists.</li>
+            <li>They can click the flag icon on any keyword they think should be removed.</li>
+            <li>Flagged keywords appear with a <span style={{ color: '#dc2626' }}>strikethrough</span> and a "Flagged" checkbox here in the CMS.</li>
+            <li>You review the flagged keywords in the table below — either remove them (delete) or unflag them (uncheck the Flagged checkbox) if they should stay.</li>
+            <li>Next sync, any removed keywords will be gone from Google Ads. Unflagged keywords remain.</li>
+          </ol>
+
+          <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#0c4a6e' }}>Prerequisites Checklist</h4>
+          <ul style={{ margin: '0 0 10px', paddingLeft: 20 }}>
+            <li>Client's <strong>Google Ads Customer ID</strong> is set on their client record in the CMS</li>
+            <li>The <strong>Google Ads Script</strong> is installed in their Google Ads account (one-time setup)</li>
+            <li>The script is set to run <strong>Daily</strong> and has been authorised</li>
+            <li>The list is <strong>Active</strong> (checkbox in the sidebar)</li>
+            <li>For client flagging: the client has a <strong>Client PIN</strong> set on their client record</li>
+          </ul>
+
+          <div style={{ fontSize: 11, color: '#64748b', padding: '8px 10px', background: '#f0f9ff', borderRadius: 4, border: '1px solid #e0f2fe' }}>
+            <strong>💡 Tip:</strong> If you need keywords live in Google Ads immediately (can't wait for the daily sync), you can go to Google Ads &gt; Scripts and manually click <strong>Run</strong> on the sync script to trigger it instantly.
+          </div>
+        </div>
+      )}
+
+      {/* ── Google Ads Script Setup ── */}
       <button
         type="button"
         onClick={() => setShowSetup(!showSetup)}
