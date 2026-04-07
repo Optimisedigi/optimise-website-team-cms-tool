@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import VoiceField from './VoiceField'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -349,10 +350,18 @@ const BlogPrompterPage = () => {
           {/* 2-column grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px' }}>
             <Field label="Blog Idea *" hint="Required">
-              <input type="text" value={fields.blogIdea} onChange={set('blogIdea')} style={inputStyle} placeholder="e.g. Why page speed matters for local SEO" />
+              <VoiceField
+                value={fields.blogIdea}
+                onChange={(v) => setFields((prev) => ({ ...prev, blogIdea: v }))}
+                placeholder="e.g. Why page speed matters for local SEO"
+              />
             </Field>
             <Field label="Title Idea">
-              <input type="text" value={fields.titleIdea} onChange={set('titleIdea')} style={inputStyle} placeholder="Optional working title" />
+              <VoiceField
+                value={fields.titleIdea}
+                onChange={(v) => setFields((prev) => ({ ...prev, titleIdea: v }))}
+                placeholder="Optional working title"
+              />
             </Field>
 
             <Field label="Category">
@@ -362,7 +371,11 @@ const BlogPrompterPage = () => {
                   {clientCategories.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               ) : (
-                <input type="text" value={fields.category} onChange={set('category')} style={inputStyle} placeholder="e.g. SEO" />
+                <VoiceField
+                  value={fields.category}
+                  onChange={(v) => setFields((prev) => ({ ...prev, category: v }))}
+                  placeholder="e.g. SEO"
+                />
               )}
             </Field>
 
@@ -373,35 +386,73 @@ const BlogPrompterPage = () => {
                   {clientTags.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               ) : (
-                <input type="text" value={fields.tag} onChange={set('tag')} style={inputStyle} placeholder="e.g. Technical SEO" />
+                <VoiceField
+                  value={fields.tag}
+                  onChange={(v) => setFields((prev) => ({ ...prev, tag: v }))}
+                  placeholder="e.g. Technical SEO"
+                />
               )}
             </Field>
 
             <Field label="Primary Keywords" hint="one per line">
-              <textarea value={fields.primaryKeywords} onChange={set('primaryKeywords')} rows={3} style={textareaStyle} placeholder={"page speed SEO\ncore web vitals\nLCP optimisation"} />
+              <VoiceField
+                value={fields.primaryKeywords}
+                onChange={(v) => setFields((prev) => ({ ...prev, primaryKeywords: v }))}
+                placeholder={"page speed SEO\ncore web vitals\nLCP optimisation"}
+                multiline
+              />
             </Field>
             <Field label="Secondary Keywords" hint="one per line">
-              <textarea value={fields.secondaryKeywords} onChange={set('secondaryKeywords')} rows={3} style={textareaStyle} placeholder={"LCP\nFID\nCLS"} />
+              <VoiceField
+                value={fields.secondaryKeywords}
+                onChange={(v) => setFields((prev) => ({ ...prev, secondaryKeywords: v }))}
+                placeholder={"LCP\nFID\nCLS"}
+                multiline
+              />
             </Field>
 
             <Field label="Target Audience">
-              <input type="text" value={fields.targetAudience} onChange={set('targetAudience')} style={inputStyle} placeholder="e.g. Small business owners" />
+              <VoiceField
+                value={fields.targetAudience}
+                onChange={(v) => setFields((prev) => ({ ...prev, targetAudience: v }))}
+                placeholder="e.g. Small business owners"
+              />
             </Field>
           </div>
 
           {/* Full-width textareas */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
             <Field label="Main Point of the Content">
-              <textarea value={fields.mainPoint} onChange={set('mainPoint')} rows={3} style={textareaStyle} placeholder="The single most important takeaway the reader should get" />
+              <VoiceField
+                value={fields.mainPoint}
+                onChange={(v) => setFields((prev) => ({ ...prev, mainPoint: v }))}
+                placeholder="The single most important takeaway the reader should get"
+                multiline
+              />
             </Field>
             <Field label="Key Points That Must Be Included">
-              <textarea value={fields.keyPoints} onChange={set('keyPoints')} rows={3} style={textareaStyle} placeholder="Enter each key point on a new line" />
+              <VoiceField
+                value={fields.keyPoints}
+                onChange={(v) => setFields((prev) => ({ ...prev, keyPoints: v }))}
+                placeholder="Enter each key point on a new line"
+                multiline
+              />
             </Field>
             <Field label="Points to Avoid">
-              <textarea value={fields.pointsToAvoid} onChange={set('pointsToAvoid')} rows={2} style={textareaStyle} placeholder="Topics, angles, or claims to exclude" />
+              <VoiceField
+                value={fields.pointsToAvoid}
+                onChange={(v) => setFields((prev) => ({ ...prev, pointsToAvoid: v }))}
+                placeholder="Topics, angles, or claims to exclude"
+                multiline
+              />
             </Field>
             <Field label="Content to Support">
-              <textarea value={fields.supportingContent} onChange={set('supportingContent')} rows={2} style={textareaStyle} placeholder="Links, data, case studies, or existing content to reference" />
+              <VoiceField
+                value={fields.supportingContent}
+                onChange={(v) => setFields((prev) => ({ ...prev, supportingContent: v }))}
+                placeholder="Links, data, case studies, or existing content to reference"
+                multiline
+              />
             </Field>
           </div>
 
