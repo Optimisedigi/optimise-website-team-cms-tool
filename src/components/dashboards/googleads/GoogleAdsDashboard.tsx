@@ -98,6 +98,8 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
           setData((prev) => ({
             ...prev,
             ...newData,
+            range: newRange,
+            dateRangeLabel: newData.dateRangeLabel || undefined,
             slug: prev.slug,
             customerId: prev.customerId,
             clientName: prev.clientName,
@@ -107,7 +109,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         setLoading(false);
       }
     },
-    [range, data.slug, data.customerId, data.clientName],
+    [range, data.slug, data.customerId, data.clientName, brandKeywords],
   );
 
   const fetchQualityData = useCallback(
