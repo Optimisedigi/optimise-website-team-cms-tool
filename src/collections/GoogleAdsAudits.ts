@@ -859,7 +859,39 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 8: History ──
+        // ── Tab 8: Negative List Builder ──
+        {
+          label: "Negative List Builder",
+          fields: [
+            {
+              name: "negativeListBuilderUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/NegativeListBuilder",
+                },
+              },
+            },
+            {
+              name: "negativeListBuilderPublished",
+              type: "checkbox",
+              defaultValue: false,
+              admin: {
+                description: "Toggle to make the negative keyword list publicly accessible (with PIN)",
+              },
+            },
+            {
+              name: "negativeListBuilder",
+              type: "json",
+              admin: {
+                hidden: true,
+                description: "Negative keyword list builder data (managed by the UI above)",
+              },
+            },
+          ],
+        },
+
+        // ── Tab 9: History ──
         {
           label: "History",
           fields: [

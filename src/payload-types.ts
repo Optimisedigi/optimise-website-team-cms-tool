@@ -74,6 +74,8 @@ export interface Config {
     'process-templates': ProcessTemplate;
     'client-processes': ClientProcess;
     'meeting-schedulers': MeetingScheduler;
+    'client-timeline-templates': ClientTimelineTemplate;
+    'client-timelines': ClientTimeline;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
     'job-posts': JobPost;
@@ -111,6 +113,7 @@ export interface Config {
       siteHealthReports: 'site-health-reports';
       tagSetupAudits: 'tag-setup-audits';
       clientProposals: 'client-proposals';
+      clientTimelines: 'client-timelines';
     };
     'client-proposals': {
       contracts: 'contracts';
@@ -124,6 +127,8 @@ export interface Config {
     'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
     'client-processes': ClientProcessesSelect<false> | ClientProcessesSelect<true>;
     'meeting-schedulers': MeetingSchedulersSelect<false> | MeetingSchedulersSelect<true>;
+    'client-timeline-templates': ClientTimelineTemplatesSelect<false> | ClientTimelineTemplatesSelect<true>;
+    'client-timelines': ClientTimelinesSelect<false> | ClientTimelinesSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
@@ -259,6 +264,22 @@ export interface Client {
    * Primary contact email
    */
   contactEmail?: string | null;
+  /**
+   * Team members managing this client. They receive notifications for ad copy approvals, audits, etc.
+   */
+  accountManagers?:
+    | {
+        /**
+         * Account manager name
+         */
+        name: string;
+        /**
+         * Account manager email
+         */
+        email: string;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Does this business have physical locations?
    */
@@ -826,6 +847,14 @@ export interface Client {
    * Most recent GSC data snapshot
    */
   latestGscSnapshot?: (number | null) | GscSnapshot;
+  /**
+   * Client timelines for this client
+   */
+  clientTimelines?: {
+    docs?: (number | ClientTimeline)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -2174,6 +2203,84 @@ export interface GoogleAdsAudit {
    */
   campaignProposalGeneratedAt?: string | null;
   /**
+   * Status of campaign creation in Google Ads
+   */
+  campaignBuildStatus?: ('not_started' | 'building' | 'completed' | 'partial_failure' | 'failed') | null;
+  /**
+   * Pre-generated RSA ad copy per ad group
+   */
+  generatedAdCopy?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Results returned by Growth Tools after campaign creation
+   */
+  campaignBuildResult?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Error details if campaign build failed
+   */
+  campaignBuildError?: string | null;
+  campaignBuildStartedAt?: string | null;
+  campaignBuildCompletedAt?: string | null;
+  /**
+   * Brand-specific headlines to include in every ad group (one per line, max 30 chars each). E.g. 'Malcolm Thompson Pumps', 'Call MTP Today', 'Since 1958'
+   */
+  adCopyBrandHeadlines?: string | null;
+  /**
+   * Current status of the ad copy
+   */
+  adCopyStatus?: ('draft' | 'generating' | 'generated' | 'published' | 'approved') | null;
+  /**
+   * Toggle to make ad copy preview publicly accessible (with PIN)
+   */
+  adCopyPublished?: boolean | null;
+  /**
+   * Client comments on ad copy (managed via API)
+   */
+  adCopyComments?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * When the ad copy was generated
+   */
+  adCopyGeneratedAt?: string | null;
+  /**
+   * Toggle to make the negative keyword list publicly accessible (with PIN)
+   */
+  negativeListBuilderPublished?: boolean | null;
+  /**
+   * Negative keyword list builder data (managed by the UI above)
+   */
+  negativeListBuilder?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * Previous audit run summaries (auto-populated on re-run)
    */
   history?:
@@ -2526,7 +2633,7 @@ export interface GoogleAdsAudit {
       }[]
     | null;
   /**
-   * 4-digit PIN for presentation access (auto-generated)
+   * 4-digit PIN for presentation, ad copy preview, and dashboard access. Can match the client PIN for consistency.
    */
   presentationPin?: string | null;
   /**
@@ -3010,6 +3117,228 @@ export interface GscSnapshot {
   createdAt: string;
 }
 /**
+ * Live client-facing timelines for periodic progress sharing
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-timelines".
+ */
+export interface ClientTimeline {
+  id: number;
+  /**
+   * e.g. "Berenson — Google Ads 90-Day Timeline"
+   */
+  title: string;
+  /**
+   * The client this timeline belongs to
+   */
+  client: number | Client;
+  /**
+   * Template used to create this timeline
+   */
+  template?: (number | null) | ClientTimelineTemplate;
+  serviceType: 'google_ads' | 'seo' | 'meta_ads' | 'cro' | 'general';
+  overallStatus?: ('not_started' | 'in_progress' | 'completed' | 'on_hold') | null;
+  /**
+   * When this timeline started
+   */
+  startDate?: string | null;
+  /**
+   * When this timeline is expected to end
+   */
+  endDate?: string | null;
+  /**
+   * General notes for this timeline
+   */
+  notes?: string | null;
+  /**
+   * Edit phases and items in the table below — inline editing, add/remove, reorder
+   */
+  phases?:
+    | {
+        phaseName: string;
+        phaseOrder: number;
+        weekRange?: string | null;
+        phaseDescription?: string | null;
+        items?:
+          | {
+              itemName: string;
+              itemOrder: number;
+              itemDescription?: string | null;
+              /**
+               * Estimated hours for this task (used to calculate progress weighting). Leave blank to count as 1 hour.
+               */
+              estimatedHours?: number | null;
+              itemStatus?: ('not_started' | 'in_progress' | 'completed' | 'skipped') | null;
+              /**
+               * When this item was completed
+               */
+              completedAt?: string | null;
+              /**
+               * Who completed this item
+               */
+              completedBy?: (number | null) | User;
+              requiresApproval?: boolean | null;
+              approvalStatus?:
+                | (
+                    | 'not_needed'
+                    | 'in_progress'
+                    | 'action_required'
+                    | 'awaiting_approval'
+                    | 'pending_approval'
+                    | 'approved'
+                  )
+                | null;
+              /**
+               * When the client approved this item
+               */
+              clientApprovedAt?: string | null;
+              /**
+               * Team-only notes — not shown to the client
+               */
+              internalNotes?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * When this timeline was last shared with the client
+   */
+  lastSharedAt?: string | null;
+  /**
+   * Number of times shared with the client
+   */
+  sharedCount?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Client-facing timeline templates — simplified phases shown to clients. Access via the Templates tab inside a Client Timeline.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-timeline-templates".
+ */
+export interface ClientTimelineTemplate {
+  id: number;
+  /**
+   * Template name, e.g. "Google Ads 90-Day Onboarding"
+   */
+  name: string;
+  /**
+   * URL-friendly identifier (auto-generated from name)
+   */
+  slug: string;
+  /**
+   * Which service this timeline is for
+   */
+  serviceType: 'google_ads' | 'seo' | 'meta_ads' | 'cro' | 'general';
+  /**
+   * Total timeline duration in days (e.g. 90)
+   */
+  durationDays: number;
+  /**
+   * Brief overview shown at the top of the client timeline
+   */
+  description?: string | null;
+  /**
+   * Default template for its service type
+   */
+  isDefault?: boolean | null;
+  /**
+   * Enable or disable this template
+   */
+  isActive?: boolean | null;
+  /**
+   * Ordered phases of the client-facing timeline
+   */
+  phases?:
+    | {
+        /**
+         * Phase name, e.g. "Quick Wins"
+         */
+        phaseName: string;
+        /**
+         * Display order (1 = first phase)
+         */
+        phaseOrder: number;
+        /**
+         * e.g. "Weeks 1–2", "Beyond Week 5"
+         */
+        weekRange?: string | null;
+        /**
+         * What this phase covers — shown to the client
+         */
+        phaseDescription?: string | null;
+        /**
+         * Tasks and milestones within this phase
+         */
+        items?:
+          | {
+              /**
+               * The task or milestone, e.g. "Fix form tracking"
+               */
+              itemName: string;
+              /**
+               * Display order within the phase
+               */
+              itemOrder: number;
+              /**
+               * Additional detail (optional, shown to client)
+               */
+              itemDescription?: string | null;
+              /**
+               * Show "Your approval needed" badge for this item
+               */
+              requiresApproval?: boolean | null;
+              /**
+               * Team-only notes — not shown to the client
+               */
+              internalNotes?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users".
+ */
+export interface User {
+  id: number;
+  name: string;
+  role: 'admin' | 'manager' | 'specialist';
+  /**
+   * Whether this user has completed their first-login setup
+   */
+  setupCompleted?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
+  collection: 'users';
+}
+/**
  * Track leads through the sales funnel by channel
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3413,40 +3742,6 @@ export interface ClientProcess {
   createdAt: string;
 }
 /**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
- */
-export interface User {
-  id: number;
-  name: string;
-  role: 'admin' | 'manager' | 'specialist';
-  /**
-   * Whether this user has completed their first-login setup
-   */
-  setupCompleted?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-  enableAPIKey?: boolean | null;
-  apiKey?: string | null;
-  apiKeyIndex?: string | null;
-  email: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
-  sessions?:
-    | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
-      }[]
-    | null;
-  password?: string | null;
-  collection: 'users';
-}
-/**
  * Schedule meetings with multiple client contacts by finding overlapping availability
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3494,9 +3789,6 @@ export interface MeetingScheduler {
    * Slot interval (mins)
    */
   slotIntervalMinutes?: number | null;
-  /**
-   * People who need to find a common meeting time
-   */
   attendees?:
     | {
         name: string;
@@ -4110,7 +4402,9 @@ export interface ActivityLog {
     | 'contract_client_signed'
     | 'lead_created'
     | 'lead_stage_changed'
-    | 'template_created';
+    | 'template_created'
+    | 'timeline_created'
+    | 'process_started';
   title: string;
   description?: string | null;
   /**
@@ -4201,6 +4495,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'meeting-schedulers';
         value: number | MeetingScheduler;
+      } | null)
+    | ({
+        relationTo: 'client-timeline-templates';
+        value: number | ClientTimelineTemplate;
+      } | null)
+    | ({
+        relationTo: 'client-timelines';
+        value: number | ClientTimeline;
       } | null)
     | ({
         relationTo: 'blog-posts';
@@ -4363,6 +4665,13 @@ export interface ClientsSelect<T extends boolean = true> {
   externalCms?: T;
   contactName?: T;
   contactEmail?: T;
+  accountManagers?:
+    | T
+    | {
+        name?: T;
+        email?: T;
+        id?: T;
+      };
   hasPhysicalLocations?: T;
   numberOfLocations?: T;
   googleMapsUrls?:
@@ -4545,6 +4854,7 @@ export interface ClientsSelect<T extends boolean = true> {
   brandKeywords?: T;
   gscLastSync?: T;
   latestGscSnapshot?: T;
+  clientTimelines?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4879,6 +5189,83 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-timeline-templates_select".
+ */
+export interface ClientTimelineTemplatesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  serviceType?: T;
+  durationDays?: T;
+  description?: T;
+  isDefault?: T;
+  isActive?: T;
+  phases?:
+    | T
+    | {
+        phaseName?: T;
+        phaseOrder?: T;
+        weekRange?: T;
+        phaseDescription?: T;
+        items?:
+          | T
+          | {
+              itemName?: T;
+              itemOrder?: T;
+              itemDescription?: T;
+              requiresApproval?: T;
+              internalNotes?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-timelines_select".
+ */
+export interface ClientTimelinesSelect<T extends boolean = true> {
+  title?: T;
+  client?: T;
+  template?: T;
+  serviceType?: T;
+  overallStatus?: T;
+  startDate?: T;
+  endDate?: T;
+  notes?: T;
+  phases?:
+    | T
+    | {
+        phaseName?: T;
+        phaseOrder?: T;
+        weekRange?: T;
+        phaseDescription?: T;
+        items?:
+          | T
+          | {
+              itemName?: T;
+              itemOrder?: T;
+              itemDescription?: T;
+              estimatedHours?: T;
+              itemStatus?: T;
+              completedAt?: T;
+              completedBy?: T;
+              requiresApproval?: T;
+              approvalStatus?: T;
+              clientApprovedAt?: T;
+              internalNotes?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  lastSharedAt?: T;
+  sharedCount?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "blog-posts_select".
  */
 export interface BlogPostsSelect<T extends boolean = true> {
@@ -5122,6 +5509,19 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
       };
   campaignProposalEmailHtml?: T;
   campaignProposalGeneratedAt?: T;
+  campaignBuildStatus?: T;
+  generatedAdCopy?: T;
+  campaignBuildResult?: T;
+  campaignBuildError?: T;
+  campaignBuildStartedAt?: T;
+  campaignBuildCompletedAt?: T;
+  adCopyBrandHeadlines?: T;
+  adCopyStatus?: T;
+  adCopyPublished?: T;
+  adCopyComments?: T;
+  adCopyGeneratedAt?: T;
+  negativeListBuilderPublished?: T;
+  negativeListBuilder?: T;
   history?:
     | T
     | {

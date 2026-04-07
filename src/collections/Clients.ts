@@ -923,6 +923,17 @@ export const Clients: CollectionConfig = {
               },
             },
 
+            // ─ Negative List Builder ─
+            {
+              name: "openNegativeListBuilder",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/OpenNegativeListBuilderButton",
+                },
+              },
+            },
+
             // ─ Automation Config ─
             {
               name: "gadsAuto",
@@ -1682,6 +1693,21 @@ export const Clients: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "Most recent GSC data snapshot",
+              },
+            },
+          ],
+        },
+        {
+          label: "Timelines",
+          fields: [
+            {
+              name: "clientTimelines",
+              type: "join",
+              collection: "client-timelines",
+              on: "client",
+              admin: {
+                description: "Client timelines for this client",
+                defaultColumns: ["title", "serviceType", "overallStatus", "startDate"],
               },
             },
           ],
