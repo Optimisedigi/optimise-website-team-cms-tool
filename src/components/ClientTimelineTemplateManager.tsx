@@ -231,81 +231,22 @@ function TemplateManagerInner() {
         </div>
       )}
 
-      {/* Google Ads Embedded Template — always available */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <span className="ltm-badge" style={{ background: '#DBEAFE', color: '#1E40AF' }}>Embedded</span>
-          <span style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>Google Ads 90-Day Onboarding</span>
-          <span style={{ fontSize: 12, color: '#6B7280' }}>— 5 phases, 22 items</span>
-        </div>
-        <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 14px' }}>
-          The standard 90-day onboarding template for Google Ads clients. Covers Quick Wins, Campaign Analysis, Build, Launch, and Ongoing Optimisations. Includes approval gates for changes that need client sign-off.
-        </p>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {!id ? (
-            <button className="ltm-btn ltm-btn-outline" disabled style={{ opacity: 0.6 }}>
-              Save timeline first to load
-            </button>
-          ) : hasContent ? (
-            <>
-              <button
-                className="ltm-btn ltm-btn-primary"
-                onClick={() => loadTemplate({
-                  id: -1,
-                  name: 'Google Ads 90-Day Onboarding',
-                  serviceType: 'google_ads',
-                  phases: [],
-                })}
-                disabled={!!loadingTemplate}
-              >
-                {loadingTemplate === '-1' ? 'Loading…' : 'Reset to this template'}
-              </button>
-              <button
-                className="ltm-btn ltm-btn-danger"
-                onClick={() => {
-                  if (confirm(`Remove all ${phaseCount} phases and ${totalItems} items?`)) {
-                    clearAllPhases()
-                    showToast('Phases cleared')
-                  }
-                }}
-              >
-                Clear all phases
-              </button>
-            </>
-          ) : (
-            <button
-              className="ltm-btn ltm-btn-primary"
-              onClick={() => {
-                // Load embedded template via the same mechanism — trigger via hidden API
-                fetch(`/api/client-timelines/load-google-ads-template`, {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ id }),
-                })
-                  .then(r => r.json())
-                  .then(d => {
-                    if (d.ok) {
-                      showToast('Google Ads template loaded — refresh the Phases & Items tab')
-                      setTimeout(() => window.location.reload(), 1000)
-                    }
-                  })
-                  .catch(() => showToast('Failed — try refreshing and saving first'))
-              }}
-            >
-              Load template
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Divider */}
-      <div style={{ borderTop: '1px solid #E5E7EB', marginBottom: 20 }} />
-
-      {/* Saved Templates */}
+      {/* Saved Templates — managed from the Client Timelines list view */}
       <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontWeight: 700, fontSize: 14, color: '#374151' }}>Saved Templates</span>
-        <span style={{ fontSize: 12, color: '#9CA3AF' }}>Manage templates via Timeline Templates in sidebar</span>
+        <span style={{ fontWeight: 700, fontSize: 14, color: '#374151' }}>Load a Template</span>
+        {hasContent && (
+          <button
+            className="ltm-btn ltm-btn-danger"
+            onClick={() => {
+              if (confirm(`Remove all ${phaseCount} phases and ${totalItems} items?`)) {
+                clearAllPhases()
+                showToast('Phases cleared')
+              }
+            }}
+          >
+            Clear all phases
+          </button>
+        )}
       </div>
 
       {loading ? (

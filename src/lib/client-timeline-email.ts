@@ -225,12 +225,12 @@ export function generateClientTimelineEmailHtml(data: TimelineEmailData): string
   <div style="height:24px"></div>
 
   <!-- Progress Section -->
-  <div style="background:#f9fafb;border-radius:8px;padding:20px 24px;margin-bottom:28px">
+  <div style="background:#f9fafb;border-radius:8px;padding:20px 24px;margin-bottom:28px;margin-left:-24px;margin-right:-24px">
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
       <div style="font-size:15px;font-weight:700;color:#111827">Overall Progress</div>
       <div style="font-size:14px;color:#6b7280">${completed} of ${total} tasks &nbsp;(${pct}%)</div>
     </div>
-    <div style="position:relative;height:8px;background:#e5e7eb;border-radius:999px;margin-bottom:10px">
+    <div style="position:relative;height:8px;background:#e5e7eb;border-radius:999px;margin-bottom:10px;margin-left:0">
       <!-- Actual bar -->
       <div style="background:#16a34a;height:100%;width:${pct}%;border-radius:999px"></div>
       <!-- Expected line: yellow tick at elapsed time % -->

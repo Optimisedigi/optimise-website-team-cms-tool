@@ -257,8 +257,8 @@
   padding-left: 6px;
 }
 
-// Clear sub-item hierarchy
-.nav a.nav__link {
+// Clear sub-item hierarchy — target both <a> (inactive) and <div> (active) nav links
+.nav .nav__link {
   color: rgba(255, 255, 255, 0.7);
   transition: color 150ms;
   display: flex;
@@ -267,7 +267,7 @@
 }
 .nav a.nav__link:hover,
 .nav a.nav__link:focus-visible,
-.nav a.nav__link.active {
+.nav .nav__link.active {
   color: #ffffff;
 }
 
@@ -280,7 +280,7 @@
     flex-shrink: 0 !important;
     width: 14px !important;
     height: 14px !important;
-    margin-right: 8px !important;
+    margin-right: 0 !important;
     background: currentColor !important;
     -webkit-mask: url("data:image/svg+xml,#{$path}") no-repeat center / contain !important;
     mask: url("data:image/svg+xml,#{$path}") no-repeat center / contain !important;
@@ -291,102 +291,102 @@ $svg-open: "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='
 $svg-close: "%3C/svg%3E";
 
 // Database group
-.nav a.nav__link[href="/admin/collections/clients"] {
+.nav #nav-clients {
   @include nav-icon("#{$svg-open}%3Cpath d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M23 21v-2a4 4 0 0 0-3-3.87'/%3E%3Cpath d='M16 3.13a4 4 0 0 1 0 7.75'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/client-proposals"] {
+.nav #nav-client-proposals {
   @include nav-icon("#{$svg-open}%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E#{$svg-close}");
 }
 
 // Content group
-.nav a.nav__link[href="/admin/collections/blog-posts"] {
+.nav #nav-blog-posts {
   @include nav-icon("#{$svg-open}%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/job-posts"] {
+.nav #nav-job-posts {
   @include nav-icon("#{$svg-open}%3Crect x='2' y='7' width='20' height='14' rx='2' ry='2'/%3E%3Cpath d='M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/media"] {
+.nav #nav-media {
   @include nav-icon("#{$svg-open}%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E#{$svg-close}");
 }
 
 // Audits group
-.nav a.nav__link[href="/admin/collections/seo-audits"] {
+.nav #nav-seo-audits {
   @include nav-icon("#{$svg-open}%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/cro-audits"] {
+.nav #nav-cro-audits {
   @include nav-icon("#{$svg-open}%3Cline x1='18' y1='20' x2='18' y2='10'/%3E%3Cline x1='12' y1='20' x2='12' y2='4'/%3E%3Cline x1='6' y1='20' x2='6' y2='14'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/keyword-snapshots"] {
+.nav #nav-keyword-snapshots {
   @include nav-icon("#{$svg-open}%3Cpath d='M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/competitor-analyses"] {
+.nav #nav-competitor-analyses {
   @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='6'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/content-researches"] {
+.nav #nav-content-researches {
   @include nav-icon("#{$svg-open}%3Cpath d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/%3E%3Cpath d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/google-ads-audits"] {
+.nav #nav-google-ads-audits {
   @include nav-icon("#{$svg-open}%3Cpath d='M3 11l18-5v12L3 13v-2z'/%3E%3Cpath d='M11.6 16.8a3 3 0 1 1-5.8-1.6'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/gsc-alerts"] {
+.nav #nav-gsc-alerts {
   @include nav-icon("#{$svg-open}%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E#{$svg-close}");
 }
 
 // Finance group
-.nav a.nav__link[href="/admin/collections/business-costs"] {
+.nav #nav-business-costs {
   @include nav-icon("#{$svg-open}%3Cline x1='12' y1='1' x2='12' y2='23'/%3E%3Cpath d='M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/cost-categories"] {
+.nav #nav-cost-categories {
   @include nav-icon("#{$svg-open}%3Cpath d='M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z'/%3E%3Cline x1='7' y1='7' x2='7.01' y2='7'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/cost-rules"] {
+.nav #nav-cost-rules {
   @include nav-icon("#{$svg-open}%3Cline x1='4' y1='21' x2='4' y2='14'/%3E%3Cline x1='4' y1='10' x2='4' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12' y2='3'/%3E%3Cline x1='20' y1='21' x2='20' y2='16'/%3E%3Cline x1='20' y1='12' x2='20' y2='3'/%3E%3Cline x1='1' y1='14' x2='7' y2='14'/%3E%3Cline x1='9' y1='8' x2='15' y2='8'/%3E%3Cline x1='17' y1='16' x2='23' y2='16'/%3E#{$svg-close}");
 }
 
-.nav a.nav__link[href="/admin/collections/blog-prompts"] {
+.nav #nav-blog-prompts {
   @include nav-icon("#{$svg-open}%3Cline x1='9' y1='18' x2='15' y2='18'/%3E%3Cline x1='10' y1='22' x2='14' y2='22'/%3E%3Cpath d='M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14'/%3E#{$svg-close}");
 }
 
 // Contracts
-.nav a.nav__link[href="/admin/collections/contracts"] {
+.nav #nav-contracts {
   @include nav-icon("#{$svg-open}%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cpath d='M12 18v-6'/%3E%3Cpath d='M9 15l3 3 3-3'/%3E#{$svg-close}");
 }
 
 // Activity Log
-.nav a.nav__link[href="/admin/collections/activity-log"] {
+.nav #nav-activity-log {
   @include nav-icon("#{$svg-open}%3Cpath d='M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'/%3E%3Crect x='8' y='2' width='8' height='4' rx='1' ry='1'/%3E%3Cline x1='9' y1='10' x2='15' y2='10'/%3E%3Cline x1='9' y1='14' x2='15' y2='14'/%3E%3Cline x1='9' y1='18' x2='13' y2='18'/%3E#{$svg-close}");
 }
 
 // Internal Link Suggestions
-.nav a.nav__link[href="/admin/collections/internal-link-suggestions"] {
+.nav #nav-internal-link-suggestions {
   @include nav-icon("#{$svg-open}%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E#{$svg-close}");
 }
 
 // GSC Indexing Audits
-.nav a.nav__link[href="/admin/collections/gsc-indexing-audits"] {
+.nav #nav-gsc-indexing-audits {
   @include nav-icon("#{$svg-open}%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Ccircle cx='11.5' cy='14.5' r='2.5'/%3E%3Cline x1='13.3' y1='16.3' x2='16' y2='19'/%3E#{$svg-close}");
 }
 
 // Negative Sweep Candidates
-.nav a.nav__link[href="/admin/collections/negative-sweep-candidates"] {
+.nav #nav-negative-sweep-candidates {
   @include nav-icon("#{$svg-open}%3Cpolygon points='22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3'/%3E#{$svg-close}");
 }
 
 // Sheets Auth (global)
-.nav a.nav__link[href="/admin/globals/sheets-auth"] {
+.nav #nav-global-sheets-auth {
   @include nav-icon("#{$svg-open}%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='3' y1='9' x2='21' y2='9'/%3E%3Cline x1='3' y1='15' x2='21' y2='15'/%3E%3Cline x1='9' y1='3' x2='9' y2='21'/%3E%3Cline x1='15' y1='3' x2='15' y2='21'/%3E#{$svg-close}");
 }
 
 // Meeting Schedulers (calendar icon)
-.nav a.nav__link[href="/admin/collections/meeting-schedulers"] {
+.nav #nav-meeting-schedulers {
   @include nav-icon("#{$svg-open}%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E#{$svg-close}");
 }
 
 // Admin group
-.nav a.nav__link[href="/admin/collections/usage-reports"] {
+.nav #nav-usage-reports {
   @include nav-icon("#{$svg-open}%3Cpolyline points='22 12 18 12 15 21 9 3 6 12 2 12'/%3E#{$svg-close}");
 }
-.nav a.nav__link[href="/admin/collections/users"] {
+.nav #nav-users {
   @include nav-icon("#{$svg-open}%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E#{$svg-close}");
 }
 
@@ -2456,13 +2456,53 @@ $svg-close: "%3C/svg%3E";
 }
 
 // Nav icon for Sales Leads
-.nav a.nav__link[href="/admin/collections/sales-leads"] {
+.nav #nav-sales-leads {
   @include nav-icon("#{$svg-open}%3Cpath d='M22 12h-4l-3 9L9 3l-3 9H2'/%3E#{$svg-close}");
 }
 
 // Nav icon for Tag Setup Audits (shield + check)
-.nav a.nav__link[href="/admin/collections/tag-setup-audits"] {
+.nav #nav-tag-setup-audits {
   @include nav-icon("#{$svg-open}%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpath d='M9 12l2 2 4-4'/%3E#{$svg-close}");
+}
+
+// Process Templates (clipboard)
+.nav #nav-process-templates {
+  @include nav-icon("#{$svg-open}%3Cpath d='M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'/%3E%3Crect x='8' y='2' width='8' height='4' rx='1' ry='1'/%3E%3Cpath d='M9 12h6M9 16h6'/%3E#{$svg-close}");
+}
+
+// Client Processes (pulse)
+.nav #nav-client-processes {
+  @include nav-icon("#{$svg-open}%3Cpolyline points='22 12 18 12 15 21 9 3 6 12 2 12'/%3E#{$svg-close}");
+}
+
+// Client Timelines (clock)
+.nav #nav-client-timelines {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E#{$svg-close}");
+}
+
+// Negative Keyword Lists (search minus)
+.nav #nav-negative-keyword-lists {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3Cline x1='8' y1='11' x2='14' y2='11'/%3E#{$svg-close}");
+}
+
+// Site Health Reports (heartbeat)
+.nav #nav-site-health-reports {
+  @include nav-icon("#{$svg-open}%3Cpath d='M22 12h-4l-3 9L9 3l-3 9H2'/%3E#{$svg-close}");
+}
+
+// Email Templates global (envelope)
+.nav #nav-global-email-templates {
+  @include nav-icon("#{$svg-open}%3Crect x='2' y='4' width='20' height='16' rx='2'/%3E%3Cpath d='m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7'/%3E#{$svg-close}");
+}
+
+// Calendar Auth global (calendar)
+.nav #nav-global-calendar-auth {
+  @include nav-icon("#{$svg-open}%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E#{$svg-close}");
+}
+
+// API Cost Rates global (settings/sliders)
+.nav #nav-global-api-cost-rates {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'/%3E#{$svg-close}");
 }
 
 // ── Responsive ──

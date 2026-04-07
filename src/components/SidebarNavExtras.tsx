@@ -26,19 +26,6 @@ function injectLink(
   }
 }
 
-function injectIconToExistingLink(href: string, svgIcon: string) {
-  const link = document.querySelector(`a.nav__link[href="${href}"]`) as HTMLAnchorElement
-  if (!link || link.querySelector('[data-injected-icon]')) return
-
-  const icon = document.createElement('span')
-  icon.setAttribute('data-injected-icon', 'true')
-  icon.innerHTML = svgIcon
-  icon.style.display = 'inline-flex'
-  icon.style.alignItems = 'center'
-  icon.style.flexShrink = '0'
-  link.insertBefore(icon, link.firstChild)
-}
-
 const ICONS = {
   deployments:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
@@ -46,22 +33,6 @@ const ICONS = {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>',
   indexingHelper:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
-  processTemplates:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12h6M9 16h6"/></svg>',
-  clientProcesses:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
-  emailTemplates:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>',
-  negativeKeywords:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>',
-  siteHealth:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
-  meetingSchedulers:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>',
-  clientTimelines:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-  clientTimelineTemplates:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>',
 }
 
 const SidebarNavExtras = () => {
@@ -74,14 +45,15 @@ const SidebarNavExtras = () => {
       if (currentPath === prevPath) return
       prevPath = currentPath
 
-      // Payload v3 uses .nav__link class on links and adds a .nav__link-indicator
-      // child div to active links. Try multiple selectors to catch all nav links.
-      const allLinks = document.querySelectorAll('.nav__link, .nav a[href], a.nav__link, [class*="nav__link"]')
+      // Payload v3 renders active nav items as <div class="nav__link"> (no href),
+      // and inactive items as <a class="nav__link" href="...">.
+      // Select only direct .nav__link elements (not child spans like .nav__link-label).
+      const allLinks = document.querySelectorAll('.nav .nav__link')
       allLinks.forEach((link) => {
         const el = link as HTMLElement
         const href = el.getAttribute('href') || ''
-        // Check if active: either has indicator child, or pathname matches
-        const hasIndicator = !!el.querySelector('.nav__link-indicator, [class*="link-indicator"]')
+        // Active items: rendered as <div> with .nav__link-indicator child, OR href matches pathname
+        const hasIndicator = !!el.querySelector('.nav__link-indicator')
         const isActive = hasIndicator || (href.length > 7 && currentPath.startsWith(href) && ["/", undefined].includes(currentPath[href.length]))
 
         if (isActive) {
@@ -133,14 +105,7 @@ const SidebarNavExtras = () => {
       'append',
     )
 
-    // Add icons to existing collection/global nav links that are missing them
-    injectIconToExistingLink('/admin/collections/process-templates', ICONS.processTemplates)
-    injectIconToExistingLink('/admin/collections/client-processes', ICONS.clientProcesses)
-    injectIconToExistingLink('/admin/globals/email-templates', ICONS.emailTemplates)
-    injectIconToExistingLink('/admin/collections/negative-keyword-lists', ICONS.negativeKeywords)
-    injectIconToExistingLink('/admin/collections/site-health-reports', ICONS.siteHealth)
-    injectIconToExistingLink('/admin/collections/client-timelines', ICONS.clientTimelines)
-    injectIconToExistingLink('/admin/collections/client-timeline-templates', ICONS.clientTimelineTemplates)
+    // Icons for collection/global nav links are now handled via CSS ::before in custom.scss
   }, [])
 
   // Mobile: bounce-back zoom — allow pinch zoom but snap back to 1x when released

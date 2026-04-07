@@ -30,6 +30,7 @@ import { UnderlineFeatureClient as UnderlineFeatureClient_e70f5e05f09f93e00b997e
 import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_fb5d37b90851b3851c29f4b754a04aca } from '../../../components/RunGoogleAdsAuditFromClientButton'
+import { default as default_6dfadcdca189a18cf07afd7b4bca75a0 } from '../../../components/OpenNegativeListBuilderButton'
 import { default as default_d4ebfcd7dcd43ec537c0f248f26cef22 } from '../../../components/ViewGoogleDashboardButton'
 import { default as default_c48582730ce567b18023caac0e161ded } from '../../../components/RunNegativeSweepButton'
 import { default as default_522f40213ad4b7c13dfb4e9b8621e85b } from '../../../components/RunPerformanceReportButton'
@@ -53,11 +54,15 @@ import { default as default_03f868076ce9f068b848044dba6c2e81 } from '../../../co
 import { default as default_c942878b95bb76e4edb6703d0af13ae3 } from '../../../components/ProcessTracker'
 import { default as default_e5c235401c2506e52e0da17600621f37 } from '../../../components/ClientProcessWorksheet'
 import { default as default_f3192da0e1eaceb3549701f5cee70cf7 } from '../../../components/CreateProcessFromTemplate'
-import { default as default_meeting_attendees_table_001 } from '../../../components/MeetingSchedulerAttendeesTable'
-import { default as default_meeting_scheduler_instructions_001 } from '../../../components/MeetingSchedulerInstructions'
+import { default as default_392e7f41a027f157fd32e33bbc1ae135 } from '../../../components/MeetingSchedulerInstructions'
+import { default as default_bc615a67c4e11c38db54a3bb23baf563 } from '../../../components/MeetingSchedulerAttendeesTable'
 import { default as default_971d902ea7bb079a9f85d3af6410683c } from '../../../components/GenerateSlotsButton'
 import { default as default_0038b26ea788903db0f6afa6e94f619a } from '../../../components/SendScheduleInvitesButton'
 import { default as default_b1a172dcaa4141cf8a8a49b72ea9569b } from '../../../components/ScheduleResponseStatus'
+import { default as default_32afdd9005b4f4912d575bddd4ebb063 } from '../../../components/ClientTimelineTracker'
+import { default as default_79da12cb2b9f3789fd7577823e029413 } from '../../../components/ClientTimelineTemplateManager'
+import { default as default_027ba5809ae7a76aa9bdec8ccf3bbcb1 } from '../../../components/ClientTimelineWorksheet'
+import { default as default_a0f938ed752fec50d5e1b1e9edffc161 } from '../../../components/ClientTimelineTemplateListSection'
 import { default as default_2b563fa0e9b70d98b73119ee8b081564 } from '../../../components/MarkdownGuide'
 import { default as default_8793146990086de56e1b564ebb701778 } from '../../../components/GenerateBlogImageButton'
 import { default as default_7e7701142b7068d2cf11592b7f0f90ce } from '../../../components/ClientCategorySelect'
@@ -73,10 +78,11 @@ import { default as default_47af8c78950b0c47a8049a44d7cef06c } from '../../../co
 import { default as default_909a54b4f02f1428884a878a4fce4a5f } from '../../../components/GoogleAdsFindingCuration'
 import { default as default_10fccc7885acbd99c8b1f5d8e310047f } from '../../../components/RegenerateEmailButton'
 import { default as default_2eca85eea20f05062ddd72e60518b25f } from '../../../components/RunCampaignProposalButton'
-import { default as default_a1b2c3d4e5f6789build_campaigns_btn } from '../../../components/BuildCampaignsButton'
 import { default as default_60c16b01b604a3bf2312f924f0ece75b } from '../../../components/CampaignProposalPreview'
-import { default as default_ad_copy_gen_btn_001 } from '../../../components/GenerateAdCopyButton'
-import { default as default_ad_copy_editor_001 } from '../../../components/AdCopyEditor'
+import { default as default_8880b203f284265c1c0872341a6ab1ef } from '../../../components/BuildCampaignsButton'
+import { default as default_2a5597b466c0be4a12bd7249716b4ee3 } from '../../../components/GenerateAdCopyButton'
+import { default as default_b012e7d9e2700288331e55f2919835cb } from '../../../components/AdCopyEditor'
+import { default as default_fd2febb67d3357a3222a3d4b42c00e68 } from '../../../components/NegativeListBuilder'
 import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../components/GscIndexingAuditInfo'
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
@@ -138,6 +144,7 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#BoldFeatureClient": BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/RunGoogleAdsAuditFromClientButton#default": default_fb5d37b90851b3851c29f4b754a04aca,
+  "./components/OpenNegativeListBuilderButton#default": default_6dfadcdca189a18cf07afd7b4bca75a0,
   "./components/ViewGoogleDashboardButton#default": default_d4ebfcd7dcd43ec537c0f248f26cef22,
   "./components/RunNegativeSweepButton#default": default_c48582730ce567b18023caac0e161ded,
   "./components/RunPerformanceReportButton#default": default_522f40213ad4b7c13dfb4e9b8621e85b,
@@ -161,11 +168,15 @@ export const importMap = {
   "./components/ProcessTracker#default": default_c942878b95bb76e4edb6703d0af13ae3,
   "./components/ClientProcessWorksheet#default": default_e5c235401c2506e52e0da17600621f37,
   "./components/CreateProcessFromTemplate#default": default_f3192da0e1eaceb3549701f5cee70cf7,
-  "./components/MeetingSchedulerAttendeesTable#default": default_meeting_attendees_table_001,
-  "./components/MeetingSchedulerInstructions#default": default_meeting_scheduler_instructions_001,
+  "./components/MeetingSchedulerInstructions#default": default_392e7f41a027f157fd32e33bbc1ae135,
+  "./components/MeetingSchedulerAttendeesTable#default": default_bc615a67c4e11c38db54a3bb23baf563,
   "./components/GenerateSlotsButton#default": default_971d902ea7bb079a9f85d3af6410683c,
   "./components/SendScheduleInvitesButton#default": default_0038b26ea788903db0f6afa6e94f619a,
   "./components/ScheduleResponseStatus#default": default_b1a172dcaa4141cf8a8a49b72ea9569b,
+  "./components/ClientTimelineTracker#default": default_32afdd9005b4f4912d575bddd4ebb063,
+  "./components/ClientTimelineTemplateManager#default": default_79da12cb2b9f3789fd7577823e029413,
+  "./components/ClientTimelineWorksheet#default": default_027ba5809ae7a76aa9bdec8ccf3bbcb1,
+  "./components/ClientTimelineTemplateListSection#default": default_a0f938ed752fec50d5e1b1e9edffc161,
   "./components/MarkdownGuide#default": default_2b563fa0e9b70d98b73119ee8b081564,
   "./components/GenerateBlogImageButton#default": default_8793146990086de56e1b564ebb701778,
   "./components/ClientCategorySelect#default": default_7e7701142b7068d2cf11592b7f0f90ce,
@@ -181,10 +192,11 @@ export const importMap = {
   "./components/GoogleAdsFindingCuration#default": default_909a54b4f02f1428884a878a4fce4a5f,
   "./components/RegenerateEmailButton#default": default_10fccc7885acbd99c8b1f5d8e310047f,
   "./components/RunCampaignProposalButton#default": default_2eca85eea20f05062ddd72e60518b25f,
-  "./components/BuildCampaignsButton#default": default_a1b2c3d4e5f6789build_campaigns_btn,
-  "./components/GenerateAdCopyButton#default": default_ad_copy_gen_btn_001,
-  "./components/AdCopyEditor#default": default_ad_copy_editor_001,
   "./components/CampaignProposalPreview#default": default_60c16b01b604a3bf2312f924f0ece75b,
+  "./components/BuildCampaignsButton#default": default_8880b203f284265c1c0872341a6ab1ef,
+  "./components/GenerateAdCopyButton#default": default_2a5597b466c0be4a12bd7249716b4ee3,
+  "./components/AdCopyEditor#default": default_b012e7d9e2700288331e55f2919835cb,
+  "./components/NegativeListBuilder#default": default_fd2febb67d3357a3222a3d4b42c00e68,
   "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/GscIndexingAuditInfo#default": default_6d638ae0812e4c3b3793e2cfa8990bb7,
   "./components/GscIndexingAuditResults#default": default_14da33fa7cd5bda0159f477250995b44,

@@ -89,6 +89,9 @@ export const ClientTimelines: CollectionConfig = {
       "lastSharedAt",
       "updatedAt",
     ],
+    components: {
+      beforeListTable: ["./components/ClientTimelineTemplateListSection"],
+    },
   },
   access: {
     read: ({ req }) => !!req.user,

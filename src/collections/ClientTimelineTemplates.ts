@@ -80,6 +80,7 @@ export const ClientTimelineTemplates: CollectionConfig = {
   },
   admin: {
     useAsTitle: "name",
+    hidden: true,
     description:
       "Client-facing timeline templates — simplified phases shown to clients. Access via the Templates tab inside a Client Timeline.",
   },
