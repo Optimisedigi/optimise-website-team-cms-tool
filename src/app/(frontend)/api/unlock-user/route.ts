@@ -19,10 +19,10 @@ export async function POST(req: Request) {
   try {
     // Try Payload update first (might work if the rels columns exist)
     const payload = await getPayload({ config });
-    const result = await payload.update({
+    await payload.update({
       collection: "users",
       where: { email: { equals: email } },
-      data: { failedLoginCount: 0 },
+      data: { failedLoginCount: 0 } as any,
       overrideAccess: true,
     });
 
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        const userId = (userResult.rows[0] as { id: string }).id;
+        const userId = String((userResult.rows[0] as Record<string, unknown>).id);
 
         await db.execute({
           sql: `UPDATE users SET failed_login_count = 0 WHERE id = ?`,
