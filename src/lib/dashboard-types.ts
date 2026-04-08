@@ -109,6 +109,7 @@ export interface GoogleAdsDashboardData {
   dateRangeLabel?: string;
   logoUrl?: string;
   lastUpdated: string;
+  availableConversionActions?: string[];
   kpis: GoogleAdsDashboardKpis;
   monthlyTrend: GoogleAdsDashboardMonthly[];
   campaignBreakdown: GoogleAdsDashboardCampaign[];

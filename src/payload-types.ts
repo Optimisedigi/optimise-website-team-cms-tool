@@ -387,6 +387,10 @@ export interface Client {
    */
   googleAdsCustomerId?: string | null;
   /**
+   * Conversion action names to include in the Google Ads dashboard (one per line). Leave blank to show all conversions.
+   */
+  dashboardConversionActions?: string | null;
+  /**
    * Negative keyword lists managed for this client
    */
   negativeKeywordLists?: {
@@ -4698,6 +4702,7 @@ export interface ClientsSelect<T extends boolean = true> {
   signedContractUrl?: T;
   signedContract?: T;
   googleAdsCustomerId?: T;
+  dashboardConversionActions?: T;
   negativeKeywordLists?: T;
   legacyNotes?: T;
   retainerHistory?:

@@ -18,6 +18,7 @@ interface GoogleAdsDashboardProps {
   mockQualityData?: GoogleAdsDashboardQualityData;
   initialQualityData?: GoogleAdsDashboardQualityData;
   brandKeywords?: string;
+  conversionActions?: string;
 }
 
 function timeAgo(iso: string): string {
@@ -43,7 +44,7 @@ const RANGE_OPTIONS = [
 
 type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress";
 
-export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords }: GoogleAdsDashboardProps) {
+export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
   const [compareMode, setCompareMode] = useState<"month" | "year">("year");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -56,19 +57,45 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   // Chart always shows last 13 months, fetched once on mount with all_time range
   const [chartMonthlyTrend, setChartMonthlyTrend] = useState(initialData.monthlyTrend);
 
+  // Conversion action filtering
+  const defaultSelected = defaultConversionActions
+    ? defaultConversionActions.split("\n").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const [selectedConversions, setSelectedConversions] = useState<string[]>(defaultSelected);
+  const [conversionDropdownOpen, setConversionDropdownOpen] = useState(false);
+  const conversionDropdownRef = useRef<HTMLDivElement>(null);
+  const availableActions = data.availableConversionActions || defaultSelected;
+
+  // Derive the active conversionActions param from selection
+  const activeConversionActions = selectedConversions.length > 0 && selectedConversions.length < availableActions.length
+    ? selectedConversions.join(",")
+    : defaultConversionActions || "";
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (conversionDropdownRef.current && !conversionDropdownRef.current.contains(e.target as Node)) {
+        setConversionDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   useEffect(() => {
     if (!initialData.slug) return;
     const params = new URLSearchParams({ slug: initialData.slug, range: "all_time" });
     if (initialData.customerId) params.set("customerId", initialData.customerId);
     if (initialData.clientName) params.set("clientName", initialData.clientName);
     if (brandKeywords) params.set("brandKeywords", brandKeywords);
+    if (activeConversionActions) params.set("conversionActions", activeConversionActions);
     fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => res.ok ? res.json() : null)
       .then((fullData) => {
         if (fullData?.monthlyTrend) setChartMonthlyTrend(fullData.monthlyTrend);
       })
       .catch(() => {});
-  }, [initialData.slug, initialData.customerId, initialData.clientName, brandKeywords]);
+  }, [initialData.slug, initialData.customerId, initialData.clientName, brandKeywords, activeConversionActions]);
 
   const changeRange = useCallback(
     async (newRange: string) => {
@@ -88,6 +115,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         }
         if (brandKeywords) {
           params.set("brandKeywords", brandKeywords);
+        }
+        if (activeConversionActions) {
+          params.set("conversionActions", activeConversionActions);
         }
         const res = await fetch(
           `/api/dashboard/data?${params}`,
@@ -109,7 +139,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         setLoading(false);
       }
     },
-    [range, data.slug, data.customerId, data.clientName, brandKeywords],
+    [range, data.slug, data.customerId, data.clientName, brandKeywords, activeConversionActions],
   );
 
   const fetchQualityData = useCallback(
@@ -151,21 +181,60 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     [fetchQualityData],
   );
 
+  const toggleConversion = useCallback(
+    (action: string) => {
+      setSelectedConversions((prev) => {
+        const next = prev.includes(action)
+          ? prev.filter((a) => a !== action)
+          : [...prev, action];
+        return next;
+      });
+    },
+    [],
+  );
+
+  const selectAllConversions = useCallback(() => {
+    setSelectedConversions(availableActions);
+  }, [availableActions]);
+
+  const clearAllConversions = useCallback(() => {
+    setSelectedConversions([]);
+  }, []);
+
+  // Re-fetch when selected conversions change (after initial render)
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (!data.slug) return;
+    const newActions = selectedConversions.length > 0 && selectedConversions.length < availableActions.length
+      ? selectedConversions.join(",")
+      : defaultConversionActions || "";
+    setLoading(true);
+    const params = new URLSearchParams({ slug: data.slug, range });
+    if (data.customerId) params.set("customerId", data.customerId);
+    if (data.clientName) params.set("clientName", data.clientName);
+    if (brandKeywords) params.set("brandKeywords", brandKeywords);
+    if (newActions) params.set("conversionActions", newActions);
+    fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
+      .then((res) => res.ok ? res.json() : null)
+      .then((newData) => {
+        if (newData) {
+          setData((prev) => ({ ...prev, ...newData, slug: prev.slug, customerId: prev.customerId, clientName: prev.clientName }));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversions]);
+
   const rangeLabel =
     RANGE_OPTIONS.find((r) => r.value === range)?.label || "Last month";
   const displayedDateLabel = data.dateRangeLabel || rangeLabel;
 
-  // For specific clients with inflated pre-Oct 2025 conversions, start data from March 2026
-  const DATA_START_OVERRIDES: Record<string, string> = {
-    'berendsen-client': '2026-03',
-    'mtp-client': '2026-03',
-  }
-  const dataStartMonth = data.slug ? DATA_START_OVERRIDES[data.slug] : undefined
-  const filteredMonthlyTrend = dataStartMonth
-    ? data.monthlyTrend.filter((m) => m.month >= dataStartMonth)
-    : data.monthlyTrend
-
-  // Monthly chart always shows last 14 months, unaffected by date range or data start overrides
+  // Monthly chart always shows last 14 months, unaffected by date range
   const chart14Months = chartMonthlyTrend.slice(-14);
 
   return (
@@ -204,6 +273,58 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               ))}
             </select>
             <span className="text-xs text-slate-500">{displayedDateLabel}</span>
+
+            {/* Conversion action selector */}
+            {availableActions.length > 1 && (
+              <div className="relative" ref={conversionDropdownRef}>
+                <button
+                  onClick={() => setConversionDropdownOpen((o) => !o)}
+                  disabled={loading}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  </svg>
+                  Conversions
+                  {selectedConversions.length > 0 && selectedConversions.length < availableActions.length && (
+                    <span className="bg-blue-100 text-blue-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                      {selectedConversions.length}
+                    </span>
+                  )}
+                  <svg className={`w-3.5 h-3.5 text-slate-400 transition-transform ${conversionDropdownOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {conversionDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
+                    <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Conversion Actions</span>
+                      <div className="flex gap-2">
+                        <button onClick={selectAllConversions} className="text-xs text-blue-600 hover:text-blue-800">All</button>
+                        <button onClick={clearAllConversions} className="text-xs text-slate-400 hover:text-slate-600">None</button>
+                      </div>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {availableActions.map((action) => (
+                        <label
+                          key={action}
+                          className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedConversions.includes(action)}
+                            onChange={() => toggleConversion(action)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                          />
+                          <span className="text-sm text-slate-700 truncate">{action}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {activeTab === "overview" && (
               <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">

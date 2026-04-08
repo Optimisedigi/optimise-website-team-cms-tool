@@ -541,6 +541,15 @@ export const Clients: CollectionConfig = {
               },
             },
             {
+              name: "dashboardConversionActions",
+              type: "textarea",
+              admin: {
+                description:
+                  "Conversion action names to include in the Google Ads dashboard (one per line). Leave blank to show all conversions.",
+                condition: (data: any) => !!data?.googleAdsCustomerId,
+              },
+            },
+            {
               name: "negativeKeywordLists",
               type: "join",
               collection: "negative-keyword-lists",

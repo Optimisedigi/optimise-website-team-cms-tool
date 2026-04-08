@@ -5,9 +5,7 @@ import type { GoogleAdsDashboardCampaign } from "@/lib/dashboard-types";
 
 function formatDollars(n: number | null): string {
   if (n == null) return "\u2014";
-  return n >= 1000
-    ? `$${(n / 1000).toFixed(1)}k`
-    : `$${n.toLocaleString("en-US")}`;
+  return `$${Math.round(n).toLocaleString("en-US")}`;
 }
 
 const columns: Column<GoogleAdsDashboardCampaign>[] = [

@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   const customerId = req.nextUrl.searchParams.get("customerId") || "";
   const clientName = req.nextUrl.searchParams.get("clientName") || "";
   const brandKeywords = req.nextUrl.searchParams.get("brandKeywords") || "";
+  const conversionActions = req.nextUrl.searchParams.get("conversionActions") || "";
 
   if (!slug) {
     return NextResponse.json({ error: "Missing slug" }, { status: 400 });
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
     if (customerId) params.set("customerId", customerId);
     if (clientName) params.set("clientName", clientName);
     if (brandKeywords) params.set("brandKeywords", brandKeywords);
+    if (conversionActions) params.set("conversionActions", conversionActions);
     const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },
@@ -48,7 +50,13 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await res.json();
-    return NextResponse.json(data);
+    const response = NextResponse.json(data);
+    // Cache in browser for 15 min, allow stale-while-revalidate for 30 min
+    response.headers.set(
+      "Cache-Control",
+      "private, max-age=900, stale-while-revalidate=1800",
+    );
+    return response;
   } catch (err) {
     console.error("[Dashboard Data]", err);
     return NextResponse.json(

@@ -43,6 +43,8 @@ import { SheetsAuth } from "./globals/SheetsAuth";
 import { EmailTemplates } from "./globals/EmailTemplates";
 import { CalendarAuth } from "./globals/CalendarAuth";
 import { MeetingSchedulers } from "./collections/MeetingSchedulers";
+import { ClientTimelineTemplates } from "./collections/ClientTimelineTemplates";
+import { ClientTimelines } from "./collections/ClientTimelines";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -82,7 +84,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientProposals, Contracts, SalesLeads, ProcessTemplates, ClientProcesses, MeetingSchedulers,
+    Clients, ClientProposals, Contracts, SalesLeads, ProcessTemplates, ClientProcesses, MeetingSchedulers, ClientTimelineTemplates, ClientTimelines,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO

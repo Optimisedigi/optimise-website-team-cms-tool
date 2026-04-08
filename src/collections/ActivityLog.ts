@@ -47,6 +47,8 @@ export const ActivityLog: CollectionConfig = {
         { label: "Lead Created", value: "lead_created" },
         { label: "Lead Stage Changed", value: "lead_stage_changed" },
         { label: "Template Created", value: "template_created" },
+        { label: "Timeline Created", value: "timeline_created" },
+        { label: "Process Started", value: "process_started" },
       ],
     },
     {

@@ -16,6 +16,7 @@ async function fetchDashboardData(
   customerId: string,
   clientName: string,
   brandKeywords?: string,
+  conversionActions?: string,
 ): Promise<{ data: GoogleAdsDashboardData | null; error: string | null }> {
   const url = process.env.GROWTH_TOOLS_URL;
   const key = process.env.INTERNAL_API_KEY;
@@ -24,6 +25,7 @@ async function fetchDashboardData(
   try {
     const params = new URLSearchParams({ range: "this_month", customerId, clientName });
     if (brandKeywords) params.set("brandKeywords", brandKeywords);
+    if (conversionActions) params.set("conversionActions", conversionActions);
     const endpoint = `${url}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
     const res = await fetch(endpoint, {
       headers: { "x-internal-key": key },
@@ -59,6 +61,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
       clientPin: true,
       googleAdsCustomerId: true,
       brandKeywords: true,
+      dashboardConversionActions: true,
     },
   });
 
@@ -77,7 +80,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
   let fetchError: string | null = null;
   let initialQualityData: GoogleAdsDashboardQualityData | null = null;
   if (isAuthenticated) {
-    const result = await fetchDashboardData(slug, client.googleAdsCustomerId, client.name, client.brandKeywords);
+    const result = await fetchDashboardData(slug, client.googleAdsCustomerId, client.name, client.brandKeywords, client.dashboardConversionActions);
     initialData = result.data;
     fetchError = result.error;
 
@@ -108,6 +111,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
       initialError={fetchError}
       initialQualityData={initialQualityData}
       brandKeywords={client.brandKeywords || ""}
+      conversionActions={client.dashboardConversionActions || ""}
     />
   );
 }

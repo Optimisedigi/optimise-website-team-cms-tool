@@ -32,7 +32,7 @@ const METRIC_CONFIG: Record<
     description: "Total conversions per month",
   },
   cpa: {
-    label: "Cost per Conversion",
+    label: "CPA",
     color: "#f59e0b",
     format: (v) => (v > 0 ? `$${Math.round(v)}` : "\u2014"),
     description: "Average cost to acquire one conversion",

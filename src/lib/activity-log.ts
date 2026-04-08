@@ -25,6 +25,7 @@ type ActivityType =
   | "tag_audit_completed"
   | "template_created"
   | "process_started"
+  | "timeline_created"
   | "process_step_completed"
   | "meeting_scheduled"
   | "meeting_confirmed";

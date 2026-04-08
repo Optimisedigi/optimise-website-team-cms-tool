@@ -44,7 +44,7 @@ export function KpiRow({ kpis, compareMode }: KpiRowProps) {
         comparisonLabel={label}
       />
       <KpiCard
-        label="Cost/Conv"
+        label="CPA"
         value={kpis.cpa}
         previousValue={isYear ? kpis.yoyCpa : kpis.prevCpa}
         format="dollars"
