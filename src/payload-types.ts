@@ -1627,7 +1627,7 @@ export interface SeoAudit {
    */
   customerEmail?: string | null;
   /**
-   * Scores per category (metaData, headingStructure, structuredData, internalLinking, imageOptimization, urlStructure, coreWebVitals, navigationUx, eeat, faqImplementation, contentStructure, serviceCoverage)
+   * Scores per category (metaData, headingStructure, structuredData, internalLinking, imageOptimization, urlStructure, coreWebVitals, navigationUx, eeat, faqImplementation, contentStructure, serviceCoverage, indexability, securityPerformance, siteHealth, sitemapRobots)
    */
   categoryScores:
     | {
@@ -1687,6 +1687,18 @@ export interface SeoAudit {
     | boolean
     | null;
   /**
+   * PageSpeed Insights Lighthouse scores — { performance, accessibility, bestPractices, seo } each 0-100
+   */
+  lighthouseScores?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * Custom URL slug for the report (e.g. 'acme-corp-feb-2026'). Auto-generated from website URL if left blank.
    */
   reportSlug?: string | null;
@@ -1734,21 +1746,29 @@ export interface CroAudit {
    */
   overallScore?: number | null;
   /**
-   * Above the fold / trust signals score
+   * First Impression (20%) — headline clarity, visual hierarchy, above-fold trust signals
    */
-  aboveFoldScore?: number | null;
+  firstImpressionScore?: number | null;
   /**
-   * Call-to-action effectiveness score
+   * Trust & Social Proof (20%) — testimonials, ratings, logos, case studies
+   */
+  trustScore?: number | null;
+  /**
+   * Call-to-Action (15%) — text quality, positioning, size/color
    */
   ctaScore?: number | null;
   /**
-   * Navigation clarity score
+   * Lead Capture (20%) — form analysis, field count, privacy text, multi-step forms
+   */
+  leadCaptureScore?: number | null;
+  /**
+   * Content & Readability (15%) — structure, headings, lists, visual quality
+   */
+  contentReadabilityScore?: number | null;
+  /**
+   * Navigation (10%) — nav element, link count, dropdowns, CTA in nav
    */
   navigationScore?: number | null;
-  /**
-   * Content structure score
-   */
-  contentScore?: number | null;
   /**
    * CRO findings — each entry has category, score, status (good/warning/critical), message, and optional details
    */
@@ -5467,6 +5487,7 @@ export interface SeoAuditsSelect<T extends boolean = true> {
   siteWideFindings?: T;
   recommendations?: T;
   extractedData?: T;
+  lighthouseScores?: T;
   reportSlug?: T;
   reportPassword?: T;
   client?: T;
@@ -5484,10 +5505,12 @@ export interface CroAuditsSelect<T extends boolean = true> {
   websiteUrl?: T;
   conversionGoal?: T;
   overallScore?: T;
-  aboveFoldScore?: T;
+  firstImpressionScore?: T;
+  trustScore?: T;
   ctaScore?: T;
+  leadCaptureScore?: T;
+  contentReadabilityScore?: T;
   navigationScore?: T;
-  contentScore?: T;
   findings?: T;
   recommendations?: T;
   extractedContent?: T;

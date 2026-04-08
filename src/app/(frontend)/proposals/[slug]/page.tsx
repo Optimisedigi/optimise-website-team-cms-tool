@@ -298,6 +298,7 @@ const categoryLabels: Record<string, string> = {
   sitemapRobots: 'Sitemap / Robots',
   siteHealth: 'Site Health',
   securityPerformance: 'Security & Performance',
+  indexability: 'Indexability',
 }
 
 // ---------------------------------------------------------------------------
@@ -378,6 +379,38 @@ function StatusIcon({ status }: { status: string }) {
   if (status === 'good') return <span className="status-icon status-good">&#10003;</span>
   if (status === 'critical') return <span className="status-icon status-critical">&#10007;</span>
   return <span className="status-icon status-warning">&#9888;</span>
+}
+
+function PageSpeedGauge({ score, label }: { score: number; label: string }) {
+  const color = score >= 90 ? '#0cce6b' : score >= 50 ? '#ffa400' : '#ff4e42'
+  const bgColor = score >= 90 ? 'rgba(12,206,107,0.1)' : score >= 50 ? 'rgba(255,164,0,0.1)' : 'rgba(255,78,66,0.1)'
+  const r = 44
+  const cx = 50
+  const cy = 50
+  const circumference = 2 * Math.PI * r
+  const dashOffset = circumference * (1 - score / 100)
+
+  return (
+    <div className="psi-gauge">
+      <div className="psi-gauge-ring">
+        <svg viewBox="0 0 100 100" className="psi-gauge-svg">
+          <circle cx={cx} cy={cy} r={r} fill={bgColor} stroke="#e8e8e8" strokeWidth="4" />
+          <circle
+            cx={cx} cy={cy} r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            transform={`rotate(-90 ${cx} ${cy})`}
+          />
+        </svg>
+        <span className="psi-gauge-number" style={{ color }}>{score}</span>
+      </div>
+      <span className="psi-gauge-label">{label}</span>
+    </div>
+  )
 }
 
 function OverviewScoreCard({ label, value, subtitle, color }: { label: string; value: string; subtitle?: string; color?: string }) {
@@ -736,6 +769,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const siteWideFindings = seoAudit?.siteWideFindings as Finding[] | null
   const seoRecommendations = seoAudit?.recommendations as Recommendation[] | null
   const extractedData = seoAudit?.extractedData as ExtractedData | null
+  const lighthouseScores = (seoAudit as any)?.lighthouseScores as { performance?: number; accessibility?: number; bestPractices?: number; seo?: number } | null
 
   // CRO data
   const croFindings = croAudit?.findings as CroFinding[] | null
@@ -1900,10 +1934,12 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               <section className="audit-section">
                 <div className="cro-scores-grid">
                   {[
-                    { label: 'Above the Fold', score: (croAudit as any).aboveFoldScore ?? 0 },
+                    { label: 'First Impression', score: (croAudit as any).firstImpressionScore ?? (croAudit as any).aboveFoldScore ?? 0 },
+                    { label: 'Trust & Social Proof', score: (croAudit as any).trustScore ?? 0 },
                     { label: 'Call-to-Action', score: (croAudit as any).ctaScore ?? 0 },
+                    { label: 'Lead Capture', score: (croAudit as any).leadCaptureScore ?? 0 },
+                    { label: 'Content & Readability', score: (croAudit as any).contentReadabilityScore ?? (croAudit as any).contentScore ?? 0 },
                     { label: 'Navigation', score: (croAudit as any).navigationScore ?? 0 },
-                    { label: 'Content Structure', score: (croAudit as any).contentScore ?? 0 },
                   ].map(({ label, score }) => (
                     <div key={label} className="cro-score-with-interpretation">
                       <ScoreBar score={score} label={label} />
@@ -2260,6 +2296,18 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                       color={seoScore >= 7 ? 'green' : seoScore >= 4 ? 'amber' : 'red'}
                     />
                   )}
+                </div>
+              </section>
+            )}
+
+            {lighthouseScores && (lighthouseScores.performance != null || lighthouseScores.accessibility != null || lighthouseScores.bestPractices != null || lighthouseScores.seo != null) && (
+              <section className="psi-section">
+                <h3 className="psi-section-title">PageSpeed Insights</h3>
+                <div className="psi-gauges">
+                  {lighthouseScores.performance != null && <PageSpeedGauge score={lighthouseScores.performance} label="Performance" />}
+                  {lighthouseScores.accessibility != null && <PageSpeedGauge score={lighthouseScores.accessibility} label="Accessibility" />}
+                  {lighthouseScores.bestPractices != null && <PageSpeedGauge score={lighthouseScores.bestPractices} label="Best Practices" />}
+                  {lighthouseScores.seo != null && <PageSpeedGauge score={lighthouseScores.seo} label="SEO" />}
                 </div>
               </section>
             )}

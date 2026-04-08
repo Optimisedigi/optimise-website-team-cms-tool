@@ -133,7 +133,7 @@ export const SeoAudits: CollectionConfig = {
               required: true,
               admin: {
                 description:
-                  "Scores per category (metaData, headingStructure, structuredData, internalLinking, imageOptimization, urlStructure, coreWebVitals, navigationUx, eeat, faqImplementation, contentStructure, serviceCoverage)",
+                  "Scores per category (metaData, headingStructure, structuredData, internalLinking, imageOptimization, urlStructure, coreWebVitals, navigationUx, eeat, faqImplementation, contentStructure, serviceCoverage, indexability, securityPerformance, siteHealth, sitemapRobots)",
               },
             },
           ],
@@ -186,6 +186,14 @@ export const SeoAudits: CollectionConfig = {
               admin: {
                 description:
                   "Technical data — sitemapFound, robotsTxtFound, schemaTypes, totalInternalLinks, totalImages, imagesWithoutAlt",
+              },
+            },
+            {
+              name: "lighthouseScores",
+              type: "json",
+              admin: {
+                description:
+                  "PageSpeed Insights Lighthouse scores — { performance, accessibility, bestPractices, seo } each 0-100",
               },
             },
           ],

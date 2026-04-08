@@ -176,6 +176,62 @@
   border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
+/* PageSpeed Insights Gauges */
+.psi-section {
+  text-align: center;
+  padding: 16px 20px 8px;
+}
+
+.psi-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #a1a1aa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 12px;
+}
+
+.psi-gauges {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.psi-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.psi-gauge-ring {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.psi-gauge-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.psi-gauge-number {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.psi-gauge-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
 /* TAM section */
 .tam-section {
   background: #fff;
@@ -257,17 +313,29 @@
 
 .instrument-panel .overview-score-green {
   background: #0b1120;
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.instrument-panel .overview-score-green .overview-score-value {
+  color: #4ade80;
 }
 
 .instrument-panel .overview-score-amber {
   background: #0b1120;
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.instrument-panel .overview-score-amber .overview-score-value {
+  color: #fbbf24;
 }
 
 .instrument-panel .overview-score-red {
   background: #0b1120;
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.instrument-panel .overview-score-red .overview-score-value {
+  color: #f87171;
 }
 
 /* ============================================================ */
@@ -2837,6 +2905,23 @@ html.scroll-ready .report-presentation {
 
   .overview-score-subtitle {
     min-height: 16px;
+  }
+
+  .psi-gauges {
+    gap: 16px;
+  }
+
+  .psi-gauge-ring {
+    width: 56px;
+    height: 56px;
+  }
+
+  .psi-gauge-number {
+    font-size: 16px;
+  }
+
+  .psi-gauge-label {
+    font-size: 10px;
   }
 
   .overview-score-value {
