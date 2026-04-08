@@ -1,0 +1,189 @@
+/* Edit View Layout */
+.edit-layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.edit-iframe {
+  flex: 1;
+  border: none;
+  height: 100%;
+  min-width: 0;
+}
+
+/* Sidebar */
+.edit-sidebar {
+  width: 380px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  background: #fff;
+  border-left: 1px solid #e5e7eb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.edit-sidebar-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #18181b;
+  color: #fff;
+  padding: 16px 20px;
+  border-bottom: 1px solid #27272a;
+}
+
+.edit-sidebar-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.edit-sidebar-subtitle {
+  display: block;
+  font-size: 12px;
+  color: #a1a1aa;
+  margin-top: 2px;
+}
+
+.edit-saving {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #fbbf24;
+  font-weight: 500;
+  animation: edit-pulse 1s ease-in-out infinite;
+}
+
+@keyframes edit-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Sections */
+.edit-section {
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.edit-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.edit-section-toggle:hover {
+  background: #f9fafb;
+}
+
+.edit-section-arrow {
+  font-size: 12px;
+  color: #9ca3af;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.edit-section-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.edit-section-content {
+  padding: 0 20px 12px;
+}
+
+/* Subsections (category grouping) */
+.edit-subsection {
+  margin-bottom: 8px;
+}
+
+.edit-subsection-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 0 4px;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 4px;
+}
+
+/* Toggle rows */
+.edit-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.edit-toggle-row input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.edit-item-excluded {
+  text-decoration: line-through;
+  color: #d1d5db;
+}
+
+.edit-kw-volume {
+  margin-left: auto;
+  font-size: 11px;
+  color: #9ca3af;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Notes */
+.edit-note-block {
+  margin-bottom: 10px;
+}
+
+.edit-note-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.edit-note-textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+  line-height: 1.4;
+  color: #374151;
+  transition: border-color 0.15s;
+}
+
+.edit-note-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.edit-note-textarea::placeholder {
+  color: #d1d5db;
+}

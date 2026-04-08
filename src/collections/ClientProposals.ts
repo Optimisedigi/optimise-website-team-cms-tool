@@ -966,6 +966,30 @@ export const ClientProposals: CollectionConfig = {
                 },
               },
             },
+            {
+              name: "excludedKeywords",
+              type: "json",
+              admin: {
+                description:
+                  "Keywords excluded from the report (managed via edit view). JSON array of keyword strings.",
+              },
+            },
+            {
+              name: "excludedContentQuestions",
+              type: "json",
+              admin: {
+                description:
+                  "Content research questions excluded from the report (managed via edit view). JSON array of question strings.",
+              },
+            },
+            {
+              name: "slideNotes",
+              type: "json",
+              admin: {
+                description:
+                  "Internal notes per slide (visible only in edit view). JSON object keyed by slide number.",
+              },
+            },
           ],
         },
         {

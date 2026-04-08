@@ -23,7 +23,9 @@ async function fetchDashboardData(
   if (!url || !key) return { data: null, error: `Service not configured (url: ${!!url}, key: ${!!key})` };
 
   try {
-    const params = new URLSearchParams({ range: "this_month", customerId, clientName });
+    // Strip dashes from customerId — Google Ads API uses dashless format
+    const cleanCustomerId = customerId.replace(/-/g, "");
+    const params = new URLSearchParams({ range: "this_month", customerId: cleanCustomerId, clientName });
     if (brandKeywords) params.set("brandKeywords", brandKeywords);
     if (conversionActions) params.set("conversionActions", conversionActions);
     const endpoint = `${url}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
@@ -89,8 +91,9 @@ export default async function GoogleDashboardPage({ params }: Props) {
     const apiKey = process.env.INTERNAL_API_KEY;
     if (growthUrl && apiKey) {
       try {
+        const cleanCid = client.googleAdsCustomerId.replace(/-/g, "");
         const qsRes = await fetch(
-          `${growthUrl}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?customerId=${encodeURIComponent(client.googleAdsCustomerId)}`,
+          `${growthUrl}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?customerId=${encodeURIComponent(cleanCid)}`,
           { headers: { "x-internal-key": apiKey }, cache: "no-store" },
         );
         if (qsRes.ok) {

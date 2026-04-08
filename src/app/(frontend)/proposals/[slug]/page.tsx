@@ -464,7 +464,7 @@ function CompetitorCard({
             ) : (
               <span className="comp-rank-badge">#{index}</span>
             )}
-            <span className="comp-domain">{comp.domain}</span>
+            <a className="comp-domain" href={`https://${comp.domain?.replace(/^www\./, '')}`} target="_blank" rel="noopener noreferrer">{comp.domain}</a>
             {sourceLabel && <span className="comp-source-label">{sourceLabel}</span>}
           </div>
           {!monthlyVisits && !avgPos && !comp.keywordsFound ? (
@@ -955,6 +955,14 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
 
   // Keyword categories for grouped display on pre-flight check
   const keywordCategories = (proposal as any).keywordCategories as { categoryName: string; keywords: string }[] | null
+
+  // Exclusion sets for edit view curation
+  const excludedKeywords = new Set(
+    Array.isArray((proposal as any).excludedKeywords) ? ((proposal as any).excludedKeywords as string[]).map(k => k.toLowerCase()) : []
+  )
+  const excludedContentQuestions = new Set(
+    Array.isArray((proposal as any).excludedContentQuestions) ? (proposal as any).excludedContentQuestions as string[] : []
+  )
 
   // Target location label for keyword slide note
   const targetLocationValue = (proposal as any).targetLocation as string | null
@@ -1525,9 +1533,20 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     }
                   }
 
+                  // Filter out excluded content questions from clusters
+                  const filteredDisplayCr = excludedContentQuestions.size > 0
+                    ? displayCr.map(cr => ({
+                        ...cr,
+                        clusters: cr.clusters.map(cluster => ({
+                          ...cluster,
+                          questions: cluster.questions.filter(q => !excludedContentQuestions.has(q.question)),
+                        })).filter(cluster => cluster.questions.length > 0),
+                      })).filter(cr => cr.clusters.length > 0)
+                    : displayCr
+
                   return (
                     <div className="cr-sunburst-grid">
-                      {displayCr.map((cr, crIdx) => (
+                      {filteredDisplayCr.map((cr, crIdx) => (
                         <div key={crIdx} className="cr-sunburst-section">
                           <div className="cr-sunburst-wrap">
                             <KeywordSunburst keyword={cr.keyword} clusters={cr.clusters} />
@@ -1990,37 +2009,56 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {showSlide(6) && kwSnapshot && keywords && (() => {
           // Build category groups: match keywords to their category by keyword text
-          const categoryGroups: { name: string; keywords: typeof keywords }[] = []
+          const categoryGroups: { name: string; keywords: typeof keywords; totalVolume: number }[] = []
 
           if (keywordCategories && keywordCategories.length > 0) {
+            // Build a lookup from keyword text → audit data for fast matching
+            const kwLookup = new Map<string, (typeof keywords)[number]>()
+            for (const kw of keywords) {
+              kwLookup.set(kw.keyword.toLowerCase(), kw)
+            }
+
             for (const cat of keywordCategories) {
               const catKeywordNames = (cat.keywords || '')
                 .split('\n')
-                .map(k => k.trim().toLowerCase())
+                .map(k => k.trim())
                 .filter(Boolean)
-              const matched = keywords.filter(kw =>
-                catKeywordNames.includes(kw.keyword.toLowerCase())
-              )
-              if (matched.length > 0) {
-                categoryGroups.push({ name: cat.categoryName, keywords: matched })
+
+              // Match each CMS keyword to audit data, or create a stub entry
+              const catKeywords: typeof keywords = catKeywordNames
+                .filter(name => !excludedKeywords.has(name.toLowerCase()))
+                .map(name => {
+                  const auditMatch = kwLookup.get(name.toLowerCase())
+                  if (auditMatch) return auditMatch
+                  // Stub for keywords without audit data
+                  return { keyword: name, position: null, searchVolume: 0, opportunity: 'low' }
+                })
+
+              if (catKeywords.length > 0) {
+                const totalVolume = catKeywords.reduce((sum, kw) => sum + (kw.searchVolume ?? 0), 0)
+                categoryGroups.push({ name: cat.categoryName, keywords: catKeywords, totalVolume })
               }
             }
           }
 
           // Fallback: if no categories or no matches, show all keywords as one group
           if (categoryGroups.length === 0) {
-            categoryGroups.push({ name: 'Keywords', keywords })
+            const filtered = keywords.filter(kw => !excludedKeywords.has(kw.keyword.toLowerCase()))
+            const totalVolume = filtered.reduce((sum, kw) => sum + (kw.searchVolume ?? 0), 0)
+            categoryGroups.push({ name: 'Keywords', keywords: filtered, totalVolume })
           }
 
-          // Sort each category by search volume (descending) and cap at 35 rows per column
-          const maxRowsPerColumn = 35
+          // Sort each category by search volume (descending) and cap at 20 rows per category
+          const maxRowsPerCategory = 20
           const sortedGroups = categoryGroups.map(group => ({
             ...group,
             keywords: [...group.keywords]
               .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0))
-              .slice(0, maxRowsPerColumn),
+              .slice(0, maxRowsPerCategory),
           }))
-          const colCount = Math.min(sortedGroups.length, 3)
+
+          // Dynamic column count: up to 3 for many categories, 2 for a few, 1 for single
+          const colCount = sortedGroups.length >= 3 ? 3 : sortedGroups.length >= 2 ? 2 : 1
 
           return (
             <section className="slide slide-6 slide-expandable">
@@ -2029,12 +2067,15 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 <span>Keywords Analysis</span>
               </div>
               <div className="slide-content">
-                <div className="kw-category-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${colCount}, 1fr)`, gap: '24px' }}>
+                <div className="kw-category-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${colCount}, 1fr)`, gap: '20px' }}>
                   {sortedGroups.map((group, gIdx) => (
-                    <section key={gIdx} className="audit-section" style={{ marginBottom: '20px' }}>
-                      <h3 className="kw-category-heading">{group.name}</h3>
+                    <section key={gIdx} className="audit-section" style={{ marginBottom: '12px' }}>
+                      <div className="kw-category-header">
+                        <h3 className="kw-category-heading">{group.name}</h3>
+                        <span className="kw-category-total">{group.totalVolume.toLocaleString()} monthly searches</span>
+                      </div>
                       <div className="kw-table-wrapper">
-                        <table className="kw-table">
+                        <table className="kw-table kw-table-compact">
                           <colgroup>
                             <col className="col-keyword" />
                             <col className="col-volume" />
@@ -2044,7 +2085,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                           <thead>
                             <tr>
                               <th>Keyword</th>
-                              <th>Monthly Searches</th>
+                              <th>Searches</th>
                               <th>Competition</th>
                               <th>Ranking?</th>
                             </tr>
@@ -2109,6 +2150,37 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   </div>
                 )}
               </div>
+              {/* GBP Rating & Reviews */}
+              {yourProfileWithOverrides?.googleBusinessProfile && (() => {
+                const gbp = yourProfileWithOverrides.googleBusinessProfile!
+                return (
+                  <div className="client-overview-meta">
+                    <div className="client-overview-item">
+                      <span className="client-overview-label">Google Reviews</span>
+                      <span className="client-overview-value">
+                        <span className="mission-brief-gbp">
+                          <StarRating rating={gbp.rating} />
+                          <span>{gbp.rating}</span>
+                          <span className="mission-brief-gbp-count">({gbp.reviewCount} reviews)</span>
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Services (keyword categories) */}
+              {keywordCategories && keywordCategories.length > 0 && (
+                <div className="client-overview-services">
+                  <span className="client-overview-label">Services</span>
+                  <div className="client-services-tags">
+                    {keywordCategories.map((cat, i) => (
+                      <span key={i} className="client-service-tag">{cat.categoryName}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {proposal.businessGoals && (
                 <div className="client-goals">
                   <span className="client-overview-label">Business Goal</span>

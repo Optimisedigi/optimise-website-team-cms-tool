@@ -30,15 +30,17 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Strip dashes from customerId — Google Ads API uses dashless format (e.g. 9554935739)
+    const cleanCustomerId = customerId.replace(/-/g, "");
     const params = new URLSearchParams({ range });
-    if (customerId) params.set("customerId", customerId);
+    if (cleanCustomerId) params.set("customerId", cleanCustomerId);
     if (clientName) params.set("clientName", clientName);
     if (brandKeywords) params.set("brandKeywords", brandKeywords);
     if (conversionActions) params.set("conversionActions", conversionActions);
     const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },
-      next: { revalidate: 0 },
+      cache: "no-store",
     });
 
     if (!res.ok) {
@@ -51,11 +53,8 @@ export async function GET(req: NextRequest) {
 
     const data = await res.json();
     const response = NextResponse.json(data);
-    // Cache in browser for 15 min, allow stale-while-revalidate for 30 min
-    response.headers.set(
-      "Cache-Control",
-      "private, max-age=900, stale-while-revalidate=1800",
-    );
+    // No browser caching — always fetch fresh data from Growth Tools
+    response.headers.set("Cache-Control", "no-store");
     return response;
   } catch (err) {
     console.error("[Dashboard Data]", err);

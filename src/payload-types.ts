@@ -1539,6 +1539,42 @@ export interface ClientProposal {
     | boolean
     | null;
   /**
+   * Keywords excluded from the report (managed via edit view). JSON array of keyword strings.
+   */
+  excludedKeywords?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Content research questions excluded from the report (managed via edit view). JSON array of question strings.
+   */
+  excludedContentQuestions?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Internal notes per slide (visible only in edit view). JSON object keyed by slide number.
+   */
+  slideNotes?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * Contracts linked to this proposal
    */
   contracts?: {
@@ -4960,6 +4996,9 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   missionResources?: T;
   launchRequirements?: T;
   excludedCompetitorDomains?: T;
+  excludedKeywords?: T;
+  excludedContentQuestions?: T;
+  slideNotes?: T;
   contracts?: T;
   proposalStatus?: T;
   convertToClient?: T;

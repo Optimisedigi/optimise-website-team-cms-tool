@@ -29,10 +29,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?customerId=${encodeURIComponent(customerId)}`;
+    // Strip dashes from customerId — Google Ads API uses dashless format
+    const cleanCustomerId = customerId.replace(/-/g, "");
+    const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?customerId=${encodeURIComponent(cleanCustomerId)}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },
-      next: { revalidate: 0 },
+      cache: "no-store",
     });
 
     const contentType = res.headers.get("content-type") || "";

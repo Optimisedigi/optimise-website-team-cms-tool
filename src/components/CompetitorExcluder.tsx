@@ -27,20 +27,47 @@ const CompetitorExcluder = () => {
     const fetchCompetitors = async () => {
       setLoading(true)
       try {
-        const res = await fetch(
-          `/api/competitor-analyses?where[proposal][equals]=${id}&limit=1&sort=-createdAt`,
-          { credentials: 'include' },
-        )
-        if (!res.ok) return
-        const data = await res.json()
-        const analysis = data.docs?.[0]
-        if (!analysis?.competitors) return
+        // Fetch both competitor analysis data and CMS-added competitors in parallel
+        const [analysisRes, proposalRes] = await Promise.all([
+          fetch(
+            `/api/competitor-analyses?where[proposal][equals]=${id}&limit=1&sort=-createdAt`,
+            { credentials: 'include' },
+          ),
+          fetch(`/api/client-proposals/${id}?depth=0`, { credentials: 'include' }),
+        ])
 
-        const competitorDomains = (analysis.competitors as CompetitorProfile[])
-          .map((c) => c.domain?.replace(/^www\./, '') ?? '')
-          .filter(Boolean)
+        const allDomains = new Set<string>()
 
-        if (!cancelled) setDomains(competitorDomains)
+        // API competitor domains
+        if (analysisRes.ok) {
+          const data = await analysisRes.json()
+          const analysis = data.docs?.[0]
+          if (analysis?.competitors) {
+            for (const c of analysis.competitors as CompetitorProfile[]) {
+              const d = c.domain?.replace(/^www\./, '') ?? ''
+              if (d) allDomains.add(d)
+            }
+          }
+        }
+
+        // CMS-added competitor domains
+        if (proposalRes.ok) {
+          const proposal = await proposalRes.json()
+          const cmsCompetitors = proposal.competitors as { websiteUrl?: string }[] | undefined
+          if (cmsCompetitors) {
+            for (const c of cmsCompetitors) {
+              if (!c.websiteUrl) continue
+              try {
+                const hostname = new URL(c.websiteUrl.startsWith('http') ? c.websiteUrl : `https://${c.websiteUrl}`).hostname.replace(/^www\./, '')
+                if (hostname) allDomains.add(hostname)
+              } catch {
+                // skip invalid URLs
+              }
+            }
+          }
+        }
+
+        if (!cancelled) setDomains(Array.from(allDomains))
       } catch {
         // Silently fail
       } finally {
