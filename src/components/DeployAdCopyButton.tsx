@@ -261,6 +261,27 @@ const DeployAdCopyButtonInner = () => {
                 ))}
               </div>
             )}
+            {/* URL fallback warnings */}
+            {(() => {
+              const fallbacks = succeeded.filter((c: any) => c.urlFallback)
+              if (fallbacks.length === 0) return null
+              return (
+                <div style={{ marginBottom: 10, padding: 10, background: '#fef3c7', borderRadius: 6, border: '1px solid #fde68a' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 6 }}>
+                    URL defaulted to homepage ({fallbacks.length})
+                  </div>
+                  <div style={{ fontSize: 11, color: '#78350f', marginBottom: 6 }}>
+                    These ad groups had an invalid or missing landing page URL. The homepage was used instead. Update the keyword URLs in Google Ads if needed.
+                  </div>
+                  {fallbacks.map((c: any, i: number) => (
+                    <div key={i} style={{ fontSize: 12, marginBottom: 4, paddingLeft: 8, borderLeft: '2px solid #fbbf24' }}>
+                      <span style={{ color: '#78350f' }}>{c.campaignName} &rarr; {c.adGroupName}</span>
+                      {c.originalUrl && <div style={{ fontSize: 11, color: '#a16207', marginTop: 1 }}>Original: &quot;{c.originalUrl}&quot; &rarr; Used: {c.usedUrl}</div>}
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
             {succeeded.length > 0 && (
               <div style={{ padding: 10, background: '#f0fdf4', borderRadius: 6, border: '1px solid #bbf7d0' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#065f46', marginBottom: 6 }}>
