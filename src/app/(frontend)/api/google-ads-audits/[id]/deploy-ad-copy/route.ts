@@ -46,12 +46,15 @@ export async function POST(
       );
     }
 
-    let body: { confirmedCustomerId?: string };
+    let body: { confirmedCustomerId?: string; adLabel?: string; adStatus?: string };
     try {
       body = await req.json();
     } catch {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
+
+    const adLabel = body.adLabel || `OD RSA ${new Date().toISOString().slice(0, 10)}`;
+    const adStatus = body.adStatus || "ENABLED";
 
     // Fetch the audit record
     let audit: any;
@@ -129,12 +132,12 @@ export async function POST(
       }
     }
 
-    // Set deploy status to "deploying"
+    // Set deploy status to "deploying" and store the label
     try {
       const dbClient = (payload.db as any).client;
       await dbClient.execute({
-        sql: "UPDATE google_ads_audits SET ad_copy_deploy_status = ?, ad_copy_deploy_started_at = ?, ad_copy_deploy_error = NULL WHERE id = ?",
-        args: ["deploying", new Date().toISOString(), id],
+        sql: "UPDATE google_ads_audits SET ad_copy_deploy_status = ?, ad_copy_deploy_started_at = ?, ad_copy_deploy_error = NULL, ad_copy_deploy_label = ? WHERE id = ?",
+        args: ["deploying", new Date().toISOString(), adLabel, id],
       });
     } catch (err) {
       console.error(`[deploy-ad-copy] Failed to set deploying status:`, err);
@@ -158,6 +161,8 @@ export async function POST(
               businessName,
               websiteUrl,
               adGroups,
+              adLabel,
+              adStatus,
             }),
           }
         ).catch((err) => {

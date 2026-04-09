@@ -12,10 +12,12 @@ const DeployAdCopyButtonInner = () => {
   const [stage, setStage] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
   const [deployResult, setDeployResult] = useState<any>(null)
+  const [adLabel, setAdLabel] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const adCopyStatus = fields?.adCopyStatus?.value as string | undefined
   const customerId = fields?.customerId?.value as string | undefined
+  const businessName = fields?.businessName?.value as string | undefined
   const deployStatus = fields?.adCopyDeployStatus?.value as string | undefined
   const isApproved = adCopyStatus === 'approved'
   const alreadyDeployed = deployStatus === 'completed'
@@ -70,6 +72,13 @@ const DeployAdCopyButtonInner = () => {
     }, 5000)
   }, [id, stopPolling])
 
+  // Generate default label on first open
+  const defaultLabel = `OD RSA ${new Date().toISOString().slice(0, 10)}`
+  const handleOpenConfirm = () => {
+    if (!adLabel) setAdLabel(defaultLabel)
+    setShowConfirm(true)
+  }
+
   const handleDeploy = async () => {
     setShowConfirm(false)
     setLoading(true)
@@ -83,7 +92,7 @@ const DeployAdCopyButtonInner = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ confirmedCustomerId: customerId }),
+        body: JSON.stringify({ confirmedCustomerId: customerId, adLabel: adLabel || defaultLabel, adStatus: 'ENABLED' }),
       })
 
       if (!res.ok) {
@@ -127,7 +136,7 @@ const DeployAdCopyButtonInner = () => {
         <div>
           <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#1e293b' }}>Deploy Ad Copy to Google Ads</h4>
           <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
-            Creates responsive search ads in existing campaigns and ad groups. All ads created as PAUSED.
+            Creates responsive search ads in existing campaigns and ad groups. Ads go live immediately with a label for easy filtering.
           </p>
         </div>
       </div>
@@ -135,7 +144,7 @@ const DeployAdCopyButtonInner = () => {
       {/* Deploy button */}
       <button
         type="button"
-        onClick={() => setShowConfirm(true)}
+        onClick={handleOpenConfirm}
         disabled={loading || alreadyDeployed}
         style={{
           padding: '10px 20px', fontSize: 13, fontWeight: 600,
@@ -162,13 +171,33 @@ const DeployAdCopyButtonInner = () => {
           <div style={{ background: '#fff', borderRadius: 12, padding: 24, maxWidth: 480, width: '90%' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700, color: '#1e293b' }}>Confirm Ad Copy Deployment</h3>
             <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.6, margin: '0 0 8px' }}>
-              This will create responsive search ads in the Google Ads account using the approved ad copy.
+              This will create responsive search ads in the Google Ads account using the approved ad copy. Ads will go <strong>live immediately</strong>.
             </p>
             <div style={{ padding: 10, background: '#fef3c7', borderRadius: 6, fontSize: 13, color: '#92400e', marginBottom: 12 }}>
               <strong>Customer ID:</strong> {customerId || 'Not set'}
-              <br />
-              All ads will be created as <strong>PAUSED</strong>. No ads will go live automatically.
             </div>
+
+            {/* Label input */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 4 }}>
+                Ad Label (for filtering in Google Ads Editor)
+              </label>
+              <input
+                type="text"
+                value={adLabel}
+                onChange={(e) => setAdLabel(e.target.value)}
+                placeholder={defaultLabel}
+                style={{
+                  width: '100%', padding: '8px 10px', fontSize: 13,
+                  border: '1px solid #d1d5db', borderRadius: 6, outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>
+                This label will be applied to all created ads so you can filter them in Google Ads Editor.
+              </p>
+            </div>
+
             <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: '0 0 16px' }}>
               If any campaigns or ad groups in the ad copy don't match existing ones in the account, the deployment will pause and show you the mismatches.
             </p>

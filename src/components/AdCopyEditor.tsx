@@ -209,9 +209,14 @@ const AdCopyEditorInner = () => {
           </span>
         )}
         {slug && publishToggle && (
-          <span style={{ fontSize: 12, color: '#2563eb' }}>
-            Preview: /ad-copy/{slug}
-          </span>
+          <a
+            href={`/ad-copy/${slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: 12, color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}
+          >
+            Open Preview: /ad-copy/{slug}
+          </a>
         )}
       </div>
 

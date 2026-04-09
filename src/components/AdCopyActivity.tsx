@@ -18,6 +18,7 @@ const AdCopyActivityInner = () => {
   const approvedAt = fields?.adCopyApprovedAt?.value as string | undefined
   const deployedAt = fields?.adCopyDeployedAt?.value as string | undefined
   const deployStatus = fields?.adCopyDeployStatus?.value as string | undefined
+  const deployLabel = fields?.adCopyDeployLabel?.value as string | undefined
 
   const formatDate = (iso: string) => {
     const d = new Date(iso)
@@ -37,7 +38,10 @@ const AdCopyActivityInner = () => {
     events.push({ label: 'Client submitted for approval', date: approvedAt || null, color: '#065f46', bgColor: '#d1fae5' })
   }
   if (deployedAt || deployStatus === 'completed') {
-    events.push({ label: 'Ad copy deployed to Google Ads', date: deployedAt || null, color: '#7c3aed', bgColor: '#ede9fe' })
+    events.push({
+      label: `Ad copy deployed to Google Ads${deployLabel ? ` (label: ${deployLabel})` : ''}`,
+      date: deployedAt || null, color: '#7c3aed', bgColor: '#ede9fe',
+    })
   }
   if (deployStatus === 'deploying') {
     events.push({ label: 'Deploying to Google Ads...', date: null, color: '#92400e', bgColor: '#fef3c7' })

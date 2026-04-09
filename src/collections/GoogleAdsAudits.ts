@@ -945,6 +945,14 @@ export const GoogleAdsAudits: CollectionConfig = {
                 description: "Error details if deployment failed",
               },
             },
+            {
+              name: "adCopyDeployLabel",
+              type: "text",
+              admin: {
+                readOnly: true,
+                description: "Label applied to deployed ads in Google Ads",
+              },
+            },
           ],
         },
 

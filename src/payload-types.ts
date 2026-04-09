@@ -2370,6 +2370,10 @@ export interface GoogleAdsAudit {
    */
   adCopyDeployError?: string | null;
   /**
+   * Label applied to deployed ads in Google Ads
+   */
+  adCopyDeployLabel?: string | null;
+  /**
    * Toggle to make the negative keyword list publicly accessible (with PIN)
    */
   negativeListBuilderPublished?: boolean | null;
@@ -5640,6 +5644,7 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   adCopyDeployedAt?: T;
   adCopyDeployResult?: T;
   adCopyDeployError?: T;
+  adCopyDeployLabel?: T;
   negativeListBuilderPublished?: T;
   negativeListBuilder?: T;
   history?:
