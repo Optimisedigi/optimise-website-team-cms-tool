@@ -242,20 +242,40 @@ const DeployAdCopyButtonInner = () => {
         </div>
       )}
 
-      {/* Success details */}
-      {deployResult && !deployResult.mismatches?.length && deployResult.campaigns && (
-        <div style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 6 }}>Deployment Details</div>
-          {(deployResult.campaigns || []).map((c: any, i: number) => (
-            <div key={i} style={{ fontSize: 12, color: '#475569', marginBottom: 4, paddingLeft: 8, borderLeft: '2px solid #a78bfa' }}>
-              <strong>{c.campaignName}</strong> &rarr; {c.adGroupName}
-              <span style={{ marginLeft: 6, color: c.success ? '#059669' : '#dc2626', fontSize: 11 }}>
-                {c.success ? 'Ad created' : c.error || 'Failed'}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Per-ad-group results */}
+      {deployResult && !deployResult.mismatches?.length && deployResult.campaigns && (() => {
+        const succeeded = (deployResult.campaigns || []).filter((c: any) => c.success)
+        const failed = (deployResult.campaigns || []).filter((c: any) => !c.success)
+        return (
+          <div style={{ marginTop: 10 }}>
+            {failed.length > 0 && (
+              <div style={{ marginBottom: 10, padding: 10, background: '#fee2e2', borderRadius: 6, border: '1px solid #fecaca' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#991b1b', marginBottom: 6 }}>
+                  Failed ({failed.length})
+                </div>
+                {failed.map((c: any, i: number) => (
+                  <div key={i} style={{ fontSize: 12, marginBottom: 6, paddingLeft: 8, borderLeft: '2px solid #ef4444' }}>
+                    <div style={{ color: '#991b1b', fontWeight: 500 }}>{c.campaignName} &rarr; {c.adGroupName}</div>
+                    <div style={{ color: '#b91c1c', marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>{c.error || 'Unknown error'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {succeeded.length > 0 && (
+              <div style={{ padding: 10, background: '#f0fdf4', borderRadius: 6, border: '1px solid #bbf7d0' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#065f46', marginBottom: 6 }}>
+                  Created ({succeeded.length})
+                </div>
+                {succeeded.map((c: any, i: number) => (
+                  <div key={i} style={{ fontSize: 12, color: '#065f46', marginBottom: 3, paddingLeft: 8, borderLeft: '2px solid #22c55e' }}>
+                    {c.campaignName} &rarr; {c.adGroupName}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
