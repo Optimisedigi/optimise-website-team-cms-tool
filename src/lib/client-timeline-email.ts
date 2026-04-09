@@ -226,20 +226,20 @@ export function generateClientTimelineEmailHtml(data: TimelineEmailData): string
 
   <!-- Progress Section -->
   <div style="background:#f9fafb;border-radius:8px;padding:20px 24px;margin-bottom:28px;margin-left:-24px;margin-right:-24px">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
-      <div style="font-size:15px;font-weight:700;color:#111827">Overall Progress</div>
-      <div style="font-size:14px;color:#6b7280">${completed} of ${total} tasks &nbsp;(${pct}%)</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-bottom:12px"><tr>
+      <td style="padding:0;font-size:15px;font-weight:700;color:#111827" align="left">Overall Progress</td>
+      <td style="padding:0;font-size:14px;color:#6b7280" align="right">${completed} of ${total} tasks &nbsp;(${pct}%)</td>
+    </tr></table>
+    <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
+    <div style="height:8px;background:#e5e7eb;border-radius:999px;margin-bottom:0;margin-left:0">
+      <div style="background:#16a34a;height:8px;width:${pct}%;border-radius:999px"></div>
     </div>
-    <div style="position:relative;height:8px;background:#e5e7eb;border-radius:999px;margin-bottom:10px;margin-left:0">
-      <!-- Actual bar -->
-      <div style="background:#16a34a;height:100%;width:${pct}%;border-radius:999px"></div>
-      <!-- Expected line: yellow tick at elapsed time % -->
-      ${expectedPct > 0 ? `<div style="position:absolute;top:-4px;left:${expectedPct}%;width:2px;height:16px;background:#eab308;border-radius:1px"></div>` : ""}
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:6px">
-      <div>${startDate ? `Work commenced: ${formatDate(startDate)}` : ""}</div>
-      <div>${weekLabel}</div>
-    </div>
+    ${expectedPct > 0 ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-bottom:10px"><tr><td style="padding:0;width:${expectedPct}%;font-size:0;line-height:0" width="${expectedPct}%"></td><td style="padding:0;width:2px;font-size:0;line-height:0" width="2"><div style="width:2px;height:14px;background:#eab308;border-radius:1px;margin-top:-4px"></div></td><td style="padding:0;font-size:0;line-height:0"></td></tr></table>` : `<div style="margin-bottom:10px"></div>`}
+    <!--[if mso]></td></tr></table><![endif]-->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-bottom:6px"><tr>
+      <td style="padding:0;font-size:12px;color:#6b7280" align="left">${startDate ? `Work commenced: ${formatDate(startDate)}` : ""}</td>
+      <td style="padding:0;font-size:12px;color:#6b7280" align="right">${weekLabel}</td>
+    </tr></table>
     ${scheduleNote}
   </div>
 
