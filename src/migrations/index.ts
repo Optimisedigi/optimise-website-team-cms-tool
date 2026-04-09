@@ -13,6 +13,7 @@ import * as migration_20260325_120000_add_client_account_timeline from './202603
 import * as migration_20260327_120000_add_client_to_proposals from './20260327_120000_add_client_to_proposals';
 import * as migration_20260401_120000_add_meeting_schedulers from './20260401_120000_add_meeting_schedulers';
 import * as migration_20260407_120000_add_negative_list_builder from './20260407_120000_add_negative_list_builder';
+import * as migration_20260409_120000_add_ad_copy_activity_fields from './20260409_120000_add_ad_copy_activity_fields';
 import * as migration_20260410_120000_add_client_timeline_templates_and_client_timelines from './20260410_120000_add_client_timeline_templates_and_client_timelines';
 
 export const migrations = [
@@ -90,6 +91,11 @@ export const migrations = [
     up: migration_20260407_120000_add_negative_list_builder.up,
     down: migration_20260407_120000_add_negative_list_builder.down,
     name: '20260407_120000_add_negative_list_builder'
+  },
+  {
+    up: migration_20260409_120000_add_ad_copy_activity_fields.up,
+    down: migration_20260409_120000_add_ad_copy_activity_fields.down,
+    name: '20260409_120000_add_ad_copy_activity_fields'
   },
   {
     up: migration_20260410_120000_add_client_timeline_templates_and_client_timelines.up,

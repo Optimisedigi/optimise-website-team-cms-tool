@@ -2325,6 +2325,26 @@ export interface GoogleAdsAudit {
    */
   adCopyGeneratedAt?: string | null;
   /**
+   * When the ad copy preview was sent to the client
+   */
+  adCopyPublishedAt?: string | null;
+  /**
+   * When the client submitted the ad copy for approval
+   */
+  adCopyApprovedAt?: string | null;
+  /**
+   * Snapshot of the original generated ad copy before client edits
+   */
+  adCopyOriginalCopy?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * Toggle to make the negative keyword list publicly accessible (with PIN)
    */
   negativeListBuilderPublished?: boolean | null;
@@ -5587,6 +5607,9 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   adCopyPublished?: T;
   adCopyComments?: T;
   adCopyGeneratedAt?: T;
+  adCopyPublishedAt?: T;
+  adCopyApprovedAt?: T;
+  adCopyOriginalCopy?: T;
   negativeListBuilderPublished?: T;
   negativeListBuilder?: T;
   history?:

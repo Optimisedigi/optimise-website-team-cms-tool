@@ -856,6 +856,39 @@ export const GoogleAdsAudits: CollectionConfig = {
                 description: "When the ad copy was generated",
               },
             },
+            {
+              name: "adCopyPublishedAt",
+              type: "date",
+              admin: {
+                readOnly: true,
+                description: "When the ad copy preview was sent to the client",
+              },
+            },
+            {
+              name: "adCopyApprovedAt",
+              type: "date",
+              admin: {
+                readOnly: true,
+                description: "When the client submitted the ad copy for approval",
+              },
+            },
+            {
+              name: "adCopyOriginalCopy",
+              type: "json",
+              admin: {
+                hidden: true,
+                description: "Snapshot of the original generated ad copy before client edits",
+              },
+            },
+            {
+              name: "adCopyActivityUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/AdCopyActivity",
+                },
+              },
+            },
           ],
         },
 

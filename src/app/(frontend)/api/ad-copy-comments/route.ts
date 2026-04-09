@@ -75,6 +75,18 @@ export async function POST(req: NextRequest) {
     // Handle save-edits action — client edited ad copy directly
     if (body.action === "save-edits" && body.adCopy) {
       const dbClient = (payload.db as any).client;
+
+      // On first client edit, snapshot the original generated copy for change history
+      if (!audit.adCopyOriginalCopy && audit.generatedAdCopy) {
+        const originalCopy = typeof audit.generatedAdCopy === "string"
+          ? audit.generatedAdCopy
+          : JSON.stringify(audit.generatedAdCopy);
+        await dbClient.execute({
+          sql: "UPDATE google_ads_audits SET ad_copy_original_copy = ? WHERE id = ?",
+          args: [originalCopy, audit.id],
+        });
+      }
+
       await dbClient.execute({
         sql: "UPDATE google_ads_audits SET generated_ad_copy = ? WHERE id = ?",
         args: [JSON.stringify(body.adCopy), audit.id],
@@ -86,8 +98,8 @@ export async function POST(req: NextRequest) {
     if (body.action === "submit-approval") {
       const dbClient = (payload.db as any).client;
       await dbClient.execute({
-        sql: "UPDATE google_ads_audits SET ad_copy_status = ? WHERE id = ?",
-        args: ["approved", audit.id],
+        sql: "UPDATE google_ads_audits SET ad_copy_status = ?, ad_copy_approved_at = ? WHERE id = ?",
+        args: ["approved", new Date().toISOString(), audit.id],
       });
 
       // Send notification email to account managers (from linked client) or fallback
