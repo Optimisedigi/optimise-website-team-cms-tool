@@ -2345,6 +2345,31 @@ export interface GoogleAdsAudit {
     | boolean
     | null;
   /**
+   * Current status of the ad copy deployment to Google Ads
+   */
+  adCopyDeployStatus?: ('not_started' | 'deploying' | 'completed' | 'mismatched' | 'failed') | null;
+  adCopyDeployStartedAt?: string | null;
+  /**
+   * When the ad copy was deployed to Google Ads
+   */
+  adCopyDeployedAt?: string | null;
+  /**
+   * Results from the ad copy deployment
+   */
+  adCopyDeployResult?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Error details if deployment failed
+   */
+  adCopyDeployError?: string | null;
+  /**
    * Toggle to make the negative keyword list publicly accessible (with PIN)
    */
   negativeListBuilderPublished?: boolean | null;
@@ -5610,6 +5635,11 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   adCopyPublishedAt?: T;
   adCopyApprovedAt?: T;
   adCopyOriginalCopy?: T;
+  adCopyDeployStatus?: T;
+  adCopyDeployStartedAt?: T;
+  adCopyDeployedAt?: T;
+  adCopyDeployResult?: T;
+  adCopyDeployError?: T;
   negativeListBuilderPublished?: T;
   negativeListBuilder?: T;
   history?:

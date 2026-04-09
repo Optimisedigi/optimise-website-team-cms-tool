@@ -83,6 +83,7 @@ import { default as default_8880b203f284265c1c0872341a6ab1ef } from '../../../co
 import { default as default_2a5597b466c0be4a12bd7249716b4ee3 } from '../../../components/GenerateAdCopyButton'
 import { default as default_b012e7d9e2700288331e55f2919835cb } from '../../../components/AdCopyEditor'
 import { default as default_628833cd0ea22895ebbb18b810d0ef75 } from '../../../components/AdCopyActivity'
+import { default as default_c3df4656bbea60303e2b8ca7d1096de2 } from '../../../components/DeployAdCopyButton'
 import { default as default_fd2febb67d3357a3222a3d4b42c00e68 } from '../../../components/NegativeListBuilder'
 import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../components/GscIndexingAuditInfo'
@@ -198,6 +199,7 @@ export const importMap = {
   "./components/GenerateAdCopyButton#default": default_2a5597b466c0be4a12bd7249716b4ee3,
   "./components/AdCopyEditor#default": default_b012e7d9e2700288331e55f2919835cb,
   "./components/AdCopyActivity#default": default_628833cd0ea22895ebbb18b810d0ef75,
+  "./components/DeployAdCopyButton#default": default_c3df4656bbea60303e2b8ca7d1096de2,
   "./components/NegativeListBuilder#default": default_fd2febb67d3357a3222a3d4b42c00e68,
   "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/GscIndexingAuditInfo#default": default_6d638ae0812e4c3b3793e2cfa8990bb7,

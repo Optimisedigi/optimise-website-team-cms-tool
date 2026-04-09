@@ -16,6 +16,8 @@ const AdCopyActivityInner = () => {
   const generatedAt = fields?.adCopyGeneratedAt?.value as string | undefined
   const publishedAt = fields?.adCopyPublishedAt?.value as string | undefined
   const approvedAt = fields?.adCopyApprovedAt?.value as string | undefined
+  const deployedAt = fields?.adCopyDeployedAt?.value as string | undefined
+  const deployStatus = fields?.adCopyDeployStatus?.value as string | undefined
 
   const formatDate = (iso: string) => {
     const d = new Date(iso)
@@ -28,11 +30,17 @@ const AdCopyActivityInner = () => {
   if (generatedAt) {
     events.push({ label: 'Ad copy generated', date: generatedAt, color: '#1e40af', bgColor: '#dbeafe' })
   }
-  if (publishedAt) {
-    events.push({ label: 'Preview sent to client', date: publishedAt, color: '#7c2d12', bgColor: '#ffedd5' })
+  if (publishedAt || adCopyStatus === 'published' || adCopyStatus === 'approved') {
+    events.push({ label: 'Preview sent to client', date: publishedAt || null, color: '#7c2d12', bgColor: '#ffedd5' })
   }
-  if (approvedAt) {
-    events.push({ label: 'Client submitted for approval', date: approvedAt, color: '#065f46', bgColor: '#d1fae5' })
+  if (approvedAt || adCopyStatus === 'approved') {
+    events.push({ label: 'Client submitted for approval', date: approvedAt || null, color: '#065f46', bgColor: '#d1fae5' })
+  }
+  if (deployedAt || deployStatus === 'completed') {
+    events.push({ label: 'Ad copy deployed to Google Ads', date: deployedAt || null, color: '#7c3aed', bgColor: '#ede9fe' })
+  }
+  if (deployStatus === 'deploying') {
+    events.push({ label: 'Deploying to Google Ads...', date: null, color: '#92400e', bgColor: '#fef3c7' })
   }
 
   if (events.length === 0 && !adCopyStatus) return null
@@ -78,7 +86,7 @@ const AdCopyActivityInner = () => {
               }} />
               <div style={{ fontSize: 12, fontWeight: 600, color: event.color }}>{event.label}</div>
               <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
-                {event.date ? formatDate(event.date) : ''}
+                {event.date ? formatDate(event.date) : 'Date not recorded'}
               </div>
             </div>
           ))}

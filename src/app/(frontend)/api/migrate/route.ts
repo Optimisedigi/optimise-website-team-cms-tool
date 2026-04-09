@@ -1336,6 +1336,11 @@ export async function POST(request: NextRequest) {
   await run("google_ads_audits.ad_copy_published_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_published_at` text");
   await run("google_ads_audits.ad_copy_approved_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_approved_at` text");
   await run("google_ads_audits.ad_copy_original_copy", "ALTER TABLE `google_ads_audits` ADD `ad_copy_original_copy` text");
+  await run("google_ads_audits.ad_copy_deploy_status", "ALTER TABLE `google_ads_audits` ADD `ad_copy_deploy_status` text");
+  await run("google_ads_audits.ad_copy_deploy_started_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_deploy_started_at` text");
+  await run("google_ads_audits.ad_copy_deployed_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_deployed_at` text");
+  await run("google_ads_audits.ad_copy_deploy_result", "ALTER TABLE `google_ads_audits` ADD `ad_copy_deploy_result` text");
+  await run("google_ads_audits.ad_copy_deploy_error", "ALTER TABLE `google_ads_audits` ADD `ad_copy_deploy_error` text");
 
   // Account managers array table for clients
   await run("clients_account_managers_post", `CREATE TABLE IF NOT EXISTS \`clients_account_managers\` (
@@ -2361,6 +2366,11 @@ export async function GET(request: NextRequest) {
   await run("gaa.ad_copy_published_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_published_at` text");
   await run("gaa.ad_copy_approved_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_approved_at` text");
   await run("gaa.ad_copy_original_copy", "ALTER TABLE `google_ads_audits` ADD `ad_copy_original_copy` text");
+  await run("gaa.ad_copy_deploy_status", "ALTER TABLE `google_ads_audits` ADD `ad_copy_deploy_status` text");
+  await run("gaa.ad_copy_deploy_started_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_deploy_started_at` text");
+  await run("gaa.ad_copy_deployed_at", "ALTER TABLE `google_ads_audits` ADD `ad_copy_deployed_at` text");
+  await run("gaa.ad_copy_deploy_result", "ALTER TABLE `google_ads_audits` ADD `ad_copy_deploy_result` text");
+  await run("gaa.ad_copy_deploy_error", "ALTER TABLE `google_ads_audits` ADD `ad_copy_deploy_error` text");
 
   // Drop unique index on presentation_pin (allow same PIN across audits)
   // Payload/Drizzle names unique indexes as: {table}_{column}_unique

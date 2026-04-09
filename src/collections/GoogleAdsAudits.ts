@@ -889,6 +889,62 @@ export const GoogleAdsAudits: CollectionConfig = {
                 },
               },
             },
+            {
+              name: "deployAdCopyUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/DeployAdCopyButton",
+                },
+              },
+            },
+            {
+              name: "adCopyDeployStatus",
+              type: "select",
+              admin: {
+                readOnly: true,
+                description: "Current status of the ad copy deployment to Google Ads",
+              },
+              options: [
+                { label: "Not Started", value: "not_started" },
+                { label: "Deploying", value: "deploying" },
+                { label: "Completed", value: "completed" },
+                { label: "Mismatched", value: "mismatched" },
+                { label: "Failed", value: "failed" },
+              ],
+            },
+            {
+              name: "adCopyDeployStartedAt",
+              type: "date",
+              admin: {
+                readOnly: true,
+                hidden: true,
+              },
+            },
+            {
+              name: "adCopyDeployedAt",
+              type: "date",
+              admin: {
+                readOnly: true,
+                description: "When the ad copy was deployed to Google Ads",
+              },
+            },
+            {
+              name: "adCopyDeployResult",
+              type: "json",
+              admin: {
+                hidden: true,
+                description: "Results from the ad copy deployment",
+              },
+            },
+            {
+              name: "adCopyDeployError",
+              type: "textarea",
+              admin: {
+                readOnly: true,
+                description: "Error details if deployment failed",
+              },
+            },
           ],
         },
 
