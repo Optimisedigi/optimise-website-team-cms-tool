@@ -37,13 +37,17 @@ const AdCopyActivityInner = () => {
   if (approvedAt || adCopyStatus === 'approved') {
     events.push({ label: 'Client submitted for approval', date: approvedAt || null, color: '#065f46', bgColor: '#d1fae5' })
   }
-  if (deployedAt || deployStatus === 'completed') {
+  if (deployedAt && deployStatus === 'completed') {
     events.push({
       label: `Ad copy deployed to Google Ads${deployLabel ? ` (label: ${deployLabel})` : ''}`,
-      date: deployedAt || null, color: '#7c3aed', bgColor: '#ede9fe',
+      date: deployedAt, color: '#7c3aed', bgColor: '#ede9fe',
     })
-  }
-  if (deployStatus === 'deploying') {
+  } else if (deployedAt && deployStatus === 'failed') {
+    events.push({
+      label: `Deploy attempted with errors${deployLabel ? ` (label: ${deployLabel})` : ''}`,
+      date: deployedAt, color: '#dc2626', bgColor: '#fee2e2',
+    })
+  } else if (deployStatus === 'deploying') {
     events.push({ label: 'Deploying to Google Ads...', date: null, color: '#92400e', bgColor: '#fef3c7' })
   }
 
