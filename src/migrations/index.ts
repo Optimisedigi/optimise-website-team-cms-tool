@@ -18,6 +18,7 @@ import * as migration_20260410_120000_add_client_timeline_templates_and_client_t
 import * as migration_20260411_120000_add_budget_and_extension_locked_docs from './20260411_120000_add_budget_and_extension_locked_docs';
 import * as migration_20260411_130000_add_budget_extension_tables from './20260411_130000_add_budget_extension_tables';
 import * as migration_20260411_140000_add_missing_ad_extensions_column from './20260411_140000_add_missing_ad_extensions_column';
+import * as migration_20260411_150000_fix_budget_extension_tables from './20260411_150000_fix_budget_extension_tables';
 
 export const migrations = [
   {
@@ -119,5 +120,10 @@ export const migrations = [
     up: migration_20260411_130000_add_budget_extension_tables.up,
     down: migration_20260411_130000_add_budget_extension_tables.down,
     name: '20260411_130000_add_budget_extension_tables'
+  },
+  {
+    up: migration_20260411_150000_fix_budget_extension_tables.up,
+    down: migration_20260411_150000_fix_budget_extension_tables.down,
+    name: '20260411_150000_fix_budget_extension_tables'
   },
 ];
