@@ -98,8 +98,8 @@ export default buildConfig({
     // Admin
     Users, UsageReports, ActivityLog,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets,
-    // Temporarily disabled: GoogleAdsAdExtensions,
+    GscSnapshots, GscDaily, 
+    // Temporarily disabled: GoogleAdsCampaignBudgets, GoogleAdsAdExtensions,
   ].map((c) => ({
     ...c,
     admin: {
