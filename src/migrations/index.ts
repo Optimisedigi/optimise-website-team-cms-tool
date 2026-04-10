@@ -17,6 +17,7 @@ import * as migration_20260409_120000_add_ad_copy_activity_fields from './202604
 import * as migration_20260410_120000_add_client_timeline_templates_and_client_timelines from './20260410_120000_add_client_timeline_templates_and_client_timelines';
 import * as migration_20260411_120000_add_budget_and_extension_locked_docs from './20260411_120000_add_budget_and_extension_locked_docs';
 import * as migration_20260411_130000_add_budget_extension_tables from './20260411_130000_add_budget_extension_tables';
+import * as migration_20260411_140000_add_missing_ad_extensions_column from './20260411_140000_add_missing_ad_extensions_column';
 
 export const migrations = [
   {
@@ -108,6 +109,11 @@ export const migrations = [
     up: migration_20260411_120000_add_budget_and_extension_locked_docs.up,
     down: migration_20260411_120000_add_budget_and_extension_locked_docs.down,
     name: '20260411_120000_add_budget_and_extension_locked_docs'
+  },
+  {
+    up: migration_20260411_140000_add_missing_ad_extensions_column.up,
+    down: migration_20260411_140000_add_missing_ad_extensions_column.down,
+    name: '20260411_140000_add_missing_ad_extensions_column'
   },
   {
     up: migration_20260411_130000_add_budget_extension_tables.up,
