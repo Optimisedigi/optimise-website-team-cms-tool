@@ -1621,38 +1621,21 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // TEMPORARILY DISABLED - investigating blank page issue
-        // ── Tab 13: Budget Management ──
-        // {
-        //   label: "Budget Management",
-        //   fields: [
-        //     {
-        //       name: "budgetManagementUI",
-        //       type: "ui",
-        //       admin: {
-        //         components: {
-        //           Field: "./components/GoogleAdsBudgetManagementSimple",
-        //         },
-        //       },
-        //     },
-        //   ],
-        // },
-
-        // ── Tab 14: Ad Extensions ──
-        // {
-        //   label: "Ad Extensions",
-        //   fields: [
-        //     {
-        //       name: "adExtensionsUI",
-        //       type: "ui",
-        //       admin: {
-        //         components: {
-        //           Field: "./components/GoogleAdsAdExtensions",
-        //         },
-        //       },
-        //     },
-        //   ],
-        // },
+        // ── Tab 13: Ad Extensions ──
+        {
+          label: "Ad Extensions",
+          fields: [
+            {
+              name: "adExtensionsUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GoogleAdsAdExtensions",
+                },
+              },
+            },
+          ],
+        },
       ],
     },
 
