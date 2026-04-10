@@ -1630,7 +1630,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               type: "ui",
               admin: {
                 components: {
-                  Field: "./components/TestBudgetComponent",
+                  Field: "./components/GoogleAdsBudgetManagementSimple",
                 },
               },
             },
