@@ -67,9 +67,12 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const availableActions = data.availableConversionActions || defaultSelected;
 
   // Derive the active conversionActions param from selection
-  const activeConversionActions = selectedConversions.length > 0 && selectedConversions.length < availableActions.length
+  // Always send explicit action names so Growth Tools uses consistent filtering
+  const activeConversionActions = selectedConversions.length > 0
     ? selectedConversions.join(",")
-    : defaultConversionActions || "";
+    : availableActions.length > 0
+      ? availableActions.join(",")
+      : defaultConversionActions || "";
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -209,9 +212,11 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       return;
     }
     if (!data.slug) return;
-    const newActions = selectedConversions.length > 0 && selectedConversions.length < availableActions.length
+    const newActions = selectedConversions.length > 0
       ? selectedConversions.join(",")
-      : defaultConversionActions || "";
+      : availableActions.length > 0
+        ? availableActions.join(",")
+        : defaultConversionActions || "";
     setLoading(true);
     const params = new URLSearchParams({ slug: data.slug, range });
     if (data.customerId) params.set("customerId", data.customerId);

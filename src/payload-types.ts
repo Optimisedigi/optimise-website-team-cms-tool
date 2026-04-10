@@ -101,6 +101,8 @@ export interface Config {
     'activity-log': ActivityLog;
     'gsc-snapshots': GscSnapshot;
     'gsc-daily': GscDaily;
+    'google-ads-campaign-budgets': GoogleAdsCampaignBudget;
+    'google-ads-ad-extensions': GoogleAdsAdExtension;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -154,6 +156,8 @@ export interface Config {
     'activity-log': ActivityLogSelect<false> | ActivityLogSelect<true>;
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
+    'google-ads-campaign-budgets': GoogleAdsCampaignBudgetsSelect<false> | GoogleAdsCampaignBudgetsSelect<true>;
+    'google-ads-ad-extensions': GoogleAdsAdExtensionsSelect<false> | GoogleAdsAdExtensionsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -4554,6 +4558,215 @@ export interface GscDaily {
   createdAt: string;
 }
 /**
+ * Campaign budget allocation. Set monthly budget total and percentages, CMS calculates daily budget.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-campaign-budgets".
+ */
+export interface GoogleAdsCampaignBudget {
+  id: number;
+  /**
+   * The Google Ads audit this budget belongs to
+   */
+  audit: number | GoogleAdsAudit;
+  /**
+   * Google Ads customer ID
+   */
+  customerId: string;
+  /**
+   * Google Ads campaign ID
+   */
+  campaignId: string;
+  /**
+   * Campaign name from Google Ads
+   */
+  campaignName: string;
+  /**
+   * Ad group ID (if ad group level allocation)
+   */
+  adGroupId?: string | null;
+  /**
+   * Ad group name (if ad group level)
+   */
+  adGroupName?: string | null;
+  /**
+   * Percentage of total monthly budget to allocate to this campaign
+   */
+  budgetPercentage: number;
+  /**
+   * Calculated daily budget (monthly total × % ÷ 30.4)
+   */
+  calculatedDailyBudget?: number | null;
+  /**
+   * Last synced daily budget in Google Ads
+   */
+  actualDailyBudget?: number | null;
+  /**
+   * When budget was last pushed to Google Ads
+   */
+  lastPushedAt?: string | null;
+  bidStrategy:
+    | 'manual_cpc'
+    | 'maximize_conversions'
+    | 'maximize_conversion_value'
+    | 'target_cpa'
+    | 'target_roas'
+    | 'target_impressions'
+    | 'maximize_clicks';
+  /**
+   * Bidding strategy ID (for enhanced strategies like Target CPA)
+   */
+  bidStrategyId?: string | null;
+  /**
+   * Manual CPC bid override
+   */
+  manualCpcBid?: number | null;
+  /**
+   * Geo target IDs
+   */
+  locationIds?:
+    | {
+        locationId: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Human-readable location names
+   */
+  locationNames?:
+    | {
+        name: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * When metrics were last refreshed from Google Ads
+   */
+  metricsLastUpdated?: string | null;
+  /**
+   * 30-day impressions
+   */
+  impressions?: number | null;
+  /**
+   * 30-day clicks
+   */
+  clicks?: number | null;
+  /**
+   * Average CPC ($)
+   */
+  avgCpc?: number | null;
+  /**
+   * 30-day conversions
+   */
+  conversions?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Ad extensions (sitelinks, structured snippets) management.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-ad-extensions".
+ */
+export interface GoogleAdsAdExtension {
+  id: number;
+  /**
+   * The Google Ads audit this extension belongs to
+   */
+  audit: number | GoogleAdsAudit;
+  /**
+   * Google Ads customer ID
+   */
+  customerId: string;
+  extensionType: 'sitelink' | 'structured_snippet';
+  /**
+   * Link text (max 25 characters)
+   */
+  sitelinkText?: string | null;
+  /**
+   * Landing page URL
+   */
+  sitelinkUrl?: string | null;
+  /**
+   * Description line 1 (max 35 characters, optional)
+   */
+  sitelinkDescription1?: string | null;
+  /**
+   * Description line 2 (max 35 characters, optional)
+   */
+  sitelinkDescription2?: string | null;
+  /**
+   * Header (e.g. 'Services', 'Brands')
+   */
+  snippetHeader?:
+    | (
+        | 'Destinations'
+        | 'Services'
+        | 'Brands'
+        | 'Schools'
+        | 'Neighborhoods'
+        | 'Types'
+        | 'Collections'
+        | 'Hotels'
+        | 'Insurance Coverage'
+        | 'Models'
+        | 'Entertainment'
+        | 'Activities'
+        | 'Featured Items'
+        | 'Product Types'
+        | 'Services Offered'
+        | 'Programs'
+        | 'Events'
+        | 'Amenities'
+        | 'Styles'
+        | 'Benefits'
+        | 'Menu Items'
+        | 'Dining Options'
+      )
+    | null;
+  /**
+   * Values (one per line, 3-10 values, max 25 chars each)
+   */
+  snippetValues?: string | null;
+  level: 'account' | 'campaign' | 'ad_group';
+  /**
+   * Google Ads asset ID (populated after deploy)
+   */
+  assetId?: string | null;
+  /**
+   * AssetSet ID after linking to campaigns
+   */
+  assetSetId?: string | null;
+  /**
+   * Campaigns this extension is assigned to
+   */
+  assignedCampaigns?:
+    | {
+        campaignId: string;
+        campaignName: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Ad groups this extension is assigned to
+   */
+  assignedAdGroups?:
+    | {
+        adGroupId: string;
+        adGroupName: string;
+        campaignId: string;
+        id?: string | null;
+      }[]
+    | null;
+  status?: ('draft' | 'deployed' | 'paused' | 'error') | null;
+  /**
+   * When the extension was deployed to Google Ads
+   */
+  deployedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -4712,6 +4925,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'gsc-daily';
         value: number | GscDaily;
+      } | null)
+    | ({
+        relationTo: 'google-ads-campaign-budgets';
+        value: number | GoogleAdsCampaignBudget;
+      } | null)
+    | ({
+        relationTo: 'google-ads-ad-extensions';
+        value: number | GoogleAdsAdExtension;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -6145,6 +6366,81 @@ export interface GscDailySelect<T extends boolean = true> {
   impressions?: T;
   ctr?: T;
   position?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-campaign-budgets_select".
+ */
+export interface GoogleAdsCampaignBudgetsSelect<T extends boolean = true> {
+  audit?: T;
+  customerId?: T;
+  campaignId?: T;
+  campaignName?: T;
+  adGroupId?: T;
+  adGroupName?: T;
+  budgetPercentage?: T;
+  calculatedDailyBudget?: T;
+  actualDailyBudget?: T;
+  lastPushedAt?: T;
+  bidStrategy?: T;
+  bidStrategyId?: T;
+  manualCpcBid?: T;
+  locationIds?:
+    | T
+    | {
+        locationId?: T;
+        id?: T;
+      };
+  locationNames?:
+    | T
+    | {
+        name?: T;
+        id?: T;
+      };
+  metricsLastUpdated?: T;
+  impressions?: T;
+  clicks?: T;
+  avgCpc?: T;
+  conversions?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-ad-extensions_select".
+ */
+export interface GoogleAdsAdExtensionsSelect<T extends boolean = true> {
+  audit?: T;
+  customerId?: T;
+  extensionType?: T;
+  sitelinkText?: T;
+  sitelinkUrl?: T;
+  sitelinkDescription1?: T;
+  sitelinkDescription2?: T;
+  snippetHeader?: T;
+  snippetValues?: T;
+  level?: T;
+  assetId?: T;
+  assetSetId?: T;
+  assignedCampaigns?:
+    | T
+    | {
+        campaignId?: T;
+        campaignName?: T;
+        id?: T;
+      };
+  assignedAdGroups?:
+    | T
+    | {
+        adGroupId?: T;
+        adGroupName?: T;
+        campaignId?: T;
+        id?: T;
+      };
+  status?: T;
+  deployedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

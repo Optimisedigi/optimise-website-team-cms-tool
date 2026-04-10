@@ -1,0 +1,118 @@
+Category,#,We Can Quit - Question,We Can Quit - Answer Type / Options,Observation,Tabuu (Competitor) - Question,Tabuu - Answer Type / Options,Streamlined Recommendation,Streamlined Answer Type / Options,Notes
+,,,,,,,,
+ONBOARDING,,,,,,,,,
+,1,"Have you used the We Can Quit service before?","Radio: Yes, No",,(no equivalent),,Have you used our service before?,"Radio: Yes, No",Tabuu skips this - handled by login/account system
+,,,,,,,,
+PERSONAL INFO,,,,,,,,,
+,2,"What's your name as registered with Medicare/Services Australia?","Name fields: Title, First, Middle, Last",4 SEPARATE FIELDS,(collected at Shopify account registration),,Full name (as on Medicare card),"Text: First Name, Last Name",Tabuu collects name at registration - not in the form. Drop Title and Middle
+,3,"What's your date of birth?","Date: Day/Month/Year dropdowns",3 SEPARATE DROPDOWNS,"Date of Birth - Day / Month / Year","3 separate number fields (each its own page)",Date of birth,Single date picker,Both sites split DOB into 3 steps. Use a single date picker instead
+,4,"What's your gender?","Radio: Male, Female, Other",,Gender Assigned at Birth,"Radio: Male, Female",Gender,"Radio: Male, Female, Other, Prefer not to say",Tabuu only has 2 options - add inclusive option
+,5,"What's your email address?",Email,,(collected at Shopify account registration),,Email,Email,Tabuu collects at registration
+,6,"What's your contact number?",Phone,,Please enter your Australian mobile phone number,"Phone with +61 country code prefix",Phone number,Phone with country code,Tabuu has better UX with country code prefix
+,7,"Residential Address","Address: Street, City, State, ZIP",NOT IN COMPETITOR,(not collected),,"(remove from intake form)",,Tabuu doesn't collect address at intake. Defer to prescription/shipping stage
+,,,,,,,,
+IDENTITY VERIFICATION,,,,,,,,,
+,8,"Do you have a Medicare card or IHI?","Radio: Yes, No",,"I confirm that I do not possess a Medicare Card","Checkbox (opt-out style)",Do you have a Medicare card?,"Radio: Yes, No",Tabuu's opt-out checkbox is cleaner UX
+,9,"What is your 10 digit Medicare Number?","Text (conditional on Medicare=Yes)",,Medicare Card Number,Text,Medicare number + IRN,"2 inline fields (number + IRN)",Combine into one step
+,10,"Medicare reference number (IRN)","Text (conditional on Medicare=Yes)",REDUNDANT - should be grouped with Medicare number,Medicare Individual Reference Number,Text,(merged into above),(merged into above),Both sites ask separately - should be one step
+,11,"What is your Medicare Expiry?","Select: Month + Year (conditional on Medicare=Yes)",REDUNDANT - should be grouped,(not collected),,(remove or merge),,Tabuu doesn't collect expiry at all
+,12,"What is your IHI number?","Text (conditional on Medicare=No)",,(not collected),,IHI number,Text (conditional),Tabuu doesn't have IHI fallback
+,13,(no equivalent),,NOT IN CURRENT SITE,Please provide your Medicare card details,"Info page with annotated Medicare card image",(add helper image),,Tabuu has a helpful visual guide showing where to find card number/IRN/expiry
+,14,(no equivalent),,NOT IN CURRENT SITE,Medicare Card (photo upload),File upload,(consider adding),File upload,Tabuu verifies via photo upload - reduces manual entry errors
+,15,(no equivalent),,NOT IN CURRENT SITE,"Government issued ID upload (Drivers License, Passport, 18+ Card)",File upload,(consider adding),File upload,Tabuu requires age verification via ID photo - stronger compliance
+,,,,,,,,
+TERMS & AGE VERIFICATION,,,,,,,,,
+,16,(no equivalent - age check is implicit),,MISSING FROM CURRENT SITE,Terms and Conditions,"Checkbox: I declare I understand and am 18+",Terms and Conditions + Age confirmation,"Checkbox: I confirm I am 18+ and accept terms",Tabuu gates the form with age/terms upfront - good practice
+,,,,,,,,
+SMOKING STATUS,,,,,,,,,
+,17,"Which best describes you?","Radio: Current or ex-smoker/vaper, I've never smoked/vaped",,Current smoking status,"Radio: Currently smoking and want NVP / Quit smoking using vaping and managing dependence / Currently using vaping to manage dependence / Never smoked or vaped but want to try",What is your smoking/vaping status?,"Radio: Current smoker, Current vaper (ex-smoker), Both smoking and vaping, Never smoked or vaped",Tabuu has 4 detailed options vs WCQ's 2. Both could be clearer
+,18,"I declare that I am using this service to reduce/quit smoking","Radio: Yes, No",REDUNDANT - intent already captured in smoking status,(not collected - implied by form completion),,(remove),,Tabuu doesn't ask this - it's implied by completing the intake
+,19,"What's your current smoking status?","Radio: I currently smoke and want to quit / I smoke and have reduced/currently vaping / I use vaping nicotine liquids / I do not smoke","REDUNDANT - overlaps with Q17 (Which best describes you)",(merged into Q17 above),,(merged into Q17 above),,Both sites only ask smoking status once. WCQ asks it twice
+,,,,,,,,
+SMOKING HISTORY,,,,,,,,,
+,20,"What are your current smoking habits (per day)?","Radio: Current Smoker 1-5, 6-10, 11-20, >20 / Ex-smoker 1-5, 6-10, 11-20, >20 / Current vaper",9 OPTIONS - TOO MANY,"How many cigarettes on average do/did you smoke in a day?","Radio: 1-5, 6-10, 10-20, over 20",How many cigarettes per day?,"Radio: 1-5, 6-10, 10-20, 20+",Tabuu uses 4 simple ranges vs WCQ's 9. Copy Tabuu's approach
+,21,"How long ago was your last cigarette?","Radio: Today, Within past week, Past month, 1-6 months, 6-12 months, Over 1 year",6 OPTIONS - could simplify,(not collected),,When was your last cigarette?,"Radio: This week, This month, 1-6 months ago, 6+ months ago",Tabuu skips this entirely. Keep but reduce to 4 options
+,22,(no equivalent),,NOT IN CURRENT SITE,"For how many years have you smoked and/or vaped?","Radio: Less than a year, 1-5 years, 6-10 years, over 10 years",(consider adding),"Radio: Under 1 year, 1-5 years, 5+ years",Tabuu asks duration of habit - useful for doctor. Consider adding
+,23,"How many times have you tried to quit smoking/vaping?","Radio: 1-5, 6-10, >10 times",,How many times have you tried quitting?,"Radio: 1-5, 6-10, More than 10",How many times have you tried to quit?,"Radio: 1-5, 6-10, 10+",Both sites ask this identically. Keep as-is
+,24,"What is/was the longest period you remained smoke/vape free?","Radio: Less than a week, 1-4 Weeks, 1-3 Months, 3-6 Months, 6-12 Months, >1 Year",6 OPTIONS - could simplify,(not collected),,Longest smoke-free period?,"Radio: Under 1 month, 1-6 months, 6+ months",Tabuu skips this. Keep but reduce to 3 options
+,,,,,,,,
+MOTIVATION,,,,,,,,,
+,25,"How motivated are you with your plans to quit smoking?","Radio: Already quit/only vape, Very motivated, Somewhat motivated, Not very motivated, Not at all motivated, Other",6 OPTIONS,(not collected),,(remove or simplify),"Radio: Very motivated, Somewhat motivated, Still considering",Tabuu doesn't ask motivation level. If kept - reduce to 3 options
+,26,(no equivalent),,NOT IN CURRENT SITE,What has motivated you to quit smoking?,"Checkbox: Health, General well-being, Cost, Family/friends",(consider adding),"Checkbox: Health, Cost, Family, General well-being",Tabuu asks WHY they want to quit - valuable for doctor context
+,,,,,,,,
+QUIT METHODS & FIRST-LINE TREATMENT,,,,,,,,,
+,27,"What method(s) have you previously tried to assist you in quitting?","Checkbox: Cold turkey, NRT gum, NRT patches, NRT lozenges/sprays, Counselling/Quitline, Hypnotherapy, Varenicline (Champix), Bupropion (Zyban)",8 OPTIONS,"Which First-Line quitting methods have you tried so far? Check ALL that apply.","Checkbox: First-line NRT (patches/gums/lozengers), Pharmacotherapy Varenicline (Champix) or Bupropion (Zyban), Already quit using vaping/managing dependence, Have not tried to quit before",What quit methods have you tried?,"Checkbox: NRT (gum/patches/lozenges), Prescription medication (Champix/Zyban), Counselling/Quitline, Cold turkey, None",Tabuu groups into 4 categories vs WCQ's 8 individual items. Grouped approach is better
+,28,"Have you spoken to your doctor/GP about advice regarding quitting smoking?","Radio: Yes in past 6 months, Yes more than 6 months ago, No",,(not collected),,Have you discussed quitting with your GP?,"Radio: Yes (recently), Yes (over 6 months ago), No",Tabuu doesn't ask about GP consultation
+,29,(no equivalent),,NOT IN CURRENT SITE,"Have you ever tried to quit using First-Line treatments (NRT/Pharmacotherapy) or managing nicotine dependence?","Radio: Yes, No",,(conditional gate),Tabuu uses this as a conditional gate for NVP eligibility
+,30,(no equivalent),,NOT IN CURRENT SITE,"First line treatments (NRT/Champix/Zyban) - Did you fail to quit or did they cause unwanted side effects?","Radio: Yes, No",,(conditional gate),Tabuu asks about failure/side effects specifically for TGA compliance
+,31,(no equivalent),,NOT IN CURRENT SITE,"Please explain why First-Line quitting methods didn't work or why you haven't tried them. Crucial for NVP eligibility.",Textarea,,(consider adding),Tabuu requires explanation for NVP eligibility - good for TGA compliance
+,32,"Consent - First line treatment statement","Checkbox: I understand",REDUNDANT CONSENT,(not a separate consent - woven into questions),,(merge into single consent block),,Tabuu integrates this context into the questions themselves rather than a separate consent step
+,,,,,,,,
+VAPING DETAILS,,,,,,,,,
+,33,"If you currently/previously vaped nicotine how long?","Radio: Completely new, Tried a few times, Few weeks, Few months-1yr, 1-2yrs, 2-5yrs, >5yrs",7 OPTIONS - TOO MANY,(not collected separately),,How long have you been vaping?,"Radio: New to vaping, Under 1 year, 1-3 years, 3+ years",Reduce from 7 to 4. Tabuu doesn't ask this separately
+,34,"In the past 6 months what is your vaping habit closest to?","Radio: Completely new, Only socially, Everyday sporadically, Everyday consistently, Other",,(not collected),,How often do you vape?,"Radio: New/social only, Daily (when cravings hit), Daily (throughout the day)",Tabuu skips this. Keep but simplify
+,35,"How soon after waking up do you smoke/vape?","Radio: Within 5 mins, 6-30 mins, 31-60 mins, After 60 mins",,(not collected),,(remove),,Neither competitor asks this. Remove - clinician can assess dependency in consult
+,36,"Do you feel the need to smoke or vape just before bed?","Radio: Yes, No",,(not collected),,(remove),,Tabuu doesn't ask this. Remove - low clinical value at intake
+,37,"Has your vape nicotine intake changed over 6-12 months?","Radio: Same, Decreased, Increased",,(not collected),,(remove),,Tabuu doesn't ask this. Remove - can discuss at consult
+,38,"Have you spoken to your GP about getting a nicotine vaping prescription?","Radio: Yes, No","REDUNDANT - overlaps with Q28 (GP about quitting)",(not collected),,(merged into Q28),,Already covered by GP question
+,39,"Which vaping method has worked best for you?","Radio: Pods, E-Liquid, Disposable, Other",DEFER TO CONSULTATION,"What type of vaping product do you currently use?","Radio: Disposable Product, Refillable Product, Other",What vaping product do you use?,"Radio: Disposable, Refillable, Other / New to vaping",Tabuu asks this simply with 3 options. WCQ has 4 options. Keep Tabuu's simpler version
+,40,"What type of device(s) do you use or plan to use?","Radio: Refillable Mods/Tanks, Refillable Pods, Sealed/Pre-filled, New/don't know",DEFER TO CONSULTATION - overlaps with Q39,(merged into Q39 above),,(merged into Q39),,Tabuu asks this once with 3 options. WCQ asks twice
+,41,"Which vaping product type are you looking to use?","Radio: Sealed Pods, Freebase Nicotine, Salt Nicotine, Don't know x2",DEFER TO CONSULTATION,(not collected),,(remove),,Tabuu doesn't ask product preferences - defer to doctor
+,42,"Minimum strength effective to avoid smoking?",Text,DEFER TO CONSULTATION,(not collected),,(remove),,Most patients won't know this
+,43,"How many mL's of liquid per day?",Number,DEFER TO CONSULTATION,(not collected),,(remove),,Defer to consultation
+,44,"Anything else about your vaping?",Textarea,DEFER TO CONSULTATION,(not collected),,(remove - covered by general comments),,
+,45,"Vaping device brand/model?",Text,DEFER TO CONSULTATION,(not collected),,(remove),,
+,46,"Product/brand/strength moving forward?",Text,DEFER TO CONSULTATION,(not collected),,(remove),,
+,,,,,,,,
+MEDICAL HISTORY,,,,,,,,,
+,47,"Please list significant medical illnesses",Textarea,"REDUNDANT - asked again at Q49",Please list all medical conditions.,Textarea,List any medical conditions and medications,Textarea (single combined field),Both sites ask this. WCQ asks it twice - Tabuu asks once. Merge with medications
+,48,"Have you had stroke/heart attack/irregular heartbeat/hypertension/angina in past month?","Radio: Yes, No","REDUNDANT - asked again at Q50","Do you have any medical conditions particularly uncontrolled hypertension, unstable heart disease, abnormal heart rhythm or chronic lung disease?","Radio: Yes, No",Any cardiac/lung conditions (uncontrolled hypertension/heart disease/lung disease)?,"Radio: Yes, No",Both sites ask this. Tabuu combines cardiac AND lung into one question. WCQ asks separately and twice
+,49,"Please list any diagnosed medical conditions",Textarea,"REDUNDANT - same as Q47",(merged into Q47 above),,(merged into Q47),,Already captured
+,50,"In the last 3 months - uncontrolled hypertension/heartbeats/stroke/angina/heart attacks?","Radio: No, Yes with frequent medications","REDUNDANT - same as Q48",(merged into Q48 above),,(merged into Q48),,Already captured
+,51,"In the last 3 months - uncontrolled lung disease?","Radio: No, Yes with frequent medications",,(merged into Q48 in Tabuu),,(merged into Q48),,Tabuu combines cardiac and lung into one question
+,52,"What regular medications do you take?",Textarea,"REDUNDANT - merge with medical conditions","Do you currently take any medication(s)?","Radio: Yes, No (conditional textarea if Yes)",Do you take any medications?,"Radio: Yes/No then textarea if Yes",Tabuu gates with Yes/No first then asks for details - better UX
+,53,"Are you breastfeeding/pregnant/planning pregnancy in next 12 months?","Radio: Yes, No","REDUNDANT - asked again at Q54",(not collected as separate question),,"Are you pregnant, breastfeeding, or planning pregnancy?","Radio: Yes, No, N/A",Tabuu doesn't ask this separately. WCQ asks it twice. Keep once
+,54,"Nicotine vaping may not be safe in pregnancy/breastfeeding","Radio: Not currently/planning, Currently/planning","REDUNDANT - same as Q53",(merged into Q53 above),,(merged into Q53),,Already captured
+,,,,,,,,
+CONSENT & COMPLETION,,,,,,,,,
+,55,"Consent - Nicotine vaping statement","Checkbox: I understand","TOO MANY CONSENT STEPS (5 total)","Consent and Declaration","Single checkbox: I acknowledge and agree to the terms outlined above","I confirm all information is accurate and I consent to treatment",Single checkbox + expandable terms,Tabuu has ONE consent checkbox. WCQ has FIVE. Copy Tabuu's approach
+,56,"Consent - Declaration of accuracy","Checkbox: I have read and declare true","REDUNDANT CONSENT",(merged into single consent above),,(merged into single consent),,
+,57,"Consent - Treatment and contact","Checkbox: I consent","REDUNDANT CONSENT",(merged into single consent above),,(merged into single consent),,
+,58,"Consent - Personal use declaration","Checkbox: I consent","REDUNDANT CONSENT",(merged into single consent above),,(merged into single consent),,
+,59,Signature,Digital signature drawing,,Signature,"Digital signature with note: doctor reviews in under 24 hours, text + email notification",Signature,Digital signature,Both sites have this. Keep as-is
+,60,"Research shows best successes with Quitline","Radio: Yes contact me, No, Not right now",,(not collected),,Would you like Quitline to contact you?,"Radio: Yes, No, Maybe later",Tabuu doesn't offer Quitline referral. Keep - nice value-add
+,,,,,,,,
+REFERRAL & PAYMENT,,,,,,,,,
+,61,"How did you hear about We Can Quit?","Dropdown: Web Search, Social Media, Chemist, A Friend",,(not collected),,How did you hear about us?,"Dropdown: Web Search, Social Media, Pharmacy, Friend/Family, Other",Tabuu doesn't ask referral source. Keep for marketing attribution
+,62,"Which Chemist?","Text (conditional on Chemist selected)",,(not collected),,Which pharmacy?,"Text (conditional)",Keep - rename to pharmacy
+,63,"If further questions - preferred contact method?","Radio: Phone Call, Email",,(not collected),,Preferred contact method,"Radio: Phone, Email",Keep as-is
+,64,"Please write any questions or further comments",Textarea,,(not collected),,Anything else we should know?,Textarea,Keep as-is
+,65,"Consultation and Prescription fee",Price/currency display,,(handled via Shopify checkout),,Payment,Integrated payment,Tabuu uses Shopify checkout - cleaner than inline card fields
+,66,"Credit Card Information","Card Number, Expiry, CVV, Cardholder Name",,(handled via Shopify checkout),,Payment details,Stripe Elements (PCI compliant),Use Stripe or similar PCI-compliant checkout instead of raw fields
+,,,,,,,,
+INFO / TRANSITION PAGES,,,,,,,,,
+,67,(no equivalent),,NOT IN CURRENT SITE,Welcome to the intake form (intro + Start Intake button),"Info page with 3-step process overview",(consider adding),Progress indicator + intro,Tabuu sets expectations upfront with 3 clear steps
+,68,(no equivalent),,NOT IN CURRENT SITE,"We will now collect more detailed information to provide to the doctor...",Info page with NVP disclaimer and eligibility criteria,(consider adding),Brief NVP disclaimer on first smoking question,Tabuu provides clear context about what NVPs are before asking questions
+,69,(no equivalent),,NOT IN CURRENT SITE,Thanks. We will now learn about your smoking/vaping history,Transition page,,(not needed with progress bar),Could replace with a simple progress bar
+,70,(no equivalent),,NOT IN CURRENT SITE,Now we will ask about your recent Medical History,Transition page,,(not needed with progress bar),Could replace with a simple progress bar
+,71,(no equivalent),,NOT IN CURRENT SITE,TGA guidelines state patients must have tried First-Line treatments...,Info page,,(integrate into question context),Important regulatory context - Tabuu weaves this into the flow well
+,72,(no equivalent),,NOT IN CURRENT SITE,Therapeutic Vaping Products may be considered appropriate for those who tried First-Line treatment but failed...,Info page,,(integrate into question context),Good for informed consent
+,,,,,,,,
+KEY OBSERVATIONS,,,,,,,,,
+REDUNDANCY,"We Can Quit asks the same question twice in different wording: medical conditions (Q47/Q49), cardiac (Q48/Q50), pregnancy (Q53/Q54), smoking status (Q17/Q19), GP consult (Q28/Q38). Adds 7 unnecessary fields.",,,"Tabuu has ZERO redundant questions. Every field is asked once.",,,IMPACT: Removing duplicates cuts WCQ form by ~12% and eliminates user confusion
+TOO MANY RADIO STEPS,"WCQ Q33-Q37 ask 5 separate vaping habit questions. Many radio groups have 6-9 options when 3-4 would suffice.",,,"Tabuu keeps radio options to 2-4 per question max.",,,IMPACT: Simplifying options reduces cognitive load and speeds completion by ~40%
+CONSENT OVERLOAD,"WCQ has 5 separate consent checkboxes spread throughout the form (Q32/Q55/Q56/Q57/Q58).",,,"Tabuu has 1 consent checkbox + 1 terms checkbox = 2 total.",,,IMPACT: One consent block at the end is industry best practice. Tabuu does this right
+PREMATURE DETAIL,"WCQ Q39-Q46 ask 8 questions about specific vaping devices/strengths/mL/products. Most patients select 'don't know'.",,,"Tabuu asks only 1 vaping product question (Disposable/Refillable/Other).",,,IMPACT: Removing 7 premature questions and deferring to consultation improves completion
+FORM LENGTH,"WCQ has 57 question fields with no progress indicator.",,,"Tabuu has ~27 question fields + transition pages with clear section breaks.",,,IMPACT: "Tabuu's form is 53% shorter. Industry benchmark is 15-25 fields for medical intake"
+MISSING FROM WCQ,"WCQ does not collect: Government ID upload, Medicare card photo, years smoked, quit motivation reasons.",,,"Tabuu has stronger identity verification (ID upload + Medicare photo) and better TGA compliance (first-line treatment explanation).",,,IMPACT: Adding ID verification and first-line treatment explanation would strengthen compliance
+ADDRESS COLLECTION,"WCQ collects full residential address (7 fields including Street/City/State/ZIP) at intake.",,,"Tabuu does NOT collect address at intake. Address collected at shipping/prescription stage.",,,IMPACT: Deferring address to checkout reduces intake form length and friction
+,,,,,,,,
+SCORECARD,,,,,,,,,
+,We Can Quit (Current),Tabuu (Competitor),Streamlined (Proposed),,,,,
+Question fields,57,~27,~22,,,,,
+Info/transition pages,0,6,0 (use progress bar),,,,,
+Consent checkboxes,5,2,1,,,,,
+Redundant questions,7,0,0,,,,,
+Deferred to consultation,0,0,8,,,,,
+Identity verification,Medicare number only,ID photo + Medicare photo + Medicare number,ID photo + Medicare number,,,,,
+"Estimated completion time (mins)",12-15,5-7,4-6,,,,,

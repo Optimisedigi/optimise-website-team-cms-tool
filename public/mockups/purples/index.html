@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Purples Dispensary | Australia's Nationwide Compounding & Alternative Medicine Pharmacy</title>
+  <meta name="description" content="Purples Dispensary is Australia's leading nationwide compounding pharmacy specialising in nature-based therapies, peptide therapy, weight loss prescriptions, and holistic health solutions. Upload your script online today.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --purple-deep: #3D1A5C;
+      --purple-mid: #5B2D8E;
+      --purple-light: #7B4FAF;
+      --purple-soft: #E8DCF5;
+      --purple-wash: #F6F1FB;
+      --gold: #C9A84C;
+      --gold-light: #E8D48B;
+      --cream: #FAF8F5;
+      --dark: #1A1A2E;
+      --text: #2D2D3F;
+      --text-light: #6B6B80;
+      --white: #FFFFFF;
+      --green-accent: #4A7C59;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text);
+      background: var(--white);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── ANNOUNCEMENT BAR ── */
+    .announcement-bar {
+      background: var(--purple-deep);
+      color: var(--white);
+      text-align: center;
+      padding: 10px 20px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+    }
+    .announcement-bar a {
+      color: var(--gold-light);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* ── NAVIGATION ── */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--white);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      backdrop-filter: blur(20px);
+    }
+    .nav-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 80px;
+    }
+    .nav-logo {
+      display: flex;
+      flex-direction: column;
+      text-decoration: none;
+      line-height: 1;
+    }
+    .nav-logo-main {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--purple-deep);
+      letter-spacing: -0.02em;
+    }
+    .nav-logo-sub {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--purple-light);
+      margin-top: 2px;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: 0.01em;
+      transition: color 0.2s;
+      position: relative;
+    }
+    .nav-links a:hover {
+      color: var(--purple-mid);
+    }
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 0;
+      height: 2px;
+      background: var(--purple-mid);
+      transition: width 0.3s;
+    }
+    .nav-links a:hover::after {
+      width: 100%;
+    }
+    .nav-cta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 0.88rem;
+      padding: 12px 28px;
+      border-radius: 60px;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--purple-deep);
+      color: var(--white);
+    }
+    .btn-primary:hover {
+      background: var(--purple-mid);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 25px rgba(93, 45, 142, 0.3);
+    }
+    .btn-outline {
+      background: transparent;
+      color: var(--purple-deep);
+      border: 2px solid var(--purple-deep);
+    }
+    .btn-outline:hover {
+      background: var(--purple-deep);
+      color: var(--white);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--purple-deep);
+      padding: 12px 16px;
+    }
+    .btn-ghost:hover {
+      background: var(--purple-wash);
+    }
+    .btn-white {
+      background: var(--white);
+      color: var(--purple-deep);
+    }
+    .btn-white:hover {
+      background: var(--cream);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    .btn-gold {
+      background: var(--gold);
+      color: var(--white);
+    }
+    .btn-gold:hover {
+      background: #b8973f;
+      transform: translateY(-1px);
+    }
+    .btn-large {
+      padding: 18px 40px;
+      font-size: 1rem;
+    }
+    .btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* ── MOBILE NAV ── */
+    .mobile-toggle {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+    }
+    .mobile-toggle span {
+      display: block;
+      width: 24px;
+      height: 2px;
+      background: var(--purple-deep);
+      margin: 6px 0;
+      transition: 0.3s;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      min-height: 92vh;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      background: var(--purple-deep);
+    }
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(135deg, rgba(61,26,92,0.82) 0%, rgba(91,45,142,0.65) 40%, rgba(61,26,92,0.55) 100%),
+        url('hero-banner.png');
+      background-size: cover;
+      background-position: center;
+    }
+    /* Organic shapes */
+    .hero-shape {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.15;
+    }
+    .hero-shape-1 {
+      width: 600px;
+      height: 600px;
+      background: var(--gold);
+      top: -200px;
+      right: -100px;
+    }
+    .hero-shape-2 {
+      width: 400px;
+      height: 400px;
+      background: var(--green-accent);
+      bottom: -100px;
+      left: -100px;
+    }
+    .hero-shape-3 {
+      width: 300px;
+      height: 300px;
+      background: var(--purple-light);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+      width: 100%;
+    }
+    .hero-text {
+      color: var(--white);
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.15);
+      padding: 8px 20px;
+      border-radius: 60px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--gold-light);
+      margin-bottom: 32px;
+    }
+    .hero-badge-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--gold);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(3rem, 5.5vw, 5rem);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      margin-bottom: 28px;
+    }
+    .hero h1 em {
+      font-style: italic;
+      color: var(--gold-light);
+    }
+    .hero-sub {
+      font-size: 1.2rem;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.8);
+      max-width: 520px;
+      margin-bottom: 40px;
+      font-weight: 400;
+    }
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .hero-visual {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .hero-card-stack {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+    }
+    .hero-card {
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 24px;
+      padding: 36px;
+      margin-bottom: 20px;
+    }
+    .hero-card-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--gold-light);
+      margin-bottom: 12px;
+    }
+    .hero-card h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+      color: var(--white);
+      margin-bottom: 8px;
+    }
+    .hero-card p {
+      font-size: 0.92rem;
+      color: rgba(255,255,255,0.65);
+      line-height: 1.6;
+    }
+    .hero-stat-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+    .hero-stat {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 24px 16px;
+      text-align: center;
+    }
+    .hero-stat-number {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--gold-light);
+      line-height: 1;
+    }
+    .hero-stat-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.5);
+      margin-top: 6px;
+    }
+
+    /* ── TRUST BAR ── */
+    .trust-bar {
+      background: var(--cream);
+      padding: 28px 40px;
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+    .trust-bar-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 48px;
+      flex-wrap: wrap;
+    }
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-light);
+    }
+    .trust-icon {
+      width: 20px;
+      height: 20px;
+      color: var(--purple-mid);
+    }
+
+    /* ── HOW IT WORKS ── */
+    .section {
+      padding: 100px 40px;
+    }
+    .section-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .section-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--purple-mid);
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.2rem, 4vw, 3.5rem);
+      font-weight: 800;
+      color: var(--dark);
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+    .section-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-light);
+      max-width: 600px;
+      line-height: 1.7;
+      margin-bottom: 60px;
+    }
+
+    /* How Prescriptions Work */
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+    }
+    .step-card {
+      position: relative;
+      background: var(--white);
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 20px;
+      padding: 40px 32px;
+      transition: all 0.3s;
+    }
+    .step-card:hover {
+      border-color: var(--purple-soft);
+      box-shadow: 0 20px 60px rgba(91,45,142,0.08);
+      transform: translateY(-4px);
+    }
+    .step-number {
+      font-family: 'Playfair Display', serif;
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: var(--purple-soft);
+      line-height: 1;
+      margin-bottom: 20px;
+    }
+    .step-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 12px;
+    }
+    .step-card p {
+      font-size: 0.95rem;
+      color: var(--text-light);
+      line-height: 1.7;
+    }
+
+    /* ── THERAPIES SECTION ── */
+    .therapies-bg {
+      background: var(--purple-wash);
+    }
+    .therapies-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+    .therapy-card {
+      background: var(--white);
+      border-radius: 20px;
+      padding: 36px 28px;
+      border: 1px solid rgba(0,0,0,0.04);
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    .therapy-card:hover {
+      box-shadow: 0 20px 60px rgba(91,45,142,0.1);
+      transform: translateY(-4px);
+    }
+    .therapy-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      font-size: 1.6rem;
+    }
+    .therapy-icon-1 { background: #EDE7F6; }
+    .therapy-icon-2 { background: #E8F5E9; }
+    .therapy-icon-3 { background: #FFF3E0; }
+    .therapy-icon-4 { background: #E3F2FD; }
+    .therapy-icon-5 { background: #FCE4EC; }
+    .therapy-icon-6 { background: #F3E5F5; }
+    .therapy-icon-7 { background: #E0F2F1; }
+    .therapy-icon-8 { background: #FFF8E1; }
+    .therapy-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 8px;
+    }
+    .therapy-card p {
+      font-size: 0.88rem;
+      color: var(--text-light);
+      line-height: 1.6;
+    }
+    .therapy-card .therapy-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--purple-mid);
+      margin-top: 16px;
+      text-decoration: none;
+    }
+
+    /* ── FEATURED: PEPTIDE + WEIGHT LOSS ── */
+    .featured-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      min-height: 600px;
+    }
+    .featured-panel {
+      padding: 80px 60px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .featured-panel-purple {
+      background: linear-gradient(135deg, var(--purple-deep) 0%, var(--purple-mid) 100%);
+      color: var(--white);
+    }
+    .featured-panel-cream {
+      background: var(--cream);
+    }
+    .featured-panel .section-label {
+      color: var(--gold-light);
+    }
+    .featured-panel-cream .section-label {
+      color: var(--purple-mid);
+    }
+    .featured-panel h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 3.5vw, 3rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+    .featured-panel p {
+      font-size: 1.05rem;
+      line-height: 1.7;
+      margin-bottom: 32px;
+      opacity: 0.85;
+    }
+    .featured-list {
+      list-style: none;
+      margin-bottom: 32px;
+    }
+    .featured-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 8px 0;
+      font-size: 0.95rem;
+    }
+    .featured-list li::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      min-width: 8px;
+      border-radius: 50%;
+      margin-top: 8px;
+    }
+    .featured-panel-purple .featured-list li::before {
+      background: var(--gold-light);
+    }
+    .featured-panel-cream .featured-list li::before {
+      background: var(--purple-mid);
+    }
+
+    /* ── NATIONWIDE SECTION ── */
+    .nationwide-section {
+      background: var(--dark);
+      color: var(--white);
+      text-align: center;
+    }
+    .nationwide-section .section-title {
+      color: var(--white);
+    }
+    .nationwide-section .section-subtitle {
+      color: rgba(255,255,255,0.6);
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .nationwide-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+    .nationwide-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 36px 24px;
+      text-align: center;
+    }
+    .nationwide-card-icon {
+      font-size: 2rem;
+      margin-bottom: 16px;
+    }
+    .nationwide-card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .nationwide-card p {
+      font-size: 0.88rem;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.6;
+    }
+
+    /* ── DOCTORS SECTION ── */
+    .doctors-section {
+      background: var(--white);
+    }
+    .doctors-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+    .doctors-features {
+      list-style: none;
+    }
+    .doctors-features li {
+      display: flex;
+      gap: 16px;
+      padding: 20px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .doctors-features li:last-child {
+      border-bottom: none;
+    }
+    .doc-feature-icon {
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      border-radius: 12px;
+      background: var(--purple-wash);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+    .doc-feature-text h4 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 4px;
+    }
+    .doc-feature-text p {
+      font-size: 0.88rem;
+      color: var(--text-light);
+      line-height: 1.6;
+    }
+    .doctors-cta-box {
+      background: linear-gradient(135deg, var(--purple-deep) 0%, var(--purple-mid) 100%);
+      border-radius: 24px;
+      padding: 60px;
+      color: var(--white);
+    }
+    .doctors-cta-box h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+    .doctors-cta-box p {
+      font-size: 1rem;
+      opacity: 0.8;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+
+    /* ── SCRIPT UPLOAD CTA ── */
+    .upload-cta {
+      background: linear-gradient(135deg, var(--gold) 0%, #D4AF37 50%, var(--gold) 100%);
+      text-align: center;
+      padding: 80px 40px;
+    }
+    .upload-cta h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      font-weight: 800;
+      color: var(--white);
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+    .upload-cta p {
+      font-size: 1.1rem;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 32px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ── TESTIMONIALS ── */
+    .testimonials-bg {
+      background: var(--purple-wash);
+    }
+    .testimonials-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .testimonial-card {
+      background: var(--white);
+      border-radius: 20px;
+      padding: 36px;
+      border: 1px solid rgba(0,0,0,0.04);
+    }
+    .testimonial-stars {
+      color: var(--gold);
+      font-size: 1rem;
+      margin-bottom: 16px;
+      letter-spacing: 2px;
+    }
+    .testimonial-card blockquote {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--text);
+      margin-bottom: 20px;
+      font-style: italic;
+    }
+    .testimonial-author {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--dark);
+    }
+    .testimonial-location {
+      font-size: 0.78rem;
+      color: var(--text-light);
+    }
+
+    /* ── FOOTER ── */
+    .footer {
+      background: var(--dark);
+      color: rgba(255,255,255,0.7);
+      padding: 80px 40px 40px;
+    }
+    .footer-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+      gap: 48px;
+      margin-bottom: 60px;
+    }
+    .footer-brand .nav-logo-main {
+      color: var(--white);
+    }
+    .footer-brand .nav-logo-sub {
+      color: var(--purple-light);
+    }
+    .footer-brand p {
+      margin-top: 16px;
+      font-size: 0.9rem;
+      line-height: 1.7;
+      max-width: 320px;
+    }
+    .footer h4 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--white);
+      margin-bottom: 20px;
+    }
+    .footer ul {
+      list-style: none;
+    }
+    .footer ul li {
+      margin-bottom: 10px;
+    }
+    .footer ul a {
+      color: rgba(255,255,255,0.55);
+      text-decoration: none;
+      font-size: 0.88rem;
+      transition: color 0.2s;
+    }
+    .footer ul a:hover {
+      color: var(--white);
+    }
+    .footer-bottom {
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.35);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1024px) {
+      .nav-links { display: none; }
+      .mobile-toggle { display: block; }
+      .hero-content { grid-template-columns: 1fr; gap: 40px; }
+      .hero-visual { display: none; }
+      .steps-grid { grid-template-columns: 1fr; }
+      .therapies-grid { grid-template-columns: repeat(2, 1fr); }
+      .featured-split { grid-template-columns: 1fr; }
+      .nationwide-grid { grid-template-columns: repeat(2, 1fr); }
+      .doctors-grid { grid-template-columns: 1fr; gap: 40px; }
+      .testimonials-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .nav-inner { padding: 0 20px; }
+      .section { padding: 60px 20px; }
+      .hero { min-height: 80vh; }
+      .hero-content { padding: 0 20px; }
+      .hero-buttons { flex-direction: column; }
+      .therapies-grid { grid-template-columns: 1fr; }
+      .nationwide-grid { grid-template-columns: 1fr; }
+      .featured-panel { padding: 48px 28px; }
+      .footer-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Announcement Bar -->
+  <div class="announcement-bar">
+    Now dispensing nationwide across Australia &mdash; <a href="#upload">Upload your script online</a> and get it delivered to your door.
+  </div>
+
+  <!-- Navigation -->
+  <nav class="nav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo" aria-label="Purples Dispensary Home">
+        <span class="nav-logo-main">purples.</span>
+        <span class="nav-logo-sub">Dispensary</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#how-it-works">How Prescriptions Work</a></li>
+        <li><a href="#therapies">Therapies We Dispense</a></li>
+        <li><a href="#nationwide">Nationwide Dispensary</a></li>
+        <li><a href="#peptides">Peptide Therapy</a></li>
+        <li><a href="#weight-loss">Weight Loss</a></li>
+        <li><a href="#doctors">For Doctors</a></li>
+      </ul>
+      <div class="nav-cta">
+        <a href="#upload" class="btn btn-primary">Upload Script
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg>
+        </a>
+      </div>
+      <button class="mobile-toggle" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero" id="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-shape hero-shape-1"></div>
+    <div class="hero-shape hero-shape-2"></div>
+    <div class="hero-shape hero-shape-3"></div>
+    <div class="hero-content">
+      <div class="hero-text">
+        <div class="hero-badge">
+          <span class="hero-badge-dot"></span>
+          Dispensing Nationwide
+        </div>
+        <h1>Nature-led pharmacy, <em>delivered.</em></h1>
+        <p class="hero-sub">
+          Australia's trusted compounding dispensary for alternative and integrative medicine. Personalised prescriptions prepared by pharmacists and shipped to your&nbsp;door.
+        </p>
+        <div class="hero-buttons">
+          <a href="#upload" class="btn btn-white btn-large">Upload Prescription
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg>
+          </a>
+          <a href="#how-it-works" class="btn btn-outline btn-large" style="border-color: rgba(255,255,255,0.3); color: var(--white);">
+            How It Works
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+          </a>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="hero-card-stack">
+          <div class="hero-card">
+            <div class="hero-card-label">What We Specialise In</div>
+            <h3>Compounded Prescriptions</h3>
+            <p>Bioidentical hormones, peptide therapy, custom formulations, and nature-based medicines &mdash; tailored to your prescription.</p>
+          </div>
+          <div class="hero-stat-row">
+            <div class="hero-stat">
+              <div class="hero-stat-number">15+</div>
+              <div class="hero-stat-label">Years Experience</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-number">50K+</div>
+              <div class="hero-stat-label">Scripts Dispensed</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-number">AUS</div>
+              <div class="hero-stat-label">Wide Delivery</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Trust Bar -->
+  <div class="trust-bar">
+    <div class="trust-bar-inner">
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        TGA Registered
+      </div>
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Pharmacist Compounded
+      </div>
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="23 7 16 12 16 3 23 7"/></svg>
+        Cold Chain Shipping
+      </div>
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        Adelaide &amp; Nationwide
+      </div>
+      <div class="trust-item">
+        <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Fast Turnaround
+      </div>
+    </div>
+  </div>
+
+  <!-- How Prescriptions Work -->
+  <section class="section" id="how-it-works">
+    <div class="section-inner">
+      <div class="section-label">How Prescriptions Work</div>
+      <h2 class="section-title">Three simple steps to<br>your door.</h2>
+      <p class="section-subtitle">Whether you're across the street or across the country, getting your compounded prescription filled is straightforward.</p>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">01</div>
+          <h3>Upload your script</h3>
+          <p>Snap a photo or upload a PDF of your prescription through our secure online portal. We accept scripts from any registered Australian prescriber.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">02</div>
+          <h3>We compound &amp; verify</h3>
+          <p>Our qualified pharmacists review your script, compound your personalised formulation, and conduct rigorous quality checks before dispensing.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">03</div>
+          <h3>Delivered to your door</h3>
+          <p>Your prescription is carefully packaged with cold chain compliance where needed and dispatched via express delivery Australia-wide.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Therapies We Dispense -->
+  <section class="section therapies-bg" id="therapies">
+    <div class="section-inner">
+      <div class="section-label">Therapies We Dispense</div>
+      <h2 class="section-title">Specialised compounding<br>for modern health.</h2>
+      <p class="section-subtitle">We work with prescribers across Australia to prepare evidence-based natural and compounded medicines.</p>
+      <div class="therapies-grid">
+        <div class="therapy-card">
+          <div class="therapy-icon therapy-icon-1">&#x1F9EC;</div>
+          <h3>Peptide Therapy</h3>
+          <p>Custom compounded peptides including BPC-157, thymosin, and growth hormone secretagogues.</p>
+          <a href="#peptides" class="therapy-link">Learn more &rarr;</a>
+        </div>
+        <div class="therapy-card">
+          <div class="therapy-icon therapy-icon-2">&#x1F33F;</div>
+          <h3>Bioidentical Hormones</h3>
+          <p>BHRT creams, troches, and capsules compounded to your prescriber's exact specifications.</p>
+          <a href="#" class="therapy-link">Learn more &rarr;</a>
+        </div>
+        <div class="therapy-card">
+          <div class="therapy-icon therapy-icon-3">&#x2696;&#xFE0F;</div>
+          <h3>Weight Management</h3>
+          <p>Prescription weight loss compounds including semaglutide and tirzepatide formulations.</p>
+          <a href="#weight-loss" class="therapy-link">Learn more &rarr;</a>
+        </div>
+        <div class="therapy-card">
+          <div class="therapy-icon therapy-icon-4">&#x1F4A7;</div>
+          <h3>IV &amp; Injectable Nutrients</h3>
+          <p>Sterile compounded injectables for vitamin therapy, glutathione, NAD+, and more.</p>
+          <a href="#" class="therapy-link">Learn more &rarr;</a>
+        </div>
+        <div class="therapy-card">
+          <div class="therapy-icon therapy-icon-5">&#x1F338;</div>
+          <h3>Herbal Medicine</h3>
+          <p>Practitioner-grade liquid herbs, tinctures, and custom herbal blends for integrative care.</p>
+          <a href="#" class="therapy-link">Learn more &rarr;</a>
+        </div>
+        <div class="therapy-card">
+          <div class="therapy-icon therapy-icon-6">&#x1F48A;</div>
+          <h3>Nutritional Medicine</h3>
+          <p>Practitioner-only supplements and custom compound nutrient formulations.</p>
+          <a href="#" class="therapy-link">Learn more &rarr;</a>
+        </div>
+        <div class="therapy-card">
+          <div class="therapy-icon therapy-icon-7">&#x1F9E0;</div>
+          <h3>Thyroid Support</h3>
+          <p>Compounded T3/T4 combinations and desiccated thyroid preparations.</p>
+          <a href="#" class="therapy-link">Learn more &rarr;</a>
+        </div>
+        <div class="therapy-card">
+          <div class="therapy-icon therapy-icon-8">&#x2728;</div>
+          <h3>Dermatology</h3>
+          <p>Custom topical creams, serums, and medicated skincare formulations.</p>
+          <a href="#" class="therapy-link">Learn more &rarr;</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured: Peptide Therapy + Weight Loss -->
+  <div class="featured-split" id="peptides">
+    <div class="featured-panel featured-panel-purple">
+      <div class="section-label" style="color: var(--gold-light);">Peptide Therapy</div>
+      <h2>Precision peptides, compounded to&nbsp;order.</h2>
+      <p>We're one of Australia's leading compounding pharmacies for peptide therapy. Every batch is prepared in-house under strict sterility protocols.</p>
+      <ul class="featured-list">
+        <li>BPC-157 for tissue repair and gut healing</li>
+        <li>Thymosin Alpha-1 for immune modulation</li>
+        <li>CJC-1295 / Ipamorelin for growth hormone support</li>
+        <li>PT-141 and other specialty peptides</li>
+        <li>Sterile compounding with full batch testing</li>
+      </ul>
+      <a href="#upload" class="btn btn-white">Upload Peptide Script &rarr;</a>
+    </div>
+    <div class="featured-panel featured-panel-cream" id="weight-loss">
+      <div class="section-label">Weight Loss Prescriptions</div>
+      <h2>Compounded weight loss medication.</h2>
+      <p>Access compounded semaglutide, tirzepatide, and other prescription weight loss formulations &mdash; dispensed from a trusted Australian pharmacy.</p>
+      <ul class="featured-list">
+        <li>Compounded semaglutide injections</li>
+        <li>Tirzepatide preparations</li>
+        <li>Custom sublingual and oral formulations</li>
+        <li>Practitioner dosing flexibility</li>
+        <li>Express cold-chain delivery nationwide</li>
+      </ul>
+      <a href="#upload" class="btn btn-primary">Upload Weight Loss Script &rarr;</a>
+    </div>
+  </div>
+
+  <!-- Nationwide Dispensary -->
+  <section class="section nationwide-section" id="nationwide">
+    <div class="section-inner">
+      <div class="section-label" style="color: var(--gold-light);">Nationwide Dispensary</div>
+      <h2 class="section-title">Your pharmacy,<br>wherever you are.</h2>
+      <p class="section-subtitle">Based in Adelaide and dispensing to every state and territory. We bring compounding pharmacy to all of Australia.</p>
+      <div class="nationwide-grid">
+        <div class="nationwide-card">
+          <div class="nationwide-card-icon">&#x1F4E6;</div>
+          <h3>Express Delivery</h3>
+          <p>Temperature-controlled express shipping to your door, usually within 2&ndash;5 business days.</p>
+        </div>
+        <div class="nationwide-card">
+          <div class="nationwide-card-icon">&#x2744;&#xFE0F;</div>
+          <h3>Cold Chain Compliant</h3>
+          <p>Peptides and temperature-sensitive compounds shipped with medical-grade cold packs.</p>
+        </div>
+        <div class="nationwide-card">
+          <div class="nationwide-card-icon">&#x1F4F1;</div>
+          <h3>Online Portal</h3>
+          <p>Upload scripts, track orders, and manage repeats through your secure patient dashboard.</p>
+        </div>
+        <div class="nationwide-card">
+          <div class="nationwide-card-icon">&#x1F4DE;</div>
+          <h3>Pharmacist Support</h3>
+          <p>Speak directly with our compounding pharmacists for any questions about your prescription.</p>
+        </div>
+      </div>
+      <a href="#upload" class="btn btn-gold btn-large">Upload Your Script Online &rarr;</a>
+    </div>
+  </section>
+
+  <!-- For Doctors -->
+  <section class="section doctors-section" id="doctors">
+    <div class="section-inner">
+      <div class="doctors-grid">
+        <div>
+          <div class="section-label">For Doctors &amp; Prescribers</div>
+          <h2 class="section-title">A dispensary partner<br>you can trust.</h2>
+          <p class="section-subtitle" style="margin-bottom: 32px;">We support integrative, functional, and alternative medicine prescribers across Australia with fast, reliable compounding.</p>
+          <ul class="doctors-features">
+            <li>
+              <div class="doc-feature-icon">&#x1F4CB;</div>
+              <div class="doc-feature-text">
+                <h4>Formulary Access</h4>
+                <p>Browse our full compounding formulary online or request custom formulations for your patients.</p>
+              </div>
+            </li>
+            <li>
+              <div class="doc-feature-icon">&#x1F4AC;</div>
+              <div class="doc-feature-text">
+                <h4>Direct Pharmacist Line</h4>
+                <p>Dedicated support line for prescribers to discuss compounding, dosing, and formulation options.</p>
+              </div>
+            </li>
+            <li>
+              <div class="doc-feature-icon">&#x26A1;</div>
+              <div class="doc-feature-text">
+                <h4>Fast Turnaround</h4>
+                <p>Most compounded scripts are prepared and dispatched within 24&ndash;48 hours of receipt.</p>
+              </div>
+            </li>
+            <li>
+              <div class="doc-feature-icon">&#x1F310;</div>
+              <div class="doc-feature-text">
+                <h4>Nationwide Reach</h4>
+                <p>We dispense to your patients across every state and territory with tracked express shipping.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div>
+          <div class="doctors-cta-box">
+            <h3>Partner with Purples Dispensary</h3>
+            <p>Join hundreds of prescribers who trust us to compound and dispense their patients' scripts with precision and care.</p>
+            <a href="#" class="btn btn-white" style="margin-bottom: 16px; width: 100%; justify-content: center;">Register as a Prescriber &rarr;</a>
+            <a href="#" class="btn btn-ghost" style="color: rgba(255,255,255,0.7); width: 100%; justify-content: center;">Download Formulary (PDF) &rarr;</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Upload Script CTA -->
+  <section class="upload-cta" id="upload">
+    <h2>Ready to get started?</h2>
+    <p>Upload your prescription online and our pharmacists will take care of the rest. Dispensed from Adelaide, delivered Australia-wide.</p>
+    <a href="#" class="btn btn-primary btn-large" style="background: var(--purple-deep);">
+      Upload Prescription Now
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </a>
+  </section>
+
+  <!-- Testimonials -->
+  <section class="section testimonials-bg">
+    <div class="section-inner">
+      <div class="section-label">What Our Patients Say</div>
+      <h2 class="section-title">Trusted by thousands<br>across Australia.</h2>
+      <p class="section-subtitle">Real experiences from patients and prescribers who rely on Purples Dispensary.</p>
+      <div class="testimonials-grid">
+        <div class="testimonial-card">
+          <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <blockquote>"Incredibly professional service. My compounded hormones arrived within 3 days and the pharmacist even called to walk me through the dosing. Can't recommend enough."</blockquote>
+          <div class="testimonial-author">Sarah M.</div>
+          <div class="testimonial-location">Melbourne, VIC</div>
+        </div>
+        <div class="testimonial-card">
+          <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <blockquote>"As a prescriber, having a reliable compounding dispensary that ships nationwide has been a game changer for my patients in regional areas."</blockquote>
+          <div class="testimonial-author">Dr. James T.</div>
+          <div class="testimonial-location">Integrative GP, Brisbane</div>
+        </div>
+        <div class="testimonial-card">
+          <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <blockquote>"The online script upload made everything so easy. I was worried about peptide shipping but it arrived cold-chain perfect. Outstanding dispensary."</blockquote>
+          <div class="testimonial-author">Michael R.</div>
+          <div class="testimonial-location">Perth, WA</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="/" class="nav-logo">
+            <span class="nav-logo-main">purples.</span>
+            <span class="nav-logo-sub">Dispensary</span>
+          </a>
+          <p>Adelaide-based, Australian-owned compounding and dispensing pharmacy specialising in nature-based therapies and holistic health solutions.</p>
+        </div>
+        <div>
+          <h4>Prescriptions</h4>
+          <ul>
+            <li><a href="#how-it-works">How Prescriptions Work</a></li>
+            <li><a href="#upload">Upload Script Online</a></li>
+            <li><a href="#">Track My Order</a></li>
+            <li><a href="#">Repeat Prescriptions</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Therapies</h4>
+          <ul>
+            <li><a href="#peptides">Peptide Therapy</a></li>
+            <li><a href="#weight-loss">Weight Loss</a></li>
+            <li><a href="#therapies">Bioidentical Hormones</a></li>
+            <li><a href="#therapies">Herbal Medicine</a></li>
+            <li><a href="#therapies">Nutritional Medicine</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>For Prescribers</h4>
+          <ul>
+            <li><a href="#doctors">Partner With Us</a></li>
+            <li><a href="#">Compounding Formulary</a></li>
+            <li><a href="#">Prescriber Portal</a></li>
+            <li><a href="#">Clinical Resources</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Company</h4>
+          <ul>
+            <li><a href="#">About Us</a></li>
+            <li><a href="#nationwide">Nationwide Dispensary</a></li>
+            <li><a href="#">FAQ's</a></li>
+            <li><a href="#">Contact</a></li>
+            <li><a href="#">Privacy Policy</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 Purples Dispensary. All rights reserved. ABN XX XXX XXX XXX.</span>
+        <span>Adelaide, South Australia</span>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
