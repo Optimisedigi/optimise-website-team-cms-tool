@@ -28,7 +28,7 @@ import { BusinessCosts } from "./collections/BusinessCosts";
 import { BlogPrompts } from "./collections/BlogPrompts";
 import { GoogleAdsAudits } from "./collections/GoogleAdsAudits";
 import { GoogleAdsCampaignBudgets } from "./collections/GoogleAdsCampaignBudgets";
-// Temporarily disabled: import { GoogleAdsAdExtensions } from "./collections/GoogleAdsAdExtensions";
+import { GoogleAdsAdExtensions } from "./collections/GoogleAdsAdExtensions";
 import { GscDaily } from "./collections/GscDaily";
 import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
@@ -98,8 +98,7 @@ export default buildConfig({
     // Admin
     Users, UsageReports, ActivityLog,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, 
-    // Temporarily disabled: GoogleAdsCampaignBudgets, GoogleAdsAdExtensions,
+    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions,
   ].map((c) => ({
     ...c,
     admin: {
