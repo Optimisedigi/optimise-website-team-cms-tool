@@ -1,0 +1,957 @@
+'use client';
+
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui';
+import GoogleAdsMetricsTable from './GoogleAdsMetricsTable';
+
+interface BudgetCampaign {
+  id?: string;
+  campaignId: string;
+  campaignName: string;
+  budgetPercentage: number;
+  calculatedDailyBudget: number;
+  actualDailyBudget?: number;
+  lastPushedAt?: string;
+  bidStrategy: string;
+  bidStrategyId?: string;
+  impressions: number;
+  clicks: number;
+  avgCpc: number;
+  conversions: number;
+  spend?: number; // Current month spend
+  locationIds?: string[];
+  locationNames?: string[];
+}
+
+interface MonthlySpend {
+  totalSpend: number;
+  dailyBudget: number;
+  daysElapsed: number;
+  daysRemaining: number;
+  dailyBurnRate: number;
+  remainingBudget: number;
+  maxBudget: number;
+}
+
+const BID_STRATEGIES = [
+  { label: 'Manual CPC', value: 'manual_cpc' },
+  { label: 'Maximize Conversions', value: 'maximize_conversions' },
+  { label: 'Maximize Conversion Value', value: 'maximize_conversion_value' },
+  { label: 'Target CPA', value: 'target_cpa' },
+  { label: 'Target ROAS', value: 'target_roas' },
+  { label: 'Target Impressions', value: 'target_impressions' },
+  { label: 'Maximize Clicks', value: 'maximize_clicks' },
+];
+
+const DAYS_IN_MONTH = 30.4;
+
+// Calculate monthly spend metrics
+function calculateMonthlySpend(campaigns: BudgetCampaign[], monthlyBudget: number): MonthlySpend {
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysElapsed = dayOfMonth;
+  const daysRemaining = daysInMonth - dayOfMonth;
+  
+  // Calculate total spend from campaigns (using clicks * avgCpc)
+  const totalSpend = campaigns.reduce((sum, c) => {
+    const campaignSpend = (c.clicks || 0) * (c.avgCpc || 0);
+    return sum + campaignSpend;
+  }, 0);
+  
+  const dailyBudget = monthlyBudget / daysInMonth;
+  const dailyBurnRate = daysElapsed > 0 ? totalSpend / daysElapsed : 0;
+  const remainingBudget = Math.max(0, monthlyBudget - totalSpend);
+  const projectedSpend = dailyBurnRate * daysInMonth;
+  
+  return {
+    totalSpend,
+    dailyBudget,
+    daysElapsed,
+    daysRemaining,
+    dailyBurnRate,
+    remainingBudget,
+    maxBudget: monthlyBudget,
+  };
+}
+
+// Generate email summary
+function generateEmailSummary(
+  businessName: string,
+  month: string,
+  spend: MonthlySpend,
+  campaigns: BudgetCampaign[],
+  monthlyBudget: number
+): string {
+  const percentUsed = spend.maxBudget > 0 ? (spend.totalSpend / spend.maxBudget) * 100 : 0;
+  const budgetPerDay = spend.daysRemaining > 0 ? spend.remainingBudget / spend.daysRemaining : 0;
+  const budgetPerWeek = budgetPerDay * 7;
+  
+  const status = percentUsed <= 100 
+    ? '✅ On Track' 
+    : percentUsed <= 110 
+      ? '⚠️ Slightly Over Budget' 
+      : '🚨 Over Budget';
+  
+  const lines = [
+    `📊 ${businessName} - Google Ads Budget Report`,
+    `${month}`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `💰 BUDGET OVERVIEW`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `Monthly Budget:  $${spend.maxBudget.toLocaleString()}`,
+    `Total Spend:      $${spend.totalSpend.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+    `Remaining:       $${spend.remainingBudget.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+    `Budget Used:     ${percentUsed.toFixed(1)}%`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `📅 TIME TRACKING`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `Days Elapsed:    ${spend.daysElapsed} of ${Math.round(DAYS_IN_MONTH)}`,
+    `Days Remaining:  ${spend.daysRemaining}`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `📈 BURN RATE ANALYSIS`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `Daily Budget:    $${spend.dailyBudget.toFixed(2)}`,
+    `Actual Burn:     $${spend.dailyBurnRate.toFixed(2)}/day`,
+    ``,
+    `${status}`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `🎯 RECOMMENDED SPEND`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `Remaining Per Day:    $${budgetPerDay.toFixed(2)}`,
+    `Remaining Per Week:   $${budgetPerWeek.toFixed(2)}`,
+    ``,
+    `To stay on budget:`,
+    spend.dailyBurnRate <= spend.dailyBudget 
+      ? `✅ Great pace! You're spending $${(spend.dailyBudget - spend.dailyBurnRate).toFixed(2)} under budget per day`
+      : `⚠️ Increase pace to $${(spend.dailyBudget).toFixed(2)}/day to meet budget`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `📋 CAMPAIGN BREAKDOWN`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+  ];
+  
+  // Add campaign details
+  campaigns.forEach((c, i) => {
+    const campaignSpend = (c.clicks || 0) * (c.avgCpc || 0);
+    const campaignBudget = monthlyBudget * (c.budgetPercentage / 100);
+    const campaignPercent = campaignBudget > 0 ? (campaignSpend / campaignBudget) * 100 : 0;
+    
+    lines.push(`${i + 1}. ${c.campaignName}`);
+    lines.push(`   Spend: $${campaignSpend.toFixed(2)} | Budget: $${campaignBudget.toFixed(2)} | ${campaignPercent.toFixed(0)}%`);
+    lines.push(`   Clicks: ${c.clicks || 0} | CPC: $${(c.avgCpc || 0).toFixed(2)} | Conv: ${c.conversions || 0}`);
+    lines.push(``);
+  });
+  
+  lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  lines.push(`Generated: ${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}`);
+  
+  return lines.join('\n');
+}
+
+const GoogleAdsBudgetManagementInner = () => {
+  const { id } = useDocumentInfo();
+  const [fields] = useAllFormFields();
+  const [campaigns, setCampaigns] = useState<BudgetCampaign[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [editingCampaign, setEditingCampaign] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [editField, setEditField] = useState<'percentage' | 'bidStrategy'>('percentage');
+  const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
+  const [monthlyTotal, setMonthlyTotal] = useState<number>(0);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
+
+  const businessName = (fields?.businessName?.value as string) || 'Client';
+
+  const fetchCampaigns = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/google-ads-budgets/${id}/list`, {
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      setCampaigns(data.campaigns || []);
+      
+      if (monthlyTotal === 0 && data.campaigns?.length > 0) {
+        const total = data.campaigns.reduce(
+          (sum: number, c: any) => sum + (c.actualDailyBudget || c.dailyBudget || 0) * DAYS_IN_MONTH,
+          0
+        );
+        if (total > 0) {
+          setMonthlyTotal(Math.round(total));
+        }
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, monthlyTotal]);
+
+  const handleSync = useCallback(async () => {
+    if (!id) return;
+    setSyncing(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/google-ads-budgets/${id}/list`, {
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        throw new Error(`Sync failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      setCampaigns(data.campaigns || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSyncing(false);
+    }
+  }, [id]);
+
+  const handlePushToGoogleAds = useCallback(async () => {
+    if (!id || campaigns.length === 0) return;
+    
+    const totalPercentage = campaigns.reduce((sum, c) => sum + c.budgetPercentage, 0);
+    if (Math.abs(totalPercentage - 100) > 0.5) {
+      setError(`Percentages sum to ${totalPercentage}%, not 100%. Please adjust before pushing.`);
+      return;
+    }
+
+    setPushing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const res = await fetch(`/api/google-ads-budgets/${id}/push`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          campaigns: campaigns.map(c => ({
+            campaignId: c.campaignId,
+            dailyBudget: c.calculatedDailyBudget,
+            bidStrategy: c.bidStrategy,
+            bidStrategyId: c.bidStrategyId,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `Push failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      setSuccess(`Successfully pushed budgets to ${data.pushedCount} campaigns in Google Ads`);
+      
+      setCampaigns(prev => prev.map(c => ({
+        ...c,
+        actualDailyBudget: c.calculatedDailyBudget,
+        lastPushedAt: new Date().toISOString(),
+      })));
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setPushing(false);
+    }
+  }, [id, campaigns]);
+
+  const handleRefreshMetrics = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+
+    try {
+      const res = await fetch(`/api/google-ads-budgets/${id}/refresh-metrics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Refresh failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      if (data.budgets) {
+        setCampaigns((prev) =>
+          prev.map((c) => {
+            const updated = data.budgets.find(
+              (b: any) => b.campaignId === c.campaignId
+            );
+            return updated ? { ...c, ...updated } : c;
+          })
+        );
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  const startEditPercentage = useCallback((campaign: BudgetCampaign) => {
+    setEditingCampaign(campaign.campaignId);
+    setEditValue(String(campaign.budgetPercentage));
+    setEditField('percentage');
+  }, []);
+
+  const startEditBidStrategy = useCallback((campaign: BudgetCampaign) => {
+    setEditingCampaign(campaign.campaignId);
+    setEditValue(campaign.bidStrategy);
+    setEditField('bidStrategy');
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingCampaign) return;
+
+    const campaign = campaigns.find((c) => c.campaignId === editingCampaign);
+    if (!campaign) return;
+
+    if (editField === 'percentage') {
+      const newPercentage = parseFloat(editValue);
+      if (isNaN(newPercentage) || newPercentage < 0 || newPercentage > 100) {
+        setError('Percentage must be between 0 and 100');
+        return;
+      }
+
+      const calculatedDaily = monthlyTotal > 0 
+        ? (monthlyTotal * (newPercentage / 100)) / DAYS_IN_MONTH 
+        : 0;
+
+      setCampaigns((prev) =>
+        prev.map((c) =>
+          c.campaignId === editingCampaign
+            ? { ...c, budgetPercentage: newPercentage, calculatedDailyBudget: calculatedDaily }
+            : c
+        )
+      );
+    } else if (editField === 'bidStrategy') {
+      setCampaigns((prev) =>
+        prev.map((c) =>
+          c.campaignId === editingCampaign
+            ? { ...c, bidStrategy: editValue }
+            : c
+        )
+      );
+    }
+
+    setEditingCampaign(null);
+    setEditValue('');
+  }, [editingCampaign, editValue, editField, campaigns, monthlyTotal]);
+
+  const cancelEdit = useCallback(() => {
+    setEditingCampaign(null);
+    setEditValue('');
+  }, []);
+
+  const handleMonthlyTotalChange = useCallback((newTotal: number) => {
+    setMonthlyTotal(newTotal);
+    
+    setCampaigns(prev => prev.map(c => ({
+      ...c,
+      calculatedDailyBudget: newTotal > 0 
+        ? (newTotal * (c.budgetPercentage / 100)) / DAYS_IN_MONTH 
+        : 0,
+    })));
+  }, []);
+
+  const handleAutoBalance = useCallback(() => {
+    if (campaigns.length === 0) return;
+    const equalPercentage = Math.round(10000 / campaigns.length) / 100;
+    const remainder = 100 - (equalPercentage * campaigns.length);
+    
+    const updated = campaigns.map((c, i) => ({
+      ...c,
+      budgetPercentage: i === 0 ? equalPercentage + remainder : equalPercentage,
+      calculatedDailyBudget: monthlyTotal > 0 
+        ? (monthlyTotal * (i === 0 ? equalPercentage + remainder : equalPercentage) / 100) / DAYS_IN_MONTH 
+        : 0,
+    }));
+    
+    setCampaigns(updated);
+  }, [campaigns, monthlyTotal]);
+
+  const copyEmailToClipboard = useCallback(() => {
+    const spend = calculateMonthlySpend(campaigns, monthlyTotal);
+    const currentMonth = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+    const emailContent = generateEmailSummary(businessName, currentMonth, spend, campaigns, monthlyTotal);
+    navigator.clipboard.writeText(emailContent);
+    setEmailCopied(true);
+    setTimeout(() => setEmailCopied(false), 2000);
+  }, [campaigns, monthlyTotal, businessName]);
+
+  useEffect(() => {
+    if (id) {
+      fetchCampaigns();
+    }
+  }, [id, fetchCampaigns]);
+
+  const totalPercentage = useMemo(() => 
+    campaigns.reduce((sum, c) => sum + c.budgetPercentage, 0), 
+    [campaigns]
+  );
+  
+  const totalDailyBudget = useMemo(() =>
+    campaigns.reduce((sum, c) => sum + c.calculatedDailyBudget, 0),
+    [campaigns]
+  );
+
+  // Calculate monthly spend metrics
+  const monthlySpend = useMemo(() => 
+    calculateMonthlySpend(campaigns, monthlyTotal),
+    [campaigns, monthlyTotal]
+  );
+
+  const totalImpressions = campaigns.reduce((sum, c) => sum + (c.impressions || 0), 0);
+  const totalClicks = campaigns.reduce((sum, c) => sum + (c.clicks || 0), 0);
+  const totalConversions = campaigns.reduce((sum, c) => sum + (c.conversions || 0), 0);
+
+  const metrics = campaigns.map((c) => ({
+    campaignId: c.campaignId,
+    campaignName: c.campaignName,
+    impressions: c.impressions || 0,
+    clicks: c.clicks || 0,
+    avgCpc: c.avgCpc || 0,
+    conversions: c.conversions || 0,
+  }));
+
+  // Progress bar calculations
+  const percentUsed = monthlySpend.maxBudget > 0 
+    ? Math.min(100, (monthlySpend.totalSpend / monthlySpend.maxBudget) * 100) 
+    : 0;
+  const percentRemaining = 100 - percentUsed;
+  const onTrackPercent = (monthlySpend.daysElapsed / DAYS_IN_MONTH) * 100;
+
+  // Determine status
+  const isOverBudget = percentUsed > 100;
+  const isSlightlyOver = percentUsed > 90 && percentUsed <= 100;
+  const isUnderBudget = percentUsed < onTrackPercent;
+  const statusColor = isOverBudget ? '#dc2626' : isSlightlyOver ? '#d97706' : isUnderBudget ? '#059669' : '#2563eb';
+  const statusBg = isOverBudget ? '#fef2f2' : isSlightlyOver ? '#fffbeb' : isUnderBudget ? '#f0fdf4' : '#eff6ff';
+  const statusText = isOverBudget ? 'Over Budget' : isSlightlyOver ? 'On Track' : isUnderBudget ? 'Under Budget' : 'On Track';
+
+  const budgetPerDay = monthlySpend.daysRemaining > 0 ? monthlySpend.remainingBudget / monthlySpend.daysRemaining : 0;
+  const budgetPerWeek = budgetPerDay * 7;
+
+  return (
+    <div style={{ padding: '16px 0', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 20,
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#1e293b' }}>
+            Budget Management
+          </h2>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
+            Set monthly budget and allocate percentages to campaigns.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setShowEmailModal(true)}
+            style={{
+              padding: '8px 16px',
+              fontSize: 13,
+              fontWeight: 500,
+              background: '#f1f5f9',
+              color: '#475569',
+              border: '1px solid #e2e8f0',
+              borderRadius: 6,
+              cursor: 'pointer',
+            }}
+          >
+            📧 Email Report
+          </button>
+          <button
+            onClick={handleRefreshMetrics}
+            disabled={loading || syncing || pushing}
+            style={{
+              padding: '8px 16px',
+              fontSize: 13,
+              fontWeight: 500,
+              background: '#f1f5f9',
+              color: '#475569',
+              border: '1px solid #e2e8f0',
+              borderRadius: 6,
+              cursor: loading || syncing || pushing ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Refresh Metrics
+          </button>
+          <button
+            onClick={handleSync}
+            disabled={loading || syncing || pushing}
+            style={{
+              padding: '8px 16px',
+              fontSize: 13,
+              fontWeight: 500,
+              background: '#f1f5f9',
+              color: '#475569',
+              border: '1px solid #e2e8f0',
+              borderRadius: 6,
+              cursor: syncing ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {syncing ? 'Syncing...' : 'Sync Campaigns'}
+          </button>
+        </div>
+      </div>
+
+      {/* Error/Success display */}
+      {error && (
+        <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginBottom: 16, color: '#dc2626', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{error}</span>
+          <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 18 }}>×</button>
+        </div>
+      )}
+
+      {success && (
+        <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, marginBottom: 16, color: '#166534', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{success}</span>
+          <button onClick={() => setSuccess(null)} style={{ background: 'none', border: 'none', color: '#166534', cursor: 'pointer', fontSize: 18 }}>×</button>
+        </div>
+      )}
+
+      {/* Monthly Budget Configuration */}
+      <div style={{ padding: 20, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+          <div style={{ flex: '1 1 300px' }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+              Monthly Budget Total ($)
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="number"
+                value={monthlyTotal || ''}
+                onChange={(e) => handleMonthlyTotalChange(parseFloat(e.target.value) || 0)}
+                placeholder="Enter monthly budget"
+                style={{ width: 200, padding: '10px 12px', fontSize: 16, fontWeight: 600, border: '2px solid #2563eb', borderRadius: 8, outline: 'none' }}
+              />
+              <span style={{ fontSize: 13, color: '#64748b' }}>
+                = ${monthlyTotal > 0 ? (monthlyTotal / DAYS_IN_MONTH).toFixed(2) : '0.00'}/day
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+            <button onClick={handleAutoBalance} disabled={campaigns.length === 0} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 500, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: campaigns.length === 0 ? 'not-allowed' : 'pointer' }}>
+              Auto-Balance ({campaigns.length > 0 ? (100 / campaigns.length).toFixed(1) : '0'}% each)
+            </button>
+            
+            <button
+              onClick={handlePushToGoogleAds}
+              disabled={pushing || campaigns.length === 0 || Math.abs(totalPercentage - 100) > 0.5}
+              style={{
+                padding: '10px 20px',
+                fontSize: 14,
+                fontWeight: 600,
+                background: pushing ? '#6366f1' : Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : '#9ca3af',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                cursor: pushing || campaigns.length === 0 || Math.abs(totalPercentage - 100) > 0.5 ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              {pushing ? <><span>⏳</span> Pushing...</> : <><span>🚀</span> Push to Google Ads</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Monthly Budget Tracker - Visual */}
+      {monthlyTotal > 0 && campaigns.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: '#1e293b' }}>
+            📊 Monthly Budget Tracker - {new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}
+          </h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            {/* Budget Progress Card */}
+            <div style={{ padding: 20, background: statusBg, borderRadius: 12, border: `2px solid ${statusColor}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>{statusText}</span>
+                <span style={{ fontSize: 24, fontWeight: 700, color: statusColor }}>{percentUsed.toFixed(0)}%</span>
+              </div>
+              
+              {/* Progress Bar */}
+              <div style={{ position: 'relative', height: 24, background: '#e5e7eb', borderRadius: 12, overflow: 'hidden', marginBottom: 12 }}>
+                {/* Spend bar */}
+                <div style={{ 
+                  position: 'absolute', 
+                  left: 0, 
+                  top: 0, 
+                  height: '100%', 
+                  width: `${percentUsed}%`, 
+                  background: statusColor,
+                  borderRadius: 12,
+                  transition: 'width 0.3s ease',
+                }} />
+                {/* On-track line */}
+                <div style={{ 
+                  position: 'absolute', 
+                  left: `${onTrackPercent}%`, 
+                  top: 0, 
+                  height: '100%', 
+                  width: 2, 
+                  background: '#1e293b',
+                  opacity: 0.5,
+                }} />
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b' }}>
+                <span>$0</span>
+                <span>${monthlySpend.maxBudget.toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, textAlign: 'center' }}>
+                Vertical line shows where you should be on track
+              </div>
+              
+              {/* Budget Stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: statusColor }}>
+                    ${monthlySpend.totalSpend.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>Spent</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#64748b' }}>
+                    ${monthlySpend.remainingBudget.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>Remaining</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Burn Rate Card */}
+            <div style={{ padding: 20, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 16 }}>📈 Burn Rate Analysis</div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Daily Budget</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: '#059669' }}>
+                    ${monthlySpend.dailyBudget.toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Actual Burn</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: monthlySpend.dailyBurnRate <= monthlySpend.dailyBudget ? '#059669' : '#dc2626' }}>
+                    ${monthlySpend.dailyBurnRate.toFixed(2)}/day
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ marginTop: 16, padding: 12, background: monthlySpend.dailyBurnRate <= monthlySpend.dailyBudget ? '#f0fdf4' : '#fef2f2', borderRadius: 8 }}>
+                {monthlySpend.dailyBurnRate <= monthlySpend.dailyBudget ? (
+                  <span style={{ fontSize: 13, color: '#166534' }}>
+                    ✅ On pace! You're ${(monthlySpend.dailyBudget - monthlySpend.dailyBurnRate).toFixed(2)} under budget per day
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 13, color: '#991b1b' }}>
+                    ⚠️ Spending ${(monthlySpend.dailyBurnRate - monthlySpend.dailyBudget).toFixed(2)} over budget per day
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Recommended Spend Card */}
+            <div style={{ padding: 20, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 16 }}>🎯 Recommended Spend</div>
+              
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
+                <span style={{ fontSize: 28, fontWeight: 700, color: '#2563eb' }}>
+                  ${budgetPerDay.toFixed(0)}
+                </span>
+                <span style={{ fontSize: 14, color: '#64748b' }}>per day</span>
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 16 }}>
+                <span style={{ fontSize: 20, fontWeight: 600, color: '#64748b' }}>
+                  ${budgetPerWeek.toFixed(0)}
+                </span>
+                <span style={{ fontSize: 13, color: '#94a3b8' }}>per week</span>
+              </div>
+              
+              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
+                To meet your monthly budget of <strong>${monthlySpend.maxBudget.toLocaleString()}</strong>, 
+                you need to spend <strong>${budgetPerDay.toFixed(2)}/day</strong> for the next {monthlySpend.daysRemaining} days.
+              </div>
+            </div>
+
+            {/* Time Tracking Card */}
+            <div style={{ padding: 20, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 16 }}>📅 Time Tracking</div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Days Elapsed</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: '#1e293b' }}>
+                    {monthlySpend.daysElapsed}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Days Remaining</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: '#1e293b' }}>
+                    {monthlySpend.daysRemaining}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Calendar visualization */}
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  {Array.from({ length: Math.ceil(DAYS_IN_MONTH) }, (_, i) => {
+                    const day = i + 1;
+                    const now = new Date().getDate();
+                    const isPast = day < now;
+                    const isToday = day === now;
+                    return (
+                      <div
+                        key={day}
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 2,
+                          background: isToday ? '#2563eb' : isPast ? '#059669' : '#e5e7eb',
+                        }}
+                        title={`Day ${day}`}
+                      />
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 10, color: '#64748b' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 8, height: 8, background: '#059669', borderRadius: 2, display: 'inline-block' }}></span>
+                    Past
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 8, height: 8, background: '#2563eb', borderRadius: 2, display: 'inline-block' }}></span>
+                    Today
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 8, height: 8, background: '#e5e7eb', borderRadius: 2, display: 'inline-block' }}></span>
+                    Remaining
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
+        {[
+          { label: 'Campaigns', value: campaigns.length, color: '#1e293b' },
+          { label: 'Total % Allocated', value: `${totalPercentage.toFixed(1)}%`, color: Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : '#dc2626' },
+          { label: 'Daily Budget', value: `$${totalDailyBudget.toFixed(2)}`, color: '#059669' },
+          { label: 'Monthly Budget', value: `$${(totalDailyBudget * DAYS_IN_MONTH).toFixed(0)}`, color: '#2563eb' },
+          { label: 'Total Conversions', value: totalConversions.toLocaleString(), color: '#d97706' },
+        ].map((stat) => (
+          <div key={stat.label} style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: stat.color }}>{stat.value}</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{stat.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Metrics Table */}
+      <GoogleAdsMetricsTable metrics={metrics} loading={loading} onRefresh={handleRefreshMetrics} dateRange="Last 30 Days" />
+
+      {/* Campaign Budget List */}
+      <div style={{ marginTop: 24 }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600, color: '#1e293b' }}>
+          Campaign Budget Allocation
+        </h3>
+
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+          {/* Table Header */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 12, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+            <div>Campaign</div>
+            <div style={{ textAlign: 'right' }}>% Allocation</div>
+            <div style={{ textAlign: 'right' }}>Daily Budget</div>
+            <div style={{ textAlign: 'right' }}>Bid Strategy</div>
+            <div style={{ textAlign: 'right' }}>Conv. / CPC</div>
+          </div>
+
+          {campaigns.length === 0 ? (
+            <div style={{ padding: '32px 16px', textAlign: 'center', color: '#64748b' }}>
+              {loading ? 'Loading...' : <>No campaigns found. <button onClick={handleSync} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit' }}>Click here to sync from Google Ads.</button></>}
+            </div>
+          ) : (
+            campaigns.map((campaign, index) => {
+              const isEditing = editingCampaign === campaign.campaignId && editField === 'percentage';
+              const isEditingStrategy = editingCampaign === campaign.campaignId && editField === 'bidStrategy';
+              const isExpanded = expandedCampaign === campaign.campaignId;
+              const budgetDiff = campaign.actualDailyBudget ? campaign.calculatedDailyBudget - campaign.actualDailyBudget : null;
+
+              return (
+                <div key={campaign.campaignId} style={{ borderBottom: index < campaigns.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                  <div
+                    style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 12, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : 'transparent' }}
+                    onClick={() => setExpandedCampaign(isExpanded ? null : campaign.campaignId)}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 10, color: '#94a3b8', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
+                        {campaign.campaignName}
+                      </div>
+                      {budgetDiff !== null && Math.abs(budgetDiff) > 0.01 && (
+                        <div style={{ fontSize: 10, color: '#d97706', marginLeft: 16 }}>
+                          {budgetDiff > 0 ? '↑' : '↓'} ${Math.abs(budgetDiff).toFixed(2)}/day pending
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
+                          <input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} onClick={(e) => e.stopPropagation()} style={{ width: 60, padding: '4px 8px', fontSize: 13, border: '1px solid #2563eb', borderRadius: 4, textAlign: 'right' }} autoFocus min={0} max={100} step={0.5} />
+                          <span style={{ fontSize: 12, color: '#64748b' }}>%</span>
+                        </div>
+                      ) : (
+                        <div onClick={(e) => { e.stopPropagation(); startEditPercentage(campaign); }} style={{ cursor: 'pointer', padding: '4px 8px', borderRadius: 4 }} onMouseEnter={(e) => (e.currentTarget.style.background = '#f1f5f9')} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                          <span style={{ fontWeight: 600, color: '#2563eb' }}>{campaign.budgetPercentage.toFixed(1)}%</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontWeight: 600, color: '#059669' }}>${campaign.calculatedDailyBudget.toFixed(2)}</span>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      {isEditingStrategy ? (
+                        <select value={editValue} onChange={(e) => setEditValue(e.target.value)} onClick={(e) => e.stopPropagation()} style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #2563eb', borderRadius: 4 }} autoFocus>
+                          {BID_STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                      ) : (
+                        <div onClick={(e) => { e.stopPropagation(); startEditBidStrategy(campaign); }} style={{ cursor: 'pointer', padding: '4px 8px', borderRadius: 4, fontSize: 12 }} onMouseEnter={(e) => (e.currentTarget.style.background = '#f1f5f9')} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                          {BID_STRATEGIES.find((s) => s.value === campaign.bidStrategy)?.label || campaign.bidStrategy}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ textAlign: 'right', fontSize: 12, color: '#64748b' }}>
+                      <div>{campaign.conversions || 0} / ${(campaign.avgCpc || 0).toFixed(2)}</div>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div style={{ padding: '12px 16px 16px 38px', background: '#fafafa', borderTop: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 16, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>Monthly Budget</div>
+                          <div style={{ fontWeight: 600, color: '#1e293b' }}>${(campaign.calculatedDailyBudget * DAYS_IN_MONTH).toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>Impressions</div>
+                          <div style={{ fontWeight: 600, color: '#1e293b' }}>{(campaign.impressions || 0).toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>Clicks</div>
+                          <div style={{ fontWeight: 600, color: '#1e293b' }}>{(campaign.clicks || 0).toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>Last Pushed</div>
+                          <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 12 }}>{campaign.lastPushedAt ? new Date(campaign.lastPushedAt).toLocaleDateString() : 'Never'}</div>
+                        </div>
+                      </div>
+
+                      {(isEditing || isEditingStrategy) && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={handleSaveEdit} style={{ padding: '6px 16px', fontSize: 13, fontWeight: 500, background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Save</button>
+                          <button onClick={cancelEdit} style={{ padding: '6px 16px', fontSize: 13, fontWeight: 500, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer' }}>Cancel</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Email Modal */}
+      {showEmailModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowEmailModal(false)}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 700, maxHeight: '85vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#1e293b' }}>📧 Email Report</h2>
+              <button onClick={() => setShowEmailModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#64748b', padding: 4 }}>×</button>
+            </div>
+
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#64748b' }}>
+              Copy this report and paste it into Gmail or any email client.
+            </p>
+
+            <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16 }}>
+              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 12, fontFamily: 'monospace', color: '#374151', maxHeight: 400, overflow: 'auto' }}>
+                {generateEmailSummary(businessName, new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }), monthlySpend, campaigns, monthlyTotal)}
+              </pre>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowEmailModal(false)} style={{ padding: '10px 20px', fontSize: 14, fontWeight: 500, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer' }}>Close</button>
+              <button onClick={copyEmailToClipboard} style={{ padding: '10px 20px', fontSize: 14, fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                {emailCopied ? '✅ Copied!' : '📋 Copy to Clipboard'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const GoogleAdsBudgetManagement = () => {
+  const [renderError, setRenderError] = useState<string | null>(null);
+
+  if (renderError) {
+    return <div style={{ padding: 12, background: '#fee2e2', borderRadius: 6, fontSize: 13, color: '#991b1b' }}>Budget Management error: {renderError}</div>;
+  }
+
+  try {
+    return <GoogleAdsBudgetManagementInner />;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!renderError) setRenderError(msg);
+    return <div style={{ padding: 12, background: '#fee2e2', borderRadius: 6, fontSize: 13, color: '#991b1b' }}>Budget Management error: {msg}</div>;
+  }
+};
+
+export default GoogleAdsBudgetManagement;

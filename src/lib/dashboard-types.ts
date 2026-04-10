@@ -174,3 +174,185 @@ export interface GoogleAdsDashboardQualityData {
   snapshots: GoogleAdsDashboardQualitySnapshot[];
   topAds: GoogleAdsDashboardTopAd[];
 }
+
+// ============================================================================
+// Campaign Budget Management Types
+// ============================================================================
+
+export type BidStrategyType =
+  | "manual_cpc"
+  | "maximize_conversions"
+  | "maximize_conversion_value"
+  | "target_cpa"
+  | "target_roas"
+  | "target_impressions"
+  | "maximize_clicks";
+
+export interface CampaignBudget {
+  id: string;
+  auditId: string;
+  customerId: string;
+
+  // Campaign reference
+  campaignId: string;
+  campaignName: string;
+  adGroupId?: string;
+  adGroupName?: string;
+
+  // Budget allocation (percentage-based)
+  budgetPercentage: number;
+  calculatedDailyBudget: number; // Calculated: monthly × % ÷ 30.4
+  actualDailyBudget?: number; // Last pushed to Google Ads
+  lastPushedAt?: string;
+
+  // Bid settings
+  bidStrategy: BidStrategyType;
+  bidStrategyId?: string;
+  manualCpcBid?: number;
+
+  // Targeting
+  locationIds?: string[];
+  locationNames?: string[];
+
+  // Performance (refreshed from API)
+  metricsLastUpdated: string;
+  impressions: number;
+  clicks: number;
+  avgCpc: number;
+  conversions: number;
+
+  // Metadata
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Monthly budget config (stored on audit or as separate collection)
+export interface MonthlyBudgetConfig {
+  auditId: string;
+  monthlyTotal: number;
+  currency: string;
+  daysInMonth: number; // Usually 30.4
+  updatedAt: string;
+}
+
+export interface CampaignBudgetMetrics {
+  campaignId: string;
+  impressions: number;
+  clicks: number;
+  avgCpc: number;
+  conversions: number;
+  costPerConversion: number | null;
+}
+
+// ============================================================================
+// Ad Extensions Types
+// ============================================================================
+
+export type ExtensionType = "sitelink" | "structured_snippet";
+
+export type ExtensionLevel = "account" | "campaign" | "ad_group";
+
+export type ExtensionStatus = "draft" | "deployed" | "paused" | "error";
+
+export interface SitelinkData {
+  linkText: string;
+  linkUrl: string;
+  description1?: string;
+  description2?: string;
+}
+
+export interface StructuredSnippetData {
+  header: string;
+  values: string[];
+}
+
+export interface AdExtensionAssignment {
+  campaignId: string;
+  campaignName: string;
+}
+
+export interface AdExtension {
+  id: string;
+  auditId: string;
+  customerId: string;
+
+  // Extension type
+  extensionType: ExtensionType;
+
+  // Extension data (varies by type)
+  extensionData: SitelinkData | StructuredSnippetData;
+
+  // Level & assignments
+  level: ExtensionLevel;
+
+  // Google Ads IDs (populated after deploy)
+  assetId?: string;
+  assetSetId?: string;
+
+  // Assignment targets
+  assignedCampaigns: AdExtensionAssignment[];
+  assignedAdGroups: AdExtensionAssignment[];
+
+  // Status
+  status: ExtensionStatus;
+  deployedAt?: string;
+
+  // Metadata
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Pre-defined headers for structured snippets (per Google Ads guidelines)
+export const STRUCTURED_SNIPPET_HEADERS = [
+  "Destinations",
+  "Services",
+  "Brands",
+  "Schools",
+  "Neighborhoods",
+  "Types",
+  "Collections",
+  "Hotels",
+  "Insurance Coverage",
+  "Models",
+  "Entertainment",
+  "Activities",
+  "Natural Landmarks",
+  "Featured Items",
+  "Product Types",
+  "Services Offered",
+  "Programs",
+  "Events",
+  "Departments",
+  "Amenities",
+  "Styles",
+  "Artists",
+  "Owned",
+  "Offered",
+  "Diets",
+  "Curriculums",
+  "Insurance Products",
+  "Properties",
+  "Communities",
+  "Shows",
+  "Outlets",
+  "Clubs",
+  "Species",
+  "Conditions",
+  "Coverage",
+  "Plans",
+  "Therapists",
+  "Forms",
+  "Guides",
+  "Specializations",
+  "Features",
+  "Benefits",
+  "Rooms",
+  "Menu Items",
+  "Car Rental Categories",
+  "Service Options",
+  "Aircraft",
+  "Travel Classes",
+  "Dining Options",
+] as const;
+
+export type StructuredSnippetHeader = (typeof STRUCTURED_SNIPPET_HEADERS)[number];
