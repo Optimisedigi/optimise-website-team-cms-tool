@@ -64,6 +64,7 @@ export async function GET(
   // If Growth Tools URL is configured, fetch from there
   if (GROWTH_TOOLS_URL && INTERNAL_API_KEY) {
     try {
+      // Fetch THIS_MONTH data for actual MTD spend
       const response = await fetch(
         `${GROWTH_TOOLS_URL}/api/google-ads/campaign-budgets/list`,
         {
@@ -74,6 +75,7 @@ export async function GET(
           },
           body: JSON.stringify({
             customerId: customerId.replace(/-/g, ""),
+            dateRange: "THIS_MONTH",
           }),
         }
       );
@@ -171,6 +173,7 @@ export async function GET(
         clicks: c.clicks || 0,
         avgCpc: c.avgCpc || 0,
         conversions: c.conversions || 0,
+        mtdSpend: c.cost || 0, // Actual MTD spend from Google Ads
         campaignStatus: c.campaignStatus,
         channelType: c.channelType,
       }));

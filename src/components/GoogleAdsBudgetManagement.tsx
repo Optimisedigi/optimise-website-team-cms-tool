@@ -19,6 +19,7 @@ interface BudgetCampaign {
   avgCpc: number;
   conversions: number;
   spend?: number; // Current month spend
+  mtdSpend?: number; // Actual MTD spend from Google Ads
   locationIds?: string[];
   locationNames?: string[];
 }
@@ -54,26 +55,19 @@ function getMonthInfo() {
   return { daysInMonth, daysElapsed, daysRemaining };
 }
 
-// Estimate MTD spend from 30-day rolling metrics
-// clicks × avgCpc = last 30 days total spend, so daily avg = that / 30
-function estimate30DaySpend(campaigns: BudgetCampaign[]): number {
-  return campaigns.reduce((sum, c) => sum + (c.clicks || 0) * (c.avgCpc || 0), 0);
-}
-
-function estimateMtdSpend(campaigns: BudgetCampaign[], daysElapsed: number): number {
-  const last30Total = estimate30DaySpend(campaigns);
-  const dailyAvg = last30Total / 30;
-  return dailyAvg * daysElapsed;
+// Get actual MTD spend from campaign data (from Google Ads THIS_MONTH query)
+function getTotalMtdSpend(campaigns: BudgetCampaign[]): number {
+  return campaigns.reduce((sum, c) => sum + (c.mtdSpend || 0), 0);
 }
 
 // Calculate smart daily budget for a campaign based on remaining budget and days
 function calculateSmartDailyBudget(
   monthlyBudget: number,
   campaignPercentage: number,
-  estimatedMtdTotal: number,
+  totalMtdSpend: number,
   daysRemaining: number,
 ): number {
-  const remainingBudget = Math.max(0, monthlyBudget - estimatedMtdTotal);
+  const remainingBudget = Math.max(0, monthlyBudget - totalMtdSpend);
   const campaignShare = remainingBudget * (campaignPercentage / 100);
   return campaignShare / daysRemaining;
 }
@@ -82,13 +76,11 @@ function calculateSmartDailyBudget(
 function calculateMonthlySpend(campaigns: BudgetCampaign[], monthlyBudget: number): MonthlySpend {
   const { daysInMonth, daysElapsed, daysRemaining } = getMonthInfo();
 
-  // Metrics are 30-day rolling, not MTD. Estimate MTD from daily average.
-  const last30Total = estimate30DaySpend(campaigns);
-  const dailyAvg = last30Total / 30;
-  const totalSpend = dailyAvg * daysElapsed; // estimated MTD spend
+  // Use actual MTD spend from Google Ads
+  const totalSpend = getTotalMtdSpend(campaigns);
 
   const dailyBudget = monthlyBudget / daysInMonth;
-  const dailyBurnRate = dailyAvg; // actual avg spend per day (from 30-day data)
+  const dailyBurnRate = daysElapsed > 0 ? totalSpend / daysElapsed : 0;
   const remainingBudget = Math.max(0, monthlyBudget - totalSpend);
   
   return {
@@ -199,15 +191,15 @@ const GoogleAdsBudgetManagementInner = () => {
 
   const businessName = (fields?.businessName?.value as string) || 'Client';
 
-  // Recalculate all campaign daily budgets based on estimated MTD spend and remaining days
+  // Recalculate daily budgets: (monthly - MTD spend) × campaign % / days remaining
   const recalculateBudgets = useCallback((budgetCampaigns: BudgetCampaign[], budget: number): BudgetCampaign[] => {
-    const { daysElapsed, daysRemaining } = getMonthInfo();
-    const estMtd = estimateMtdSpend(budgetCampaigns, daysElapsed);
+    const { daysRemaining } = getMonthInfo();
+    const totalMtd = getTotalMtdSpend(budgetCampaigns);
 
     return budgetCampaigns.map(c => ({
       ...c,
       calculatedDailyBudget: budget > 0
-        ? calculateSmartDailyBudget(budget, c.budgetPercentage, estMtd, daysRemaining)
+        ? calculateSmartDailyBudget(budget, c.budgetPercentage, totalMtd, daysRemaining)
         : 0,
     }));
   }, []);
@@ -944,8 +936,8 @@ const GoogleAdsBudgetManagementInner = () => {
                           <div style={{ fontWeight: 600, color: '#1e293b' }}>${(monthlyTotal * campaign.budgetPercentage / 100).toFixed(0)}</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>MTD Spend (est.)</div>
-                          <div style={{ fontWeight: 600, color: '#d97706' }}>${(((campaign.clicks || 0) * (campaign.avgCpc || 0)) / 30 * getMonthInfo().daysElapsed).toFixed(2)}</div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>MTD Spend</div>
+                          <div style={{ fontWeight: 600, color: '#d97706' }}>${(campaign.mtdSpend || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         </div>
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>Adj. Daily Budget</div>
