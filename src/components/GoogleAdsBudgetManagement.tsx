@@ -312,12 +312,12 @@ const GoogleAdsBudgetManagementInner = () => {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          campaigns: campaigns.map(c => ({
-            campaignId: c.campaignId,
-            dailyBudget: c.calculatedDailyBudget,
-            bidStrategy: c.bidStrategy,
-            bidStrategyId: c.bidStrategyId,
-          })),
+          campaigns: campaigns
+            .filter(c => c.budgetPercentage > 0 && c.calculatedDailyBudget > 0)
+            .map(c => ({
+              campaignId: c.campaignId,
+              dailyBudget: c.calculatedDailyBudget,
+            })),
         }),
       });
 
