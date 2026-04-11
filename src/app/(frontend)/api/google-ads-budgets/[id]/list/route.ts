@@ -66,6 +66,12 @@ export async function GET(
 
       if (!response.ok) {
         const errorBody = await response.text();
+        if (errorBody.includes("REQUESTED_METRICS_FOR_MANAGER")) {
+          return NextResponse.json(
+            { error: "This is a manager (MCC) account. Enter the client account ID instead — find it under the MCC in Google Ads." },
+            { status: 400 }
+          );
+        }
         throw new Error(
           `Growth tools error (${response.status}): ${errorBody}`
         );

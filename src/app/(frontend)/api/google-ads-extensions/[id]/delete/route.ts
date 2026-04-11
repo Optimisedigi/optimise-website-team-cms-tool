@@ -87,6 +87,12 @@ export async function POST(
 
       if (!response.ok) {
         const errorBody = await response.text();
+        if (errorBody.includes("REQUESTED_METRICS_FOR_MANAGER")) {
+          return NextResponse.json(
+            { error: "This is a manager (MCC) account. Enter the client account ID instead — find it under the MCC in Google Ads." },
+            { status: 400 }
+          );
+        }
         console.warn(
           "[GoogleAdsExtensions] Delete from Google Ads failed:",
           errorBody
