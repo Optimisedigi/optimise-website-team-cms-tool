@@ -45,15 +45,32 @@ const BID_STRATEGIES = [
 
 const DAYS_IN_MONTH = 30.4;
 
+// Get current month info
+function getMonthInfo() {
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysElapsed = now.getDate();
+  const daysRemaining = Math.max(1, daysInMonth - daysElapsed); // min 1 to avoid division by zero
+  return { daysInMonth, daysElapsed, daysRemaining };
+}
+
+// Calculate smart daily budget for a campaign based on remaining budget and days
+function calculateSmartDailyBudget(
+  monthlyBudget: number,
+  campaignPercentage: number,
+  totalMtdSpend: number,
+  daysRemaining: number,
+): number {
+  const remainingBudget = Math.max(0, monthlyBudget - totalMtdSpend);
+  const campaignShare = remainingBudget * (campaignPercentage / 100);
+  return campaignShare / daysRemaining;
+}
+
 // Calculate monthly spend metrics
 function calculateMonthlySpend(campaigns: BudgetCampaign[], monthlyBudget: number): MonthlySpend {
-  const now = new Date();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const daysElapsed = dayOfMonth;
-  const daysRemaining = daysInMonth - dayOfMonth;
-  
-  // Calculate total spend from campaigns (using clicks * avgCpc)
+  const { daysInMonth, daysElapsed, daysRemaining } = getMonthInfo();
+
+  // Calculate total spend from campaigns (using clicks * avgCpc as MTD approximation)
   const totalSpend = campaigns.reduce((sum, c) => {
     const campaignSpend = (c.clicks || 0) * (c.avgCpc || 0);
     return sum + campaignSpend;
@@ -62,7 +79,6 @@ function calculateMonthlySpend(campaigns: BudgetCampaign[], monthlyBudget: numbe
   const dailyBudget = monthlyBudget / daysInMonth;
   const dailyBurnRate = daysElapsed > 0 ? totalSpend / daysElapsed : 0;
   const remainingBudget = Math.max(0, monthlyBudget - totalSpend);
-  const projectedSpend = dailyBurnRate * daysInMonth;
   
   return {
     totalSpend,
@@ -205,6 +221,24 @@ const GoogleAdsBudgetManagementInner = () => {
     }
   }, [id, monthlyTotal]);
 
+  // Recalculate all campaign daily budgets based on MTD spend and remaining days
+  const recalculateBudgets = useCallback((budgetCampaigns: BudgetCampaign[], budget: number): BudgetCampaign[] => {
+    const { daysRemaining } = getMonthInfo();
+    const totalMtdSpend = budgetCampaigns.reduce((sum, c) => sum + (c.clicks || 0) * (c.avgCpc || 0), 0);
+
+    return budgetCampaigns.map(c => ({
+      ...c,
+      calculatedDailyBudget: budget > 0
+        ? calculateSmartDailyBudget(budget, c.budgetPercentage, totalMtdSpend, daysRemaining)
+        : 0,
+    }));
+  }, []);
+
+  const handleMonthlyTotalChange = useCallback((newTotal: number) => {
+    setMonthlyTotal(newTotal);
+    setCampaigns(prev => recalculateBudgets(prev, newTotal));
+  }, [recalculateBudgets]);
+
   const handleSync = useCallback(async () => {
     if (!id) return;
     setSyncing(true);
@@ -335,17 +369,12 @@ const GoogleAdsBudgetManagementInner = () => {
         return;
       }
 
-      const calculatedDaily = monthlyTotal > 0 
-        ? (monthlyTotal * (newPercentage / 100)) / DAYS_IN_MONTH 
-        : 0;
-
-      setCampaigns((prev) =>
-        prev.map((c) =>
-          c.campaignId === editingCampaign
-            ? { ...c, budgetPercentage: newPercentage, calculatedDailyBudget: calculatedDaily }
-            : c
-        )
+      const updated = campaigns.map((c) =>
+        c.campaignId === editingCampaign
+          ? { ...c, budgetPercentage: newPercentage }
+          : c
       );
+      setCampaigns(recalculateBudgets(updated, monthlyTotal));
     } else if (editField === 'bidStrategy') {
       setCampaigns((prev) =>
         prev.map((c) =>
@@ -358,39 +387,25 @@ const GoogleAdsBudgetManagementInner = () => {
 
     setEditingCampaign(null);
     setEditValue('');
-  }, [editingCampaign, editValue, editField, campaigns, monthlyTotal]);
+  }, [editingCampaign, editValue, editField, campaigns, monthlyTotal, recalculateBudgets]);
 
   const cancelEdit = useCallback(() => {
     setEditingCampaign(null);
     setEditValue('');
   }, []);
 
-  const handleMonthlyTotalChange = useCallback((newTotal: number) => {
-    setMonthlyTotal(newTotal);
-    
-    setCampaigns(prev => prev.map(c => ({
-      ...c,
-      calculatedDailyBudget: newTotal > 0 
-        ? (newTotal * (c.budgetPercentage / 100)) / DAYS_IN_MONTH 
-        : 0,
-    })));
-  }, []);
-
   const handleAutoBalance = useCallback(() => {
     if (campaigns.length === 0) return;
     const equalPercentage = Math.round(10000 / campaigns.length) / 100;
     const remainder = 100 - (equalPercentage * campaigns.length);
-    
-    const updated = campaigns.map((c, i) => ({
+
+    const balanced = campaigns.map((c, i) => ({
       ...c,
       budgetPercentage: i === 0 ? equalPercentage + remainder : equalPercentage,
-      calculatedDailyBudget: monthlyTotal > 0 
-        ? (monthlyTotal * (i === 0 ? equalPercentage + remainder : equalPercentage) / 100) / DAYS_IN_MONTH 
-        : 0,
     }));
-    
-    setCampaigns(updated);
-  }, [campaigns, monthlyTotal]);
+
+    setCampaigns(recalculateBudgets(balanced, monthlyTotal));
+  }, [campaigns, monthlyTotal, recalculateBudgets]);
 
   const copyEmailToClipboard = useCallback(() => {
     const spend = calculateMonthlySpend(campaigns, monthlyTotal);
@@ -472,7 +487,7 @@ const GoogleAdsBudgetManagementInner = () => {
             Budget Management
           </h2>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
-            Set monthly budget and allocate percentages to campaigns.
+            Set monthly budget, split % across campaigns. Daily budgets auto-adjust based on MTD spend and remaining days.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -772,14 +787,15 @@ const GoogleAdsBudgetManagementInner = () => {
         </div>
       )}
 
-      {/* Summary */}
+      {/* Smart Budget Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
         {[
           { label: 'Campaigns', value: campaigns.length, color: '#1e293b' },
-          { label: 'Total % Allocated', value: `${totalPercentage.toFixed(1)}%`, color: Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : '#dc2626' },
-          { label: 'Daily Budget', value: `$${totalDailyBudget.toFixed(2)}`, color: '#059669' },
-          { label: 'Monthly Budget', value: `$${(totalDailyBudget * DAYS_IN_MONTH).toFixed(0)}`, color: '#2563eb' },
-          { label: 'Total Conversions', value: totalConversions.toLocaleString(), color: '#d97706' },
+          { label: '% Allocated', value: `${totalPercentage.toFixed(1)}%`, color: Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : '#dc2626' },
+          { label: 'MTD Spend', value: `$${monthlySpend.totalSpend.toFixed(0)}`, color: '#d97706' },
+          { label: 'Remaining', value: `$${monthlySpend.remainingBudget.toFixed(0)}`, color: '#059669' },
+          { label: 'Smart Daily Budget', value: `$${totalDailyBudget.toFixed(2)}`, color: '#2563eb' },
+          { label: 'Conversions', value: totalConversions.toLocaleString(), color: '#6366f1' },
         ].map((stat) => (
           <div key={stat.label} style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: stat.color }}>{stat.value}</div>
@@ -801,8 +817,8 @@ const GoogleAdsBudgetManagementInner = () => {
           {/* Table Header */}
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 12, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
             <div>Campaign</div>
-            <div style={{ textAlign: 'right' }}>% Allocation</div>
-            <div style={{ textAlign: 'right' }}>Daily Budget</div>
+            <div style={{ textAlign: 'right' }}>% Split</div>
+            <div style={{ textAlign: 'right' }}>Daily (adj.)</div>
             <div style={{ textAlign: 'right' }}>Bid Strategy</div>
             <div style={{ textAlign: 'right' }}>Conv. / CPC</div>
           </div>
@@ -874,8 +890,16 @@ const GoogleAdsBudgetManagementInner = () => {
                     <div style={{ padding: '12px 16px 16px 38px', background: '#fafafa', borderTop: '1px solid #e2e8f0' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 16, marginBottom: 12 }}>
                         <div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Monthly Budget</div>
-                          <div style={{ fontWeight: 600, color: '#1e293b' }}>${(campaign.calculatedDailyBudget * DAYS_IN_MONTH).toFixed(2)}</div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>Monthly Share</div>
+                          <div style={{ fontWeight: 600, color: '#1e293b' }}>${(monthlyTotal * campaign.budgetPercentage / 100).toFixed(0)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>MTD Spend (est.)</div>
+                          <div style={{ fontWeight: 600, color: '#d97706' }}>${((campaign.clicks || 0) * (campaign.avgCpc || 0)).toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>Adj. Daily Budget</div>
+                          <div style={{ fontWeight: 600, color: '#2563eb' }}>${campaign.calculatedDailyBudget.toFixed(2)}</div>
                         </div>
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>Impressions</div>

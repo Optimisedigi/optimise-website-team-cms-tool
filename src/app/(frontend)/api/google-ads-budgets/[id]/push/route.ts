@@ -126,8 +126,16 @@ export async function POST(
       pushedCount = result.pushedCount || campaigns.length;
     } catch (e: any) {
       console.error("[GoogleAdsBudgets] Push error:", e.message);
-      // Continue to update CMS even if API fails
+      return NextResponse.json(
+        { error: `Failed to push budgets to Google Ads: ${e.message}` },
+        { status: 502 }
+      );
     }
+  } else {
+    return NextResponse.json(
+      { error: "Growth Tools not configured — cannot push to Google Ads" },
+      { status: 503 }
+    );
   }
 
   // Update CMS records with pushed values
@@ -154,7 +162,6 @@ export async function POST(
           overrideAccess: true,
         });
       }
-      pushedCount++;
     } catch (e: any) {
       errors.push(`Failed to update ${campaign.campaignId}: ${e.message}`);
     }
