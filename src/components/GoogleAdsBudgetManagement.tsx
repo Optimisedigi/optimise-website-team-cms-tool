@@ -54,14 +54,26 @@ function getMonthInfo() {
   return { daysInMonth, daysElapsed, daysRemaining };
 }
 
+// Estimate MTD spend from 30-day rolling metrics
+// clicks × avgCpc = last 30 days total spend, so daily avg = that / 30
+function estimate30DaySpend(campaigns: BudgetCampaign[]): number {
+  return campaigns.reduce((sum, c) => sum + (c.clicks || 0) * (c.avgCpc || 0), 0);
+}
+
+function estimateMtdSpend(campaigns: BudgetCampaign[], daysElapsed: number): number {
+  const last30Total = estimate30DaySpend(campaigns);
+  const dailyAvg = last30Total / 30;
+  return dailyAvg * daysElapsed;
+}
+
 // Calculate smart daily budget for a campaign based on remaining budget and days
 function calculateSmartDailyBudget(
   monthlyBudget: number,
   campaignPercentage: number,
-  totalMtdSpend: number,
+  estimatedMtdTotal: number,
   daysRemaining: number,
 ): number {
-  const remainingBudget = Math.max(0, monthlyBudget - totalMtdSpend);
+  const remainingBudget = Math.max(0, monthlyBudget - estimatedMtdTotal);
   const campaignShare = remainingBudget * (campaignPercentage / 100);
   return campaignShare / daysRemaining;
 }
@@ -70,14 +82,13 @@ function calculateSmartDailyBudget(
 function calculateMonthlySpend(campaigns: BudgetCampaign[], monthlyBudget: number): MonthlySpend {
   const { daysInMonth, daysElapsed, daysRemaining } = getMonthInfo();
 
-  // Calculate total spend from campaigns (using clicks * avgCpc as MTD approximation)
-  const totalSpend = campaigns.reduce((sum, c) => {
-    const campaignSpend = (c.clicks || 0) * (c.avgCpc || 0);
-    return sum + campaignSpend;
-  }, 0);
-  
+  // Metrics are 30-day rolling, not MTD. Estimate MTD from daily average.
+  const last30Total = estimate30DaySpend(campaigns);
+  const dailyAvg = last30Total / 30;
+  const totalSpend = dailyAvg * daysElapsed; // estimated MTD spend
+
   const dailyBudget = monthlyBudget / daysInMonth;
-  const dailyBurnRate = daysElapsed > 0 ? totalSpend / daysElapsed : 0;
+  const dailyBurnRate = dailyAvg; // actual avg spend per day (from 30-day data)
   const remainingBudget = Math.max(0, monthlyBudget - totalSpend);
   
   return {
@@ -188,15 +199,15 @@ const GoogleAdsBudgetManagementInner = () => {
 
   const businessName = (fields?.businessName?.value as string) || 'Client';
 
-  // Recalculate all campaign daily budgets based on MTD spend and remaining days
+  // Recalculate all campaign daily budgets based on estimated MTD spend and remaining days
   const recalculateBudgets = useCallback((budgetCampaigns: BudgetCampaign[], budget: number): BudgetCampaign[] => {
-    const { daysRemaining } = getMonthInfo();
-    const totalMtdSpend = budgetCampaigns.reduce((sum, c) => sum + (c.clicks || 0) * (c.avgCpc || 0), 0);
+    const { daysElapsed, daysRemaining } = getMonthInfo();
+    const estMtd = estimateMtdSpend(budgetCampaigns, daysElapsed);
 
     return budgetCampaigns.map(c => ({
       ...c,
       calculatedDailyBudget: budget > 0
-        ? calculateSmartDailyBudget(budget, c.budgetPercentage, totalMtdSpend, daysRemaining)
+        ? calculateSmartDailyBudget(budget, c.budgetPercentage, estMtd, daysRemaining)
         : 0,
     }));
   }, []);
@@ -934,7 +945,7 @@ const GoogleAdsBudgetManagementInner = () => {
                         </div>
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>MTD Spend (est.)</div>
-                          <div style={{ fontWeight: 600, color: '#d97706' }}>${((campaign.clicks || 0) * (campaign.avgCpc || 0)).toFixed(2)}</div>
+                          <div style={{ fontWeight: 600, color: '#d97706' }}>${(((campaign.clicks || 0) * (campaign.avgCpc || 0)) / 30 * getMonthInfo().daysElapsed).toFixed(2)}</div>
                         </div>
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>Adj. Daily Budget</div>
