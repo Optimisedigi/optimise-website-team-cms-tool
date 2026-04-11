@@ -188,39 +188,6 @@ const GoogleAdsBudgetManagementInner = () => {
 
   const businessName = (fields?.businessName?.value as string) || 'Client';
 
-  const fetchCampaigns = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch(`/api/google-ads-budgets/${id}/list`, {
-        credentials: 'include',
-      });
-
-      if (!res.ok) {
-        throw new Error(`Failed (${res.status})`);
-      }
-
-      const data = await res.json();
-      setCampaigns(data.campaigns || []);
-      
-      if (monthlyTotal === 0 && data.campaigns?.length > 0) {
-        const total = data.campaigns.reduce(
-          (sum: number, c: any) => sum + (c.actualDailyBudget || c.dailyBudget || 0) * DAYS_IN_MONTH,
-          0
-        );
-        if (total > 0) {
-          setMonthlyTotal(Math.round(total));
-        }
-      }
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [id, monthlyTotal]);
-
   // Recalculate all campaign daily budgets based on MTD spend and remaining days
   const recalculateBudgets = useCallback((budgetCampaigns: BudgetCampaign[], budget: number): BudgetCampaign[] => {
     const { daysRemaining } = getMonthInfo();
@@ -238,6 +205,67 @@ const GoogleAdsBudgetManagementInner = () => {
     setMonthlyTotal(newTotal);
     setCampaigns(prev => recalculateBudgets(prev, newTotal));
   }, [recalculateBudgets]);
+
+  const fetchCampaigns = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/google-ads-budgets/${id}/list`, {
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      const fetched: BudgetCampaign[] = data.campaigns || [];
+
+      // Auto-derive monthly total from existing daily budgets if not set
+      let budget = monthlyTotal;
+      if (budget === 0 && fetched.length > 0) {
+        const total = fetched.reduce(
+          (sum, c) => sum + (c.actualDailyBudget || 0) * DAYS_IN_MONTH,
+          0
+        );
+        if (total > 0) {
+          budget = Math.round(total);
+          setMonthlyTotal(budget);
+        }
+      }
+
+      // Auto-distribute percentages based on existing daily budgets
+      if (fetched.length > 0) {
+        const totalDaily = fetched.reduce((sum, c) => sum + (c.actualDailyBudget || 0), 0);
+        if (totalDaily > 0) {
+          // Proportional split based on existing budgets
+          fetched.forEach(c => {
+            c.budgetPercentage = Math.round(((c.actualDailyBudget || 0) / totalDaily) * 1000) / 10;
+          });
+          // Adjust rounding so it sums to 100
+          const pctSum = fetched.reduce((s, c) => s + c.budgetPercentage, 0);
+          if (fetched.length > 0 && Math.abs(pctSum - 100) > 0.01) {
+            fetched[0].budgetPercentage += Math.round((100 - pctSum) * 10) / 10;
+          }
+        } else {
+          // Equal split if no existing budgets
+          const equal = Math.round(1000 / fetched.length) / 10;
+          fetched.forEach((c, i) => {
+            c.budgetPercentage = i === 0 ? equal + Math.round((100 - equal * fetched.length) * 10) / 10 : equal;
+          });
+        }
+      }
+
+      // Recalculate daily budgets with smart formula
+      setCampaigns(recalculateBudgets(fetched, budget));
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, monthlyTotal, recalculateBudgets]);
 
   const handleSync = useCallback(async () => {
     if (!id) return;
