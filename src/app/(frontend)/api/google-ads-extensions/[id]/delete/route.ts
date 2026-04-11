@@ -64,11 +64,33 @@ export async function POST(
   if (GROWTH_TOOLS_URL && INTERNAL_API_KEY && extension.assetId) {
     try {
       // Fetch audit to get customerId
-      const audit = await payload.findByID({
+      const audit: any = await payload.findByID({
         collection: "google-ads-audits",
         id,
         overrideAccess: true,
       });
+
+      // Prefer client account ID over audit's (which may be MCC)
+      let customerId = audit.customerId;
+      if (audit.client) {
+        try {
+          const clientId = typeof audit.client === 'object' ? audit.client.id : audit.client;
+          const client = typeof audit.client === 'object' ? audit.client : await payload.findByID({
+            collection: "clients",
+            id: clientId,
+            overrideAccess: true,
+          });
+          if (client?.googleAdsCustomerId) {
+            customerId = client.googleAdsCustomerId;
+          }
+        } catch { /* client lookup failed, use audit customerId */ }
+      }
+      if (!customerId) {
+        return NextResponse.json(
+          { error: "No Google Ads customer ID found on audit or linked client" },
+          { status: 400 }
+        );
+      }
 
       const response = await fetch(
         `${GROWTH_TOOLS_URL}/api/google-ads/ad-extensions/delete`,
@@ -79,7 +101,7 @@ export async function POST(
             "x-internal-key": INTERNAL_API_KEY!,
           },
           body: JSON.stringify({
-            customerId: (audit.customerId as string).replace(/-/g, ""),
+            customerId: customerId.replace(/-/g, ""),
             assetId: extension.assetId,
           }),
         }

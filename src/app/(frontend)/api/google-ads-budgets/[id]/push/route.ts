@@ -65,10 +65,24 @@ export async function POST(
     return NextResponse.json({ error: "Audit not found" }, { status: 404 });
   }
 
-  const { customerId } = audit;
+  // Prefer client account ID over audit's (which may be MCC)
+  let customerId = audit.customerId;
+  if (audit.client) {
+    try {
+      const clientId = typeof audit.client === 'object' ? audit.client.id : audit.client;
+      const client = typeof audit.client === 'object' ? audit.client : await payload.findByID({
+        collection: "clients",
+        id: clientId,
+        overrideAccess: true,
+      });
+      if (client?.googleAdsCustomerId) {
+        customerId = client.googleAdsCustomerId;
+      }
+    } catch { /* client lookup failed, use audit customerId */ }
+  }
   if (!customerId) {
     return NextResponse.json(
-      { error: "Missing customerId on audit record" },
+      { error: "No Google Ads customer ID found on audit or linked client" },
       { status: 400 }
     );
   }
