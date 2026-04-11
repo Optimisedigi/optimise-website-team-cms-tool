@@ -422,6 +422,43 @@ const GoogleAdsBudgetManagementInner = () => {
     setCampaigns(recalculateBudgets(balanced, monthlyTotal));
   }, [campaigns, monthlyTotal, recalculateBudgets]);
 
+  // Save budget allocations to CMS (no push to Google Ads)
+  const [saving, setSaving] = useState(false);
+  const handleSaveBudget = useCallback(async () => {
+    if (!id || campaigns.length === 0 || monthlyTotal === 0) return;
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const res = await fetch(`/api/google-ads-budgets/${id}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          monthlyBudget: monthlyTotal,
+          campaigns: campaigns.map(c => ({
+            campaignId: c.campaignId,
+            budgetPercentage: c.budgetPercentage,
+            calculatedDailyBudget: c.calculatedDailyBudget,
+            bidStrategy: c.bidStrategy,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `Save failed (${res.status})`);
+      }
+
+      setSuccess('Budget allocation saved');
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }, [id, campaigns, monthlyTotal]);
+
   const copyEmailToClipboard = useCallback(() => {
     const spend = calculateMonthlySpend(campaigns, monthlyTotal);
     const currentMonth = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
@@ -596,26 +633,42 @@ const GoogleAdsBudgetManagementInner = () => {
             <button onClick={handleAutoBalance} disabled={campaigns.length === 0} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 500, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: campaigns.length === 0 ? 'not-allowed' : 'pointer' }}>
               Auto-Balance ({campaigns.length > 0 ? (100 / campaigns.length).toFixed(1) : '0'}% each)
             </button>
-            
-            <button
-              onClick={handlePushToGoogleAds}
-              disabled={pushing || campaigns.length === 0 || Math.abs(totalPercentage - 100) > 0.5}
-              style={{
-                padding: '10px 20px',
-                fontSize: 14,
-                fontWeight: 600,
-                background: pushing ? '#6366f1' : Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : '#9ca3af',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                cursor: pushing || campaigns.length === 0 || Math.abs(totalPercentage - 100) > 0.5 ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              {pushing ? <><span>⏳</span> Pushing...</> : <><span>🚀</span> Push to Google Ads</>}
-            </button>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleSaveBudget}
+                disabled={saving || campaigns.length === 0 || monthlyTotal === 0}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  background: saving ? '#6366f1' : '#2563eb',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: saving || campaigns.length === 0 || monthlyTotal === 0 ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {saving ? 'Saving...' : 'Save Budget'}
+              </button>
+
+              <button
+                onClick={handlePushToGoogleAds}
+                disabled={pushing || campaigns.length === 0 || Math.abs(totalPercentage - 100) > 0.5}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  background: pushing ? '#6366f1' : Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : '#9ca3af',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: pushing || campaigns.length === 0 || Math.abs(totalPercentage - 100) > 0.5 ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {pushing ? 'Pushing...' : 'Push to Google Ads'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -857,12 +910,12 @@ const GoogleAdsBudgetManagementInner = () => {
 
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
           {/* Table Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 12, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr 1fr', gap: 12, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
             <div>Campaign</div>
             <div style={{ textAlign: 'right' }}>% Split</div>
-            <div style={{ textAlign: 'right' }}>Daily (adj.)</div>
+            <div style={{ textAlign: 'right' }}>MTD Spend</div>
+            <div style={{ textAlign: 'right' }}>New Daily</div>
             <div style={{ textAlign: 'right' }}>Bid Strategy</div>
-            <div style={{ textAlign: 'right' }}>Conv. / CPC</div>
           </div>
 
           {campaigns.length === 0 ? (
@@ -879,7 +932,7 @@ const GoogleAdsBudgetManagementInner = () => {
               return (
                 <div key={campaign.campaignId} style={{ borderBottom: index < campaigns.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                   <div
-                    style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 12, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : 'transparent' }}
+                    style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr 1fr', gap: 12, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : 'transparent' }}
                     onClick={() => setExpandedCampaign(isExpanded ? null : campaign.campaignId)}
                   >
                     <div style={{ minWidth: 0 }}>
@@ -889,11 +942,12 @@ const GoogleAdsBudgetManagementInner = () => {
                       </div>
                       {budgetDiff !== null && Math.abs(budgetDiff) > 0.01 && (
                         <div style={{ fontSize: 10, color: '#d97706', marginLeft: 16 }}>
-                          {budgetDiff > 0 ? '↑' : '↓'} ${Math.abs(budgetDiff).toFixed(2)}/day pending
+                          {budgetDiff > 0 ? '↑' : '↓'} ${Math.abs(budgetDiff).toFixed(2)}/day vs current
                         </div>
                       )}
                     </div>
 
+                    {/* % Split */}
                     <div style={{ textAlign: 'right' }}>
                       {isEditing ? (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
@@ -907,10 +961,17 @@ const GoogleAdsBudgetManagementInner = () => {
                       )}
                     </div>
 
+                    {/* MTD Spend */}
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontWeight: 600, color: '#059669' }}>${campaign.calculatedDailyBudget.toFixed(2)}</span>
+                      <span style={{ fontSize: 13, color: '#d97706', fontWeight: 500 }}>${(campaign.mtdSpend || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                     </div>
 
+                    {/* New Daily Budget */}
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontWeight: 700, color: '#059669', fontSize: 14 }}>${campaign.calculatedDailyBudget.toFixed(2)}</span>
+                    </div>
+
+                    {/* Bid Strategy */}
                     <div style={{ textAlign: 'right' }}>
                       {isEditingStrategy ? (
                         <select value={editValue} onChange={(e) => { setEditValue(e.target.value); handleBlurSave(campaign.campaignId, 'bidStrategy', e.target.value); }} onClick={(e) => e.stopPropagation()} onBlur={() => handleBlurSave(campaign.campaignId, 'bidStrategy', editValue)} style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #2563eb', borderRadius: 4 }} autoFocus>
@@ -921,10 +982,6 @@ const GoogleAdsBudgetManagementInner = () => {
                           {BID_STRATEGIES.find((s) => s.value === campaign.bidStrategy)?.label || campaign.bidStrategy}
                         </div>
                       )}
-                    </div>
-
-                    <div style={{ textAlign: 'right', fontSize: 12, color: '#64748b' }}>
-                      <div>{campaign.conversions || 0} / ${(campaign.avgCpc || 0).toFixed(2)}</div>
                     </div>
                   </div>
 

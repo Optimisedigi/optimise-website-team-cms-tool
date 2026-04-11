@@ -35,14 +35,68 @@ export async function POST(
   }
 
   // Parse request body
-  let body: UpdateBudgetRequest;
+  let body: any;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { campaignId, dailyBudget, bidStrategy, bidStrategyId, locationIds, locationNames } = body;
+  // Bulk save: save budget allocations to CMS only (no Google Ads push)
+  if (body.campaigns && Array.isArray(body.campaigns)) {
+    const errors: string[] = [];
+    for (const campaign of body.campaigns) {
+      try {
+        const existing = await payload.find({
+          collection: BUDGETS_COLLECTION,
+          where: {
+            audit: { equals: id },
+            campaignId: { equals: campaign.campaignId },
+          },
+          limit: 1,
+          overrideAccess: true,
+        });
+
+        const cmsData: Record<string, any> = {
+          budgetPercentage: campaign.budgetPercentage,
+          calculatedDailyBudget: campaign.calculatedDailyBudget,
+          bidStrategy: campaign.bidStrategy,
+        };
+
+        if (existing.totalDocs > 0) {
+          await payload.update({
+            collection: BUDGETS_COLLECTION,
+            id: existing.docs[0].id,
+            data: cmsData,
+            overrideAccess: true,
+          });
+        } else {
+          await payload.create({
+            collection: BUDGETS_COLLECTION,
+            data: {
+              audit: id,
+              customerId: '',
+              campaignId: campaign.campaignId,
+              campaignName: campaign.campaignName || campaign.campaignId,
+              ...cmsData,
+            } as any,
+            overrideAccess: true,
+          });
+        }
+      } catch (e: any) {
+        errors.push(`${campaign.campaignId}: ${e.message}`);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      saved: body.campaigns.length - errors.length,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  }
+
+  // Single campaign update (original logic)
+  const { campaignId, dailyBudget, bidStrategy, bidStrategyId, locationIds, locationNames } = body as UpdateBudgetRequest;
 
   if (!campaignId) {
     return NextResponse.json(
