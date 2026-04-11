@@ -223,6 +223,11 @@
   --nav-width: 240px;
 }
 
+// Narrower document edit sidebar (right panel with Client, Proposal, etc.)
+.document-fields--has-sidebar {
+  --doc-sidebar-width: 280px;
+}
+
 // Reduce top padding so logo sits at very top of sidebar
 .nav .nav__scroll {
   --nav-padding-block-start: 4px;

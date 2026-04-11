@@ -356,43 +356,27 @@ const GoogleAdsBudgetManagementInner = () => {
     setEditField('bidStrategy');
   }, []);
 
-  const handleSaveEdit = useCallback(async () => {
-    if (!editingCampaign) return;
-
-    const campaign = campaigns.find((c) => c.campaignId === editingCampaign);
-    if (!campaign) return;
-
-    if (editField === 'percentage') {
-      const newPercentage = parseFloat(editValue);
+  // Auto-save on blur — no explicit save button needed
+  const handleBlurSave = useCallback((campaignId: string, field: 'percentage' | 'bidStrategy', value: string) => {
+    if (field === 'percentage') {
+      const newPercentage = parseFloat(value);
       if (isNaN(newPercentage) || newPercentage < 0 || newPercentage > 100) {
         setError('Percentage must be between 0 and 100');
+        setEditingCampaign(null);
         return;
       }
-
       const updated = campaigns.map((c) =>
-        c.campaignId === editingCampaign
-          ? { ...c, budgetPercentage: newPercentage }
-          : c
+        c.campaignId === campaignId ? { ...c, budgetPercentage: newPercentage } : c
       );
       setCampaigns(recalculateBudgets(updated, monthlyTotal));
-    } else if (editField === 'bidStrategy') {
+    } else if (field === 'bidStrategy') {
       setCampaigns((prev) =>
-        prev.map((c) =>
-          c.campaignId === editingCampaign
-            ? { ...c, bidStrategy: editValue }
-            : c
-        )
+        prev.map((c) => c.campaignId === campaignId ? { ...c, bidStrategy: value } : c)
       );
     }
-
     setEditingCampaign(null);
     setEditValue('');
-  }, [editingCampaign, editValue, editField, campaigns, monthlyTotal, recalculateBudgets]);
-
-  const cancelEdit = useCallback(() => {
-    setEditingCampaign(null);
-    setEditValue('');
-  }, []);
+  }, [campaigns, monthlyTotal, recalculateBudgets]);
 
   const handleAutoBalance = useCallback(() => {
     if (campaigns.length === 0) return;
@@ -809,9 +793,36 @@ const GoogleAdsBudgetManagementInner = () => {
 
       {/* Campaign Budget List */}
       <div style={{ marginTop: 24 }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600, color: '#1e293b' }}>
-          Campaign Budget Allocation
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#1e293b' }}>
+            Campaign Budget Allocation
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 13, color: '#64748b' }}>Allocated:</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : totalPercentage > 100 ? '#dc2626' : '#d97706' }}>
+              {totalPercentage.toFixed(1)}%
+            </span>
+            {Math.abs(totalPercentage - 100) > 0.5 && (
+              <span style={{ fontSize: 12, fontWeight: 500, color: totalPercentage > 100 ? '#dc2626' : '#d97706', background: totalPercentage > 100 ? '#fef2f2' : '#fffbeb', padding: '2px 8px', borderRadius: 10 }}>
+                {totalPercentage > 100 ? `${(totalPercentage - 100).toFixed(1)}% over` : `${(100 - totalPercentage).toFixed(1)}% remaining`}
+              </span>
+            )}
+            {Math.abs(totalPercentage - 100) <= 0.5 && (
+              <span style={{ fontSize: 12, fontWeight: 500, color: '#059669', background: '#f0fdf4', padding: '2px 8px', borderRadius: 10 }}>Ready to push</span>
+            )}
+          </div>
+        </div>
+
+        {/* Percentage bar */}
+        <div style={{ height: 6, background: '#e5e7eb', borderRadius: 3, marginBottom: 16, overflow: 'hidden' }}>
+          <div style={{
+            height: '100%',
+            width: `${Math.min(totalPercentage, 100)}%`,
+            background: Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : totalPercentage > 100 ? '#dc2626' : '#2563eb',
+            borderRadius: 3,
+            transition: 'width 0.2s ease, background 0.2s ease',
+          }} />
+        </div>
 
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
           {/* Table Header */}
@@ -855,7 +866,7 @@ const GoogleAdsBudgetManagementInner = () => {
                     <div style={{ textAlign: 'right' }}>
                       {isEditing ? (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
-                          <input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} onClick={(e) => e.stopPropagation()} style={{ width: 60, padding: '4px 8px', fontSize: 13, border: '1px solid #2563eb', borderRadius: 4, textAlign: 'right' }} autoFocus min={0} max={100} step={0.5} />
+                          <input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} onClick={(e) => e.stopPropagation()} onBlur={() => handleBlurSave(campaign.campaignId, 'percentage', editValue)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} style={{ width: 60, padding: '4px 8px', fontSize: 13, border: '1px solid #2563eb', borderRadius: 4, textAlign: 'right' }} autoFocus min={0} max={100} step={0.5} />
                           <span style={{ fontSize: 12, color: '#64748b' }}>%</span>
                         </div>
                       ) : (
@@ -871,7 +882,7 @@ const GoogleAdsBudgetManagementInner = () => {
 
                     <div style={{ textAlign: 'right' }}>
                       {isEditingStrategy ? (
-                        <select value={editValue} onChange={(e) => setEditValue(e.target.value)} onClick={(e) => e.stopPropagation()} style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #2563eb', borderRadius: 4 }} autoFocus>
+                        <select value={editValue} onChange={(e) => { setEditValue(e.target.value); handleBlurSave(campaign.campaignId, 'bidStrategy', e.target.value); }} onClick={(e) => e.stopPropagation()} onBlur={() => handleBlurSave(campaign.campaignId, 'bidStrategy', editValue)} style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #2563eb', borderRadius: 4 }} autoFocus>
                           {BID_STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       ) : (
@@ -915,12 +926,6 @@ const GoogleAdsBudgetManagementInner = () => {
                         </div>
                       </div>
 
-                      {(isEditing || isEditingStrategy) && (
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={handleSaveEdit} style={{ padding: '6px 16px', fontSize: 13, fontWeight: 500, background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Save</button>
-                          <button onClick={cancelEdit} style={{ padding: '6px 16px', fontSize: 13, fontWeight: 500, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer' }}>Cancel</button>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
