@@ -94,30 +94,41 @@ export async function GET(
       const result = await response.json();
       const campaigns = result.campaigns || [];
 
-      // Store/update each campaign budget in the CMS collection
+      // Map Growth Tools bid strategy names to collection values
+      function mapBidStrategy(raw: string): string {
+        const map: Record<string, string> = {
+          MANUAL_CPC: "manual_cpc",
+          MAXIMIZE_CONVERSIONS: "maximize_conversions",
+          MAXIMIZE_CONVERSION_VALUE: "maximize_conversion_value",
+          TARGET_CPA: "target_cpa",
+          TARGET_ROAS: "target_roas",
+          TARGET_IMPRESSION_SHARE: "target_impressions",
+          MAXIMIZE_CLICKS: "maximize_clicks",
+        };
+        return map[raw] || map[raw?.toUpperCase()] || "manual_cpc";
+      }
+
+      // Store/update each campaign budget in CMS
       for (const campaign of campaigns) {
-        await payload.create({
-          collection: BUDGETS_COLLECTION,
-          data: {
-            audit: id,
-            customerId: customerId,
-            campaignId: campaign.campaignId,
-            campaignName: campaign.campaignName,
-            dailyBudget: campaign.dailyBudget,
-            bidStrategy: campaign.bidStrategy || "manual_cpc",
-            bidStrategyId: campaign.bidStrategyId,
-            locationIds: campaign.locationIds || [],
-            locationNames: campaign.locationNames || [],
-            metricsLastUpdated: new Date().toISOString(),
-            impressions: campaign.impressions || 0,
-            clicks: campaign.clicks || 0,
-            avgCpc: campaign.avgCpc || 0,
-            conversions: campaign.conversions || 0,
-          } as any,
-          overrideAccess: true,
-        }).catch(() => {
-          // Record may already exist - update instead
-          return payload.find({
+        const cmsData: Record<string, any> = {
+          audit: id,
+          customerId: customerId,
+          campaignId: campaign.campaignId,
+          campaignName: campaign.campaignName,
+          actualDailyBudget: campaign.dailyBudget || 0,
+          bidStrategy: mapBidStrategy(campaign.biddingStrategyType || campaign.bidStrategy || ""),
+          bidStrategyId: campaign.biddingStrategyId || campaign.bidStrategyId || null,
+          locationIds: (campaign.locationIds || []).map((lid: string) => ({ locationId: lid })),
+          locationNames: (campaign.locationNames || []).map((n: string) => ({ name: n })),
+          metricsLastUpdated: new Date().toISOString(),
+          impressions: campaign.impressions || 0,
+          clicks: campaign.clicks || 0,
+          avgCpc: campaign.avgCpc || 0,
+          conversions: campaign.conversions || 0,
+        };
+
+        try {
+          const existing = await payload.find({
             collection: BUDGETS_COLLECTION,
             where: {
               audit: { equals: id },
@@ -125,55 +136,49 @@ export async function GET(
             },
             limit: 1,
             overrideAccess: true,
-          }).then(async (existing) => {
-            if (existing.totalDocs > 0) {
-              await payload.update({
-                collection: BUDGETS_COLLECTION,
-                id: existing.docs[0].id,
-                data: {
-                  dailyBudget: campaign.dailyBudget,
-                  bidStrategy: campaign.bidStrategy || "manual_cpc",
-                  bidStrategyId: campaign.bidStrategyId,
-                  locationIds: campaign.locationIds || [],
-                  locationNames: campaign.locationNames || [],
-                  metricsLastUpdated: new Date().toISOString(),
-                  impressions: campaign.impressions || 0,
-                  clicks: campaign.clicks || 0,
-                  avgCpc: campaign.avgCpc || 0,
-                  conversions: campaign.conversions || 0,
-                },
-                overrideAccess: true,
-              });
-            } else {
-              await payload.create({
-                collection: BUDGETS_COLLECTION,
-                data: {
-                  audit: id,
-                  customerId: customerId,
-                  campaignId: campaign.campaignId,
-                  campaignName: campaign.campaignName,
-                  dailyBudget: campaign.dailyBudget,
-                  bidStrategy: campaign.bidStrategy || "manual_cpc",
-                  bidStrategyId: campaign.bidStrategyId,
-                  locationIds: campaign.locationIds || [],
-                  locationNames: campaign.locationNames || [],
-                  metricsLastUpdated: new Date().toISOString(),
-                  impressions: campaign.impressions || 0,
-                  clicks: campaign.clicks || 0,
-                  avgCpc: campaign.avgCpc || 0,
-                  conversions: campaign.conversions || 0,
-                },
-                overrideAccess: true,
-              });
-            }
           });
-        });
+
+          if (existing.totalDocs > 0) {
+            const { audit: _a, customerId: _c, campaignId: _ci, campaignName: _cn, ...updateData } = cmsData;
+            await payload.update({
+              collection: BUDGETS_COLLECTION,
+              id: existing.docs[0].id,
+              data: updateData,
+              overrideAccess: true,
+            });
+          } else {
+            await payload.create({
+              collection: BUDGETS_COLLECTION,
+              data: cmsData as any,
+              overrideAccess: true,
+            });
+          }
+        } catch (e: any) {
+          console.error(`[GoogleAdsBudgets] Failed to save campaign ${campaign.campaignId}:`, e.message);
+        }
       }
+
+      // Normalize for frontend component
+      const normalized = campaigns.map((c: any) => ({
+        campaignId: c.campaignId,
+        campaignName: c.campaignName,
+        budgetPercentage: 0, // User sets this in UI
+        calculatedDailyBudget: c.dailyBudget || 0,
+        actualDailyBudget: c.dailyBudget || 0,
+        bidStrategy: mapBidStrategy(c.biddingStrategyType || c.bidStrategy || ""),
+        bidStrategyId: c.biddingStrategyId || c.bidStrategyId || null,
+        impressions: c.impressions || 0,
+        clicks: c.clicks || 0,
+        avgCpc: c.avgCpc || 0,
+        conversions: c.conversions || 0,
+        campaignStatus: c.campaignStatus,
+        channelType: c.channelType,
+      }));
 
       return NextResponse.json({
         success: true,
-        campaigns,
-        totalCount: campaigns.length,
+        campaigns: normalized,
+        totalCount: normalized.length,
       });
     } catch (e: any) {
       console.error("[GoogleAdsBudgets] List error:", e.message);
