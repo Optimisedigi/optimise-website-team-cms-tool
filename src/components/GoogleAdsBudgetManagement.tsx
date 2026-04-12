@@ -459,6 +459,26 @@ const GoogleAdsBudgetManagementInner = () => {
   }, []);
 
   // Auto-save on blur — no explicit save button needed
+  // Auto-save single campaign change to CMS
+  const saveCampaignToCMS = useCallback((campaign: BudgetCampaign) => {
+    if (!id) return;
+    fetch(`/api/google-ads-budgets/${id}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        campaigns: [{
+          campaignId: campaign.campaignId,
+          campaignName: campaign.campaignName,
+          budgetPercentage: campaign.budgetPercentage,
+          calculatedDailyBudget: campaign.calculatedDailyBudget,
+          bidStrategy: campaign.bidStrategy,
+          enabled: campaign.enabled,
+        }],
+      }),
+    }).catch(() => {});
+  }, [id]);
+
   const handleBlurSave = useCallback((campaignId: string, field: 'percentage' | 'bidStrategy', value: string) => {
     if (field === 'percentage') {
       const newPercentage = parseFloat(value);
@@ -470,15 +490,21 @@ const GoogleAdsBudgetManagementInner = () => {
       const updated = campaigns.map((c) =>
         c.campaignId === campaignId ? { ...c, budgetPercentage: newPercentage } : c
       );
-      setCampaigns(recalculateBudgets(updated, monthlyTotal));
+      const recalculated = recalculateBudgets(updated, monthlyTotal);
+      setCampaigns(recalculated);
+      const saved = recalculated.find(c => c.campaignId === campaignId);
+      if (saved) saveCampaignToCMS(saved);
     } else if (field === 'bidStrategy') {
-      setCampaigns((prev) =>
-        prev.map((c) => c.campaignId === campaignId ? { ...c, bidStrategy: value } : c)
-      );
+      setCampaigns((prev) => {
+        const updated = prev.map((c) => c.campaignId === campaignId ? { ...c, bidStrategy: value } : c);
+        const saved = updated.find(c => c.campaignId === campaignId);
+        if (saved) saveCampaignToCMS(saved);
+        return updated;
+      });
     }
     setEditingCampaign(null);
     setEditValue('');
-  }, [campaigns, monthlyTotal, recalculateBudgets]);
+  }, [campaigns, monthlyTotal, recalculateBudgets, saveCampaignToCMS]);
 
   const handleAutoBalance = useCallback(() => {
     if (campaigns.length === 0) return;
@@ -502,32 +528,11 @@ const GoogleAdsBudgetManagementInner = () => {
         return { ...c, enabled: nowEnabled, budgetPercentage: nowEnabled ? c.budgetPercentage : 0 };
       });
       const recalculated = recalculateBudgets(updated, monthlyTotal);
-
-      // Auto-save the toggle state to CMS
-      if (id) {
-        const campaign = recalculated.find(c => c.campaignId === campaignId);
-        if (campaign) {
-          fetch(`/api/google-ads-budgets/${id}/update`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              campaigns: [{
-                campaignId: campaign.campaignId,
-                campaignName: campaign.campaignName,
-                budgetPercentage: campaign.budgetPercentage,
-                calculatedDailyBudget: campaign.calculatedDailyBudget,
-                bidStrategy: campaign.bidStrategy,
-                enabled: campaign.enabled,
-              }],
-            }),
-          }).catch(() => {});
-        }
-      }
-
+      const campaign = recalculated.find(c => c.campaignId === campaignId);
+      if (campaign) saveCampaignToCMS(campaign);
       return recalculated;
     });
-  }, [id, monthlyTotal, recalculateBudgets]);
+  }, [monthlyTotal, recalculateBudgets, saveCampaignToCMS]);
 
   // Save budget allocations to CMS (no push to Google Ads)
   const [saving, setSaving] = useState(false);
