@@ -18,11 +18,15 @@ interface BudgetCampaign {
   clicks: number;
   avgCpc: number;
   conversions: number;
-  spend?: number; // Current month spend
-  mtdSpend?: number; // Actual MTD spend from Google Ads
+  spend?: number;
+  mtdSpend?: number;
   locationIds?: string[];
   locationNames?: string[];
+  enabled: boolean; // Whether this campaign is included in budget allocation
+  campaignStatus?: string;
 }
+
+type CampaignFilter = 'enabled' | 'paused' | 'all';
 
 interface MonthlySpend {
   totalSpend: number;
@@ -190,6 +194,7 @@ const GoogleAdsBudgetManagementInner = () => {
   const [budgetInitialized, setBudgetInitialized] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+  const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('enabled');
 
   // Load saved monthly budget from the audit record
   useEffect(() => {
@@ -244,7 +249,10 @@ const GoogleAdsBudgetManagementInner = () => {
       }
 
       const data = await res.json();
-      const fetched: BudgetCampaign[] = data.campaigns || [];
+      const fetched: BudgetCampaign[] = (data.campaigns || []).map((c: any) => ({
+        ...c,
+        enabled: c.enabled !== undefined ? c.enabled : true,
+      }));
 
       // Auto-derive monthly total from existing daily budgets if not set
       let budget = monthlyTotal;
@@ -422,6 +430,18 @@ const GoogleAdsBudgetManagementInner = () => {
 
     setCampaigns(recalculateBudgets(balanced, monthlyTotal));
   }, [campaigns, monthlyTotal, recalculateBudgets]);
+
+  // Toggle campaign enabled/paused — pausing sets % to 0 and recalculates
+  const handleToggleCampaign = useCallback((campaignId: string) => {
+    setCampaigns(prev => {
+      const updated = prev.map(c => {
+        if (c.campaignId !== campaignId) return c;
+        const nowEnabled = !c.enabled;
+        return { ...c, enabled: nowEnabled, budgetPercentage: nowEnabled ? c.budgetPercentage : 0 };
+      });
+      return recalculateBudgets(updated, monthlyTotal);
+    });
+  }, [monthlyTotal, recalculateBudgets]);
 
   // Save budget allocations to CMS (no push to Google Ads)
   const [saving, setSaving] = useState(false);
@@ -898,6 +918,32 @@ const GoogleAdsBudgetManagementInner = () => {
           </div>
         </div>
 
+        {/* Filter tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+          {([
+            { key: 'enabled' as CampaignFilter, label: 'Enabled', count: campaigns.filter(c => c.enabled).length },
+            { key: 'paused' as CampaignFilter, label: 'Paused', count: campaigns.filter(c => !c.enabled).length },
+            { key: 'all' as CampaignFilter, label: 'All', count: campaigns.length },
+          ]).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setCampaignFilter(tab.key)}
+              style={{
+                padding: '6px 14px',
+                fontSize: 12,
+                fontWeight: campaignFilter === tab.key ? 600 : 400,
+                background: campaignFilter === tab.key ? '#1e293b' : '#f1f5f9',
+                color: campaignFilter === tab.key ? '#fff' : '#64748b',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          ))}
+        </div>
+
         {/* Percentage bar */}
         <div style={{ height: 6, background: '#e5e7eb', borderRadius: 3, marginBottom: 16, overflow: 'hidden' }}>
           <div style={{
@@ -911,7 +957,8 @@ const GoogleAdsBudgetManagementInner = () => {
 
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
           {/* Table Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr 1fr', gap: 12, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '36px 2.5fr 1fr 1fr 1fr 1fr', gap: 8, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+            <div></div>
             <div>Campaign</div>
             <div style={{ textAlign: 'right' }}>% Split</div>
             <div style={{ textAlign: 'right' }}>MTD Spend</div>
@@ -919,25 +966,53 @@ const GoogleAdsBudgetManagementInner = () => {
             <div style={{ textAlign: 'right' }}>Bid Strategy</div>
           </div>
 
-          {campaigns.length === 0 ? (
-            <div style={{ padding: '32px 16px', textAlign: 'center', color: '#64748b' }}>
-              {loading ? 'Loading...' : <>No campaigns found. <button onClick={handleSync} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit' }}>Click here to sync from Google Ads.</button></>}
-            </div>
-          ) : (
-            campaigns.map((campaign, index) => {
+          {(() => {
+            const filtered = campaigns.filter(c =>
+              campaignFilter === 'all' ? true :
+              campaignFilter === 'enabled' ? c.enabled :
+              !c.enabled
+            );
+            if (filtered.length === 0) {
+              return (
+                <div style={{ padding: '32px 16px', textAlign: 'center', color: '#64748b' }}>
+                  {loading ? 'Loading...' :
+                    campaigns.length === 0 ? <>No campaigns found. <button onClick={handleSync} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit' }}>Click here to sync from Google Ads.</button></> :
+                    campaignFilter === 'enabled' ? 'No enabled campaigns. Switch to "All" or "Paused" to enable campaigns.' :
+                    'No paused campaigns.'}
+                </div>
+              );
+            }
+            return filtered.map((campaign, index) => {
               const isEditing = editingCampaign === campaign.campaignId && editField === 'percentage';
               const isEditingStrategy = editingCampaign === campaign.campaignId && editField === 'bidStrategy';
               const isExpanded = expandedCampaign === campaign.campaignId;
               const budgetDiff = campaign.actualDailyBudget ? campaign.calculatedDailyBudget - campaign.actualDailyBudget : null;
 
               return (
-                <div key={campaign.campaignId} style={{ borderBottom: index < campaigns.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                <div key={campaign.campaignId} style={{ borderBottom: index < filtered.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                   <div
-                    style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr 1fr', gap: 12, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : 'transparent' }}
+                    style={{ display: 'grid', gridTemplateColumns: '36px 2.5fr 1fr 1fr 1fr 1fr', gap: 8, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
                     onClick={() => setExpandedCampaign(isExpanded ? null : campaign.campaignId)}
                   >
+                    {/* Toggle */}
+                    <div onClick={(e) => { e.stopPropagation(); handleToggleCampaign(campaign.campaignId); }} style={{ cursor: 'pointer' }}>
+                      <div style={{
+                        width: 32, height: 18, borderRadius: 9, position: 'relative',
+                        background: campaign.enabled ? '#059669' : '#d1d5db',
+                        transition: 'background 0.2s',
+                      }}>
+                        <div style={{
+                          width: 14, height: 14, borderRadius: 7, background: '#fff',
+                          position: 'absolute', top: 2,
+                          left: campaign.enabled ? 16 : 2,
+                          transition: 'left 0.2s',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                        }} />
+                      </div>
+                    </div>
+
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontWeight: 500, color: campaign.enabled ? '#1e293b' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 10, color: '#94a3b8', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
                         {campaign.campaignName}
                       </div>
@@ -1019,8 +1094,8 @@ const GoogleAdsBudgetManagementInner = () => {
                   )}
                 </div>
               );
-            })
-          )}
+            });
+          })()}
         </div>
       </div>
 
