@@ -55,7 +55,7 @@ export async function POST(
         campaigns: saved.docs.map((d: any) => ({
           campaignId: d.campaignId,
           budgetPercentage: d.budgetPercentage ?? 0,
-          enabled: d.budgetPercentage > 0,
+          enabled: d.enabled !== undefined ? d.enabled : (d.budgetPercentage > 0),
           bidStrategy: d.bidStrategy,
         })),
       });
@@ -83,6 +83,7 @@ export async function POST(
           budgetPercentage: campaign.budgetPercentage,
           calculatedDailyBudget: campaign.calculatedDailyBudget,
           bidStrategy: campaign.bidStrategy,
+          enabled: campaign.enabled !== undefined ? campaign.enabled : (campaign.budgetPercentage > 0),
         };
 
         if (existing.totalDocs > 0) {

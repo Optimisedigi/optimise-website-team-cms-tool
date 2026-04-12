@@ -74,6 +74,14 @@ export const GoogleAdsCampaignBudgets: CollectionConfig = {
     },
     // Budget allocation settings
     {
+      name: "enabled",
+      type: "checkbox",
+      defaultValue: true,
+      admin: {
+        description: "Whether this campaign is included in budget allocation",
+      },
+    },
+    {
       name: "budgetPercentage",
       type: "number",
       required: true,

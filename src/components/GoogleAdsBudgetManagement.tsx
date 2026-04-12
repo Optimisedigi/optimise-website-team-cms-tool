@@ -452,7 +452,7 @@ const GoogleAdsBudgetManagementInner = () => {
     setCampaigns(recalculateBudgets(balanced, monthlyTotal));
   }, [campaigns, monthlyTotal, recalculateBudgets]);
 
-  // Toggle campaign enabled/paused — pausing sets % to 0 and recalculates
+  // Toggle campaign enabled/paused — pausing sets % to 0, auto-saves to CMS
   const handleToggleCampaign = useCallback((campaignId: string) => {
     setCampaigns(prev => {
       const updated = prev.map(c => {
@@ -460,9 +460,32 @@ const GoogleAdsBudgetManagementInner = () => {
         const nowEnabled = !c.enabled;
         return { ...c, enabled: nowEnabled, budgetPercentage: nowEnabled ? c.budgetPercentage : 0 };
       });
-      return recalculateBudgets(updated, monthlyTotal);
+      const recalculated = recalculateBudgets(updated, monthlyTotal);
+
+      // Auto-save the toggle state to CMS
+      if (id) {
+        const campaign = recalculated.find(c => c.campaignId === campaignId);
+        if (campaign) {
+          fetch(`/api/google-ads-budgets/${id}/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              campaigns: [{
+                campaignId: campaign.campaignId,
+                budgetPercentage: campaign.budgetPercentage,
+                calculatedDailyBudget: campaign.calculatedDailyBudget,
+                bidStrategy: campaign.bidStrategy,
+                enabled: campaign.enabled,
+              }],
+            }),
+          }).catch(() => {});
+        }
+      }
+
+      return recalculated;
     });
-  }, [monthlyTotal, recalculateBudgets]);
+  }, [id, monthlyTotal, recalculateBudgets]);
 
   // Save budget allocations to CMS (no push to Google Ads)
   const [saving, setSaving] = useState(false);
@@ -484,6 +507,7 @@ const GoogleAdsBudgetManagementInner = () => {
             budgetPercentage: c.budgetPercentage,
             calculatedDailyBudget: c.calculatedDailyBudget,
             bidStrategy: c.bidStrategy,
+            enabled: c.enabled,
           })),
         }),
       });

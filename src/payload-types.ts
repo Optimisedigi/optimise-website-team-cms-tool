@@ -4594,6 +4594,10 @@ export interface GoogleAdsCampaignBudget {
    */
   adGroupName?: string | null;
   /**
+   * Whether this campaign is included in budget allocation
+   */
+  enabled?: boolean | null;
+  /**
    * Percentage of total monthly budget to allocate to this campaign
    */
   budgetPercentage: number;
@@ -6385,6 +6389,7 @@ export interface GoogleAdsCampaignBudgetsSelect<T extends boolean = true> {
   campaignName?: T;
   adGroupId?: T;
   adGroupName?: T;
+  enabled?: T;
   budgetPercentage?: T;
   calculatedDailyBudget?: T;
   actualDailyBudget?: T;
