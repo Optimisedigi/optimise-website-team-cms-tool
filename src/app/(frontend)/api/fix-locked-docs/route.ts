@@ -45,17 +45,8 @@ export async function POST(req: NextRequest) {
     await run("locked_docs: google_ads_ad_extensions_id",
       `ALTER TABLE payload_locked_documents_rels ADD COLUMN google_ads_ad_extensions_id integer`);
 
-    // 2. Drop broken tables (wrong schema from earlier attempts)
-    for (const t of [
-      'google_ads_campaign_budgets_location_ids',
-      'google_ads_campaign_budgets_location_names',
-      'google_ads_ad_extensions_assigned_campaigns',
-      'google_ads_ad_extensions_assigned_ad_groups',
-      'google_ads_campaign_budgets',
-      'google_ads_ad_extensions',
-    ]) {
-      await run(`drop ${t}`, `DROP TABLE IF EXISTS "${t}"`);
-    }
+    // 2. Create tables if they don't exist (safe — no data loss)
+    // Previously this dropped and recreated tables, destroying saved data.
 
     // 3. Create google_ads_campaign_budgets
     await run("create google_ads_campaign_budgets", `

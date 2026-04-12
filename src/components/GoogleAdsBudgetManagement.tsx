@@ -368,10 +368,17 @@ const GoogleAdsBudgetManagementInner = () => {
 
   const handlePushToGoogleAds = useCallback(async () => {
     if (!id || campaigns.length === 0) return;
-    
-    const totalPercentage = campaigns.reduce((sum, c) => sum + c.budgetPercentage, 0);
-    if (Math.abs(totalPercentage - 100) > 0.5) {
-      setError(`Percentages sum to ${totalPercentage}%, not 100%. Please adjust before pushing.`);
+
+    // Only validate enabled campaigns
+    const enabledCampaigns = campaigns.filter(c => c.enabled);
+    const enabledPercentage = enabledCampaigns.reduce((sum, c) => sum + c.budgetPercentage, 0);
+    if (Math.abs(enabledPercentage - 100) > 0.5) {
+      setError(`Enabled campaigns sum to ${enabledPercentage.toFixed(1)}%, not 100%. Please adjust before pushing.`);
+      return;
+    }
+
+    if (monthlyTotal <= 0) {
+      setError('Set a monthly budget before pushing.');
       return;
     }
 
@@ -602,8 +609,8 @@ const GoogleAdsBudgetManagementInner = () => {
     }
   }, [id, fetchCampaigns]);
 
-  const totalPercentage = useMemo(() => 
-    campaigns.reduce((sum, c) => sum + c.budgetPercentage, 0), 
+  const totalPercentage = useMemo(() =>
+    campaigns.filter(c => c.enabled).reduce((sum, c) => sum + c.budgetPercentage, 0),
     [campaigns]
   );
   
@@ -771,7 +778,7 @@ const GoogleAdsBudgetManagementInner = () => {
 
               <button
                 onClick={handlePushToGoogleAds}
-                disabled={pushing || campaigns.length === 0 || Math.abs(totalPercentage - 100) > 0.5}
+                disabled={pushing || campaigns.length === 0 || monthlyTotal <= 0 || Math.abs(totalPercentage - 100) > 0.5}
                 style={{
                   padding: '10px 20px',
                   fontSize: 14,
