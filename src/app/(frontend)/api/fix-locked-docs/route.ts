@@ -170,6 +170,12 @@ export async function POST(req: NextRequest) {
     await run("idx: ext_adgroups_order", `CREATE INDEX IF NOT EXISTS google_ads_ad_extensions_assigned_ad_groups_order_idx ON google_ads_ad_extensions_assigned_ad_groups (_order)`);
     await run("idx: ext_adgroups_parent", `CREATE INDEX IF NOT EXISTS google_ads_ad_extensions_assigned_ad_groups_parent_idx ON google_ads_ad_extensions_assigned_ad_groups (_parent_id)`);
 
+    // 6. Add missing columns from recent migrations
+    await run("google_ads_audits: monthly_budget",
+      `ALTER TABLE google_ads_audits ADD COLUMN monthly_budget real`);
+    await run("campaign_budgets: enabled",
+      `ALTER TABLE google_ads_campaign_budgets ADD COLUMN enabled integer DEFAULT 1`);
+
     return NextResponse.json({ success: true, results });
   } catch (e: any) {
     console.error("fix-locked-docs error:", e);
