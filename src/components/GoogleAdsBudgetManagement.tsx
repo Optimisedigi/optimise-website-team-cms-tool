@@ -259,27 +259,8 @@ const GoogleAdsBudgetManagementInner = () => {
         }
       }
 
-      // Auto-distribute percentages based on existing daily budgets
-      if (fetched.length > 0) {
-        const totalDaily = fetched.reduce((sum, c) => sum + (c.actualDailyBudget || 0), 0);
-        if (totalDaily > 0) {
-          // Proportional split based on existing budgets
-          fetched.forEach(c => {
-            c.budgetPercentage = Math.round(((c.actualDailyBudget || 0) / totalDaily) * 1000) / 10;
-          });
-          // Adjust rounding so it sums to 100
-          const pctSum = fetched.reduce((s, c) => s + c.budgetPercentage, 0);
-          if (fetched.length > 0 && Math.abs(pctSum - 100) > 0.01) {
-            fetched[0].budgetPercentage += Math.round((100 - pctSum) * 10) / 10;
-          }
-        } else {
-          // Equal split if no existing budgets
-          const equal = Math.round(1000 / fetched.length) / 10;
-          fetched.forEach((c, i) => {
-            c.budgetPercentage = i === 0 ? equal + Math.round((100 - equal * fetched.length) * 10) / 10 : equal;
-          });
-        }
-      }
+      // All campaigns start at 0% — user sets the split manually
+      // (or uses Auto-Balance button for equal distribution)
 
       // Recalculate daily budgets with smart formula
       setCampaigns(recalculateBudgets(fetched, budget));
