@@ -97,8 +97,8 @@ function calculateMonthlySpend(campaigns: BudgetCampaign[], monthlyBudget: numbe
   };
 }
 
-// Generate email summary
-function generateEmailSummary(
+// Generate Gmail-ready HTML email
+function generateEmailHtml(
   businessName: string,
   month: string,
   spend: MonthlySpend,
@@ -107,72 +107,77 @@ function generateEmailSummary(
 ): string {
   const percentUsed = spend.maxBudget > 0 ? (spend.totalSpend / spend.maxBudget) * 100 : 0;
   const budgetPerDay = spend.daysRemaining > 0 ? spend.remainingBudget / spend.daysRemaining : 0;
-  const budgetPerWeek = budgetPerDay * 7;
-  
-  const status = percentUsed <= 100 
-    ? '✅ On Track' 
-    : percentUsed <= 110 
-      ? '⚠️ Slightly Over Budget' 
-      : '🚨 Over Budget';
-  
-  const lines = [
-    `📊 ${businessName} - Google Ads Budget Report`,
-    `${month}`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `💰 BUDGET OVERVIEW`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `Monthly Budget:  $${spend.maxBudget.toLocaleString()}`,
-    `Total Spend:      $${spend.totalSpend.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
-    `Remaining:       $${spend.remainingBudget.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
-    `Budget Used:     ${percentUsed.toFixed(1)}%`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `📅 TIME TRACKING`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `Days Elapsed:    ${spend.daysElapsed} of ${Math.round(DAYS_IN_MONTH)}`,
-    `Days Remaining:  ${spend.daysRemaining}`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `📈 BURN RATE ANALYSIS`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `Daily Budget:    $${spend.dailyBudget.toFixed(2)}`,
-    `Actual Burn:     $${spend.dailyBurnRate.toFixed(2)}/day`,
-    ``,
-    `${status}`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `🎯 RECOMMENDED SPEND`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `Remaining Per Day:    $${budgetPerDay.toFixed(2)}`,
-    `Remaining Per Week:   $${budgetPerWeek.toFixed(2)}`,
-    ``,
-    `To stay on budget:`,
-    spend.dailyBurnRate <= spend.dailyBudget 
-      ? `✅ Great pace! You're spending $${(spend.dailyBudget - spend.dailyBurnRate).toFixed(2)} under budget per day`
-      : `⚠️ Increase pace to $${(spend.dailyBudget).toFixed(2)}/day to meet budget`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `📋 CAMPAIGN BREAKDOWN`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-  ];
-  
-  // Add campaign details
-  campaigns.forEach((c, i) => {
-    const campaignSpend = (c.clicks || 0) * (c.avgCpc || 0);
-    const campaignBudget = monthlyBudget * (c.budgetPercentage / 100);
-    const campaignPercent = campaignBudget > 0 ? (campaignSpend / campaignBudget) * 100 : 0;
-    
-    lines.push(`${i + 1}. ${c.campaignName}`);
-    lines.push(`   Spend: $${campaignSpend.toFixed(2)} | Budget: $${campaignBudget.toFixed(2)} | ${campaignPercent.toFixed(0)}%`);
-    lines.push(`   Clicks: ${c.clicks || 0} | CPC: $${(c.avgCpc || 0).toFixed(2)} | Conv: ${c.conversions || 0}`);
-    lines.push(``);
-  });
-  
-  lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  lines.push(`Generated: ${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}`);
-  
-  return lines.join('\n');
+  const statusColor = percentUsed <= 90 ? '#059669' : percentUsed <= 100 ? '#d97706' : '#dc2626';
+  const statusText = percentUsed <= 100 ? 'On Track' : percentUsed <= 110 ? 'Slightly Over' : 'Over Budget';
+  const enabledCampaigns = campaigns.filter(c => c.enabled && c.budgetPercentage > 0);
+
+  const campaignRows = enabledCampaigns.map(c => {
+    const mtd = c.mtdSpend || 0;
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px">${c.campaignName}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.budgetPercentage}%</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${mtd.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:600">$${c.calculatedDailyBudget.toFixed(2)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.conversions || 0}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#1e293b">
+  <h2 style="margin:0 0 4px;font-size:18px">${businessName} - Google Ads Budget Report</h2>
+  <p style="margin:0 0 20px;color:#64748b;font-size:14px">${month}</p>
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+    <tr>
+      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:25%">
+        <div style="font-size:11px;color:#64748b">Monthly Budget</div>
+        <div style="font-size:18px;font-weight:700">$${spend.maxBudget.toLocaleString()}</div>
+      </td>
+      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:25%">
+        <div style="font-size:11px;color:#64748b">MTD Spend</div>
+        <div style="font-size:18px;font-weight:700;color:#d97706">$${spend.totalSpend.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+      </td>
+      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:25%">
+        <div style="font-size:11px;color:#64748b">Remaining</div>
+        <div style="font-size:18px;font-weight:700;color:#059669">$${spend.remainingBudget.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+      </td>
+      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:25%">
+        <div style="font-size:11px;color:#64748b">Status</div>
+        <div style="font-size:18px;font-weight:700;color:${statusColor}">${statusText}</div>
+      </td>
+    </tr>
+  </table>
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+    <tr>
+      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:33%">
+        <div style="font-size:11px;color:#64748b">Days Elapsed</div>
+        <div style="font-size:16px;font-weight:600">${spend.daysElapsed}</div>
+      </td>
+      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:33%">
+        <div style="font-size:11px;color:#64748b">Days Remaining</div>
+        <div style="font-size:16px;font-weight:600">${spend.daysRemaining}</div>
+      </td>
+      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:34%">
+        <div style="font-size:11px;color:#64748b">Recommended Daily</div>
+        <div style="font-size:16px;font-weight:600;color:#2563eb">$${budgetPerDay.toFixed(2)}</div>
+      </td>
+    </tr>
+  </table>
+
+  <h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+    <tr style="background:#f1f5f9">
+      <th style="padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Split</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">MTD Spend</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">New Daily</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Conv.</th>
+    </tr>
+    ${campaignRows}
+  </table>
+
+  <p style="font-size:11px;color:#94a3b8;margin:0">Generated ${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+</div>`;
 }
 
 const GoogleAdsBudgetManagementInner = () => {
@@ -563,11 +568,23 @@ const GoogleAdsBudgetManagementInner = () => {
     }
   }, [id, campaigns, monthlyTotal]);
 
-  const copyEmailToClipboard = useCallback(() => {
+  const copyEmailToClipboard = useCallback(async () => {
     const spend = calculateMonthlySpend(campaigns, monthlyTotal);
     const currentMonth = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-    const emailContent = generateEmailSummary(businessName, currentMonth, spend, campaigns, monthlyTotal);
-    navigator.clipboard.writeText(emailContent);
+    const html = generateEmailHtml(businessName, currentMonth, spend, campaigns, monthlyTotal);
+
+    // Copy as HTML so it pastes formatted into Gmail
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([`${businessName} - Google Ads Budget Report - ${currentMonth}`], { type: 'text/plain' }),
+        }),
+      ]);
+    } catch {
+      // Fallback: copy HTML as text
+      await navigator.clipboard.writeText(html);
+    }
     setEmailCopied(true);
     setTimeout(() => setEmailCopied(false), 2000);
   }, [campaigns, monthlyTotal, businessName]);
@@ -952,7 +969,6 @@ const GoogleAdsBudgetManagementInner = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
         {[
           { label: 'Added Campaigns', value: campaigns.filter(c => c.enabled).length, color: '#1e293b' },
-          { label: '% Allocated', value: `${totalPercentage.toFixed(1)}%`, color: Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : '#dc2626' },
           { label: 'MTD Spend', value: `$${monthlySpend.totalSpend.toFixed(0)}`, color: '#d97706' },
           { label: 'Remaining', value: `$${monthlySpend.remainingBudget.toFixed(0)}`, color: '#059669' },
           { label: 'Smart Daily Budget', value: `$${totalDailyBudget.toFixed(2)}`, color: '#2563eb' },
@@ -1183,24 +1199,22 @@ const GoogleAdsBudgetManagementInner = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowEmailModal(false)}>
           <div style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 700, maxHeight: '85vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#1e293b' }}>📧 Email Report</h2>
-              <button onClick={() => setShowEmailModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#64748b', padding: 4 }}>×</button>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#1e293b' }}>Email Report Preview</h2>
+              <button onClick={() => setShowEmailModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#64748b', padding: 4 }}>x</button>
             </div>
 
             <p style={{ margin: '0 0 16px', fontSize: 13, color: '#64748b' }}>
-              Copy this report and paste it into Gmail or any email client.
+              Click "Copy for Gmail" then paste directly into a Gmail compose window. The formatting will be preserved.
             </p>
 
-            <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16 }}>
-              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 12, fontFamily: 'monospace', color: '#374151', maxHeight: 400, overflow: 'auto' }}>
-                {generateEmailSummary(businessName, new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }), monthlySpend, campaigns, monthlyTotal)}
-              </pre>
-            </div>
+            <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16, maxHeight: 400, overflow: 'auto' }}
+              dangerouslySetInnerHTML={{ __html: generateEmailHtml(businessName, new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }), monthlySpend, campaigns, monthlyTotal) }}
+            />
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowEmailModal(false)} style={{ padding: '10px 20px', fontSize: 14, fontWeight: 500, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer' }}>Close</button>
               <button onClick={copyEmailToClipboard} style={{ padding: '10px 20px', fontSize: 14, fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-                {emailCopied ? '✅ Copied!' : '📋 Copy to Clipboard'}
+                {emailCopied ? 'Copied!' : 'Copy for Gmail'}
               </button>
             </div>
           </div>
