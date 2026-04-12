@@ -124,6 +124,14 @@ export async function POST(
 
       const result = await response.json();
       pushedCount = result.pushedCount || campaigns.length;
+      // Surface any per-campaign errors from Growth Tools
+      if (result.results) {
+        for (const r of result.results) {
+          if (!r.success) {
+            errors.push(`${r.campaignId}: ${r.error || 'unknown error'}`);
+          }
+        }
+      }
     } catch (e: any) {
       console.error("[GoogleAdsBudgets] Push error:", e.message);
       return NextResponse.json(

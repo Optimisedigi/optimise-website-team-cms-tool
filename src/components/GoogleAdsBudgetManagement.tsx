@@ -407,7 +407,12 @@ const GoogleAdsBudgetManagementInner = () => {
       }
 
       const data = await res.json();
-      setSuccess(`Successfully pushed budgets to ${data.pushedCount} campaigns in Google Ads`);
+      const failedCount = data.errors?.length || 0;
+      if (failedCount > 0) {
+        setError(`Pushed ${data.pushedCount} campaigns, but ${failedCount} failed: ${data.errors[0]}`);
+      } else {
+        setSuccess(`Successfully pushed budgets to ${data.pushedCount} campaigns in Google Ads`);
+      }
       
       setCampaigns(prev => prev.map(c => ({
         ...c,
@@ -569,12 +574,16 @@ const GoogleAdsBudgetManagementInner = () => {
         }),
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || `Save failed (${res.status})`);
       }
 
-      setSuccess('Budget allocation saved');
+      if (data.errors?.length > 0) {
+        setError(`Saved ${data.saved} campaigns, but ${data.errors.length} failed: ${data.errors[0]}`);
+      } else {
+        setSuccess(`Budget allocation saved (${data.saved} campaigns)`);
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
