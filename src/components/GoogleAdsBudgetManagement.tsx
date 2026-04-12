@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui';
-import GoogleAdsMetricsTable from './GoogleAdsMetricsTable';
 
 interface BudgetCampaign {
   id?: string;
@@ -533,18 +532,7 @@ const GoogleAdsBudgetManagementInner = () => {
     [campaigns, monthlyTotal]
   );
 
-  const totalImpressions = campaigns.reduce((sum, c) => sum + (c.impressions || 0), 0);
-  const totalClicks = campaigns.reduce((sum, c) => sum + (c.clicks || 0), 0);
   const totalConversions = campaigns.reduce((sum, c) => sum + (c.conversions || 0), 0);
-
-  const metrics = campaigns.map((c) => ({
-    campaignId: c.campaignId,
-    campaignName: c.campaignName,
-    impressions: c.impressions || 0,
-    clicks: c.clicks || 0,
-    avgCpc: c.avgCpc || 0,
-    conversions: c.conversions || 0,
-  }));
 
   // Progress bar calculations
   const percentUsed = monthlySpend.maxBudget > 0 
@@ -901,7 +889,7 @@ const GoogleAdsBudgetManagementInner = () => {
       {/* Smart Budget Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
         {[
-          { label: 'Campaigns', value: campaigns.length, color: '#1e293b' },
+          { label: 'Added Campaigns', value: campaigns.filter(c => c.enabled).length, color: '#1e293b' },
           { label: '% Allocated', value: `${totalPercentage.toFixed(1)}%`, color: Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : '#dc2626' },
           { label: 'MTD Spend', value: `$${monthlySpend.totalSpend.toFixed(0)}`, color: '#d97706' },
           { label: 'Remaining', value: `$${monthlySpend.remainingBudget.toFixed(0)}`, color: '#059669' },
@@ -914,9 +902,6 @@ const GoogleAdsBudgetManagementInner = () => {
           </div>
         ))}
       </div>
-
-      {/* Metrics Table */}
-      <GoogleAdsMetricsTable metrics={metrics} loading={loading} onRefresh={handleRefreshMetrics} dateRange="Last 30 Days" />
 
       {/* Campaign Budget List */}
       <div style={{ marginTop: 24 }}>
@@ -979,13 +964,14 @@ const GoogleAdsBudgetManagementInner = () => {
 
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
           {/* Table Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '36px 2.5fr 1fr 1fr 1fr 1fr', gap: 8, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '36px 2.5fr 0.8fr 0.8fr 0.8fr 0.7fr 0.7fr', gap: 8, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
             <div></div>
             <div>Campaign</div>
             <div style={{ textAlign: 'right' }}>% Split</div>
             <div style={{ textAlign: 'right' }}>MTD Spend</div>
             <div style={{ textAlign: 'right' }}>New Daily</div>
-            <div style={{ textAlign: 'right' }}>Bid Strategy</div>
+            <div style={{ textAlign: 'right' }}>Avg CPC</div>
+            <div style={{ textAlign: 'right' }}>Conv.</div>
           </div>
 
           {(() => {
@@ -1013,7 +999,7 @@ const GoogleAdsBudgetManagementInner = () => {
               return (
                 <div key={campaign.campaignId} style={{ borderBottom: index < filtered.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                   <div
-                    style={{ display: 'grid', gridTemplateColumns: '36px 2.5fr 1fr 1fr 1fr 1fr', gap: 8, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
+                    style={{ display: 'grid', gridTemplateColumns: '36px 2.5fr 0.8fr 0.8fr 0.8fr 0.7fr 0.7fr', gap: 8, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
                     onClick={() => setExpandedCampaign(isExpanded ? null : campaign.campaignId)}
                   >
                     {/* Toggle */}
@@ -1069,17 +1055,14 @@ const GoogleAdsBudgetManagementInner = () => {
                       <span style={{ fontWeight: 700, color: '#059669', fontSize: 14 }}>${campaign.calculatedDailyBudget.toFixed(2)}</span>
                     </div>
 
-                    {/* Bid Strategy */}
+                    {/* Avg CPC */}
                     <div style={{ textAlign: 'right' }}>
-                      {isEditingStrategy ? (
-                        <select value={editValue} onChange={(e) => { setEditValue(e.target.value); handleBlurSave(campaign.campaignId, 'bidStrategy', e.target.value); }} onClick={(e) => e.stopPropagation()} onBlur={() => handleBlurSave(campaign.campaignId, 'bidStrategy', editValue)} style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #2563eb', borderRadius: 4 }} autoFocus>
-                          {BID_STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                        </select>
-                      ) : (
-                        <div onClick={(e) => { e.stopPropagation(); startEditBidStrategy(campaign); }} style={{ cursor: 'pointer', padding: '4px 8px', borderRadius: 4, fontSize: 12 }} onMouseEnter={(e) => (e.currentTarget.style.background = '#f1f5f9')} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
-                          {BID_STRATEGIES.find((s) => s.value === campaign.bidStrategy)?.label || campaign.bidStrategy}
-                        </div>
-                      )}
+                      <span style={{ fontSize: 13, color: '#64748b' }}>${(campaign.avgCpc || 0).toFixed(2)}</span>
+                    </div>
+
+                    {/* Conversions */}
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: '#6366f1' }}>{(campaign.conversions || 0).toLocaleString()}</span>
                     </div>
                   </div>
 
@@ -1105,6 +1088,18 @@ const GoogleAdsBudgetManagementInner = () => {
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>Clicks</div>
                           <div style={{ fontWeight: 600, color: '#1e293b' }}>{(campaign.clicks || 0).toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>Bid Strategy</div>
+                          <div onClick={(e) => { e.stopPropagation(); startEditBidStrategy(campaign); }} style={{ fontWeight: 600, color: '#1e293b', fontSize: 12, cursor: 'pointer' }}>
+                            {isEditingStrategy ? (
+                              <select value={editValue} onChange={(e) => { setEditValue(e.target.value); handleBlurSave(campaign.campaignId, 'bidStrategy', e.target.value); }} onClick={(e) => e.stopPropagation()} onBlur={() => handleBlurSave(campaign.campaignId, 'bidStrategy', editValue)} style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #2563eb', borderRadius: 4 }} autoFocus>
+                                {BID_STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                              </select>
+                            ) : (
+                              BID_STRATEGIES.find((s) => s.value === campaign.bidStrategy)?.label || campaign.bidStrategy
+                            )}
+                          </div>
                         </div>
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>Last Pushed</div>
