@@ -1655,6 +1655,16 @@ export const GoogleAdsAudits: CollectionConfig = {
       ],
     },
 
+    // ── Budget management (persisted, not shown in tabs) ──
+    {
+      name: "monthlyBudget",
+      type: "number",
+      admin: {
+        hidden: true,
+        description: "Monthly budget total for budget management tab",
+      },
+    },
+
     // ── Sidebar fields ──
     {
       name: "presentationPin",

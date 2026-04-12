@@ -19,6 +19,7 @@ import * as migration_20260411_120000_add_budget_and_extension_locked_docs from 
 import * as migration_20260411_130000_add_budget_extension_tables from './20260411_130000_add_budget_extension_tables';
 import * as migration_20260411_140000_add_missing_ad_extensions_column from './20260411_140000_add_missing_ad_extensions_column';
 import * as migration_20260411_150000_fix_budget_extension_tables from './20260411_150000_fix_budget_extension_tables';
+import * as migration_20260412_120000_add_monthly_budget_to_google_ads_audits from './20260412_120000_add_monthly_budget_to_google_ads_audits';
 
 export const migrations = [
   {
@@ -125,5 +126,10 @@ export const migrations = [
     up: migration_20260411_150000_fix_budget_extension_tables.up,
     down: migration_20260411_150000_fix_budget_extension_tables.down,
     name: '20260411_150000_fix_budget_extension_tables'
+  },
+  {
+    up: migration_20260412_120000_add_monthly_budget_to_google_ads_audits.up,
+    down: migration_20260412_120000_add_monthly_budget_to_google_ads_audits.down,
+    name: '20260412_120000_add_monthly_budget_to_google_ads_audits'
   },
 ];

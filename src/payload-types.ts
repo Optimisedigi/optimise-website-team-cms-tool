@@ -2746,6 +2746,10 @@ export interface GoogleAdsAudit {
       }[]
     | null;
   /**
+   * Monthly budget total for budget management tab
+   */
+  monthlyBudget?: number | null;
+  /**
    * 4-digit PIN for presentation, ad copy preview, and dashboard access. Can match the client PIN for consistency.
    */
   presentationPin?: string | null;
@@ -5975,6 +5979,7 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
         recommendations?: T;
         id?: T;
       };
+  monthlyBudget?: T;
   presentationPin?: T;
   client?: T;
   proposal?: T;

@@ -185,9 +185,19 @@ const GoogleAdsBudgetManagementInner = () => {
   const [editValue, setEditValue] = useState('');
   const [editField, setEditField] = useState<'percentage' | 'bidStrategy'>('percentage');
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
-  const [monthlyTotal, setMonthlyTotal] = useState<number>(0);
+  const savedBudget = (fields?.monthlyBudget?.value as number) || 0;
+  const [monthlyTotal, setMonthlyTotal] = useState<number>(savedBudget);
+  const [budgetInitialized, setBudgetInitialized] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+
+  // Load saved monthly budget from the audit record
+  useEffect(() => {
+    if (!budgetInitialized && savedBudget > 0) {
+      setMonthlyTotal(savedBudget);
+      setBudgetInitialized(true);
+    }
+  }, [savedBudget, budgetInitialized]);
 
   const businessName = (fields?.businessName?.value as string) || 'Client';
 
@@ -207,7 +217,17 @@ const GoogleAdsBudgetManagementInner = () => {
   const handleMonthlyTotalChange = useCallback((newTotal: number) => {
     setMonthlyTotal(newTotal);
     setCampaigns(prev => recalculateBudgets(prev, newTotal));
-  }, [recalculateBudgets]);
+
+    // Persist to audit record (fire and forget)
+    if (id && newTotal > 0) {
+      fetch(`/api/google-ads-audits/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ monthlyBudget: newTotal }),
+      }).catch(() => {});
+    }
+  }, [id, recalculateBudgets]);
 
   const fetchCampaigns = useCallback(async () => {
     if (!id) return;
