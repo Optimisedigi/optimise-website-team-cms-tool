@@ -233,9 +233,45 @@ const GoogleAdsBudgetManagementInner = () => {
     }
   }, [id, recalculateBudgets]);
 
-  const fetchCampaigns = useCallback(async () => {
+  // Load saved campaigns from CMS (fast, preserves allocations)
+  const loadFromCMS = useCallback(async () => {
     if (!id) return;
-    setLoading(true);
+    try {
+      const savedRes = await fetch(`/api/google-ads-budgets/${id}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ _loadSaved: true }),
+      });
+      if (savedRes.ok) {
+        const savedData = await savedRes.json();
+        if (savedData?.campaigns?.length > 0) {
+          const loaded: BudgetCampaign[] = savedData.campaigns.map((c: any) => ({
+            campaignId: c.campaignId,
+            campaignName: c.campaignName || c.campaignId,
+            budgetPercentage: c.budgetPercentage ?? 0,
+            calculatedDailyBudget: c.calculatedDailyBudget ?? 0,
+            actualDailyBudget: c.actualDailyBudget ?? 0,
+            bidStrategy: c.bidStrategy || 'manual_cpc',
+            impressions: c.impressions ?? 0,
+            clicks: c.clicks ?? 0,
+            avgCpc: c.avgCpc ?? 0,
+            conversions: c.conversions ?? 0,
+            mtdSpend: c.mtdSpend ?? 0,
+            enabled: c.enabled !== undefined ? c.enabled : true,
+          }));
+          setCampaigns(recalculateBudgets(loaded, monthlyTotal));
+          return true;
+        }
+      }
+    } catch { /* fall through */ }
+    return false;
+  }, [id, monthlyTotal, recalculateBudgets]);
+
+  // Sync from Google Ads (slower, gets fresh metrics + MTD spend)
+  const syncFromGoogleAds = useCallback(async () => {
+    if (!id) return;
+    setSyncing(true);
     setError(null);
 
     try {
@@ -244,7 +280,8 @@ const GoogleAdsBudgetManagementInner = () => {
       });
 
       if (!res.ok) {
-        throw new Error(`Failed (${res.status})`);
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed (${res.status})`);
       }
 
       const data = await res.json();
@@ -254,7 +291,7 @@ const GoogleAdsBudgetManagementInner = () => {
         budgetPercentage: 0,
       }));
 
-      // Load saved allocations from CMS and merge onto fresh data
+      // Merge saved allocations onto fresh Google Ads data
       try {
         const savedRes = await fetch(`/api/google-ads-budgets/${id}/update`, {
           method: 'POST',
@@ -262,7 +299,6 @@ const GoogleAdsBudgetManagementInner = () => {
           credentials: 'include',
           body: JSON.stringify({ _loadSaved: true }),
         });
-        // Fallback: try reading from the CMS collection directly
         const savedData = savedRes.ok ? await savedRes.json() : null;
         if (savedData?.campaigns) {
           const savedMap = new Map(
@@ -276,7 +312,7 @@ const GoogleAdsBudgetManagementInner = () => {
             }
           }
         }
-      } catch { /* no saved data, campaigns stay at 0% */ }
+      } catch { /* no saved data */ }
 
       // Auto-derive monthly total from existing daily budgets if not set
       let budget = monthlyTotal;
@@ -291,37 +327,37 @@ const GoogleAdsBudgetManagementInner = () => {
         }
       }
 
-      // Recalculate daily budgets with smart formula
       setCampaigns(recalculateBudgets(freshCampaigns, budget));
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [id, monthlyTotal, recalculateBudgets]);
-
-  const handleSync = useCallback(async () => {
-    if (!id) return;
-    setSyncing(true);
-    setError(null);
-
-    try {
-      const res = await fetch(`/api/google-ads-budgets/${id}/list`, {
-        credentials: 'include',
-      });
-
-      if (!res.ok) {
-        throw new Error(`Sync failed (${res.status})`);
-      }
-
-      const data = await res.json();
-      setCampaigns(data.campaigns || []);
+      setSuccess('Synced latest data from Google Ads');
     } catch (e: any) {
       setError(e.message);
     } finally {
       setSyncing(false);
     }
-  }, [id]);
+  }, [id, monthlyTotal, recalculateBudgets]);
+
+  // On mount: load from CMS first, only hit Google Ads if no saved data
+  const fetchCampaigns = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const hasSaved = await loadFromCMS();
+      if (!hasSaved) {
+        // No saved data — do initial sync from Google Ads
+        await syncFromGoogleAds();
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, loadFromCMS, syncFromGoogleAds]);
+
+  const handleSync = useCallback(async () => {
+    await syncFromGoogleAds();
+  }, [syncFromGoogleAds]);
 
   const handlePushToGoogleAds = useCallback(async () => {
     if (!id || campaigns.length === 0) return;

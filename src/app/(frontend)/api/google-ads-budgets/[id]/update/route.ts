@@ -54,9 +54,17 @@ export async function POST(
       return NextResponse.json({
         campaigns: saved.docs.map((d: any) => ({
           campaignId: d.campaignId,
+          campaignName: d.campaignName,
           budgetPercentage: d.budgetPercentage ?? 0,
+          calculatedDailyBudget: d.calculatedDailyBudget ?? 0,
+          actualDailyBudget: d.actualDailyBudget ?? 0,
           enabled: d.enabled !== undefined ? d.enabled : (d.budgetPercentage > 0),
           bidStrategy: d.bidStrategy,
+          impressions: d.impressions ?? 0,
+          clicks: d.clicks ?? 0,
+          avgCpc: d.avgCpc ?? 0,
+          conversions: d.conversions ?? 0,
+          mtdSpend: 0,
         })),
       });
     } catch {
