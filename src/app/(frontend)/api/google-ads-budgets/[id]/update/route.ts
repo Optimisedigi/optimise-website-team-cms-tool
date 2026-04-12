@@ -42,6 +42,21 @@ export async function POST(
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  // Save monthly budget to audit record
+  if (body._saveMonthlyBudget !== undefined) {
+    try {
+      await payload.update({
+        collection: "google-ads-audits",
+        id,
+        data: { monthlyBudget: body._saveMonthlyBudget },
+        overrideAccess: true,
+      });
+      return NextResponse.json({ success: true });
+    } catch (e: any) {
+      return NextResponse.json({ error: e.message }, { status: 500 });
+    }
+  }
+
   // Load saved allocations from CMS
   if (body._loadSaved) {
     try {

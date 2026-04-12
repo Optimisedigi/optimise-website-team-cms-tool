@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useDocumentInfo } from '@payloadcms/ui';
 
 interface BudgetCampaign {
   id?: string;
@@ -182,7 +182,6 @@ function generateEmailHtml(
 
 const GoogleAdsBudgetManagementInner = () => {
   const { id } = useDocumentInfo();
-  const [fields] = useAllFormFields();
   const [campaigns, setCampaigns] = useState<BudgetCampaign[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -193,22 +192,25 @@ const GoogleAdsBudgetManagementInner = () => {
   const [editValue, setEditValue] = useState('');
   const [editField, setEditField] = useState<'percentage' | 'bidStrategy'>('percentage');
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
-  const savedBudget = (fields?.monthlyBudget?.value as number) || 0;
-  const [monthlyTotal, setMonthlyTotal] = useState<number>(savedBudget);
-  const [budgetInitialized, setBudgetInitialized] = useState(false);
+  const [monthlyTotal, setMonthlyTotal] = useState<number>(0);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('enabled');
+  const [businessName, setBusinessName] = useState('Client');
+  const auditLoaded = useRef(false);
 
-  // Load saved monthly budget from the audit record
+  // Load audit data (monthly budget + business name) once on mount — no form hook
   useEffect(() => {
-    if (!budgetInitialized && savedBudget > 0) {
-      setMonthlyTotal(savedBudget);
-      setBudgetInitialized(true);
-    }
-  }, [savedBudget, budgetInitialized]);
-
-  const businessName = (fields?.businessName?.value as string) || 'Client';
+    if (!id || auditLoaded.current) return;
+    auditLoaded.current = true;
+    fetch(`/api/google-ads-audits/${id}?depth=0`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.monthlyBudget) setMonthlyTotal(data.monthlyBudget);
+        if (data?.businessName) setBusinessName(data.businessName);
+      })
+      .catch(() => {});
+  }, [id]);
 
   // Recalculate daily budgets: (monthly - MTD spend) × campaign % / days remaining
   const recalculateBudgets = useCallback((budgetCampaigns: BudgetCampaign[], budget: number): BudgetCampaign[] => {
@@ -227,13 +229,13 @@ const GoogleAdsBudgetManagementInner = () => {
     setMonthlyTotal(newTotal);
     setCampaigns(prev => recalculateBudgets(prev, newTotal));
 
-    // Persist to audit record (fire and forget)
+    // Persist monthly budget via budget update route (avoids triggering Payload form save)
     if (id && newTotal > 0) {
-      fetch(`/api/google-ads-audits/${id}`, {
-        method: 'PATCH',
+      fetch(`/api/google-ads-budgets/${id}/update`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ monthlyBudget: newTotal }),
+        body: JSON.stringify({ _saveMonthlyBudget: newTotal }),
       }).catch(() => {});
     }
   }, [id, recalculateBudgets]);
