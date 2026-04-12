@@ -42,6 +42,28 @@ export async function POST(
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  // Load saved allocations from CMS
+  if (body._loadSaved) {
+    try {
+      const saved = await payload.find({
+        collection: BUDGETS_COLLECTION,
+        where: { audit: { equals: id } },
+        limit: 100,
+        overrideAccess: true,
+      });
+      return NextResponse.json({
+        campaigns: saved.docs.map((d: any) => ({
+          campaignId: d.campaignId,
+          budgetPercentage: d.budgetPercentage ?? 0,
+          enabled: d.budgetPercentage > 0,
+          bidStrategy: d.bidStrategy,
+        })),
+      });
+    } catch {
+      return NextResponse.json({ campaigns: [] });
+    }
+  }
+
   // Bulk save: save budget allocations to CMS only (no Google Ads push)
   if (body.campaigns && Array.isArray(body.campaigns)) {
     const errors: string[] = [];

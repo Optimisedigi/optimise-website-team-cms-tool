@@ -249,15 +249,40 @@ const GoogleAdsBudgetManagementInner = () => {
       }
 
       const data = await res.json();
-      const fetched: BudgetCampaign[] = (data.campaigns || []).map((c: any) => ({
+      const freshCampaigns: BudgetCampaign[] = (data.campaigns || []).map((c: any) => ({
         ...c,
-        enabled: c.enabled !== undefined ? c.enabled : true,
+        enabled: true,
+        budgetPercentage: 0,
       }));
+
+      // Load saved allocations from CMS and merge onto fresh data
+      try {
+        const savedRes = await fetch(`/api/google-ads-budgets/${id}/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ _loadSaved: true }),
+        });
+        // Fallback: try reading from the CMS collection directly
+        const savedData = savedRes.ok ? await savedRes.json() : null;
+        if (savedData?.campaigns) {
+          const savedMap = new Map(
+            savedData.campaigns.map((s: any) => [s.campaignId, s])
+          );
+          for (const c of freshCampaigns) {
+            const saved = savedMap.get(c.campaignId) as any;
+            if (saved) {
+              c.budgetPercentage = saved.budgetPercentage ?? 0;
+              c.enabled = saved.enabled !== undefined ? saved.enabled : (saved.budgetPercentage > 0);
+            }
+          }
+        }
+      } catch { /* no saved data, campaigns stay at 0% */ }
 
       // Auto-derive monthly total from existing daily budgets if not set
       let budget = monthlyTotal;
-      if (budget === 0 && fetched.length > 0) {
-        const total = fetched.reduce(
+      if (budget === 0 && freshCampaigns.length > 0) {
+        const total = freshCampaigns.reduce(
           (sum, c) => sum + (c.actualDailyBudget || 0) * DAYS_IN_MONTH,
           0
         );
@@ -267,11 +292,8 @@ const GoogleAdsBudgetManagementInner = () => {
         }
       }
 
-      // All campaigns start at 0% — user sets the split manually
-      // (or uses Auto-Balance button for equal distribution)
-
       // Recalculate daily budgets with smart formula
-      setCampaigns(recalculateBudgets(fetched, budget));
+      setCampaigns(recalculateBudgets(freshCampaigns, budget));
     } catch (e: any) {
       setError(e.message);
     } finally {
