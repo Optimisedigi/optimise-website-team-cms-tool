@@ -66,6 +66,13 @@ export async function POST(
 
   // Bulk save: save budget allocations to CMS only (no Google Ads push)
   if (body.campaigns && Array.isArray(body.campaigns)) {
+    // Get customerId from audit for creating new records
+    let auditCustomerId = '';
+    try {
+      const audit = await payload.findByID({ collection: "google-ads-audits", id, overrideAccess: true });
+      auditCustomerId = audit.customerId || '';
+    } catch { /* use empty */ }
+
     const errors: string[] = [];
     for (const campaign of body.campaigns) {
       try {
@@ -98,7 +105,7 @@ export async function POST(
             collection: BUDGETS_COLLECTION,
             data: {
               audit: id,
-              customerId: '',
+              customerId: auditCustomerId,
               campaignId: campaign.campaignId,
               campaignName: campaign.campaignName || campaign.campaignId,
               ...cmsData,

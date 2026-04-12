@@ -473,6 +473,7 @@ const GoogleAdsBudgetManagementInner = () => {
             body: JSON.stringify({
               campaigns: [{
                 campaignId: campaign.campaignId,
+                campaignName: campaign.campaignName,
                 budgetPercentage: campaign.budgetPercentage,
                 calculatedDailyBudget: campaign.calculatedDailyBudget,
                 bidStrategy: campaign.bidStrategy,
@@ -504,6 +505,7 @@ const GoogleAdsBudgetManagementInner = () => {
           monthlyBudget: monthlyTotal,
           campaigns: campaigns.map(c => ({
             campaignId: c.campaignId,
+            campaignName: c.campaignName,
             budgetPercentage: c.budgetPercentage,
             calculatedDailyBudget: c.calculatedDailyBudget,
             bidStrategy: c.bidStrategy,
