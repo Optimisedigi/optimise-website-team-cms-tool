@@ -82,6 +82,7 @@ export default function GscIndexingAuditInfo() {
     if (!clientId) return
     setRunning(true)
     setResult(null)
+    setLiveError(undefined)
     try {
       const res = await fetch('/api/gsc/indexing-audit', {
         method: 'POST',
