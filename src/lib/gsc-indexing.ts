@@ -207,6 +207,125 @@ export async function runInspectionWork(
 }
 
 /**
+ * Run a single inspection batch for an audit. Called from the /inspect endpoint.
+ * Returns a result object with status, counts, and any error message.
+ * Does NOT swallow errors — the caller gets full visibility.
+ */
+export async function runInspectionBatch(
+  payload: any,
+  auditId: string
+): Promise<{
+  ok: boolean;
+  status: string;
+  inspectedCount: number;
+  totalUrls: number;
+  error?: string;
+}> {
+  const audit = await payload.findByID({
+    collection: "gsc-indexing-audits",
+    id: auditId,
+    overrideAccess: true,
+  });
+
+  if (audit.status !== "inspecting") {
+    return {
+      ok: true,
+      status: audit.status,
+      inspectedCount: audit.inspectedCount || 0,
+      totalUrls: audit.totalUrls || 0,
+      error: audit.error || undefined,
+    };
+  }
+
+  const discoveredUrls: string[] = (audit.discoveredUrls as string[]) || [];
+  const existingResults: InspectionResult[] = (audit.inspectionResults as InspectionResult[]) || [];
+  const inspectedUrls = new Set(existingResults.map((r) => r.url));
+  const remaining = discoveredUrls.filter((u) => !inspectedUrls.has(u));
+
+  if (remaining.length === 0) {
+    const summaryStats = buildSummaryStats(existingResults);
+    await payload.update({
+      collection: "gsc-indexing-audits",
+      id: auditId,
+      overrideAccess: true,
+      data: {
+        status: "completed",
+        completedAt: new Date().toISOString(),
+        summaryStats,
+      },
+    });
+    return {
+      ok: true,
+      status: "completed",
+      inspectedCount: existingResults.length,
+      totalUrls: discoveredUrls.length,
+    };
+  }
+
+  // Get client and fresh token
+  const clientId = typeof audit.client === "object" ? (audit.client as any).id : audit.client;
+  let client;
+  try {
+    client = await payload.findByID({
+      collection: "clients",
+      id: clientId,
+      overrideAccess: true,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to load client";
+    return { ok: false, status: "inspecting", inspectedCount: existingResults.length, totalUrls: discoveredUrls.length, error: `Client load failed: ${msg}` };
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await ensureFreshToken(payload, client);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Token refresh failed";
+    return { ok: false, status: "inspecting", inspectedCount: existingResults.length, totalUrls: discoveredUrls.length, error: `Token refresh failed: ${msg}` };
+  }
+
+  // Inspect a batch of up to 50 URLs in sub-batches of 25
+  const BATCH_CAP = 50;
+  const batch = remaining.slice(0, BATCH_CAP);
+  const allResults = [...existingResults];
+  let batchError: string | undefined;
+
+  for (let i = 0; i < batch.length; i += SUB_BATCH_SIZE) {
+    const subBatch = batch.slice(i, i + SUB_BATCH_SIZE);
+    try {
+      const subResults = await inspectUrlBatch(accessToken, client.gscPropertyUrl, subBatch);
+      allResults.push(...subResults);
+      await saveInspectionProgress(payload, auditId, allResults, discoveredUrls.length);
+      console.log(`[gsc-indexing] Audit ${auditId}: ${allResults.length}/${discoveredUrls.length} inspected`);
+
+      if (subResults.length < subBatch.length) {
+        batchError = "Rate limited by Google API, will continue on next poll";
+        break;
+      }
+    } catch (err) {
+      batchError = err instanceof Error ? err.message : "Inspection sub-batch failed";
+      console.error(`[gsc-indexing] Audit ${auditId} sub-batch error:`, batchError);
+      break;
+    }
+  }
+
+  // Re-fetch to get the saved state
+  const updated = await payload.findByID({
+    collection: "gsc-indexing-audits",
+    id: auditId,
+    overrideAccess: true,
+  });
+
+  return {
+    ok: !batchError,
+    status: updated.status,
+    inspectedCount: updated.inspectedCount || 0,
+    totalUrls: updated.totalUrls || 0,
+    error: batchError,
+  };
+}
+
+/**
  * Start a new indexing audit for a client.
  * Creates the audit record and returns the auditId + client.
  * Caller is responsible for running discovery + scheduling inspection.

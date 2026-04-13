@@ -40,16 +40,15 @@ export default function GscIndexingAuditInfo() {
           inspectingRef.current = true
           try {
             const inspectRes = await fetch(`/api/gsc/indexing-audit/${auditId}/inspect`, { method: 'POST' })
-            if (inspectRes.ok) {
-              const inspectData = await inspectRes.json()
-              setLiveStatus(inspectData.status)
-              setLiveInspectedCount(inspectData.inspectedCount || 0)
-              setLiveTotalUrls(inspectData.totalUrls || 0)
-              if (inspectData.status === 'completed' || inspectData.status === 'failed') {
-                if (pollRef.current) clearInterval(pollRef.current)
-                window.location.reload()
-                return
-              }
+            const inspectData = await inspectRes.json()
+            setLiveStatus(inspectData.status)
+            setLiveInspectedCount(inspectData.inspectedCount || 0)
+            setLiveTotalUrls(inspectData.totalUrls || 0)
+            if (inspectData.error) setLiveError(inspectData.error)
+            if (inspectData.status === 'completed' || inspectData.status === 'failed') {
+              if (pollRef.current) clearInterval(pollRef.current)
+              window.location.reload()
+              return
             }
           } finally {
             inspectingRef.current = false
