@@ -155,11 +155,11 @@ function generateEmailHtml(
             <tr>
               <td style="text-align:center;width:50%">
                 <div style="font-size:18px;font-weight:700;color:${statusColor}">$${spend.totalSpend.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
-                <div style="font-size:11px;color:#64748b">Spent</div>
+                <div style="font-size:11px;color:#64748b">Month-to-Date Spend</div>
               </td>
               <td style="text-align:center;width:50%">
                 <div style="font-size:18px;font-weight:700;color:#64748b">$${spend.remainingBudget.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
-                <div style="font-size:11px;color:#64748b">Remaining</div>
+                <div style="font-size:11px;color:#64748b">Remaining Monthly Budget</div>
               </td>
             </tr>
           </table>
@@ -168,7 +168,7 @@ function generateEmailHtml(
       <td style="width:45%;vertical-align:top;padding-left:8px">
         <div style="padding:16px 20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;height:100%">
           <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:14px">Time Tracking</div>
-          <table style="width:100%;border-collapse:collapse">
+          <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
             <tr>
               <td style="padding:12px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center;width:48%">
                 <div style="font-size:11px;color:#64748b;margin-bottom:4px">Days Elapsed</div>
@@ -181,29 +181,24 @@ function generateEmailHtml(
               </td>
             </tr>
           </table>
+          <!-- Calendar grid -->
+          <div style="margin-top:8px">
+            <div>${(() => {
+              const now = new Date().getDate();
+              const totalDays = Math.ceil(30.4);
+              return Array.from({ length: totalDays }, (_, i) => {
+                const day = i + 1;
+                const bg = day === now ? '#2563eb' : day < now ? '#059669' : '#e5e7eb';
+                return `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${bg};margin:0 1px 2px 0"></span>`;
+              }).join('');
+            })()}</div>
+            <div style="margin-top:6px;font-size:10px;color:#64748b">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#059669;margin-right:3px;vertical-align:middle"></span>Past
+              <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#2563eb;margin:0 3px 0 10px;vertical-align:middle"></span>Today
+              <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#e5e7eb;margin:0 3px 0 10px;vertical-align:middle"></span>Remaining
+            </div>
+          </div>
         </div>
-      </td>
-    </tr>
-  </table>
-
-  <!-- Summary stats row -->
-  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
-    <tr>
-      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:25%">
-        <div style="font-size:11px;color:#64748b">Monthly Budget</div>
-        <div style="font-size:18px;font-weight:700">$${spend.maxBudget.toLocaleString()}</div>
-      </td>
-      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:25%">
-        <div style="font-size:11px;color:#64748b">MTD Spend</div>
-        <div style="font-size:18px;font-weight:700;color:#d97706">$${spend.totalSpend.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
-      </td>
-      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:25%">
-        <div style="font-size:11px;color:#64748b">Remaining</div>
-        <div style="font-size:18px;font-weight:700;color:#059669">$${spend.remainingBudget.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
-      </td>
-      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:25%">
-        <div style="font-size:11px;color:#64748b">Status</div>
-        <div style="font-size:18px;font-weight:700;color:${statusColor}">${statusText}</div>
       </td>
     </tr>
   </table>
@@ -382,7 +377,8 @@ const GoogleAdsBudgetManagementInner = () => {
     }
   }, [id, monthlyTotal, recalculateBudgets]);
 
-  // On mount: load from CMS first, only hit Google Ads if no saved data
+  // On mount: always sync from Google Ads to get fresh MTD spend data
+  // The list endpoint merges saved CMS allocations into its response
   const initialLoadDone = useRef(false);
   const fetchCampaigns = useCallback(async () => {
     if (!id || initialLoadDone.current) return;
@@ -391,11 +387,7 @@ const GoogleAdsBudgetManagementInner = () => {
     setError(null);
 
     try {
-      const hasSaved = await loadFromCMS();
-      if (!hasSaved) {
-        // No saved data — do initial sync from Google Ads
-        await syncFromGoogleAds();
-      }
+      await syncFromGoogleAds();
     } catch (e: any) {
       setError(e.message);
     } finally {
