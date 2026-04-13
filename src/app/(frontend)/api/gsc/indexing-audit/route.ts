@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { startIndexingAudit, runDiscovery } from "@/lib/gsc-indexing";
+import { startIndexingAudit, runDiscovery, runInspectionBatch } from "@/lib/gsc-indexing";
 
 export const maxDuration = 120;
 
@@ -94,8 +94,17 @@ export async function POST(req: NextRequest) {
     if (client) {
       step = "run-discovery";
       await runDiscovery(payload, auditId, client);
-      // Discovery updates audit to "inspecting" with discovered URLs.
-      // Inspection is handled separately via /[id]/inspect endpoint.
+
+      step = "run-inspection";
+      // Run inspection directly — direct SQL saves make this fast enough
+      // to fit within the 120s timeout. If it doesn't finish all URLs,
+      // the frontend polling + inspect endpoint handles the rest.
+      try {
+        await runInspectionBatch(payload, auditId);
+      } catch (err) {
+        console.error(`[gsc-indexing-audit] Inspection error (non-fatal):`, err);
+        // Non-fatal: partial results saved, polling can continue
+      }
     }
 
     return NextResponse.json({ ok: true, auditId });
