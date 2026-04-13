@@ -40,7 +40,7 @@ export function DashboardClient({ slug, clientName, isAuthenticated, initialData
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-white mb-2">{clientName}</h1>
-          <p className="text-slate-400">Enter your 4-digit access code to view the dashboard</p>
+          <p className="text-slate-400">Enter your 4-digit PIN access code to view the Google Ads dashboard</p>
         </div>
         <PinEntry slug={slug} onSuccess={() => setVerified(true)} />
       </div>
@@ -107,13 +107,13 @@ function RocketLoading() {
           100% { transform: translateX(-50%) translateY(-220px); opacity: 0; }
         }
         @keyframes flameContainerLoop {
-          0% { transform: translateX(calc(-50% - 3px)) translateY(0); opacity: 0; }
-          8% { transform: translateX(calc(-50% - 3px)) translateY(0); opacity: 1; }
-          18% { transform: translateX(calc(-50% - 3px)) translateY(2px); opacity: 1; }
-          32% { transform: translateX(calc(-50% - 3px)) translateY(-6px); opacity: 1; }
-          78% { transform: translateX(calc(-50% - 3px)) translateY(-130px); opacity: 1; }
-          92% { transform: translateX(calc(-50% - 3px)) translateY(-220px); opacity: 0; }
-          100% { transform: translateX(calc(-50% - 3px)) translateY(-220px); opacity: 0; }
+          0% { transform: translateX(calc(-50% - 2.8px)) translateY(0); opacity: 0; }
+          8% { transform: translateX(calc(-50% - 2.8px)) translateY(0); opacity: 1; }
+          18% { transform: translateX(calc(-50% - 2.8px)) translateY(2px); opacity: 1; }
+          32% { transform: translateX(calc(-50% - 2.8px)) translateY(-6px); opacity: 1; }
+          78% { transform: translateX(calc(-50% - 2.8px)) translateY(-130px); opacity: 1; }
+          92% { transform: translateX(calc(-50% - 2.8px)) translateY(-220px); opacity: 0; }
+          100% { transform: translateX(calc(-50% - 2.8px)) translateY(-220px); opacity: 0; }
         }
         @keyframes flameLoop {
           0% { opacity: 0; transform: scaleY(0.2); }

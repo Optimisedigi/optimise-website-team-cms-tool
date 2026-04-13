@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 interface AdCopyData {
   businessName: string
@@ -25,115 +25,92 @@ interface Props {
 }
 
 export default function AdCopyPinGate({ slug, children }: Props) {
-  const [pin, setPin] = useState('')
+  const [digits, setDigits] = useState(['', '', '', ''])
   const [data, setData] = useState<AdCopyData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [authedPin, setAuthedPin] = useState('')
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (pin.length !== 4) return
-
+  const submit = useCallback(async (pin: string) => {
     setLoading(true)
     setError(null)
-
     try {
       const res = await fetch(`/api/ad-copy?slug=${encodeURIComponent(slug)}&pin=${encodeURIComponent(pin)}`)
-
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        setError(body.error || 'Invalid PIN')
-        setLoading(false)
+        if (res.status === 429) setError('Too many attempts. Please try again in a few minutes.')
+        else setError(body.error || 'Invalid access code.')
         return
       }
-
       const result = await res.json()
       setData(result)
       setAuthedPin(pin)
     } catch {
-      setError('Network error. Please try again.')
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+      setDigits(['', '', '', ''])
+      inputRefs.current[0]?.focus()
     }
-    setLoading(false)
-  }, [slug, pin])
+  }, [slug])
 
-  if (data) {
-    return <>{children(data, authedPin)}</>
-  }
+  const handleChange = useCallback((index: number, value: string) => {
+    const digit = value.replace(/\D/g, '').slice(-1)
+    const next = [...digits]
+    next[index] = digit
+    setDigits(next)
+    setError(null)
+    if (digit && index < 3) inputRefs.current[index + 1]?.focus()
+    if (digit && index === 3 && next.every(d => d !== '')) submit(next.join(''))
+  }, [digits, submit])
+
+  const handleKeyDown = useCallback((index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) inputRefs.current[index - 1]?.focus()
+  }, [digits])
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4)
+    if (!pasted.length) return
+    const next = ['', '', '', '']
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i]
+    setDigits(next)
+    setError(null)
+    if (pasted.length === 4) submit(pasted)
+    else inputRefs.current[pasted.length]?.focus()
+  }, [submit])
+
+  useEffect(() => { inputRefs.current[0]?.focus() }, [])
+
+  if (data) return <>{children(data, authedPin)}</>
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#f8fafc',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    }}>
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          background: '#fff',
-          padding: 32,
-          borderRadius: 12,
-          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-          width: '100%',
-          maxWidth: 360,
-          textAlign: 'center',
-        }}
-      >
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: '0 0 8px' }}>
-          Ad Copy Preview
-        </h1>
-        <p style={{ fontSize: 14, color: '#64748b', margin: '0 0 24px' }}>
-          Enter your 4-digit PIN to view the ad copy
-        </p>
-
-        <input
-          type="text"
-          inputMode="numeric"
-          pattern="\d{4}"
-          maxLength={4}
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-          placeholder="0000"
-          style={{
-            width: '100%',
-            padding: '12px 16px',
-            fontSize: 24,
-            textAlign: 'center',
-            letterSpacing: 12,
-            border: `2px solid ${error ? '#ef4444' : '#e2e8f0'}`,
-            borderRadius: 8,
-            outline: 'none',
-            boxSizing: 'border-box',
-          }}
-          autoFocus
-        />
-
-        {error && (
-          <p style={{ marginTop: 8, fontSize: 13, color: '#dc2626' }}>{error}</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={pin.length !== 4 || loading}
-          style={{
-            marginTop: 16,
-            width: '100%',
-            padding: '12px 20px',
-            fontSize: 14,
-            fontWeight: 600,
-            background: pin.length === 4 && !loading ? '#7c3aed' : '#9ca3af',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            cursor: pin.length === 4 && !loading ? 'pointer' : 'not-allowed',
-          }}
-        >
-          {loading ? 'Verifying...' : 'View Ad Copy'}
-        </button>
-      </form>
+    <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 16px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>Ad Copy Preview</h1>
+        <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>Enter your 4-digit PIN access code to view the ad copy</p>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }} onPaste={handlePaste}>
+        {digits.map((digit, i) => (
+          <input
+            key={i}
+            ref={(el) => { inputRefs.current[i] = el }}
+            type="text"
+            inputMode="numeric"
+            maxLength={1}
+            value={digit}
+            disabled={loading}
+            onChange={(e) => handleChange(i, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            style={{ width: 64, height: 80, textAlign: 'center', fontSize: 24, fontWeight: 600, border: '2px solid #475569', borderRadius: 12, background: '#1e293b', color: '#fff', outline: 'none', opacity: loading ? 0.5 : 1, transition: 'border-color 0.2s' }}
+            onFocus={(e) => { e.target.style.borderColor = '#60a5fa' }}
+            onBlur={(e) => { e.target.style.borderColor = '#475569' }}
+          />
+        ))}
+      </div>
+      {loading && <p style={{ marginTop: 24, fontSize: 14, color: '#94a3b8', textAlign: 'center' }}>Verifying...</p>}
+      {error && <p style={{ marginTop: 24, fontSize: 14, color: '#f87171', textAlign: 'center' }}>{error}</p>}
     </div>
   )
 }
