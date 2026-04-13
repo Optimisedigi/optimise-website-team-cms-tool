@@ -20,7 +20,7 @@
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  animation: od-rocket-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: od-rocket-offset-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   z-index: 2;
 
   img {
@@ -40,7 +40,7 @@
   transform: translateX(-50%);
   width: 20px;
   height: 60px;
-  animation: od-flame-container-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: od-rocket-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   z-index: 1;
 }
 
@@ -122,8 +122,8 @@
   }
 }
 
-// Flame container loop — shifted 3px left to sit under the rotated rocket's exhaust
-@keyframes od-flame-container-loop {
+// Rocket loop with offset to align rotated image over centered flame
+@keyframes od-rocket-offset-loop {
   0% {
     transform: translateX(calc(-50% - 2.8px)) translateY(0);
     opacity: 0;
