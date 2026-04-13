@@ -20,7 +20,7 @@
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  animation: od-rocket-move-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: od-rocket-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   z-index: 2;
 
   img {
@@ -40,7 +40,7 @@
   transform: translateX(-50%);
   width: 20px;
   height: 60px;
-  animation: od-rocket-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: od-flame-container-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   z-index: 1;
 }
 
@@ -122,34 +122,34 @@
   }
 }
 
-// Rocket loop with 2px right offset to align with rotated image
-@keyframes od-rocket-move-loop {
+// Flame container loop — shifted 3px left to sit under the rotated rocket's exhaust
+@keyframes od-flame-container-loop {
   0% {
-    transform: translateX(calc(-50% + 1px)) translateY(0);
+    transform: translateX(calc(-50% - 3px)) translateY(0);
     opacity: 0;
   }
   8% {
-    transform: translateX(calc(-50% + 1px)) translateY(0);
+    transform: translateX(calc(-50% - 3px)) translateY(0);
     opacity: 1;
   }
   18% {
-    transform: translateX(calc(-50% + 1px)) translateY(2px);
+    transform: translateX(calc(-50% - 3px)) translateY(2px);
     opacity: 1;
   }
   32% {
-    transform: translateX(calc(-50% + 1px)) translateY(-6px);
+    transform: translateX(calc(-50% - 3px)) translateY(-6px);
     opacity: 1;
   }
   78% {
-    transform: translateX(calc(-50% + 1px)) translateY(-130px);
+    transform: translateX(calc(-50% - 3px)) translateY(-130px);
     opacity: 1;
   }
   92% {
-    transform: translateX(calc(-50% + 1px)) translateY(-220px);
+    transform: translateX(calc(-50% - 3px)) translateY(-220px);
     opacity: 0;
   }
   100% {
-    transform: translateX(calc(-50% + 1px)) translateY(-220px);
+    transform: translateX(calc(-50% - 3px)) translateY(-220px);
     opacity: 0;
   }
 }
