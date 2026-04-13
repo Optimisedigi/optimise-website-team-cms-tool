@@ -15,6 +15,7 @@ export default function GscIndexingAuditInfo() {
   const [liveStatus, setLiveStatus] = useState<string | undefined>(data?.status)
   const [liveInspectedCount, setLiveInspectedCount] = useState<number>(data?.inspectedCount || 0)
   const [liveTotalUrls, setLiveTotalUrls] = useState<number>(data?.totalUrls || 0)
+  const [liveError, setLiveError] = useState<string | undefined>(data?.error)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const status = liveStatus ?? data?.status
@@ -36,6 +37,7 @@ export default function GscIndexingAuditInfo() {
         setLiveStatus(audit.status)
         setLiveInspectedCount(audit.inspectedCount || 0)
         setLiveTotalUrls(audit.totalUrls || 0)
+        if (audit.error) setLiveError(audit.error)
 
         // Reload page when audit finishes so all tabs get fresh data
         if (audit.status === 'completed' || audit.status === 'failed') {
@@ -171,6 +173,12 @@ export default function GscIndexingAuditInfo() {
 
           {result?.error && (
             <span style={{ color: '#dc2626', fontSize: 12 }}>{result.error}</span>
+          )}
+
+          {liveError && (
+            <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, color: '#991b1b', width: '100%' }}>
+              <strong>Error:</strong> {liveError}
+            </div>
           )}
         </div>
       )}
