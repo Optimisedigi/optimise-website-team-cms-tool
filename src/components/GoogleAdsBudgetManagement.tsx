@@ -107,8 +107,12 @@ function generateEmailHtml(
 ): string {
   const percentUsed = spend.maxBudget > 0 ? (spend.totalSpend / spend.maxBudget) * 100 : 0;
   const budgetPerDay = spend.daysRemaining > 0 ? spend.remainingBudget / spend.daysRemaining : 0;
+  const onTrackPercent = (spend.daysElapsed / 30.4) * 100;
   const statusColor = percentUsed <= 90 ? '#059669' : percentUsed <= 100 ? '#d97706' : '#dc2626';
-  const statusText = percentUsed <= 100 ? 'On Track' : percentUsed <= 110 ? 'Slightly Over' : 'Over Budget';
+  const statusBg = percentUsed <= 90 ? '#f0fdf4' : percentUsed <= 100 ? '#fffbeb' : '#fef2f2';
+  const isUnderBudget = percentUsed < onTrackPercent;
+  const statusText = percentUsed > 100 ? 'Over Budget' : percentUsed > 90 ? 'On Track' : isUnderBudget ? 'Under Budget' : 'On Track';
+  const dailyBurnRate = spend.daysElapsed > 0 ? spend.totalSpend / spend.daysElapsed : 0;
   const enabledCampaigns = campaigns.filter(c => c.enabled && c.budgetPercentage > 0);
 
   const campaignRows = enabledCampaigns.map(c => {
@@ -118,14 +122,85 @@ function generateEmailHtml(
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.budgetPercentage}%</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${mtd.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:600">$${c.calculatedDailyBudget.toFixed(2)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.impressions || 0).toLocaleString()}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.clicks || 0).toLocaleString()}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${(c.avgCpc || 0).toFixed(2)}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.conversions || 0}</td>
     </tr>`;
   }).join('');
 
-  return `<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#1e293b">
+  return `<div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#1e293b">
   <h2 style="margin:0 0 4px;font-size:18px">${businessName} - Google Ads Budget Report</h2>
   <p style="margin:0 0 20px;color:#64748b;font-size:14px">${month}</p>
 
+  <!-- Budget Progress + Time Tracking side by side -->
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+    <tr>
+      <td style="width:55%;vertical-align:top;padding-right:8px">
+        <div style="padding:16px 20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <span style="font-size:14px;font-weight:600;color:#374151">${statusText}</span>
+            <span style="font-size:22px;font-weight:700;color:${statusColor}">${percentUsed.toFixed(0)}%</span>
+          </div>
+          <!-- Progress bar -->
+          <div style="position:relative;height:20px;background:#e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:8px">
+            <div style="position:absolute;left:0;top:0;height:100%;width:${Math.min(percentUsed, 100)}%;background:${statusColor};border-radius:10px"></div>
+            <div style="position:absolute;left:${onTrackPercent}%;top:0;height:100%;width:2px;background:#1e293b;opacity:0.5"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:2px">
+            <span>$0</span>
+            <span>$${spend.maxBudget.toLocaleString()}</span>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">Vertical line shows where you should be on track</div>
+          <!-- Spent / Remaining -->
+          <table style="width:100%;border-collapse:collapse;margin-top:12px">
+            <tr>
+              <td style="text-align:center;width:50%">
+                <div style="font-size:18px;font-weight:700;color:${statusColor}">$${spend.totalSpend.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+                <div style="font-size:11px;color:#64748b">Spent</div>
+              </td>
+              <td style="text-align:center;width:50%">
+                <div style="font-size:18px;font-weight:700;color:#64748b">$${spend.remainingBudget.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+                <div style="font-size:11px;color:#64748b">Remaining</div>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </td>
+      <td style="width:45%;vertical-align:top;padding-left:8px">
+        <div style="padding:16px 20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;height:100%">
+          <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:14px">Burn Rate Analysis</div>
+          <table style="width:100%;border-collapse:collapse">
+            <tr>
+              <td style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center;width:50%">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px">Days Elapsed</div>
+                <div style="font-size:20px;font-weight:700;color:#1e293b">${spend.daysElapsed}</div>
+              </td>
+              <td style="width:8px"></td>
+              <td style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center;width:50%">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px">Days Remaining</div>
+                <div style="font-size:20px;font-weight:700;color:#1e293b">${spend.daysRemaining}</div>
+              </td>
+            </tr>
+          </table>
+          <table style="width:100%;border-collapse:collapse;margin-top:12px">
+            <tr>
+              <td style="text-align:center;width:50%">
+                <div style="font-size:11px;color:#64748b">Daily Budget</div>
+                <div style="font-size:16px;font-weight:600;color:#059669">$${(spend.maxBudget / 30.4).toFixed(2)}</div>
+              </td>
+              <td style="text-align:center;width:50%">
+                <div style="font-size:11px;color:#64748b">Actual Burn</div>
+                <div style="font-size:16px;font-weight:600;color:#d97706">$${dailyBurnRate.toFixed(2)}/day</div>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Summary stats row -->
   <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
     <tr>
       <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:25%">
@@ -147,30 +222,16 @@ function generateEmailHtml(
     </tr>
   </table>
 
-  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
-    <tr>
-      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:33%">
-        <div style="font-size:11px;color:#64748b">Days Elapsed</div>
-        <div style="font-size:16px;font-weight:600">${spend.daysElapsed}</div>
-      </td>
-      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:33%">
-        <div style="font-size:11px;color:#64748b">Days Remaining</div>
-        <div style="font-size:16px;font-weight:600">${spend.daysRemaining}</div>
-      </td>
-      <td style="padding:12px 16px;background:#f8fafc;border:1px solid #e5e7eb;width:34%">
-        <div style="font-size:11px;color:#64748b">Recommended Daily</div>
-        <div style="font-size:16px;font-weight:600;color:#2563eb">$${budgetPerDay.toFixed(2)}</div>
-      </td>
-    </tr>
-  </table>
-
   <h3 style="margin:0 0 8px;font-size:15px">Campaign Breakdown</h3>
   <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
     <tr style="background:#f1f5f9">
       <th style="padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Split</th>
-      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">MTD Spend</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">MTD</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">New Daily</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Impr.</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Clicks</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Avg CPC</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Conv.</th>
     </tr>
     ${campaignRows}
