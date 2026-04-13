@@ -1,17 +1,55 @@
 'use client'
 
 import { useDocumentInfo } from '@payloadcms/ui'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function GscIndexingAuditInfo() {
   const { initialData } = useDocumentInfo()
   const data = initialData as any
 
   const clientId = typeof data?.client === 'object' ? data?.client?.id : data?.client
-  const status = data?.status as string | undefined
+  const auditId = data?.id
 
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<{ ok?: boolean; error?: string; auditId?: string } | null>(null)
+  const [liveStatus, setLiveStatus] = useState<string | undefined>(data?.status)
+  const [liveInspectedCount, setLiveInspectedCount] = useState<number>(data?.inspectedCount || 0)
+  const [liveTotalUrls, setLiveTotalUrls] = useState<number>(data?.totalUrls || 0)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const status = liveStatus ?? data?.status
+
+  // Auto-poll when audit is active
+  useEffect(() => {
+    if (!auditId) return
+    const isActive = status === 'discovering' || status === 'inspecting'
+    if (!isActive) {
+      if (pollRef.current) clearInterval(pollRef.current)
+      return
+    }
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/gsc/indexing-audit/${auditId}`)
+        if (!res.ok) return
+        const audit = await res.json()
+        setLiveStatus(audit.status)
+        setLiveInspectedCount(audit.inspectedCount || 0)
+        setLiveTotalUrls(audit.totalUrls || 0)
+
+        // Reload page when audit finishes so all tabs get fresh data
+        if (audit.status === 'completed' || audit.status === 'failed') {
+          if (pollRef.current) clearInterval(pollRef.current)
+          window.location.reload()
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }
+
+    pollRef.current = setInterval(poll, 5000)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [auditId, status])
 
   const handleRunAudit = async () => {
     if (!clientId) return
@@ -110,22 +148,14 @@ export default function GscIndexingAuditInfo() {
           </button>
 
           {isActive && (
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              style={{
-                padding: '8px 16px',
-                borderRadius: 6,
-                border: '1px solid #bae6fd',
-                background: '#fff',
-                color: '#2563eb',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              Refresh to check progress
-            </button>
+            <span style={{ fontSize: 12, color: '#2563eb', fontWeight: 500 }}>
+              {status === 'discovering'
+                ? 'Discovering URLs from sitemaps...'
+                : `Inspecting URLs... ${liveInspectedCount}/${liveTotalUrls}`}
+              <span style={{ marginLeft: 6, display: 'inline-block', animation: 'pulse 1.5s infinite' }}>
+                Auto-refreshing
+              </span>
+            </span>
           )}
 
           {result?.error && (

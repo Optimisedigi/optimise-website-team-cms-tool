@@ -1,7 +1,7 @@
 'use client'
 
 import { useDocumentInfo } from '@payloadcms/ui'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 
 interface InspectionResult {
   url: string
@@ -112,12 +112,53 @@ function getSeverity(coverageState: string): number {
 export default function GscIndexingAuditResults() {
   const { initialData } = useDocumentInfo()
   const data = initialData as any
+  const auditId = data?.id
 
-  const results: InspectionResult[] = data?.inspectionResults || []
-  const totalUrls: number = data?.totalUrls || 0
-  const inspectedCount: number = data?.inspectedCount || 0
-  const status: string = data?.status || 'discovering'
-  const summaryStats: SummaryStats = data?.summaryStats || { indexed: 0, notIndexed: 0, byReason: {} }
+  // Live state that gets updated by polling
+  const [liveResults, setLiveResults] = useState<InspectionResult[] | null>(null)
+  const [liveTotalUrls, setLiveTotalUrls] = useState<number | null>(null)
+  const [liveInspectedCount, setLiveInspectedCount] = useState<number | null>(null)
+  const [liveStatus, setLiveStatus] = useState<string | null>(null)
+  const [liveSummaryStats, setLiveSummaryStats] = useState<SummaryStats | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const results: InspectionResult[] = liveResults ?? data?.inspectionResults ?? []
+  const totalUrls: number = liveTotalUrls ?? data?.totalUrls ?? 0
+  const inspectedCount: number = liveInspectedCount ?? data?.inspectedCount ?? 0
+  const status: string = liveStatus ?? data?.status ?? 'discovering'
+  const summaryStats: SummaryStats = liveSummaryStats ?? data?.summaryStats ?? { indexed: 0, notIndexed: 0, byReason: {} }
+
+  // Auto-poll every 8s while audit is active
+  useEffect(() => {
+    if (!auditId) return
+    const isActive = status === 'discovering' || status === 'inspecting'
+    if (!isActive) {
+      if (pollRef.current) clearInterval(pollRef.current)
+      return
+    }
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/gsc/indexing-audit/${auditId}`)
+        if (!res.ok) return
+        const audit = await res.json()
+        setLiveStatus(audit.status)
+        setLiveInspectedCount(audit.inspectedCount || 0)
+        setLiveTotalUrls(audit.totalUrls || 0)
+        setLiveSummaryStats(audit.summaryStats || { indexed: 0, notIndexed: 0, byReason: {} })
+        if (audit.inspectionResults) {
+          setLiveResults(audit.inspectionResults)
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }
+
+    // Poll immediately once, then every 8s
+    poll()
+    pollRef.current = setInterval(poll, 8000)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [auditId, status])
 
   // Default to "not_indexed" so you immediately see problems
   const [filter, setFilter] = useState<FilterMode>('not_indexed')
