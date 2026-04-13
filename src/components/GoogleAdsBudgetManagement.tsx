@@ -172,16 +172,16 @@ function generateEmailHtml(
       <td style="width:45%;vertical-align:top;padding-left:8px">
         <div style="padding:16px 20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0">
           <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:14px">Time Tracking</div>
-          <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+          <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
             <tr>
-              <td style="padding:16px 20px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
-                <div style="font-size:11px;color:#64748b;margin-bottom:6px">Days Elapsed</div>
-                <div style="font-size:28px;font-weight:700;color:#1e293b">${spend.daysElapsed}</div>
+              <td style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
+                <div style="font-size:10px;color:#64748b;margin-bottom:2px">Days Elapsed</div>
+                <div style="font-size:22px;font-weight:700;color:#1e293b">${spend.daysElapsed}</div>
               </td>
-              <td style="width:8px"></td>
-              <td style="padding:16px 20px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
-                <div style="font-size:11px;color:#64748b;margin-bottom:6px">Days Remaining</div>
-                <div style="font-size:28px;font-weight:700;color:#1e293b">${spend.daysRemaining}</div>
+              <td style="width:6px"></td>
+              <td style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
+                <div style="font-size:10px;color:#64748b;margin-bottom:2px">Days Remaining</div>
+                <div style="font-size:22px;font-weight:700;color:#1e293b">${spend.daysRemaining}</div>
               </td>
             </tr>
           </table>
