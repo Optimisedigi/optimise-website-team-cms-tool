@@ -104,7 +104,8 @@ function generateEmailHtml(
   spend: MonthlySpend,
   campaigns: BudgetCampaign[],
   monthlyBudget: number,
-  clientSlug?: string
+  clientSlug?: string,
+  clientPin?: string
 ): string {
   const percentUsed = spend.maxBudget > 0 ? (spend.totalSpend / spend.maxBudget) * 100 : 0;
   const onTrackPercent = (spend.daysElapsed / 30.4) * 100;
@@ -132,14 +133,14 @@ function generateEmailHtml(
 
   const dashboardUrl = clientSlug ? `https://cms.optimisedigital.online/google-dashboard/${clientSlug}` : '';
 
-  return `<div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#1e293b">
+  return `<div style="font-family:Arial,sans-serif;max-width:700px;color:#1e293b">
   <p style="margin:0 0 20px;color:#64748b;font-size:14px">${month}</p>
 
   <!-- Budget Progress + Time Tracking side by side -->
   <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
     <tr>
       <td style="width:55%;vertical-align:top;padding-right:8px">
-        <div style="padding:16px 20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor}">
+        <div style="padding:20px 20px 24px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor}">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <span style="font-size:14px;font-weight:600;color:#374151">${statusText}</span>
             <span style="font-size:22px;font-weight:700;color:${statusColor}">${percentUsed.toFixed(0)}%</span>
@@ -222,7 +223,7 @@ function generateEmailHtml(
     ${campaignRows}
   </table>
 
-  ${dashboardUrl ? `<p style="font-size:13px;color:#64748b;margin:0;text-align:center"><a href="${dashboardUrl}" style="color:#2563eb;text-decoration:none;font-weight:500">View detailed report</a></p>` : ''}
+  ${dashboardUrl ? `<p style="font-size:13px;color:#64748b;margin:0"><a href="${dashboardUrl}" style="color:#2563eb;text-decoration:none;font-weight:500">View live dashboard</a>${clientPin ? ` — PIN: ${clientPin}` : ''}</p>` : ''}
 </div>`;
 }
 
@@ -244,9 +245,10 @@ const GoogleAdsBudgetManagementInner = () => {
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('enabled');
   const [businessName, setBusinessName] = useState('Client');
   const [clientSlug, setClientSlug] = useState('');
+  const [clientPin, setClientPin] = useState('');
   const auditLoaded = useRef(false);
 
-  // Load audit data (monthly budget + business name + client slug) once on mount
+  // Load audit data (monthly budget + business name + client slug + pin) once on mount
   useEffect(() => {
     if (!id || auditLoaded.current) return;
     auditLoaded.current = true;
@@ -256,6 +258,7 @@ const GoogleAdsBudgetManagementInner = () => {
         if (data?.monthlyBudget) setMonthlyTotal(data.monthlyBudget);
         if (data?.businessName) setBusinessName(data.businessName);
         if (data?.client?.slug) setClientSlug(data.client.slug);
+        if (data?.client?.clientPin) setClientPin(data.client.clientPin);
       })
       .catch(() => {});
   }, [id]);
@@ -634,7 +637,7 @@ const GoogleAdsBudgetManagementInner = () => {
   const copyEmailToClipboard = useCallback(async () => {
     const spend = calculateMonthlySpend(campaigns, monthlyTotal);
     const currentMonth = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-    const html = generateEmailHtml(businessName, currentMonth, spend, campaigns, monthlyTotal, clientSlug);
+    const html = generateEmailHtml(businessName, currentMonth, spend, campaigns, monthlyTotal, clientSlug, clientPin);
 
     // Copy as HTML so it pastes formatted into Gmail
     try {
@@ -650,7 +653,7 @@ const GoogleAdsBudgetManagementInner = () => {
     }
     setEmailCopied(true);
     setTimeout(() => setEmailCopied(false), 2000);
-  }, [campaigns, monthlyTotal, businessName, clientSlug]);
+  }, [campaigns, monthlyTotal, businessName, clientSlug, clientPin]);
 
   useEffect(() => {
     if (id) {
@@ -1273,7 +1276,7 @@ const GoogleAdsBudgetManagementInner = () => {
             </p>
 
             <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16, maxHeight: 400, overflow: 'auto' }}
-              dangerouslySetInnerHTML={{ __html: generateEmailHtml(businessName, new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }), monthlySpend, campaigns, monthlyTotal, clientSlug) }}
+              dangerouslySetInnerHTML={{ __html: generateEmailHtml(businessName, new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }), monthlySpend, campaigns, monthlyTotal, clientSlug, clientPin) }}
             />
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
