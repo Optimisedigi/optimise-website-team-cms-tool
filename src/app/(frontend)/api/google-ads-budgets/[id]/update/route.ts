@@ -62,13 +62,21 @@ export async function POST(
   // Load saved allocations from CMS
   if (body._loadSaved) {
     try {
-      const saved = await payload.find({
-        collection: BUDGETS_COLLECTION,
-        where: { audit: { equals: auditIdNum } },
-        limit: 100,
-        overrideAccess: true,
-      });
+      const [saved, audit] = await Promise.all([
+        payload.find({
+          collection: BUDGETS_COLLECTION,
+          where: { audit: { equals: auditIdNum } },
+          limit: 100,
+          overrideAccess: true,
+        }),
+        payload.findByID({
+          collection: "google-ads-audits",
+          id: auditIdNum,
+          overrideAccess: true,
+        }),
+      ]);
       return NextResponse.json({
+        monthlyBudget: audit.monthlyBudget || 0,
         campaigns: saved.docs.map((d: any) => ({
           campaignId: d.campaignId,
           campaignName: d.campaignName,

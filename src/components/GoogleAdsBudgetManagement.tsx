@@ -255,6 +255,12 @@ const GoogleAdsBudgetManagementInner = () => {
         // Only use CMS data if user has actually configured allocations
         const hasUserConfig = savedData?.campaigns?.some((c: any) => (c.budgetPercentage ?? 0) > 0);
         if (hasUserConfig) {
+          // Use monthlyBudget from response to avoid race condition with audit useEffect
+          let budget = monthlyTotal;
+          if (savedData.monthlyBudget && savedData.monthlyBudget > 0) {
+            budget = savedData.monthlyBudget;
+            setMonthlyTotal(budget);
+          }
           const loaded: BudgetCampaign[] = savedData.campaigns.map((c: any) => ({
             campaignId: c.campaignId,
             campaignName: c.campaignName || c.campaignId,
@@ -269,7 +275,7 @@ const GoogleAdsBudgetManagementInner = () => {
             mtdSpend: c.mtdSpend ?? 0,
             enabled: c.enabled !== undefined ? c.enabled : true,
           }));
-          setCampaigns(recalculateBudgets(loaded, monthlyTotal));
+          setCampaigns(recalculateBudgets(loaded, budget));
           return true;
         }
       }
