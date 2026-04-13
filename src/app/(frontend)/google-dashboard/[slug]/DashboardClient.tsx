@@ -107,13 +107,13 @@ function RocketLoading() {
           100% { transform: translateX(-50%) translateY(-220px); opacity: 0; }
         }
         @keyframes rocketOffsetLoop {
-          0% { transform: translateX(calc(-50% - 2.8px)) translateY(0); opacity: 0; }
-          8% { transform: translateX(calc(-50% - 2.8px)) translateY(0); opacity: 1; }
-          18% { transform: translateX(calc(-50% - 2.8px)) translateY(2px); opacity: 1; }
-          32% { transform: translateX(calc(-50% - 2.8px)) translateY(-6px); opacity: 1; }
-          78% { transform: translateX(calc(-50% - 2.8px)) translateY(-130px); opacity: 1; }
-          92% { transform: translateX(calc(-50% - 2.8px)) translateY(-220px); opacity: 0; }
-          100% { transform: translateX(calc(-50% - 2.8px)) translateY(-220px); opacity: 0; }
+          0% { transform: translateX(calc(-50% - 3.8px)) translateY(0); opacity: 0; }
+          8% { transform: translateX(calc(-50% - 3.8px)) translateY(0); opacity: 1; }
+          18% { transform: translateX(calc(-50% - 3.8px)) translateY(2px); opacity: 1; }
+          32% { transform: translateX(calc(-50% - 3.8px)) translateY(-6px); opacity: 1; }
+          78% { transform: translateX(calc(-50% - 3.8px)) translateY(-130px); opacity: 1; }
+          92% { transform: translateX(calc(-50% - 3.8px)) translateY(-220px); opacity: 0; }
+          100% { transform: translateX(calc(-50% - 3.8px)) translateY(-220px); opacity: 0; }
         }
         @keyframes flameLoop {
           0% { opacity: 0; transform: scaleY(0.2); }
