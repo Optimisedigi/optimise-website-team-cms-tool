@@ -90,7 +90,7 @@ function RocketLoading() {
             alt=""
             width={48}
             height={48}
-            className="block w-12 h-12 object-contain -rotate-[30deg] brightness-0 invert"
+            className="block w-12 h-12 object-contain brightness-0 invert"
           />
         </div>
       </div>
