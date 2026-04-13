@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useShiftSelect } from "@/lib/useShiftSelect";
 import { DataTable, type Column } from "@/components/dashboards/shared/DataTable";
 import type { GoogleAdsDashboardSearchTerm } from "@/lib/dashboard-types";
 
@@ -113,6 +114,11 @@ export function KeywordDeepDive({
       return next;
     });
   }
+
+  const budgetWasterTerms = budgetWasters.map((t) => t.term);
+  const irrelevantTermIds = irrelevantTerms.map((t) => t.term);
+  const { handleSelect: shiftSelectBudgetWaster } = useShiftSelect(budgetWasterTerms, selectedNegatives, setSelectedNegatives);
+  const { handleSelect: shiftSelectIrrelevant } = useShiftSelect(irrelevantTermIds, selectedNegatives, setSelectedNegatives);
 
   const applyNegativeKeywords = useCallback(async () => {
     if (selectedNegatives.size === 0 || !slug) return;
@@ -323,7 +329,8 @@ export function KeywordDeepDive({
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            onChange={() => toggleNegative(row.term)}
+                            onClick={(e) => shiftSelectBudgetWaster(row.term, e)}
+                            onChange={() => {}}
                             className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
                           />
                         </td>
@@ -447,7 +454,8 @@ export function KeywordDeepDive({
                             type="checkbox"
                             checked={isNeg}
                             disabled={isKept}
-                            onChange={() => toggleNegative(row.term)}
+                            onClick={(e) => !isKept && shiftSelectIrrelevant(row.term, e)}
+                            onChange={() => {}}
                             className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:opacity-30"
                           />
                         </td>

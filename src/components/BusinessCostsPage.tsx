@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useShiftSelect } from '@/lib/useShiftSelect'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -336,6 +337,9 @@ const BusinessCostsPage = () => {
     else { setSortField(field); setSortDir('desc') }
   }
 
+  const sortedIds = sorted.map((t) => t.id)
+  const { handleSelect: shiftSelect } = useShiftSelect(sortedIds, selectedIds, setSelectedIds)
+
   const toggleSelectAll = () => {
     if (selectedIds.size === sorted.length) {
       setSelectedIds(new Set())
@@ -549,7 +553,8 @@ const BusinessCostsPage = () => {
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={() => toggleSelect(tx.id)}
+                      onClick={(e) => shiftSelect(tx.id, e)}
+                      onChange={() => {}}
                       style={{ cursor: 'pointer' }}
                     />
                   </td>
