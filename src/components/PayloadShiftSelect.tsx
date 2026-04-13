@@ -7,7 +7,7 @@ import { useEffect } from 'react'
  * list view checkboxes. Attaches a single delegated listener on the document
  * that watches for shift+click on .select-row__checkbox input elements.
  */
-export default function PayloadShiftSelect() {
+export default function PayloadShiftSelect({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let lastCheckedIndex: number | null = null
 
@@ -52,5 +52,5 @@ export default function PayloadShiftSelect() {
     return () => document.removeEventListener('click', handleClick, true)
   }, [])
 
-  return null
+  return <>{children}</>
 }
