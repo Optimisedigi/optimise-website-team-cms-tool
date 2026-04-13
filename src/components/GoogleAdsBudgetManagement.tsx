@@ -328,8 +328,10 @@ const GoogleAdsBudgetManagementInner = () => {
   }, [id, monthlyTotal, recalculateBudgets]);
 
   // On mount: load from CMS first, only hit Google Ads if no saved data
+  const initialLoadDone = useRef(false);
   const fetchCampaigns = useCallback(async () => {
-    if (!id) return;
+    if (!id || initialLoadDone.current) return;
+    initialLoadDone.current = true;
     setLoading(true);
     setError(null);
 
@@ -344,7 +346,8 @@ const GoogleAdsBudgetManagementInner = () => {
     } finally {
       setLoading(false);
     }
-  }, [id, loadFromCMS, syncFromGoogleAds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const handleSync = useCallback(async () => {
     await syncFromGoogleAds();
@@ -600,7 +603,9 @@ const GoogleAdsBudgetManagementInner = () => {
     if (id) {
       fetchCampaigns();
     }
-  }, [id, fetchCampaigns]);
+    // Only run once on mount — do not re-fetch when monthlyTotal changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const totalPercentage = useMemo(() =>
     campaigns.filter(c => c.enabled).reduce((sum, c) => sum + c.budgetPercentage, 0),

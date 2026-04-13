@@ -185,7 +185,9 @@ export async function GET(
           actualDailyBudget: c.dailyBudget || 0,
           bidStrategy: mapBidStrategy(c.biddingStrategyType || c.bidStrategy || ""),
           bidStrategyId: c.biddingStrategyId || c.bidStrategyId || null,
-          enabled: saved ? (saved.enabled !== undefined ? saved.enabled : (saved.budgetPercentage > 0)) : true,
+          enabled: saved
+            ? (saved.enabled !== undefined ? saved.enabled : (saved.budgetPercentage > 0))
+            : (c.campaignStatus !== 'PAUSED' && c.campaignStatus !== 'REMOVED'),
           impressions: c.impressions || 0,
           clicks: c.clicks || 0,
           avgCpc: c.avgCpc || 0,
