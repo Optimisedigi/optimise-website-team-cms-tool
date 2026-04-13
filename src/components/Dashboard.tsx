@@ -65,6 +65,7 @@ interface XeroInvoice {
   dueDate: string
   status: string
   isOverdue: boolean
+  reference: string
 }
 
 interface XeroInvoiceSummary {
@@ -1292,6 +1293,7 @@ function XeroInvoicesCard({
                 <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                   <th style={thStyle}>Client</th>
                   <th style={thStyle}>Invoice #</th>
+                  <th style={thStyle}>Description</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Amount Due</th>
                   <th style={thStyle}>Due Date</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
@@ -1313,6 +1315,9 @@ function XeroInvoicesCard({
                       </td>
                       <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
                         {inv.invoiceNumber}
+                      </td>
+                      <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
+                        {inv.reference || '—'}
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
                         ${inv.amountDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

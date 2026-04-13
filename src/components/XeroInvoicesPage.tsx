@@ -12,6 +12,7 @@ interface XeroInvoice {
   dueDate: string
   status: string
   isOverdue: boolean
+  reference: string
 }
 
 interface XeroInvoiceSummary {
@@ -268,6 +269,7 @@ export default function XeroInvoicesPage() {
                 <tr>
                   <th style={thStyle}>Client</th>
                   <th style={thStyle}>Invoice #</th>
+                  <th style={thStyle}>Description</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Amount Due</th>
                   <th style={thStyle}>Due Date</th>
@@ -288,6 +290,9 @@ export default function XeroInvoicesPage() {
                     </td>
                     <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
                       {inv.invoiceNumber}
+                    </td>
+                    <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
+                      {inv.reference || '—'}
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--theme-elevation-600)' }}>
                       {formatCurrency(inv.total)}
