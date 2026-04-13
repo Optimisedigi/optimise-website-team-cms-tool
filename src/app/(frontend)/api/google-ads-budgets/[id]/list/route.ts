@@ -160,28 +160,47 @@ export async function GET(
         }
       }
 
-      // Normalize for frontend component
-      const normalized = campaigns.map((c: any) => ({
-        campaignId: c.campaignId,
-        campaignName: c.campaignName,
-        budgetPercentage: 0, // User sets this in UI
-        calculatedDailyBudget: c.dailyBudget || 0,
-        actualDailyBudget: c.dailyBudget || 0,
-        bidStrategy: mapBidStrategy(c.biddingStrategyType || c.bidStrategy || ""),
-        bidStrategyId: c.biddingStrategyId || c.bidStrategyId || null,
-        impressions: c.impressions || 0,
-        clicks: c.clicks || 0,
-        avgCpc: c.avgCpc || 0,
-        conversions: c.conversions || 0,
-        mtdSpend: c.cost || 0, // Actual MTD spend from Google Ads
-        campaignStatus: c.campaignStatus,
-        channelType: c.channelType,
-      }));
+      // Read saved CMS records so we can merge user-set allocations back in
+      let savedMap = new Map<string, any>();
+      try {
+        const saved = await payload.find({
+          collection: BUDGETS_COLLECTION,
+          where: { audit: { equals: id } },
+          limit: 100,
+          overrideAccess: true,
+        });
+        for (const doc of saved.docs) {
+          savedMap.set((doc as any).campaignId, doc);
+        }
+      } catch { /* no saved data */ }
+
+      // Normalize for frontend component, merging saved allocations
+      const normalized = campaigns.map((c: any) => {
+        const saved = savedMap.get(c.campaignId);
+        return {
+          campaignId: c.campaignId,
+          campaignName: c.campaignName,
+          budgetPercentage: saved?.budgetPercentage ?? 0,
+          calculatedDailyBudget: saved?.calculatedDailyBudget ?? (c.dailyBudget || 0),
+          actualDailyBudget: c.dailyBudget || 0,
+          bidStrategy: mapBidStrategy(c.biddingStrategyType || c.bidStrategy || ""),
+          bidStrategyId: c.biddingStrategyId || c.bidStrategyId || null,
+          enabled: saved ? (saved.enabled !== undefined ? saved.enabled : (saved.budgetPercentage > 0)) : true,
+          impressions: c.impressions || 0,
+          clicks: c.clicks || 0,
+          avgCpc: c.avgCpc || 0,
+          conversions: c.conversions || 0,
+          mtdSpend: c.cost || 0, // Actual MTD spend from Google Ads
+          campaignStatus: c.campaignStatus,
+          channelType: c.channelType,
+        };
+      });
 
       return NextResponse.json({
         success: true,
         campaigns: normalized,
         totalCount: normalized.length,
+        monthlyBudget: audit.monthlyBudget || 0,
       });
     } catch (e: any) {
       console.error("[GoogleAdsBudgets] List error:", e.message);

@@ -292,37 +292,21 @@ const GoogleAdsBudgetManagementInner = () => {
       }
 
       const data = await res.json();
+      // List endpoint now returns merged data: fresh metrics + saved CMS allocations
       const freshCampaigns: BudgetCampaign[] = (data.campaigns || []).map((c: any) => ({
         ...c,
-        enabled: true,
-        budgetPercentage: 0,
+        enabled: c.enabled !== undefined ? c.enabled : true,
+        budgetPercentage: c.budgetPercentage ?? 0,
       }));
 
-      // Merge saved allocations onto fresh Google Ads data
-      try {
-        const savedRes = await fetch(`/api/google-ads-budgets/${id}/update`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ _loadSaved: true }),
-        });
-        const savedData = savedRes.ok ? await savedRes.json() : null;
-        if (savedData?.campaigns) {
-          const savedMap = new Map(
-            savedData.campaigns.map((s: any) => [s.campaignId, s])
-          );
-          for (const c of freshCampaigns) {
-            const saved = savedMap.get(c.campaignId) as any;
-            if (saved) {
-              c.budgetPercentage = saved.budgetPercentage ?? 0;
-              c.enabled = saved.enabled !== undefined ? saved.enabled : (saved.budgetPercentage > 0);
-            }
-          }
-        }
-      } catch { /* no saved data */ }
-
-      // Auto-derive monthly total from existing daily budgets if not set
+      // Use monthlyBudget from list response (from audit record) to avoid race condition
       let budget = monthlyTotal;
+      if (data.monthlyBudget && data.monthlyBudget > 0) {
+        budget = data.monthlyBudget;
+        setMonthlyTotal(budget);
+      }
+
+      // Auto-derive monthly total from daily budgets only if no saved budget exists
       if (budget === 0 && freshCampaigns.length > 0) {
         const total = freshCampaigns.reduce(
           (sum, c) => sum + (c.actualDailyBudget || 0) * DAYS_IN_MONTH,
