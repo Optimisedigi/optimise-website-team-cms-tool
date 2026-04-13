@@ -135,6 +135,7 @@ export async function runDiscovery(
 /**
  * Save current inspection progress to the database.
  * Called after each sub-batch so partial results survive timeouts.
+ * Uses direct SQL to avoid Payload's heavy upsert on the audit table.
  */
 async function saveInspectionProgress(
   payload: any,
@@ -144,21 +145,38 @@ async function saveInspectionProgress(
 ): Promise<void> {
   const summaryStats = buildSummaryStats(results);
   const isComplete = results.length >= totalUrls;
+  const now = new Date().toISOString();
 
-  await payload.update({
-    collection: "gsc-indexing-audits",
-    id: auditId,
-    overrideAccess: true,
-    data: {
-      inspectedCount: results.length,
-      inspectionResults: results,
-      summaryStats,
-      lastBatchDate: new Date().toISOString(),
-      ...(isComplete
-        ? { status: "completed", completedAt: new Date().toISOString() }
-        : {}),
-    },
-  });
+  const dbClient = (payload.db as any).client;
+  if (dbClient) {
+    if (isComplete) {
+      await dbClient.execute({
+        sql: `UPDATE gsc_indexing_audits SET inspected_count = ?, inspection_results = ?, summary_stats = ?, last_batch_date = ?, status = 'completed', completed_at = ?, updated_at = ? WHERE id = ?`,
+        args: [results.length, JSON.stringify(results), JSON.stringify(summaryStats), now, now, now, Number(auditId)],
+      });
+    } else {
+      await dbClient.execute({
+        sql: `UPDATE gsc_indexing_audits SET inspected_count = ?, inspection_results = ?, summary_stats = ?, last_batch_date = ?, updated_at = ? WHERE id = ?`,
+        args: [results.length, JSON.stringify(results), JSON.stringify(summaryStats), now, now, Number(auditId)],
+      });
+    }
+  } else {
+    // Fallback to Payload update
+    await payload.update({
+      collection: "gsc-indexing-audits",
+      id: auditId,
+      overrideAccess: true,
+      data: {
+        inspectedCount: results.length,
+        inspectionResults: results,
+        summaryStats,
+        lastBatchDate: now,
+        ...(isComplete
+          ? { status: "completed", completedAt: now }
+          : {}),
+      },
+    });
+  }
 }
 
 /** Sub-batch size: save progress to DB every N URLs */
