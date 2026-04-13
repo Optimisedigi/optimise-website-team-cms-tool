@@ -80,6 +80,8 @@ export default function GscIndexingAuditInfo() {
 
   const handleRunAudit = async () => {
     if (!clientId) return
+    // Stop polling so it doesn't pick up the old audit's "failed" status
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
     setRunning(true)
     setResult(null)
     setLiveError(undefined)
