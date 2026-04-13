@@ -152,15 +152,14 @@ function generateEmailHtml(
             <tr>${(() => {
               const pct = Math.min(percentUsed, 100);
               const marker = Math.min(onTrackPercent, 100);
+              const markerTd = `<td style="width:4px;min-width:4px;max-width:4px;height:24px;background:#1e293b;font-size:1px;line-height:1px;padding:0">&#8203;</td>`;
               if (pct < marker) {
-                // Spend bar | grey gap | marker line | remaining grey
                 const gap = marker - pct;
                 const rest = 100 - marker;
-                return `<td style="width:${pct}%;height:20px;background:${statusColor};border-radius:10px 0 0 10px;font-size:1px">&nbsp;</td><td style="width:${gap}%;height:20px;background:#e5e7eb;font-size:1px">&nbsp;</td><td style="width:2px;height:20px;background:#1e293b;font-size:1px">&nbsp;</td><td style="width:${rest}%;height:20px;background:#e5e7eb;border-radius:0 10px 10px 0;font-size:1px">&nbsp;</td>`;
+                return `<td style="width:${pct}%;height:24px;background:${statusColor};border-radius:12px 0 0 12px;font-size:1px">&nbsp;</td><td style="width:${gap}%;height:24px;background:#e5e7eb;font-size:1px">&nbsp;</td>${markerTd}<td style="width:${rest}%;height:24px;background:#e5e7eb;border-radius:0 12px 12px 0;font-size:1px">&nbsp;</td>`;
               } else {
-                // Spend bar past marker: spend-before-marker | marker line | spend-after-marker | remaining grey
                 const rest = 100 - pct;
-                return `<td style="width:${marker}%;height:20px;background:${statusColor};border-radius:10px 0 0 10px;font-size:1px">&nbsp;</td><td style="width:2px;height:20px;background:#1e293b;font-size:1px">&nbsp;</td><td style="width:${pct - marker}%;height:20px;background:${statusColor};font-size:1px">&nbsp;</td><td style="width:${rest}%;height:20px;background:#e5e7eb;border-radius:0 10px 10px 0;font-size:1px">&nbsp;</td>`;
+                return `<td style="width:${marker}%;height:24px;background:${statusColor};border-radius:12px 0 0 12px;font-size:1px">&nbsp;</td>${markerTd}<td style="width:${pct - marker}%;height:24px;background:${statusColor};font-size:1px">&nbsp;</td><td style="width:${rest}%;height:24px;background:#e5e7eb;border-radius:0 12px 12px 0;font-size:1px">&nbsp;</td>`;
               }
             })()}
             </tr>
