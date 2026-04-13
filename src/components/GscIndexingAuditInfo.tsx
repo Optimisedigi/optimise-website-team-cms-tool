@@ -81,8 +81,13 @@ export default function GscIndexingAuditInfo() {
     }
   }
 
-  const isStuckOrFailed = status === 'failed' || status === 'completed'
-  const isActive = status === 'discovering' || status === 'inspecting'
+  // Consider audit stuck if status is active but updatedAt is >5 minutes ago
+  const updatedAt = data?.updatedAt ? new Date(data.updatedAt).getTime() : 0
+  const stuckMinutes = updatedAt ? (Date.now() - updatedAt) / 60000 : 0
+  const isStuck = (status === 'discovering' || status === 'inspecting') && stuckMinutes > 5
+
+  const isStuckOrFailed = status === 'failed' || status === 'completed' || isStuck
+  const isActive = (status === 'discovering' || status === 'inspecting') && !isStuck
 
   return (
     <div
@@ -155,6 +160,12 @@ export default function GscIndexingAuditInfo() {
               <span style={{ marginLeft: 6, display: 'inline-block', animation: 'pulse 1.5s infinite' }}>
                 Auto-refreshing
               </span>
+            </span>
+          )}
+
+          {isStuck && (
+            <span style={{ fontSize: 12, color: '#d97706', fontWeight: 500 }}>
+              This audit appears stuck (no progress for {Math.round(stuckMinutes)} min). Click "Run New Audit" to start fresh.
             </span>
           )}
 
