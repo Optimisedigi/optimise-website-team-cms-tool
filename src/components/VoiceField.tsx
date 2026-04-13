@@ -65,9 +65,10 @@ export default function VoiceField({
   const finalTranscriptRef = useRef('')
   const isManualStopRef = useRef(false)
   const restartCountRef = useRef(0)
+  const speechGotResultRef = useRef(false)
   const MAX_RESTARTS = 5
 
-  // MediaRecorder fallback refs
+  // MediaRecorder refs — always runs alongside Web Speech as a safety net
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const mediaStreamRef = useRef<MediaStream | null>(null)
@@ -83,153 +84,8 @@ export default function VoiceField({
     setHasFallback(hasMediaRecorder)
   }, [])
 
-  const startRecording = useCallback(() => {
-    // Stop any existing recognition
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop()
-      } catch (e) {
-        // Ignore
-      }
-    }
-
-    const SpeechRecognitionAPI = (window as typeof window & { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).SpeechRecognition || 
-                                 (window as typeof window & { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).webkitSpeechRecognition
-    
-    if (!SpeechRecognitionAPI) {
-      console.warn('Web Speech API is not supported in this browser')
-      return
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recognition = new (SpeechRecognitionAPI as any)()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = 'en-AU' // Australian English
-    recognition.maxAlternatives = 1
-
-    isManualStopRef.current = false
-    finalTranscriptRef.current = value
-    restartCountRef.current = 0
-
-    recognition.onstart = () => {
-      console.log('Recording started')
-      setRecordingState('recording')
-    }
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let interimTranscript = ''
-      let newFinalTranscript = ''
-      
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const resultItem = event.results[i]
-        const transcript = resultItem[0].transcript
-        if (resultItem.isFinal) {
-          newFinalTranscript += (newFinalTranscript ? ' ' : '') + transcript
-        } else {
-          interimTranscript += transcript
-        }
-      }
-      
-      // Update final transcript
-      if (newFinalTranscript) {
-        finalTranscriptRef.current += (finalTranscriptRef.current ? ' ' : '') + newFinalTranscript
-        restartCountRef.current = 0
-      }
-      
-      onChange(finalTranscriptRef.current + (interimTranscript ? ' ' + interimTranscript : ''))
-    }
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.log('Speech recognition error:', event.error)
-      
-      // Auto-restart on no-speech errors (not on manual stop)
-      if (!isManualStopRef.current && event.error === 'no-speech') {
-        console.log('No speech detected, restarting...')
-        setTimeout(() => {
-          if (!isManualStopRef.current && recognitionRef.current === recognition) {
-            try {
-              recognition.start()
-            } catch (e) {
-              // Recognition might have been stopped
-            }
-          }
-        }, 100)
-        return
-      }
-      
-      setRecordingState('idle')
-      
-      if (event.error === 'not-allowed') {
-        alert('Microphone access denied. Please allow microphone access to use voice input.')
-      }
-    }
-
-    recognition.onend = () => {
-      // If manual stop, do nothing (stopRecording handles cleanup)
-      if (isManualStopRef.current) return
-
-      // Auto-restart if we haven't exceeded max restarts
-      if (restartCountRef.current < MAX_RESTARTS && recognitionRef.current === recognition) {
-        restartCountRef.current++
-        console.log(`Recognition ended unexpectedly, restarting (${restartCountRef.current}/${MAX_RESTARTS})...`)
-        setTimeout(() => {
-          if (!isManualStopRef.current && recognitionRef.current === recognition) {
-            try {
-              recognition.start()
-            } catch (e) {
-              // Recognition may have been stopped already
-              console.warn('Failed to restart recognition:', e)
-              setRecordingState('idle')
-            }
-          }
-        }, 100)
-        return
-      }
-
-      // Max restarts exceeded — give up
-      console.log('Max restarts exceeded, stopping recognition')
-      setRecordingState('idle')
-      if (finalTranscriptRef.current.trim()) {
-        setShowSuccess(true)
-        setTimeout(() => setShowSuccess(false), 1500)
-        onRecordingComplete?.()
-      }
-    }
-
-    recognitionRef.current = recognition
-    
-    try {
-      recognition.start()
-    } catch (e) {
-      console.error('Failed to start recognition:', e)
-    }
-  }, [value, onChange, onRecordingComplete])
-
-  const stopRecording = useCallback(() => {
-    isManualStopRef.current = true
-    
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop()
-      } catch (e) {
-        // Ignore
-      }
-      recognitionRef.current = null
-    }
-    
-    setRecordingState('idle')
-    
-    // Trigger completion
-    if (finalTranscriptRef.current.trim()) {
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 1500)
-      onRecordingComplete?.()
-    }
-  }, [onRecordingComplete])
-
-  // MediaRecorder fallback — only used when Web Speech API is unavailable
-  const startFallbackRecording = useCallback(async () => {
+  // Helper: start MediaRecorder to capture audio in parallel
+  const startMediaRecorder = useCallback(async (): Promise<MediaStream | null> => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       mediaStreamRef.current = stream
@@ -245,69 +101,213 @@ export default function VoiceField({
       }
 
       recorder.start()
-      setRecordingState('recording')
+      return stream
     } catch (e) {
       console.error('Failed to start MediaRecorder:', e)
-      alert('Microphone access denied. Please allow microphone access to use voice input.')
+      return null
     }
   }, [])
 
-  const stopFallbackRecording = useCallback(async () => {
+  // Helper: stop MediaRecorder and return the audio blob
+  const stopMediaRecorder = useCallback((): Promise<Blob | null> => {
     const recorder = mediaRecorderRef.current
-    if (!recorder || recorder.state === 'inactive') return
+    if (!recorder || recorder.state === 'inactive') {
+      // Cleanup stream even if recorder is inactive
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
+      mediaStreamRef.current = null
+      mediaRecorderRef.current = null
+      return Promise.resolve(null)
+    }
 
-    // Wait for the recorder to finish and collect all chunks
-    const audioBlob = await new Promise<Blob>((resolve) => {
+    return new Promise<Blob | null>((resolve) => {
       recorder.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
-        resolve(blob)
+        resolve(blob.size > 0 ? blob : null)
       }
       recorder.stop()
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
+      mediaStreamRef.current = null
+      mediaRecorderRef.current = null
+    })
+  }, [])
+
+  // Helper: send audio blob to Gemini for transcription
+  const transcribeWithGemini = useCallback(async (audioBlob: Blob): Promise<string | null> => {
+    const arrayBuffer = await audioBlob.arrayBuffer()
+    const base64 = btoa(
+      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+    )
+
+    const res = await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audio: base64, mimeType: audioBlob.type || 'audio/webm' }),
     })
 
-    // Stop the media stream tracks
-    mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
-    mediaStreamRef.current = null
-    mediaRecorderRef.current = null
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Transcription failed' }))
+      throw new Error(err.error || 'Transcription failed')
+    }
 
-    if (audioBlob.size === 0) {
+    const { text } = await res.json()
+    return text?.trim() || null
+  }, [])
+
+  const startRecording = useCallback(async () => {
+    // Stop any existing recognition
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop()
+      } catch (e) {
+        // Ignore
+      }
+    }
+
+    // Always start MediaRecorder first (captures audio as safety net)
+    const hasMediaRecorderSupport = typeof MediaRecorder !== 'undefined' && typeof navigator?.mediaDevices?.getUserMedia === 'function'
+    if (hasMediaRecorderSupport) {
+      await startMediaRecorder()
+    }
+
+    isManualStopRef.current = false
+    finalTranscriptRef.current = value
+    restartCountRef.current = 0
+    speechGotResultRef.current = false
+
+    // Try Web Speech API on top of MediaRecorder
+    const SpeechRecognitionAPI = (window as typeof window & { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).SpeechRecognition || 
+                                 (window as typeof window & { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).webkitSpeechRecognition
+    
+    if (SpeechRecognitionAPI) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const recognition = new (SpeechRecognitionAPI as any)()
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'en-AU' // Australian English
+      recognition.maxAlternatives = 1
+
+      recognition.onstart = () => {
+        console.log('Web Speech started')
+      }
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        speechGotResultRef.current = true
+        let interimTranscript = ''
+        let newFinalTranscript = ''
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const resultItem = event.results[i]
+          const transcript = resultItem[0].transcript
+          if (resultItem.isFinal) {
+            newFinalTranscript += (newFinalTranscript ? ' ' : '') + transcript
+          } else {
+            interimTranscript += transcript
+          }
+        }
+        
+        if (newFinalTranscript) {
+          finalTranscriptRef.current += (finalTranscriptRef.current ? ' ' : '') + newFinalTranscript
+          restartCountRef.current = 0
+        }
+        
+        onChange(finalTranscriptRef.current + (interimTranscript ? ' ' + interimTranscript : ''))
+      }
+
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.log('Speech recognition error:', event.error)
+        
+        // Auto-restart on no-speech errors (not on manual stop)
+        if (!isManualStopRef.current && event.error === 'no-speech') {
+          setTimeout(() => {
+            if (!isManualStopRef.current && recognitionRef.current === recognition) {
+              try { recognition.start() } catch (e) { /* ignore */ }
+            }
+          }, 100)
+          return
+        }
+        
+        if (event.error === 'not-allowed') {
+          alert('Microphone access denied. Please allow microphone access to use voice input.')
+          setRecordingState('idle')
+        }
+      }
+
+      recognition.onend = () => {
+        if (isManualStopRef.current) return
+
+        // Auto-restart if we haven't exceeded max restarts
+        if (restartCountRef.current < MAX_RESTARTS && recognitionRef.current === recognition) {
+          restartCountRef.current++
+          console.log(`Recognition ended unexpectedly, restarting (${restartCountRef.current}/${MAX_RESTARTS})...`)
+          setTimeout(() => {
+            if (!isManualStopRef.current && recognitionRef.current === recognition) {
+              try { recognition.start() } catch (e) { /* ignore */ }
+            }
+          }, 100)
+        }
+      }
+
+      recognitionRef.current = recognition
+      try {
+        recognition.start()
+      } catch (e) {
+        console.error('Failed to start recognition:', e)
+      }
+    }
+
+    setRecordingState('recording')
+  }, [value, onChange, startMediaRecorder])
+
+  const stopRecording = useCallback(async () => {
+    isManualStopRef.current = true
+    
+    // Stop Web Speech API
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch (e) { /* ignore */ }
+      recognitionRef.current = null
+    }
+
+    // Stop MediaRecorder and get audio blob
+    const audioBlob = await stopMediaRecorder()
+
+    // Check if Web Speech produced any results
+    const speechWorked = speechGotResultRef.current
+    const hasNewTranscript = finalTranscriptRef.current.trim() !== (value || '').trim() && finalTranscriptRef.current.trim().length > (value || '').trim().length
+
+    if (speechWorked && hasNewTranscript) {
+      // Web Speech worked — use its results (free)
+      console.log('Using Web Speech API results')
       setRecordingState('idle')
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 1500)
+      onRecordingComplete?.()
       return
     }
 
-    // Convert to base64 and send to Gemini transcription API
-    setRecordingState('processing')
-    try {
-      const arrayBuffer = await audioBlob.arrayBuffer()
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-      )
-
-      const res = await fetch('/api/transcribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ audio: base64, mimeType: audioBlob.type || 'audio/webm' }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Transcription failed' }))
-        throw new Error(err.error || 'Transcription failed')
+    // Web Speech produced nothing — fall back to Gemini transcription
+    if (audioBlob) {
+      console.log('Web Speech produced no results, falling back to Gemini transcription...')
+      setRecordingState('processing')
+      try {
+        const text = await transcribeWithGemini(audioBlob)
+        if (text) {
+          const newValue = value ? value + ' ' + text : text
+          onChange(newValue)
+          setShowSuccess(true)
+          setTimeout(() => setShowSuccess(false), 1500)
+          onRecordingComplete?.()
+        }
+      } catch (e) {
+        console.error('Gemini transcription error:', e)
+      } finally {
+        setRecordingState('idle')
       }
-
-      const { text } = await res.json()
-      if (text) {
-        const newValue = value ? value + ' ' + text : text
-        onChange(newValue)
-        setShowSuccess(true)
-        setTimeout(() => setShowSuccess(false), 1500)
-        onRecordingComplete?.()
-      }
-    } catch (e) {
-      console.error('Transcription error:', e)
-    } finally {
-      setRecordingState('idle')
+      return
     }
-  }, [value, onChange, onRecordingComplete])
+
+    // No audio captured at all
+    setRecordingState('idle')
+  }, [value, onChange, onRecordingComplete, stopMediaRecorder, transcribeWithGemini])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -335,17 +335,9 @@ export default function VoiceField({
     if (disabled) return
 
     if (recordingState === 'recording') {
-      if (isSupported) {
-        stopRecording()
-      } else {
-        stopFallbackRecording()
-      }
+      stopRecording()
     } else if (recordingState !== 'processing') {
-      if (isSupported) {
-        startRecording()
-      } else {
-        startFallbackRecording()
-      }
+      startRecording()
     }
   }
 
