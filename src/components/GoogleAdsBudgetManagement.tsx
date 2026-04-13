@@ -252,7 +252,9 @@ const GoogleAdsBudgetManagementInner = () => {
       });
       if (savedRes.ok) {
         const savedData = await savedRes.json();
-        if (savedData?.campaigns?.length > 0) {
+        // Only use CMS data if user has actually configured allocations
+        const hasUserConfig = savedData?.campaigns?.some((c: any) => (c.budgetPercentage ?? 0) > 0);
+        if (hasUserConfig) {
           const loaded: BudgetCampaign[] = savedData.campaigns.map((c: any) => ({
             campaignId: c.campaignId,
             campaignName: c.campaignName || c.campaignId,

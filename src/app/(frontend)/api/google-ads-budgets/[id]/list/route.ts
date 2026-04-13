@@ -112,6 +112,8 @@ export async function GET(
       }
 
       // Store/update each campaign budget in CMS
+      const isActive = (status: string) => status !== 'PAUSED' && status !== 'REMOVED';
+
       for (const campaign of campaigns) {
         const cmsData: Record<string, any> = {
           audit: auditId,
@@ -142,14 +144,21 @@ export async function GET(
           });
 
           if (existing.totalDocs > 0) {
+            const doc = existing.docs[0] as any;
             const { audit: _a, customerId: _c, campaignId: _ci, campaignName: _cn, ...updateData } = cmsData;
+            // If user hasn't configured this campaign (no budget %), sync enabled from Google Ads status
+            if (!doc.budgetPercentage || doc.budgetPercentage === 0) {
+              updateData.enabled = isActive(campaign.campaignStatus);
+            }
             await payload.update({
               collection: BUDGETS_COLLECTION,
-              id: existing.docs[0].id,
+              id: doc.id,
               data: updateData,
               overrideAccess: true,
             });
           } else {
+            // New record: set enabled from Google Ads campaign status
+            (cmsData as any).enabled = isActive(campaign.campaignStatus);
             await payload.create({
               collection: BUDGETS_COLLECTION,
               data: cmsData as any,
