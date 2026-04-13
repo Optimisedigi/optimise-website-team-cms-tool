@@ -112,6 +112,7 @@ import { default as default_f79b4ca75381164e95f118cd1e894463 } from '../../../co
 import { default as default_30b462c31bfed4dfe63e7ef34d180475 } from '../../../components/NavigationRecovery'
 import { default as default_47cb45239198beef21a512f6c005e728 } from '../../../components/MiniSidebar'
 import { default as default_02b1efea3bcfc49be1b8b522d8ca967d } from '../../../components/PomodoroTimer'
+import { default as default_8c91d6ed757c0622a0f1976e63b1d36b } from '../../../components/PayloadShiftSelect'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
@@ -230,6 +231,7 @@ export const importMap = {
   "./components/NavigationRecovery#default": default_30b462c31bfed4dfe63e7ef34d180475,
   "./components/MiniSidebar#default": default_47cb45239198beef21a512f6c005e728,
   "./components/PomodoroTimer#default": default_02b1efea3bcfc49be1b8b522d8ca967d,
+  "./components/PayloadShiftSelect#default": default_8c91d6ed757c0622a0f1976e63b1d36b,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

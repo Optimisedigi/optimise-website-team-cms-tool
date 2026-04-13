@@ -80,7 +80,7 @@ export default buildConfig({
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
       afterLogin: ["./components/ShowPasswordToggle"],
-      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/PomodoroTimer"],
+      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/PomodoroTimer", "./components/PayloadShiftSelect"],
       beforeDashboard: ["./components/Dashboard"],
     },
   },
