@@ -103,7 +103,8 @@ function generateEmailHtml(
   month: string,
   spend: MonthlySpend,
   campaigns: BudgetCampaign[],
-  monthlyBudget: number
+  monthlyBudget: number,
+  clientSlug?: string
 ): string {
   const percentUsed = spend.maxBudget > 0 ? (spend.totalSpend / spend.maxBudget) * 100 : 0;
   const onTrackPercent = (spend.daysElapsed / 30.4) * 100;
@@ -111,15 +112,17 @@ function generateEmailHtml(
   const statusBg = percentUsed <= 90 ? '#f0fdf4' : percentUsed <= 100 ? '#fffbeb' : '#fef2f2';
   const isUnderBudget = percentUsed < onTrackPercent;
   const statusText = percentUsed > 100 ? 'Over Budget' : percentUsed > 90 ? 'On Track' : isUnderBudget ? 'Under Budget' : 'On Track';
-  const enabledCampaigns = campaigns.filter(c => c.enabled && c.budgetPercentage > 0);
+  const enabledCampaigns = campaigns
+    .filter(c => c.enabled && c.budgetPercentage > 0)
+    .sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
 
   const campaignRows = enabledCampaigns.map(c => {
     const mtd = c.mtdSpend || 0;
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px">${c.campaignName}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.budgetPercentage}%</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${mtd.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:600">$${c.calculatedDailyBudget.toFixed(2)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${mtd.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.impressions || 0).toLocaleString()}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.clicks || 0).toLocaleString()}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${(c.avgCpc || 0).toFixed(2)}</td>
@@ -127,8 +130,9 @@ function generateEmailHtml(
     </tr>`;
   }).join('');
 
+  const dashboardUrl = clientSlug ? `https://cms.optimisedigital.online/google-dashboard/${clientSlug}` : '';
+
   return `<div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#1e293b">
-  <h2 style="margin:0 0 4px;font-size:18px">${businessName} - Google Ads Budget Report</h2>
   <p style="margin:0 0 20px;color:#64748b;font-size:14px">${month}</p>
 
   <!-- Budget Progress + Time Tracking side by side -->
@@ -166,18 +170,18 @@ function generateEmailHtml(
         </div>
       </td>
       <td style="width:45%;vertical-align:top;padding-left:8px">
-        <div style="padding:16px 20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;height:100%">
+        <div style="padding:16px 20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0">
           <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:14px">Time Tracking</div>
           <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
             <tr>
-              <td style="padding:12px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center;width:48%">
-                <div style="font-size:11px;color:#64748b;margin-bottom:4px">Days Elapsed</div>
-                <div style="font-size:24px;font-weight:700;color:#1e293b">${spend.daysElapsed}</div>
+              <td style="padding:16px 20px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
+                <div style="font-size:11px;color:#64748b;margin-bottom:6px">Days Elapsed</div>
+                <div style="font-size:28px;font-weight:700;color:#1e293b">${spend.daysElapsed}</div>
               </td>
-              <td style="width:4%"></td>
-              <td style="padding:12px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center;width:48%">
-                <div style="font-size:11px;color:#64748b;margin-bottom:4px">Days Remaining</div>
-                <div style="font-size:24px;font-weight:700;color:#1e293b">${spend.daysRemaining}</div>
+              <td style="width:8px"></td>
+              <td style="padding:16px 20px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
+                <div style="font-size:11px;color:#64748b;margin-bottom:6px">Days Remaining</div>
+                <div style="font-size:28px;font-weight:700;color:#1e293b">${spend.daysRemaining}</div>
               </td>
             </tr>
           </table>
@@ -208,8 +212,8 @@ function generateEmailHtml(
     <tr style="background:#f1f5f9">
       <th style="padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Split</th>
-      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">MTD</th>
-      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">New Daily</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Adj. Daily</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">MTD Spend</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Impr.</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Clicks</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Avg CPC</th>
@@ -218,7 +222,7 @@ function generateEmailHtml(
     ${campaignRows}
   </table>
 
-  <p style="font-size:11px;color:#94a3b8;margin:0">Generated ${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+  ${dashboardUrl ? `<p style="font-size:13px;color:#64748b;margin:0;text-align:center"><a href="${dashboardUrl}" style="color:#2563eb;text-decoration:none;font-weight:500">View detailed report</a></p>` : ''}
 </div>`;
 }
 
@@ -239,17 +243,19 @@ const GoogleAdsBudgetManagementInner = () => {
   const [emailCopied, setEmailCopied] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('enabled');
   const [businessName, setBusinessName] = useState('Client');
+  const [clientSlug, setClientSlug] = useState('');
   const auditLoaded = useRef(false);
 
-  // Load audit data (monthly budget + business name) once on mount — no form hook
+  // Load audit data (monthly budget + business name + client slug) once on mount
   useEffect(() => {
     if (!id || auditLoaded.current) return;
     auditLoaded.current = true;
-    fetch(`/api/google-ads-audits/${id}?depth=0`, { credentials: 'include' })
+    fetch(`/api/google-ads-audits/${id}?depth=1`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.monthlyBudget) setMonthlyTotal(data.monthlyBudget);
         if (data?.businessName) setBusinessName(data.businessName);
+        if (data?.client?.slug) setClientSlug(data.client.slug);
       })
       .catch(() => {});
   }, [id]);
@@ -628,7 +634,7 @@ const GoogleAdsBudgetManagementInner = () => {
   const copyEmailToClipboard = useCallback(async () => {
     const spend = calculateMonthlySpend(campaigns, monthlyTotal);
     const currentMonth = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-    const html = generateEmailHtml(businessName, currentMonth, spend, campaigns, monthlyTotal);
+    const html = generateEmailHtml(businessName, currentMonth, spend, campaigns, monthlyTotal, clientSlug);
 
     // Copy as HTML so it pastes formatted into Gmail
     try {
@@ -644,7 +650,7 @@ const GoogleAdsBudgetManagementInner = () => {
     }
     setEmailCopied(true);
     setTimeout(() => setEmailCopied(false), 2000);
-  }, [campaigns, monthlyTotal, businessName]);
+  }, [campaigns, monthlyTotal, businessName, clientSlug]);
 
   useEffect(() => {
     if (id) {
@@ -1267,7 +1273,7 @@ const GoogleAdsBudgetManagementInner = () => {
             </p>
 
             <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16, maxHeight: 400, overflow: 'auto' }}
-              dangerouslySetInnerHTML={{ __html: generateEmailHtml(businessName, new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }), monthlySpend, campaigns, monthlyTotal) }}
+              dangerouslySetInnerHTML={{ __html: generateEmailHtml(businessName, new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }), monthlySpend, campaigns, monthlyTotal, clientSlug) }}
             />
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
