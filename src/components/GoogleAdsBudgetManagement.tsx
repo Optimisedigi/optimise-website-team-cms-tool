@@ -385,7 +385,7 @@ const GoogleAdsBudgetManagementInner = () => {
             .filter(c => c.budgetPercentage > 0 && c.calculatedDailyBudget > 0)
             .map(c => ({
               campaignId: c.campaignId,
-              dailyBudget: c.calculatedDailyBudget,
+              dailyBudget: Math.round(c.calculatedDailyBudget * 100) / 100,
             })),
         }),
       });
