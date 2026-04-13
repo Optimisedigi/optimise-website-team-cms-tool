@@ -1182,9 +1182,9 @@ const GoogleAdsBudgetManagementInner = () => {
                     </div>
 
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, color: campaign.enabled ? '#1e293b' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 10, color: '#94a3b8', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
-                        {campaign.campaignName}
+                      <div title={campaign.campaignName} style={{ fontWeight: 500, color: campaign.enabled ? '#1e293b' : '#94a3b8', display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.3 }}>
+                        <span style={{ fontSize: 10, color: '#94a3b8', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)', marginTop: 3, flexShrink: 0 }}>▶</span>
+                        <span style={{ wordBreak: 'break-word' }}>{campaign.campaignName}</span>
                       </div>
                       {budgetDiff !== null && Math.abs(budgetDiff) > 0.01 && (
                         <div style={{ fontSize: 10, color: '#d97706', marginLeft: 16 }}>
