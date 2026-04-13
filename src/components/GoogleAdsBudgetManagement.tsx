@@ -140,7 +140,7 @@ function generateEmailHtml(
   <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
     <tr>
       <td style="width:55%;vertical-align:top;padding-right:8px">
-        <div style="padding:20px 20px 24px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor}">
+        <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};height:100%">
           <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
             <tr>
               <td style="text-align:left;font-size:14px;font-weight:600;color:#374151">${statusText}</td>
@@ -152,7 +152,7 @@ function generateEmailHtml(
             <tr>${(() => {
               const pct = Math.min(percentUsed, 100);
               const marker = Math.min(onTrackPercent, 100);
-              const markerTd = `<td style="width:4px;min-width:4px;max-width:4px;height:24px;background:#1e293b;font-size:1px;line-height:1px;padding:0">&#8203;</td>`;
+              const markerTd = `<td style="width:3px;min-width:3px;max-width:3px;height:24px;background:#1e293b;font-size:1px;line-height:1px;padding:0">&#8203;</td>`;
               if (pct < marker) {
                 const gap = marker - pct;
                 const rest = 100 - marker;
@@ -187,7 +187,7 @@ function generateEmailHtml(
         </div>
       </td>
       <td style="width:45%;vertical-align:top;padding-left:8px">
-        <div style="padding:16px 20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0">
+        <div style="padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;height:100%">
           <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:14px">Time Tracking</div>
           <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
             <tr>
