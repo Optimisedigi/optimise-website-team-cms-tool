@@ -42,12 +42,14 @@ export async function POST(
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  const auditIdNum = Number(id);
+
   // Save monthly budget to audit record
   if (body._saveMonthlyBudget !== undefined) {
     try {
       await payload.update({
         collection: "google-ads-audits",
-        id,
+        id: auditIdNum,
         data: { monthlyBudget: body._saveMonthlyBudget },
         overrideAccess: true,
       });
@@ -62,7 +64,7 @@ export async function POST(
     try {
       const saved = await payload.find({
         collection: BUDGETS_COLLECTION,
-        where: { audit: { equals: id } },
+        where: { audit: { equals: auditIdNum } },
         limit: 100,
         overrideAccess: true,
       });
@@ -92,7 +94,7 @@ export async function POST(
     // Get customerId from audit for creating new records
     let auditCustomerId = '';
     try {
-      const audit = await payload.findByID({ collection: "google-ads-audits", id, overrideAccess: true });
+      const audit = await payload.findByID({ collection: "google-ads-audits", id: auditIdNum, overrideAccess: true });
       auditCustomerId = audit.customerId || '';
     } catch { /* use empty */ }
 
@@ -102,7 +104,7 @@ export async function POST(
         const existing = await payload.find({
           collection: BUDGETS_COLLECTION,
           where: {
-            audit: { equals: id },
+            audit: { equals: auditIdNum },
             campaignId: { equals: campaign.campaignId },
           },
           limit: 1,
@@ -127,7 +129,7 @@ export async function POST(
           await payload.create({
             collection: BUDGETS_COLLECTION,
             data: {
-              audit: id,
+              audit: auditIdNum,
               customerId: auditCustomerId,
               campaignId: campaign.campaignId,
               campaignName: campaign.campaignName || campaign.campaignId,
@@ -163,7 +165,7 @@ export async function POST(
   try {
     audit = await payload.findByID({
       collection: "google-ads-audits",
-      id,
+      id: auditIdNum,
       overrideAccess: true,
     });
   } catch {
@@ -198,7 +200,7 @@ export async function POST(
     const existing = await payload.find({
       collection: BUDGETS_COLLECTION,
       where: {
-        audit: { equals: id },
+        audit: { equals: auditIdNum },
         campaignId: { equals: campaignId },
       },
       limit: 1,

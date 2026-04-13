@@ -18,6 +18,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const auditId = Number(id);
 
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
@@ -32,7 +33,7 @@ export async function GET(
   try {
     audit = await payload.findByID({
       collection: "google-ads-audits",
-      id,
+      id: auditId,
       overrideAccess: true,
     });
   } catch {
@@ -113,7 +114,7 @@ export async function GET(
       // Store/update each campaign budget in CMS
       for (const campaign of campaigns) {
         const cmsData: Record<string, any> = {
-          audit: id,
+          audit: auditId,
           customerId: customerId,
           campaignId: campaign.campaignId,
           campaignName: campaign.campaignName,
@@ -133,7 +134,7 @@ export async function GET(
           const existing = await payload.find({
             collection: BUDGETS_COLLECTION,
             where: {
-              audit: { equals: id },
+              audit: { equals: auditId },
               campaignId: { equals: campaign.campaignId },
             },
             limit: 1,
@@ -165,7 +166,7 @@ export async function GET(
       try {
         const saved = await payload.find({
           collection: BUDGETS_COLLECTION,
-          where: { audit: { equals: id } },
+          where: { audit: { equals: auditId } },
           limit: 100,
           overrideAccess: true,
         });
@@ -217,7 +218,7 @@ export async function GET(
   try {
     const cachedBudgets = await payload.find({
       collection: BUDGETS_COLLECTION,
-      where: { audit: { equals: id } },
+      where: { audit: { equals: auditId } },
       limit: 100,
       overrideAccess: true,
     });

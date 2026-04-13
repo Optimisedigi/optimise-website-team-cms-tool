@@ -27,6 +27,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const auditId = Number(id);
 
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
@@ -58,7 +59,7 @@ export async function POST(
   try {
     audit = await payload.findByID({
       collection: "google-ads-audits",
-      id,
+      id: auditId,
       overrideAccess: true,
     });
   } catch {
@@ -152,7 +153,7 @@ export async function POST(
       const existing = await payload.find({
         collection: BUDGETS_COLLECTION,
         where: {
-          audit: { equals: id },
+          audit: { equals: auditId },
           campaignId: { equals: campaign.campaignId },
         },
         limit: 1,
