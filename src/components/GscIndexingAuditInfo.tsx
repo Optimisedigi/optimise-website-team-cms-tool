@@ -111,9 +111,17 @@ export default function GscIndexingAuditInfo() {
     }
   }
 
-  // Consider audit stuck if status is active but updatedAt is >5 minutes ago
-  const updatedAt = data?.updatedAt ? new Date(data.updatedAt).getTime() : 0
-  const stuckMinutes = updatedAt ? (Date.now() - updatedAt) / 60000 : 0
+  // Consider audit stuck if inspectedCount hasn't changed in >5 minutes
+  // Use a ref to track when we last saw progress
+  const lastProgressRef = useRef(Date.now())
+  const lastCountRef = useRef(liveInspectedCount)
+
+  if (liveInspectedCount !== lastCountRef.current || status !== liveStatus) {
+    lastProgressRef.current = Date.now()
+    lastCountRef.current = liveInspectedCount
+  }
+
+  const stuckMinutes = (Date.now() - lastProgressRef.current) / 60000
   const isStuck = (status === 'discovering' || status === 'inspecting') && stuckMinutes > 5
 
   const isStuckOrFailed = status === 'failed' || status === 'completed' || isStuck
