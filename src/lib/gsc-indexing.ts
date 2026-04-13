@@ -311,8 +311,8 @@ export async function runInspectionBatch(
     return { ok: false, status: "inspecting", inspectedCount: existingResults.length, totalUrls: discoveredUrls.length, error: `Token refresh failed: ${msg}` };
   }
 
-  // Inspect 10 URLs per call — must fit within Vercel's 60s function limit
-  const BATCH_CAP = 10;
+  // Inspect 25 URLs per call — fits comfortably in Vercel Pro's 300s limit
+  const BATCH_CAP = 25;
   const batch = remaining.slice(0, BATCH_CAP);
   const allResults = [...existingResults];
   let batchError: string | undefined;

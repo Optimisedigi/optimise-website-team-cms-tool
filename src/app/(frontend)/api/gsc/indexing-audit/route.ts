@@ -3,7 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { startIndexingAudit, runDiscovery } from "@/lib/gsc-indexing";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 /**
  * GET: List indexing audits for a client.
