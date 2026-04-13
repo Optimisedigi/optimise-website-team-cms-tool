@@ -149,8 +149,20 @@ function generateEmailHtml(
           </table>
           <!-- Progress bar (Gmail-safe: table-based) -->
           <table style="width:100%;border-collapse:collapse;margin-bottom:8px" cellpadding="0" cellspacing="0">
-            <tr>
-              <td style="width:${Math.min(percentUsed, onTrackPercent)}%;height:20px;background:${statusColor};border-radius:10px 0 0 10px;font-size:1px">&nbsp;</td>${percentUsed < onTrackPercent ? `<td style="width:2px;height:20px;background:#1e293b;font-size:1px">&nbsp;</td><td style="width:${onTrackPercent - percentUsed}%;height:20px;background:#e5e7eb;font-size:1px">&nbsp;</td>` : `<td style="width:2px;height:20px;background:#1e293b;font-size:1px">&nbsp;</td>`}<td style="height:20px;background:#e5e7eb;border-radius:0 10px 10px 0;font-size:1px">&nbsp;</td>
+            <tr>${(() => {
+              const pct = Math.min(percentUsed, 100);
+              const marker = Math.min(onTrackPercent, 100);
+              if (pct < marker) {
+                // Spend bar | grey gap | marker line | remaining grey
+                const gap = marker - pct;
+                const rest = 100 - marker;
+                return `<td style="width:${pct}%;height:20px;background:${statusColor};border-radius:10px 0 0 10px;font-size:1px">&nbsp;</td><td style="width:${gap}%;height:20px;background:#e5e7eb;font-size:1px">&nbsp;</td><td style="width:2px;height:20px;background:#1e293b;font-size:1px">&nbsp;</td><td style="width:${rest}%;height:20px;background:#e5e7eb;border-radius:0 10px 10px 0;font-size:1px">&nbsp;</td>`;
+              } else {
+                // Spend bar past marker: spend-before-marker | marker line | spend-after-marker | remaining grey
+                const rest = 100 - pct;
+                return `<td style="width:${marker}%;height:20px;background:${statusColor};border-radius:10px 0 0 10px;font-size:1px">&nbsp;</td><td style="width:2px;height:20px;background:#1e293b;font-size:1px">&nbsp;</td><td style="width:${pct - marker}%;height:20px;background:${statusColor};font-size:1px">&nbsp;</td><td style="width:${rest}%;height:20px;background:#e5e7eb;border-radius:0 10px 10px 0;font-size:1px">&nbsp;</td>`;
+              }
+            })()}
             </tr>
           </table>
           <table style="width:100%;border-collapse:collapse;margin-bottom:2px">
@@ -218,7 +230,7 @@ function generateEmailHtml(
     <tr style="background:#f1f5f9">
       <th style="padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Split</th>
-      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Adj. Daily</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Adjusted Daily Budget</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">MTD Spend</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Impr.</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Clicks</th>
