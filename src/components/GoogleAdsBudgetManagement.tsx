@@ -141,19 +141,24 @@ function generateEmailHtml(
     <tr>
       <td style="width:55%;vertical-align:top;padding-right:8px">
         <div style="padding:20px 20px 24px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor}">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <span style="font-size:14px;font-weight:600;color:#374151">${statusText}</span>
-            <span style="font-size:22px;font-weight:700;color:${statusColor}">${percentUsed.toFixed(0)}%</span>
-          </div>
-          <!-- Progress bar -->
-          <div style="position:relative;height:20px;background:#e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:8px">
-            <div style="position:absolute;left:0;top:0;height:100%;width:${Math.min(percentUsed, 100)}%;background:${statusColor};border-radius:10px"></div>
-            <div style="position:absolute;left:${onTrackPercent}%;top:0;height:100%;width:2px;background:#1e293b;opacity:0.5"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:2px">
-            <span>$0</span>
-            <span>$${spend.maxBudget.toLocaleString()}</span>
-          </div>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+            <tr>
+              <td style="text-align:left;font-size:14px;font-weight:600;color:#374151">${statusText}</td>
+              <td style="text-align:right;font-size:22px;font-weight:700;color:${statusColor}">${percentUsed.toFixed(0)}%</td>
+            </tr>
+          </table>
+          <!-- Progress bar (Gmail-safe: table-based) -->
+          <table style="width:100%;border-collapse:collapse;margin-bottom:8px" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width:${Math.min(percentUsed, onTrackPercent)}%;height:20px;background:${statusColor};border-radius:10px 0 0 10px;font-size:1px">&nbsp;</td>${percentUsed < onTrackPercent ? `<td style="width:2px;height:20px;background:#1e293b;font-size:1px">&nbsp;</td><td style="width:${onTrackPercent - percentUsed}%;height:20px;background:#e5e7eb;font-size:1px">&nbsp;</td>` : `<td style="width:2px;height:20px;background:#1e293b;font-size:1px">&nbsp;</td>`}<td style="height:20px;background:#e5e7eb;border-radius:0 10px 10px 0;font-size:1px">&nbsp;</td>
+            </tr>
+          </table>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:2px">
+            <tr>
+              <td style="text-align:left;font-size:11px;color:#64748b">$0</td>
+              <td style="text-align:right;font-size:11px;color:#64748b">$${spend.maxBudget.toLocaleString()}</td>
+            </tr>
+          </table>
           <div style="font-size:10px;color:#94a3b8;text-align:center">Vertical line shows where you should be on track</div>
           <!-- Spent / Remaining -->
           <table style="width:100%;border-collapse:collapse;margin-top:12px">
