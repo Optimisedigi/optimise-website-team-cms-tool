@@ -36,7 +36,7 @@
   position: absolute;
   bottom: 0;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateX(-2px);
   width: 20px;
   height: 60px;
   animation: od-rocket-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;

@@ -9,15 +9,16 @@ const ViewGoogleDashboardButton = () => {
   const [clientSlug, setClientSlug] = useState<string | null>(null)
   const [showHelp, setShowHelp] = useState(false)
 
-  // Direct slug from Clients collection
-  const slug = fields?.slug?.value as string | undefined
-
   // Client relationship ID from Google Ads Audit collection
   const clientRelId = fields?.client?.value as string | number | undefined
 
+  // Check if we're on a Clients collection (has slug but no client relationship field)
+  const isClientCollection = !!(fields?.slug?.value) && !clientRelId
+  const directSlug = isClientCollection ? (fields?.slug?.value as string) : undefined
+
   // Fetch client slug when on a Google Ads Audit with a linked client
   useEffect(() => {
-    if (slug || !clientRelId) return
+    if (directSlug || !clientRelId) return
 
     fetch(`/api/clients/${clientRelId}?depth=0&select[slug]=true`, {
       credentials: 'include',
@@ -27,11 +28,11 @@ const ViewGoogleDashboardButton = () => {
         if (data?.slug) setClientSlug(data.slug)
       })
       .catch(() => {})
-  }, [slug, clientRelId])
+  }, [directSlug, clientRelId])
 
   if (!id) return null
 
-  const resolvedSlug = slug || clientSlug
+  const resolvedSlug = directSlug || clientSlug
 
   // Need either a slug or a client relationship to show anything
   const googleAdsCustomerId = fields?.googleAdsCustomerId?.value as string | undefined
