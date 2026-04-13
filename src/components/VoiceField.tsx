@@ -57,19 +57,30 @@ export default function VoiceField({
   const [recordingState, setRecordingState] = useState<RecordingState>('idle')
   const [showSuccess, setShowSuccess] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
+  const [hasFallback, setHasFallback] = useState(false)
   
+  // Web Speech API refs
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
   const finalTranscriptRef = useRef('')
   const isManualStopRef = useRef(false)
+  const restartCountRef = useRef(0)
+  const MAX_RESTARTS = 5
 
-  // Check for Web Speech API support on client side only
+  // MediaRecorder fallback refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+
+  // Check for Web Speech API + MediaRecorder support on client side only
   useEffect(() => {
     if (typeof window === 'undefined') return
     
     const hasAPI = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
-    console.log('Web Speech API supported:', hasAPI)
+    const hasMediaRecorder = typeof MediaRecorder !== 'undefined' && typeof navigator?.mediaDevices?.getUserMedia === 'function'
+    console.log('Web Speech API supported:', hasAPI, '| MediaRecorder fallback:', hasMediaRecorder)
     setIsSupported(hasAPI)
+    setHasFallback(hasMediaRecorder)
   }, [])
 
   const startRecording = useCallback(() => {
@@ -99,6 +110,7 @@ export default function VoiceField({
 
     isManualStopRef.current = false
     finalTranscriptRef.current = value
+    restartCountRef.current = 0
 
     recognition.onstart = () => {
       console.log('Recording started')
@@ -122,6 +134,7 @@ export default function VoiceField({
       // Update final transcript
       if (newFinalTranscript) {
         finalTranscriptRef.current += (finalTranscriptRef.current ? ' ' : '') + newFinalTranscript
+        restartCountRef.current = 0
       }
       
       onChange(finalTranscriptRef.current + (interimTranscript ? ' ' + interimTranscript : ''))
@@ -153,15 +166,34 @@ export default function VoiceField({
     }
 
     recognition.onend = () => {
-      // Only trigger completion if this wasn't a manual stop
-      if (!isManualStopRef.current) {
-        setRecordingState('idle')
-        
-        if (finalTranscriptRef.current.trim()) {
-          setShowSuccess(true)
-          setTimeout(() => setShowSuccess(false), 1500)
-          onRecordingComplete?.()
-        }
+      // If manual stop, do nothing (stopRecording handles cleanup)
+      if (isManualStopRef.current) return
+
+      // Auto-restart if we haven't exceeded max restarts
+      if (restartCountRef.current < MAX_RESTARTS && recognitionRef.current === recognition) {
+        restartCountRef.current++
+        console.log(`Recognition ended unexpectedly, restarting (${restartCountRef.current}/${MAX_RESTARTS})...`)
+        setTimeout(() => {
+          if (!isManualStopRef.current && recognitionRef.current === recognition) {
+            try {
+              recognition.start()
+            } catch (e) {
+              // Recognition may have been stopped already
+              console.warn('Failed to restart recognition:', e)
+              setRecordingState('idle')
+            }
+          }
+        }, 100)
+        return
+      }
+
+      // Max restarts exceeded — give up
+      console.log('Max restarts exceeded, stopping recognition')
+      setRecordingState('idle')
+      if (finalTranscriptRef.current.trim()) {
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 1500)
+        onRecordingComplete?.()
       }
     }
 
@@ -196,6 +228,87 @@ export default function VoiceField({
     }
   }, [onRecordingComplete])
 
+  // MediaRecorder fallback — only used when Web Speech API is unavailable
+  const startFallbackRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStreamRef.current = stream
+      audioChunksRef.current = []
+
+      const recorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = recorder
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data)
+        }
+      }
+
+      recorder.start()
+      setRecordingState('recording')
+    } catch (e) {
+      console.error('Failed to start MediaRecorder:', e)
+      alert('Microphone access denied. Please allow microphone access to use voice input.')
+    }
+  }, [])
+
+  const stopFallbackRecording = useCallback(async () => {
+    const recorder = mediaRecorderRef.current
+    if (!recorder || recorder.state === 'inactive') return
+
+    // Wait for the recorder to finish and collect all chunks
+    const audioBlob = await new Promise<Blob>((resolve) => {
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        resolve(blob)
+      }
+      recorder.stop()
+    })
+
+    // Stop the media stream tracks
+    mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
+    mediaStreamRef.current = null
+    mediaRecorderRef.current = null
+
+    if (audioBlob.size === 0) {
+      setRecordingState('idle')
+      return
+    }
+
+    // Convert to base64 and send to Gemini transcription API
+    setRecordingState('processing')
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer()
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      )
+
+      const res = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audio: base64, mimeType: audioBlob.type || 'audio/webm' }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Transcription failed' }))
+        throw new Error(err.error || 'Transcription failed')
+      }
+
+      const { text } = await res.json()
+      if (text) {
+        const newValue = value ? value + ' ' + text : text
+        onChange(newValue)
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 1500)
+        onRecordingComplete?.()
+      }
+    } catch (e) {
+      console.error('Transcription error:', e)
+    } finally {
+      setRecordingState('idle')
+    }
+  }, [value, onChange, onRecordingComplete])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -206,6 +319,15 @@ export default function VoiceField({
           // Ignore
         }
       }
+      // Cleanup MediaRecorder fallback
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop()
+        } catch (e) {
+          // Ignore
+        }
+      }
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop())
     }
   }, [])
 
@@ -213,17 +335,27 @@ export default function VoiceField({
     if (disabled) return
 
     if (recordingState === 'recording') {
-      stopRecording()
+      if (isSupported) {
+        stopRecording()
+      } else {
+        stopFallbackRecording()
+      }
     } else if (recordingState !== 'processing') {
-      startRecording()
+      if (isSupported) {
+        startRecording()
+      } else {
+        startFallbackRecording()
+      }
     }
   }
+
+  const canRecord = isSupported || hasFallback
 
   const getMicIconClass = () => {
     if (showSuccess) return 'mic-icon success'
     if (recordingState === 'recording') return 'mic-icon recording'
     if (recordingState === 'processing') return 'mic-icon processing'
-    if (!isSupported) return 'mic-icon disabled'
+    if (!canRecord) return 'mic-icon disabled'
     return 'mic-icon idle'
   }
 
@@ -232,7 +364,7 @@ export default function VoiceField({
       {label && (
         <label className="voice-field-label">
           {label}
-          {!isSupported && (
+          {!canRecord && (
             <span className="unsupported-badge">Voice not supported</span>
           )}
         </label>
@@ -263,7 +395,7 @@ export default function VoiceField({
           type="button"
           className={getMicIconClass()}
           onClick={handleMicClick}
-          disabled={disabled || !isSupported}
+          disabled={disabled || !canRecord}
           aria-label={recordingState === 'recording' ? 'Stop recording' : 'Start recording'}
           title={recordingState === 'recording' ? 'Click to stop recording' : 'Click to start recording'}
         >
@@ -284,6 +416,10 @@ export default function VoiceField({
           
           {recordingState === 'recording' && <span className="recording-pulse" />}
         </button>
+
+        {recordingState === 'processing' && (
+          <span className="transcribing-text">Transcribing...</span>
+        )}
       </div>
     </div>
   )

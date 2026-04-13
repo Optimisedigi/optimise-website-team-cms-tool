@@ -116,6 +116,7 @@
 
 .mic-icon.processing {
   color: #6366f1;
+  cursor: wait;
 }
 
 .mic-icon.success {
@@ -210,11 +211,15 @@
   animation: spin 1s linear infinite;
 }
 
-/* Transcribing text */
+/* Transcribing text — positioned below the mic button */
 .transcribing-text {
-  font-size: 0.75rem;
+  position: absolute;
+  right: 0;
+  top: calc(50% + 1.5rem);
+  font-size: 0.675rem;
   color: #6366f1;
   margin: 0;
+  white-space: nowrap;
   animation: pulse-text 1s ease-in-out infinite;
 }
 
