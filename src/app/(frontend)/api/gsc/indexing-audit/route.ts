@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { startIndexingAudit, runDiscovery, runInspectionBatch } from "@/lib/gsc-indexing";
+import { startIndexingAudit, runDiscovery, runInspectionWork } from "@/lib/gsc-indexing";
 
 export const maxDuration = 120;
 
@@ -93,17 +93,23 @@ export async function POST(req: NextRequest) {
     // (client is null when returning an existing active audit)
     if (client) {
       step = "run-discovery";
-      await runDiscovery(payload, auditId, client);
+      const discoveryResult = await runDiscovery(payload, auditId, client);
 
-      step = "run-inspection";
-      // Run inspection directly — direct SQL saves make this fast enough
-      // to fit within the 120s timeout. If it doesn't finish all URLs,
-      // the frontend polling + inspect endpoint handles the rest.
-      try {
-        await runInspectionBatch(payload, auditId);
-      } catch (err) {
-        console.error(`[gsc-indexing-audit] Inspection error (non-fatal):`, err);
-        // Non-fatal: partial results saved, polling can continue
+      if (discoveryResult && discoveryResult.urls.length > 0) {
+        step = "run-inspection";
+        // Run inspection using the URLs and token from discovery directly —
+        // no extra DB reads needed. Direct SQL saves keep this fast.
+        try {
+          await runInspectionWork(
+            payload,
+            auditId,
+            client,
+            discoveryResult.urls,
+            discoveryResult.accessToken,
+          );
+        } catch (err) {
+          console.error(`[gsc-indexing-audit] Inspection error (non-fatal):`, err);
+        }
       }
     }
 

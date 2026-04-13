@@ -88,46 +88,44 @@ export async function runDiscovery(
 
     const { urls, sources } = await discoverAllUrls(accessToken, client.gscPropertyUrl);
 
+    const dbClient = (payload.db as any).client;
+    const now = new Date().toISOString();
+    const numId = Number(auditId);
+
     if (urls.length === 0) {
-      await payload.update({
-        collection: "gsc-indexing-audits",
-        id: auditId,
-        overrideAccess: true,
-        data: {
-          status: "completed",
-          totalUrls: 0,
-          discoveredUrls: [],
-          urlSources: sources,
-          inspectionResults: [],
-          summaryStats: { indexed: 0, notIndexed: 0, byReason: {} },
-          completedAt: new Date().toISOString(),
-        },
-      });
+      if (dbClient) {
+        await dbClient.execute({
+          sql: `UPDATE gsc_indexing_audits SET status = 'completed', total_urls = 0, discovered_urls = '[]', url_sources = ?, inspection_results = '[]', summary_stats = ?, completed_at = ?, updated_at = ? WHERE id = ?`,
+          args: [JSON.stringify(sources), JSON.stringify({ indexed: 0, notIndexed: 0, byReason: {} }), now, now, numId],
+        });
+      } else {
+        await payload.update({ collection: "gsc-indexing-audits", id: auditId, overrideAccess: true, data: { status: "completed", totalUrls: 0, discoveredUrls: [], urlSources: sources, inspectionResults: [], summaryStats: { indexed: 0, notIndexed: 0, byReason: {} }, completedAt: now } });
+      }
       return null;
     }
 
-    await payload.update({
-      collection: "gsc-indexing-audits",
-      id: auditId,
-      overrideAccess: true,
-      data: {
-        status: "inspecting",
-        totalUrls: urls.length,
-        discoveredUrls: urls,
-        urlSources: sources,
-      },
-    });
+    if (dbClient) {
+      await dbClient.execute({
+        sql: `UPDATE gsc_indexing_audits SET status = 'inspecting', total_urls = ?, discovered_urls = ?, url_sources = ?, updated_at = ? WHERE id = ?`,
+        args: [urls.length, JSON.stringify(urls), JSON.stringify(sources), now, numId],
+      });
+    } else {
+      await payload.update({ collection: "gsc-indexing-audits", id: auditId, overrideAccess: true, data: { status: "inspecting", totalUrls: urls.length, discoveredUrls: urls, urlSources: sources } });
+    }
 
     return { urls, accessToken };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Discovery failed";
     console.error(`[gsc-indexing] Discovery ${auditId} failed:`, message);
-    await payload.update({
-      collection: "gsc-indexing-audits",
-      id: auditId,
-      overrideAccess: true,
-      data: { status: "failed", error: message },
-    }).catch(() => {}); // prevent double-fault
+    const dbClient = (payload.db as any).client;
+    if (dbClient) {
+      await dbClient.execute({
+        sql: `UPDATE gsc_indexing_audits SET status = 'failed', error = ?, updated_at = ? WHERE id = ?`,
+        args: [message, new Date().toISOString(), Number(auditId)],
+      }).catch(() => {});
+    } else {
+      await payload.update({ collection: "gsc-indexing-audits", id: auditId, overrideAccess: true, data: { status: "failed", error: message } }).catch(() => {});
+    }
     return null;
   }
 }
