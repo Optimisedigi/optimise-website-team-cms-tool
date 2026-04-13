@@ -33,6 +33,8 @@ function buildSummaryStats(results: InspectionResult[]) {
 /**
  * Refresh the client's GSC access token if needed.
  * Returns the current (or refreshed) access token.
+ * Uses a direct SQL UPDATE to save the token — Payload's update() generates
+ * a full upsert with all 88+ columns which is too slow on Turso.
  */
 async function ensureFreshToken(
   payload: any,
@@ -47,15 +49,25 @@ async function ensureFreshToken(
     const refreshed = await refreshAccessToken(client.gscRefreshToken);
     accessToken = refreshed.accessToken;
 
-    await payload.update({
-      collection: "clients",
-      id: client.id,
-      overrideAccess: true,
-      data: {
-        gscAccessToken: refreshed.accessToken,
-        gscTokenExpiry: refreshed.expiry,
-      },
-    });
+    // Direct SQL update for just the token fields — avoids Payload's full 88-column upsert
+    const dbClient = (payload.db as any).client;
+    if (dbClient) {
+      await dbClient.execute({
+        sql: "UPDATE clients SET gsc_access_token = ?, gsc_token_expiry = ?, updated_at = ? WHERE id = ?",
+        args: [refreshed.accessToken, refreshed.expiry, new Date().toISOString(), client.id],
+      });
+    } else {
+      // Fallback to Payload update if raw client not available
+      await payload.update({
+        collection: "clients",
+        id: client.id,
+        overrideAccess: true,
+        data: {
+          gscAccessToken: refreshed.accessToken,
+          gscTokenExpiry: refreshed.expiry,
+        },
+      });
+    }
   }
 
   return accessToken;

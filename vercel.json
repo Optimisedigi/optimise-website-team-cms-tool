@@ -28,7 +28,7 @@
       "maxDuration": 120
     },
     "src/app/(frontend)/api/gsc/indexing-audit/[id]/inspect/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 120
     },
     "src/app/(frontend)/api/gsc/indexing-helper/run/route.ts": {
       "maxDuration": 120
