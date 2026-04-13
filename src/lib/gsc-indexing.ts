@@ -7,19 +7,39 @@ import {
   type InspectionResult,
 } from "./gsc-service";
 
+/** Fetch states that indicate an indexed page is problematic */
+const PROBLEMATIC_FETCH_STATES = new Set([
+  "NOT_FOUND",
+  "SOFT_404",
+  "SERVER_ERROR",
+  "REDIRECT_ERROR",
+  "ACCESS_DENIED",
+  "ACCESS_FORBIDDEN",
+  "BLOCKED_4XX",
+  "BLOCKED_ROBOTS_TXT",
+]);
+
 /**
  * Build summary stats from inspection results.
+ * Separates truly healthy indexed pages from indexed pages with problematic fetch states.
  */
 function buildSummaryStats(results: InspectionResult[]) {
   let indexed = 0;
+  let indexedProblematic = 0;
   let notIndexed = 0;
   const byReason: Record<string, number> = {};
+  const byFetchIssue: Record<string, number> = {};
 
   for (const r of results) {
     if (r.coverageState === "inspection_failed") continue;
 
     if (r.coverageState === "Submitted and indexed") {
-      indexed++;
+      if (r.pageFetchState && PROBLEMATIC_FETCH_STATES.has(r.pageFetchState)) {
+        indexedProblematic++;
+        byFetchIssue[r.pageFetchState] = (byFetchIssue[r.pageFetchState] || 0) + 1;
+      } else {
+        indexed++;
+      }
     } else {
       notIndexed++;
       const reason = r.coverageState || "Unknown";
@@ -27,7 +47,7 @@ function buildSummaryStats(results: InspectionResult[]) {
     }
   }
 
-  return { indexed, notIndexed, byReason };
+  return { indexed, indexedProblematic, notIndexed, byReason, byFetchIssue };
 }
 
 /**

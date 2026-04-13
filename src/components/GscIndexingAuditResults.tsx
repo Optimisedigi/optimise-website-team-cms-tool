@@ -20,11 +20,265 @@ interface InspectionResult {
 
 interface SummaryStats {
   indexed: number
+  indexedProblematic?: number
   notIndexed: number
   byReason: Record<string, number>
+  byFetchIssue?: Record<string, number>
 }
 
-type FilterMode = 'all' | 'indexed' | 'not_indexed' | 'errors' | string
+/** Fetch states that indicate an indexed page is problematic */
+const PROBLEMATIC_FETCH_STATES = new Set([
+  'NOT_FOUND',
+  'SOFT_404',
+  'SERVER_ERROR',
+  'REDIRECT_ERROR',
+  'ACCESS_DENIED',
+  'ACCESS_FORBIDDEN',
+  'BLOCKED_4XX',
+  'BLOCKED_ROBOTS_TXT',
+])
+
+/**
+ * Get a smart redirect suggestion for a 404 URL by matching path segments
+ * against healthy indexed URLs. Falls back to site root if no good match.
+ */
+function getRedirectSuggestion(notFoundUrl: string, healthyUrls: string[]): string {
+  if (healthyUrls.length === 0) return '/'
+
+  let notFoundPath: string
+  try {
+    notFoundPath = new URL(notFoundUrl).pathname
+  } catch {
+    notFoundPath = notFoundUrl
+  }
+
+  const notFoundParts = notFoundPath.split('/').filter(Boolean)
+  if (notFoundParts.length === 0) return '/'
+
+  let bestMatch = '/'
+  let bestScore = 0
+
+  for (const url of healthyUrls) {
+    let candidatePath: string
+    try {
+      candidatePath = new URL(url).pathname
+    } catch {
+      candidatePath = url
+    }
+    const candidateParts = candidatePath.split('/').filter(Boolean)
+    if (candidateParts.length === 0) continue
+
+    // Longest common subsequence of path parts
+    let score = 0
+    let ci = 0
+    for (const nfPart of notFoundParts) {
+      for (let j = ci; j < candidateParts.length; j++) {
+        if (candidateParts[j].toLowerCase() === nfPart.toLowerCase()) {
+          score++
+          ci = j + 1
+          break
+        }
+        // Partial match: check if parts share significant substrings
+        const nfLower = nfPart.toLowerCase()
+        const cLower = candidateParts[j].toLowerCase()
+        if (nfLower.length > 3 && cLower.length > 3 && (cLower.includes(nfLower) || nfLower.includes(cLower))) {
+          score += 0.5
+          ci = j + 1
+          break
+        }
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = candidatePath
+    }
+  }
+
+  // Only suggest if we have at least some path segment overlap
+  return bestScore >= 0.5 ? bestMatch : '/'
+}
+
+/**
+ * Generate an actionable markdown report from inspection results.
+ * Designed to be parseable by AI agents for automated fix implementation.
+ */
+function generateActionPlanMarkdown(
+  results: InspectionResult[],
+  siteUrl: string,
+  redirectOverrides: Record<string, string>,
+): string {
+  const now = new Date().toISOString().split('T')[0]
+
+  // Derive stats from results directly
+  let healthyIndexed = 0
+  let indexedProblematic = 0
+  let notIndexed = 0
+  let errors = 0
+  const indexed404s: InspectionResult[] = []
+  const indexedServerErrors: InspectionResult[] = []
+  const indexedSoft404s: InspectionResult[] = []
+  const crawledNotIndexed: InspectionResult[] = []
+  const unknownToGoogle: InspectionResult[] = []
+  const duplicateIssues: InspectionResult[] = []
+  const otherNotIndexed: InspectionResult[] = []
+
+  const healthyUrls = results
+    .filter((r) => r.coverageState === 'Submitted and indexed' && (!r.pageFetchState || !PROBLEMATIC_FETCH_STATES.has(r.pageFetchState)))
+    .map((r) => r.url)
+
+  for (const r of results) {
+    if (r.coverageState === 'inspection_failed') {
+      errors++
+      continue
+    }
+    if (r.coverageState === 'Submitted and indexed') {
+      if (r.pageFetchState && PROBLEMATIC_FETCH_STATES.has(r.pageFetchState)) {
+        indexedProblematic++
+        if (r.pageFetchState === 'NOT_FOUND') indexed404s.push(r)
+        else if (r.pageFetchState === 'SERVER_ERROR') indexedServerErrors.push(r)
+        else if (r.pageFetchState === 'SOFT_404') indexedSoft404s.push(r)
+      } else {
+        healthyIndexed++
+      }
+    } else {
+      notIndexed++
+      if (r.coverageState === 'Crawled - currently not indexed') crawledNotIndexed.push(r)
+      else if (r.coverageState === 'URL is unknown to Google') unknownToGoogle.push(r)
+      else if (r.coverageState === 'Discovered - currently not indexed') unknownToGoogle.push(r)
+      else if (r.coverageState.includes('Duplicate') || r.coverageState.includes('redirect') || r.coverageState.includes('Alternate')) duplicateIssues.push(r)
+      else otherNotIndexed.push(r)
+    }
+  }
+
+  const lines: string[] = []
+  lines.push(`# Indexing Audit Action Plan`)
+  lines.push(``)
+  lines.push(`**Site:** ${siteUrl}`)
+  lines.push(`**Date:** ${now}`)
+  lines.push(`**Total Pages Inspected:** ${results.length}`)
+  lines.push(``)
+
+  // Summary
+  lines.push(`## Summary`)
+  lines.push(``)
+  lines.push(`| Metric | Count |`)
+  lines.push(`|--------|-------|`)
+  lines.push(`| Healthy Indexed | ${healthyIndexed} |`)
+  lines.push(`| Indexed — Needs Fix | ${indexedProblematic} |`)
+  lines.push(`| Not Indexed | ${notIndexed} |`)
+  lines.push(`| Inspection Errors | ${errors} |`)
+  lines.push(``)
+
+  // Priority 1: Indexed 404s → Redirect table
+  if (indexed404s.length > 0) {
+    lines.push(`## 🔴 Priority 1: Indexed 404 Pages — Need Redirects`)
+    lines.push(``)
+    lines.push(`These ${indexed404s.length} pages are indexed by Google but return a 404 error. They need 301 redirects to relevant existing pages.`)
+    lines.push(``)
+    lines.push(`| From URL | Redirect To |`)
+    lines.push(`|----------|-------------|`)
+    for (const r of indexed404s) {
+      const target = redirectOverrides[r.url] || getRedirectSuggestion(r.url, healthyUrls)
+      const fromPath = stripOrigin(r.url)
+      lines.push(`| \`${fromPath}\` | \`${target}\` |`)
+    }
+    lines.push(``)
+    lines.push(`### Implementation (Next.js)`)
+    lines.push(``)
+    lines.push('Add these redirects to `next.config.js` or `next.config.ts`:')
+    lines.push(``)
+    lines.push('```js')
+    lines.push(`async redirects() {`)
+    lines.push(`  return [`)
+    for (const r of indexed404s) {
+      const target = redirectOverrides[r.url] || getRedirectSuggestion(r.url, healthyUrls)
+      const fromPath = stripOrigin(r.url)
+      lines.push(`    { source: '${fromPath}', destination: '${target}', permanent: true },`)
+    }
+    lines.push(`  ]`)
+    lines.push(`}`)
+    lines.push('```')
+    lines.push(``)
+  }
+
+  // Priority 1b: Indexed server errors
+  if (indexedServerErrors.length > 0) {
+    lines.push(`## 🔴 Priority 1: Indexed Server Error Pages`)
+    lines.push(``)
+    lines.push(`These ${indexedServerErrors.length} pages are indexed but returning server errors. Fix the underlying server issues.`)
+    lines.push(``)
+    for (const r of indexedServerErrors) {
+      lines.push(`- \`${stripOrigin(r.url)}\``)
+    }
+    lines.push(``)
+  }
+
+  // Priority 1c: Indexed soft 404s
+  if (indexedSoft404s.length > 0) {
+    lines.push(`## 🔴 Priority 1: Indexed Soft 404 Pages`)
+    lines.push(``)
+    lines.push(`These ${indexedSoft404s.length} pages are indexed but Google considers them soft 404s. Add meaningful content or return a proper 404.`)
+    lines.push(``)
+    for (const r of indexedSoft404s) {
+      lines.push(`- \`${stripOrigin(r.url)}\``)
+    }
+    lines.push(``)
+  }
+
+  // Priority 2: Crawled but not indexed
+  if (crawledNotIndexed.length > 0) {
+    lines.push(`## 🟠 Priority 2: Crawled but Not Indexed (${crawledNotIndexed.length} pages)`)
+    lines.push(``)
+    lines.push(`Google crawled these pages but chose not to index them. Actions: improve content quality, add internal links, ensure unique value.`)
+    lines.push(``)
+    for (const r of crawledNotIndexed) {
+      lines.push(`- \`${stripOrigin(r.url)}\``)
+    }
+    lines.push(``)
+  }
+
+  // Priority 3: Unknown to Google
+  if (unknownToGoogle.length > 0) {
+    lines.push(`## 🟠 Priority 3: Unknown / Not Yet Crawled (${unknownToGoogle.length} pages)`)
+    lines.push(``)
+    lines.push(`Google doesn't know about these pages or hasn't crawled them yet. Actions: submit sitemap, add internal links, request indexing in Search Console.`)
+    lines.push(``)
+    for (const r of unknownToGoogle) {
+      lines.push(`- \`${stripOrigin(r.url)}\` — ${COVERAGE_LABELS[r.coverageState] || r.coverageState}`)
+    }
+    lines.push(``)
+  }
+
+  // Priority 4: Duplicate / redirect issues
+  if (duplicateIssues.length > 0) {
+    lines.push(`## 🟡 Priority 4: Duplicate / Redirect Issues (${duplicateIssues.length} pages)`)
+    lines.push(``)
+    lines.push(`These pages have duplicate content or redirect issues. Actions: set canonical tags, fix redirect chains, consolidate content.`)
+    lines.push(``)
+    for (const r of duplicateIssues) {
+      lines.push(`- \`${stripOrigin(r.url)}\` — ${COVERAGE_LABELS[r.coverageState] || r.coverageState}`)
+    }
+    lines.push(``)
+  }
+
+  // Other not indexed issues
+  if (otherNotIndexed.length > 0) {
+    lines.push(`## Other Issues (${otherNotIndexed.length} pages)`)
+    lines.push(``)
+    for (const r of otherNotIndexed) {
+      lines.push(`- \`${stripOrigin(r.url)}\` — ${COVERAGE_LABELS[r.coverageState] || r.coverageState}`)
+    }
+    lines.push(``)
+  }
+
+  lines.push(`---`)
+  lines.push(`*Generated by Optimise Digital Indexing Audit on ${now}. Redirect suggestions are heuristic — review before implementing.*`)
+
+  return lines.join('\n')
+}
+
+type FilterMode = 'all' | 'indexed' | 'not_indexed' | 'errors' | 'indexed_issues' | string
 
 const PAGE_SIZE = 50
 
@@ -113,6 +367,7 @@ export default function GscIndexingAuditResults() {
   const { initialData } = useDocumentInfo()
   const data = initialData as any
   const auditId = data?.id
+  const siteUrl: string = data?.siteUrl || ''
 
   // Live state that gets updated by polling
   const [liveResults, setLiveResults] = useState<InspectionResult[] | null>(null)
@@ -127,6 +382,11 @@ export default function GscIndexingAuditResults() {
   const inspectedCount: number = liveInspectedCount ?? data?.inspectedCount ?? 0
   const status: string = liveStatus ?? data?.status ?? 'discovering'
   const summaryStats: SummaryStats = liveSummaryStats ?? data?.summaryStats ?? { indexed: 0, notIndexed: 0, byReason: {} }
+
+  // Redirect override state for the Actionable Insights panel
+  const [redirectOverrides, setRedirectOverrides] = useState<Record<string, string>>({})
+  // Collapsible sections in Actionable Insights
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({ indexed404s: true })
 
   // Auto-poll every 8s while audit is active — just reads state (inspection is driven by Overview tab)
   useEffect(() => {
@@ -166,11 +426,50 @@ export default function GscIndexingAuditResults() {
   const [page, setPage] = useState(0)
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null)
 
+  // Derive counts at render time from inspectionResults so old audits work
+  const derivedCounts = useMemo(() => {
+    let healthyIndexed = 0
+    let indexedProblematic = 0
+    let notIndexed = 0
+    let errors = 0
+    const indexed404s: InspectionResult[] = []
+    const crawledNotIndexed: InspectionResult[] = []
+    const unknownToGoogle: InspectionResult[] = []
+    const duplicateRedirectIssues: InspectionResult[] = []
+
+    const healthyUrls: string[] = []
+
+    for (const r of results) {
+      if (r.coverageState === 'inspection_failed') {
+        errors++
+        continue
+      }
+      if (r.coverageState === 'Submitted and indexed') {
+        if (r.pageFetchState && PROBLEMATIC_FETCH_STATES.has(r.pageFetchState)) {
+          indexedProblematic++
+          if (r.pageFetchState === 'NOT_FOUND') indexed404s.push(r)
+        } else {
+          healthyIndexed++
+          healthyUrls.push(r.url)
+        }
+      } else {
+        notIndexed++
+        if (r.coverageState === 'Crawled - currently not indexed') crawledNotIndexed.push(r)
+        else if (r.coverageState === 'URL is unknown to Google' || r.coverageState === 'Discovered - currently not indexed') unknownToGoogle.push(r)
+        else if (r.coverageState.includes('Duplicate') || r.coverageState.includes('redirect') || r.coverageState.includes('Alternate')) duplicateRedirectIssues.push(r)
+      }
+    }
+
+    return { healthyIndexed, indexedProblematic, notIndexed, errors, indexed404s, crawledNotIndexed, unknownToGoogle, duplicateRedirectIssues, healthyUrls }
+  }, [results])
+
   const filteredResults = useMemo(() => {
     let filtered = results
 
     if (filter === 'indexed') {
-      filtered = filtered.filter((r) => r.coverageState === 'Submitted and indexed')
+      filtered = filtered.filter((r) => r.coverageState === 'Submitted and indexed' && (!r.pageFetchState || !PROBLEMATIC_FETCH_STATES.has(r.pageFetchState)))
+    } else if (filter === 'indexed_issues') {
+      filtered = filtered.filter((r) => r.coverageState === 'Submitted and indexed' && r.pageFetchState && PROBLEMATIC_FETCH_STATES.has(r.pageFetchState))
     } else if (filter === 'not_indexed') {
       filtered = filtered.filter(
         (r) => r.coverageState !== 'Submitted and indexed' && r.coverageState !== 'inspection_failed'
@@ -201,6 +500,22 @@ export default function GscIndexingAuditResults() {
   const totalPages = Math.ceil(filteredResults.length / PAGE_SIZE)
   const pageResults = filteredResults.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
+  // Export action plan handler
+  const handleExportActionPlan = useCallback(() => {
+    const md = generateActionPlanMarkdown(results, siteUrl, redirectOverrides)
+    let domain = 'site'
+    try {
+      domain = new URL(siteUrl).hostname.replace(/\./g, '-')
+    } catch { /* use default */ }
+    const blob = new Blob([md], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${domain}-indexing-action-plan.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [results, siteUrl, redirectOverrides])
+
   if (results.length === 0 && status !== 'completed') {
     return (
       <div style={{ padding: 16 }}>
@@ -228,11 +543,16 @@ export default function GscIndexingAuditResults() {
   }
 
   const progressPct = totalUrls > 0 ? Math.round((inspectedCount / totalUrls) * 100) : 0
-  const errorCount = results.filter((r) => r.coverageState === 'inspection_failed').length
-  const indexRate = inspectedCount > 0 ? Math.round((summaryStats.indexed / inspectedCount) * 100) : 0
+  const indexRate = inspectedCount > 0 ? Math.round((derivedCounts.healthyIndexed / inspectedCount) * 100) : 0
 
   // Build reason breakdown sorted by count
   const reasonEntries = Object.entries(summaryStats.byReason || {}).sort((a, b) => b[1] - a[1])
+
+  const toggleSection = (key: string) => {
+    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const hasActionableIssues = derivedCounts.indexed404s.length > 0 || derivedCounts.crawledNotIndexed.length > 0 || derivedCounts.unknownToGoogle.length > 0 || derivedCounts.duplicateRedirectIssues.length > 0
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -269,13 +589,196 @@ export default function GscIndexingAuditResults() {
         </div>
       )}
 
-      {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
-        <SummaryCard label="Indexed" value={summaryStats.indexed} color="#22c55e" subtitle={`${indexRate}% index rate`} />
-        <SummaryCard label="Not Indexed" value={summaryStats.notIndexed} color="#ef4444" subtitle="Need attention" />
-        <SummaryCard label="Errors" value={errorCount} color="#f59e0b" subtitle="Inspection failures" />
+      {/* Summary cards — 5 cards with derived counts */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        <SummaryCard label="Healthy Indexed" value={derivedCounts.healthyIndexed} color="#22c55e" subtitle={`${indexRate}% index rate`} />
+        <SummaryCard label="Indexed — Needs Fix" value={derivedCounts.indexedProblematic} color={derivedCounts.indexedProblematic > 0 ? '#ef4444' : '#6b7280'} subtitle={derivedCounts.indexedProblematic > 0 ? 'Indexed but broken' : 'None found'} />
+        <SummaryCard label="Not Indexed" value={derivedCounts.notIndexed} color={derivedCounts.notIndexed > 0 ? '#f59e0b' : '#6b7280'} subtitle="Need attention" />
+        <SummaryCard label="Errors" value={derivedCounts.errors} color={derivedCounts.errors > 0 ? '#f59e0b' : '#6b7280'} subtitle="Inspection failures" />
         <SummaryCard label="Total Inspected" value={inspectedCount} color="#6b7280" subtitle={`of ${totalUrls.toLocaleString()} discovered`} />
       </div>
+
+      {/* Actionable Insights Panel */}
+      {hasActionableIssues && (
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
+            <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>⚡ Actionable Insights</h4>
+            <button
+              onClick={handleExportActionPlan}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: '1px solid #3b82f6',
+                background: '#3b82f6',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              📄 Export Action Plan
+            </button>
+          </div>
+
+          {/* Section: Indexed 404s */}
+          {derivedCounts.indexed404s.length > 0 && (
+            <div style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', cursor: 'pointer', background: expandedSections.indexed404s ? '#fef2f2' : '#fff' }}
+                onClick={() => toggleSection('indexed404s')}
+              >
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>{expandedSections.indexed404s ? '▼' : '▶'}</span>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>🔴 Indexed 404s — Need Redirects</span>
+                <span style={{ padding: '2px 8px', borderRadius: 10, background: '#fee2e2', color: '#991b1b', fontSize: 12, fontWeight: 600 }}>
+                  {derivedCounts.indexed404s.length}
+                </span>
+                <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>
+                  Google indexed these pages but they return 404
+                </span>
+              </div>
+              {expandedSections.indexed404s && (
+                <div style={{ padding: '8px 16px 12px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>404 Page</th>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>Suggested Redirect</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {derivedCounts.indexed404s.map((r) => {
+                        const suggestion = redirectOverrides[r.url] ?? getRedirectSuggestion(r.url, derivedCounts.healthyUrls)
+                        return (
+                          <tr key={r.url} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '6px 8px' }}>
+                              <span style={{ color: '#991b1b', fontFamily: 'monospace', fontSize: 12 }}>{stripOrigin(r.url)}</span>
+                            </td>
+                            <td style={{ padding: '6px 8px' }}>
+                              <input
+                                type="text"
+                                value={suggestion}
+                                onChange={(e) => setRedirectOverrides((prev) => ({ ...prev, [r.url]: e.target.value }))}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  width: '100%',
+                                  padding: '3px 8px',
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: 4,
+                                  fontSize: 12,
+                                  fontFamily: 'monospace',
+                                  color: redirectOverrides[r.url] ? '#166534' : '#6b7280',
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Section: Crawled but Not Indexed */}
+          {derivedCounts.crawledNotIndexed.length > 0 && (
+            <div style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', cursor: 'pointer' }}
+                onClick={() => toggleSection('crawledNotIndexed')}
+              >
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>{expandedSections.crawledNotIndexed ? '▼' : '▶'}</span>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>🟠 Crawled but Not Indexed</span>
+                <span style={{ padding: '2px 8px', borderRadius: 10, background: '#fff7ed', color: '#92400e', fontSize: 12, fontWeight: 600 }}>
+                  {derivedCounts.crawledNotIndexed.length}
+                </span>
+                <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>
+                  Improve content quality and internal linking
+                </span>
+              </div>
+              {expandedSections.crawledNotIndexed && (
+                <div style={{ padding: '4px 16px 12px', fontSize: 12 }}>
+                  <p style={{ margin: '0 0 8px', color: '#6b7280' }}>
+                    Google crawled these pages but chose not to index them. To fix: improve content quality, add internal links pointing to these pages, and ensure each provides unique value.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {derivedCounts.crawledNotIndexed.map((r) => (
+                      <div key={r.url} style={{ fontFamily: 'monospace', color: '#374151' }}>{stripOrigin(r.url)}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Section: Unknown to Google */}
+          {derivedCounts.unknownToGoogle.length > 0 && (
+            <div style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', cursor: 'pointer' }}
+                onClick={() => toggleSection('unknownToGoogle')}
+              >
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>{expandedSections.unknownToGoogle ? '▼' : '▶'}</span>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>🟠 Unknown to Google</span>
+                <span style={{ padding: '2px 8px', borderRadius: 10, background: '#fff7ed', color: '#92400e', fontSize: 12, fontWeight: 600 }}>
+                  {derivedCounts.unknownToGoogle.length}
+                </span>
+                <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>
+                  Submit sitemap or request indexing
+                </span>
+              </div>
+              {expandedSections.unknownToGoogle && (
+                <div style={{ padding: '4px 16px 12px', fontSize: 12 }}>
+                  <p style={{ margin: '0 0 8px', color: '#6b7280' }}>
+                    Google doesn&apos;t know about these pages or hasn&apos;t crawled them yet. To fix: submit your sitemap in Search Console, add internal links to these pages, or use &quot;Request Indexing&quot; in Search Console.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {derivedCounts.unknownToGoogle.map((r) => (
+                      <div key={r.url} style={{ fontFamily: 'monospace', color: '#374151' }}>{stripOrigin(r.url)}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Section: Duplicate / Redirect Issues */}
+          {derivedCounts.duplicateRedirectIssues.length > 0 && (
+            <div>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', cursor: 'pointer' }}
+                onClick={() => toggleSection('duplicateRedirect')}
+              >
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>{expandedSections.duplicateRedirect ? '▼' : '▶'}</span>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>🟡 Duplicate / Redirect Issues</span>
+                <span style={{ padding: '2px 8px', borderRadius: 10, background: '#fef3c7', color: '#92400e', fontSize: 12, fontWeight: 600 }}>
+                  {derivedCounts.duplicateRedirectIssues.length}
+                </span>
+                <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 'auto' }}>
+                  Set canonical tags, fix redirect chains
+                </span>
+              </div>
+              {expandedSections.duplicateRedirect && (
+                <div style={{ padding: '4px 16px 12px', fontSize: 12 }}>
+                  <p style={{ margin: '0 0 8px', color: '#6b7280' }}>
+                    These pages have duplicate content or redirect issues. To fix: set canonical tags to tell Google which version to index, fix redirect chains, and consolidate duplicate content.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {derivedCounts.duplicateRedirectIssues.map((r) => (
+                      <div key={r.url} style={{ fontFamily: 'monospace', color: '#374151' }}>
+                        {stripOrigin(r.url)} — <span style={{ color: '#6b7280' }}>{COVERAGE_LABELS[r.coverageState] || r.coverageState}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Reason breakdown with explanations */}
       {reasonEntries.length > 0 && (
@@ -323,7 +826,7 @@ export default function GscIndexingAuditResults() {
 
       {/* Filter bar + search */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        {(['not_indexed', 'all', 'indexed', 'errors'] as FilterMode[]).map((f) => (
+        {(['not_indexed', 'all', 'indexed', 'indexed_issues', 'errors'] as FilterMode[]).map((f) => (
           <button
             key={f}
             onClick={() => { setFilter(f); setPage(0) }}
@@ -341,13 +844,15 @@ export default function GscIndexingAuditResults() {
             {f === 'all'
               ? `All (${results.length})`
               : f === 'indexed'
-              ? `Indexed (${summaryStats.indexed})`
+              ? `Healthy Indexed (${derivedCounts.healthyIndexed})`
+              : f === 'indexed_issues'
+              ? `Indexed Issues (${derivedCounts.indexedProblematic})`
               : f === 'not_indexed'
-              ? `Not Indexed (${summaryStats.notIndexed})`
-              : `Errors (${errorCount})`}
+              ? `Not Indexed (${derivedCounts.notIndexed})`
+              : `Errors (${derivedCounts.errors})`}
           </button>
         ))}
-        {typeof filter === 'string' && !['all', 'indexed', 'not_indexed', 'errors'].includes(filter) && (
+        {typeof filter === 'string' && !['all', 'indexed', 'not_indexed', 'errors', 'indexed_issues'].includes(filter) && (
           <button
             onClick={() => { setFilter('not_indexed'); setPage(0) }}
             style={{
@@ -416,7 +921,7 @@ export default function GscIndexingAuditResults() {
 
       {pageResults.length === 0 && (
         <div style={{ padding: 24, textAlign: 'center', color: '#9ca3af' }}>
-          {filter === 'not_indexed' && summaryStats.notIndexed === 0
+          {filter === 'not_indexed' && derivedCounts.notIndexed === 0
             ? 'All inspected pages are indexed. No issues found.'
             : 'No pages match the current filter.'}
         </div>
@@ -451,6 +956,7 @@ export default function GscIndexingAuditResults() {
 /** Expandable URL row with details panel */
 function UrlRow({ result: r, isExpanded, onToggle }: { result: InspectionResult; isExpanded: boolean; onToggle: () => void }) {
   const advice = COVERAGE_ADVICE[r.coverageState]
+  const isIndexedProblematic = r.coverageState === 'Submitted and indexed' && r.pageFetchState && PROBLEMATIC_FETCH_STATES.has(r.pageFetchState)
 
   return (
     <>
@@ -483,7 +989,7 @@ function UrlRow({ result: r, isExpanded, onToggle }: { result: InspectionResult;
           </div>
         </td>
         <td style={{ padding: '6px 8px' }}>
-          <StatusBadge coverageState={r.coverageState} />
+          <StatusBadge coverageState={r.coverageState} pageFetchState={r.pageFetchState} />
         </td>
         <td style={{ padding: '6px 8px', color: '#6b7280' }}>
           {r.lastCrawlTime ? formatDate(r.lastCrawlTime) : 'Never'}
@@ -495,19 +1001,23 @@ function UrlRow({ result: r, isExpanded, onToggle }: { result: InspectionResult;
           <td colSpan={4} style={{ padding: '0' }}>
             <div style={{ padding: '12px 16px 12px 28px', background: '#f9fafb', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {/* Advice box */}
-              {advice && (
+              {(advice || isIndexedProblematic) && (
                 <div style={{
                   padding: '10px 12px',
-                  background: r.coverageState === 'Submitted and indexed' ? '#f0fdf4' : '#fff7ed',
-                  border: `1px solid ${r.coverageState === 'Submitted and indexed' ? '#bbf7d0' : '#fed7aa'}`,
+                  background: isIndexedProblematic ? '#fef2f2' : r.coverageState === 'Submitted and indexed' ? '#f0fdf4' : '#fff7ed',
+                  border: `1px solid ${isIndexedProblematic ? '#fecaca' : r.coverageState === 'Submitted and indexed' ? '#bbf7d0' : '#fed7aa'}`,
                   borderRadius: 6,
                   fontSize: 13,
                   lineHeight: 1.5,
                 }}>
-                  <strong style={{ fontSize: 12, textTransform: 'uppercase', color: '#92400e', letterSpacing: '0.5px' }}>
-                    Recommended Action
+                  <strong style={{ fontSize: 12, textTransform: 'uppercase', color: isIndexedProblematic ? '#991b1b' : '#92400e', letterSpacing: '0.5px' }}>
+                    {isIndexedProblematic ? '⚠️ Urgent — Indexed but Broken' : 'Recommended Action'}
                   </strong>
-                  <div style={{ marginTop: 4 }}>{advice}</div>
+                  <div style={{ marginTop: 4 }}>
+                    {isIndexedProblematic
+                      ? `This page is indexed by Google but returns a ${formatFetchState(r.pageFetchState)} error. Google is sending visitors to a broken page. Set up a 301 redirect to a relevant page or fix the underlying issue.`
+                      : advice}
+                  </div>
                 </div>
               )}
 
@@ -590,12 +1100,29 @@ function SummaryCard({ label, value, color, subtitle }: { label: string; value: 
   )
 }
 
-function StatusBadge({ coverageState }: { coverageState: string }) {
-  const label = COVERAGE_LABELS[coverageState] || coverageState
+/** Labels for problematic fetch states when page is indexed */
+const FETCH_STATE_LABELS: Record<string, string> = {
+  NOT_FOUND: 'Indexed (404)',
+  SOFT_404: 'Indexed (Soft 404)',
+  SERVER_ERROR: 'Indexed (Server Error)',
+  REDIRECT_ERROR: 'Indexed (Redirect Error)',
+  ACCESS_DENIED: 'Indexed (Access Denied)',
+  ACCESS_FORBIDDEN: 'Indexed (Forbidden)',
+  BLOCKED_4XX: 'Indexed (4xx Error)',
+  BLOCKED_ROBOTS_TXT: 'Indexed (Robots Blocked)',
+}
+
+function StatusBadge({ coverageState, pageFetchState }: { coverageState: string; pageFetchState?: string }) {
   let bg = '#fef3c7'
   let color = '#92400e'
+  let label = COVERAGE_LABELS[coverageState] || coverageState
 
-  if (coverageState === 'Submitted and indexed') {
+  // Check for indexed-but-problematic pages
+  if (coverageState === 'Submitted and indexed' && pageFetchState && PROBLEMATIC_FETCH_STATES.has(pageFetchState)) {
+    label = FETCH_STATE_LABELS[pageFetchState] || `Indexed (${pageFetchState})`
+    bg = '#fee2e2'
+    color = '#991b1b'
+  } else if (coverageState === 'Submitted and indexed') {
     bg = '#dcfce7'
     color = '#166534'
   } else if (coverageState === 'inspection_failed') {
