@@ -662,6 +662,11 @@ export async function POST(request: NextRequest) {
   // --- clients.service_pages column ---
   await run("clients.service_pages", "ALTER TABLE `clients` ADD `service_pages` text");
 
+  // --- clients.dashboard_conversion_actions, blog_categories, blog_tags columns ---
+  await run("clients.dashboard_conversion_actions", "ALTER TABLE `clients` ADD `dashboard_conversion_actions` text");
+  await run("clients.blog_categories", "ALTER TABLE `clients` ADD `blog_categories` text");
+  await run("clients.blog_tags", "ALTER TABLE `clients` ADD `blog_tags` text");
+
   // --- clients.google_ads_customer_id column ---
   await run("clients.google_ads_customer_id", "ALTER TABLE `clients` ADD `google_ads_customer_id` text");
 
