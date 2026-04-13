@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { startIndexingAudit, runDiscovery, runInspectionWork } from "@/lib/gsc-indexing";
+import { startIndexingAudit, runDiscovery } from "@/lib/gsc-indexing";
 
 export const maxDuration = 120;
 
@@ -53,6 +53,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * POST: Start a new indexing audit.
+ * Only runs discovery (find URLs). Inspection is driven by the frontend
+ * via the /api/gsc/indexing-audit/[id]/inspect endpoint in small batches.
+ */
 export async function POST(req: NextRequest) {
   let step = "parse-body";
   try {
@@ -88,19 +93,9 @@ export async function POST(req: NextRequest) {
     // (client is null when returning an existing active audit)
     if (client) {
       step = "run-discovery";
-      const discoveryResult = await runDiscovery(payload, auditId, client);
-
-      if (discoveryResult && discoveryResult.urls.length > 0) {
-        step = "run-inspection";
-        // Run inspection synchronously — after() is unreliable on Vercel
-        await runInspectionWork(
-          payload,
-          auditId,
-          client,
-          discoveryResult.urls,
-          discoveryResult.accessToken,
-        );
-      }
+      await runDiscovery(payload, auditId, client);
+      // Discovery updates audit to "inspecting" with discovered URLs.
+      // Inspection is handled separately via /[id]/inspect endpoint.
     }
 
     return NextResponse.json({ ok: true, auditId });

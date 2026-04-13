@@ -128,7 +128,7 @@ export default function GscIndexingAuditResults() {
   const status: string = liveStatus ?? data?.status ?? 'discovering'
   const summaryStats: SummaryStats = liveSummaryStats ?? data?.summaryStats ?? { indexed: 0, notIndexed: 0, byReason: {} }
 
-  // Auto-poll every 8s while audit is active
+  // Auto-poll every 8s while audit is active — just reads state (inspection is driven by Overview tab)
   useEffect(() => {
     if (!auditId) return
     const isActive = status === 'discovering' || status === 'inspecting'

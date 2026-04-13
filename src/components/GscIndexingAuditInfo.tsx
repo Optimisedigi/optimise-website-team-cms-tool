@@ -20,7 +20,10 @@ export default function GscIndexingAuditInfo() {
 
   const status = liveStatus ?? data?.status
 
-  // Auto-poll when audit is active
+  // Track whether an inspection batch is in-flight to avoid overlapping calls
+  const inspectingRef = useRef(false)
+
+  // Auto-poll when audit is active, and drive inspection forward
   useEffect(() => {
     if (!auditId) return
     const isActive = status === 'discovering' || status === 'inspecting'
@@ -31,6 +34,30 @@ export default function GscIndexingAuditInfo() {
 
     const poll = async () => {
       try {
+        // If status is "inspecting" and we're not already running a batch,
+        // trigger the inspect endpoint to process the next batch of URLs
+        if (status === 'inspecting' && !inspectingRef.current) {
+          inspectingRef.current = true
+          try {
+            const inspectRes = await fetch(`/api/gsc/indexing-audit/${auditId}/inspect`, { method: 'POST' })
+            if (inspectRes.ok) {
+              const inspectData = await inspectRes.json()
+              setLiveStatus(inspectData.status)
+              setLiveInspectedCount(inspectData.inspectedCount || 0)
+              setLiveTotalUrls(inspectData.totalUrls || 0)
+              if (inspectData.status === 'completed' || inspectData.status === 'failed') {
+                if (pollRef.current) clearInterval(pollRef.current)
+                window.location.reload()
+                return
+              }
+            }
+          } finally {
+            inspectingRef.current = false
+          }
+          return // inspect endpoint already gave us fresh data
+        }
+
+        // For "discovering" status or fallback, just poll for state
         const res = await fetch(`/api/gsc/indexing-audit/${auditId}`)
         if (!res.ok) return
         const audit = await res.json()
@@ -39,13 +66,12 @@ export default function GscIndexingAuditInfo() {
         setLiveTotalUrls(audit.totalUrls || 0)
         if (audit.error) setLiveError(audit.error)
 
-        // Reload page when audit finishes so all tabs get fresh data
         if (audit.status === 'completed' || audit.status === 'failed') {
           if (pollRef.current) clearInterval(pollRef.current)
           window.location.reload()
         }
       } catch {
-        // ignore poll errors
+        inspectingRef.current = false
       }
     }
 
