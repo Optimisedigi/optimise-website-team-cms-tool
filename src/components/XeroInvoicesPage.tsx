@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import './XeroInvoiceChat.css'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -29,6 +30,19 @@ interface XeroScheduledSend {
   sendDate: string
   description: string
 }
+
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'error'
+  content: string
+}
+
+// Tools that modify data — used to trigger a table refresh after chat actions
+const MUTATING_TOOLS = new Set([
+  'createInvoice',
+  'approveInvoice',
+  'sendInvoice',
+  'scheduleSend',
+])
 
 // ─── Helpers ──────────────────────────────────────────────
 
@@ -129,6 +143,158 @@ const refreshBtn: React.CSSProperties = {
   borderRadius: 4,
   cursor: 'pointer',
   padding: '4px 12px',
+}
+
+// ─── Invoice Chat Panel ───────────────────────────────────
+
+function InvoiceChatPanel({ onDataChange }: { onDataChange: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, sending, scrollToBottom])
+
+  const handleSend = async () => {
+    const text = input.trim()
+    if (!text || sending) return
+
+    setInput('')
+    setSending(true)
+    setMessages((prev) => [...prev, { role: 'user', content: text }])
+
+    // Build history from existing messages (user + assistant only)
+    const history = messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({ role: m.role, content: m.content }))
+
+    try {
+      const res = await fetch('/api/xero/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'error', content: data.error || `Request failed (${res.status})` },
+        ])
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: data.reply },
+        ])
+
+        // If any mutating tool was called, refresh the invoice tables
+        const didMutate = data.actions?.some(
+          (a: { tool: string }) => MUTATING_TOOLS.has(a.tool)
+        )
+        if (didMutate) onDataChange()
+      }
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'error',
+          content: err instanceof Error ? err.message : 'Failed to reach the AI assistant',
+        },
+      ])
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setMessages([])
+  }
+
+  return (
+    <div className="xero-chat">
+      <div
+        className={`xero-chat__header ${open ? 'xero-chat__header--open' : ''}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <div className="xero-chat__header-left">
+          <span>💬</span>
+          <span>Invoice Assistant</span>
+        </div>
+        <div className="xero-chat__header-actions">
+          {open && messages.length > 0 && (
+            <button type="button" className="xero-chat__btn-icon" onClick={handleClear}>
+              Clear
+            </button>
+          )}
+          <span className={`xero-chat__expand-icon ${open ? 'xero-chat__expand-icon--open' : ''}`}>
+            ▾
+          </span>
+        </div>
+      </div>
+
+      <div className={`xero-chat__body ${open ? 'xero-chat__body--open' : ''}`}>
+        <div className="xero-chat__messages">
+          {messages.length === 0 && !sending && (
+            <div className="xero-chat__empty">
+              Ask me to create, send, or schedule invoices…
+            </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <div key={i} className={`xero-chat__msg xero-chat__msg--${msg.role}`}>
+              {msg.content}
+            </div>
+          ))}
+
+          {sending && (
+            <div className="xero-chat__typing">
+              <div className="xero-chat__typing-dot" />
+              <div className="xero-chat__typing-dot" />
+              <div className="xero-chat__typing-dot" />
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        <div className="xero-chat__input-bar">
+          <input
+            type="text"
+            className="xero-chat__input"
+            placeholder="e.g. Create an invoice for Malcolm Thompson Pumps for this month's retainer"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={sending}
+          />
+          <button
+            type="button"
+            className="xero-chat__send-btn"
+            onClick={handleSend}
+            disabled={sending || !input.trim()}
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Component ────────────────────────────────────────────
@@ -402,6 +568,9 @@ export default function XeroInvoicesPage() {
           </div>
         )}
       </div>
+
+      {/* AI Invoice Chat */}
+      <InvoiceChatPanel onDataChange={fetchData} />
     </div>
   )
 }
