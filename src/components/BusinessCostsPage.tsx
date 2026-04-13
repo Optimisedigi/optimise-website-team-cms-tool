@@ -338,7 +338,7 @@ const BusinessCostsPage = () => {
   }
 
   const sortedIds = sorted.map((t) => t.id)
-  const { handleSelect: shiftSelect } = useShiftSelect(sortedIds, selectedIds, setSelectedIds)
+  const { onCheckboxChange: shiftSelect } = useShiftSelect(sortedIds, selectedIds, setSelectedIds)
 
   const toggleSelectAll = () => {
     if (selectedIds.size === sorted.length) {
@@ -553,8 +553,7 @@ const BusinessCostsPage = () => {
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onClick={(e) => shiftSelect(tx.id, e)}
-                      onChange={() => {}}
+                      onChange={(e) => shiftSelect(tx.id, e)}
                       style={{ cursor: 'pointer' }}
                     />
                   </td>

@@ -117,8 +117,8 @@ export function KeywordDeepDive({
 
   const budgetWasterTerms = budgetWasters.map((t) => t.term);
   const irrelevantTermIds = irrelevantTerms.map((t) => t.term);
-  const { handleSelect: shiftSelectBudgetWaster } = useShiftSelect(budgetWasterTerms, selectedNegatives, setSelectedNegatives);
-  const { handleSelect: shiftSelectIrrelevant } = useShiftSelect(irrelevantTermIds, selectedNegatives, setSelectedNegatives);
+  const { onCheckboxChange: shiftSelectBudgetWaster } = useShiftSelect(budgetWasterTerms, selectedNegatives, setSelectedNegatives);
+  const { onCheckboxChange: shiftSelectIrrelevant } = useShiftSelect(irrelevantTermIds, selectedNegatives, setSelectedNegatives);
 
   const applyNegativeKeywords = useCallback(async () => {
     if (selectedNegatives.size === 0 || !slug) return;
@@ -329,8 +329,7 @@ export function KeywordDeepDive({
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            onClick={(e) => shiftSelectBudgetWaster(row.term, e)}
-                            onChange={() => {}}
+                            onChange={(e) => shiftSelectBudgetWaster(row.term, e)}
                             className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
                           />
                         </td>
@@ -454,8 +453,7 @@ export function KeywordDeepDive({
                             type="checkbox"
                             checked={isNeg}
                             disabled={isKept}
-                            onClick={(e) => !isKept && shiftSelectIrrelevant(row.term, e)}
-                            onChange={() => {}}
+                            onChange={(e) => !isKept && shiftSelectIrrelevant(row.term, e)}
                             className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:opacity-30"
                           />
                         </td>
