@@ -84,13 +84,13 @@ function RocketLoading() {
           <div className="absolute bottom-0 w-1.5 h-5 left-[10px] rounded-[50%_50%_40%_40%] bg-gradient-to-t from-transparent to-orange-400 opacity-0 animate-[flameLoop_2.6s_cubic-bezier(0.4,0,0.2,1)_0.04s_infinite]" />
         </div>
         {/* Rocket */}
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 animate-[rocketLoop_2.6s_cubic-bezier(0.4,0,0.2,1)_infinite]">
+        <div className="absolute bottom-5 left-1/2 z-10 animate-[rocketMoveLoop_2.6s_cubic-bezier(0.4,0,0.2,1)_infinite]">
           <img
             src="/optimise-rocket-logo-black.png"
             alt=""
             width={48}
             height={48}
-            className="block w-12 h-12 object-contain brightness-0 invert"
+            className="block w-12 h-12 object-contain -rotate-[30deg] brightness-0 invert"
           />
         </div>
       </div>
@@ -105,6 +105,15 @@ function RocketLoading() {
           78% { transform: translateX(-50%) translateY(-130px); opacity: 1; }
           92% { transform: translateX(-50%) translateY(-220px); opacity: 0; }
           100% { transform: translateX(-50%) translateY(-220px); opacity: 0; }
+        }
+        @keyframes rocketMoveLoop {
+          0% { transform: translateX(calc(-50% + 2px)) translateY(0); opacity: 0; }
+          8% { transform: translateX(calc(-50% + 2px)) translateY(0); opacity: 1; }
+          18% { transform: translateX(calc(-50% + 2px)) translateY(2px); opacity: 1; }
+          32% { transform: translateX(calc(-50% + 2px)) translateY(-6px); opacity: 1; }
+          78% { transform: translateX(calc(-50% + 2px)) translateY(-130px); opacity: 1; }
+          92% { transform: translateX(calc(-50% + 2px)) translateY(-220px); opacity: 0; }
+          100% { transform: translateX(calc(-50% + 2px)) translateY(-220px); opacity: 0; }
         }
         @keyframes flameLoop {
           0% { opacity: 0; transform: scaleY(0.2); }
