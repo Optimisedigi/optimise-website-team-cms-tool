@@ -3,7 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { runInspectionBatch } from "@/lib/gsc-indexing";
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 /**
  * POST: Inspect the next batch of URLs for an audit.

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { startIndexingAudit, runDiscovery, runInspectionWork } from "@/lib/gsc-indexing";
+import { startIndexingAudit, runDiscovery } from "@/lib/gsc-indexing";
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 /**
  * GET: List indexing audits for a client.
@@ -93,24 +93,10 @@ export async function POST(req: NextRequest) {
     // (client is null when returning an existing active audit)
     if (client) {
       step = "run-discovery";
-      const discoveryResult = await runDiscovery(payload, auditId, client);
-
-      if (discoveryResult && discoveryResult.urls.length > 0) {
-        step = "run-inspection";
-        // Run inspection using the URLs and token from discovery directly —
-        // no extra DB reads needed. Direct SQL saves keep this fast.
-        try {
-          await runInspectionWork(
-            payload,
-            auditId,
-            client,
-            discoveryResult.urls,
-            discoveryResult.accessToken,
-          );
-        } catch (err) {
-          console.error(`[gsc-indexing-audit] Inspection error (non-fatal):`, err);
-        }
-      }
+      await runDiscovery(payload, auditId, client);
+      // Discovery only — inspection is driven by the frontend polling
+      // via /api/gsc/indexing-audit/[id]/inspect in small batches
+      // that fit within Vercel's 60s function limit.
     }
 
     return NextResponse.json({ ok: true, auditId });
