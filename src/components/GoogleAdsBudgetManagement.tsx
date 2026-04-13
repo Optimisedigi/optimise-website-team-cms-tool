@@ -106,13 +106,11 @@ function generateEmailHtml(
   monthlyBudget: number
 ): string {
   const percentUsed = spend.maxBudget > 0 ? (spend.totalSpend / spend.maxBudget) * 100 : 0;
-  const budgetPerDay = spend.daysRemaining > 0 ? spend.remainingBudget / spend.daysRemaining : 0;
   const onTrackPercent = (spend.daysElapsed / 30.4) * 100;
   const statusColor = percentUsed <= 90 ? '#059669' : percentUsed <= 100 ? '#d97706' : '#dc2626';
   const statusBg = percentUsed <= 90 ? '#f0fdf4' : percentUsed <= 100 ? '#fffbeb' : '#fef2f2';
   const isUnderBudget = percentUsed < onTrackPercent;
   const statusText = percentUsed > 100 ? 'Over Budget' : percentUsed > 90 ? 'On Track' : isUnderBudget ? 'Under Budget' : 'On Track';
-  const dailyBurnRate = spend.daysElapsed > 0 ? spend.totalSpend / spend.daysElapsed : 0;
   const enabledCampaigns = campaigns.filter(c => c.enabled && c.budgetPercentage > 0);
 
   const campaignRows = enabledCampaigns.map(c => {
@@ -169,29 +167,17 @@ function generateEmailHtml(
       </td>
       <td style="width:45%;vertical-align:top;padding-left:8px">
         <div style="padding:16px 20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;height:100%">
-          <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:14px">Burn Rate Analysis</div>
+          <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:14px">Time Tracking</div>
           <table style="width:100%;border-collapse:collapse">
             <tr>
-              <td style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center;width:50%">
+              <td style="padding:12px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center;width:48%">
                 <div style="font-size:11px;color:#64748b;margin-bottom:4px">Days Elapsed</div>
-                <div style="font-size:20px;font-weight:700;color:#1e293b">${spend.daysElapsed}</div>
+                <div style="font-size:24px;font-weight:700;color:#1e293b">${spend.daysElapsed}</div>
               </td>
-              <td style="width:8px"></td>
-              <td style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center;width:50%">
+              <td style="width:4%"></td>
+              <td style="padding:12px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center;width:48%">
                 <div style="font-size:11px;color:#64748b;margin-bottom:4px">Days Remaining</div>
-                <div style="font-size:20px;font-weight:700;color:#1e293b">${spend.daysRemaining}</div>
-              </td>
-            </tr>
-          </table>
-          <table style="width:100%;border-collapse:collapse;margin-top:12px">
-            <tr>
-              <td style="text-align:center;width:50%">
-                <div style="font-size:11px;color:#64748b">Daily Budget</div>
-                <div style="font-size:16px;font-weight:600;color:#059669">$${(spend.maxBudget / 30.4).toFixed(2)}</div>
-              </td>
-              <td style="text-align:center;width:50%">
-                <div style="font-size:11px;color:#64748b">Actual Burn</div>
-                <div style="font-size:16px;font-weight:600;color:#d97706">$${dailyBurnRate.toFixed(2)}/day</div>
+                <div style="font-size:24px;font-weight:700;color:#1e293b">${spend.daysRemaining}</div>
               </td>
             </tr>
           </table>
