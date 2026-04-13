@@ -57,6 +57,31 @@ interface RecentProcess {
   updatedAt: string
 }
 
+interface XeroInvoice {
+  invoiceNumber: string
+  contact: { name: string }
+  total: number
+  amountDue: number
+  dueDate: string
+  status: string
+  isOverdue: boolean
+}
+
+interface XeroInvoiceSummary {
+  totalOutstanding: number
+  totalOverdue: number
+  overdueCount: number
+  unpaidCount: number
+  draftCount: number
+  recentInvoices: XeroInvoice[]
+}
+
+interface XeroScheduledSend {
+  invoiceId: string
+  sendDate: string
+  description: string
+}
+
 interface ProcessesData {
   active: number
   notStarted: number
@@ -188,6 +213,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true)
   const [gscRefreshing, setGscRefreshing] = useState(false)
   const [gscSeeding, setGscSeeding] = useState(false)
+  const [xeroInvoices, setXeroInvoices] = useState<XeroInvoiceSummary | null>(null)
+  const [xeroScheduled, setXeroScheduled] = useState<XeroScheduledSend[]>([])
+  const [xeroLoading, setXeroLoading] = useState(true)
 
   const fetchDashboard = () => {
     return fetch('/api/dashboard')
@@ -232,8 +260,20 @@ const Dashboard = () => {
     }
   }
 
+  const fetchXeroData = () => {
+    Promise.all([
+      fetch('/api/xero/invoices').then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/xero/scheduled-sends').then((r) => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([invoices, scheduled]) => {
+      if (invoices && !invoices.error) setXeroInvoices(invoices)
+      if (Array.isArray(scheduled)) setXeroScheduled(scheduled)
+      setXeroLoading(false)
+    })
+  }
+
   useEffect(() => {
     fetchDashboard()
+    fetchXeroData()
     // Auto-refresh every 30 seconds
     const interval = setInterval(() => {
       if (!gscRefreshing) {
@@ -242,6 +282,7 @@ const Dashboard = () => {
           .then((d) => { if (d && !d.error) setData(d) })
           .catch((err) => console.error('[Dashboard] refresh error:', err))
       }
+      fetchXeroData()
     }, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -368,6 +409,9 @@ const Dashboard = () => {
               </div>
             </div>
           )}
+
+          {/* Outstanding Invoices & Scheduled Sends */}
+          <XeroInvoicesCard invoices={xeroInvoices} scheduled={xeroScheduled} loading={xeroLoading} onRefresh={fetchXeroData} />
 
           {/* Client Processes */}
           <ProcessesCard processes={data.processes} />
@@ -1128,6 +1172,262 @@ const PROCESS_STATUS_COLORS: Record<string, { bg: string; color: string; label: 
   on_hold: { bg: '#fef3c7', color: '#b45309', label: 'On Hold' },
   cancelled: { bg: '#fee2e2', color: '#b91c1c', label: 'Cancelled' },
 }
+
+// ─── Xero Invoices Card ──────────────────────────────────
+
+function XeroInvoicesCard({
+  invoices,
+  scheduled,
+  loading: xeroLoading,
+  onRefresh,
+}: {
+  invoices: XeroInvoiceSummary | null
+  scheduled: XeroScheduledSend[]
+  loading: boolean
+  onRefresh: () => void
+}) {
+  const [refreshing, setRefreshing] = useState(false)
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    onRefresh()
+    setTimeout(() => setRefreshing(false), 2000)
+  }
+
+  if (xeroLoading) {
+    return (
+      <div className="od-box od-box--muted">
+        <div className="od-box__head">
+          <span className="od-box__title">Outstanding Invoices</span>
+        </div>
+        <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
+            Loading Xero data...
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!invoices) {
+    return (
+      <div className="od-box od-box--muted">
+        <div className="od-box__head">
+          <span className="od-box__title">Outstanding Invoices</span>
+        </div>
+        <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
+            Could not load Xero data. Check Growth Tools connection.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const daysUntil = (dateStr: string) => {
+    const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    return diff
+  }
+
+  const sortedScheduled = [...scheduled].sort(
+    (a, b) => new Date(a.sendDate).getTime() - new Date(b.sendDate).getTime()
+  )
+
+  const thStyle: React.CSSProperties = { padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap', fontSize: 12 }
+  const tdStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 12, whiteSpace: 'nowrap' }
+
+  return (
+    <>
+      {/* Outstanding Invoices */}
+      <div className="od-box">
+        <div className="od-box__head">
+          <span className="od-box__title">Outstanding Invoices</span>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{
+              fontSize: 12,
+              color: 'var(--theme-elevation-500)',
+              background: 'none',
+              border: 'none',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+              opacity: refreshing ? 0.5 : 1,
+              padding: 0,
+            }}
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh ↻'}
+          </button>
+        </div>
+
+        {/* KPI stats */}
+        <div className="od-box__stats od-box__stats--4">
+          <div className="od-box__stat">
+            <span className="od-box__stat-value">${invoices.totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className="od-box__stat-label">Outstanding</span>
+          </div>
+          <div className="od-box__stat">
+            <span className="od-box__stat-value" style={invoices.totalOverdue > 0 ? { color: '#ef4444' } : {}}>
+              ${invoices.totalOverdue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span className="od-box__stat-label">Overdue</span>
+          </div>
+          <div className="od-box__stat">
+            <span className="od-box__stat-value">{invoices.unpaidCount}</span>
+            <span className="od-box__stat-label">Unpaid</span>
+          </div>
+          <div className="od-box__stat">
+            <span className="od-box__stat-value" style={invoices.overdueCount > 0 ? { color: '#ef4444' } : {}}>
+              {invoices.overdueCount}
+            </span>
+            <span className="od-box__stat-label">Overdue</span>
+          </div>
+        </div>
+
+        {/* Invoice table */}
+        {invoices.recentInvoices.length > 0 ? (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <th style={thStyle}>Client</th>
+                  <th style={thStyle}>Invoice #</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Amount Due</th>
+                  <th style={thStyle}>Due Date</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.recentInvoices.map((inv) => {
+                  const overdue = inv.isOverdue
+                  return (
+                    <tr
+                      key={inv.invoiceNumber}
+                      style={{
+                        borderBottom: '1px solid var(--theme-elevation-50)',
+                        background: overdue ? 'rgba(239, 68, 68, 0.04)' : undefined,
+                      }}
+                    >
+                      <td style={{ ...tdStyle, fontWeight: 500, color: 'var(--theme-elevation-700)' }}>
+                        {inv.contact.name}
+                      </td>
+                      <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
+                        {inv.invoiceNumber}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
+                        ${inv.amountDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td style={tdStyle}>
+                        {new Date(inv.dueDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: 9999,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: overdue ? '#fef2f2' : inv.status === 'DRAFT' ? '#f3f4f6' : '#f0fdf4',
+                            color: overdue ? '#b91c1c' : inv.status === 'DRAFT' ? '#6b7280' : '#15803d',
+                          }}
+                        >
+                          {overdue ? 'Overdue' : inv.status === 'DRAFT' ? 'Draft' : 'Unpaid'}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ padding: '16px 20px', textAlign: 'center' }}>
+            <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
+              No unpaid invoices 🎉
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Scheduled Sends */}
+      <div className="od-box">
+        <div className="od-box__head">
+          <span className="od-box__title">Scheduled Sends</span>
+        </div>
+
+        {sortedScheduled.length > 0 ? (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <th style={thStyle}>Description</th>
+                  <th style={thStyle}>Send Date</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Days Until Send</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedScheduled.map((send) => {
+                  const days = daysUntil(send.sendDate)
+                  const isUrgent = days <= 3 && days >= 0
+                  const isPast = days < 0
+                  return (
+                    <tr
+                      key={send.invoiceId}
+                      style={{
+                        borderBottom: '1px solid var(--theme-elevation-50)',
+                        background: isUrgent ? 'rgba(245, 158, 11, 0.06)' : undefined,
+                      }}
+                    >
+                      <td style={{ ...tdStyle, fontWeight: 500, color: 'var(--theme-elevation-700)' }}>
+                        <a
+                          href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${send.invoiceId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: 'inherit', textDecoration: 'none' }}
+                          onMouseOver={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                          onMouseOut={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                        >
+                          {send.description}
+                        </a>
+                      </td>
+                      <td style={tdStyle}>
+                        {new Date(send.sendDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: 9999,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: isPast ? '#fef2f2' : isUrgent ? '#fffbeb' : '#f3f4f6',
+                            color: isPast ? '#b91c1c' : isUrgent ? '#b45309' : '#6b7280',
+                          }}
+                        >
+                          {isPast ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ padding: '16px 20px', textAlign: 'center' }}>
+            <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
+              No scheduled sends
+            </p>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ─── Process Status Styles ──────────────────────────────
 
 function ProcessesCard({ processes }: { processes?: ProcessesData | null }) {
   if (!processes) {
