@@ -220,17 +220,16 @@ export async function runInspectionWork(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Inspection failed";
     console.error(`[gsc-indexing] Inspection ${auditId} failed:`, message);
-    // Don't mark as failed — partial results may have been saved above,
-    // and the cron will pick up remaining URLs
-    await payload.update({
-      collection: "gsc-indexing-audits",
-      id: auditId,
-      overrideAccess: true,
-      data: {
-        error: `Inspection interrupted: ${message}. Remaining URLs will be processed by cron.`,
-        lastBatchDate: new Date().toISOString(),
-      },
-    }).catch(() => {}); // prevent double-fault
+    const dbClient = (payload.db as any).client;
+    const errorMsg = `Inspection interrupted: ${message}. Remaining URLs will be processed by cron.`;
+    if (dbClient) {
+      await dbClient.execute({
+        sql: `UPDATE gsc_indexing_audits SET error = ?, last_batch_date = ?, updated_at = ? WHERE id = ?`,
+        args: [errorMsg, new Date().toISOString(), new Date().toISOString(), Number(auditId)],
+      }).catch(() => {});
+    } else {
+      await payload.update({ collection: "gsc-indexing-audits", id: auditId, overrideAccess: true, data: { error: errorMsg, lastBatchDate: new Date().toISOString() } }).catch(() => {});
+    }
   }
 }
 
@@ -391,12 +390,15 @@ export async function startIndexingAudit(
 
     // If stuck for >5 minutes, mark as failed so a new audit can start
     if (stuckMinutes > 5) {
-      await payload.update({
-        collection: "gsc-indexing-audits",
-        id: existing.id,
-        overrideAccess: true,
-        data: { status: "failed", error: "Timed out (stuck for over 5 minutes)" },
-      });
+      const dbClient = (payload.db as any).client;
+      if (dbClient) {
+        await dbClient.execute({
+          sql: `UPDATE gsc_indexing_audits SET status = 'failed', error = 'Timed out (stuck for over 5 minutes)', updated_at = ? WHERE id = ?`,
+          args: [new Date().toISOString(), Number(existing.id)],
+        });
+      } else {
+        await payload.update({ collection: "gsc-indexing-audits", id: existing.id, overrideAccess: true, data: { status: "failed", error: "Timed out (stuck for over 5 minutes)" } });
+      }
     } else {
       return { auditId: String(existing.id), client: null };
     }
