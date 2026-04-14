@@ -1060,12 +1060,9 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
     ? keywords.reduce((sum, kw) => sum + (kw.searchVolume ?? 0), 0)
     : null
 
-  // Avg competitor monthly traffic
-  const competitorTrafficValues = allCompetitorsWithOverrides
-    .filter(c => {
-      const d = c.domain?.replace(/^www\./, '') ?? ''
-      return !excludedCompetitorDomains.has(d)
-    })
+  // Avg competitor monthly traffic — use only the competitors shown on the competitor slide
+  const displayedCompetitors = [...selectedCompetitors, ...displaySearchCompetitors]
+  const competitorTrafficValues = displayedCompetitors
     .map(c => normalizeMonthlyVisits(c.traffic?.monthlyVisits))
     .filter((v): v is number => v != null && v > 0)
   const avgCompetitorTraffic = competitorTrafficValues.length > 0
@@ -2481,7 +2478,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                       <span className="stat-highlight-value">{formatTraffic(avgCompetitorTraffic)}</span>
                       <span className="stat-highlight-label">Competitor Monthly Web Traffic</span>
                       <p className="stat-highlight-copy">
-                        Across <strong>{keywords?.length ?? 0}</strong> keywords, competitors drive <strong>{formatTraffic(avgCompetitorTraffic)}</strong> monthly visits to their websites
+                        Across a select number of keywords, the competitors above average <strong>{formatTraffic(avgCompetitorTraffic)}</strong> monthly visits to their websites
                       </p>
                     </div>
                   )}
