@@ -1294,7 +1294,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             <section key={`flight-plan-extra-${i}`} className="slide slide-16 slide-expandable">
               <div className="slide-header">
                 <h2>8. Flight Plan</h2>
-                <span>Roadmap &amp; Timeframes</span>
+                <span>Roadmap</span>
               </div>
               <div className="slide-content">
                 <div className="flight-plan-images">
@@ -1351,10 +1351,10 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             <section className="slide slide-16 slide-expandable">
               <div className="slide-header">
                 <h2>8. Flight Plan</h2>
-                <span>Roadmap &amp; Timeframes</span>
+                <span>Roadmap</span>
               </div>
               <div className="slide-content">
-                {/* Two-column layout: checklist left, launch stack right */}
+                {/* Two-column layout: checklist left, recommendation right */}
                 <div className="flight-plan-layout">
                   {/* LEFT COLUMN — Enabled recommendations only */}
                   <div className="flight-plan-checklist">
@@ -1370,81 +1370,25 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     ))}
                   </div>
 
-                  {/* RIGHT COLUMN — Launch Stack visual + auto-narrative */}
+                  {/* RIGHT COLUMN — Integrated growth recommendation */}
                   <div className="launch-stack-column">
-                    {totalStages > 0 && (
-                      <div className="launch-stack">
-                        {/* Rocket icon at top */}
-                        <div className="launch-stack-rocket">🚀</div>
-
-                        {/* Measurement tier (top) */}
-                        {measurementStages.length > 0 && (
-                          <div className="launch-stack-tier">
-                            <span className="launch-stack-tier-label" style={{ color: tierColors.measurement.label }}>Measurement</span>
-                            {measurementStages.map((s, i) => (
-                              <div key={i} className="launch-stage" style={{ background: tierColors.measurement.bg, borderColor: tierColors.measurement.border }}>
-                                <span className="launch-stage-name">{s.title}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Growth tier (middle-upper) */}
-                        {growthStages.length > 0 && (
-                          <div className="launch-stack-tier">
-                            <span className="launch-stack-tier-label" style={{ color: tierColors.growth.label }}>Growth Engines</span>
-                            {growthStages.map((s, i) => (
-                              <div key={i} className="launch-stage" style={{ background: tierColors.growth.bg, borderColor: tierColors.growth.border }}>
-                                <span className="launch-stage-name">{s.title}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Visibility tier (middle-lower) */}
-                        {visibilityStages.length > 0 && (
-                          <div className="launch-stack-tier">
-                            <span className="launch-stack-tier-label" style={{ color: tierColors.visibility.label }}>Visibility</span>
-                            {visibilityStages.map((s, i) => (
-                              <div key={i} className="launch-stage" style={{ background: tierColors.visibility.bg, borderColor: tierColors.visibility.border }}>
-                                <span className="launch-stage-name">{s.title}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Foundation tier (bottom) */}
-                        {foundationStages.length > 0 && (
-                          <div className="launch-stack-tier">
-                            <span className="launch-stack-tier-label" style={{ color: tierColors.foundation.label }}>Foundation</span>
-                            {foundationStages.map((s, i) => (
-                              <div key={i} className="launch-stage" style={{ background: tierColors.foundation.bg, borderColor: tierColors.foundation.border }}>
-                                <span className="launch-stage-name">{s.title}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Auto-narrative copy */}
                     <div className="launch-narrative">
-                      <p className="launch-narrative-intro">Your growth strategy is built as an integrated system — each layer compounds the results of the one below it.</p>
+                      <p className="launch-narrative-intro">Our Recommendation: Build a Growth Strategy Around an Integrated System</p>
 
                       {hasSystemBuilds && (
-                        <p className="launch-narrative-paragraph">We start with the <strong>foundation</strong> — building a high-converting website with technical SEO best practices baked in. This ensures every visitor has the best chance of becoming a lead, and search engines can properly discover and rank your pages.</p>
+                        <p className="launch-narrative-paragraph"><strong>An optimised website and SEO foundation are the most important starting point.</strong> A high-converting, technically sound website ensures every visitor has the best chance of becoming a lead — and that search engines can properly discover and rank your pages. Without this foundation, every other channel underperforms.</p>
                       )}
 
                       {hasPerformanceMarketing && (
-                        <p className="launch-narrative-paragraph"><strong>Performance marketing</strong> through paid ads will drive immediate, qualified traffic while your organic presence builds. This gives you measurable results from day one and provides data to refine targeting over time.</p>
+                        <p className="launch-narrative-paragraph"><strong>Google Ads can deliver results immediately</strong> by capturing high-intent search traffic from day one. Once the website and SEO foundations are in place, paid search compounds your growth — driving qualified visitors to pages already built to convert. Together, organic and paid work as a system rather than in isolation.</p>
                       )}
 
                       {hasContentSocial && (
-                        <p className="launch-narrative-paragraph">A <strong>content and social strategy</strong> builds long-term authority and keeps your brand visible across channels. Every piece of content works to attract organic traffic, nurture prospects, and reinforce your expertise.</p>
+                        <p className="launch-narrative-paragraph"><strong>Ongoing SEO with a content strategy</strong> is the highest-impact long-term action. Publishing keyword-targeted content that answers real customer questions builds topical authority, drives organic traffic month after month, and reduces reliance on paid channels over time.</p>
                       )}
 
                       {hasCrmRetention && (
-                        <p className="launch-narrative-paragraph"><strong>CRM and retention systems</strong> ensure no lead falls through the cracks. Automated follow-ups, email sequences, and pipeline tracking turn more enquiries into paying clients and keep existing customers coming back.</p>
+                        <p className="launch-narrative-paragraph"><strong>CRM, retention, and analytics</strong> tie everything together. Automated follow-ups ensure no lead falls through the cracks, email sequences nurture prospects into clients, and tracking dashboards give you the data to measure ROI and make smarter decisions across every channel.</p>
                       )}
                     </div>
                   </div>
