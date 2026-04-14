@@ -1031,19 +1031,17 @@ export const ClientProposals: CollectionConfig = {
             {
               name: "missionResources",
               type: "richText",
-              editor: proposalEditor,
               admin: {
                 description:
-                  "Content for the Mission Resources slide. Supports bold, italic, underline, font size formatting.",
+                  "Content for the Mission Resources slide. Supports bold, italic, underline formatting.",
               },
             },
             {
               name: "launchRequirements",
               type: "richText",
-              editor: proposalEditor,
               admin: {
                 description:
-                  "Content for the Launch Requirements slide. Supports bold, italic, underline, font size formatting.",
+                  "Content for the Launch Requirements slide. Supports bold, italic, underline formatting.",
               },
             },
             {
