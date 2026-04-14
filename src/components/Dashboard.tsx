@@ -1361,10 +1361,10 @@ function XeroInvoicesCard({
         )}
       </div>
 
-      {/* Scheduled Sends */}
+      {/* Drafts & Scheduled */}
       <div className="od-box">
         <div className="od-box__head">
-          <span className="od-box__title">Scheduled Sends</span>
+          <span className="od-box__title">Drafts & Scheduled</span>
         </div>
 
         {sortedScheduled.length > 0 ? (
@@ -1372,16 +1372,17 @@ function XeroInvoicesCard({
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <th style={thStyle}>Client</th>
                   <th style={thStyle}>Description</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
                   <th style={thStyle}>Send Date</th>
-                  <th style={{ ...thStyle, textAlign: 'center' }}>Days Until Send</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedScheduled.map((send) => {
-                  const days = daysUntil(send.sendDate)
-                  const isUrgent = days <= 3 && days >= 0
-                  const isPast = days < 0
+                  const days = send.sendDate ? daysUntil(send.sendDate) : null
+                  const isUrgent = days !== null && days <= 3 && days >= 0
+                  const isPast = days !== null && days < 0
                   return (
                     <tr
                       key={send.invoiceId}
@@ -1391,6 +1392,9 @@ function XeroInvoicesCard({
                       }}
                     >
                       <td style={{ ...tdStyle, fontWeight: 500, color: 'var(--theme-elevation-700)' }}>
+                        {send.contact}
+                      </td>
+                      <td style={tdStyle}>
                         <a
                           href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${send.invoiceId}`}
                           target="_blank"
@@ -1402,9 +1406,6 @@ function XeroInvoicesCard({
                           {send.description}
                         </a>
                       </td>
-                      <td style={tdStyle}>
-                        {new Date(send.sendDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>
                         <span
                           style={{
@@ -1413,12 +1414,37 @@ function XeroInvoicesCard({
                             borderRadius: 9999,
                             fontSize: 11,
                             fontWeight: 600,
-                            background: isPast ? '#fef2f2' : isUrgent ? '#fffbeb' : '#f3f4f6',
-                            color: isPast ? '#b91c1c' : isUrgent ? '#b45309' : '#6b7280',
+                            background: send.status === 'scheduled' ? '#eff6ff' : '#f3f4f6',
+                            color: send.status === 'scheduled' ? '#2563eb' : '#6b7280',
                           }}
                         >
-                          {isPast ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`}
+                          {send.status === 'scheduled' ? 'Scheduled' : 'Draft'}
                         </span>
+                      </td>
+                      <td style={tdStyle}>
+                        {send.sendDate ? (
+                          <>
+                            {new Date(send.sendDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            {days !== null && (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  display: 'inline-block',
+                                  padding: '2px 8px',
+                                  borderRadius: 9999,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  background: isPast ? '#fef2f2' : isUrgent ? '#fffbeb' : '#f3f4f6',
+                                  color: isPast ? '#b91c1c' : isUrgent ? '#b45309' : '#6b7280',
+                                }}
+                              >
+                                {isPast ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days}d`}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--theme-elevation-300)', fontSize: 12 }}>—</span>
+                        )}
                       </td>
                     </tr>
                   )
@@ -1429,7 +1455,7 @@ function XeroInvoicesCard({
         ) : (
           <div style={{ padding: '16px 20px', textAlign: 'center' }}>
             <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
-              No scheduled sends
+              No drafts or scheduled sends
             </p>
           </div>
         )}
