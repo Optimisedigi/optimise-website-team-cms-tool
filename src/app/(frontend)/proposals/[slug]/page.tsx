@@ -2069,7 +2069,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   ))}
                 </div>
                 {keywordCategories && keywordCategories.length > 0 && (
-                  <p className="kw-location-note">Competitors shown are based on Google rankings for {keywordCategories[0].categoryName} focused keywords</p>
+                  <p className="kw-location-note">Competitors shown are based on Google rankings for {keywordCategories[0].categoryName} focused keywords. Monthly visits and organic/paid traffic split are sourced from SimilarWeb and are estimates.</p>
                 )}
               </section>
 
@@ -2178,9 +2178,9 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 <p className="slide-intro-copy">These are all the relevant search terms and their monthly search volume in {targetLocationLabel}.</p>
               )}
               <div className="slide-content">
-                <div className="kw-category-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${colCount}, 1fr)`, gap: '20px' }}>
+                <div className="kw-category-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${colCount}, 1fr)`, gap: '28px' }}>
                   {sortedGroups.map((group, gIdx) => (
-                    <section key={gIdx} className="audit-section" style={{ marginBottom: '12px' }}>
+                    <section key={gIdx} className="audit-section" style={{ marginBottom: '0' }}>
                       <div className="kw-category-header">
                         <h3 className="kw-category-heading">{group.name}</h3>
                         <span className="kw-category-total">{group.totalVolume.toLocaleString()} monthly searches</span>
