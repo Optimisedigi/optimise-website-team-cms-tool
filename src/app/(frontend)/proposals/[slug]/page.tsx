@@ -1794,11 +1794,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               </section>
 
               {categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores) && (
-                <>
-                <div className="subsection-divider">
-                  <h3 className="subsection-divider-title">Category Scores</h3>
-                </div>
-                <section className="audit-section">
+                <section className="audit-section" style={{ marginTop: '8px' }}>
                   <div className="score-bars score-bars-3col">
                     {Object.entries(categoryScores)
                       .sort(([, a], [, b]) => (b as number) - (a as number))
@@ -1807,7 +1803,6 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                       ))}
                   </div>
                 </section>
-                </>
               )}
             </div>
           </section>
@@ -1928,10 +1923,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 </div>
               </section>
 
-              <div className="subsection-divider">
-                <h3 className="subsection-divider-title">CRO Sub-Scores</h3>
-              </div>
-              <section className="audit-section">
+              <section className="audit-section" style={{ marginTop: '8px' }}>
                 <div className="cro-scores-grid">
                   {[
                     { label: 'First Impression', score: (croAudit as any).firstImpressionScore ?? (croAudit as any).aboveFoldScore ?? 0 },
@@ -2102,6 +2094,9 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 <h2>3. Pre-flight Check</h2>
                 <span>Keywords Analysis</span>
               </div>
+              {targetLocationLabel && (
+                <p className="slide-intro-copy">These are all the relevant search terms and their monthly search volume in {targetLocationLabel}.</p>
+              )}
               <div className="slide-content">
                 <div className="kw-category-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${colCount}, 1fr)`, gap: '20px' }}>
                   {sortedGroups.map((group, gIdx) => (
@@ -2232,19 +2227,30 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               )}
 
               {/* PageSpeed Insights — compact gauges */}
-              {lighthouseScores && (lighthouseScores.performance != null || lighthouseScores.accessibility != null || lighthouseScores.bestPractices != null || lighthouseScores.seo != null) && (
-                <section className="psi-section psi-section--inline">
-                  <h3 className="psi-section-title">PageSpeed Insights</h3>
-                  <div className="psi-gauges psi-gauges--small">
-                    {lighthouseScores.performance != null && <PageSpeedGauge score={lighthouseScores.performance} label="Performance" />}
-                    {lighthouseScores.accessibility != null && <PageSpeedGauge score={lighthouseScores.accessibility} label="Accessibility" />}
-                    {lighthouseScores.bestPractices != null && <PageSpeedGauge score={lighthouseScores.bestPractices} label="Best Practices" />}
-                    {lighthouseScores.seo != null && <PageSpeedGauge score={lighthouseScores.seo} label="SEO" />}
+              {lighthouseScores && (lighthouseScores.performance != null || lighthouseScores.accessibility != null || lighthouseScores.bestPractices != null || seoScore != null || croScore != null) && (
+                <section className="scores-row">
+                  <div className="scores-row-left">
+                    <h3 className="psi-section-title">PageSpeed Insights</h3>
+                    <div className="psi-gauges psi-gauges--small">
+                      {lighthouseScores.performance != null && <PageSpeedGauge score={lighthouseScores.performance} label="Performance" />}
+                      {lighthouseScores.accessibility != null && <PageSpeedGauge score={lighthouseScores.accessibility} label="Accessibility" />}
+                      {lighthouseScores.bestPractices != null && <PageSpeedGauge score={lighthouseScores.bestPractices} label="Best Practices" />}
+                    </div>
                   </div>
+                  {(seoScore != null || croScore != null) && (
+                    <div className="scores-row-right">
+                      <h3 className="psi-section-title">Audit Scores</h3>
+                      <div className="psi-gauges psi-gauges--small audit-score-gauges">
+                        {croScore != null && <PageSpeedGauge score={Math.round(croScore * 10)} label="CRO" />}
+                        {seoScore != null && <PageSpeedGauge score={Math.round(seoScore * 10)} label="SEO" />}
+                      </div>
+                    </div>
+                  )}
                 </section>
               )}
 
-              {(averageOrderValue != null || leadConversionRate != null || leadToSaleConversionRate != null || annualPurchaseFrequency != null || newCustomersLast12Months != null) && (
+              {(averageOrderValue != null || leadConversionRate != null || leadToSaleConversionRate != null || annualPurchaseFrequency != null || newCustomersLast12Months != null) && (<>
+                <p className="mission-brief-details-title">Used for Forecast Estimates</p>
                 <div className="mission-brief-details">
                   {averageOrderValue != null && (
                     <div className="mission-brief-detail">
@@ -2277,39 +2283,29 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     </div>
                   )}
                 </div>
-              )}
+              </>)}
             </section>
 
-            {(seoScore != null || croScore != null || totalMonthlySearchVolume != null || avgCompetitorTraffic != null) && (
+            {(totalMonthlySearchVolume != null || avgCompetitorTraffic != null) && (
               <section className="instrument-panel">
-                <div className="instrument-panel-cards">
+                <div className="stat-highlight-boxes">
                   {totalMonthlySearchVolume != null && (
-                    <OverviewScoreCard
-                      label="Monthly Search Volume"
-                      value={formatTraffic(totalMonthlySearchVolume)}
-                      subtitle={`across ${keywords?.length ?? 0} keywords`}
-                    />
+                    <div className="stat-highlight-box">
+                      <span className="stat-highlight-value">{formatTraffic(totalMonthlySearchVolume)}</span>
+                      <span className="stat-highlight-label">Monthly Search Volume</span>
+                      <p className="stat-highlight-copy">
+                        For relevant search terms{targetLocationLabel ? ` in ${targetLocationLabel}` : ''}, there are <strong>{totalMonthlySearchVolume.toLocaleString()}</strong> monthly searches from potential customers
+                      </p>
+                    </div>
                   )}
                   {avgCompetitorTraffic != null && (
-                    <OverviewScoreCard
-                      label="Competitor Monthly Web Traffic"
-                      value={formatTraffic(avgCompetitorTraffic)}
-                      subtitle="avg across competitors"
-                    />
-                  )}
-                  {croScore != null && (
-                    <OverviewScoreCard
-                      label="Website Conversion Rate Optimisation Score"
-                      value={`${croScore}/10`}
-                      color={croScore >= 7 ? 'green' : croScore >= 4 ? 'amber' : 'red'}
-                    />
-                  )}
-                  {seoScore != null && (
-                    <OverviewScoreCard
-                      label="Current Website SEO Score"
-                      value={`${seoScore}/10`}
-                      color={seoScore >= 7 ? 'green' : seoScore >= 4 ? 'amber' : 'red'}
-                    />
+                    <div className="stat-highlight-box">
+                      <span className="stat-highlight-value">{formatTraffic(avgCompetitorTraffic)}</span>
+                      <span className="stat-highlight-label">Competitor Monthly Web Traffic</span>
+                      <p className="stat-highlight-copy">
+                        Across <strong>{keywords?.length ?? 0}</strong> keywords, competitors drive <strong>{formatTraffic(avgCompetitorTraffic)}</strong> monthly visits to their websites
+                      </p>
+                    </div>
                   )}
                 </div>
               </section>

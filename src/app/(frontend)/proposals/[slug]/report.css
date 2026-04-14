@@ -256,6 +256,42 @@
   font-size: 11px;
 }
 
+/* Scores row — PSI left, Audit scores right */
+.scores-row {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  padding: 12px 0 4px;
+}
+
+.scores-row-left,
+.scores-row-right {
+  text-align: left;
+}
+
+.scores-row-right {
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  padding-left: 32px;
+}
+
+.audit-score-gauges {
+  gap: 24px;
+}
+
+@media (max-width: 500px) {
+  .scores-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .scores-row-right {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    padding-top: 12px;
+  }
+}
+
 /* TAM section */
 .tam-section {
   background: #fff;
@@ -360,6 +396,60 @@
 
 .instrument-panel .overview-score-red .overview-score-value {
   color: #f87171;
+}
+
+/* Stat highlight boxes (search volume & competitor traffic) */
+.stat-highlight-boxes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding: 0 20px;
+}
+
+@media (max-width: 600px) {
+  .stat-highlight-boxes {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stat-highlight-box {
+  background: #0b1120;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+}
+
+.stat-highlight-value {
+  font-size: 32px;
+  font-weight: 800;
+  color: #3b82f6;
+  line-height: 1.1;
+}
+
+.stat-highlight-label {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+}
+
+.stat-highlight-copy {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.5;
+  margin: 8px 0 0;
+  max-width: 280px;
+}
+
+.stat-highlight-copy strong {
+  color: #f4f4f5;
+  font-weight: 700;
 }
 
 /* ============================================================ */
@@ -1053,6 +1143,17 @@
 }
 
 /* ============================================================ */
+/* Keyword slide intro copy                                     */
+/* ============================================================ */
+
+.slide-intro-copy {
+  margin: -4px 0 12px;
+  font-size: 13px;
+  color: #71717a;
+  line-height: 1.4;
+}
+
+/* ============================================================ */
 /* Keyword Table                                                */
 /* ============================================================ */
 
@@ -1060,8 +1161,8 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
+  margin-bottom: 2px;
+  padding-bottom: 4px;
   border-bottom: 2px solid #3b82f6;
   gap: 8px;
 }
@@ -1782,7 +1883,7 @@ html.scroll-ready .report-presentation {
 .slide-1-business {
   font-size: 22px;
   font-weight: 700;
-  color: #18181b;
+  color: #1e3a5f;
   margin: 0;
   line-height: 1.2;
 }
@@ -1822,19 +1923,35 @@ html.scroll-ready .report-presentation {
   background: #fff;
 }
 
+.slide-8 .audit-hero {
+  margin-bottom: 0;
+}
+
 /* ---- Slide 5 — Mission Brief ---- */
 .slide-5 {
   background: #fff;
   padding-bottom: 140px;
 }
 
+.mission-brief-details-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 600;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  text-align: center;
+}
+
 .mission-brief-details {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: none;
 }
 
 .mission-brief-detail {
@@ -1846,7 +1963,7 @@ html.scroll-ready .report-presentation {
 }
 
 .mission-brief-detail-label {
-  font-size: 14px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(255, 255, 255, 0.5);
@@ -1854,7 +1971,7 @@ html.scroll-ready .report-presentation {
 }
 
 .mission-brief-detail-value {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
   color: #fff;
 }
@@ -2687,8 +2804,8 @@ html.scroll-ready .report-presentation {
 /* ── Rocket scroll hint — first slide only, horizontally aligned with rocket ── */
 .rocket-hint {
   position: fixed;
-  right: 100px;
-  bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 20px), calc(65% - 5px));
+  right: 105px;
+  bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 30px), calc(65% + 5px));
   z-index: 2147483647;
   display: flex;
   align-items: center;
