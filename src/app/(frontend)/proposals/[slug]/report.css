@@ -2045,6 +2045,24 @@ html.scroll-ready .report-presentation {
   min-height: 70svh;
 }
 
+/* When slide 18 has the transition image (no mission resources) */
+.slide-18-with-transition {
+  padding-top: 0 !important;
+}
+
+.slide-18-with-transition > .slide-header,
+.slide-18-with-transition > .slide-content {
+  margin-left: 24px;
+  margin-right: 24px;
+}
+
+@media (min-width: 901px) {
+  .slide-18-with-transition > .slide-header,
+  .slide-18-with-transition > .slide-content {
+    margin-right: 80px;
+  }
+}
+
 .slide-18-station {
   position: absolute;
   top: 170px;
@@ -2363,14 +2381,14 @@ html.scroll-ready .report-presentation {
   gap: 10px;
   padding: 10px 14px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #e4e4e7;
+  background: #f9fafb;
   transition: border-color 0.2s, background 0.2s;
 }
 
 .flight-plan-check-enabled {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(34, 197, 94, 0.25);
+  background: rgba(34, 197, 94, 0.04);
+  border-color: rgba(34, 197, 94, 0.3);
 }
 
 .flight-plan-check-disabled {
@@ -2408,23 +2426,23 @@ html.scroll-ready .report-presentation {
 .flight-plan-check-title {
   font-weight: 600;
   font-size: 14px;
-  color: #f0f0f0;
+  color: #18181b;
   line-height: 1.3;
 }
 
 .flight-plan-check-disabled .flight-plan-check-title {
-  color: #9ca3af;
+  color: #71717a;
 }
 
 .flight-plan-check-desc {
   font-size: 12px;
-  color: #9ca3af;
+  color: #52525b;
   line-height: 1.4;
   margin: 2px 0 0;
 }
 
 .flight-plan-check-disabled .flight-plan-check-desc {
-  color: #6b7280;
+  color: #a1a1aa;
 }
 
 .flight-plan-check-benefit {
@@ -2462,8 +2480,8 @@ html.scroll-ready .report-presentation {
   align-items: center;
   gap: 4px;
   padding: 24px 16px 20px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #f9fafb;
+  border: 1px solid #e4e4e7;
   border-radius: 16px;
 }
 
@@ -2502,7 +2520,7 @@ html.scroll-ready .report-presentation {
 .launch-stage-name {
   font-size: 13px;
   font-weight: 600;
-  color: #f0f0f0;
+  color: #18181b;
 }
 
 /* Auto-narrative text */
@@ -2513,20 +2531,20 @@ html.scroll-ready .report-presentation {
 .launch-narrative-intro {
   font-size: 14px;
   font-weight: 600;
-  color: #d4d4d8;
+  color: #27272a;
   line-height: 1.5;
   margin: 0 0 12px;
 }
 
 .launch-narrative-paragraph {
   font-size: 13px;
-  color: #9ca3af;
+  color: #52525b;
   line-height: 1.6;
   margin: 0 0 10px;
 }
 
 .launch-narrative-paragraph strong {
-  color: #e5e7eb;
+  color: #18181b;
   font-weight: 600;
 }
 

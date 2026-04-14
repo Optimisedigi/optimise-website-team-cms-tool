@@ -1127,6 +1127,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const missionResourcesImages = (proposal as any).missionResourcesImages as { image: any; caption?: string }[] | null
   const missionResources = (proposal as any).missionResources as SerializedEditorState | string | null
   const launchRequirements = (proposal as any).launchRequirements as SerializedEditorState | string | null
+  const hasMissionResourcesContent = !!(missionResources || (missionResourcesImages && missionResourcesImages.length > 0))
 
   // Content Research keyword selection from CMS (relationship IDs or populated docs)
   const contentResearchKeywordsRaw = (proposal as any).contentResearchKeywords as (number | { id: number; keyword: string; location?: string; totalQuestions?: number; clusters?: ContentCluster[]; externalId?: string })[] | null
@@ -1198,7 +1199,11 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 18 — Launch Requirements + Space Station               */}
         {/* ============================================================ */}
-        {showSlide(18) && <section className="slide slide-18 slide-expandable">
+        {showSlide(18) && <section className={`slide slide-18 slide-expandable ${!hasMissionResourcesContent ? 'slide-18-with-transition' : ''}`}>
+          {!hasMissionResourcesContent && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src="/slides/merge-between-space-presentation.png" alt="" className="slide-space-transition" />
+          )}
           <StarField seed={42} />
           <div className="slide-header slide-header-dark">
             <h2>10. Launch Requirements</h2>
@@ -1226,7 +1231,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 17 — Mission Resources                                */}
         {/* ============================================================ */}
-        {showSlide(17) && <section className="slide slide-17 slide-expandable">
+        {showSlide(17) && hasMissionResourcesContent && <section className="slide slide-17 slide-expandable">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/slides/merge-between-space-presentation.png" alt="" className="slide-space-transition" />
           <div className="slide-header">
@@ -1353,16 +1358,16 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               <div className="slide-content">
                 {/* Two-column layout: checklist left, launch stack right */}
                 <div className="flight-plan-layout">
-                  {/* LEFT COLUMN — Full checklist of all recommendations */}
+                  {/* LEFT COLUMN — Enabled recommendations only */}
                   <div className="flight-plan-checklist">
-                    {allRecs.map((rec, i) => (
-                      <div key={i} className={`flight-plan-check-item ${rec.enabled ? 'flight-plan-check-enabled' : 'flight-plan-check-disabled'}`}>
-                        <span className="flight-plan-check-icon">{rec.enabled ? '✓' : '✗'}</span>
+                    {allRecs.filter(r => r.enabled).map((rec, i) => (
+                      <div key={i} className="flight-plan-check-item flight-plan-check-enabled">
+                        <span className="flight-plan-check-icon">✓</span>
                         <div className="flight-plan-check-body">
                           <div className="flight-plan-check-title">{rec.title}</div>
                           {rec.description && <p className="flight-plan-check-desc">{rec.description}</p>}
                         </div>
-                        {rec.benefit && <span className={`flight-plan-check-benefit ${rec.enabled ? '' : 'flight-plan-check-benefit-disabled'}`}>{rec.benefit}</span>}
+                        {rec.benefit && <span className="flight-plan-check-benefit">{rec.benefit}</span>}
                       </div>
                     ))}
                   </div>
