@@ -546,6 +546,7 @@ export default function XeroInvoicesPage() {
                 <tr>
                   <th style={thStyle}>Client</th>
                   <th style={thStyle}>Invoice</th>
+                  <th style={thStyle}>Description</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
                   <th style={thStyle}>Send Date</th>
@@ -573,6 +574,9 @@ export default function XeroInvoicesPage() {
                         </td>
                         <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
                           {send.invoiceNumber || '—'}
+                        </td>
+                        <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)', whiteSpace: 'normal', maxWidth: 280 }}>
+                          {send.description}
                         </td>
                         <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500 }}>
                           ${send.total.toLocaleString('en-AU', { minimumFractionDigits: 2 })}
@@ -718,7 +722,7 @@ export default function XeroInvoicesPage() {
                       {/* Inline line item editor */}
                       {isEditing && (
                         <tr style={{ borderBottom: '1px solid var(--theme-elevation-50)' }}>
-                          <td colSpan={6} style={{ padding: '12px 16px', background: 'var(--theme-elevation-50)' }}>
+                          <td colSpan={7} style={{ padding: '12px 16px', background: 'var(--theme-elevation-50)' }}>
                             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-600)', marginBottom: 8 }}>Line Items</div>
                             {editLines.map((line, i) => (
                               <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
