@@ -18,7 +18,8 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
     // looking for the last slide whose top is above our current scroll position
     let target: HTMLElement | null = null
     for (const slide of slides) {
-      const slideTop = slide.offsetTop
+      // Use getBoundingClientRect for accurate absolute position
+      const slideTop = slide.getBoundingClientRect().top + window.scrollY
       // A slide is "above" if its top is at least 10px above the current scroll position
       if (slideTop < currentScroll - 10) {
         target = slide
@@ -34,7 +35,8 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
 
     // Scroll so the target slide's header aligns with the viewport top
     const header = target.querySelector<HTMLElement>('.slide-header')
-    const scrollTarget = header ? header.offsetTop : target.offsetTop
+    const el = header ?? target
+    const scrollTarget = el.getBoundingClientRect().top + window.scrollY
     window.scrollTo({ top: scrollTarget, behavior: 'smooth' })
   }, [])
 
@@ -102,7 +104,7 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
       {/* Scroll hint — horizontally aligned with the rocket, first slide only */}
       {showHint && (
         <div className="rocket-hint" aria-hidden="true" onClick={scrollToNextSlide}>
-          <span className="rocket-hint-text">Click here</span>
+          <span className="rocket-hint-text">Click to go up</span>
           <span className="rocket-hint-arrow">→</span>
         </div>
       )}

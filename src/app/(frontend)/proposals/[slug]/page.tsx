@@ -460,8 +460,8 @@ function StatusIcon({ status }: { status: string }) {
 }
 
 function PageSpeedGauge({ score, label }: { score: number; label: string }) {
-  const color = score >= 90 ? '#0cce6b' : score >= 50 ? '#ffa400' : '#ff4e42'
-  const bgColor = score >= 90 ? 'rgba(12,206,107,0.1)' : score >= 50 ? 'rgba(255,164,0,0.1)' : 'rgba(255,78,66,0.1)'
+  const color = score > 80 ? '#0cce6b' : score >= 55 ? '#ffa400' : '#ff4e42'
+  const bgColor = score > 80 ? 'rgba(12,206,107,0.1)' : score >= 55 ? 'rgba(255,164,0,0.1)' : 'rgba(255,78,66,0.1)'
   const r = 44
   const cx = 50
   const cy = 50
@@ -2294,10 +2294,10 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 </div>
               )}
 
-              {/* Services (keyword categories) */}
+              {/* Keyword Categories */}
               {keywordCategories && keywordCategories.length > 0 && (
                 <div className="client-overview-services">
-                  <span className="client-overview-label">Services</span>
+                  <span className="client-overview-label">Keyword Categories</span>
                   <div className="client-services-tags">
                     {keywordCategories.map((cat, i) => (
                       <span key={i} className="client-service-tag">{cat.categoryName}</span>

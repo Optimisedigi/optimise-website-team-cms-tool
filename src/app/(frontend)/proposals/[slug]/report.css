@@ -193,6 +193,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0 0 12px;
+  text-align: center;
 }
 
 .psi-gauges {
@@ -243,7 +244,7 @@
 }
 
 .psi-gauges--small {
-  justify-content: flex-start;
+  justify-content: center;
   gap: 24px;
 }
 
@@ -272,7 +273,7 @@
 
 .scores-row-left,
 .scores-row-right {
-  text-align: left;
+  text-align: center;
 }
 
 .scores-row-right {
@@ -409,7 +410,7 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
-  padding: 0 20px;
+  padding: 0;
 }
 
 @media (max-width: 600px) {
