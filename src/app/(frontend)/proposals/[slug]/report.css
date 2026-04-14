@@ -2190,23 +2190,37 @@ html.scroll-ready .report-presentation {
 .slide-17 {
   background: #fff;
   color: #27272a;
+}
+
+.slide-17 {
   padding-top: 0 !important;
-  overflow-x: visible;
-  overflow: visible;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }
 
 /* Transition image — white to space gradient at top of slide 17 */
 .slide-space-transition {
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
+  width: 100%;
   display: block;
   margin: 0;
   padding: 0;
   line-height: 0;
   pointer-events: none;
   user-select: none;
+}
+
+/* Restore inner padding on slide-17 children (since slide padding is 0) */
+.slide-17 > .slide-header,
+.slide-17 > .slide-content {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+@media (min-width: 901px) {
+  .slide-17 > .slide-header,
+  .slide-17 > .slide-content {
+    padding-right: 80px;
+  }
 }
 
 /* ---- Slides 16-18 — Flight Plan, Mission Resources, Launch Requirements ---- */
