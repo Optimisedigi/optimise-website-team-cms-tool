@@ -2478,9 +2478,9 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   {avgCompetitorTraffic != null && (
                     <div className="stat-highlight-box">
                       <span className="stat-highlight-value">{formatTraffic(avgCompetitorTraffic)}</span>
-                      <span className="stat-highlight-label">Competitor Monthly Web Traffic</span>
+                      <span className="stat-highlight-label">Avg. Competitor Monthly Web Traffic</span>
                       <p className="stat-highlight-copy">
-                        Across a select number of keywords, the competitors above average <strong>{formatTraffic(avgCompetitorTraffic)}</strong> monthly visits to their websites
+                        Across a select number of keywords, the competitors above average <strong>{formatTraffic(avgCompetitorTraffic)}</strong> monthly visits each to their websites
                       </p>
                     </div>
                   )}
