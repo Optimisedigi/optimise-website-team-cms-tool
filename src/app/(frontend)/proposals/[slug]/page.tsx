@@ -1333,8 +1333,14 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     {leadConversionRate != null && (
                       <span className="mc-pill">Conversion Rate: {leadConversionRate}%</span>
                     )}
+                    {leadToSaleConversionRate != null && (
+                      <span className="mc-pill">Lead → Sale Rate: {leadToSaleConversionRate}%</span>
+                    )}
                     {annualPurchaseFrequency != null && (
                       <span className="mc-pill">Purchase Frequency: {annualPurchaseFrequency}x / year</span>
+                    )}
+                    {newCustomersLast12Months != null && (
+                      <span className="mc-pill">New Customers (12mo): {newCustomersLast12Months.toLocaleString()}</span>
                     )}
                     {missionControlRows.length > 0 && missionControlRows[0].isYou && (
                       <span className="mc-pill">Current Monthly Visits: {formatTraffic(missionControlRows[0].monthlyVisits)}</span>
@@ -2191,7 +2197,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               </div>
               {/* GBP Rating & Reviews + Physical Locations */}
               {(yourProfileWithOverrides?.googleBusinessProfile || hasPhysicalLocations) && (
-                <div className="client-overview-meta">
+                <div className="client-overview-meta client-overview-meta--gbp">
                   {yourProfileWithOverrides?.googleBusinessProfile && (() => {
                     const gbp = yourProfileWithOverrides.googleBusinessProfile!
                     return (
@@ -2241,51 +2247,17 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                   </div>
                   {(seoScore != null || croScore != null) && (
                     <div className="scores-row-right">
-                      <h3 className="psi-section-title">Audit Scores</h3>
+                      <h3 className="psi-section-title">Website Audit Scores</h3>
                       <div className="psi-gauges psi-gauges--small audit-score-gauges">
-                        {croScore != null && <PageSpeedGauge score={Math.round(croScore * 10)} label="CRO" />}
-                        {seoScore != null && <PageSpeedGauge score={Math.round(seoScore * 10)} label="SEO" />}
+                        {croScore != null && <PageSpeedGauge score={Math.round(croScore * 10)} label="Conversion Rate Optimisation Score" />}
+                        {seoScore != null && <PageSpeedGauge score={Math.round(seoScore * 10)} label="SEO Score" />}
                       </div>
                     </div>
                   )}
                 </section>
               )}
 
-              {(averageOrderValue != null || leadConversionRate != null || leadToSaleConversionRate != null || annualPurchaseFrequency != null || newCustomersLast12Months != null) && (<>
-                <p className="mission-brief-details-title">Used for Forecast Estimates</p>
-                <div className="mission-brief-details">
-                  {averageOrderValue != null && (
-                    <div className="mission-brief-detail">
-                      <span className="mission-brief-detail-label">Avg Order Value</span>
-                      <span className="mission-brief-detail-value">${averageOrderValue.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {leadConversionRate != null && (
-                    <div className="mission-brief-detail">
-                      <span className="mission-brief-detail-label">Lead Conversion Rate</span>
-                      <span className="mission-brief-detail-value">{leadConversionRate}%</span>
-                    </div>
-                  )}
-                  {leadToSaleConversionRate != null && (
-                    <div className="mission-brief-detail">
-                      <span className="mission-brief-detail-label">Lead to Sale Rate</span>
-                      <span className="mission-brief-detail-value">{leadToSaleConversionRate}%</span>
-                    </div>
-                  )}
-                  {annualPurchaseFrequency != null && (
-                    <div className="mission-brief-detail">
-                      <span className="mission-brief-detail-label">Annual Purchase Frequency</span>
-                      <span className="mission-brief-detail-value">{annualPurchaseFrequency}x</span>
-                    </div>
-                  )}
-                  {newCustomersLast12Months != null && (
-                    <div className="mission-brief-detail">
-                      <span className="mission-brief-detail-label">New Customers (12 months)</span>
-                      <span className="mission-brief-detail-value">{newCustomersLast12Months.toLocaleString()}</span>
-                    </div>
-                  )}
-                </div>
-              </>)}
+
             </section>
 
             {(totalMonthlySearchVolume != null || avgCompetitorTraffic != null) && (

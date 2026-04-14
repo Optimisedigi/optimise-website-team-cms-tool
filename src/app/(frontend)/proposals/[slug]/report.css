@@ -99,6 +99,10 @@
   justify-content: center;
 }
 
+.client-overview-meta--gbp {
+  margin-top: 10px;
+}
+
 .client-overview-item {
   display: flex;
   flex-direction: column;
@@ -2785,7 +2789,7 @@ html.scroll-ready .report-presentation {
 
 .rocket-fixed {
   position: fixed;
-  right: 5px;
+  right: 3px;
   bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70%), calc(65% - 25px));
   z-index: 2147483647;
   display: flex;
@@ -2827,7 +2831,7 @@ html.scroll-ready .report-presentation {
 
 .flame-trail {
   position: fixed;
-  right: 31px;
+  right: 29px;
   bottom: 0;
   width: 4px;
   height: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 21px), calc(65% - 25px + 21px));
