@@ -1305,90 +1305,210 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 16 — Flight Plan                                      */}
         {/* ============================================================ */}
-        {showSlide(16) && <section className="slide slide-16 slide-expandable">
-          <div className="slide-header">
-            <h2>8. Flight Plan</h2>
-            <span>Roadmap &amp; Timeframes</span>
-          </div>
-          <div className="slide-content">
-            {enabledRecommendations.length > 0 && (
-              <div className="flight-plan-recs">
-                {enabledRecommendations.map((rec, i) => (
-                  <div key={i} className="flight-plan-rec-card">
-                    <span className="flight-plan-rec-number">{i + 1}</span>
-                    <div className="flight-plan-rec-body">
-                      <div className="flight-plan-rec-title">{rec.title}</div>
-                      {rec.description && <p className="flight-plan-rec-desc">{rec.description}</p>}
-                    </div>
-                    {rec.benefit && <span className="flight-plan-rec-benefit">{rec.benefit}</span>}
-                  </div>
-                ))}
+        {showSlide(16) && (() => {
+          // Categorise recommendations into launch stack tiers
+          const allRecs = flightPlanRecommendations ?? []
+          const enabledTitles = new Set(allRecs.filter(r => r.enabled).map(r => r.title.toLowerCase()))
+
+          // Launch stack tier definitions (bottom to top)
+          const foundationKeywords = ['website', 'cro', 'conversion rate']
+          const visibilityKeywords = ['seo', 'local seo', 'on-page']
+          const growthKeywords = ['google ads', 'meta ads', 'content strategy', 'blog', 'social content', 'link building', 'digital pr']
+          const measurementKeywords = ['analytics', 'tracking', 'email marketing', 'crm', 'lead management']
+
+          const matchesTier = (title: string, keywords: string[]) =>
+            keywords.some(kw => title.toLowerCase().includes(kw))
+
+          const foundationStages = allRecs.filter(r => r.enabled && matchesTier(r.title, foundationKeywords))
+          const visibilityStages = allRecs.filter(r => r.enabled && matchesTier(r.title, visibilityKeywords))
+          const growthStages = allRecs.filter(r => r.enabled && matchesTier(r.title, growthKeywords))
+          const measurementStages = allRecs.filter(r => r.enabled && matchesTier(r.title, measurementKeywords))
+
+          // Auto-narrative flags
+          const hasSystemBuilds = enabledTitles.has('new website build') || enabledTitles.has('conversion rate optimisation (cro)') || enabledTitles.has('technical seo foundation')
+          const hasPerformanceMarketing = [...enabledTitles].some(t => t.includes('google ads') || t.includes('meta ads'))
+          const hasContentSocial = [...enabledTitles].some(t => t.includes('content') || t.includes('blog') || t.includes('social'))
+          const hasCrmRetention = [...enabledTitles].some(t => t.includes('email') || t.includes('crm') || t.includes('lead management'))
+
+          const totalStages = foundationStages.length + visibilityStages.length + growthStages.length + measurementStages.length
+
+          // Tier color mapping
+          const tierColors: Record<string, { bg: string; border: string; label: string }> = {
+            measurement: { bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.3)', label: '#a855f7' },
+            growth: { bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.3)', label: '#3b82f6' },
+            visibility: { bg: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.3)', label: '#22c55e' },
+            foundation: { bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.3)', label: '#f59e0b' },
+          }
+
+          return (
+            <section className="slide slide-16 slide-expandable">
+              <div className="slide-header">
+                <h2>8. Flight Plan</h2>
+                <span>Roadmap &amp; Timeframes</span>
               </div>
-            )}
-
-            {flightPlanImages && flightPlanImages.length > 0 && (() => {
-              const firstItem = flightPlanImages[0]
-              const firstUrl = typeof firstItem.image === 'object' && firstItem.image?.url ? firstItem.image.url : null
-              return firstUrl ? (
-                <div className="flight-plan-images">
-                  <figure className="flight-plan-image-wrap">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={firstUrl} alt={firstItem.caption || 'Flight plan image 1'} className="flight-plan-img" />
-                    {firstItem.caption && <figcaption className="flight-plan-caption">{firstItem.caption}</figcaption>}
-                  </figure>
-                </div>
-              ) : null
-            })()}
-
-            {flightPlanContent && (
-              isLexicalData(flightPlanContent) ? (
-                <div className="cms-copy-block">
-                  <RichText data={flightPlanContent} converters={richTextConverters} />
-                </div>
-              ) : (
-                <div className="suggestions-list">
-                  {(flightPlanContent as string)
-                    .split('\n')
-                    .map((s: string) => s.trim())
-                    .filter(Boolean)
-                    .map((line: string, i: number) => (
-                      <div key={i} className="suggestion-item">
-                        <span className="suggestion-bullet">&#x2192;</span>
-                        <span>{line}</span>
+              <div className="slide-content">
+                {/* Two-column layout: checklist left, launch stack right */}
+                <div className="flight-plan-layout">
+                  {/* LEFT COLUMN — Full checklist of all recommendations */}
+                  <div className="flight-plan-checklist">
+                    {allRecs.map((rec, i) => (
+                      <div key={i} className={`flight-plan-check-item ${rec.enabled ? 'flight-plan-check-enabled' : 'flight-plan-check-disabled'}`}>
+                        <span className="flight-plan-check-icon">{rec.enabled ? '✓' : '✗'}</span>
+                        <div className="flight-plan-check-body">
+                          <div className="flight-plan-check-title">{rec.title}</div>
+                          {rec.description && <p className="flight-plan-check-desc">{rec.description}</p>}
+                        </div>
+                        {rec.benefit && <span className={`flight-plan-check-benefit ${rec.enabled ? '' : 'flight-plan-check-benefit-disabled'}`}>{rec.benefit}</span>}
                       </div>
                     ))}
-                </div>
-              )
-            )}
+                  </div>
 
-            {websiteMockupUrl && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: '40px', gap: '6px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                  <a
-                    href={`/mockup/${proposal.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flight-plan-mockup-btn"
-                    style={{
-                      display: 'inline-block',
-                      padding: '10px 28px',
-                      background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
-                      color: '#fff',
-                      borderRadius: '10px',
-                      textDecoration: 'none',
-                      fontWeight: 600,
-                      fontSize: '14px',
-                      boxShadow: '0 4px 20px rgba(59, 130, 246, 0.4)',
-                    }}
-                  >
-                    View Website Mockup
-                  </a>
-                  <span className="flight-plan-mockup-note" style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center', lineHeight: '1.4' }}>Mock-up is one-page; live site will have individual pages for better SEO and will be a mobile-first build.</span>
+                  {/* RIGHT COLUMN — Launch Stack visual + auto-narrative */}
+                  <div className="launch-stack-column">
+                    {totalStages > 0 && (
+                      <div className="launch-stack">
+                        {/* Rocket icon at top */}
+                        <div className="launch-stack-rocket">🚀</div>
+
+                        {/* Measurement tier (top) */}
+                        {measurementStages.length > 0 && (
+                          <div className="launch-stack-tier">
+                            <span className="launch-stack-tier-label" style={{ color: tierColors.measurement.label }}>Measurement</span>
+                            {measurementStages.map((s, i) => (
+                              <div key={i} className="launch-stage" style={{ background: tierColors.measurement.bg, borderColor: tierColors.measurement.border }}>
+                                <span className="launch-stage-name">{s.title}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Growth tier (middle-upper) */}
+                        {growthStages.length > 0 && (
+                          <div className="launch-stack-tier">
+                            <span className="launch-stack-tier-label" style={{ color: tierColors.growth.label }}>Growth Engines</span>
+                            {growthStages.map((s, i) => (
+                              <div key={i} className="launch-stage" style={{ background: tierColors.growth.bg, borderColor: tierColors.growth.border }}>
+                                <span className="launch-stage-name">{s.title}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Visibility tier (middle-lower) */}
+                        {visibilityStages.length > 0 && (
+                          <div className="launch-stack-tier">
+                            <span className="launch-stack-tier-label" style={{ color: tierColors.visibility.label }}>Visibility</span>
+                            {visibilityStages.map((s, i) => (
+                              <div key={i} className="launch-stage" style={{ background: tierColors.visibility.bg, borderColor: tierColors.visibility.border }}>
+                                <span className="launch-stage-name">{s.title}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Foundation tier (bottom) */}
+                        {foundationStages.length > 0 && (
+                          <div className="launch-stack-tier">
+                            <span className="launch-stack-tier-label" style={{ color: tierColors.foundation.label }}>Foundation</span>
+                            {foundationStages.map((s, i) => (
+                              <div key={i} className="launch-stage" style={{ background: tierColors.foundation.bg, borderColor: tierColors.foundation.border }}>
+                                <span className="launch-stage-name">{s.title}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Auto-narrative copy */}
+                    <div className="launch-narrative">
+                      <p className="launch-narrative-intro">Your growth strategy is built as an integrated system — each layer compounds the results of the one below it.</p>
+
+                      {hasSystemBuilds && (
+                        <p className="launch-narrative-paragraph">We start with the <strong>foundation</strong> — building a high-converting website with technical SEO best practices baked in. This ensures every visitor has the best chance of becoming a lead, and search engines can properly discover and rank your pages.</p>
+                      )}
+
+                      {hasPerformanceMarketing && (
+                        <p className="launch-narrative-paragraph"><strong>Performance marketing</strong> through paid ads will drive immediate, qualified traffic while your organic presence builds. This gives you measurable results from day one and provides data to refine targeting over time.</p>
+                      )}
+
+                      {hasContentSocial && (
+                        <p className="launch-narrative-paragraph">A <strong>content and social strategy</strong> builds long-term authority and keeps your brand visible across channels. Every piece of content works to attract organic traffic, nurture prospects, and reinforce your expertise.</p>
+                      )}
+
+                      {hasCrmRetention && (
+                        <p className="launch-narrative-paragraph"><strong>CRM and retention systems</strong> ensure no lead falls through the cracks. Automated follow-ups, email sequences, and pipeline tracking turn more enquiries into paying clients and keep existing customers coming back.</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
+
+                {/* Existing content below the two-column section */}
+                {flightPlanImages && flightPlanImages.length > 0 && (() => {
+                  const firstItem = flightPlanImages[0]
+                  const firstUrl = typeof firstItem.image === 'object' && firstItem.image?.url ? firstItem.image.url : null
+                  return firstUrl ? (
+                    <div className="flight-plan-images">
+                      <figure className="flight-plan-image-wrap">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={firstUrl} alt={firstItem.caption || 'Flight plan image 1'} className="flight-plan-img" />
+                        {firstItem.caption && <figcaption className="flight-plan-caption">{firstItem.caption}</figcaption>}
+                      </figure>
+                    </div>
+                  ) : null
+                })()}
+
+                {flightPlanContent && (
+                  isLexicalData(flightPlanContent) ? (
+                    <div className="cms-copy-block">
+                      <RichText data={flightPlanContent} converters={richTextConverters} />
+                    </div>
+                  ) : (
+                    <div className="suggestions-list">
+                      {(flightPlanContent as string)
+                        .split('\n')
+                        .map((s: string) => s.trim())
+                        .filter(Boolean)
+                        .map((line: string, i: number) => (
+                          <div key={i} className="suggestion-item">
+                            <span className="suggestion-bullet">&#x2192;</span>
+                            <span>{line}</span>
+                          </div>
+                        ))}
+                    </div>
+                  )
+                )}
+
+                {websiteMockupUrl && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: '40px', gap: '6px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                      <a
+                        href={`/mockup/${proposal.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flight-plan-mockup-btn"
+                        style={{
+                          display: 'inline-block',
+                          padding: '10px 28px',
+                          background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+                          color: '#fff',
+                          borderRadius: '10px',
+                          textDecoration: 'none',
+                          fontWeight: 600,
+                          fontSize: '14px',
+                          boxShadow: '0 4px 20px rgba(59, 130, 246, 0.4)',
+                        }}
+                      >
+                        View Website Mockup
+                      </a>
+                      <span className="flight-plan-mockup-note" style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center', lineHeight: '1.4' }}>Mock-up is one-page; live site will have individual pages for better SEO and will be a mobile-first build.</span>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </section>}
+            </section>
+          )
+        })()}
 
         {/* ============================================================ */}
         {/* SLIDE 15 — Mission Control                                  */}

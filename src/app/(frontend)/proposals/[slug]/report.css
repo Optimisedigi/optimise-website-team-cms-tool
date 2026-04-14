@@ -2343,6 +2343,257 @@ html.scroll-ready .report-presentation {
   margin-top: 4px;
 }
 
+/* ---- Flight Plan Two-Column Layout + Launch Stack ---- */
+.flight-plan-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-bottom: 32px;
+}
+
+/* Left column — checklist */
+.flight-plan-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flight-plan-check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.flight-plan-check-enabled {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.flight-plan-check-disabled {
+  opacity: 0.4;
+}
+
+.flight-plan-check-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.flight-plan-check-enabled .flight-plan-check-icon {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.flight-plan-check-disabled .flight-plan-check-icon {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+}
+
+.flight-plan-check-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.flight-plan-check-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #f0f0f0;
+  line-height: 1.3;
+}
+
+.flight-plan-check-disabled .flight-plan-check-title {
+  color: #9ca3af;
+}
+
+.flight-plan-check-desc {
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
+  margin: 2px 0 0;
+}
+
+.flight-plan-check-disabled .flight-plan-check-desc {
+  color: #6b7280;
+}
+
+.flight-plan-check-benefit {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+  border-radius: 20px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  margin-top: 4px;
+  align-self: flex-start;
+}
+
+.flight-plan-check-benefit-disabled {
+  color: #6b7280;
+  background: rgba(107, 114, 128, 0.1);
+  border-color: rgba(107, 114, 128, 0.15);
+}
+
+/* Right column — Launch Stack */
+.launch-stack-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.launch-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 24px 16px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+}
+
+.launch-stack-rocket {
+  font-size: 36px;
+  margin-bottom: 8px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 8px rgba(255, 165, 0, 0.3));
+}
+
+.launch-stack-tier {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.launch-stack-tier-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 2px;
+}
+
+.launch-stage {
+  width: 90%;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid;
+  text-align: center;
+}
+
+.launch-stage-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f0f0f0;
+}
+
+/* Auto-narrative text */
+.launch-narrative {
+  padding: 0;
+}
+
+.launch-narrative-intro {
+  font-size: 14px;
+  font-weight: 600;
+  color: #d4d4d8;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.launch-narrative-paragraph {
+  font-size: 13px;
+  color: #9ca3af;
+  line-height: 1.6;
+  margin: 0 0 10px;
+}
+
+.launch-narrative-paragraph strong {
+  color: #e5e7eb;
+  font-weight: 600;
+}
+
+/* Responsive — stack vertically on mobile */
+@media (max-width: 800px) {
+  .flight-plan-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+@media (max-width: 600px) {
+  .flight-plan-layout {
+    gap: 16px;
+  }
+
+  .flight-plan-check-item {
+    padding: 8px 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .flight-plan-check-icon {
+    min-width: 20px;
+    height: 20px;
+    font-size: 11px;
+  }
+
+  .flight-plan-check-title {
+    font-size: 12px;
+  }
+
+  .flight-plan-check-desc {
+    font-size: 11px;
+  }
+
+  .flight-plan-check-benefit {
+    font-size: 9px;
+    padding: 2px 8px;
+  }
+
+  .launch-stack {
+    padding: 16px 12px;
+  }
+
+  .launch-stack-rocket {
+    font-size: 28px;
+  }
+
+  .launch-stage {
+    padding: 8px 12px;
+  }
+
+  .launch-stage-name {
+    font-size: 11px;
+  }
+
+  .launch-narrative-intro {
+    font-size: 13px;
+  }
+
+  .launch-narrative-paragraph {
+    font-size: 12px;
+  }
+}
+
 /* ---- Slide 17 & 18 — Mission Resources / Launch Requirements font & spacing ---- */
 .slide-17 .cms-copy-block p,
 .slide-18 .cms-copy-block p {
@@ -2915,16 +3166,16 @@ html.scroll-ready .report-presentation {
   opacity: clamp(0, 1 - (var(--scroll-progress, 0) - 0.98) * 50, 1);
 }
 
-/* ── Rocket scroll hint — above the rocket, first slide only ── */
+/* ── Rocket scroll hint — to the left of the rocket, first slide only ── */
 .rocket-hint {
   position: fixed;
-  right: -2px;
-  bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 100px), calc(65% + 75px));
+  right: 68px;
+  bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 30px), calc(65% - 25px + 30px));
   z-index: 2147483647;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   white-space: nowrap;
   cursor: pointer;
   animation: rocket-hint-fade 2.5s ease-in-out infinite;
@@ -2946,8 +3197,8 @@ html.scroll-ready .report-presentation {
 }
 
 @keyframes rocket-hint-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(5px); }
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(5px); }
 }
 
 @keyframes rocket-hint-fade {
@@ -3033,7 +3284,9 @@ html.scroll-ready .report-presentation {
   .slide-header,
   .cms-copy-block,
   .suggestion-item,
-  .flight-plan-images {
+  .flight-plan-images,
+  .flight-plan-layout,
+  .launch-stack {
     position: relative;
     z-index: 10;
   }
