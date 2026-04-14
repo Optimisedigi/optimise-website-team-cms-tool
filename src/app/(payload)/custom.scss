@@ -432,8 +432,10 @@ $svg-close: "%3C/svg%3E";
   display: none !important;
 }
 
-// Mobile: move close button to top-right so it doesn't cover logo
+// Mobile: move close (X) and collapse buttons to the right side of the sidebar
 @media (max-width: 768px) {
+  // Close (X) button — top-right of sidebar
+  .nav .nav__mobile-close,
   .nav .nav-toggler,
   .nav .nav-toggler--is-open,
   .nav button[class*="nav-toggler"] {
@@ -442,6 +444,20 @@ $svg-close: "%3C/svg%3E";
     right: 12px !important;
     left: auto !important;
     z-index: 100;
+  }
+
+  // The nav__header wraps the X button — ensure it doesn't block touch on the sidebar
+  .nav .nav__header {
+    pointer-events: none;
+  }
+  .nav .nav__header * {
+    pointer-events: auto;
+  }
+
+  // Collapse button — bottom-right of sidebar
+  .mini-sidebar-collapse-btn {
+    left: auto !important;
+    right: 12px !important;
   }
 }
 
