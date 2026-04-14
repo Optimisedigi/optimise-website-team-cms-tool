@@ -2259,15 +2259,11 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 .map(k => k.trim())
                 .filter(Boolean)
 
-              // Match each CMS keyword to audit data, or create a stub entry
+              // Match each CMS keyword to audit data — only include keywords that have been tracked
               const catKeywords: typeof keywords = catKeywordNames
                 .filter(name => !excludedKeywords.has(name.toLowerCase()))
-                .map(name => {
-                  const auditMatch = kwLookup.get(name.toLowerCase())
-                  if (auditMatch) return auditMatch
-                  // Stub for keywords not yet tracked — show dashes instead of misleading zeros
-                  return { keyword: name, position: null, searchVolume: null as unknown as number, opportunity: 'untracked' }
-                })
+                .map(name => kwLookup.get(name.toLowerCase()) ?? null)
+                .filter((kw): kw is (typeof keywords)[number] => kw !== null)
 
               if (catKeywords.length > 0) {
                 const totalVolume = catKeywords.reduce((sum, kw) => sum + (kw.searchVolume ?? 0), 0)
