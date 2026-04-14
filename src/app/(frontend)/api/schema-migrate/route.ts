@@ -1307,6 +1307,11 @@ export async function GET(request: NextRequest) {
   await run("cro_audits.lead_capture_score", "ALTER TABLE `cro_audits` ADD `lead_capture_score` numeric");
   await run("cro_audits.content_readability_score", "ALTER TABLE `cro_audits` ADD `content_readability_score` numeric");
 
+  // ── GBP override fields on competitors (2026-04-14) ──
+  await run("client_proposals_competitors.gbp_rating", "ALTER TABLE `client_proposals_competitors` ADD `gbp_rating` numeric");
+  await run("client_proposals_competitors.gbp_review_count", "ALTER TABLE `client_proposals_competitors` ADD `gbp_review_count` numeric");
+  await run("client_proposals_competitors.gbp_responds_to_reviews", "ALTER TABLE `client_proposals_competitors` ADD `gbp_responds_to_reviews` integer DEFAULT 0");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");

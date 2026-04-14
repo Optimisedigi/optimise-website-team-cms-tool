@@ -649,6 +649,33 @@ export const ClientProposals: CollectionConfig = {
                   },
                 },
                 {
+                  name: "gbpRating",
+                  type: "number",
+                  min: 0,
+                  max: 5,
+                  admin: {
+                    description: "Google Business Profile rating (1.0 - 5.0)",
+                    step: 0.1,
+                  },
+                },
+                {
+                  name: "gbpReviewCount",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "Number of Google reviews",
+                    step: 1,
+                  },
+                },
+                {
+                  name: "gbpRespondsToReviews",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Does this business respond to reviews?",
+                  },
+                },
+                {
                   name: "hasMetaAds",
                   type: "checkbox",
                   defaultValue: false,
@@ -897,6 +924,55 @@ export const ClientProposals: CollectionConfig = {
                   type: "text",
                   admin: {
                     description: "Optional caption for this image",
+                  },
+                },
+              ],
+            },
+            {
+              name: "flightPlanRecommendations",
+              type: "array",
+              admin: {
+                description:
+                  "Predefined recommendations for the Flight Plan slide. Enable each one to include it in the report.",
+                initCollapsed: true,
+              },
+              defaultValue: [
+                { enabled: false, title: "New Website Build", description: "A modern, mobile-first website built for conversions. Fast-loading, professional design that builds trust and drives enquiries.", benefit: "Higher conversion rates" },
+                { enabled: false, title: "Conversion Rate Optimisation (CRO)", description: "Optimise the website journey to convert more visitors into leads. Clear CTAs, trust signals, and streamlined forms.", benefit: "More leads from existing traffic" },
+                { enabled: false, title: "Technical SEO Foundation", description: "Fix crawlability, indexing, site speed, and structured data so Google can properly rank the site.", benefit: "Improved search visibility" },
+                { enabled: false, title: "On-Page SEO & Content Optimisation", description: "Optimise page titles, meta descriptions, headings, and content structure for target keywords.", benefit: "Better keyword rankings" },
+                { enabled: false, title: "Local SEO & Google Business Profile", description: "Optimise Google Business Profile, local citations, and location-based content for local search visibility.", benefit: "More local customers" },
+                { enabled: false, title: "Content Strategy & Blog", description: "Publish high-quality, keyword-targeted content that answers real customer questions and builds topical authority over time.", benefit: "Long-term organic growth" },
+                { enabled: false, title: "Google Ads (Search)", description: "Launch targeted search campaigns to capture high-intent traffic immediately while organic rankings build.", benefit: "Immediate qualified traffic" },
+                { enabled: false, title: "Google Ads (Performance Max / Shopping)", description: "Performance Max campaigns for e-commerce or service-based lead generation with AI-optimised bidding.", benefit: "AI-optimised conversions" },
+                { enabled: false, title: "Meta Ads (Facebook & Instagram)", description: "Paid social campaigns for brand awareness, retargeting, and lead generation across Meta platforms.", benefit: "Expanded audience reach" },
+                { enabled: false, title: "Link Building & Digital PR", description: "Build high-quality backlinks through outreach, partnerships, and digital PR to boost domain authority.", benefit: "Stronger domain authority" },
+                { enabled: false, title: "Email Marketing & Automation", description: "Set up automated email sequences for lead nurture, re-engagement, and customer retention.", benefit: "Better customer retention" },
+                { enabled: false, title: "Analytics & Tracking Setup", description: "Implement GA4, conversion tracking, and reporting dashboards to measure ROI and make data-driven decisions.", benefit: "Data-driven decisions" },
+              ],
+              fields: [
+                {
+                  name: "enabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Include this recommendation in the Flight Plan slide",
+                  },
+                },
+                {
+                  name: "title",
+                  type: "text",
+                  required: true,
+                },
+                {
+                  name: "description",
+                  type: "textarea",
+                },
+                {
+                  name: "benefit",
+                  type: "text",
+                  admin: {
+                    description: "Short outcome statement (e.g. 'More leads from existing traffic')",
                   },
                 },
               ],

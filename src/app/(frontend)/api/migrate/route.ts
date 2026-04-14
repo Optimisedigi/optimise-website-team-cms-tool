@@ -2561,6 +2561,11 @@ export async function GET(request: NextRequest) {
   await run("client_proposals.client_id", "ALTER TABLE `client_proposals` ADD `client_id` integer REFERENCES `clients`(`id`) ON DELETE set null");
   await run("client_proposals_client_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_client_idx` ON `client_proposals` (`client_id`)");
 
+  // ── GBP override fields on competitors (2026-04-14) ──
+  await run("client_proposals_competitors.gbp_rating", "ALTER TABLE `client_proposals_competitors` ADD `gbp_rating` numeric");
+  await run("client_proposals_competitors.gbp_review_count", "ALTER TABLE `client_proposals_competitors` ADD `gbp_review_count` numeric");
+  await run("client_proposals_competitors.gbp_responds_to_reviews", "ALTER TABLE `client_proposals_competitors` ADD `gbp_responds_to_reviews` integer DEFAULT 0");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");

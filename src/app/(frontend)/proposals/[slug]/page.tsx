@@ -404,11 +404,12 @@ function RingGauge({ score }: { score: number }) {
   )
 }
 
-function HealthScorePanel({ title, subtitle, overallScore, categories }: {
+function HealthScorePanel({ title, subtitle, overallScore, categories, children }: {
   title: string
   subtitle: string
   overallScore: number
   categories: { label: string; score: number; index: number }[]
+  children?: React.ReactNode
 }) {
   const score100 = Math.round(overallScore * 10)
   const sorted = [...categories].sort((a, b) => a.score - b.score)
@@ -423,6 +424,7 @@ function HealthScorePanel({ title, subtitle, overallScore, categories }: {
       <div className="health-panel-body">
         <div className="health-panel-gauge">
           <RingGauge score={score100} />
+          {children}
         </div>
         <div className="health-panel-bars">
           {sorted.map(({ label, score, index }) => (
@@ -890,7 +892,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
     : null
 
   // CMS competitor entries (for domain matching and meta ads overrides)
-  const cmsCompetitors = (proposal.competitors ?? []) as { name: string; websiteUrl?: string | null; googleMapsUrl?: string | null; hasMetaAds?: boolean; googleAdScreenshots?: { image: any }[]; metaAdScreenshots?: { image: any }[] }[]
+  const cmsCompetitors = (proposal.competitors ?? []) as { name: string; websiteUrl?: string | null; googleMapsUrl?: string | null; gbpRating?: number | null; gbpReviewCount?: number | null; gbpRespondsToReviews?: boolean; hasMetaAds?: boolean; googleAdScreenshots?: { image: any }[]; metaAdScreenshots?: { image: any }[] }[]
 
   // Split competitors: CMS-added vs search-discovered
   const cmsCompetitorDomains = new Set(
@@ -904,6 +906,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   // Build manual ad screenshot overrides: domain → image URLs
   const manualGoogleAdScreenshots = new Map<string, string[]>()
   const manualMetaAdScreenshots = new Map<string, string[]>()
+  // Build GBP override lookup: domain → GoogleBusinessProfile
+  const gbpOverrides = new Map<string, GoogleBusinessProfile>()
   for (const c of cmsCompetitors) {
     if (!c.websiteUrl) continue
     const domain = domainFromUrl(c.websiteUrl)
@@ -922,9 +926,19 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         .filter(Boolean) as string[]
       if (urls.length > 0) manualMetaAdScreenshots.set(domain, urls)
     }
+    if (c.gbpRating != null || c.gbpReviewCount != null) {
+      gbpOverrides.set(domain, {
+        name: c.name,
+        rating: c.gbpRating ?? 0,
+        reviewCount: c.gbpReviewCount ?? 0,
+        category: null,
+        respondsToReviews: c.gbpRespondsToReviews ?? false,
+        responseRate: null,
+      })
+    }
   }
 
-  // Apply meta ads overrides and manual screenshot overrides to allCompetitors
+  // Apply meta ads overrides, manual screenshot overrides, and GBP overrides to allCompetitors
   const allCompetitorsWithOverrides = (allCompetitors ?? []).map((comp) => {
     const cleanDomain = comp.domain?.replace(/^www\./, '') ?? ''
     let result = { ...comp }
@@ -948,6 +962,13 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         isRunningAds: true,
         activeAdCount: manualMeta.length,
         adScreenshots: manualMeta,
+      }
+    }
+    // Apply GBP override only when API didn't return GBP data
+    if (!result.googleBusinessProfile) {
+      const gbpOverride = gbpOverrides.get(cleanDomain)
+      if (gbpOverride) {
+        result.googleBusinessProfile = gbpOverride
       }
     }
     return result
@@ -1018,7 +1039,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         googleAds: manualGoogle
           ? { isRunningAds: true, adCount: manualGoogle.length, advertiserName: apiMatch?.googleAds?.advertiserName ?? null, adScreenshots: manualGoogle }
           : apiMatch?.googleAds ?? null,
-        googleBusinessProfile: apiMatch?.googleBusinessProfile ?? null,
+        googleBusinessProfile: apiMatch?.googleBusinessProfile ?? gbpOverrides.get(domain) ?? null,
       })
     }
   }
@@ -1090,6 +1111,10 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
 
   // Flight Plan images (Slide 12)
   const flightPlanImages = (proposal as any).flightPlanImages as { image: any; caption?: string }[] | null
+
+  // Flight Plan recommendations
+  const flightPlanRecommendations = (proposal as any).flightPlanRecommendations as { enabled?: boolean; title: string; description?: string; benefit?: string }[] | null
+  const enabledRecommendations = flightPlanRecommendations?.filter(r => r.enabled) ?? []
 
   // Mission Resources (Slide 13) & Launch Requirements (Slide 14)
   const missionResourcesImages = (proposal as any).missionResourcesImages as { image: any; caption?: string }[] | null
@@ -1283,6 +1308,21 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             <span>Roadmap &amp; Timeframes</span>
           </div>
           <div className="slide-content">
+            {enabledRecommendations.length > 0 && (
+              <div className="flight-plan-recs">
+                {enabledRecommendations.map((rec, i) => (
+                  <div key={i} className="flight-plan-rec-card">
+                    <span className="flight-plan-rec-number">{i + 1}</span>
+                    <div className="flight-plan-rec-body">
+                      <div className="flight-plan-rec-title">{rec.title}</div>
+                      {rec.description && <p className="flight-plan-rec-desc">{rec.description}</p>}
+                    </div>
+                    {rec.benefit && <span className="flight-plan-rec-benefit">{rec.benefit}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {flightPlanImages && flightPlanImages.length > 0 && (() => {
               const firstItem = flightPlanImages[0]
               const firstUrl = typeof firstItem.image === 'object' && firstItem.image?.url ? firstItem.image.url : null
@@ -1522,7 +1562,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                         </div>
                         {comp.metaAds?.adScreenshots && comp.metaAds.adScreenshots.length > 0 && (() => {
                           const urls = comp.metaAds!.adScreenshots.slice(0, 5)
-                          const hasImageUrls = urls.some(u => u.startsWith('/') || u.includes('/media/'))
+                          const hasImageUrls = urls.some(u => u.startsWith('/') || u.startsWith('http') || u.startsWith('data:'))
                           if (hasImageUrls) {
                             return (
                               <div className="ad-screenshots-grid">
@@ -1857,17 +1897,15 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     subtitle={`Assessed across ${cats.length} areas. Well-optimised websites typically score 65–80.`}
                     overallScore={seoAudit.overallScore}
                     categories={cats}
-                  />
-                )
-              })()}
-
-              {keywords && keywords.length > 0 && (() => {
-                const firstKw = keywords[0]
-                const clientDomain = domainFromUrl(proposal.websiteUrl)
-                return (
-                  <div className="audit-hero-serp" style={{ marginTop: '24px' }}>
-                    <SerpMockup keyword={firstKw.keyword} domain={clientDomain} position={firstKw.position} />
-                  </div>
+                  >
+                    {keywords && keywords.length > 0 && (() => {
+                      const firstKw = keywords[0]
+                      const clientDomain = domainFromUrl(proposal.websiteUrl)
+                      return (
+                        <SerpMockup keyword={firstKw.keyword} domain={clientDomain} position={firstKw.position} />
+                      )
+                    })()}
+                  </HealthScorePanel>
                 )
               })()}
             </div>

@@ -32,8 +32,10 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
       return
     }
 
-    // Scroll so the target slide's top aligns with the viewport top
-    window.scrollTo({ top: target.offsetTop, behavior: 'smooth' })
+    // Scroll so the target slide's header aligns with the viewport top
+    const header = target.querySelector<HTMLElement>('.slide-header')
+    const scrollTarget = header ? header.offsetTop : target.offsetTop
+    window.scrollTo({ top: scrollTarget, behavior: 'smooth' })
   }, [])
 
   useEffect(() => {
@@ -100,7 +102,7 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
       {/* Scroll hint — horizontally aligned with the rocket, first slide only */}
       {showHint && (
         <div className="rocket-hint" aria-hidden="true" onClick={scrollToNextSlide}>
-          <span className="rocket-hint-text">Click to start</span>
+          <span className="rocket-hint-text">Click here</span>
           <span className="rocket-hint-arrow">→</span>
         </div>
       )}
