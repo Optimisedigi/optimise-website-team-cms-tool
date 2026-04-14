@@ -732,6 +732,15 @@ export const ClientProposals: CollectionConfig = {
               },
             },
             {
+              name: "viewReport",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ViewProposalReportLink",
+                },
+              },
+            },
+            {
               name: "auditStatus",
               type: "select",
               admin: {
@@ -849,15 +858,6 @@ export const ClientProposals: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "Linked Google Ads audit",
-              },
-            },
-            {
-              name: "viewReport",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/ViewProposalReportLink",
-                },
               },
             },
             {

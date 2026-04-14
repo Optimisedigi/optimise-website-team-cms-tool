@@ -130,7 +130,7 @@ const RunAuditsButton = () => {
           cursor: isRunning || missingFields.length > 0 ? 'not-allowed' : 'pointer',
         }}
       >
-        {isRunning ? 'Running Audits...' : 'Run Audits'}
+        {isRunning ? 'Running General Audit...' : 'Run General Audit'}
       </button>
 
       {missingFields.length > 0 && (
