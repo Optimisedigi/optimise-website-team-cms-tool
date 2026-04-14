@@ -2038,6 +2038,8 @@ html.scroll-ready .report-presentation {
 .slide-18 {
   position: relative;
   padding-top: 70px !important;
+  padding-bottom: 60px !important;
+  min-height: 70svh;
 }
 
 .slide-18-station {
