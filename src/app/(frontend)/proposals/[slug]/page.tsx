@@ -370,6 +370,82 @@ function ScoreBar({ score, label }: { score: number; label: string }) {
   )
 }
 
+function RingGauge({ score }: { score: number }) {
+  // score is 0-100
+  const r = 54
+  const cx = 60
+  const cy = 60
+  const circumference = 2 * Math.PI * r
+  const dashOffset = circumference * (1 - score / 100)
+  const color = score >= 80 ? '#22c55e' : score >= 65 ? '#84cc16' : score >= 50 ? '#eab308' : score >= 30 ? '#f97316' : '#ef4444'
+  const statusLabel = score >= 80 ? 'Excellent' : score >= 65 ? 'Good' : score >= 50 ? 'Fair' : score >= 30 ? 'Needs Work' : 'Critical'
+
+  return (
+    <div className="ring-gauge">
+      <svg viewBox="0 0 120 120" className="ring-gauge-svg">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e5e7eb" strokeWidth="10" />
+        <circle
+          cx={cx} cy={cy} r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="10"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          transform={`rotate(-90 ${cx} ${cy})`}
+        />
+      </svg>
+      <div className="ring-gauge-center">
+        <span className="ring-gauge-number">{score}</span>
+        <span className="ring-gauge-of">/ 100</span>
+      </div>
+      <span className="ring-gauge-status" style={{ color }}>{statusLabel}</span>
+    </div>
+  )
+}
+
+function HealthScorePanel({ title, subtitle, overallScore, categories }: {
+  title: string
+  subtitle: string
+  overallScore: number
+  categories: { label: string; score: number; index: number }[]
+}) {
+  const score100 = Math.round(overallScore * 10)
+  const sorted = [...categories].sort((a, b) => a.score - b.score)
+
+  const barColor = (s: number) => s <= 3 ? '#ef4444' : s <= 5 ? '#f97316' : '#eab308'
+  const scoreColor = (s: number) => s <= 3 ? '#ef4444' : s <= 5 ? '#f97316' : '#eab308'
+
+  return (
+    <div className="health-panel">
+      <h2 className="health-panel-title">{title}</h2>
+      <p className="health-panel-subtitle">{subtitle}</p>
+      <div className="health-panel-body">
+        <div className="health-panel-gauge">
+          <RingGauge score={score100} />
+        </div>
+        <div className="health-panel-bars">
+          {sorted.map(({ label, score, index }) => (
+            <div key={label} className="health-bar-row">
+              <span className="health-bar-index">{index}</span>
+              <div className="health-bar-content">
+                <span className="health-bar-label">{label}</span>
+                <div className="health-bar-track">
+                  <div
+                    className="health-bar-fill"
+                    style={{ width: `${(score / 10) * 100}%`, background: barColor(score) }}
+                  />
+                </div>
+              </div>
+              <span className="health-bar-score" style={{ color: scoreColor(score) }}>{score}/10</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ScoreBadge({ score }: { score: number }) {
   const color = score >= 8 ? 'green' : score >= 5 ? 'amber' : 'red'
   return <span className={`score-badge score-${color}`}>{score}/10</span>
@@ -1768,50 +1844,32 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               <span>Structural Foundation</span>
             </div>
             <div className="slide-content">
-              <section className="audit-hero audit-hero-with-serp">
-                <div className="audit-hero-score">
-                  <ScoreGauge score={seoAudit.overallScore} />
-                </div>
-                <div className="audit-hero-info">
-                  <h3 className="audit-hero-label">Search Engine Optimisation</h3>
-                  <p className="audit-hero-summary">{getSeoSummary(seoAudit.overallScore)}</p>
-                  <dl className="audit-meta">
-                    <div>
-                      <dt>Business Type</dt>
-                      <dd>{seoAudit.businessType}</dd>
-                    </div>
-                    <div>
-                      <dt>Pages Analyzed</dt>
-                      <dd>{seoAudit.pagesAnalyzed ?? '—'}</dd>
-                    </div>
-                    <div>
-                      <dt>Overall Score</dt>
-                      <dd>{seoAudit.overallScore}/10</dd>
-                    </div>
-                  </dl>
-                </div>
-                {keywords && keywords.length > 0 && (() => {
-                  const firstKw = keywords[0]
-                  const clientDomain = domainFromUrl(proposal.websiteUrl)
-                  return (
-                    <div className="audit-hero-serp">
-                      <SerpMockup keyword={firstKw.keyword} domain={clientDomain} position={firstKw.position} />
-                    </div>
-                  )
-                })()}
-              </section>
+              {categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores) && (() => {
+                const entries = Object.entries(categoryScores)
+                const cats = entries.map(([key, score], i) => ({
+                  label: categoryLabels[key] || key,
+                  score: score as number,
+                  index: i + 1,
+                }))
+                return (
+                  <HealthScorePanel
+                    title="SEO Health Score"
+                    subtitle={`Assessed across ${cats.length} areas. Well-optimised websites typically score 65–80.`}
+                    overallScore={seoAudit.overallScore}
+                    categories={cats}
+                  />
+                )
+              })()}
 
-              {categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores) && (
-                <section className="audit-section" style={{ marginTop: '8px' }}>
-                  <div className="score-bars score-bars-3col">
-                    {Object.entries(categoryScores)
-                      .sort(([, a], [, b]) => (b as number) - (a as number))
-                      .map(([key, score]) => (
-                        <ScoreBar key={key} label={categoryLabels[key] || key} score={score as number} />
-                      ))}
+              {keywords && keywords.length > 0 && (() => {
+                const firstKw = keywords[0]
+                const clientDomain = domainFromUrl(proposal.websiteUrl)
+                return (
+                  <div className="audit-hero-serp" style={{ marginTop: '24px' }}>
+                    <SerpMockup keyword={firstKw.keyword} domain={clientDomain} position={firstKw.position} />
                   </div>
-                </section>
-              )}
+                )
+              })()}
             </div>
           </section>
         )}
@@ -1911,43 +1969,19 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               <span>Where to Focus Our Energy</span>
             </div>
             <div className="slide-content">
-              <section className="audit-hero">
-                <div className="audit-hero-score">
-                  <ScoreGauge score={(croAudit as any).overallScore ?? 0} />
-                </div>
-                <div className="audit-hero-info">
-                  <h3 className="audit-hero-label">Conversion Rate Optimisation</h3>
-                  <p className="audit-hero-summary">{getCroSummary((croAudit as any).overallScore ?? 0)}</p>
-                  <dl className="audit-meta">
-                    <div>
-                      <dt>Website Conversion Goal</dt>
-                      <dd>{conversionGoalLabels[(croAudit as any).conversionGoal] || (croAudit as any).conversionGoal}</dd>
-                    </div>
-                    <div>
-                      <dt>Overall Score</dt>
-                      <dd>{(croAudit as any).overallScore ?? 0}/10</dd>
-                    </div>
-                  </dl>
-                </div>
-              </section>
-
-              <section className="audit-section" style={{ marginTop: '8px' }}>
-                <div className="cro-scores-grid">
-                  {[
-                    { label: 'First Impression', score: (croAudit as any).firstImpressionScore ?? (croAudit as any).aboveFoldScore ?? 0 },
-                    { label: 'Trust & Social Proof', score: (croAudit as any).trustScore ?? 0 },
-                    { label: 'Call-to-Action', score: (croAudit as any).ctaScore ?? 0 },
-                    { label: 'Lead Capture', score: (croAudit as any).leadCaptureScore ?? 0 },
-                    { label: 'Content & Readability', score: (croAudit as any).contentReadabilityScore ?? (croAudit as any).contentScore ?? 0 },
-                    { label: 'Navigation', score: (croAudit as any).navigationScore ?? 0 },
-                  ].map(({ label, score }) => (
-                    <div key={label} className="cro-score-with-interpretation">
-                      <ScoreBar score={score} label={label} />
-                      <p className="cro-interpretation">{getCroSubInterpretation(label, score)}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
+              <HealthScorePanel
+                title="CRO Health Score"
+                subtitle="Assessed across 6 areas. Well-optimised websites typically score 65–80."
+                overallScore={(croAudit as any).overallScore ?? 0}
+                categories={[
+                  { label: 'First Impression', score: (croAudit as any).firstImpressionScore ?? (croAudit as any).aboveFoldScore ?? 0, index: 1 },
+                  { label: 'Trust & Social Proof', score: (croAudit as any).trustScore ?? 0, index: 2 },
+                  { label: 'Call-to-Action', score: (croAudit as any).ctaScore ?? 0, index: 3 },
+                  { label: 'Lead Capture', score: (croAudit as any).leadCaptureScore ?? 0, index: 4 },
+                  { label: 'Content & Readability', score: (croAudit as any).contentReadabilityScore ?? (croAudit as any).contentScore ?? 0, index: 5 },
+                  { label: 'Navigation', score: (croAudit as any).navigationScore ?? 0, index: 6 },
+                ]}
+              />
 
               {croFindings && Array.isArray(croFindings) && croFindings.length > 0 && (
                 <>
