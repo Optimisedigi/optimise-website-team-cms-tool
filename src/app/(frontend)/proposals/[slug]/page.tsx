@@ -277,9 +277,9 @@ const businessTypeLabels: Record<string, string> = {
 }
 
 function getCroSubInterpretation(label: string, score: number): string {
-  if (score >= 8) return `Your ${label.toLowerCase()} is strong — keep it up.`
-  if (score >= 5) return `Your ${label.toLowerCase()} has room for improvement — small tweaks could boost conversions.`
-  return `Your ${label.toLowerCase()} needs attention — this is likely costing you leads.`
+  if (score >= 8) return `Your ${label.toLowerCase()} is strong. Keep it up.`
+  if (score >= 5) return `Your ${label.toLowerCase()} has room for improvement. Small tweaks could boost conversions.`
+  return `Your ${label.toLowerCase()} needs attention. This is likely costing you leads.`
 }
 
 const categoryLabels: Record<string, string> = {
@@ -694,7 +694,7 @@ function SerpMockup({ keyword, domain, position }: { keyword: string; domain: st
   for (let rank = 1; rank <= maxSlots; rank++) {
     if (rank === displayPos) {
       entries.push({
-        title: `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} — ${domain}`,
+        title: `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} | ${domain}`,
         url: `https://${domain}`,
         desc: `Discover the best ${keyword.toLowerCase()} services. Trusted by thousands of customers across Australia.`,
         isYou: true,
@@ -703,7 +703,7 @@ function SerpMockup({ keyword, domain, position }: { keyword: string; domain: st
       const fd = fillerDomains[fillerIdx % fillerDomains.length]
       fillerIdx++
       entries.push({
-        title: `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} — ${fd}`,
+        title: `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} | ${fd}`,
         url: `https://www.${fd}`,
         desc: `Learn more about ${keyword.toLowerCase()}. Find information, reviews, and resources.`,
         isYou: false,
@@ -763,7 +763,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const proposal = await findProposalBySlug(slug)
   if (!proposal) return { title: 'Report Not Found' }
   return {
-    title: `Pre-launch Assessment — ${proposal.businessName}`,
+    title: `Pre-launch Assessment | ${proposal.businessName}`,
     description: `Pre-launch SEO, CRO, keyword, and competitor assessment for ${proposal.businessName}`,
     robots: { index: false, follow: false },
   }
@@ -1208,7 +1208,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
           {showSlide(19) && (
             <div className="slide-18-station">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/slides/Space-station-optimise-digital.png" alt="Optimise Digital — Your Growth Partner" />
+              <img src="/slides/Space-station-optimise-digital.png" alt="Optimise Digital, Your Growth Partner" />
             </div>
           )}
           <div className="slide-content">
@@ -1380,11 +1380,11 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                       <p className="launch-narrative-intro">Our Recommendation: Build a Growth Strategy Around an Integrated System</p>
 
                       {hasSystemBuilds && (
-                        <p className="launch-narrative-paragraph"><strong>An optimised website and SEO foundation are the most important starting point.</strong> A high-converting, technically sound website ensures every visitor has the best chance of becoming a lead — and that search engines can properly discover and rank your pages. Without this foundation, every other channel underperforms.</p>
+                        <p className="launch-narrative-paragraph"><strong>An optimised website and SEO foundation are the most important starting point.</strong> A high-converting, technically sound website ensures every visitor has the best chance of becoming a lead, and that search engines can properly discover and rank your pages. Without this foundation, every other channel underperforms.</p>
                       )}
 
                       {hasPerformanceMarketing && (
-                        <p className="launch-narrative-paragraph"><strong>Google Ads can deliver results immediately</strong> by capturing high-intent search traffic from day one. Once the website and SEO foundations are in place, paid search compounds your growth — driving qualified visitors to pages already built to convert. Together, organic and paid work as a system rather than in isolation.</p>
+                        <p className="launch-narrative-paragraph"><strong>Google Ads can deliver results immediately</strong> by capturing high-intent search traffic from day one. Once the website and SEO foundations are in place, paid search compounds your growth, driving qualified visitors to pages already built to convert. Together, organic and paid work as a system rather than in isolation.</p>
                       )}
 
                       {hasContentSocial && (
@@ -1692,7 +1692,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
               <>
                 <div className="cr-intro-copy">
                   <p className="cr-intro-bold">Is your website answering these questions?</p>
-                  <p className="cr-intro-sub">These are the exact questions your potential customers are actively searching for—and where your site can establish authority. Each sunburst shows the most popular questions grouped by type<span className="cr-hide-mobile"> — the bigger the slice, the more people are searching for it</span>.</p>
+                  <p className="cr-intro-sub">These are some of the highest-volume questions your potential customers are actively searching for. There is significant opportunity to cover these search terms through targeted content, and this is just a starting point. A full SEO content strategy would build on these topics and more to grow your organic visibility over time. Each sunburst shows the most popular questions grouped by type<span className="cr-hide-mobile">, with larger slices representing higher search volume</span>.</p>
                 </div>
                 {(() => {
                   // Deduplicate content researches by keyword (keep most recent — array is sorted by -createdAt)
