@@ -1988,7 +1988,18 @@ export async function POST(request: NextRequest) {
   await run("client_proposals_competitors.gbp_review_count", "ALTER TABLE `client_proposals_competitors` ADD `gbp_review_count` numeric");
   await run("client_proposals_competitors.gbp_responds_to_reviews", "ALTER TABLE `client_proposals_competitors` ADD `gbp_responds_to_reviews` integer DEFAULT 0");
 
-  return NextResponse.json({ ok: true, version: "2026-04-14", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── Flight Plan Recommendations sub-table (missing from earlier migration) ──
+  await run("client_proposals_flight_plan_recommendations", `CREATE TABLE IF NOT EXISTS \`client_proposals_flight_plan_recommendations\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`enabled\` integer DEFAULT false, \`title\` text NOT NULL,
+    \`description\` text, \`benefit\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("flight_plan_recs_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_order_idx` ON `client_proposals_flight_plan_recommendations` (`_order`)");
+  await run("flight_plan_recs_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_parent_id_idx` ON `client_proposals_flight_plan_recommendations` (`_parent_id`)");
+
+  return NextResponse.json({ ok: true, version: "2026-04-14b", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
@@ -2570,6 +2581,17 @@ export async function GET(request: NextRequest) {
   await run("client_proposals_competitors.gbp_rating", "ALTER TABLE `client_proposals_competitors` ADD `gbp_rating` numeric");
   await run("client_proposals_competitors.gbp_review_count", "ALTER TABLE `client_proposals_competitors` ADD `gbp_review_count` numeric");
   await run("client_proposals_competitors.gbp_responds_to_reviews", "ALTER TABLE `client_proposals_competitors` ADD `gbp_responds_to_reviews` integer DEFAULT 0");
+
+  // ── Flight Plan Recommendations sub-table (missing from earlier migration) ──
+  await run("client_proposals_flight_plan_recommendations_get", `CREATE TABLE IF NOT EXISTS \`client_proposals_flight_plan_recommendations\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`enabled\` integer DEFAULT false, \`title\` text NOT NULL,
+    \`description\` text, \`benefit\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("flight_plan_recs_order_idx_get", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_order_idx` ON `client_proposals_flight_plan_recommendations` (`_order`)");
+  await run("flight_plan_recs_parent_id_idx_get", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_parent_id_idx` ON `client_proposals_flight_plan_recommendations` (`_parent_id`)");
 
   let allTables: string[] = [];
   try {
