@@ -855,7 +855,12 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const croExtracted = croAudit?.extractedContent as CroExtractedContent | null
 
   // Keyword data — sorted by search volume descending
-  const rawKeywords = kwSnapshot?.keywords as KeywordEntry[] | null
+  // Normalize: Growth Tools may have stored volume as search_volume, volume, monthlySearches etc.
+  const rawKeywordsRaw = kwSnapshot?.keywords as (KeywordEntry & Record<string, any>)[] | null
+  const rawKeywords = rawKeywordsRaw?.map(k => ({
+    ...k,
+    searchVolume: k.searchVolume ?? k.search_volume ?? k.volume ?? k.monthlySearches ?? k.monthly_searches ?? 0,
+  })) ?? null
   const keywords = rawKeywords
     ? [...rawKeywords].sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0))
     : null

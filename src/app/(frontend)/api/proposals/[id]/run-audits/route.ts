@@ -337,7 +337,16 @@ export async function POST(
       try {
         const kw = kwResult.value;
         const kwData = kw.keywords || kw.results || kw;
-        const kwArray = Array.isArray(kwData) ? kwData : [];
+        const kwArrayRaw = Array.isArray(kwData) ? kwData : [];
+        // Debug: log first keyword entry to identify field names from Growth Tools API
+        if (kwArrayRaw.length > 0) {
+          console.log("[kw-debug] First keyword entry fields:", JSON.stringify(Object.keys(kwArrayRaw[0])), "sample:", JSON.stringify(kwArrayRaw[0]));
+        }
+        // Normalize field names — Growth Tools may return search_volume, volume, monthlySearches etc.
+        const kwArray = kwArrayRaw.map((k: any) => ({
+          ...k,
+          searchVolume: k.searchVolume ?? k.search_volume ?? k.volume ?? k.monthlySearches ?? k.monthly_searches ?? 0,
+        }));
 
         // Calculate summary stats
         const totalKeywords = kwArray.length;
@@ -644,6 +653,104 @@ export async function POST(
               }
             } catch (e: any) {
               console.error("[traffic-backfill] yourProfile failed:", e.message);
+            }
+          }
+
+          // GBP enrichment: for CMS competitors with a googleMapsUrl but no GBP data,
+          // look up GBP by business name via growth-tools /api/gbp-lookup
+          const cmsCompsWithMaps = (proposal.competitors ?? []) as { name: string; websiteUrl?: string | null; googleMapsUrl?: string | null }[];
+          const gbpLookups = cmsCompsWithMaps
+            .filter((c) => c.googleMapsUrl && c.name)
+            .map((c) => {
+              const domain = c.websiteUrl
+                ? c.websiteUrl.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "")
+                : null;
+              // Find the matching entry in enrichedCompetitors
+              const comp = domain
+                ? enrichedCompetitors.find((ec: any) => {
+                    const k = (ec.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+                    return k === domain;
+                  })
+                : null;
+              return { cmsComp: c, comp, domain };
+            })
+            .filter(({ comp }) => !comp?.googleBusinessProfile);
+
+          if (gbpLookups.length > 0) {
+            await updateProgress("Fetching Google Business Profile data", 88);
+            console.log(`[gbp-enrich] Looking up GBP for ${gbpLookups.length} competitors by name`);
+            const gbpResults = await Promise.allSettled(
+              gbpLookups.map(async ({ cmsComp, comp, domain }) => {
+                const res = await fetch(`${GROWTH_TOOLS_URL}/api/gbp-lookup`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY! },
+                  body: JSON.stringify({ name: cmsComp.name, location: targetLocation || undefined }),
+                });
+                if (!res.ok) return { domain, cmsComp, gbp: null };
+                const gbp = await res.json();
+                return { domain, cmsComp, gbp };
+              })
+            );
+
+            // Merge GBP data into enrichedCompetitors and collect updates for CMS overrides
+            const gbpCmsUpdates: { name: string; gbpRating: number; gbpReviewCount: number; gbpRespondsToReviews: boolean }[] = [];
+            for (const r of gbpResults) {
+              if (r.status !== "fulfilled" || !r.value.gbp) continue;
+              const { domain, cmsComp, gbp } = r.value;
+              console.log(`[gbp-enrich] ${cmsComp.name}: rating=${gbp.rating}, reviews=${gbp.reviewCount}`);
+
+              // Find and update the enriched competitor
+              if (domain) {
+                const comp = enrichedCompetitors.find((c: any) => {
+                  const k = (c.domain || "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+                  return k === domain;
+                });
+                if (comp) {
+                  comp.googleBusinessProfile = {
+                    name: gbp.name,
+                    rating: gbp.rating,
+                    reviewCount: gbp.reviewCount,
+                    category: gbp.category ?? null,
+                    respondsToReviews: gbp.respondsToReviews ?? false,
+                    responseRate: gbp.responseRate ?? null,
+                  };
+                }
+              }
+
+              // Collect data for CMS override persist
+              gbpCmsUpdates.push({
+                name: cmsComp.name,
+                gbpRating: gbp.rating,
+                gbpReviewCount: gbp.reviewCount,
+                gbpRespondsToReviews: gbp.respondsToReviews ?? false,
+              });
+            }
+
+            // Persist GBP data back to the proposal's competitors array as overrides
+            if (gbpCmsUpdates.length > 0) {
+              try {
+                const updatedCompetitors = ((proposal.competitors ?? []) as any[]).map((c: any) => {
+                  const update = gbpCmsUpdates.find((u) => u.name === c.name);
+                  if (update && !c.gbpRating) {
+                    return {
+                      ...c,
+                      gbpRating: update.gbpRating,
+                      gbpReviewCount: update.gbpReviewCount,
+                      gbpRespondsToReviews: update.gbpRespondsToReviews,
+                    };
+                  }
+                  return c;
+                });
+                await payload.update({
+                  collection: "client-proposals",
+                  id,
+                  data: { ...preservedArrayFields, competitors: updatedCompetitors } as any,
+                  overrideAccess: true,
+                });
+                console.log(`[gbp-enrich] Persisted GBP overrides for ${gbpCmsUpdates.length} competitors`);
+              } catch (e: any) {
+                console.error("[gbp-enrich] Failed to persist CMS overrides:", e.message);
+              }
             }
           }
 
