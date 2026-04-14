@@ -85,7 +85,7 @@ const cardHead: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  padding: '14px 20px',
+  padding: '10px 16px',
   borderBottom: '1px solid var(--theme-elevation-100)',
 }
 
@@ -103,7 +103,7 @@ const kpiRow: React.CSSProperties = {
 }
 
 const kpi: React.CSSProperties = {
-  padding: '16px 20px',
+  padding: '12px 16px',
   textAlign: 'center' as const,
   borderRight: '1px solid var(--theme-elevation-50)',
 }
@@ -123,7 +123,7 @@ const kpiLabel: React.CSSProperties = {
 }
 
 const thStyle: React.CSSProperties = {
-  padding: '10px 16px',
+  padding: '6px 12px',
   textAlign: 'left',
   fontWeight: 600,
   color: '#6b7280',
@@ -133,7 +133,7 @@ const thStyle: React.CSSProperties = {
 }
 
 const tdStyle: React.CSSProperties = {
-  padding: '10px 16px',
+  padding: '6px 12px',
   fontSize: 13,
   whiteSpace: 'nowrap',
 }
@@ -408,9 +408,14 @@ export default function XeroInvoicesPage() {
   })
 
   return (
-    <div style={{ padding: '24px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Xero Invoices</h2>
+    <div style={{ padding: '16px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--theme-elevation-400)' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span style={{ color: 'var(--theme-elevation-400)' }}>Finance</span>
+          <span style={{ color: 'var(--theme-elevation-300)' }}>/</span>
+          <span style={{ color: 'var(--theme-elevation-800)', fontWeight: 600 }}>Xero Invoices</span>
+        </nav>
         <button
           type="button"
           onClick={handleRefresh}
