@@ -576,10 +576,41 @@ export default function XeroInvoicesPage() {
                           {send.invoiceNumber || '—'}
                         </td>
                         <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)', whiteSpace: 'normal', maxWidth: 280 }}>
-                          {send.description}
+                          {send.status === 'draft' && isEditing ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {editLines.map((line, i) => (
+                                <input
+                                  key={i}
+                                  value={line.description}
+                                  onChange={e => { const n = [...editLines]; n[i] = { ...n[i], description: e.target.value }; setEditLines(n) }}
+                                  style={{ padding: '3px 6px', fontSize: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 3, background: 'var(--theme-elevation-0)', width: '100%' }}
+                                />
+                              ))}
+                            </div>
+                          ) : send.description}
                         </td>
                         <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500 }}>
-                          ${send.total.toLocaleString('en-AU', { minimumFractionDigits: 2 })}
+                          {send.status === 'draft' && isEditing ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+                              {editLines.map((line, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{ fontSize: 11, color: 'var(--theme-elevation-400)' }}>$</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={line.unitAmount}
+                                    onChange={e => { const n = [...editLines]; n[i] = { ...n[i], unitAmount: Number(e.target.value) }; setEditLines(n) }}
+                                    style={{ width: 80, padding: '3px 6px', fontSize: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 3, textAlign: 'right', background: 'var(--theme-elevation-0)' }}
+                                  />
+                                </div>
+                              ))}
+                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--theme-elevation-600)', borderTop: '1px solid var(--theme-elevation-150)', paddingTop: 3, marginTop: 2 }}>
+                                ${editLines.reduce((s, l) => s + l.quantity * l.unitAmount, 0).toLocaleString('en-AU', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          ) : (
+                            <>${send.total.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</>
+                          )}
                         </td>
                         <td style={{ ...tdStyle, textAlign: 'center' }}>
                           <span style={
@@ -719,48 +750,11 @@ export default function XeroInvoicesPage() {
                           </div>
                         </td>
                       </tr>
-                      {/* Inline line item editor */}
+                      {/* Edit actions bar */}
                       {isEditing && (
                         <tr style={{ borderBottom: '1px solid var(--theme-elevation-50)' }}>
-                          <td colSpan={7} style={{ padding: '12px 16px', background: 'var(--theme-elevation-50)' }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-600)', marginBottom: 8 }}>Line Items</div>
-                            {editLines.map((line, i) => (
-                              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-                                <input
-                                  value={line.description}
-                                  onChange={e => { const n = [...editLines]; n[i] = { ...n[i], description: e.target.value }; setEditLines(n) }}
-                                  style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 4, background: 'var(--theme-elevation-0)' }}
-                                  placeholder="Description"
-                                />
-                                <input
-                                  type="number"
-                                  value={line.quantity}
-                                  onChange={e => { const n = [...editLines]; n[i] = { ...n[i], quantity: Number(e.target.value) }; setEditLines(n) }}
-                                  style={{ width: 50, padding: '4px 8px', fontSize: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 4, textAlign: 'right', background: 'var(--theme-elevation-0)' }}
-                                  placeholder="Qty"
-                                />
-                                <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>x $</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={line.unitAmount}
-                                  onChange={e => { const n = [...editLines]; n[i] = { ...n[i], unitAmount: Number(e.target.value) }; setEditLines(n) }}
-                                  style={{ width: 90, padding: '4px 8px', fontSize: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 4, textAlign: 'right', background: 'var(--theme-elevation-0)' }}
-                                  placeholder="Amount"
-                                />
-                                <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)', minWidth: 70, textAlign: 'right' }}>
-                                  = ${(line.quantity * line.unitAmount).toLocaleString('en-AU', { minimumFractionDigits: 2 })}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditLines(editLines.filter((_, j) => j !== i))}
-                                  style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
-                                >
-                                  x
-                                </button>
-                              </div>
-                            ))}
-                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                          <td colSpan={7} style={{ padding: '8px 16px', background: 'var(--theme-elevation-50)' }}>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                               <button
                                 type="button"
                                 onClick={() => setEditLines([...editLines, { description: '', quantity: 1, unitAmount: 0, accountCode: '200', taxType: 'OUTPUT' }])}
@@ -768,10 +762,16 @@ export default function XeroInvoicesPage() {
                               >
                                 + Add line
                               </button>
+                              {editLines.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditLines(editLines.slice(0, -1))}
+                                  style={{ fontSize: 11, color: '#ef4444', background: 'none', border: '1px solid var(--theme-elevation-150)', borderRadius: 3, padding: '3px 10px', cursor: 'pointer' }}
+                                >
+                                  Remove last
+                                </button>
+                              )}
                               <div style={{ flex: 1 }} />
-                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-700)' }}>
-                                Total: ${editLines.reduce((s, l) => s + l.quantity * l.unitAmount, 0).toLocaleString('en-AU', { minimumFractionDigits: 2 })}
-                              </span>
                               <button
                                 type="button"
                                 disabled={isLoading || editLines.length === 0}
