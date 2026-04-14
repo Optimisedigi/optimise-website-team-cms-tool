@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import './XeroInvoiceChat.css'
 
 // ─── Types ────────────────────────────────────────────────
@@ -25,13 +25,23 @@ interface XeroInvoiceSummary {
   recentInvoices: XeroInvoice[]
 }
 
+interface LineItem {
+  description: string
+  quantity: number
+  unitAmount: number
+  accountCode: string
+  taxType: string
+}
+
 interface XeroScheduledSend {
   invoiceId: string
+  invoiceNumber: string
   sendDate: string | null
   description: string
   status: 'draft' | 'scheduled'
   contact: string
   total: number
+  lineItems: LineItem[]
 }
 
 interface ChatMessage {
@@ -320,11 +330,10 @@ export default function XeroInvoicesPage() {
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [showCreateRetainer, setShowCreateRetainer] = useState(false)
-  const [mailchimpAmount, setMailchimpAmount] = useState('')
-  const [creatingRetainer, setCreatingRetainer] = useState(false)
   const [scheduleId, setScheduleId] = useState<string | null>(null)
   const [scheduleDate, setScheduleDate] = useState('')
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editLines, setEditLines] = useState<LineItem[]>([])
 
   const fetchData = async () => {
     try {
@@ -528,67 +537,7 @@ export default function XeroInvoicesPage() {
               {sortedScheduled.filter(s => s.status === 'draft').length} draft, {sortedScheduled.filter(s => s.status === 'scheduled').length} scheduled
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowCreateRetainer(v => !v)}
-            style={{ fontSize: 12, fontWeight: 600, color: '#fff', background: '#6366f1', border: 'none', borderRadius: 4, padding: '6px 14px', cursor: 'pointer' }}
-          >
-            + Create Retainer
-          </button>
         </div>
-
-        {/* Create Retainer Form */}
-        {showCreateRetainer && (
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--theme-elevation-100)', background: 'var(--theme-elevation-50)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, fontWeight: 500 }}>Profiterole Patisserie</span>
-              <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>Retainer: $6,500</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <label style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Mailchimp $</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="e.g. 321.69"
-                  value={mailchimpAmount}
-                  onChange={e => setMailchimpAmount(e.target.value)}
-                  style={{ width: 100, padding: '4px 8px', fontSize: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 4, background: 'var(--theme-elevation-0)' }}
-                />
-              </div>
-              <button
-                type="button"
-                disabled={creatingRetainer}
-                onClick={async () => {
-                  setCreatingRetainer(true)
-                  try {
-                    await invoiceAction('create-drafts', undefined, {
-                      mailchimpAmount: mailchimpAmount ? Number(mailchimpAmount) : undefined,
-                    })
-                    setShowCreateRetainer(false)
-                    setMailchimpAmount('')
-                    await fetchData()
-                  } catch (e) {
-                    alert(e instanceof Error ? e.message : 'Failed to create retainer')
-                  } finally {
-                    setCreatingRetainer(false)
-                  }
-                }}
-                style={{ fontSize: 12, fontWeight: 600, color: '#fff', background: creatingRetainer ? '#a5b4fc' : '#6366f1', border: 'none', borderRadius: 4, padding: '5px 14px', cursor: creatingRetainer ? 'not-allowed' : 'pointer' }}
-              >
-                {creatingRetainer ? 'Creating...' : 'Create Draft'}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowCreateRetainer(false); setMailchimpAmount('') }}
-                style={{ fontSize: 12, color: 'var(--theme-elevation-400)', background: 'none', border: 'none', cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-            </div>
-            <p style={{ fontSize: 11, color: 'var(--theme-elevation-400)', margin: '8px 0 0' }}>
-              Creates a draft for the previous month. Leave Mailchimp blank to omit that line item.
-            </p>
-          </div>
-        )}
 
         {sortedScheduled.length > 0 ? (
           <div style={{ overflowX: 'auto' }}>
@@ -596,7 +545,7 @@ export default function XeroInvoicesPage() {
               <thead>
                 <tr>
                   <th style={thStyle}>Client</th>
-                  <th style={thStyle}>Description</th>
+                  <th style={thStyle}>Invoice</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
                   <th style={thStyle}>Send Date</th>
@@ -609,146 +558,241 @@ export default function XeroInvoicesPage() {
                   const isUrgent = days !== null && days <= 3 && days >= 0
                   const isPast = days !== null && days < 0
                   const isLoading = actionLoading === send.invoiceId
+                  const isEditing = editId === send.invoiceId
                   return (
-                    <tr
-                      key={send.invoiceId}
-                      style={{
-                        borderBottom: '1px solid var(--theme-elevation-50)',
-                        background: isUrgent ? 'rgba(245, 158, 11, 0.06)' : undefined,
-                        opacity: isLoading ? 0.5 : 1,
-                      }}
-                    >
-                      <td style={{ ...tdStyle, fontWeight: 500, color: 'var(--theme-elevation-700)' }}>
-                        {send.contact}
-                      </td>
-                      <td style={tdStyle}>
-                        {send.description}
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500 }}>
-                        ${send.total.toLocaleString('en-AU', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>
-                        <span style={
-                          send.status === 'scheduled'
-                            ? badge('#eff6ff', '#2563eb')
-                            : badge('#f3f4f6', '#6b7280')
-                        }>
-                          {send.status === 'scheduled' ? 'Scheduled' : 'Draft'}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>
-                        {scheduleId === send.invoiceId ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <input
-                              type="date"
-                              value={scheduleDate}
-                              onChange={e => setScheduleDate(e.target.value)}
-                              style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--theme-elevation-150)', borderRadius: 4 }}
-                            />
-                            <button
-                              type="button"
-                              disabled={!scheduleDate || isLoading}
-                              onClick={async () => {
-                                setActionLoading(send.invoiceId)
-                                try {
-                                  await invoiceAction('schedule-send', send.invoiceId, { sendDate: scheduleDate, description: send.description })
-                                  setScheduleId(null)
-                                  setScheduleDate('')
-                                  await fetchData()
-                                } catch (e) {
-                                  alert(e instanceof Error ? e.message : 'Failed to schedule')
-                                } finally {
-                                  setActionLoading(null)
-                                }
-                              }}
-                              style={{ fontSize: 11, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setScheduleId(null); setScheduleDate('') }}
-                              style={{ fontSize: 11, color: 'var(--theme-elevation-400)', background: 'none', border: 'none', cursor: 'pointer' }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : send.sendDate ? (
-                          <>
-                            {formatDate(send.sendDate)}
-                            {days !== null && (
-                              <span style={{ marginLeft: 8, ...( isPast ? badge('#fef2f2', '#b91c1c') : isUrgent ? badge('#fffbeb', '#b45309') : badge('#f3f4f6', '#6b7280')) }}>
-                                {isPast ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days}d`}
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span style={{ color: 'var(--theme-elevation-300)', fontSize: 12 }}>Not scheduled</span>
-                        )}
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
-                          {send.status === 'draft' && (
+                    <Fragment key={send.invoiceId}>
+                      <tr
+                        style={{
+                          borderBottom: isEditing ? 'none' : '1px solid var(--theme-elevation-50)',
+                          background: isUrgent ? 'rgba(245, 158, 11, 0.06)' : undefined,
+                          opacity: isLoading ? 0.5 : 1,
+                        }}
+                      >
+                        <td style={{ ...tdStyle, fontWeight: 500, color: 'var(--theme-elevation-700)' }}>
+                          {send.contact}
+                        </td>
+                        <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
+                          {send.invoiceNumber || '—'}
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500 }}>
+                          ${send.total.toLocaleString('en-AU', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>
+                          <span style={
+                            send.status === 'scheduled'
+                              ? badge('#eff6ff', '#2563eb')
+                              : badge('#f3f4f6', '#6b7280')
+                          }>
+                            {send.status === 'scheduled' ? 'Scheduled' : 'Draft'}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>
+                          {scheduleId === send.invoiceId ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <input
+                                type="date"
+                                value={scheduleDate}
+                                onChange={e => setScheduleDate(e.target.value)}
+                                style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--theme-elevation-150)', borderRadius: 4 }}
+                              />
+                              <button
+                                type="button"
+                                disabled={!scheduleDate || isLoading}
+                                onClick={async () => {
+                                  setActionLoading(send.invoiceId)
+                                  try {
+                                    await invoiceAction('schedule-send', send.invoiceId, { sendDate: scheduleDate, description: send.description })
+                                    setScheduleId(null)
+                                    setScheduleDate('')
+                                    await fetchData()
+                                  } catch (e) {
+                                    alert(e instanceof Error ? e.message : 'Failed to schedule')
+                                  } finally {
+                                    setActionLoading(null)
+                                  }
+                                }}
+                                style={{ fontSize: 11, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setScheduleId(null); setScheduleDate('') }}
+                                style={{ fontSize: 11, color: 'var(--theme-elevation-400)', background: 'none', border: 'none', cursor: 'pointer' }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : send.sendDate ? (
                             <>
-                              <button
-                                type="button"
-                                disabled={isLoading}
-                                onClick={async () => {
-                                  if (!confirm(`Send ${send.contact} invoice ($${send.total.toFixed(2)}) now?`)) return
-                                  setActionLoading(send.invoiceId)
-                                  try {
-                                    await invoiceAction('send', send.invoiceId)
-                                    await fetchData()
-                                  } catch (e) {
-                                    alert(e instanceof Error ? e.message : 'Failed to send')
-                                  } finally {
-                                    setActionLoading(null)
-                                  }
-                                }}
-                                style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: '#22c55e', border: 'none', borderRadius: 3, padding: '3px 10px', cursor: 'pointer' }}
-                              >
-                                Send
-                              </button>
-                              <button
-                                type="button"
-                                disabled={isLoading}
-                                onClick={() => { setScheduleId(send.invoiceId); setScheduleDate('') }}
-                                style={{ fontSize: 11, fontWeight: 600, color: '#2563eb', background: '#eff6ff', border: 'none', borderRadius: 3, padding: '3px 10px', cursor: 'pointer' }}
-                              >
-                                Schedule
-                              </button>
-                              <button
-                                type="button"
-                                disabled={isLoading}
-                                onClick={async () => {
-                                  if (!confirm(`Delete draft for ${send.contact}?`)) return
-                                  setActionLoading(send.invoiceId)
-                                  try {
-                                    await invoiceAction('delete', send.invoiceId)
-                                    await fetchData()
-                                  } catch (e) {
-                                    alert(e instanceof Error ? e.message : 'Failed to delete')
-                                  } finally {
-                                    setActionLoading(null)
-                                  }
-                                }}
-                                style={{ fontSize: 11, fontWeight: 600, color: '#ef4444', background: '#fef2f2', border: 'none', borderRadius: 3, padding: '3px 10px', cursor: 'pointer' }}
-                              >
-                                Delete
-                              </button>
+                              {formatDate(send.sendDate)}
+                              {days !== null && (
+                                <span style={{ marginLeft: 8, ...(isPast ? badge('#fef2f2', '#b91c1c') : isUrgent ? badge('#fffbeb', '#b45309') : badge('#f3f4f6', '#6b7280')) }}>
+                                  {isPast ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days}d`}
+                                </span>
+                              )}
                             </>
+                          ) : (
+                            <span style={{ color: 'var(--theme-elevation-300)', fontSize: 12 }}>Not scheduled</span>
                           )}
-                          <a
-                            href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${send.invoiceId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ fontSize: 11, color: '#6366f1', textDecoration: 'none', padding: '3px 0' }}
-                          >
-                            Xero ↗
-                          </a>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            {send.status === 'draft' && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isLoading}
+                                  onClick={() => {
+                                    if (isEditing) {
+                                      setEditId(null)
+                                      setEditLines([])
+                                    } else {
+                                      setEditId(send.invoiceId)
+                                      setEditLines(send.lineItems.map(l => ({ ...l })))
+                                    }
+                                  }}
+                                  style={{ fontSize: 11, fontWeight: 600, color: isEditing ? 'var(--theme-elevation-400)' : '#f59e0b', background: isEditing ? '#f3f4f6' : '#fffbeb', border: 'none', borderRadius: 3, padding: '3px 10px', cursor: 'pointer' }}
+                                >
+                                  {isEditing ? 'Cancel' : 'Edit'}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isLoading}
+                                  onClick={async () => {
+                                    if (!confirm(`Send ${send.contact} invoice ($${send.total.toFixed(2)}) now?`)) return
+                                    setActionLoading(send.invoiceId)
+                                    try {
+                                      await invoiceAction('send', send.invoiceId)
+                                      await fetchData()
+                                    } catch (e) {
+                                      alert(e instanceof Error ? e.message : 'Failed to send')
+                                    } finally {
+                                      setActionLoading(null)
+                                    }
+                                  }}
+                                  style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: '#22c55e', border: 'none', borderRadius: 3, padding: '3px 10px', cursor: 'pointer' }}
+                                >
+                                  Send
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isLoading}
+                                  onClick={() => { setScheduleId(send.invoiceId); setScheduleDate('') }}
+                                  style={{ fontSize: 11, fontWeight: 600, color: '#2563eb', background: '#eff6ff', border: 'none', borderRadius: 3, padding: '3px 10px', cursor: 'pointer' }}
+                                >
+                                  Schedule
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isLoading}
+                                  onClick={async () => {
+                                    if (!confirm(`Delete draft for ${send.contact}?`)) return
+                                    setActionLoading(send.invoiceId)
+                                    try {
+                                      await invoiceAction('delete', send.invoiceId)
+                                      await fetchData()
+                                    } catch (e) {
+                                      alert(e instanceof Error ? e.message : 'Failed to delete')
+                                    } finally {
+                                      setActionLoading(null)
+                                    }
+                                  }}
+                                  style={{ fontSize: 11, fontWeight: 600, color: '#ef4444', background: '#fef2f2', border: 'none', borderRadius: 3, padding: '3px 10px', cursor: 'pointer' }}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                            <a
+                              href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${send.invoiceId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontSize: 11, color: '#6366f1', textDecoration: 'none', padding: '3px 0' }}
+                            >
+                              Xero ↗
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Inline line item editor */}
+                      {isEditing && (
+                        <tr style={{ borderBottom: '1px solid var(--theme-elevation-50)' }}>
+                          <td colSpan={6} style={{ padding: '12px 16px', background: 'var(--theme-elevation-50)' }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-600)', marginBottom: 8 }}>Line Items</div>
+                            {editLines.map((line, i) => (
+                              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                                <input
+                                  value={line.description}
+                                  onChange={e => { const n = [...editLines]; n[i] = { ...n[i], description: e.target.value }; setEditLines(n) }}
+                                  style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 4, background: 'var(--theme-elevation-0)' }}
+                                  placeholder="Description"
+                                />
+                                <input
+                                  type="number"
+                                  value={line.quantity}
+                                  onChange={e => { const n = [...editLines]; n[i] = { ...n[i], quantity: Number(e.target.value) }; setEditLines(n) }}
+                                  style={{ width: 50, padding: '4px 8px', fontSize: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 4, textAlign: 'right', background: 'var(--theme-elevation-0)' }}
+                                  placeholder="Qty"
+                                />
+                                <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>x $</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={line.unitAmount}
+                                  onChange={e => { const n = [...editLines]; n[i] = { ...n[i], unitAmount: Number(e.target.value) }; setEditLines(n) }}
+                                  style={{ width: 90, padding: '4px 8px', fontSize: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 4, textAlign: 'right', background: 'var(--theme-elevation-0)' }}
+                                  placeholder="Amount"
+                                />
+                                <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)', minWidth: 70, textAlign: 'right' }}>
+                                  = ${(line.quantity * line.unitAmount).toLocaleString('en-AU', { minimumFractionDigits: 2 })}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditLines(editLines.filter((_, j) => j !== i))}
+                                  style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                                >
+                                  x
+                                </button>
+                              </div>
+                            ))}
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                              <button
+                                type="button"
+                                onClick={() => setEditLines([...editLines, { description: '', quantity: 1, unitAmount: 0, accountCode: '200', taxType: 'OUTPUT' }])}
+                                style={{ fontSize: 11, color: '#6366f1', background: 'none', border: '1px dashed var(--theme-elevation-200)', borderRadius: 3, padding: '3px 10px', cursor: 'pointer' }}
+                              >
+                                + Add line
+                              </button>
+                              <div style={{ flex: 1 }} />
+                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-700)' }}>
+                                Total: ${editLines.reduce((s, l) => s + l.quantity * l.unitAmount, 0).toLocaleString('en-AU', { minimumFractionDigits: 2 })}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={isLoading || editLines.length === 0}
+                                onClick={async () => {
+                                  setActionLoading(send.invoiceId)
+                                  try {
+                                    await invoiceAction('update', send.invoiceId, { lineItems: editLines })
+                                    setEditId(null)
+                                    setEditLines([])
+                                    await fetchData()
+                                  } catch (e) {
+                                    alert(e instanceof Error ? e.message : 'Failed to update')
+                                  } finally {
+                                    setActionLoading(null)
+                                  }
+                                }}
+                                style={{ fontSize: 12, fontWeight: 600, color: '#fff', background: isLoading ? '#a5b4fc' : '#6366f1', border: 'none', borderRadius: 4, padding: '5px 14px', cursor: isLoading ? 'not-allowed' : 'pointer' }}
+                              >
+                                {isLoading ? 'Saving...' : 'Save Changes'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
               </tbody>

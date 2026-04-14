@@ -53,6 +53,11 @@ export async function POST(req: NextRequest) {
       if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
       endpoint = `/api/xero/invoices/${invoiceId}/schedule-send`;
       break;
+    case "update":
+      if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
+      endpoint = `/api/xero/invoices/${invoiceId}`;
+      method = "PUT";
+      break;
     case "create-drafts":
       endpoint = `/api/xero/recurring/create-drafts`;
       break;
