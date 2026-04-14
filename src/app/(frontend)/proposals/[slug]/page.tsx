@@ -1212,13 +1212,17 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             </div>
           )}
           <div className="slide-content">
-            {launchRequirements && (
+            {launchRequirements ? (
               <div className="cms-copy-block">
                 {isLexicalData(launchRequirements) ? (
                   <RichText data={launchRequirements} converters={richTextConverters} />
                 ) : (
                   <LegacyTextBlock text={launchRequirements as string} />
                 )}
+              </div>
+            ) : (
+              <div className="slide-placeholder-block">
+                <span>Add launch requirements in the CMS to display here.</span>
               </div>
             )}
           </div>
