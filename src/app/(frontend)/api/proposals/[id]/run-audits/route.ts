@@ -82,8 +82,9 @@ export async function POST(
       id,
       overrideAccess: true,
     });
-  } catch {
-    return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
+  } catch (err: any) {
+    console.error(`[run-audits] Failed to fetch proposal ${id}:`, err?.message || err);
+    return NextResponse.json({ error: "Proposal not found", detail: err?.message }, { status: 404 });
   }
 
   // Validate required fields

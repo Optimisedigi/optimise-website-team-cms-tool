@@ -1298,11 +1298,20 @@ export async function GET(request: NextRequest) {
   await run("client_proposals.excluded_content_questions", "ALTER TABLE `client_proposals` ADD `excluded_content_questions` text");
   await run("client_proposals.slide_notes", "ALTER TABLE `client_proposals` ADD `slide_notes` text");
 
+  // ── SEO Audits: lighthouseScores JSON column ──
+  await run("seo_audits.lighthouse_scores", "ALTER TABLE `seo_audits` ADD `lighthouse_scores` text");
+
+  // ── CRO Audits: new score breakdown columns ──
+  await run("cro_audits.first_impression_score", "ALTER TABLE `cro_audits` ADD `first_impression_score` numeric");
+  await run("cro_audits.trust_score", "ALTER TABLE `cro_audits` ADD `trust_score` numeric");
+  await run("cro_audits.lead_capture_score", "ALTER TABLE `cro_audits` ADD `lead_capture_score` numeric");
+  await run("cro_audits.content_readability_score", "ALTER TABLE `cro_audits` ADD `content_readability_score` numeric");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-04-14a", results, allTables });
+  return NextResponse.json({ ok: true, version: "2026-04-14b", results, allTables });
 }

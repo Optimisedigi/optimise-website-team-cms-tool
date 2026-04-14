@@ -27,8 +27,11 @@ interface XeroInvoiceSummary {
 
 interface XeroScheduledSend {
   invoiceId: string
-  sendDate: string
+  sendDate: string | null
   description: string
+  status: 'draft' | 'scheduled'
+  contact: string
+  total: number
 }
 
 interface ChatMessage {
@@ -369,9 +372,14 @@ export default function XeroInvoicesPage() {
     )
   }
 
-  const sortedScheduled = [...scheduled].sort(
-    (a, b) => new Date(a.sendDate).getTime() - new Date(b.sendDate).getTime()
-  )
+  const sortedScheduled = [...scheduled].sort((a, b) => {
+    // Scheduled items first, then drafts
+    if (a.status !== b.status) return a.status === 'scheduled' ? -1 : 1
+    // Within same status, sort by sendDate (nulls last)
+    if (!a.sendDate) return 1
+    if (!b.sendDate) return -1
+    return new Date(a.sendDate).getTime() - new Date(b.sendDate).getTime()
+  })
 
   return (
     <div style={{ padding: '24px 0' }}>
@@ -494,12 +502,12 @@ export default function XeroInvoicesPage() {
         )}
       </div>
 
-      {/* Scheduled Sends */}
+      {/* Drafts & Scheduled Sends */}
       <div style={card}>
         <div style={cardHead}>
-          <span style={cardTitle}>Scheduled Sends</span>
+          <span style={cardTitle}>Drafts & Scheduled</span>
           <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>
-            {sortedScheduled.length} scheduled
+            {sortedScheduled.filter(s => s.status === 'draft').length} draft, {sortedScheduled.filter(s => s.status === 'scheduled').length} scheduled
           </span>
         </div>
 
@@ -508,17 +516,19 @@ export default function XeroInvoicesPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  <th style={thStyle}>Client</th>
                   <th style={thStyle}>Description</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
                   <th style={thStyle}>Send Date</th>
-                  <th style={{ ...thStyle, textAlign: 'center' }}>Days Until Send</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedScheduled.map((send) => {
-                  const days = daysUntil(send.sendDate)
-                  const isUrgent = days <= 3 && days >= 0
-                  const isPast = days < 0
+                  const days = send.sendDate ? daysUntil(send.sendDate) : null
+                  const isUrgent = days !== null && days <= 3 && days >= 0
+                  const isPast = days !== null && days < 0
                   return (
                     <tr
                       key={send.invoiceId}
@@ -528,21 +538,36 @@ export default function XeroInvoicesPage() {
                       }}
                     >
                       <td style={{ ...tdStyle, fontWeight: 500, color: 'var(--theme-elevation-700)' }}>
-                        {send.description}
+                        {send.contact}
                       </td>
                       <td style={tdStyle}>
-                        {formatDate(send.sendDate)}
+                        {send.description}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500 }}>
+                        ${send.total.toLocaleString('en-AU', { minimumFractionDigits: 2 })}
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>
                         <span style={
-                          isPast
-                            ? badge('#fef2f2', '#b91c1c')
-                            : isUrgent
-                            ? badge('#fffbeb', '#b45309')
+                          send.status === 'scheduled'
+                            ? badge('#eff6ff', '#2563eb')
                             : badge('#f3f4f6', '#6b7280')
                         }>
-                          {isPast ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`}
+                          {send.status === 'scheduled' ? 'Scheduled' : 'Draft'}
                         </span>
+                      </td>
+                      <td style={tdStyle}>
+                        {send.sendDate ? (
+                          <>
+                            {formatDate(send.sendDate)}
+                            {days !== null && (
+                              <span style={{ marginLeft: 8, ...( isPast ? badge('#fef2f2', '#b91c1c') : isUrgent ? badge('#fffbeb', '#b45309') : badge('#f3f4f6', '#6b7280')) }}>
+                                {isPast ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days}d`}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--theme-elevation-300)', fontSize: 12 }}>Not scheduled</span>
+                        )}
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>
                         <a
@@ -563,7 +588,7 @@ export default function XeroInvoicesPage() {
         ) : (
           <div style={{ padding: '32px 20px', textAlign: 'center' }}>
             <p style={{ color: 'var(--theme-elevation-400)', fontSize: 14, margin: 0 }}>
-              No scheduled sends
+              No drafts or scheduled sends
             </p>
           </div>
         )}

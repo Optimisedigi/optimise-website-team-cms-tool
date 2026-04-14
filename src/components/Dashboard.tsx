@@ -79,8 +79,11 @@ interface XeroInvoiceSummary {
 
 interface XeroScheduledSend {
   invoiceId: string
-  sendDate: string
+  sendDate: string | null
   description: string
+  status: 'draft' | 'scheduled'
+  contact: string
+  total: number
 }
 
 interface ProcessesData {
@@ -1230,9 +1233,12 @@ function XeroInvoicesCard({
     return diff
   }
 
-  const sortedScheduled = [...scheduled].sort(
-    (a, b) => new Date(a.sendDate).getTime() - new Date(b.sendDate).getTime()
-  )
+  const sortedScheduled = [...scheduled].sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'scheduled' ? -1 : 1
+    if (!a.sendDate) return 1
+    if (!b.sendDate) return -1
+    return new Date(a.sendDate).getTime() - new Date(b.sendDate).getTime()
+  })
 
   const thStyle: React.CSSProperties = { padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap', fontSize: 12 }
   const tdStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 12, whiteSpace: 'nowrap' }
