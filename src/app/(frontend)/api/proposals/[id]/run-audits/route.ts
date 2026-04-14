@@ -192,16 +192,40 @@ export async function POST(
       return data;
     });
 
-    const kwPromise = fetch(`${GROWTH_TOOLS_URL}/api/track-keywords`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY },
-      body: JSON.stringify({ website: websiteUrl, keywords: keywordsNewlineSeparated, location: targetLocation || undefined }),
-    }).then(async (res) => {
-      if (!res.ok) throw new Error(`Keywords failed: ${res.status}`);
-      const data = await res.json();
+    // Batch keywords in chunks of 50 (Growth Tools API limit)
+    const KW_BATCH_SIZE = 50;
+    const kwPromise = (async () => {
+      const batches: string[][] = [];
+      for (let i = 0; i < keywordsList.length; i += KW_BATCH_SIZE) {
+        batches.push(keywordsList.slice(i, i + KW_BATCH_SIZE));
+      }
+      console.log(`[kw-batch] Sending ${keywordsList.length} keywords in ${batches.length} batch(es)`);
+
+      const batchResults = await Promise.all(
+        batches.map(async (batch) => {
+          const res = await fetch(`${GROWTH_TOOLS_URL}/api/track-keywords`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-internal-key": INTERNAL_API_KEY },
+            body: JSON.stringify({ website: websiteUrl, keywords: batch.join("\n"), location: targetLocation || undefined }),
+          });
+          if (!res.ok) throw new Error(`Keywords failed: ${res.status}`);
+          return res.json();
+        })
+      );
+
+      // Merge batch results — combine keyword arrays from each batch
+      const merged: any = { ...batchResults[0] };
+      const allKeywords: any[] = [];
+      for (const result of batchResults) {
+        const kws = result.keywords || result.results || result;
+        if (Array.isArray(kws)) allKeywords.push(...kws);
+      }
+      merged.keywords = allKeywords;
+      console.log(`[kw-batch] Merged ${allKeywords.length} keywords from ${batches.length} batch(es)`);
+
       await onStepDone(2);
-      return data;
-    });
+      return merged;
+    })();
 
     const compPromise = fetch(`${GROWTH_TOOLS_URL}/api/competitor-analysis`, {
       method: "POST",
