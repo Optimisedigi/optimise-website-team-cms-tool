@@ -233,7 +233,7 @@ function InvoiceChatPanel({ onDataChange }: { onDataChange: () => void }) {
         onClick={() => setOpen((v) => !v)}
       >
         <div className="xero-chat__header-left">
-          <span>💬</span>
+          <img src="/optimate-icon.png" alt="OptiMate" style={{ width: 22, height: 22, borderRadius: 4, objectFit: 'contain' }} />
           <span>Invoice Assistant</span>
         </div>
         <div className="xero-chat__header-actions">

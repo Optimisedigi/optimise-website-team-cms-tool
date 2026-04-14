@@ -250,9 +250,9 @@
   --theme-border-color: rgba(255, 255, 255, 0.08);
 }
 
-// Narrower sidebar — just wide enough so no text wraps
+// Sidebar width — wide enough so no text wraps (e.g. "Negative Keyword Lists")
 .nav {
-  --nav-width: 240px;
+  --nav-width: 260px;
 }
 
 // Narrower document edit sidebar (right panel with Client, Proposal, etc.)
@@ -434,9 +434,9 @@ $svg-close: "%3C/svg%3E";
 
 // Mobile: move close button to top-right so it doesn't cover logo
 @media (max-width: 768px) {
-  .nav-toggler,
-  .nav-toggler--is-open,
-  button[class*="nav-toggler"] {
+  .nav .nav-toggler,
+  .nav .nav-toggler--is-open,
+  .nav button[class*="nav-toggler"] {
     position: absolute !important;
     top: 12px !important;
     right: 12px !important;
@@ -450,9 +450,23 @@ $svg-close: "%3C/svg%3E";
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-// Hide Payload's nav toggler completely — MiniSidebar handles collapse/expand
+// Hide Payload's nav toggler on desktop — MiniSidebar handles collapse/expand
 .template-default__nav-toggler-wrapper {
   display: none !important;
+}
+
+// On mobile, show the hamburger and position it next to the rocket logo
+@media (max-width: 768px) {
+  .template-default__nav-toggler-wrapper {
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 40px !important;
+    width: auto !important;
+    height: var(--app-header-height, 50px) !important;
+    z-index: 10001 !important;
+    align-items: center !important;
+  }
 }
 
 // When nav is collapsed, offset content for the 48px mini-sidebar

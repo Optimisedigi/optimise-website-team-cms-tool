@@ -180,7 +180,7 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
         </div>
       )}
 
-      {/* Collapse button at bottom-right of full sidebar — visible when nav is open and logged in */}
+      {/* Collapse button inside full sidebar — visible when nav is open and logged in */}
       {isLoggedIn && navOpen && (
         <button
           type="button"
@@ -190,7 +190,7 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
           style={{
             position: 'fixed',
             bottom: 16,
-            left: 'calc(var(--nav-width, 275px) - 48px)',
+            left: 16,
             zIndex: 10000,
             background: 'none',
             border: 'none',
