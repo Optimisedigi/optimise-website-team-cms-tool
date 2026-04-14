@@ -1,8 +1,8 @@
 /* ─── Chat Panel Container ─────────────────────────────── */
 
 .xero-chat {
-  background: var(--theme-elevation-0);
-  border: 1px solid var(--theme-elevation-100);
+  background: var(--theme-elevation-100);
+  border: 1px solid var(--theme-elevation-150);
   border-radius: 8px;
   margin-bottom: 20px;
   overflow: hidden;
