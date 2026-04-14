@@ -1983,7 +1983,12 @@ export async function POST(request: NextRequest) {
   await run("gads_negative_list_builder", "ALTER TABLE `google_ads_audits` ADD `negative_list_builder` text");
   await run("gads_nlb_published", "ALTER TABLE `google_ads_audits` ADD `negative_list_builder_published` integer DEFAULT 0");
 
-  return NextResponse.json({ ok: true, version: "2026-04-07-v2", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── GBP override fields on competitors (2026-04-14) ──
+  await run("client_proposals_competitors.gbp_rating", "ALTER TABLE `client_proposals_competitors` ADD `gbp_rating` numeric");
+  await run("client_proposals_competitors.gbp_review_count", "ALTER TABLE `client_proposals_competitors` ADD `gbp_review_count` numeric");
+  await run("client_proposals_competitors.gbp_responds_to_reviews", "ALTER TABLE `client_proposals_competitors` ADD `gbp_responds_to_reviews` integer DEFAULT 0");
+
+  return NextResponse.json({ ok: true, version: "2026-04-14", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
