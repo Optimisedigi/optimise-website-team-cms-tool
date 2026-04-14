@@ -100,7 +100,7 @@
 }
 
 .client-overview-meta--gbp {
-  margin-top: 10px;
+  margin-top: 13px;
 }
 
 .client-overview-item {
@@ -1171,7 +1171,6 @@
   gap: 10px;
   margin-bottom: 0;
   padding-bottom: 4px;
-  border-bottom: 2px solid #3b82f6;
 }
 
 .kw-category-heading {
@@ -2049,7 +2048,7 @@ html.scroll-ready .report-presentation {
 .slide-18-station {
   position: absolute;
   top: 170px;
-  right: 24px;
+  right: 21px;
   width: 35%;
   z-index: 1;
   pointer-events: none;
@@ -2109,7 +2108,7 @@ html.scroll-ready .report-presentation {
 }
 
 .mc-table td {
-  padding: 10px 12px;
+  padding: 6px 12px;
   border-bottom: 1px solid #f4f4f5;
   color: #3f3f46;
   white-space: nowrap;
@@ -2144,7 +2143,7 @@ html.scroll-ready .report-presentation {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  margin-top: 200px;
+  margin-top: 12px;
   width: 100%;
   max-width: 1152px;
   margin-left: auto;
@@ -2686,12 +2685,12 @@ html.scroll-ready .report-presentation {
 }
 
 .cr-intro-copy {
-  max-width: 700px;
+  max-width: none;
   margin-bottom: 16px;
   padding-top: 10px;
   text-align: center;
-  margin-left: auto;
-  margin-right: auto;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .cr-intro-bold {
@@ -3122,6 +3121,7 @@ html.scroll-ready .report-presentation {
   cursor: pointer;
   transform: scale(clamp(0.2, 1 - (var(--scroll-progress, 0) - 0.98) * 40, 1));
   transform-origin: center bottom;
+  opacity: clamp(0, 1 - (var(--scroll-progress, 0) - 0.97) * 33, 1);
 }
 
 .rocket-img {
@@ -4051,7 +4051,7 @@ html.scroll-ready .report-presentation {
 }
 
 .health-panel-gauge {
-  width: 230px;
+  width: 250px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -4085,7 +4085,7 @@ html.scroll-ready .report-presentation {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, calc(-50% - 10px));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4144,9 +4144,9 @@ html.scroll-ready .report-presentation {
 }
 
 .health-bar-track {
-  height: 8px;
+  height: 6px;
   background: #f4f4f5;
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
@@ -4197,4 +4197,17 @@ html.scroll-ready .report-presentation {
   .health-panel-gauge .serp-mockup {
     transform: scale(1);
   }
+}
+
+/* CRO Findings — two-column compact layout */
+.slide-8 .findings-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.slide-8 .finding-item {
+  font-size: 12px;
+  padding: 8px 12px;
+  line-height: 1.4;
 }

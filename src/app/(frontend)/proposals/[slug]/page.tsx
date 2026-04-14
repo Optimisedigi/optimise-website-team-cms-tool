@@ -2131,7 +2131,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
             </div>
             <div className="slide-content">
               <HealthScorePanel
-                title="CRO Health Score"
+                title="Conversion Rate Optimisation Health Score"
                 subtitle="Assessed across 6 areas. Well-optimised websites typically score 65–80."
                 overallScore={(croAudit as any).overallScore ?? 0}
                 categories={[
