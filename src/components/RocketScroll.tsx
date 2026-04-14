@@ -13,31 +13,37 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
 
     const currentScroll = window.scrollY
 
-    // Find the next slide upward — the one whose top is above the current viewport top
-    // Slides are in reverse DOM order (slide-18 first), so we iterate forward
-    // looking for the last slide whose top is above our current scroll position
-    let target: HTMLElement | null = null
+    // Slides are in reverse DOM order (highest slide number first at top of page).
+    // "Next slide" means scrolling UP (decreasing scrollY) = going forward in DOM order.
+    // We need the first slide whose scroll target (header or top) is meaningfully
+    // above (< currentScroll - threshold) the current position.
+    // Iterate forward (top-of-page to bottom) and find the LAST one that qualifies —
+    // that's the one immediately above the current viewport.
+
+    // Build a list of scroll targets (header position for each slide)
+    const targets: { slide: HTMLElement; scrollTo: number }[] = []
     for (const slide of slides) {
-      // Use getBoundingClientRect for accurate absolute position
-      const slideTop = slide.getBoundingClientRect().top + window.scrollY
-      // A slide is "above" if its top is at least 10px above the current scroll position
-      if (slideTop < currentScroll - 10) {
-        target = slide
+      const header = slide.querySelector<HTMLElement>('.slide-header')
+      const el = header ?? slide
+      const pos = el.getBoundingClientRect().top + window.scrollY
+      targets.push({ slide, scrollTo: pos })
+    }
+
+    // Find the last target that is at least 30px above the current scroll position
+    let nextTarget: { slide: HTMLElement; scrollTo: number } | null = null
+    for (const t of targets) {
+      if (t.scrollTo < currentScroll - 30) {
+        nextTarget = t
       }
     }
 
-    // If we're already near the very top of the first slide in DOM, wrap to bottom
-    if (!target) {
-      // Scroll to the very bottom (last slide visually)
+    // If nothing is above, wrap to the very bottom (first slide visually)
+    if (!nextTarget) {
       window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })
       return
     }
 
-    // Scroll so the target slide's header aligns with the viewport top
-    const header = target.querySelector<HTMLElement>('.slide-header')
-    const el = header ?? target
-    const scrollTarget = el.getBoundingClientRect().top + window.scrollY
-    window.scrollTo({ top: scrollTarget, behavior: 'smooth' })
+    window.scrollTo({ top: nextTarget.scrollTo, behavior: 'smooth' })
   }, [])
 
   useEffect(() => {
@@ -101,11 +107,11 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
       </div>
       <div className="flame-trail" aria-hidden="true" />
 
-      {/* Scroll hint — horizontally aligned with the rocket, first slide only */}
+      {/* Scroll hint — above the rocket, first slide only */}
       {showHint && (
         <div className="rocket-hint" aria-hidden="true" onClick={scrollToNextSlide}>
-          <span className="rocket-hint-text">Click to go up</span>
-          <span className="rocket-hint-arrow">→</span>
+          <span className="rocket-hint-text">Click here to start</span>
+          <span className="rocket-hint-arrow">↓</span>
         </div>
       )}
     </>

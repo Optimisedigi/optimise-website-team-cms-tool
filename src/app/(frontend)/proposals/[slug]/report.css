@@ -2915,27 +2915,20 @@ html.scroll-ready .report-presentation {
   opacity: clamp(0, 1 - (var(--scroll-progress, 0) - 0.98) * 50, 1);
 }
 
-/* ── Rocket scroll hint — first slide only, horizontally aligned with rocket ── */
+/* ── Rocket scroll hint — above the rocket, first slide only ── */
 .rocket-hint {
   position: fixed;
-  right: 68px;
-  bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 30px), calc(65% + 5px));
+  right: -2px;
+  bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 100px), calc(65% + 75px));
   z-index: 2147483647;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   white-space: nowrap;
   cursor: pointer;
   animation: rocket-hint-fade 2.5s ease-in-out infinite;
   transition: bottom 0.05s linear;
-}
-
-.rocket-hint-arrow {
-  font-size: 18px;
-  font-weight: 700;
-  color: #c0625a;
-  animation: rocket-hint-bounce 1s ease-in-out infinite;
-  display: inline-block;
 }
 
 .rocket-hint-text {
@@ -2944,9 +2937,17 @@ html.scroll-ready .report-presentation {
   color: #c0625a;
 }
 
+.rocket-hint-arrow {
+  font-size: 20px;
+  font-weight: 700;
+  color: #c0625a;
+  animation: rocket-hint-bounce 1s ease-in-out infinite;
+  display: inline-block;
+}
+
 @keyframes rocket-hint-bounce {
-  0%, 100% { transform: translateX(0); }
-  50% { transform: translateX(6px); }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px); }
 }
 
 @keyframes rocket-hint-fade {
