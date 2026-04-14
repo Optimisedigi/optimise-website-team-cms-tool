@@ -1293,11 +1293,16 @@ export async function GET(request: NextRequest) {
   // ── Clients: negativeKeywordsPin ──
   await run("clients.negative_keywords_pin", "ALTER TABLE `clients` ADD `negative_keywords_pin` text");
 
+  // ── Client Proposals: missing JSON columns (excludedKeywords, excludedContentQuestions, slideNotes) ──
+  await run("client_proposals.excluded_keywords", "ALTER TABLE `client_proposals` ADD `excluded_keywords` text");
+  await run("client_proposals.excluded_content_questions", "ALTER TABLE `client_proposals` ADD `excluded_content_questions` text");
+  await run("client_proposals.slide_notes", "ALTER TABLE `client_proposals` ADD `slide_notes` text");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-23a", results, allTables });
+  return NextResponse.json({ ok: true, version: "2026-04-14a", results, allTables });
 }
