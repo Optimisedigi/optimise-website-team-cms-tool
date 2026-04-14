@@ -5,6 +5,7 @@ import Image from 'next/image'
 import RocketScroll from '@/components/RocketScroll'
 import KeywordSunburst from '@/components/KeywordSunburst'
 import StarField from '@/components/StarField'
+import AuditPasswordGate from '@/components/AuditPasswordGate'
 import { RichText, defaultJSXConverters, TextJSXConverter } from '@payloadcms/richtext-lexical/react'
 import type { SerializedEditorState } from 'lexical'
 import './report.css'
@@ -1192,7 +1193,9 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const hiddenSlides = (proposal as any).visibleSlides as string[] | null
   const showSlide = (n: number) => !hiddenSlides || hiddenSlides.length === 0 || !hiddenSlides.includes(String(n))
 
-  return (
+  const proposalPin = (proposal as any).proposalPin as string | null
+
+  const reportContent = (
     <RocketScroll>
       <div className="report-presentation">
 
@@ -2511,4 +2514,14 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
       </div>
     </RocketScroll>
   )
+
+  if (proposalPin) {
+    return (
+      <AuditPasswordGate auditSlug={proposal.slug}>
+        {reportContent}
+      </AuditPasswordGate>
+    )
+  }
+
+  return reportContent
 }

@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
-  const result = await payload.find({
+  // Try seo-audits first (legacy audit reports)
+  const auditResult = await payload.find({
     collection: "seo-audits",
     where: { reportSlug: { equals: slug } },
     limit: 1,
@@ -87,22 +88,46 @@ export async function POST(req: NextRequest) {
     select: { reportPassword: true },
   });
 
-  const audit = result.docs[0];
+  const audit = auditResult.docs[0];
 
-  // Return same error for missing audit and wrong password to prevent enumeration
-  if (!audit) {
+  if (audit) {
+    const storedPassword = (audit as Record<string, unknown>)
+      .reportPassword as string;
+
+    if (!storedPassword) {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+
+    if (constantTimeCompare(password, storedPassword)) {
+      return NextResponse.json({ ok: true });
+    }
+
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  const storedPassword = (audit as Record<string, unknown>)
-    .reportPassword as string;
+  // Try client-proposals (presentation reports)
+  const proposalResult = await payload.find({
+    collection: "client-proposals",
+    where: { slug: { equals: slug } },
+    limit: 1,
+    overrideAccess: true,
+    select: { proposalPin: true },
+  });
 
-  // If no password is set on the report, deny access (admin must set one)
-  if (!storedPassword) {
+  const proposal = proposalResult.docs[0];
+
+  if (!proposal) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  if (constantTimeCompare(password, storedPassword)) {
+  const storedPin = (proposal as Record<string, unknown>)
+    .proposalPin as string;
+
+  if (!storedPin) {
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
+
+  if (constantTimeCompare(password, storedPin)) {
     return NextResponse.json({ ok: true });
   }
 
