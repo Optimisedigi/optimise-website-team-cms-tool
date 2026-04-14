@@ -231,6 +231,7 @@ function pct(value: number): string {
 function competitionFromOpportunity(opportunity: string): string {
   if (opportunity === 'high') return 'Low'
   if (opportunity === 'medium') return 'Medium'
+  if (opportunity === 'untracked') return '—'
   return 'High'
 }
 
@@ -539,6 +540,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function CompetitionBadge({ level }: { level: string }) {
+  if (level === '—') return <span style={{ color: '#a1a1aa', fontSize: '12px' }}>—</span>
   const cls = level === 'Low' ? 'comp-level-low' : level === 'Medium' ? 'comp-level-medium' : 'comp-level-high'
   return <span className={`competition-badge ${cls}`}>{level}</span>
 }
@@ -2263,8 +2265,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 .map(name => {
                   const auditMatch = kwLookup.get(name.toLowerCase())
                   if (auditMatch) return auditMatch
-                  // Stub for keywords without audit data
-                  return { keyword: name, position: null, searchVolume: 0, opportunity: 'low' }
+                  // Stub for keywords not yet tracked — show dashes instead of misleading zeros
+                  return { keyword: name, position: null, searchVolume: null as unknown as number, opportunity: 'untracked' }
                 })
 
               if (catKeywords.length > 0) {
