@@ -94,16 +94,16 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
           priority
         />
         <div className="rocket-flame" aria-hidden="true" />
-
-        {/* Scroll hint — only visible on the first slide */}
-        {showHint && (
-          <div className="rocket-hint" aria-hidden="true">
-            <span className="rocket-hint-arrow">↑</span>
-            <span className="rocket-hint-text">Click to start</span>
-          </div>
-        )}
       </div>
       <div className="flame-trail" aria-hidden="true" />
+
+      {/* Scroll hint — horizontally aligned with the rocket, first slide only */}
+      {showHint && (
+        <div className="rocket-hint" aria-hidden="true" onClick={scrollToNextSlide}>
+          <span className="rocket-hint-text">Click to start</span>
+          <span className="rocket-hint-arrow">→</span>
+        </div>
+      )}
     </>
   )
 }
