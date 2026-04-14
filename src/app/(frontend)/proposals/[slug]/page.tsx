@@ -1119,6 +1119,8 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* SLIDE 17 — Mission Resources                                */}
         {/* ============================================================ */}
         {showSlide(17) && <section className="slide slide-17 slide-expandable">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/slides/merge-between-space-presentation.png" alt="" className="slide-space-transition" />
           <div className="slide-header">
             <h2>9. Mission Resources</h2>
             <span>Commercial Model &amp; Pricing</span>
