@@ -167,7 +167,7 @@
 
 .client-service-tag {
   display: inline-block;
-  padding: 4px 14px;
+  padding: 2px 12px;
   background: rgba(59, 130, 246, 0.12);
   color: #93c5fd;
   border-radius: 999px;
@@ -261,7 +261,9 @@
   display: flex;
   gap: 32px;
   align-items: flex-start;
+  justify-content: center;
   padding: 12px 0 4px;
+  width: 100%;
 }
 
 .scores-row-left,
@@ -416,7 +418,7 @@
   background: #0b1120;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  padding: 24px 20px;
+  padding: 20px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -444,7 +446,8 @@
   color: rgba(255, 255, 255, 0.65);
   line-height: 1.5;
   margin: 8px 0 0;
-  max-width: 280px;
+  max-width: none;
+  width: 100%;
 }
 
 .stat-highlight-copy strong {
@@ -1812,7 +1815,7 @@ html.scroll-ready .report-presentation {
 
 @media (min-width: 901px) {
   .slide-expandable {
-    padding-right: 120px;
+    padding-right: 80px;
   }
 }
 
@@ -1939,8 +1942,9 @@ html.scroll-ready .report-presentation {
   letter-spacing: 0.08em;
   color: rgba(255, 255, 255, 0.4);
   font-weight: 600;
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: 12px;
+  margin-bottom: 0;
+  padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   text-align: center;
 }
@@ -1948,8 +1952,8 @@ html.scroll-ready .report-presentation {
 .mission-brief-details {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-top: 8px;
+  gap: 4px 12px;
+  margin-top: 4px;
   padding-top: 0;
   border-top: none;
 }
@@ -1959,7 +1963,7 @@ html.scroll-ready .report-presentation {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 2px;
+  gap: 1px;
 }
 
 .mission-brief-detail-label {
@@ -2033,6 +2037,7 @@ html.scroll-ready .report-presentation {
 /* ---- Space Station image inside Slide 18 ---- */
 .slide-18 {
   position: relative;
+  padding-top: 70px !important;
 }
 
 .slide-18-station {
@@ -2186,28 +2191,22 @@ html.scroll-ready .report-presentation {
   background: #fff;
   color: #27272a;
   padding-top: 0 !important;
+  overflow-x: visible;
+  overflow: visible;
 }
 
 /* Transition image — white to space gradient at top of slide 17 */
 .slide-space-transition {
-  width: calc(100% + 24px + 120px);
-  margin-left: -24px;
-  margin-right: -120px;
-  margin-top: 0;
-  margin-bottom: 0;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
   display: block;
+  margin: 0;
   padding: 0;
   line-height: 0;
   pointer-events: none;
   user-select: none;
-}
-
-@media (max-width: 900px) {
-  .slide-space-transition {
-    width: calc(100% + 48px);
-    margin-left: -24px;
-    margin-right: -24px;
-  }
 }
 
 /* ---- Slides 16-18 — Flight Plan, Mission Resources, Launch Requirements ---- */
@@ -2770,7 +2769,7 @@ html.scroll-ready .report-presentation {
 
 .rocket-fixed {
   position: fixed;
-  right: 42px;
+  right: 5px;
   bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70%), calc(65% - 25px));
   z-index: 2147483647;
   display: flex;
@@ -2812,7 +2811,7 @@ html.scroll-ready .report-presentation {
 
 .flame-trail {
   position: fixed;
-  right: 68px;
+  right: 31px;
   bottom: 0;
   width: 4px;
   height: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 21px), calc(65% - 25px + 21px));
@@ -2827,7 +2826,7 @@ html.scroll-ready .report-presentation {
 /* ── Rocket scroll hint — first slide only, horizontally aligned with rocket ── */
 .rocket-hint {
   position: fixed;
-  right: 105px;
+  right: 68px;
   bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 30px), calc(65% + 5px));
   z-index: 2147483647;
   display: flex;
