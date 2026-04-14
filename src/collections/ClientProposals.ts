@@ -2,9 +2,35 @@ import type {
   CollectionConfig,
   CollectionAfterChangeHook,
   CollectionBeforeChangeHook,
+  CollectionAfterReadHook,
 } from "payload";
 import { proposalEditor } from "@/lib/proposalEditor";
 import { logActivity } from "../lib/activity-log";
+
+const DEFAULT_FLIGHT_PLAN_RECS = [
+  { enabled: false, title: "New Website Build", description: "A modern, mobile-first website built for conversions. Fast-loading, professional design that builds trust and drives enquiries.", benefit: "Higher conversion rates" },
+  { enabled: false, title: "Conversion Rate Optimisation (CRO)", description: "Optimise the website journey to convert more visitors into leads. Clear CTAs, trust signals, and streamlined forms.", benefit: "More leads from existing traffic" },
+  { enabled: false, title: "Technical SEO Foundation", description: "Fix crawlability, indexing, site speed, and structured data so Google can properly rank the site.", benefit: "Improved search visibility" },
+  { enabled: false, title: "On-Page SEO & Content Optimisation", description: "Optimise page titles, meta descriptions, headings, and content structure for target keywords.", benefit: "Better keyword rankings" },
+  { enabled: false, title: "Local SEO & Google Business Profile", description: "Optimise Google Business Profile, local citations, and location-based content for local search visibility.", benefit: "More local customers" },
+  { enabled: false, title: "Content Strategy & Blog", description: "Publish high-quality, keyword-targeted content that answers real customer questions and builds topical authority over time.", benefit: "Long-term organic growth" },
+  { enabled: false, title: "Social Content Strategy", description: "Build a consistent social media presence with platform-specific content that drives engagement, brand awareness, and website traffic.", benefit: "Brand visibility & engagement" },
+  { enabled: false, title: "Google Ads (Search)", description: "Launch targeted search campaigns to capture high-intent traffic immediately while organic rankings build.", benefit: "Immediate qualified traffic" },
+  { enabled: false, title: "Google Ads (Performance Max / Shopping)", description: "Performance Max campaigns for e-commerce or service-based lead generation with AI-optimised bidding.", benefit: "AI-optimised conversions" },
+  { enabled: false, title: "Meta Ads (Facebook & Instagram)", description: "Paid social campaigns for brand awareness, retargeting, and lead generation across Meta platforms.", benefit: "Expanded audience reach" },
+  { enabled: false, title: "Link Building & Digital PR", description: "Build high-quality backlinks through outreach, partnerships, and digital PR to boost domain authority.", benefit: "Stronger domain authority" },
+  { enabled: false, title: "Email Marketing & Automation", description: "Set up automated email sequences for lead nurture, re-engagement, and customer retention.", benefit: "Better customer retention" },
+  { enabled: false, title: "Custom CRM & Lead Management", description: "Implement a tailored CRM system to track leads, automate follow-ups, and manage your sales pipeline for better conversion.", benefit: "Streamlined sales process" },
+  { enabled: false, title: "Analytics & Tracking Setup", description: "Implement GA4, conversion tracking, and reporting dashboards to measure ROI and make data-driven decisions.", benefit: "Data-driven decisions" },
+];
+
+/** Seed flightPlanRecommendations with defaults for existing proposals that don't have them yet */
+const seedFlightPlanRecs: CollectionAfterReadHook = async ({ doc }) => {
+  if (!doc.flightPlanRecommendations || doc.flightPlanRecommendations.length === 0) {
+    doc.flightPlanRecommendations = DEFAULT_FLIGHT_PLAN_RECS;
+  }
+  return doc;
+};
 
 const generateUniqueSlug: CollectionBeforeChangeHook = async ({
   data,
@@ -936,22 +962,7 @@ export const ClientProposals: CollectionConfig = {
                   "Predefined recommendations for the Flight Plan slide. Enable each one to include it in the report.",
                 initCollapsed: true,
               },
-              defaultValue: [
-                { enabled: false, title: "New Website Build", description: "A modern, mobile-first website built for conversions. Fast-loading, professional design that builds trust and drives enquiries.", benefit: "Higher conversion rates" },
-                { enabled: false, title: "Conversion Rate Optimisation (CRO)", description: "Optimise the website journey to convert more visitors into leads. Clear CTAs, trust signals, and streamlined forms.", benefit: "More leads from existing traffic" },
-                { enabled: false, title: "Technical SEO Foundation", description: "Fix crawlability, indexing, site speed, and structured data so Google can properly rank the site.", benefit: "Improved search visibility" },
-                { enabled: false, title: "On-Page SEO & Content Optimisation", description: "Optimise page titles, meta descriptions, headings, and content structure for target keywords.", benefit: "Better keyword rankings" },
-                { enabled: false, title: "Local SEO & Google Business Profile", description: "Optimise Google Business Profile, local citations, and location-based content for local search visibility.", benefit: "More local customers" },
-                { enabled: false, title: "Content Strategy & Blog", description: "Publish high-quality, keyword-targeted content that answers real customer questions and builds topical authority over time.", benefit: "Long-term organic growth" },
-                { enabled: false, title: "Social Content Strategy", description: "Build a consistent social media presence with platform-specific content that drives engagement, brand awareness, and website traffic.", benefit: "Brand visibility & engagement" },
-                { enabled: false, title: "Google Ads (Search)", description: "Launch targeted search campaigns to capture high-intent traffic immediately while organic rankings build.", benefit: "Immediate qualified traffic" },
-                { enabled: false, title: "Google Ads (Performance Max / Shopping)", description: "Performance Max campaigns for e-commerce or service-based lead generation with AI-optimised bidding.", benefit: "AI-optimised conversions" },
-                { enabled: false, title: "Meta Ads (Facebook & Instagram)", description: "Paid social campaigns for brand awareness, retargeting, and lead generation across Meta platforms.", benefit: "Expanded audience reach" },
-                { enabled: false, title: "Link Building & Digital PR", description: "Build high-quality backlinks through outreach, partnerships, and digital PR to boost domain authority.", benefit: "Stronger domain authority" },
-                { enabled: false, title: "Email Marketing & Automation", description: "Set up automated email sequences for lead nurture, re-engagement, and customer retention.", benefit: "Better customer retention" },
-                { enabled: false, title: "Custom CRM & Lead Management", description: "Implement a tailored CRM system to track leads, automate follow-ups, and manage your sales pipeline for better conversion.", benefit: "Streamlined sales process" },
-                { enabled: false, title: "Analytics & Tracking Setup", description: "Implement GA4, conversion tracking, and reporting dashboards to measure ROI and make data-driven decisions.", benefit: "Data-driven decisions" },
-              ],
+              defaultValue: DEFAULT_FLIGHT_PLAN_RECS,
               fields: [
                 {
                   name: "enabled",
@@ -1229,5 +1240,6 @@ export const ClientProposals: CollectionConfig = {
       },
     ],
     beforeChange: [generateUniqueSlug],
+    afterRead: [seedFlightPlanRecs],
   },
 };
