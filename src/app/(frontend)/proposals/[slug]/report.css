@@ -232,6 +232,30 @@
   color: #a1a1aa;
 }
 
+/* Compact inline variant — 80% size for Mission Brief placement */
+.psi-section--inline {
+  text-align: left;
+  padding: 12px 0 4px;
+}
+
+.psi-gauges--small {
+  justify-content: flex-start;
+  gap: 24px;
+}
+
+.psi-gauges--small .psi-gauge-ring {
+  width: 64px;
+  height: 64px;
+}
+
+.psi-gauges--small .psi-gauge-number {
+  font-size: 18px;
+}
+
+.psi-gauges--small .psi-gauge-label {
+  font-size: 11px;
+}
+
 /* TAM section */
 .tam-section {
   background: #fff;

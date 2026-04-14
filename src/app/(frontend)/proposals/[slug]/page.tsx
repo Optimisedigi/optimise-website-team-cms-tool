@@ -2185,25 +2185,39 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                     <span className="client-overview-value">{conversionGoalLabels[proposal.conversionGoal] || proposal.conversionGoal}</span>
                   </div>
                 )}
-              </div>
-              {/* GBP Rating & Reviews */}
-              {yourProfileWithOverrides?.googleBusinessProfile && (() => {
-                const gbp = yourProfileWithOverrides.googleBusinessProfile!
-                return (
-                  <div className="client-overview-meta">
-                    <div className="client-overview-item">
-                      <span className="client-overview-label">Google Reviews</span>
-                      <span className="client-overview-value">
-                        <span className="mission-brief-gbp">
-                          <StarRating rating={gbp.rating} />
-                          <span>{gbp.rating}</span>
-                          <span className="mission-brief-gbp-count">({gbp.reviewCount} reviews)</span>
-                        </span>
-                      </span>
-                    </div>
+                {proposal.businessGoals && (
+                  <div className="client-overview-item">
+                    <span className="client-overview-label">Business Goal</span>
+                    <span className="client-overview-value">{proposal.businessGoals}</span>
                   </div>
-                )
-              })()}
+                )}
+              </div>
+              {/* GBP Rating & Reviews + Physical Locations */}
+              {(yourProfileWithOverrides?.googleBusinessProfile || hasPhysicalLocations) && (
+                <div className="client-overview-meta">
+                  {yourProfileWithOverrides?.googleBusinessProfile && (() => {
+                    const gbp = yourProfileWithOverrides.googleBusinessProfile!
+                    return (
+                      <div className="client-overview-item">
+                        <span className="client-overview-label">Google Reviews</span>
+                        <span className="client-overview-value">
+                          <span className="mission-brief-gbp">
+                            <StarRating rating={gbp.rating} />
+                            <span>{gbp.rating}</span>
+                            <span className="mission-brief-gbp-count">({gbp.reviewCount} reviews)</span>
+                          </span>
+                        </span>
+                      </div>
+                    )
+                  })()}
+                  {hasPhysicalLocations && (
+                    <div className="client-overview-item">
+                      <span className="client-overview-label">Physical Locations</span>
+                      <span className="client-overview-value">{numberOfLocations ?? 'Yes'}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Services (keyword categories) */}
               {keywordCategories && keywordCategories.length > 0 && (
@@ -2217,24 +2231,25 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 </div>
               )}
 
-              {proposal.businessGoals && (
-                <div className="client-goals">
-                  <span className="client-overview-label">Business Goal</span>
-                  <p className="client-goals-text">{proposal.businessGoals}</p>
-                </div>
+              {/* PageSpeed Insights — compact gauges */}
+              {lighthouseScores && (lighthouseScores.performance != null || lighthouseScores.accessibility != null || lighthouseScores.bestPractices != null || lighthouseScores.seo != null) && (
+                <section className="psi-section psi-section--inline">
+                  <h3 className="psi-section-title">PageSpeed Insights</h3>
+                  <div className="psi-gauges psi-gauges--small">
+                    {lighthouseScores.performance != null && <PageSpeedGauge score={lighthouseScores.performance} label="Performance" />}
+                    {lighthouseScores.accessibility != null && <PageSpeedGauge score={lighthouseScores.accessibility} label="Accessibility" />}
+                    {lighthouseScores.bestPractices != null && <PageSpeedGauge score={lighthouseScores.bestPractices} label="Best Practices" />}
+                    {lighthouseScores.seo != null && <PageSpeedGauge score={lighthouseScores.seo} label="SEO" />}
+                  </div>
+                </section>
               )}
-              {(averageOrderValue != null || hasPhysicalLocations || leadConversionRate != null || leadToSaleConversionRate != null || annualPurchaseFrequency != null || newCustomersLast12Months != null) && (
+
+              {(averageOrderValue != null || leadConversionRate != null || leadToSaleConversionRate != null || annualPurchaseFrequency != null || newCustomersLast12Months != null) && (
                 <div className="mission-brief-details">
                   {averageOrderValue != null && (
                     <div className="mission-brief-detail">
                       <span className="mission-brief-detail-label">Avg Order Value</span>
                       <span className="mission-brief-detail-value">${averageOrderValue.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {hasPhysicalLocations && (
-                    <div className="mission-brief-detail">
-                      <span className="mission-brief-detail-label">Physical Locations</span>
-                      <span className="mission-brief-detail-value">{numberOfLocations ?? 'Yes'}</span>
                     </div>
                   )}
                   {leadConversionRate != null && (
@@ -2296,18 +2311,6 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                       color={seoScore >= 7 ? 'green' : seoScore >= 4 ? 'amber' : 'red'}
                     />
                   )}
-                </div>
-              </section>
-            )}
-
-            {lighthouseScores && (lighthouseScores.performance != null || lighthouseScores.accessibility != null || lighthouseScores.bestPractices != null || lighthouseScores.seo != null) && (
-              <section className="psi-section">
-                <h3 className="psi-section-title">PageSpeed Insights</h3>
-                <div className="psi-gauges">
-                  {lighthouseScores.performance != null && <PageSpeedGauge score={lighthouseScores.performance} label="Performance" />}
-                  {lighthouseScores.accessibility != null && <PageSpeedGauge score={lighthouseScores.accessibility} label="Accessibility" />}
-                  {lighthouseScores.bestPractices != null && <PageSpeedGauge score={lighthouseScores.bestPractices} label="Best Practices" />}
-                  {lighthouseScores.seo != null && <PageSpeedGauge score={lighthouseScores.seo} label="SEO" />}
                 </div>
               </section>
             )}
