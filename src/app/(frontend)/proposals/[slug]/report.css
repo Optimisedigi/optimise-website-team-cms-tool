@@ -2660,6 +2660,55 @@ html.scroll-ready .report-presentation {
   opacity: clamp(0, 1 - (var(--scroll-progress, 0) - 0.98) * 50, 1);
 }
 
+/* ── Rocket scroll hint — first slide only ── */
+.rocket-hint {
+  position: absolute;
+  right: calc(100% + 12px);
+  top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: rocket-hint-fade 2.5s ease-in-out infinite;
+}
+
+.rocket-hint-arrow {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f97316;
+  animation: rocket-hint-bounce 1s ease-in-out infinite;
+  display: inline-block;
+}
+
+.rocket-hint-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  padding: 5px 12px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+@keyframes rocket-hint-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes rocket-hint-fade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@media (max-width: 900px) {
+  .rocket-hint {
+    display: none;
+  }
+}
+
 /* ============================================================ */
 /* RESPONSIVE — Presentation mode                               */
 /* ============================================================ */

@@ -1,17 +1,17 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import Image from 'next/image'
 
 export default function RocketScroll({ children }: { children: React.ReactNode }) {
   const hasScrolled = useRef(false)
+  const [showHint, setShowHint] = useState(true)
 
   const scrollToNextSlide = useCallback(() => {
     const slides = Array.from(document.querySelectorAll<HTMLElement>('.slide'))
     if (slides.length === 0) return
 
     const currentScroll = window.scrollY
-    const viewportHeight = window.innerHeight
 
     // Find the next slide upward — the one whose top is above the current viewport top
     // Slides are in reverse DOM order (slide-18 first), so we iterate forward
@@ -55,6 +55,11 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
       // 0 = bottom (start), 1 = top (end)
       const progress = 1 - scrollTop / scrollHeight
       doc.style.setProperty('--scroll-progress', String(Math.min(1, Math.max(0, progress))))
+
+      // Hide the hint after the user scrolls away from the first slide
+      if (progress > 0.02) {
+        setShowHint(false)
+      }
     }
 
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -89,6 +94,14 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
           priority
         />
         <div className="rocket-flame" aria-hidden="true" />
+
+        {/* Scroll hint — only visible on the first slide */}
+        {showHint && (
+          <div className="rocket-hint" aria-hidden="true">
+            <span className="rocket-hint-arrow">↑</span>
+            <span className="rocket-hint-text">Click to start</span>
+          </div>
+        )}
       </div>
       <div className="flame-trail" aria-hidden="true" />
     </>
