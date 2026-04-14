@@ -1094,6 +1094,9 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
   const excludedContentQuestions = new Set(
     Array.isArray((proposal as any).excludedContentQuestions) ? (proposal as any).excludedContentQuestions as string[] : []
   )
+  const hiddenKeywordCategories = new Set(
+    Array.isArray((proposal as any).hiddenKeywordCategories) ? (proposal as any).hiddenKeywordCategories as string[] : []
+  )
 
   // Target location label for keyword slide note
   const targetLocationValue = (proposal as any).targetLocation as string | null
@@ -2294,17 +2297,21 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
                 </div>
               )}
 
-              {/* Keyword Categories */}
-              {keywordCategories && keywordCategories.length > 0 && (
-                <div className="client-overview-services">
-                  <span className="client-overview-label">Keyword Categories</span>
-                  <div className="client-services-tags">
-                    {keywordCategories.map((cat, i) => (
-                      <span key={i} className="client-service-tag">{cat.categoryName}</span>
-                    ))}
+              {/* Keyword Categories (filtered by hiddenKeywordCategories) */}
+              {keywordCategories && keywordCategories.length > 0 && (() => {
+                const visibleCategories = keywordCategories.filter(cat => !hiddenKeywordCategories.has(cat.categoryName))
+                if (visibleCategories.length === 0) return null
+                return (
+                  <div className="client-overview-services">
+                    <span className="client-overview-label">Keyword Categories</span>
+                    <div className="client-services-tags">
+                      {visibleCategories.map((cat, i) => (
+                        <span key={i} className="client-service-tag">{cat.categoryName}</span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* PageSpeed Insights — compact gauges */}
               {lighthouseScores && (lighthouseScores.performance != null || lighthouseScores.accessibility != null || lighthouseScores.bestPractices != null || seoScore != null || croScore != null) && (

@@ -1323,6 +1323,9 @@ export async function GET(request: NextRequest) {
   await run("flight_plan_recs_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_order_idx` ON `client_proposals_flight_plan_recommendations` (`_order`)");
   await run("flight_plan_recs_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_parent_id_idx` ON `client_proposals_flight_plan_recommendations` (`_parent_id`)");
 
+  // ── Hidden keyword categories JSON column on client_proposals (2026-04-15) ──
+  await run("client_proposals.hidden_keyword_categories", "ALTER TABLE `client_proposals` ADD `hidden_keyword_categories` text");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");

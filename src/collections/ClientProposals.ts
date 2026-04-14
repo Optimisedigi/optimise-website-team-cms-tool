@@ -1043,6 +1043,15 @@ export const ClientProposals: CollectionConfig = {
               },
             },
             {
+              name: "hiddenKeywordCategories",
+              type: "json",
+              admin: {
+                components: {
+                  Field: "./components/KeywordCategoryExcluder",
+                },
+              },
+            },
+            {
               name: "excludedKeywords",
               type: "json",
               admin: {

@@ -1999,7 +1999,10 @@ export async function POST(request: NextRequest) {
   await run("flight_plan_recs_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_order_idx` ON `client_proposals_flight_plan_recommendations` (`_order`)");
   await run("flight_plan_recs_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_parent_id_idx` ON `client_proposals_flight_plan_recommendations` (`_parent_id`)");
 
-  return NextResponse.json({ ok: true, version: "2026-04-14b", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── Hidden keyword categories JSON column on client_proposals (2026-04-15) ──
+  await run("client_proposals.hidden_keyword_categories", "ALTER TABLE `client_proposals` ADD `hidden_keyword_categories` text");
+
+  return NextResponse.json({ ok: true, version: "2026-04-15", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
@@ -2592,6 +2595,9 @@ export async function GET(request: NextRequest) {
   )`);
   await run("flight_plan_recs_order_idx_get", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_order_idx` ON `client_proposals_flight_plan_recommendations` (`_order`)");
   await run("flight_plan_recs_parent_id_idx_get", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_parent_id_idx` ON `client_proposals_flight_plan_recommendations` (`_parent_id`)");
+
+  // ── Hidden keyword categories JSON column on client_proposals (2026-04-15) ──
+  await run("client_proposals.hidden_keyword_categories_get", "ALTER TABLE `client_proposals` ADD `hidden_keyword_categories` text");
 
   let allTables: string[] = [];
   try {
