@@ -2326,7 +2326,7 @@ html.scroll-ready .report-presentation {
 /* ---- Flight Plan Two-Column Layout + Launch Stack ---- */
 .flight-plan-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 3fr 2fr;
   gap: 32px;
   margin-bottom: 32px;
 }
@@ -2492,11 +2492,11 @@ html.scroll-ready .report-presentation {
 }
 
 .launch-narrative-intro {
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 600;
   color: #27272a;
-  line-height: 1.5;
-  margin: 0 0 12px;
+  line-height: 1.4;
+  margin: 5px 0 12px;
 }
 
 .launch-narrative-paragraph {
