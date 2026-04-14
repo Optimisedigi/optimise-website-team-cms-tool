@@ -2045,23 +2045,6 @@ html.scroll-ready .report-presentation {
   min-height: 70svh;
 }
 
-/* When slide 18 has the transition image (no mission resources) */
-.slide-18-with-transition {
-  padding-top: 0 !important;
-}
-
-.slide-18-with-transition > .slide-header,
-.slide-18-with-transition > .slide-content {
-  margin-left: 24px;
-  margin-right: 24px;
-}
-
-@media (min-width: 901px) {
-  .slide-18-with-transition > .slide-header,
-  .slide-18-with-transition > .slide-content {
-    margin-right: 80px;
-  }
-}
 
 .slide-18-station {
   position: absolute;
@@ -2215,13 +2198,7 @@ html.scroll-ready .report-presentation {
   color: #27272a;
 }
 
-.slide-17 {
-  padding-top: 0 !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-}
-
-/* Transition image — white to space gradient at top of slide 17 */
+/* Transition image — white to space gradient, sits between white slides and dark slide 18 */
 .slide-space-transition {
   width: 100%;
   display: block;
@@ -2230,20 +2207,6 @@ html.scroll-ready .report-presentation {
   line-height: 0;
   pointer-events: none;
   user-select: none;
-}
-
-/* Restore inner padding on slide-17 children (since slide padding is 0) */
-.slide-17 > .slide-header,
-.slide-17 > .slide-content {
-  margin-left: 24px;
-  margin-right: 24px;
-}
-
-@media (min-width: 901px) {
-  .slide-17 > .slide-header,
-  .slide-17 > .slide-content {
-    margin-right: 80px;
-  }
 }
 
 /* ---- Slides 16-18 — Flight Plan, Mission Resources, Launch Requirements ---- */

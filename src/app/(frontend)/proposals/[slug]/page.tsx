@@ -1199,11 +1199,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
         {/* ============================================================ */}
         {/* SLIDE 18 — Launch Requirements + Space Station               */}
         {/* ============================================================ */}
-        {showSlide(18) && <section className={`slide slide-18 slide-expandable ${!hasMissionResourcesContent ? 'slide-18-with-transition' : ''}`}>
-          {!hasMissionResourcesContent && (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src="/slides/merge-between-space-presentation.png" alt="" className="slide-space-transition" />
-          )}
+        {showSlide(18) && <section className="slide slide-18 slide-expandable">
           <StarField seed={42} />
           <div className="slide-header slide-header-dark">
             <h2>10. Launch Requirements</h2>
@@ -1228,12 +1224,14 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
           </div>
         </section>}
 
+        {/* Transition image — always between the last white slide and dark slide 18 */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/slides/merge-between-space-presentation.png" alt="" className="slide-space-transition" />
+
         {/* ============================================================ */}
         {/* SLIDE 17 — Mission Resources                                */}
         {/* ============================================================ */}
         {showSlide(17) && hasMissionResourcesContent && <section className="slide slide-17 slide-expandable">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/slides/merge-between-space-presentation.png" alt="" className="slide-space-transition" />
           <div className="slide-header">
             <h2>9. Mission Resources</h2>
             <span>Commercial Model &amp; Pricing</span>
