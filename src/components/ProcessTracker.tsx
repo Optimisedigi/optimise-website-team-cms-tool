@@ -470,7 +470,8 @@ function ProcessTracker() {
             right: 16,
             zIndex: 9999,
             padding: '10px 20px',
-            background: '#EF4444',
+            maxWidth: 400,
+            background: toast.includes('client-visible') ? '#1F2937' : '#EF4444',
             color: '#fff',
             borderRadius: 8,
             fontSize: 13,
@@ -511,24 +512,29 @@ function ProcessTracker() {
             Overall Progress
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {hasClientVisibleSteps && (
-              <button
-                type="button"
-                onClick={() => setShowEmailModal(true)}
-                style={{
-                  padding: '5px 14px',
-                  background: '#2563EB',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                }}
-              >
-                Share with Client
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (hasClientVisibleSteps) {
+                  setShowEmailModal(true)
+                } else {
+                  showToast('No steps marked as client-visible yet. Tick the "Client" checkbox on steps in Phases & Steps tab first.')
+                }
+              }}
+              style={{
+                padding: '5px 14px',
+                background: hasClientVisibleSteps ? '#2563EB' : '#9CA3AF',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                fontSize: 12,
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+              title={hasClientVisibleSteps ? 'Generate client email preview' : 'Mark steps as client-visible first'}
+            >
+              Share with Client
+            </button>
             <span style={{ fontSize: 13, fontWeight: 700, color: STATUS_COLORS.in_progress }}>
               {completionPct}%
             </span>
