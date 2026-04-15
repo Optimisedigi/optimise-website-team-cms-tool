@@ -499,15 +499,20 @@ const NegativeListBuilder = () => {
   const [nlbData, setNlbData] = useState<NLBData | null>(null)
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [dirty, setDirty] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [teamNotes, setTeamNotes] = useState('')
   const [clientEmails, setClientEmails] = useState('')
   const [clientMessage, setClientMessage] = useState('')
-  const [importResult, setImportResult] = useState<{ created: string[], skipped: string[] } | null>(null)
+  const [importResult, setImportResult] = useState<{ created: string[], skipped: string[], merged: string[] } | null>(null)
   const [docSlug, setDocSlug] = useState<string | null>(null)
   const [docPin, setDocPin] = useState<string | null>(null)
   const [proposalCampaigns, setProposalCampaigns] = useState<string[]>([])
+  const [existingNKLs, setExistingNKLs] = useState<{ id: string; name: string; scope: string; keywordCount: number }[]>([])
+  const [selectedNKLTarget, setSelectedNKLTarget] = useState<string>('create_new')
+  const [newListName, setNewListName] = useState('')
+  const [clientIdForNKL, setClientIdForNKL] = useState<string | null>(null)
 
   // Load existing data by fetching the document directly
   useEffect(() => {
@@ -516,9 +521,9 @@ const NegativeListBuilder = () => {
       .then(res => res.ok ? res.json() : null)
       .then(doc => {
         if (doc?.negativeListBuilder && typeof doc.negativeListBuilder === 'object') {
-          const nlb = doc.negativeListBuilder
-          setNlbData(nlb as NLBData)
-          if (nlb.teamNotes) setTeamNotes(nlb.teamNotes)
+          const nlbDoc = doc.negativeListBuilder
+          setNlbData(nlbDoc as NLBData)
+          if (nlbDoc.teamNotes) setTeamNotes(nlbDoc.teamNotes)
         }
         if (doc?.slug) setDocSlug(doc.slug)
         if (doc?.presentationPin) setDocPin(doc.presentationPin)
@@ -530,16 +535,41 @@ const NegativeListBuilder = () => {
             if (c.name) campaigns.add(c.name)
           }
         }
-        const nlb = doc?.negativeListBuilder
-        if (nlb?.campaignSpecificNegatives) {
-          for (const g of nlb.campaignSpecificNegatives) {
+        const nlbDoc2 = doc?.negativeListBuilder
+        if (nlbDoc2?.campaignSpecificNegatives) {
+          for (const g of nlbDoc2.campaignSpecificNegatives) {
             if (g.campaignName) campaigns.add(g.campaignName)
           }
         }
         setProposalCampaigns(Array.from(campaigns))
+        // Store client ID for NKL fetching
+        if (doc?.client) {
+          const cid = typeof doc.client === 'object' ? doc.client.id : doc.client
+          setClientIdForNKL(cid)
+        }
       })
       .catch(() => {})
   }, [id])
+
+  // Fetch existing NKL records for this client
+  useEffect(() => {
+    if (!clientIdForNKL) return
+    fetch(`/api/negative-keyword-lists?where[client][equals]=${clientIdForNKL}&sort=-updatedAt&limit=100&depth=0`, {
+      credentials: 'include',
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.docs) {
+          setExistingNKLs(data.docs.map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            scope: d.scope,
+            keywordCount: d.keywordCount || 0,
+          })))
+        }
+      })
+      .catch(() => {})
+  }, [clientIdForNKL])
 
   const clearMessages = () => { setMessage(null); setError(null) }
 
@@ -593,6 +623,21 @@ const NegativeListBuilder = () => {
     if (data?.negativeListBuilder) {
       setNlbData(data.negativeListBuilder)
       setMessage('Team review submitted. Removed keywords are tracked.')
+      setDirty(false)
+    }
+  }
+
+  // ── Save Edits (persist without advancing status) ──
+  const handleSaveEdits = async () => {
+    const data = await callApi('save-edits', {
+      universalNegatives: nlbData?.universalNegatives,
+      accountWideNegatives: nlbData?.accountWideNegatives,
+      campaignSpecificNegatives: nlbData?.campaignSpecificNegatives,
+    })
+    if (data?.negativeListBuilder) {
+      setNlbData(data.negativeListBuilder)
+      setMessage('Changes saved.')
+      setDirty(false)
     }
   }
 
@@ -622,7 +667,7 @@ const NegativeListBuilder = () => {
     }
   }
 
-  // ── Import to CMS Negative Keyword Lists ──
+  // ── Import to CMS Negative Keyword Lists (auto-create new lists) ──
   const handleImportToCms = async () => {
     clearMessages()
     setActionLoading('import')
@@ -643,6 +688,212 @@ const NegativeListBuilder = () => {
       } else if (data.skipped?.length) {
         setMessage('All lists already exist in CMS (skipped duplicates).')
       }
+      // Refresh existing NKL list
+      if (clientIdForNKL) {
+        fetch(`/api/negative-keyword-lists?where[client][equals]=${clientIdForNKL}&sort=-updatedAt&limit=100&depth=0`, {
+          credentials: 'include',
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => {
+            if (d?.docs) {
+              setExistingNKLs(d.docs.map((doc: any) => ({
+                id: doc.id, name: doc.name, scope: doc.scope, keywordCount: doc.keywordCount || 0,
+              })))
+            }
+          })
+          .catch(() => {})
+      }
+    } catch {
+      setError('Network error')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // ── Merge into an existing NKL list ──
+  const handleMergeToExisting = async (targetListId: string) => {
+    if (!nlbData) return
+    clearMessages()
+    setActionLoading('merge')
+    setImportResult(null)
+    try {
+      // Gather all non-removed keywords from all tiers
+      const allKeywords: { keyword: string; matchType: 'phrase' | 'exact' }[] = []
+      const tiers = [
+        ...(nlbData.universalNegatives || []),
+        ...(nlbData.accountWideNegatives || []),
+        ...(nlbData.campaignSpecificNegatives || []),
+      ]
+      for (const cat of tiers) {
+        for (const kw of (cat.keywords || [])) {
+          if (!kw.removed && !kw.clientRemoved) {
+            allKeywords.push({
+              keyword: kw.phrase,
+              matchType: kw.matchType === 'PHRASE' ? 'phrase' : 'exact',
+            })
+          }
+        }
+      }
+
+      if (allKeywords.length === 0) {
+        setError('No keywords to merge (all removed)')
+        return
+      }
+
+      // Fetch the target list
+      const listRes = await fetch(`/api/negative-keyword-lists/${targetListId}?depth=0`, {
+        credentials: 'include',
+      })
+      if (!listRes.ok) {
+        setError('Failed to fetch target list')
+        return
+      }
+      const targetList = await listRes.json()
+      const existingKeywords: { keyword: string; matchType: string; flaggedForRemoval?: boolean }[] = targetList.keywords || []
+
+      // Merge: add only keywords that don't already exist
+      const existingSet = new Set(existingKeywords.map((k: any) => `${k.keyword.toLowerCase()}|${k.matchType}`))
+      let addedCount = 0
+      for (const kw of allKeywords) {
+        const key = `${kw.keyword.toLowerCase()}|${kw.matchType}`
+        if (!existingSet.has(key)) {
+          existingKeywords.push({ ...kw, flaggedForRemoval: false })
+          existingSet.add(key)
+          addedCount++
+        }
+      }
+
+      // Update the list
+      const updateRes = await fetch(`/api/negative-keyword-lists/${targetListId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ keywords: existingKeywords }),
+      })
+      if (!updateRes.ok) {
+        const errData = await updateRes.json().catch(() => ({}))
+        setError(errData.errors?.[0]?.message || `Failed to update list (${updateRes.status})`)
+        return
+      }
+
+      const targetName = targetList.name || 'list'
+      setImportResult({
+        created: addedCount > 0 ? [`${addedCount} keywords merged into "${targetName}"`] : [],
+        skipped: addedCount === 0 ? [`All keywords already exist in "${targetName}"`] : [],
+        merged: [`${targetName}`],
+      })
+      setMessage(addedCount > 0
+        ? `Merged ${addedCount} new keyword(s) into "${targetName}" (${allKeywords.length - addedCount} duplicates skipped).`
+        : `All keywords already exist in "${targetName}".`
+      )
+
+      // Refresh existing NKL list
+      if (clientIdForNKL) {
+        fetch(`/api/negative-keyword-lists?where[client][equals]=${clientIdForNKL}&sort=-updatedAt&limit=100&depth=0`, {
+          credentials: 'include',
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => {
+            if (d?.docs) {
+              setExistingNKLs(d.docs.map((doc: any) => ({
+                id: doc.id, name: doc.name, scope: doc.scope, keywordCount: doc.keywordCount || 0,
+              })))
+            }
+          })
+          .catch(() => {})
+      }
+    } catch {
+      setError('Network error')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // ── Create new NKL from builder keywords ──
+  const handleCreateNewList = async () => {
+    if (!nlbData || !clientIdForNKL) return
+    const listName = newListName.trim()
+    if (!listName) {
+      setError('Enter a name for the new list')
+      return
+    }
+    clearMessages()
+    setActionLoading('create-new')
+    setImportResult(null)
+    try {
+      // Gather all non-removed keywords
+      const allKeywords: { keyword: string; matchType: 'phrase' | 'exact'; flaggedForRemoval: boolean }[] = []
+      const tiers = [
+        ...(nlbData.universalNegatives || []),
+        ...(nlbData.accountWideNegatives || []),
+        ...(nlbData.campaignSpecificNegatives || []),
+      ]
+      for (const cat of tiers) {
+        for (const kw of (cat.keywords || [])) {
+          if (!kw.removed && !kw.clientRemoved) {
+            allKeywords.push({
+              keyword: kw.phrase,
+              matchType: kw.matchType === 'PHRASE' ? 'phrase' : 'exact',
+              flaggedForRemoval: false,
+            })
+          }
+        }
+      }
+
+      if (allKeywords.length === 0) {
+        setError('No keywords to add (all removed)')
+        return
+      }
+
+      // Deduplicate
+      const seen = new Set<string>()
+      const uniqueKeywords = allKeywords.filter(kw => {
+        const key = `${kw.keyword.toLowerCase()}|${kw.matchType}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
+      const createRes = await fetch('/api/negative-keyword-lists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          client: clientIdForNKL,
+          name: listName,
+          scope: 'account',
+          campaignRegex: '.*',
+          keywords: uniqueKeywords,
+          isActive: true,
+        }),
+      })
+      if (!createRes.ok) {
+        const errData = await createRes.json().catch(() => ({}))
+        setError(errData.errors?.[0]?.message || `Failed to create list (${createRes.status})`)
+        return
+      }
+
+      setImportResult({
+        created: [`"${listName}" with ${uniqueKeywords.length} keywords`],
+        skipped: [],
+        merged: [],
+      })
+      setMessage(`Created "${listName}" with ${uniqueKeywords.length} keywords.`)
+      setNewListName('')
+
+      // Refresh existing NKL list
+      fetch(`/api/negative-keyword-lists?where[client][equals]=${clientIdForNKL}&sort=-updatedAt&limit=100&depth=0`, {
+        credentials: 'include',
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d?.docs) {
+            setExistingNKLs(d.docs.map((doc: any) => ({
+              id: doc.id, name: doc.name, scope: doc.scope, keywordCount: doc.keywordCount || 0,
+            })))
+          }
+        })
+        .catch(() => {})
     } catch {
       setError('Network error')
     } finally {
@@ -669,6 +920,7 @@ const NegativeListBuilder = () => {
     cat.keywords = kws
     updated[catIndex] = cat
     setNlbData({ ...nlbData, [key]: updated })
+    setDirty(true)
   }
 
   // ── Bulk select/unselect all keywords in a category ──
@@ -688,6 +940,7 @@ const NegativeListBuilder = () => {
     cat.keywords = cat.keywords.map(kw => ({ ...kw, [field]: action === 'unselectAll' }))
     updated[catIndex] = cat
     setNlbData({ ...nlbData, [key]: updated })
+    setDirty(true)
   }
 
   // ── Change keyword phrase ──
@@ -709,6 +962,7 @@ const NegativeListBuilder = () => {
     cat.keywords = kws
     updated[catIndex] = cat
     setNlbData({ ...nlbData, [key]: updated })
+    setDirty(true)
   }
 
   // ── Change match type ──
@@ -730,6 +984,7 @@ const NegativeListBuilder = () => {
     cat.keywords = kws
     updated[catIndex] = cat
     setNlbData({ ...nlbData, [key]: updated })
+    setDirty(true)
   }
 
   // ── Add a keyword to a category ──
@@ -751,6 +1006,7 @@ const NegativeListBuilder = () => {
     cat.keywords = [...cat.keywords, { phrase, matchType }]
     updated[catIndex] = cat
     setNlbData({ ...nlbData, [key]: updated })
+    setDirty(true)
   }
 
   // ── Move a keyword to Account-Wide or a specific Campaign ──
@@ -805,6 +1061,7 @@ const NegativeListBuilder = () => {
     }
 
     setNlbData({ ...nlbData, ...update })
+    setDirty(true)
   }
 
   // ── Build move destinations: Account-Wide + each campaign from proposal ──
@@ -935,23 +1192,96 @@ const NegativeListBuilder = () => {
               ✓ Client has approved — ready to import to their Negative Keyword Lists
             </p>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#475569' }}>
+            Push keywords to{' '}
+            <a href="/admin/collections/negative-keyword-lists" target="_blank" style={{ color: '#2563eb' }}>Negative Keyword Lists</a>{' '}
+            for daily Google Ads sync. Only keywords not marked as removed are included.
+          </p>
+
+          {/* Auto-create (original import) */}
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #d1fae5' }}>
             <button
               type="button"
               onClick={handleImportToCms}
               disabled={actionLoading === 'import'}
-              style={{
-                ...btnStyle('success', actionLoading === 'import'),
-                ...(status === 'client_approved' ? { padding: '12px 24px', fontSize: 15 } : {}),
-              }}
+              style={btnStyle('success', actionLoading === 'import')}
             >
-              {actionLoading === 'import' ? 'Importing...' : "Add to Client's Negative Keyword Lists"}
+              {actionLoading === 'import' ? 'Importing...' : 'Auto-Create Lists (Universal + Account + Campaign)'}
             </button>
-            <span style={{ fontSize: 12, color: '#64748b' }}>
-              Creates lists in <a href="/admin/collections/negative-keyword-lists" target="_blank" style={{ color: '#2563eb' }}>Negative Keyword Lists</a> for daily Google Ads sync.
-              Only imports keywords not marked as removed. Requires a linked client.
+            <span style={{ marginLeft: 8, fontSize: 11, color: '#64748b' }}>
+              Creates separate lists per tier, skips if name already exists
             </span>
           </div>
+
+          {/* Merge into existing or create custom */}
+          {clientIdForNKL && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#065f46', marginBottom: 8 }}>
+                Or push all keywords to a specific list:
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                <select
+                  value={selectedNKLTarget}
+                  onChange={e => setSelectedNKLTarget(e.target.value)}
+                  style={{
+                    padding: '8px 12px', borderRadius: 6, border: '1px solid #e2e8f0',
+                    fontSize: 13, minWidth: 280, background: '#fff',
+                  }}
+                >
+                  <option value="create_new">➕ Create New List</option>
+                  {existingNKLs.length > 0 && (
+                    <optgroup label="Existing Lists">
+                      {existingNKLs.map(nkl => (
+                        <option key={nkl.id} value={nkl.id}>
+                          {nkl.name} ({nkl.keywordCount} keywords, {nkl.scope})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+
+                {selectedNKLTarget === 'create_new' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="text"
+                      value={newListName}
+                      onChange={e => setNewListName(e.target.value)}
+                      placeholder="New list name..."
+                      style={{
+                        padding: '8px 12px', borderRadius: 6, border: '1px solid #e2e8f0',
+                        fontSize: 13, width: 220,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateNewList}
+                      disabled={actionLoading === 'create-new' || !newListName.trim()}
+                      style={btnStyle('primary', actionLoading === 'create-new' || !newListName.trim())}
+                    >
+                      {actionLoading === 'create-new' ? 'Creating...' : 'Create & Add Keywords'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleMergeToExisting(selectedNKLTarget)}
+                    disabled={actionLoading === 'merge'}
+                    style={btnStyle('primary', actionLoading === 'merge')}
+                  >
+                    {actionLoading === 'merge' ? 'Merging...' : 'Merge Keywords Into List'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!clientIdForNKL && (
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#f59e0b' }}>
+              Link a client in the sidebar to enable pushing to specific lists.
+            </p>
+          )}
+
           {importResult && (
             <div style={{ marginTop: 8, fontSize: 12 }}>
               {importResult.created.length > 0 && (
@@ -959,6 +1289,9 @@ const NegativeListBuilder = () => {
               )}
               {importResult.skipped.length > 0 && (
                 <div style={{ color: '#92400e' }}>Skipped (already exist): {importResult.skipped.join(', ')}</div>
+              )}
+              {importResult.merged?.length > 0 && (
+                <div style={{ color: '#16a34a' }}>Merged into: {importResult.merged.join(', ')}</div>
               )}
             </div>
           )}
@@ -1065,14 +1398,27 @@ const NegativeListBuilder = () => {
                 style={{ width: '100%', maxWidth: 500, padding: 8, borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13, marginBottom: 8 }}
               />
               <br />
-              <button
-                type="button"
-                onClick={handleTeamReview}
-                disabled={actionLoading === 'team-review'}
-                style={btnStyle('success', actionLoading === 'team-review')}
-              >
-                {actionLoading === 'team-review' ? 'Submitting...' : `Submit Team Review (${totalKept} keywords kept)`}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleSaveEdits}
+                  disabled={actionLoading === 'save-edits'}
+                  style={{
+                    ...btnStyle(dirty ? 'primary' : 'secondary', actionLoading === 'save-edits'),
+                    ...(dirty ? { boxShadow: '0 0 0 2px #93c5fd' } : {}),
+                  }}
+                >
+                  {actionLoading === 'save-edits' ? 'Saving...' : dirty ? '● Save Changes' : 'Save Changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTeamReview}
+                  disabled={actionLoading === 'team-review'}
+                  style={btnStyle('success', actionLoading === 'team-review')}
+                >
+                  {actionLoading === 'team-review' ? 'Submitting...' : `Submit Team Review (${totalKept} keywords kept)`}
+                </button>
+              </div>
             </div>
           )}
 
