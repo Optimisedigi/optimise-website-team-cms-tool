@@ -35,19 +35,25 @@ export default function NegativeKeywordCampaignSelect() {
 
       const allCampaigns: Array<{ name: string }> = json.campaigns || []
 
-      // Match campaigns against the regex pattern
+      // Match campaigns against the pattern
+      // Supports plain text (e.g. "Brand") or regex (e.g. ".*Brand.*")
       let matched: string[]
       if (campaignRegex) {
+        let regexStr = campaignRegex.trim()
+        // If plain text (only letters, numbers, spaces, hyphens, underscores), wrap in .*text.*
+        if (/^[a-zA-Z0-9 _-]+$/.test(regexStr)) {
+          regexStr = `.*${regexStr}.*`
+        }
         try {
-          const pattern = new RegExp(campaignRegex, 'i')
+          const pattern = new RegExp(regexStr, 'i')
           matched = allCampaigns.filter((c) => pattern.test(c.name)).map((c) => c.name)
         } catch {
-          // Invalid regex — save all campaigns
-          matched = allCampaigns.map((c) => c.name)
-          setError(`Invalid regex pattern "${campaignRegex}". Showing all campaigns.`)
+          // Still invalid — try as plain substring match
+          const lower = campaignRegex.toLowerCase()
+          matched = allCampaigns.filter((c) => c.name.toLowerCase().includes(lower)).map((c) => c.name)
         }
       } else {
-        // No regex — save all campaigns
+        // No pattern — save all campaigns
         matched = allCampaigns.map((c) => c.name)
       }
 
@@ -134,7 +140,7 @@ export default function NegativeKeywordCampaignSelect() {
       <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 6 }}>
         {campaignRegex
           ? `Matches campaigns against pattern: ${campaignRegex}`
-          : 'No campaign regex set — will sync all campaigns. Set a Campaign Regex above to filter.'}
+          : 'No regex set — will sync all campaigns. Set a Regex above to filter.'}
       </div>
     </div>
   )

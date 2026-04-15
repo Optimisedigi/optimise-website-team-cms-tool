@@ -1292,7 +1292,7 @@ const NegativeListBuilder = () => {
                 style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
               />
               <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>
-                Pattern for auto-assigning this list to matching campaigns. Use .* to match all. Examples: .*Search.*, .*Brand.*
+                Type a keyword (e.g. Brand) or regex (e.g. .*Brand.*) to auto-assign to matching campaigns/ad groups. Use .* to match all.
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

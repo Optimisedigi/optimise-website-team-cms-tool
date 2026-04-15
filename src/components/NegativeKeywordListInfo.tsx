@@ -80,9 +80,14 @@ function main() {
     Logger.log('Synced ' + list.keywords.length + ' keywords to list: ' + list.name +
       ' (' + broad.length + ' broad, ' + phrase.length + ' phrase, ' + exact.length + ' exact)');
 
-    // Auto-assign to campaigns matching the regex pattern
+    // Auto-assign to campaigns matching the pattern (supports plain text or regex)
     if (list.campaignRegex) {
-      var pattern = new RegExp(list.campaignRegex);
+      var regexStr = list.campaignRegex;
+      // If plain text (only letters, numbers, spaces, hyphens, underscores), wrap in .*text.*
+      if (/^[a-zA-Z0-9 _-]+$/.test(regexStr)) {
+        regexStr = '.*' + regexStr + '.*';
+      }
+      var pattern = new RegExp(regexStr, 'i');
       var campaigns = AdsApp.campaigns()
         .withCondition('Status = ENABLED')
         .get();
