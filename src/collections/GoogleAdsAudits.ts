@@ -246,7 +246,7 @@ export const GoogleAdsAudits: CollectionConfig = {
                   name: "businessType",
                   type: "select",
                   admin: {
-                    description: "Type of business",
+                    description: "Influences audit scoring weights and campaign proposal structure.",
                   },
                   options: [
                     { label: "Trades & Home Services", value: "trades" },
@@ -265,7 +265,7 @@ export const GoogleAdsAudits: CollectionConfig = {
                   type: "number",
                   min: 0,
                   admin: {
-                    description: "Client-stated monthly ad spend ($)",
+                    description: "Client-stated monthly ad spend ($). Sent to the audit engine to contextualise waste as a % of spend.",
                     step: 1,
                   },
                 },
@@ -282,14 +282,14 @@ export const GoogleAdsAudits: CollectionConfig = {
               name: "conversionObjectives",
               type: "textarea",
               admin: {
-                description: "What the client considers a conversion (one per line, e.g. form submissions, phone calls, purchases)",
+                description: "What the client considers a conversion (one per line, e.g. form submissions, phone calls, purchases). Used by the audit engine and email to evaluate conversion tracking alignment.",
               },
             },
             {
               name: "brandTerms",
               type: "textarea",
               admin: {
-                description: "Brand terms for brand/generic classification (one per line)",
+                description: "Brand terms for brand/generic classification (one per line). Used by the audit, campaign proposal, negative list builder, and email generation to identify and exclude brand search terms.",
               },
             },
             {
@@ -378,6 +378,15 @@ export const GoogleAdsAudits: CollectionConfig = {
               },
             },
             {
+              name: "downloadAuditData",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/DownloadAuditDataButton",
+                },
+              },
+            },
+            {
               name: "overallScore",
               type: "number",
               min: 0,
@@ -391,6 +400,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               name: "rawData",
               type: "json",
               admin: {
+                hidden: true,
                 description: "Raw API data from Google Ads (campaigns, keywords, search terms, etc.)",
               },
             },
@@ -398,6 +408,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               name: "scoredReport",
               type: "json",
               admin: {
+                hidden: true,
                 description: "Full scored audit results (GoogleAdsAuditResults shape)",
               },
             },
@@ -406,6 +417,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               type: "textarea",
               admin: {
                 readOnly: true,
+                hidden: true,
                 description: "Generated email HTML (preview in Presentation tab)",
               },
             },
@@ -796,7 +808,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               name: "adCopyBrandHeadlines",
               type: "textarea",
               admin: {
-                description: "Brand-specific headlines to include in every ad group (one per line, max 30 chars each). E.g. 'Malcolm Thompson Pumps', 'Call MTP Today', 'Since 1958'",
+                description: "Brand-specific headlines included in every generated ad group's RSA headlines (one per line, max 30 chars each). E.g. 'Malcolm Thompson Pumps', 'Call MTP Today', 'Since 1958'",
               },
             },
             {
@@ -956,7 +968,39 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 8: Negative List Builder ──
+        // ── Tab 8: Budget Management ──
+        {
+          label: "Budget Management",
+          fields: [
+            {
+              name: "budgetManagementUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GoogleAdsBudgetManagement",
+                },
+              },
+            },
+          ],
+        },
+
+        // ── Tab 9: Ad Extensions ──
+        {
+          label: "Ad Extensions",
+          fields: [
+            {
+              name: "adExtensionsUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GoogleAdsAdExtensions",
+                },
+              },
+            },
+          ],
+        },
+
+        // ── Tab 10: Negative List Builder ──
         {
           label: "Negative List Builder",
           fields: [
@@ -988,7 +1032,23 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 9: History ──
+        // ── Tab 11: Negative Keyword Lists ──
+        {
+          label: "Negative Keyword Lists",
+          fields: [
+            {
+              name: "negativeKeywordListsUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GoogleAdsNegativeKeywordLists",
+                },
+              },
+            },
+          ],
+        },
+
+        // ── Tab 12: History ──
         {
           label: "History",
           fields: [
@@ -1621,37 +1681,7 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 13: Budget Management ──
-        {
-          label: "Budget Management",
-          fields: [
-            {
-              name: "budgetManagementUI",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/GoogleAdsBudgetManagement",
-                },
-              },
-            },
-          ],
-        },
 
-        // ── Tab 14: Ad Extensions ──
-        {
-          label: "Ad Extensions",
-          fields: [
-            {
-              name: "adExtensionsUI",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/GoogleAdsAdExtensions",
-                },
-              },
-            },
-          ],
-        },
       ],
     },
 

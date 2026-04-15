@@ -76,6 +76,7 @@ import { default as default_3d6cbb93c24934a6d54420e5106bbab0 } from '../../../co
 import { default as default_5ee4907bc6cc2a02fa1a48dea9e62484 } from '../../../components/DownloadMarkdownButton'
 import { default as default_96a982169d7094c7232bb687c5c863a6 } from '../../../components/RunGoogleAdsAuditButton'
 import { default as default_47af8c78950b0c47a8049a44d7cef06c } from '../../../components/GoogleAdsAuditPreview'
+import { default as default_9c631d4925e49d9cfb3fb118c0ff4010 } from '../../../components/DownloadAuditDataButton'
 import { default as default_909a54b4f02f1428884a878a4fce4a5f } from '../../../components/GoogleAdsFindingCuration'
 import { default as default_10fccc7885acbd99c8b1f5d8e310047f } from '../../../components/RegenerateEmailButton'
 import { default as default_2eca85eea20f05062ddd72e60518b25f } from '../../../components/RunCampaignProposalButton'
@@ -85,10 +86,11 @@ import { default as default_2a5597b466c0be4a12bd7249716b4ee3 } from '../../../co
 import { default as default_b012e7d9e2700288331e55f2919835cb } from '../../../components/AdCopyEditor'
 import { default as default_628833cd0ea22895ebbb18b810d0ef75 } from '../../../components/AdCopyActivity'
 import { default as default_c3df4656bbea60303e2b8ca7d1096de2 } from '../../../components/DeployAdCopyButton'
-import { default as default_fd2febb67d3357a3222a3d4b42c00e68 } from '../../../components/NegativeListBuilder'
-import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_ddaec31b968f43d933a752ed934bde0a } from '../../../components/GoogleAdsBudgetManagement'
 import { default as default_0875500ed79e3068678d80b63965f2c2 } from '../../../components/GoogleAdsAdExtensions'
+import { default as default_fd2febb67d3357a3222a3d4b42c00e68 } from '../../../components/NegativeListBuilder'
+import { default as default_3dedd88d620dc77baa17f61edda4911f } from '../../../components/GoogleAdsNegativeKeywordLists'
+import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../components/GscIndexingAuditInfo'
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
 import { default as default_c99210795b28d20ce793bfa990d64a2d } from '../../../components/NegativeKeywordListInfo'
@@ -196,6 +198,7 @@ export const importMap = {
   "./components/DownloadMarkdownButton#default": default_5ee4907bc6cc2a02fa1a48dea9e62484,
   "./components/RunGoogleAdsAuditButton#default": default_96a982169d7094c7232bb687c5c863a6,
   "./components/GoogleAdsAuditPreview#default": default_47af8c78950b0c47a8049a44d7cef06c,
+  "./components/DownloadAuditDataButton#default": default_9c631d4925e49d9cfb3fb118c0ff4010,
   "./components/GoogleAdsFindingCuration#default": default_909a54b4f02f1428884a878a4fce4a5f,
   "./components/RegenerateEmailButton#default": default_10fccc7885acbd99c8b1f5d8e310047f,
   "./components/RunCampaignProposalButton#default": default_2eca85eea20f05062ddd72e60518b25f,
@@ -205,10 +208,11 @@ export const importMap = {
   "./components/AdCopyEditor#default": default_b012e7d9e2700288331e55f2919835cb,
   "./components/AdCopyActivity#default": default_628833cd0ea22895ebbb18b810d0ef75,
   "./components/DeployAdCopyButton#default": default_c3df4656bbea60303e2b8ca7d1096de2,
-  "./components/NegativeListBuilder#default": default_fd2febb67d3357a3222a3d4b42c00e68,
-  "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/GoogleAdsBudgetManagement#default": default_ddaec31b968f43d933a752ed934bde0a,
   "./components/GoogleAdsAdExtensions#default": default_0875500ed79e3068678d80b63965f2c2,
+  "./components/NegativeListBuilder#default": default_fd2febb67d3357a3222a3d4b42c00e68,
+  "./components/GoogleAdsNegativeKeywordLists#default": default_3dedd88d620dc77baa17f61edda4911f,
+  "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/GscIndexingAuditInfo#default": default_6d638ae0812e4c3b3793e2cfa8990bb7,
   "./components/GscIndexingAuditResults#default": default_14da33fa7cd5bda0159f477250995b44,
   "./components/NegativeKeywordListInfo#default": default_c99210795b28d20ce793bfa990d64a2d,

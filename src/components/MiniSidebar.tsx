@@ -189,8 +189,8 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
           className="mini-sidebar-collapse-btn"
           style={{
             position: 'fixed',
-            bottom: 16,
-            left: 16,
+            top: 12,
+            left: 'min(calc(var(--nav-width, 275px) - 44px), calc(100vw - 44px))',
             zIndex: 10000,
             background: 'none',
             border: 'none',
