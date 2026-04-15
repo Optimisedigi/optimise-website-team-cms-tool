@@ -2,6 +2,7 @@
 
 import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
 import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useShiftSelect } from '../lib/useShiftSelect'
 
 // ─── Types ───
 
@@ -44,6 +45,14 @@ interface DetectedBrand {
   totalSpend: number
   totalConversions: number
   variations: BrandVariation[]
+}
+
+interface FlatKeyword extends NegativeKeyword {
+  tier: 'universal' | 'accountWide' | 'campaign'
+  catIndex: number
+  kwIndex: number
+  source: string
+  flatId: string
 }
 
 interface NLBData {
@@ -509,6 +518,203 @@ function CategorySection({
   )
 }
 
+// ─── Flat Keyword List (replaces CategorySection in team review) ───
+
+function FlatKeywordList({
+  keywords,
+  editable,
+  selectedIds,
+  onShiftSelect,
+  onToggleKeyword,
+  onMoveKeyword,
+  onChangeMatchType,
+  onChangePhrase,
+  moveDestinations,
+  bulkActionBar,
+}: {
+  keywords: FlatKeyword[]
+  editable?: boolean
+  selectedIds: Set<string>
+  onShiftSelect: (id: string, e: React.ChangeEvent<HTMLInputElement>) => void
+  onToggleKeyword: (fk: FlatKeyword) => void
+  onMoveKeyword: (fk: FlatKeyword, dest: MoveDestination) => void
+  onChangeMatchType: (fk: FlatKeyword, matchType: 'PHRASE' | 'EXACT') => void
+  onChangePhrase: (fk: FlatKeyword, phrase: string) => void
+  moveDestinations: MoveDestination[]
+  bulkActionBar?: React.ReactNode
+}) {
+  const [search, setSearch] = useState('')
+  const [showAll, setShowAll] = useState(false)
+
+  const filtered = search
+    ? keywords.filter(kw => kw.phrase.toLowerCase().includes(search.toLowerCase()) || kw.source.toLowerCase().includes(search.toLowerCase()))
+    : keywords
+
+  const removedCount = keywords.filter(kw => kw.removed).length
+  const keptCount = keywords.length - removedCount
+  const displayLimit = 50
+  const displayed = showAll ? filtered : filtered.slice(0, displayLimit)
+  const hasMore = filtered.length > displayLimit && !showAll
+
+  const nklDests = moveDestinations.filter(d => d.tier === 'nkl')
+
+  return (
+    <div>
+      {/* Bulk action bar */}
+      {bulkActionBar}
+
+      {/* Search + stats */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search keywords or source..."
+          style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #e2e8f0', fontSize: 12, width: 240 }}
+        />
+        <span style={{ fontSize: 11, color: '#64748b' }}>
+          {keptCount} kept / {removedCount} removed / {keywords.length} total
+          {search && ` (${filtered.length} matching)`}
+        </span>
+      </div>
+
+      {keywords.length > 0 && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
+              {editable && <th style={{ width: 30, padding: '6px 4px' }}></th>}
+              <th style={{ width: 30, padding: '6px 4px' }}></th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748b', fontWeight: 600 }}>Keyword</th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748b', fontWeight: 600, width: 80 }}>Match</th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748b', fontWeight: 600, width: 180 }}>Source</th>
+              <th style={{ textAlign: 'right', padding: '6px 8px', color: '#64748b', fontWeight: 600, width: 80 }}>Spend</th>
+              <th style={{ textAlign: 'right', padding: '6px 8px', color: '#64748b', fontWeight: 600, width: 60 }}>Clicks</th>
+              <th style={{ textAlign: 'right', padding: '6px 8px', color: '#64748b', fontWeight: 600, width: 60 }}>Impr.</th>
+              {editable && <th style={{ width: 130, padding: '6px 4px', color: '#64748b', fontWeight: 600, fontSize: 11 }}>Move to NKL</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {displayed.map((fk) => {
+              const isRemoved = !!fk.removed
+              const isSelected = selectedIds.has(fk.flatId)
+
+              return (
+                <tr
+                  key={fk.flatId}
+                  style={{
+                    borderBottom: '1px solid #f1f5f9',
+                    opacity: isRemoved ? 0.4 : 1,
+                    textDecoration: isRemoved ? 'line-through' : 'none',
+                    background: isSelected ? '#eff6ff' : isRemoved ? '#fef2f2' : 'transparent',
+                  }}
+                >
+                  {editable && (
+                    <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={!isRemoved}
+                        onChange={() => onToggleKeyword(fk)}
+                        style={{ cursor: 'pointer' }}
+                        title="Keep/Remove"
+                      />
+                    </td>
+                  )}
+                  <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => onShiftSelect(fk.flatId, e)}
+                      style={{ cursor: 'pointer', accentColor: '#2563eb' }}
+                      title="Select for bulk action"
+                    />
+                  </td>
+                  <td style={{ padding: '4px 8px' }}>
+                    {editable ? (
+                      <input
+                        type="text"
+                        value={fk.phrase}
+                        onChange={e => onChangePhrase(fk, e.target.value)}
+                        style={{
+                          width: '100%', padding: '2px 4px', fontFamily: 'monospace', fontSize: 11,
+                          border: '1px solid #e2e8f0', borderRadius: 3, outline: 'none',
+                          textDecoration: isRemoved ? 'line-through' : 'none',
+                          background: isRemoved ? '#fef2f2' : '#fff',
+                        }}
+                      />
+                    ) : (
+                      <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{fk.phrase}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '4px 8px' }}>
+                    {editable ? (
+                      <select
+                        value={fk.matchType}
+                        onChange={e => onChangeMatchType(fk, e.target.value as 'PHRASE' | 'EXACT')}
+                        style={{ fontSize: 11, padding: '1px 2px', border: '1px solid #e2e8f0', borderRadius: 3, cursor: 'pointer', background: '#fff' }}
+                      >
+                        <option value="EXACT">EXACT</option>
+                        <option value="PHRASE">PHRASE</option>
+                      </select>
+                    ) : (
+                      fk.matchType
+                    )}
+                  </td>
+                  <td style={{ padding: '4px 8px', fontSize: 11, color: '#64748b' }}>{fk.source}</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right' }}>{fk.totalSpend != null ? `$${fk.totalSpend.toFixed(2)}` : '-'}</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right' }}>{fk.totalClicks ?? '-'}</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right' }}>{fk.totalImpressions ?? '-'}</td>
+                  {editable && (
+                    <td style={{ padding: '4px 4px' }}>
+                      <select
+                        value=""
+                        onChange={e => {
+                          const idx = parseInt(e.target.value)
+                          if (!isNaN(idx) && nklDests[idx]) {
+                            onMoveKeyword(fk, nklDests[idx])
+                          }
+                        }}
+                        style={{ fontSize: 10, padding: '1px 2px', border: '1px solid #e2e8f0', borderRadius: 3, cursor: 'pointer', width: '100%', color: '#64748b' }}
+                      >
+                        <option value="">Move to...</option>
+                        {nklDests.map((d, i) => (
+                          <option key={i} value={i}>{d.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          style={{ marginTop: 6, background: 'none', border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 12px', fontSize: 12, color: '#2563eb', cursor: 'pointer' }}
+        >
+          Show all {filtered.length} keywords
+        </button>
+      )}
+      {showAll && filtered.length > displayLimit && (
+        <button
+          type="button"
+          onClick={() => setShowAll(false)}
+          style={{ marginTop: 6, background: 'none', border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 12px', fontSize: 12, color: '#64748b', cursor: 'pointer' }}
+        >
+          Collapse to {displayLimit}
+        </button>
+      )}
+
+      {keywords.length === 0 && (
+        <p style={{ color: '#94a3b8', fontSize: 13 }}>No keywords found.</p>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Component ───
 
 const NegativeListBuilder = () => {
@@ -533,7 +739,7 @@ const NegativeListBuilder = () => {
   const [newListName, setNewListName] = useState('')
   const [clientIdForNKL, setClientIdForNKL] = useState<string | null>(null)
   const [showCreateNKLDialog, setShowCreateNKLDialog] = useState(false)
-  const [pendingMoveKw, setPendingMoveKw] = useState<{ fromTier: 'universal' | 'accountWide' | 'campaign'; fromCatIndex: number; kwIndex: number; phrase: string; matchType: 'PHRASE' | 'EXACT' } | null>(null)
+  const [pendingMoveKw, setPendingMoveKw] = useState<{ fromTier: 'universal' | 'accountWide' | 'campaign'; fromCatIndex: number; kwIndex: number; phrase: string; matchType: 'PHRASE' | 'EXACT' }[] | null>(null)
 
   // Load existing data by fetching the document directly
   useEffect(() => {
@@ -1068,7 +1274,7 @@ const NegativeListBuilder = () => {
 
       if (dest.nklCreate) {
         // Show create dialog, store pending keyword
-        setPendingMoveKw({ fromTier, fromCatIndex, kwIndex, phrase: kw.phrase, matchType: kw.matchType as 'PHRASE' | 'EXACT' })
+        setPendingMoveKw([{ fromTier, fromCatIndex, kwIndex, phrase: kw.phrase, matchType: kw.matchType as 'PHRASE' | 'EXACT' }])
         setShowCreateNKLDialog(true)
         return
       }
@@ -1199,6 +1405,101 @@ const NegativeListBuilder = () => {
     return dests
   }
 
+  // NKL-only destinations for the flat list view
+  const nklMoveDestinations = useMemo((): MoveDestination[] => {
+    const dests: MoveDestination[] = []
+    for (const nkl of existingNKLs) {
+      dests.push({
+        label: `${nkl.name} (${nkl.keywordCount} kws, ${nkl.scope})`,
+        tier: 'nkl',
+        catIndex: -1,
+        nklId: nkl.id,
+      })
+    }
+    dests.push({ label: '+ Create New List', tier: 'nkl', catIndex: -1, nklCreate: true })
+    return dests
+  }, [existingNKLs])
+
+  // ── Bulk move selected keywords to an NKL ──
+  const handleBulkMoveToNKL = async (dest: MoveDestination) => {
+    if (!nlbData || selectedKwIds.size === 0) return
+    const selectedFlatKws = flatKeywords.filter(fk => selectedKwIds.has(fk.flatId))
+    if (selectedFlatKws.length === 0) return
+
+    if (dest.nklCreate) {
+      // Open create dialog with all selected keywords
+      setPendingMoveKw(selectedFlatKws.map(fk => ({
+        fromTier: fk.tier,
+        fromCatIndex: fk.catIndex,
+        kwIndex: fk.kwIndex,
+        phrase: fk.phrase,
+        matchType: fk.matchType as 'PHRASE' | 'EXACT',
+      })))
+      setShowCreateNKLDialog(true)
+      return
+    }
+
+    if (dest.nklId) {
+      clearMessages()
+      setActionLoading('bulk-move')
+      try {
+        const listRes = await fetch(`/api/negative-keyword-lists/${dest.nklId}?depth=0`, { credentials: 'include' })
+        if (!listRes.ok) {
+          setError('Failed to fetch target list')
+          return
+        }
+        const targetList = await listRes.json()
+        const existingKeywords: { keyword: string; matchType: string; flaggedForRemoval?: boolean }[] = targetList.keywords || []
+        const existingSet = new Set(existingKeywords.map((k: any) => `${k.keyword.toLowerCase()}|${k.matchType}`))
+
+        let addedCount = 0
+        for (const fk of selectedFlatKws) {
+          const nklMatchType = fk.matchType === 'PHRASE' ? 'phrase' : 'exact'
+          const dupeKey = `${fk.phrase.toLowerCase()}|${nklMatchType}`
+          if (!existingSet.has(dupeKey)) {
+            existingKeywords.push({ keyword: fk.phrase, matchType: nklMatchType, flaggedForRemoval: false })
+            existingSet.add(dupeKey)
+            addedCount++
+          }
+        }
+
+        const updateRes = await fetch(`/api/negative-keyword-lists/${dest.nklId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ keywords: existingKeywords }),
+        })
+        if (!updateRes.ok) {
+          const errData = await updateRes.json().catch(() => ({}))
+          setError(errData.errors?.[0]?.message || `Failed to update list (${updateRes.status})`)
+          return
+        }
+
+        // Remove keywords from NLB tiers
+        let updatedData = { ...nlbData }
+        for (const fk of selectedFlatKws) {
+          const fromKey = fk.tier === 'universal' ? 'universalNegatives' : fk.tier === 'accountWide' ? 'accountWideNegatives' : 'campaignSpecificNegatives'
+          const cats = updatedData[fromKey]
+          if (!cats) continue
+          const updatedCats = [...cats]
+          const cat = { ...updatedCats[fk.catIndex] }
+          cat.keywords = cat.keywords.filter((_: any, i: number) => i !== fk.kwIndex)
+          updatedCats[fk.catIndex] = cat
+          updatedData = { ...updatedData, [fromKey]: updatedCats }
+        }
+        setNlbData(updatedData)
+        setDirty(true)
+        setSelectedKwIds(new Set())
+        setExistingNKLs(prev => prev.map(n => n.id === dest.nklId ? { ...n, keywordCount: existingKeywords.length } : n))
+        setMessage(`Moved ${addedCount} keyword(s) to "${targetList.name}"${selectedFlatKws.length - addedCount > 0 ? ` (${selectedFlatKws.length - addedCount} duplicates skipped)` : ''}`)
+      } catch {
+        setError('Network error during bulk move')
+      } finally {
+        setActionLoading(null)
+      }
+    }
+  }
+
   if (!id) return null
 
   const status = nlbData?.status
@@ -1219,6 +1520,54 @@ const NegativeListBuilder = () => {
       count(nlbData.accountWideNegatives, 'removed') +
       count(nlbData.campaignSpecificNegatives, 'removed')
   }, [nlbData])
+
+  // Flatten all tiers' keywords into a single list for the flat table view
+  const flatKeywords = useMemo<FlatKeyword[]>(() => {
+    if (!nlbData) return []
+    const result: FlatKeyword[] = []
+    for (const [catIndex, cat] of (nlbData.universalNegatives || []).entries()) {
+      for (const [kwIndex, kw] of cat.keywords.entries()) {
+        result.push({
+          ...kw,
+          tier: 'universal',
+          catIndex,
+          kwIndex,
+          source: `Universal: ${cat.name}`,
+          flatId: `universal-${catIndex}-${kwIndex}`,
+        })
+      }
+    }
+    for (const [catIndex, cat] of (nlbData.accountWideNegatives || []).entries()) {
+      for (const [kwIndex, kw] of cat.keywords.entries()) {
+        result.push({
+          ...kw,
+          tier: 'accountWide',
+          catIndex,
+          kwIndex,
+          source: `Account-Wide: ${cat.name}`,
+          flatId: `accountWide-${catIndex}-${kwIndex}`,
+        })
+      }
+    }
+    for (const [catIndex, group] of (nlbData.campaignSpecificNegatives || []).entries()) {
+      for (const [kwIndex, kw] of group.keywords.entries()) {
+        result.push({
+          ...kw,
+          tier: 'campaign',
+          catIndex,
+          kwIndex,
+          source: `Campaign: ${group.campaignName}`,
+          flatId: `campaign-${catIndex}-${kwIndex}`,
+        })
+      }
+    }
+    return result
+  }, [nlbData])
+
+  // Multi-select state for flat keyword list
+  const [selectedKwIds, setSelectedKwIds] = useState<Set<string>>(new Set())
+  const flatKwIds = useMemo(() => flatKeywords.map(fk => fk.flatId), [flatKeywords])
+  const { onCheckboxChange: onShiftSelectChange } = useShiftSelect(flatKwIds, selectedKwIds, setSelectedKwIds)
 
   return (
     <div style={{ maxWidth: 960 }}>
@@ -1254,12 +1603,16 @@ const NegativeListBuilder = () => {
       {error && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 8 }}>{error}</p>}
 
       {/* ── Create New NKL Dialog ── */}
-      {showCreateNKLDialog && pendingMoveKw && (
+      {showCreateNKLDialog && pendingMoveKw && pendingMoveKw.length > 0 && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: 8, padding: 24, maxWidth: 480, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
             <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Create New Negative Keyword List</h3>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>
-              Keyword <strong>&quot;{pendingMoveKw.phrase}&quot;</strong> ({pendingMoveKw.matchType}) will be added to this new list.
+              {pendingMoveKw.length === 1 ? (
+                <>Keyword <strong>&quot;{pendingMoveKw[0].phrase}&quot;</strong> ({pendingMoveKw[0].matchType}) will be added to this new list.</>
+              ) : (
+                <><strong>{pendingMoveKw.length} keywords</strong> will be added to this new list.</>
+              )}
             </p>
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>List Name</label>
@@ -1324,7 +1677,18 @@ const NegativeListBuilder = () => {
 
                   clearMessages()
                   try {
-                    const nklMatchType = pendingMoveKw.matchType === 'PHRASE' ? 'phrase' : 'exact'
+                    // Build deduplicated keyword array from all pending
+                    const seen = new Set<string>()
+                    const keywords: { keyword: string; matchType: 'phrase' | 'exact'; flaggedForRemoval: boolean }[] = []
+                    for (const pk of pendingMoveKw) {
+                      const nklMatchType = pk.matchType === 'PHRASE' ? 'phrase' as const : 'exact' as const
+                      const key = `${pk.phrase.toLowerCase()}|${nklMatchType}`
+                      if (!seen.has(key)) {
+                        seen.add(key)
+                        keywords.push({ keyword: pk.phrase, matchType: nklMatchType, flaggedForRemoval: false })
+                      }
+                    }
+
                     const createRes = await fetch('/api/negative-keyword-lists', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -1334,7 +1698,7 @@ const NegativeListBuilder = () => {
                         name: listName,
                         scope,
                         campaignRegex,
-                        keywords: [{ keyword: pendingMoveKw.phrase, matchType: nklMatchType, flaggedForRemoval: false }],
+                        keywords,
                         isActive: true,
                       }),
                     })
@@ -1346,12 +1710,25 @@ const NegativeListBuilder = () => {
                     const created = await createRes.json()
 
                     // Add to existingNKLs state
-                    setExistingNKLs(prev => [...prev, { id: created.doc?.id || created.id, name: listName, scope, keywordCount: 1 }])
+                    setExistingNKLs(prev => [...prev, { id: created.doc?.id || created.id, name: listName, scope, keywordCount: keywords.length }])
 
-                    // Remove keyword from NLB tier
-                    removeKeywordFromTier(pendingMoveKw.fromTier, pendingMoveKw.fromCatIndex, pendingMoveKw.kwIndex)
+                    // Remove all pending keywords from NLB tiers
+                    let updatedData = { ...nlbData! }
+                    for (const pk of pendingMoveKw) {
+                      const fromKey = pk.fromTier === 'universal' ? 'universalNegatives' : pk.fromTier === 'accountWide' ? 'accountWideNegatives' : 'campaignSpecificNegatives'
+                      const cats = updatedData[fromKey]
+                      if (!cats) continue
+                      const updatedCats = [...cats]
+                      const cat = { ...updatedCats[pk.fromCatIndex] }
+                      cat.keywords = cat.keywords.filter((_: any, i: number) => i !== pk.kwIndex)
+                      updatedCats[pk.fromCatIndex] = cat
+                      updatedData = { ...updatedData, [fromKey]: updatedCats }
+                    }
+                    setNlbData(updatedData)
+                    setDirty(true)
+                    setSelectedKwIds(new Set())
 
-                    setMessage(`Created "${listName}" and moved "${pendingMoveKw.phrase}" into it.`)
+                    setMessage(`Created "${listName}" with ${keywords.length} keyword(s).`)
                     setShowCreateNKLDialog(false)
                     setPendingMoveKw(null)
                   } catch {
@@ -1565,51 +1942,65 @@ const NegativeListBuilder = () => {
           {canTeamReview && (
             <div style={{ ...card, background: '#eff6ff', borderColor: '#bfdbfe', marginTop: 16 }}>
               <p style={{ margin: 0, fontSize: 13, color: '#1e40af' }}>
-                <strong>Agency Review:</strong> Expand each category and uncheck keywords you want to remove.
+                <strong>Agency Review:</strong> Uncheck keywords you want to remove. Use shift-click to select multiple keywords for bulk actions.
                 The client will see what you kept in the next phase. {totalKept} keywords currently kept.
               </p>
             </div>
           )}
 
-          <CategorySection
-            title="Tier 1: Universal Negatives"
-            categories={nlbData?.universalNegatives || []}
+          <h4 style={sectionHeader}>All Negative Keywords</h4>
+          <FlatKeywordList
+            keywords={flatKeywords}
             editable={canTeamReview}
-            removedField="removed"
-            onToggleKeyword={(catIdx, kwIdx) => toggleKeyword('universal', catIdx, kwIdx)}
-            onBulkAction={(catIdx, action) => bulkAction('universal', catIdx, action)}
-            onChangeMatchType={(catIdx, kwIdx, mt) => changeMatchType('universal', catIdx, kwIdx, mt)}
-            onChangePhrase={(catIdx, kwIdx, phrase) => changePhrase('universal', catIdx, kwIdx, phrase)}
-            onMoveKeyword={(catIdx, kwIdx, dest) => moveKeyword('universal', catIdx, kwIdx, dest)}
-            onAddKeyword={(catIdx, phrase, mt) => addKeyword('universal', catIdx, phrase, mt)}
-            getMoveDestinations={getMoveDestinations}
-          />
-          <CategorySection
-            title="Tier 2: Account-Wide Negatives"
-            categories={nlbData?.accountWideNegatives || []}
-            editable={canTeamReview}
-            removedField="removed"
-            onToggleKeyword={(catIdx, kwIdx) => toggleKeyword('accountWide', catIdx, kwIdx)}
-            onBulkAction={(catIdx, action) => bulkAction('accountWide', catIdx, action)}
-            onChangeMatchType={(catIdx, kwIdx, mt) => changeMatchType('accountWide', catIdx, kwIdx, mt)}
-            onChangePhrase={(catIdx, kwIdx, phrase) => changePhrase('accountWide', catIdx, kwIdx, phrase)}
-            onMoveKeyword={(catIdx, kwIdx, dest) => moveKeyword('accountWide', catIdx, kwIdx, dest)}
-            onAddKeyword={(catIdx, phrase, mt) => addKeyword('accountWide', catIdx, phrase, mt)}
-            getMoveDestinations={getMoveDestinations}
-          />
-          <CategorySection
-            title="Tier 3: Campaign-Specific Negatives"
-            categories={nlbData?.campaignSpecificNegatives || []}
-            showReason
-            editable={canTeamReview}
-            removedField="removed"
-            onToggleKeyword={(catIdx, kwIdx) => toggleKeyword('campaign', catIdx, kwIdx)}
-            onBulkAction={(catIdx, action) => bulkAction('campaign', catIdx, action)}
-            onChangeMatchType={(catIdx, kwIdx, mt) => changeMatchType('campaign', catIdx, kwIdx, mt)}
-            onChangePhrase={(catIdx, kwIdx, phrase) => changePhrase('campaign', catIdx, kwIdx, phrase)}
-            onMoveKeyword={(catIdx, kwIdx, dest) => moveKeyword('campaign', catIdx, kwIdx, dest)}
-            onAddKeyword={(catIdx, phrase, mt) => addKeyword('campaign', catIdx, phrase, mt)}
-            getMoveDestinations={getMoveDestinations}
+            selectedIds={selectedKwIds}
+            onShiftSelect={onShiftSelectChange}
+            onToggleKeyword={(fk) => toggleKeyword(fk.tier, fk.catIndex, fk.kwIndex)}
+            onMoveKeyword={(fk, dest) => moveKeyword(fk.tier, fk.catIndex, fk.kwIndex, dest)}
+            onChangeMatchType={(fk, mt) => changeMatchType(fk.tier, fk.catIndex, fk.kwIndex, mt)}
+            onChangePhrase={(fk, phrase) => changePhrase(fk.tier, fk.catIndex, fk.kwIndex, phrase)}
+            moveDestinations={nklMoveDestinations}
+            bulkActionBar={selectedKwIds.size > 0 ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 10,
+                background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6,
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#1e40af' }}>
+                  {selectedKwIds.size} selected
+                </span>
+                <select
+                  value=""
+                  onChange={e => {
+                    const val = e.target.value
+                    if (val === 'create_new') {
+                      handleBulkMoveToNKL({ label: '+ Create New List', tier: 'nkl', catIndex: -1, nklCreate: true })
+                    } else if (val) {
+                      const nkl = existingNKLs.find(n => n.id === val)
+                      if (nkl) {
+                        handleBulkMoveToNKL({ label: nkl.name, tier: 'nkl', catIndex: -1, nklId: nkl.id })
+                      }
+                    }
+                  }}
+                  disabled={actionLoading === 'bulk-move'}
+                  style={{ fontSize: 12, padding: '4px 8px', border: '1px solid #bfdbfe', borderRadius: 4, cursor: 'pointer', background: '#fff' }}
+                >
+                  <option value="">Move to NKL...</option>
+                  {existingNKLs.map(nkl => (
+                    <option key={nkl.id} value={nkl.id}>
+                      {nkl.name} ({nkl.keywordCount} kws, {nkl.scope})
+                    </option>
+                  ))}
+                  <option value="create_new">+ Create New List</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setSelectedKwIds(new Set())}
+                  style={{ background: 'none', border: '1px solid #bfdbfe', borderRadius: 4, padding: '3px 10px', fontSize: 11, cursor: 'pointer', color: '#64748b' }}
+                >
+                  Clear selection
+                </button>
+                {actionLoading === 'bulk-move' && <span style={{ fontSize: 11, color: '#64748b' }}>Moving...</span>}
+              </div>
+            ) : undefined}
           />
 
           {canTeamReview && (
