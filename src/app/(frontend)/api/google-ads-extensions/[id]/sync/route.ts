@@ -97,11 +97,54 @@ export async function POST(
     const result = await response.json();
     const extensions = result.extensions || [];
 
+    // Normalise extensionType from Growth Tools (may be uppercase)
+    const normaliseType = (t: string): string => {
+      const lower = t.toLowerCase();
+      if (lower === "sitelink") return "sitelink";
+      if (lower === "structured_snippet" || lower === "structuredsnippet") return "structured_snippet";
+      return lower;
+    };
+
+    // Normalise level from Growth Tools (may be uppercase)
+    const normaliseLevel = (l: string | undefined): string => {
+      if (!l) return "account";
+      const lower = l.toLowerCase();
+      if (lower === "account" || lower === "campaign" || lower === "ad_group") return lower;
+      // Google Ads API uses ADGROUP without underscore
+      if (lower === "adgroup" || lower === "ad group") return "ad_group";
+      return "account";
+    };
+
+    // Valid snippet headers from the collection's select options
+    const VALID_SNIPPET_HEADERS = [
+      "Destinations", "Services", "Brands", "Schools", "Neighborhoods",
+      "Types", "Collections", "Hotels", "Insurance Coverage", "Models",
+      "Entertainment", "Activities", "Featured Items", "Product Types",
+      "Services Offered", "Programs", "Events", "Amenities", "Styles",
+      "Benefits", "Menu Items", "Dining Options",
+    ];
+
+    // Match header case-insensitively to valid options
+    const normaliseSnippetHeader = (h: string | undefined): string | null => {
+      if (!h) return null;
+      const match = VALID_SNIPPET_HEADERS.find(v => v.toLowerCase() === h.toLowerCase());
+      return match || null;
+    };
+
     // Store/update each extension in CMS
     let created = 0;
     let updated = 0;
+    let skipped = 0;
 
     for (const ext of extensions) {
+      const extType = normaliseType(ext.extensionType);
+
+      // Skip unknown extension types
+      if (extType !== "sitelink" && extType !== "structured_snippet") {
+        skipped++;
+        continue;
+      }
+
       // Check if extension already exists
       const existing = await payload.find({
         collection: EXTENSIONS_COLLECTION,
@@ -116,21 +159,27 @@ export async function POST(
       const cmsData: Record<string, any> = {
         audit: id,
         customerId: customerId,
-        extensionType: ext.extensionType,
-        level: ext.level || "account",
+        extensionType: extType,
+        level: normaliseLevel(ext.level),
         assetId: ext.assetId,
         status: ext.status === "ACTIVE" ? "deployed" : "paused",
         deployedAt: new Date().toISOString(),
       };
 
       // Parse extension data
-      if (ext.extensionType === "sitelink" || ext.extensionType === "SITELINK") {
+      if (extType === "sitelink") {
         cmsData.sitelinkText = ext.linkText;
         cmsData.sitelinkUrl = ext.linkUrl;
         cmsData.sitelinkDescription1 = ext.description1 || null;
         cmsData.sitelinkDescription2 = ext.description2 || null;
       } else {
-        cmsData.snippetHeader = ext.header;
+        const header = normaliseSnippetHeader(ext.header);
+        if (!header) {
+          // Skip snippets with unrecognised headers rather than failing the whole sync
+          skipped++;
+          continue;
+        }
+        cmsData.snippetHeader = header;
         cmsData.snippetValues =
           ext.values instanceof Array ? ext.values.join("\n") : ext.values;
       }
@@ -183,6 +232,7 @@ export async function POST(
       total: extensions.length,
       created,
       updated,
+      skipped,
     });
   } catch (e: any) {
     console.error("[GoogleAdsExtensions] Sync error:", e.message);
