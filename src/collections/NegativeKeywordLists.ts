@@ -6,8 +6,9 @@ export const NegativeKeywordLists: CollectionConfig = {
   admin: {
     group: "Growth Tools",
     useAsTitle: "name",
-    defaultColumns: ["name", "client", "scope", "keywordCount", "isActive"],
+    defaultColumns: ["client", "name", "scope", "keywordCount", "isActive"],
   },
+  defaultSort: "client",
   access: {
     read: ({ req }) => !!req.user,
     create: ({ req }) => !!req.user,
@@ -109,8 +110,9 @@ export const NegativeKeywordLists: CollectionConfig = {
     {
       name: "campaignRegex",
       type: "text",
+      label: "Regex",
       admin: {
-        description: "Pattern for auto-assigning this list to matching campaigns. Use .* to match anything. Examples: .*Search.* (any campaign with 'Search' in the name), .*Brand.* (any campaign with 'Brand'), .* (all campaigns). Leave blank to skip auto-assignment.",
+        description: "Pattern for auto-assigning this list to matching campaigns/ad groups. Use .* to match anything. Examples: .*Search.* (any campaign with 'Search' in the name), .*Brand.* (any campaign with 'Brand'), .* (all campaigns). Leave blank to skip auto-assignment.",
       },
     },
     {
