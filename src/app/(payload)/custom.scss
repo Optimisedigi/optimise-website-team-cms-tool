@@ -295,12 +295,15 @@
 }
 
 // Clear sub-item hierarchy — target both <a> (inactive) and <div> (active) nav links
+// Override Payload's default 17.5px to match sidebar-extras__link (13px)
 .nav .nav__link {
   color: rgba(255, 255, 255, 0.7);
   transition: color 150ms;
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 13px !important;
+  line-height: 22px !important;
 }
 .nav a.nav__link:hover,
 .nav a.nav__link:focus-visible,
@@ -454,10 +457,10 @@ $svg-close: "%3C/svg%3E";
     pointer-events: auto;
   }
 
-  // Collapse button — bottom-right of sidebar
+  // Collapse button — right edge of the sidebar panel, not the screen
   .mini-sidebar-collapse-btn {
-    left: auto !important;
-    right: 12px !important;
+    left: calc(var(--nav-width, 260px) - 44px) !important;
+    right: auto !important;
   }
 }
 
@@ -1650,8 +1653,22 @@ $svg-close: "%3C/svg%3E";
   }
 
   // ── Payload UI elements ──
+  // Breadcrumbs — only show the home icon + last item on mobile to avoid overlap
   .step-nav {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow: hidden;
+
+    // Hide everything except the home icon (first child) and the last two children
+    // (separator + current page label)
+    > *:not(:first-child):not(:last-child):not(:nth-last-child(2)) {
+      display: none !important;
+    }
+
+    // Let the last breadcrumb use full width, don't truncate it
+    > :last-child {
+      max-width: calc(100vw - 120px) !important;
+      flex-shrink: 1;
+    }
   }
 
   .doc-controls {
