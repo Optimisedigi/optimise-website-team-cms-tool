@@ -74,8 +74,6 @@ export interface Config {
     'process-templates': ProcessTemplate;
     'client-processes': ClientProcess;
     'meeting-schedulers': MeetingScheduler;
-    'client-timeline-templates': ClientTimelineTemplate;
-    'client-timelines': ClientTimeline;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
     'job-posts': JobPost;
@@ -110,12 +108,11 @@ export interface Config {
   };
   collectionsJoins: {
     clients: {
-      negativeKeywordLists: 'negative-keyword-lists';
       googleAdsAudits: 'google-ads-audits';
+      negativeKeywordLists: 'negative-keyword-lists';
       siteHealthReports: 'site-health-reports';
       tagSetupAudits: 'tag-setup-audits';
       clientProposals: 'client-proposals';
-      clientTimelines: 'client-timelines';
     };
     'client-proposals': {
       contracts: 'contracts';
@@ -129,8 +126,6 @@ export interface Config {
     'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
     'client-processes': ClientProcessesSelect<false> | ClientProcessesSelect<true>;
     'meeting-schedulers': MeetingSchedulersSelect<false> | MeetingSchedulersSelect<true>;
-    'client-timeline-templates': ClientTimelineTemplatesSelect<false> | ClientTimelineTemplatesSelect<true>;
-    'client-timelines': ClientTimelinesSelect<false> | ClientTimelinesSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
     'job-posts': JobPostsSelect<false> | JobPostsSelect<true>;
@@ -253,11 +248,11 @@ export interface Client {
    */
   clientPin?: string | null;
   /**
-   * Who built the website — determines whether GSC alerts are actionable (we fix) or advisory (we recommend)
+   * Used by the tag setup checker to determine if issues are auto-fixable (built by us) or advisory-only (external).
    */
   websiteType?: ('built_by_us' | 'external_cms') | null;
   /**
-   * Which CMS platform is the website built on?
+   * Which CMS platform is the website built on? Used by the tag setup checker to generate platform-specific fix instructions.
    */
   externalCms?: ('wordpress' | 'shopify' | 'squarespace' | 'wix' | 'webflow' | 'other') | null;
   /**
@@ -309,7 +304,7 @@ export interface Client {
       }[]
     | null;
   /**
-   * Primary conversion goal
+   * Primary conversion goal. Carried over from proposal. Shown on client reports.
    */
   conversionGoal?:
     | (
@@ -391,17 +386,9 @@ export interface Client {
    */
   googleAdsCustomerId?: string | null;
   /**
-   * Conversion action names to include in the Google Ads dashboard (one per line). Leave blank to show all conversions.
+   * Filters the Google Ads dashboard to only show these conversion actions (one per line). Leave blank to show all.
    */
   dashboardConversionActions?: string | null;
-  /**
-   * Negative keyword lists managed for this client
-   */
-  negativeKeywordLists?: {
-    docs?: (number | NegativeKeywordList)[];
-    hasNextPage?: boolean;
-    totalDocs?: number;
-  };
   /**
    * Goals, notes, and context about this client (legacy — use Notes tab for new notes)
    */
@@ -509,7 +496,7 @@ export interface Client {
    */
   clientGoals?: string | null;
   /**
-   * Consolidated keyword list (one per line)
+   * Consolidated keyword list (one per line). Used as reference for blog content strategy and client reporting.
    */
   keywords?: string | null;
   /**
@@ -575,6 +562,14 @@ export interface Client {
    */
   googleAdsAudits?: {
     docs?: (number | GoogleAdsAudit)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  /**
+   * Negative keyword lists managed for this client
+   */
+  negativeKeywordLists?: {
+    docs?: (number | NegativeKeywordList)[];
     hasNextPage?: boolean;
     totalDocs?: number;
   };
@@ -736,15 +731,15 @@ export interface Client {
     totalDocs?: number;
   };
   /**
-   * Blog categories for this client (one per line)
+   * Blog categories for this client (one per line). Pre-populates the category dropdown in the Blog Prompter.
    */
   blogCategories?: string | null;
   /**
-   * Available tags for this client (one per line)
+   * Available tags for this client (one per line). Pre-populates the tag options in the Blog Prompter.
    */
   blogTags?: string | null;
   /**
-   * Service or product/category pages for this client (one per line). Used to auto-populate the blog prompt requirements.
+   * Service or product/category pages for this client (one per line). Auto-inserted into generated blog prompts as internal linking requirements.
    */
   servicePages?: string | null;
   /**
@@ -794,15 +789,15 @@ export interface Client {
       }[]
     | null;
   /**
-   * GA4 Measurement ID (e.g., G-XXXXXXXXXX)
+   * GA4 Measurement ID (e.g., G-XXXXXXXXXX). Used by the tag setup audit to verify GA4 is properly installed on the site.
    */
   ga4MeasurementId?: string | null;
   /**
-   * GTM Container ID (e.g., GTM-XXXXXXX)
+   * GTM Container ID (e.g., GTM-XXXXXXX). Used by the tag setup audit and auto-generated bookmarks.
    */
   gtmContainerId?: string | null;
   /**
-   * Expected GA4 events to check for (one per line, e.g., purchase, add_to_cart, generate_lead)
+   * Expected GA4 events (one per line, e.g., purchase, add_to_cart, generate_lead). The tag setup audit checks the site for these specific events and flags missing ones.
    */
   expectedEvents?: string | null;
   /**
@@ -844,7 +839,7 @@ export interface Client {
   gscRefreshToken?: string | null;
   gscTokenExpiry?: string | null;
   /**
-   * Brand terms to filter out from generic query analysis (one per line)
+   * Brand terms to filter out from generic query analysis (one per line). Used by GSC monitoring, Google Ads dashboard, and quality score analysis to separate brand vs. generic traffic.
    */
   brandKeywords?: string | null;
   /**
@@ -855,14 +850,6 @@ export interface Client {
    * Most recent GSC data snapshot
    */
   latestGscSnapshot?: (number | null) | GscSnapshot;
-  /**
-   * Client timelines for this client
-   */
-  clientTimelines?: {
-    docs?: (number | ClientTimeline)[];
-    hasNextPage?: boolean;
-    totalDocs?: number;
-  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1138,7 +1125,7 @@ export interface ClientProposal {
    */
   slug: string;
   /**
-   * Prospect website URL
+   * Prospect website URL. Used by SEO, CRO, and content audits to crawl and analyse the site.
    */
   websiteUrl: string;
   /**
@@ -1158,7 +1145,7 @@ export interface ClientProposal {
    */
   numberOfLocations?: number | null;
   /**
-   * Google Maps listing URLs for GBP analysis
+   * Google Maps listing URLs. Used by the audit to analyse Google Business Profile listings against competitors.
    */
   googleMapsUrls?:
     | {
@@ -1174,7 +1161,7 @@ export interface ClientProposal {
       }[]
     | null;
   /**
-   * Type of business — used for audit weighting
+   * Drives SEO/CRO audit scoring weights, proposal report presentation, and carries over to the Client record on conversion.
    */
   businessType?:
     | (
@@ -1190,7 +1177,7 @@ export interface ClientProposal {
       )
     | null;
   /**
-   * Primary conversion goal — used for CRO audit
+   * Drives CRO audit analysis and is shown on the client-facing proposal report.
    */
   conversionGoal?:
     | (
@@ -1245,7 +1232,7 @@ export interface ClientProposal {
    */
   websiteMockupUrl?: string | null;
   /**
-   * Up to 6 keyword categories (e.g. by service). Each category becomes a separate table on the report. Keywords from all categories are combined for the audit.
+   * Up to 6 keyword categories (e.g. by service). Each category becomes a separate table on the report. All keywords across categories are sent to the audit engine for SEO ranking checks and competitor analysis.
    */
   keywordCategories?:
     | {
@@ -1265,7 +1252,7 @@ export interface ClientProposal {
    */
   keywords?: string | null;
   /**
-   * Location for keyword tracking and competitor analysis
+   * Determines the geo-location used for keyword volume lookups and competitor ranking checks.
    */
   targetLocation?:
     | (
@@ -1354,6 +1341,18 @@ export interface ClientProposal {
          * Google Maps listing URL
          */
         googleMapsUrl?: string | null;
+        /**
+         * Google Business Profile rating (1.0 - 5.0)
+         */
+        gbpRating?: number | null;
+        /**
+         * Number of Google reviews
+         */
+        gbpReviewCount?: number | null;
+        /**
+         * Does this business respond to reviews?
+         */
+        gbpRespondsToReviews?: boolean | null;
         /**
          * Override: mark this competitor as running Meta Ads
          */
@@ -1481,6 +1480,24 @@ export interface ClientProposal {
       }[]
     | null;
   /**
+   * Predefined recommendations for the Flight Plan slide. Enable each one to include it in the report.
+   */
+  flightPlanRecommendations?:
+    | {
+        /**
+         * Include this recommendation in the Flight Plan slide
+         */
+        enabled?: boolean | null;
+        title: string;
+        description?: string | null;
+        /**
+         * Short outcome statement (e.g. 'More leads from existing traffic')
+         */
+        benefit?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Select which content research keywords to show on the report. Leave empty to auto-select top 2 by search volume.
    */
   contentResearchKeywords?: (number | ContentResearch)[] | null;
@@ -1498,7 +1515,7 @@ export interface ClientProposal {
       }[]
     | null;
   /**
-   * Content for the Mission Resources slide. Supports bold, italic, underline, font size formatting.
+   * Content for the Mission Resources slide. Supports bold, italic, underline formatting.
    */
   missionResources?: {
     root: {
@@ -1516,7 +1533,7 @@ export interface ClientProposal {
     [k: string]: unknown;
   } | null;
   /**
-   * Content for the Launch Requirements slide. Supports bold, italic, underline, font size formatting.
+   * Content for the Launch Requirements slide. Supports bold, italic, underline formatting.
    */
   launchRequirements?: {
     root: {
@@ -1534,6 +1551,15 @@ export interface ClientProposal {
     [k: string]: unknown;
   } | null;
   excludedCompetitorDomains?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  hiddenKeywordCategories?:
     | {
         [k: string]: unknown;
       }
@@ -2050,7 +2076,7 @@ export interface GoogleAdsAudit {
    */
   websiteUrl?: string | null;
   /**
-   * Type of business
+   * Influences audit scoring weights and campaign proposal structure.
    */
   businessType?:
     | (
@@ -2066,7 +2092,7 @@ export interface GoogleAdsAudit {
       )
     | null;
   /**
-   * Client-stated monthly ad spend ($)
+   * Client-stated monthly ad spend ($). Sent to the audit engine to contextualise waste as a % of spend.
    */
   monthlySpend?: number | null;
   /**
@@ -2074,11 +2100,11 @@ export interface GoogleAdsAudit {
    */
   contactEmail?: string | null;
   /**
-   * What the client considers a conversion (one per line, e.g. form submissions, phone calls, purchases)
+   * What the client considers a conversion (one per line, e.g. form submissions, phone calls, purchases). Used by the audit engine and email to evaluate conversion tracking alignment.
    */
   conversionObjectives?: string | null;
   /**
-   * Brand terms for brand/generic classification (one per line)
+   * Brand terms for brand/generic classification (one per line). Used by the audit, campaign proposal, negative list builder, and email generation to identify and exclude brand search terms.
    */
   brandTerms?: string | null;
   /**
@@ -2301,7 +2327,7 @@ export interface GoogleAdsAudit {
   campaignBuildStartedAt?: string | null;
   campaignBuildCompletedAt?: string | null;
   /**
-   * Brand-specific headlines to include in every ad group (one per line, max 30 chars each). E.g. 'Malcolm Thompson Pumps', 'Call MTP Today', 'Since 1958'
+   * Brand-specific headlines included in every generated ad group's RSA headlines (one per line, max 30 chars each). E.g. 'Malcolm Thompson Pumps', 'Call MTP Today', 'Since 1958'
    */
   adCopyBrandHeadlines?: string | null;
   /**
@@ -3234,228 +3260,6 @@ export interface GscSnapshot {
   createdAt: string;
 }
 /**
- * Live client-facing timelines for periodic progress sharing
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "client-timelines".
- */
-export interface ClientTimeline {
-  id: number;
-  /**
-   * e.g. "Berenson — Google Ads 90-Day Timeline"
-   */
-  title: string;
-  /**
-   * The client this timeline belongs to
-   */
-  client: number | Client;
-  /**
-   * Template used to create this timeline
-   */
-  template?: (number | null) | ClientTimelineTemplate;
-  serviceType: 'google_ads' | 'seo' | 'meta_ads' | 'cro' | 'general';
-  overallStatus?: ('not_started' | 'in_progress' | 'completed' | 'on_hold') | null;
-  /**
-   * When this timeline started
-   */
-  startDate?: string | null;
-  /**
-   * When this timeline is expected to end
-   */
-  endDate?: string | null;
-  /**
-   * General notes for this timeline
-   */
-  notes?: string | null;
-  /**
-   * Edit phases and items in the table below — inline editing, add/remove, reorder
-   */
-  phases?:
-    | {
-        phaseName: string;
-        phaseOrder: number;
-        weekRange?: string | null;
-        phaseDescription?: string | null;
-        items?:
-          | {
-              itemName: string;
-              itemOrder: number;
-              itemDescription?: string | null;
-              /**
-               * Estimated hours for this task (used to calculate progress weighting). Leave blank to count as 1 hour.
-               */
-              estimatedHours?: number | null;
-              itemStatus?: ('not_started' | 'in_progress' | 'completed' | 'skipped') | null;
-              /**
-               * When this item was completed
-               */
-              completedAt?: string | null;
-              /**
-               * Who completed this item
-               */
-              completedBy?: (number | null) | User;
-              requiresApproval?: boolean | null;
-              approvalStatus?:
-                | (
-                    | 'not_needed'
-                    | 'in_progress'
-                    | 'action_required'
-                    | 'awaiting_approval'
-                    | 'pending_approval'
-                    | 'approved'
-                  )
-                | null;
-              /**
-               * When the client approved this item
-               */
-              clientApprovedAt?: string | null;
-              /**
-               * Team-only notes — not shown to the client
-               */
-              internalNotes?: string | null;
-              id?: string | null;
-            }[]
-          | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * When this timeline was last shared with the client
-   */
-  lastSharedAt?: string | null;
-  /**
-   * Number of times shared with the client
-   */
-  sharedCount?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Client-facing timeline templates — simplified phases shown to clients. Access via the Templates tab inside a Client Timeline.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "client-timeline-templates".
- */
-export interface ClientTimelineTemplate {
-  id: number;
-  /**
-   * Template name, e.g. "Google Ads 90-Day Onboarding"
-   */
-  name: string;
-  /**
-   * URL-friendly identifier (auto-generated from name)
-   */
-  slug: string;
-  /**
-   * Which service this timeline is for
-   */
-  serviceType: 'google_ads' | 'seo' | 'meta_ads' | 'cro' | 'general';
-  /**
-   * Total timeline duration in days (e.g. 90)
-   */
-  durationDays: number;
-  /**
-   * Brief overview shown at the top of the client timeline
-   */
-  description?: string | null;
-  /**
-   * Default template for its service type
-   */
-  isDefault?: boolean | null;
-  /**
-   * Enable or disable this template
-   */
-  isActive?: boolean | null;
-  /**
-   * Ordered phases of the client-facing timeline
-   */
-  phases?:
-    | {
-        /**
-         * Phase name, e.g. "Quick Wins"
-         */
-        phaseName: string;
-        /**
-         * Display order (1 = first phase)
-         */
-        phaseOrder: number;
-        /**
-         * e.g. "Weeks 1–2", "Beyond Week 5"
-         */
-        weekRange?: string | null;
-        /**
-         * What this phase covers — shown to the client
-         */
-        phaseDescription?: string | null;
-        /**
-         * Tasks and milestones within this phase
-         */
-        items?:
-          | {
-              /**
-               * The task or milestone, e.g. "Fix form tracking"
-               */
-              itemName: string;
-              /**
-               * Display order within the phase
-               */
-              itemOrder: number;
-              /**
-               * Additional detail (optional, shown to client)
-               */
-              itemDescription?: string | null;
-              /**
-               * Show "Your approval needed" badge for this item
-               */
-              requiresApproval?: boolean | null;
-              /**
-               * Team-only notes — not shown to the client
-               */
-              internalNotes?: string | null;
-              id?: string | null;
-            }[]
-          | null;
-        id?: string | null;
-      }[]
-    | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
- */
-export interface User {
-  id: number;
-  name: string;
-  role: 'admin' | 'manager' | 'specialist';
-  /**
-   * Whether this user has completed their first-login setup
-   */
-  setupCompleted?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-  enableAPIKey?: boolean | null;
-  apiKey?: string | null;
-  apiKeyIndex?: string | null;
-  email: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
-  sessions?:
-    | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
-      }[]
-    | null;
-  password?: string | null;
-  collection: 'users';
-}
-/**
  * Track leads through the sales funnel by channel
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3679,6 +3483,10 @@ export interface ProcessTemplate {
          */
         phaseDescription?: string | null;
         /**
+         * Client-facing week range, e.g. "Weeks 1-2"
+         */
+        weekRange?: string | null;
+        /**
          * Steps within this phase
          */
         steps?:
@@ -3733,12 +3541,32 @@ export interface ProcessTemplate {
                * Must complete before moving to next step
                */
               requiredBeforeNext?: boolean | null;
+              /**
+               * Show this step in the client-facing email/timeline
+               */
+              clientVisible?: boolean | null;
+              /**
+               * Friendly name for client view (e.g. "Analytics Review" instead of "Run GA4 audit + tag check")
+               */
+              clientLabel?: string | null;
+              /**
+               * Shows "Your approval needed" badge to client
+               */
+              requiresApproval?: boolean | null;
+              /**
+               * Team-only notes, never shown to client
+               */
+              internalNotes?: string | null;
               id?: string | null;
             }[]
           | null;
         id?: string | null;
       }[]
     | null;
+  /**
+   * Default timeline duration in days (used for week progress in client emails)
+   */
+  durationDays?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3799,6 +3627,10 @@ export interface ClientProcess {
         phaseName: string;
         phaseOrder: number;
         phaseDescription?: string | null;
+        /**
+         * Client-facing week range, e.g. "Weeks 1-2"
+         */
+        weekRange?: string | null;
         phaseStatus?: ('not_started' | 'in_progress' | 'completed' | 'skipped') | null;
         steps?:
           | {
@@ -3821,6 +3653,41 @@ export interface ClientProcess {
               emailTemplateBody?: string | null;
               reminderDays?: number | null;
               requiredBeforeNext?: boolean | null;
+              /**
+               * Show this step in the client-facing email/timeline
+               */
+              clientVisible?: boolean | null;
+              /**
+               * Friendly name for client view
+               */
+              clientLabel?: string | null;
+              /**
+               * Shows "Your approval needed" badge to client
+               */
+              requiresApproval?: boolean | null;
+              approvalStatus?:
+                | (
+                    | 'not_needed'
+                    | 'in_progress'
+                    | 'action_required'
+                    | 'awaiting_approval'
+                    | 'pending_approval'
+                    | 'approved'
+                  )
+                | null;
+              clientApprovedAt?: string | null;
+              /**
+               * Estimated hours (used for weighted progress in client view)
+               */
+              estimatedHours?: number | null;
+              /**
+               * Who completed this step
+               */
+              completedBy?: (number | null) | User;
+              /**
+               * Team-only notes, never shown to client
+               */
+              internalNotes?: string | null;
               /**
                * Notes specific to this step for this client
                */
@@ -3855,8 +3722,62 @@ export interface ClientProcess {
    * When this process was completed
    */
   completedAt?: string | null;
+  /**
+   * Client-facing timeline start date
+   */
+  startDate?: string | null;
+  /**
+   * Client-facing timeline end date
+   */
+  endDate?: string | null;
+  /**
+   * Timeline duration in days
+   */
+  durationDays?: number | null;
+  /**
+   * Last time this was shared with the client
+   */
+  lastSharedAt?: string | null;
+  /**
+   * Number of times shared with client
+   */
+  sharedCount?: number | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users".
+ */
+export interface User {
+  id: number;
+  name: string;
+  role: 'admin' | 'manager' | 'specialist';
+  /**
+   * Whether this user has completed their first-login setup
+   */
+  setupCompleted?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
+  collection: 'users';
 }
 /**
  * Schedule meetings with multiple client contacts by finding overlapping availability
@@ -4827,14 +4748,6 @@ export interface PayloadLockedDocument {
         value: number | MeetingScheduler;
       } | null)
     | ({
-        relationTo: 'client-timeline-templates';
-        value: number | ClientTimelineTemplate;
-      } | null)
-    | ({
-        relationTo: 'client-timelines';
-        value: number | ClientTimeline;
-      } | null)
-    | ({
         relationTo: 'blog-posts';
         value: number | BlogPost;
       } | null)
@@ -5037,7 +4950,6 @@ export interface ClientsSelect<T extends boolean = true> {
   signedContract?: T;
   googleAdsCustomerId?: T;
   dashboardConversionActions?: T;
-  negativeKeywordLists?: T;
   legacyNotes?: T;
   retainerHistory?:
     | T
@@ -5085,6 +4997,7 @@ export interface ClientsSelect<T extends boolean = true> {
         id?: T;
       };
   googleAdsAudits?: T;
+  negativeKeywordLists?: T;
   gadsAuto?:
     | T
     | {
@@ -5193,7 +5106,6 @@ export interface ClientsSelect<T extends boolean = true> {
   brandKeywords?: T;
   gscLastSync?: T;
   latestGscSnapshot?: T;
-  clientTimelines?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -5248,6 +5160,9 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         name?: T;
         websiteUrl?: T;
         googleMapsUrl?: T;
+        gbpRating?: T;
+        gbpReviewCount?: T;
+        gbpRespondsToReviews?: T;
         hasMetaAds?: T;
         googleAdScreenshots?:
           | T
@@ -5283,6 +5198,15 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         caption?: T;
         id?: T;
       };
+  flightPlanRecommendations?:
+    | T
+    | {
+        enabled?: T;
+        title?: T;
+        description?: T;
+        benefit?: T;
+        id?: T;
+      };
   contentResearchKeywords?: T;
   missionResourcesImages?:
     | T
@@ -5294,6 +5218,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   missionResources?: T;
   launchRequirements?: T;
   excludedCompetitorDomains?: T;
+  hiddenKeywordCategories?: T;
   excludedKeywords?: T;
   excludedContentQuestions?: T;
   slideNotes?: T;
@@ -5413,6 +5338,7 @@ export interface ProcessTemplatesSelect<T extends boolean = true> {
         phaseName?: T;
         phaseOrder?: T;
         phaseDescription?: T;
+        weekRange?: T;
         steps?:
           | T
           | {
@@ -5428,10 +5354,15 @@ export interface ProcessTemplatesSelect<T extends boolean = true> {
               emailTemplateBody?: T;
               reminderDays?: T;
               requiredBeforeNext?: T;
+              clientVisible?: T;
+              clientLabel?: T;
+              requiresApproval?: T;
+              internalNotes?: T;
               id?: T;
             };
         id?: T;
       };
+  durationDays?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -5454,6 +5385,7 @@ export interface ClientProcessesSelect<T extends boolean = true> {
         phaseName?: T;
         phaseOrder?: T;
         phaseDescription?: T;
+        weekRange?: T;
         phaseStatus?: T;
         steps?:
           | T
@@ -5472,6 +5404,14 @@ export interface ClientProcessesSelect<T extends boolean = true> {
               emailTemplateBody?: T;
               reminderDays?: T;
               requiredBeforeNext?: T;
+              clientVisible?: T;
+              clientLabel?: T;
+              requiresApproval?: T;
+              approvalStatus?: T;
+              clientApprovedAt?: T;
+              estimatedHours?: T;
+              completedBy?: T;
+              internalNotes?: T;
               notes?: T;
               id?: T;
             };
@@ -5489,6 +5429,11 @@ export interface ClientProcessesSelect<T extends boolean = true> {
   overallStatus?: T;
   startedAt?: T;
   completedAt?: T;
+  startDate?: T;
+  endDate?: T;
+  durationDays?: T;
+  lastSharedAt?: T;
+  sharedCount?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -5526,83 +5471,6 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
   googleEventLink?: T;
   status?: T;
   slug?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "client-timeline-templates_select".
- */
-export interface ClientTimelineTemplatesSelect<T extends boolean = true> {
-  name?: T;
-  slug?: T;
-  serviceType?: T;
-  durationDays?: T;
-  description?: T;
-  isDefault?: T;
-  isActive?: T;
-  phases?:
-    | T
-    | {
-        phaseName?: T;
-        phaseOrder?: T;
-        weekRange?: T;
-        phaseDescription?: T;
-        items?:
-          | T
-          | {
-              itemName?: T;
-              itemOrder?: T;
-              itemDescription?: T;
-              requiresApproval?: T;
-              internalNotes?: T;
-              id?: T;
-            };
-        id?: T;
-      };
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "client-timelines_select".
- */
-export interface ClientTimelinesSelect<T extends boolean = true> {
-  title?: T;
-  client?: T;
-  template?: T;
-  serviceType?: T;
-  overallStatus?: T;
-  startDate?: T;
-  endDate?: T;
-  notes?: T;
-  phases?:
-    | T
-    | {
-        phaseName?: T;
-        phaseOrder?: T;
-        weekRange?: T;
-        phaseDescription?: T;
-        items?:
-          | T
-          | {
-              itemName?: T;
-              itemOrder?: T;
-              itemDescription?: T;
-              estimatedHours?: T;
-              itemStatus?: T;
-              completedAt?: T;
-              completedBy?: T;
-              requiresApproval?: T;
-              approvalStatus?: T;
-              clientApprovedAt?: T;
-              internalNotes?: T;
-              id?: T;
-            };
-        id?: T;
-      };
-  lastSharedAt?: T;
-  sharedCount?: T;
   updatedAt?: T;
   createdAt?: T;
 }

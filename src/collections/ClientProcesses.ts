@@ -200,6 +200,13 @@ export const ClientProcesses: CollectionConfig = {
                   type: "textarea",
                 },
                 {
+                  name: "weekRange",
+                  type: "text",
+                  admin: {
+                    description: 'Client-facing week range, e.g. "Weeks 1-2"',
+                  },
+                },
+                {
                   name: "phaseStatus",
                   type: "select",
                   defaultValue: "not_started",
@@ -314,6 +321,81 @@ export const ClientProcesses: CollectionConfig = {
                       defaultValue: false,
                     },
                     {
+                      name: "clientVisible",
+                      type: "checkbox",
+                      defaultValue: false,
+                      admin: {
+                        description: "Show this step in the client-facing email/timeline",
+                      },
+                    },
+                    {
+                      name: "clientLabel",
+                      type: "text",
+                      admin: {
+                        description: "Friendly name for client view",
+                        condition: (_data: any, siblingData: any) =>
+                          siblingData?.clientVisible,
+                      },
+                    },
+                    {
+                      name: "requiresApproval",
+                      type: "checkbox",
+                      defaultValue: false,
+                      admin: {
+                        description: 'Shows "Your approval needed" badge to client',
+                        condition: (_data: any, siblingData: any) =>
+                          siblingData?.clientVisible,
+                      },
+                    },
+                    {
+                      name: "approvalStatus",
+                      type: "select",
+                      defaultValue: "not_needed",
+                      admin: {
+                        condition: (_data: any, siblingData: any) =>
+                          siblingData?.requiresApproval,
+                      },
+                      options: [
+                        { label: "Not Needed", value: "not_needed" },
+                        { label: "In Progress", value: "in_progress" },
+                        { label: "Action Required", value: "action_required" },
+                        { label: "Awaiting Approval", value: "awaiting_approval" },
+                        { label: "Pending Approval", value: "pending_approval" },
+                        { label: "Approved", value: "approved" },
+                      ],
+                    },
+                    {
+                      name: "clientApprovedAt",
+                      type: "date",
+                      admin: {
+                        condition: (_data: any, siblingData: any) =>
+                          siblingData?.approvalStatus === "approved",
+                      },
+                    },
+                    {
+                      name: "estimatedHours",
+                      type: "number",
+                      admin: {
+                        step: 0.5,
+                        description: "Estimated hours (used for weighted progress in client view)",
+                      },
+                    },
+                    {
+                      name: "completedBy",
+                      type: "relationship",
+                      relationTo: "users",
+                      admin: {
+                        description: "Who completed this step",
+                      },
+                    },
+                    {
+                      name: "internalNotes",
+                      type: "textarea",
+                      admin: {
+                        description: "Team-only notes, never shown to client",
+                      },
+                    },
+                    {
                       name: "notes",
                       type: "textarea",
                       admin: {
@@ -393,6 +475,51 @@ export const ClientProcesses: CollectionConfig = {
       admin: {
         position: "sidebar",
         description: "When this process was completed",
+      },
+    },
+    {
+      name: "startDate",
+      type: "date",
+      admin: {
+        position: "sidebar",
+        description: "Client-facing timeline start date",
+      },
+    },
+    {
+      name: "endDate",
+      type: "date",
+      admin: {
+        position: "sidebar",
+        description: "Client-facing timeline end date",
+      },
+    },
+    {
+      name: "durationDays",
+      type: "number",
+      min: 1,
+      max: 365,
+      admin: {
+        position: "sidebar",
+        description: "Timeline duration in days",
+      },
+    },
+    {
+      name: "lastSharedAt",
+      type: "date",
+      admin: {
+        position: "sidebar",
+        readOnly: true,
+        description: "Last time this was shared with the client",
+      },
+    },
+    {
+      name: "sharedCount",
+      type: "number",
+      defaultValue: 0,
+      admin: {
+        position: "sidebar",
+        readOnly: true,
+        description: "Number of times shared with client",
       },
     },
   ],

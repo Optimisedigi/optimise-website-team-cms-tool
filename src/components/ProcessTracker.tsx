@@ -23,6 +23,12 @@ type Step = {
   emailTemplateBody?: string
   reminderDays?: number
   requiredBeforeNext?: boolean
+  clientVisible?: boolean
+  clientLabel?: string
+  requiresApproval?: boolean
+  approvalStatus?: string
+  estimatedHours?: number
+  internalNotes?: string
   notes?: string
   outcome?: string
   emailDraft?: string
@@ -34,6 +40,7 @@ type Phase = {
   phaseName: string
   phaseOrder: number
   phaseDescription?: string
+  weekRange?: string
   phaseStatus: 'not_started' | 'in_progress' | 'completed' | 'skipped'
   steps: Step[]
 }
@@ -43,6 +50,10 @@ type ProcessDoc = {
   processTitle: string
   overallStatus: string
   phases: Phase[]
+  startDate?: string
+  endDate?: string
+  lastSharedAt?: string
+  sharedCount?: number
 }
 
 /* ------------------------------------------------------------------ */
@@ -79,6 +90,247 @@ const NEXT_STATUS: Record<string, string> = {
   completed: 'not_started',
 }
 
+const APPROVAL_STATUS_COLORS: Record<string, string> = {
+  not_needed: '#9CA3AF',
+  in_progress: '#3B82F6',
+  action_required: '#EF4444',
+  awaiting_approval: '#F59E0B',
+  pending_approval: '#F59E0B',
+  approved: '#10B981',
+}
+
+const APPROVAL_STATUS_LABELS: Record<string, string> = {
+  not_needed: 'Not needed',
+  in_progress: 'In progress',
+  action_required: 'Action required',
+  awaiting_approval: 'Awaiting approval',
+  pending_approval: 'Pending',
+  approved: 'Approved',
+}
+
+/* ------------------------------------------------------------------ */
+/* Email Preview Modal                                                  */
+/* ------------------------------------------------------------------ */
+
+function EmailPreviewModal({
+  id,
+  onClose,
+}: {
+  id: string
+  onClose: () => void
+}) {
+  const [html, setHtml] = useState<string>('')
+  const [plain, setPlain] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState<'html' | 'plain' | 'gmail' | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [shared, setShared] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/client-processes/${id}/email-preview`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        setHtml(d.html ?? '')
+        setPlain(d.plain ?? '')
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [id])
+
+  const copyToClipboard = async (text: string, type: 'html' | 'plain') => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(type)
+      setTimeout(() => setCopied(null), 2000)
+    } catch {}
+  }
+
+  const copyHtmlForGmail = async () => {
+    if (!html) return
+    try {
+      const blob = new Blob([html], { type: 'text/html' })
+      const clipboardItem = new ClipboardItem({
+        'text/html': blob,
+        'text/plain': new Blob([plain], { type: 'text/plain' }),
+      })
+      await navigator.clipboard.write([clipboardItem])
+      setCopied('gmail')
+      setTimeout(() => setCopied(null), 2500)
+    } catch {
+      await navigator.clipboard.writeText(plain)
+      setCopied('plain')
+      setTimeout(() => setCopied(null), 2500)
+    }
+  }
+
+  const markShared = async () => {
+    setSharing(true)
+    try {
+      await fetch(`/api/client-processes/${id}/share`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      setShared(true)
+      setTimeout(onClose, 1500)
+    } catch {}
+    setSharing(false)
+  }
+
+  return (
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}
+    >
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 12,
+          width: '100%',
+          maxWidth: 780,
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '20px 24px',
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>Share with Client</div>
+            <div style={{ fontSize: 13, color: '#6b7280' }}>
+              Copy the email below and paste into your client update
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 24,
+              cursor: 'pointer',
+              color: '#6b7280',
+              lineHeight: 1,
+            }}
+          >
+            x
+          </button>
+        </div>
+        <div
+          style={{
+            padding: '12px 24px',
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
+          {loading ? (
+            <span style={{ color: '#6b7280', fontSize: 13 }}>Generating preview...</span>
+          ) : (
+            <>
+              <button
+                onClick={copyHtmlForGmail}
+                style={{
+                  padding: '6px 14px',
+                  background: copied === 'gmail' ? '#10B981' : '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                {copied === 'gmail' ? 'Copied!' : 'Copy for Gmail'}
+              </button>
+              <button
+                onClick={() => copyToClipboard(html, 'html')}
+                style={{
+                  padding: '6px 14px',
+                  background: copied === 'html' ? '#10B981' : '#1f2937',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                {copied === 'html' ? 'Copied!' : 'Copy HTML'}
+              </button>
+              <button
+                onClick={() => copyToClipboard(plain, 'plain')}
+                style={{
+                  padding: '6px 14px',
+                  background: copied === 'plain' ? '#10B981' : '#374151',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                {copied === 'plain' ? 'Copied!' : 'Copy plain text'}
+              </button>
+              <button
+                onClick={markShared}
+                disabled={sharing || shared}
+                style={{
+                  padding: '6px 14px',
+                  background: shared ? '#10B981' : '#2563EB',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  cursor: sharing || shared ? 'default' : 'pointer',
+                  opacity: sharing ? 0.7 : 1,
+                }}
+              >
+                {shared ? 'Marked as shared' : sharing ? 'Saving...' : 'Mark as Shared'}
+              </button>
+            </>
+          )}
+        </div>
+        <div style={{ flex: 1, overflow: 'auto', padding: 0 }}>
+          {loading ? (
+            <div style={{ padding: 48, textAlign: 'center', color: '#6b7280' }}>
+              Loading preview...
+            </div>
+          ) : (
+            <iframe
+              srcDoc={html}
+              title="Email Preview"
+              style={{ width: '100%', height: '100%', minHeight: 400, border: 'none' }}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
@@ -90,6 +342,7 @@ function ProcessTracker() {
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set())
   const [loadingStep, setLoadingStep] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [showEmailModal, setShowEmailModal] = useState(false)
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(null)
 
   // Fetch document data
@@ -187,6 +440,11 @@ function ProcessTracker() {
   const phases = doc.phases || []
   if (phases.length === 0) return null
 
+  // Check if any steps are client-visible (determines whether to show the share button)
+  const hasClientVisibleSteps = phases.some((p) =>
+    (p.steps || []).some((s) => s.clientVisible),
+  )
+
   // Compute overall completion
   const totalSteps = phases.reduce((sum, p) => sum + (p.steps?.length || 0), 0)
   const completedSteps = phases.reduce(
@@ -224,6 +482,21 @@ function ProcessTracker() {
         </div>
       )}
 
+      {/* Email Preview Modal */}
+      {showEmailModal && id && (
+        <EmailPreviewModal
+          id={String(id)}
+          onClose={() => {
+            setShowEmailModal(false)
+            // Re-fetch to get updated sharedCount/lastSharedAt
+            fetch(`/api/client-processes/${id}?depth=0`, { credentials: 'include' })
+              .then((res) => res.json())
+              .then((data) => { if (data?.id) setDoc(data) })
+              .catch(() => {})
+          }}
+        />
+      )}
+
       {/* Overall Progress Bar */}
       <div style={{ marginBottom: 20 }}>
         <div
@@ -237,9 +510,29 @@ function ProcessTracker() {
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--theme-elevation-600)' }}>
             Overall Progress
           </span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: STATUS_COLORS.in_progress }}>
-            {completionPct}%
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {hasClientVisibleSteps && (
+              <button
+                type="button"
+                onClick={() => setShowEmailModal(true)}
+                style={{
+                  padding: '5px 14px',
+                  background: '#2563EB',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Share with Client
+              </button>
+            )}
+            <span style={{ fontSize: 13, fontWeight: 700, color: STATUS_COLORS.in_progress }}>
+              {completionPct}%
+            </span>
+          </div>
         </div>
         <div
           style={{
@@ -268,9 +561,21 @@ function ProcessTracker() {
             fontSize: 11,
             color: 'var(--theme-elevation-400)',
             marginTop: 4,
+            display: 'flex',
+            justifyContent: 'space-between',
           }}
         >
-          {completedSteps} of {totalSteps} steps completed
+          <span>{completedSteps} of {totalSteps} steps completed</span>
+          {doc.lastSharedAt && (
+            <span>
+              Last shared:{' '}
+              {new Date(doc.lastSharedAt).toLocaleDateString('en-AU', {
+                day: 'numeric',
+                month: 'short',
+              })}
+              {doc.sharedCount ? ` (${doc.sharedCount}x)` : ''}
+            </span>
+          )}
         </div>
       </div>
 
@@ -487,6 +792,40 @@ function ProcessTracker() {
 
                     {/* Badges */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      {/* Client-visible badge */}
+                      {step.clientVisible && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            padding: '2px 5px',
+                            borderRadius: 4,
+                            background: '#DBEAFE',
+                            color: '#1E40AF',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.03em',
+                          }}
+                        >
+                          Client
+                        </span>
+                      )}
+
+                      {/* Approval status badge */}
+                      {step.requiresApproval && step.approvalStatus && step.approvalStatus !== 'not_needed' && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            padding: '2px 5px',
+                            borderRadius: 4,
+                            background: `${APPROVAL_STATUS_COLORS[step.approvalStatus] || '#9CA3AF'}18`,
+                            color: APPROVAL_STATUS_COLORS[step.approvalStatus] || '#9CA3AF',
+                          }}
+                        >
+                          {APPROVAL_STATUS_LABELS[step.approvalStatus] || step.approvalStatus}
+                        </span>
+                      )}
+
                       {/* Type badge */}
                       {step.stepType && typeInfo && (
                         <span

@@ -7,6 +7,8 @@ type Process = {
   id: string
   processTitle: string
   overallStatus: string
+  lastSharedAt?: string
+  sharedCount?: number
   phases?: Array<{
     steps?: Array<{ stepStatus?: string }>
   }>
@@ -141,6 +143,16 @@ const LinkedProcesses = () => {
                   {pct}%
                 </span>
               </div>
+              {proc.lastSharedAt && (
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                  Last shared{' '}
+                  {new Date(proc.lastSharedAt).toLocaleDateString('en-AU', {
+                    day: 'numeric',
+                    month: 'short',
+                  })}
+                  {proc.sharedCount ? ` (${proc.sharedCount}x)` : ''}
+                </div>
+              )}
             </a>
           )
         })}

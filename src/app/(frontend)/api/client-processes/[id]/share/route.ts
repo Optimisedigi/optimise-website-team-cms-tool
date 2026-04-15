@@ -4,9 +4,10 @@ import config from "@/payload.config";
 import { logActivity } from "@/lib/activity-log";
 
 /**
- * POST /api/client-timelines/[id]/share
+ * POST /api/client-processes/[id]/share
  *
- * Marks a timeline as shared — increments sharedCount and sets lastSharedAt.
+ * Marks a process as shared with the client.
+ * Increments sharedCount and sets lastSharedAt.
  *
  * Auth: Payload session OR x-api-key matching AUDIT_API_KEY.
  */
@@ -26,9 +27,8 @@ export async function POST(
     const { id } = await params;
     const now = new Date().toISOString();
 
-    // Get current doc to increment sharedCount
     const doc = await payload.findByID({
-      collection: "client-timelines" as any,
+      collection: "client-processes" as any,
       id,
       depth: 0,
       overrideAccess: true,
@@ -40,7 +40,7 @@ export async function POST(
 
     const docAny = doc as any;
     const updated = await payload.update({
-      collection: "client-timelines" as any,
+      collection: "client-processes" as any,
       id,
       data: {
         lastSharedAt: now,
@@ -49,7 +49,6 @@ export async function POST(
       overrideAccess: true,
     });
 
-    // Log activity
     const updatedAny = updated as any;
     const clientId =
       typeof updatedAny.client === "object"
@@ -57,8 +56,8 @@ export async function POST(
         : updatedAny.client;
 
     logActivity(payload, {
-      type: "timeline_shared" as any,
-      title: `Timeline shared: ${updatedAny.title}`,
+      type: "process_shared" as any,
+      title: `Process shared: ${updatedAny.processTitle}`,
       user: user?.id,
       client: clientId,
     }).catch(() => {});
@@ -69,7 +68,7 @@ export async function POST(
       sharedCount: updatedAny.sharedCount,
     });
   } catch (err) {
-    console.error("[client-timelines/share] Error:", err);
+    console.error("[client-processes/share] Error:", err);
     return NextResponse.json(
       { error: "Failed to mark as shared", details: String(err) },
       { status: 500 },

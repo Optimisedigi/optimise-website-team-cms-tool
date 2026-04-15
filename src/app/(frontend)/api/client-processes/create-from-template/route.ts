@@ -33,6 +33,9 @@ export async function POST(req: NextRequest) {
       clientName,
       assignedToId,
       retainerType: retainerTypeOverride,
+      startDate,
+      endDate,
+      durationDays,
     } = body;
 
     // Validate required fields
@@ -82,6 +85,7 @@ export async function POST(req: NextRequest) {
       phaseName: phase.phaseName,
       phaseOrder: phase.phaseOrder,
       phaseDescription: phase.phaseDescription || undefined,
+      weekRange: phase.weekRange || undefined,
       phaseStatus: "not_started",
       steps: (phase.steps || []).map((step: any) => ({
         stepName: step.stepName,
@@ -97,6 +101,11 @@ export async function POST(req: NextRequest) {
         emailTemplateBody: step.emailTemplateBody || undefined,
         reminderDays: step.reminderDays ?? undefined,
         requiredBeforeNext: step.requiredBeforeNext || false,
+        clientVisible: step.clientVisible || false,
+        clientLabel: step.clientLabel || undefined,
+        requiresApproval: step.requiresApproval || false,
+        approvalStatus: step.requiresApproval ? "not_needed" : "not_needed",
+        internalNotes: step.internalNotes || undefined,
       })),
     }));
 
@@ -125,6 +134,10 @@ export async function POST(req: NextRequest) {
     if (salesLeadId) processData.salesLead = salesLeadId;
     if (proposalId) processData.proposal = proposalId;
     if (assignedToId) processData.assignedTo = assignedToId;
+    if (startDate) processData.startDate = startDate;
+    if (endDate) processData.endDate = endDate;
+    if (durationDays) processData.durationDays = durationDays;
+    else if (template.durationDays) processData.durationDays = template.durationDays;
 
     const doc = await payload.create({
       collection: "client-processes" as any,

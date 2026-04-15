@@ -284,7 +284,7 @@ export const Clients: CollectionConfig = {
               type: "select",
               admin: {
                 description:
-                  "Who built the website — determines whether GSC alerts are actionable (we fix) or advisory (we recommend)",
+                  "Used by the tag setup checker to determine if issues are auto-fixable (built by us) or advisory-only (external).",
               },
               options: [
                 { label: "Built by Us", value: "built_by_us" },
@@ -295,7 +295,7 @@ export const Clients: CollectionConfig = {
               name: "externalCms",
               type: "select",
               admin: {
-                description: "Which CMS platform is the website built on?",
+                description: "Which CMS platform is the website built on? Used by the tag setup checker to generate platform-specific fix instructions.",
                 condition: (data: any) => data?.websiteType === "external_cms",
               },
               options: [
@@ -404,7 +404,7 @@ export const Clients: CollectionConfig = {
               name: "conversionGoal",
               type: "select",
               admin: {
-                description: "Primary conversion goal",
+                description: "Primary conversion goal. Carried over from proposal. Shown on client reports.",
               },
               options: [
                 { label: "Lead Generation", value: "lead generation" },
@@ -545,17 +545,8 @@ export const Clients: CollectionConfig = {
               type: "textarea",
               admin: {
                 description:
-                  "Conversion action names to include in the Google Ads dashboard (one per line). Leave blank to show all conversions.",
+                  "Filters the Google Ads dashboard to only show these conversion actions (one per line). Leave blank to show all.",
                 condition: (data: any) => !!data?.googleAdsCustomerId,
-              },
-            },
-            {
-              name: "negativeKeywordLists",
-              type: "join",
-              collection: "negative-keyword-lists",
-              on: "client",
-              admin: {
-                description: "Negative keyword lists managed for this client",
               },
             },
             {
@@ -807,7 +798,7 @@ export const Clients: CollectionConfig = {
               name: "keywords",
               type: "textarea",
               admin: {
-                description: "Consolidated keyword list (one per line)",
+                description: "Consolidated keyword list (one per line). Used as reference for blog content strategy and client reporting.",
               },
             },
             {
@@ -940,6 +931,17 @@ export const Clients: CollectionConfig = {
                 components: {
                   Field: "./components/OpenNegativeListBuilderButton",
                 },
+              },
+            },
+
+            // ─ Negative Keyword Lists ─
+            {
+              name: "negativeKeywordLists",
+              type: "join",
+              collection: "negative-keyword-lists",
+              on: "client",
+              admin: {
+                description: "Negative keyword lists managed for this client",
               },
             },
 
@@ -1397,21 +1399,21 @@ export const Clients: CollectionConfig = {
               name: "blogCategories",
               type: "textarea",
               admin: {
-                description: "Blog categories for this client (one per line)",
+                description: "Blog categories for this client (one per line). Pre-populates the category dropdown in the Blog Prompter.",
               },
             },
             {
               name: "blogTags",
               type: "textarea",
               admin: {
-                description: "Available tags for this client (one per line)",
+                description: "Available tags for this client (one per line). Pre-populates the tag options in the Blog Prompter.",
               },
             },
             {
               name: "servicePages",
               type: "textarea",
               admin: {
-                description: "Service or product/category pages for this client (one per line). Used to auto-populate the blog prompt requirements.",
+                description: "Service or product/category pages for this client (one per line). Auto-inserted into generated blog prompts as internal linking requirements.",
               },
             },
           ],
@@ -1537,7 +1539,7 @@ export const Clients: CollectionConfig = {
               name: "ga4MeasurementId",
               type: "text",
               admin: {
-                description: "GA4 Measurement ID (e.g., G-XXXXXXXXXX)",
+                description: "GA4 Measurement ID (e.g., G-XXXXXXXXXX). Used by the tag setup audit to verify GA4 is properly installed on the site.",
                 placeholder: "G-",
               },
               validate: (value: string | null | undefined) => {
@@ -1552,7 +1554,7 @@ export const Clients: CollectionConfig = {
               name: "gtmContainerId",
               type: "text",
               admin: {
-                description: "GTM Container ID (e.g., GTM-XXXXXXX)",
+                description: "GTM Container ID (e.g., GTM-XXXXXXX). Used by the tag setup audit and auto-generated bookmarks.",
                 placeholder: "GTM-",
               },
               validate: (value: string | null | undefined) => {
@@ -1568,7 +1570,7 @@ export const Clients: CollectionConfig = {
               type: "textarea",
               admin: {
                 description:
-                  "Expected GA4 events to check for (one per line, e.g., purchase, add_to_cart, generate_lead)",
+                  "Expected GA4 events (one per line, e.g., purchase, add_to_cart, generate_lead). The tag setup audit checks the site for these specific events and flags missing ones.",
               },
             },
             // ─ Linked Audits ─
@@ -1684,7 +1686,7 @@ export const Clients: CollectionConfig = {
               type: "textarea",
               admin: {
                 description:
-                  "Brand terms to filter out from generic query analysis (one per line)",
+                  "Brand terms to filter out from generic query analysis (one per line). Used by GSC monitoring, Google Ads dashboard, and quality score analysis to separate brand vs. generic traffic.",
               },
             },
             {
@@ -1702,21 +1704,6 @@ export const Clients: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "Most recent GSC data snapshot",
-              },
-            },
-          ],
-        },
-        {
-          label: "Timelines",
-          fields: [
-            {
-              name: "clientTimelines",
-              type: "join",
-              collection: "client-timelines",
-              on: "client",
-              admin: {
-                description: "Client timelines for this client",
-                defaultColumns: ["title", "serviceType", "overallStatus", "startDate"],
               },
             },
           ],

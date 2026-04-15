@@ -48,6 +48,8 @@ export async function PATCH(
       isBlocked,
       blockedReason,
       assignedToId,
+      approvalStatus,
+      estimatedHours,
     } = body;
 
     // Validate required fields
@@ -129,15 +131,23 @@ export async function PATCH(
     if (isBlocked !== undefined) step.isBlocked = isBlocked;
     if (blockedReason !== undefined) step.blockedReason = blockedReason;
     if (assignedToId !== undefined) step.defaultAssignee = assignedToId;
+    if (approvalStatus !== undefined) step.approvalStatus = approvalStatus;
+    if (estimatedHours !== undefined) step.estimatedHours = estimatedHours;
+
+    // If approval status changed to "approved", set clientApprovedAt
+    if (approvalStatus === "approved" && !step.clientApprovedAt) {
+      step.clientApprovedAt = now;
+    }
 
     // 4. If status changed to "in_progress" and no startedAt, set it
     if (status === "in_progress" && !step.startedAt) {
       step.startedAt = now;
     }
 
-    // 5. If status changed to "completed", set completedAt
+    // 5. If status changed to "completed", set completedAt and completedBy
     if (status === "completed") {
       step.completedAt = now;
+      if (user?.id) step.completedBy = user.id;
     }
 
     // 6. Auto-compute phase status

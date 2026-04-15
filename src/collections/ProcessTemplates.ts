@@ -195,6 +195,13 @@ export const ProcessTemplates: CollectionConfig = {
           },
         },
         {
+          name: "weekRange",
+          type: "text",
+          admin: {
+            description: 'Client-facing week range, e.g. "Weeks 1-2"',
+          },
+        },
+        {
           name: "steps",
           type: "array",
           admin: {
@@ -314,9 +321,53 @@ export const ProcessTemplates: CollectionConfig = {
                 description: "Must complete before moving to next step",
               },
             },
+            {
+              name: "clientVisible",
+              type: "checkbox",
+              defaultValue: false,
+              admin: {
+                description: "Show this step in the client-facing email/timeline",
+              },
+            },
+            {
+              name: "clientLabel",
+              type: "text",
+              admin: {
+                description: 'Friendly name for client view (e.g. "Analytics Review" instead of "Run GA4 audit + tag check")',
+                condition: (_data: any, siblingData: any) =>
+                  siblingData?.clientVisible,
+              },
+            },
+            {
+              name: "requiresApproval",
+              type: "checkbox",
+              defaultValue: false,
+              admin: {
+                description: 'Shows "Your approval needed" badge to client',
+                condition: (_data: any, siblingData: any) =>
+                  siblingData?.clientVisible,
+              },
+            },
+            {
+              name: "internalNotes",
+              type: "textarea",
+              admin: {
+                description: "Team-only notes, never shown to client",
+              },
+            },
           ],
         },
       ],
+    },
+    {
+      name: "durationDays",
+      type: "number",
+      min: 1,
+      max: 365,
+      admin: {
+        position: "sidebar",
+        description: "Default timeline duration in days (used for week progress in client emails)",
+      },
     },
   ],
 };

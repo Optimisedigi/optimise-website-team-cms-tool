@@ -19,11 +19,16 @@ type StepData = {
   emailTemplateBody: string
   reminderDays: number | null
   requiredBeforeNext: boolean
+  clientVisible: boolean
+  clientLabel: string
+  requiresApproval: boolean
+  internalNotes: string
 }
 
 type PhaseData = {
   phaseName: string
   phaseDescription: string
+  weekRange: string
   steps: StepData[]
 }
 
@@ -58,8 +63,8 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   milestone: { bg: '#EDE9FE', text: '#5B21B6' },
 }
 
-const GRID_COLS = '44px 1.2fr 1fr 100px 90px 80px 80px 65px 70px'
-const GRID_COLS_EXPANDED = '44px 1.5fr 1.5fr 120px 110px 90px 80px 65px 70px'
+const GRID_COLS = '44px 1.2fr 1fr 100px 90px 80px 55px 55px 55px 55px 70px'
+const GRID_COLS_EXPANDED = '44px 1.5fr 1.5fr 120px 110px 90px 55px 55px 55px 55px 70px'
 
 /* ------------------------------------------------------------------ */
 /* Extract phases from flat form field map                             */
@@ -78,6 +83,7 @@ function extractPhases(fields: Record<string, any>, basePath: string): PhaseData
     const phase: PhaseData = {
       phaseName: fields[`${basePath}.${i}.phaseName`]?.value ?? '',
       phaseDescription: fields[`${basePath}.${i}.phaseDescription`]?.value ?? '',
+      weekRange: fields[`${basePath}.${i}.weekRange`]?.value ?? '',
       steps: [],
     }
 
@@ -102,6 +108,10 @@ function extractPhases(fields: Record<string, any>, basePath: string): PhaseData
           fields[`${basePath}.${i}.steps.${j}.emailTemplateBody`]?.value ?? '',
         reminderDays: fields[`${basePath}.${i}.steps.${j}.reminderDays`]?.value ?? null,
         requiredBeforeNext: !!fields[`${basePath}.${i}.steps.${j}.requiredBeforeNext`]?.value,
+        clientVisible: !!fields[`${basePath}.${i}.steps.${j}.clientVisible`]?.value,
+        clientLabel: fields[`${basePath}.${i}.steps.${j}.clientLabel`]?.value ?? '',
+        requiresApproval: !!fields[`${basePath}.${i}.steps.${j}.requiresApproval`]?.value,
+        internalNotes: fields[`${basePath}.${i}.steps.${j}.internalNotes`]?.value ?? '',
       })
       j++
     }
@@ -509,14 +519,15 @@ function ProcessTemplateWorksheet(props: any) {
               color: 'var(--theme-elevation-500)',
             }}
           >
-            {['#', 'Name', 'Description', 'Type', 'Assignee', 'Time', 'Auto', 'Req', ''].map(
+            {['#', 'Name', 'Description', 'Type', 'Assignee', 'Time', 'Auto', 'Req', 'Client', 'Appr', ''].map(
               (col, idx) => (
                 <div
                   key={idx}
                   style={{
                     padding: '8px 6px',
-                    borderRight: idx < 8 ? '1px solid var(--theme-elevation-150)' : 'none',
+                    borderRight: idx < 10 ? '1px solid var(--theme-elevation-150)' : 'none',
                   }}
+                  title={col === 'Client' ? 'Client-visible' : col === 'Appr' ? 'Requires approval' : undefined}
                 >
                   {col}
                 </div>
@@ -531,7 +542,7 @@ function ProcessTemplateWorksheet(props: any) {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '44px 1.2fr 1fr auto',
+                  gridTemplateColumns: '44px 1fr 1fr 120px auto',
                   background: '#EBF5FF',
                   borderBottom: '1px solid var(--theme-elevation-150)',
                   borderTop: pi > 0 ? '2px solid var(--theme-elevation-200)' : 'none',
@@ -563,6 +574,15 @@ function ProcessTemplateWorksheet(props: any) {
                     value={phase.phaseDescription}
                     onSave={(v) => updateValue(`${path}.${pi}.phaseDescription`, v)}
                     placeholder="Phase description..."
+                    className="ws-input-phase"
+                    style={{ fontWeight: 400, fontSize: 11 }}
+                  />
+                </div>
+                <div style={{ padding: '4px 6px', borderRight: '1px solid rgba(30,64,175,0.15)' }}>
+                  <EditableCell
+                    value={phase.weekRange}
+                    onSave={(v) => updateValue(`${path}.${pi}.weekRange`, v)}
+                    placeholder="e.g. Weeks 1-2"
                     className="ws-input-phase"
                     style={{ fontWeight: 400, fontSize: 11 }}
                   />
@@ -599,7 +619,7 @@ function ProcessTemplateWorksheet(props: any) {
                 const stepKey = `${pi}-${si}`
                 const isExpanded = expandedSteps.has(stepKey)
                 const hasExpandableContent =
-                  step.stepType === 'communication' || step.isAutomatable
+                  step.stepType === 'communication' || step.isAutomatable || step.clientVisible
                 const typeColor = step.stepType ? TYPE_COLORS[step.stepType] : null
 
                 return (
@@ -778,6 +798,55 @@ function ProcessTemplateWorksheet(props: any) {
                         />
                       </div>
 
+                      {/* Client-visible checkbox */}
+                      <div
+                        style={{
+                          padding: '3px 6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRight: '1px solid var(--theme-elevation-100)',
+                          background: step.clientVisible ? '#EFF6FF' : undefined,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={step.clientVisible}
+                          onChange={(e) =>
+                            updateValue(
+                              `${path}.${pi}.steps.${si}.clientVisible`,
+                              e.target.checked,
+                            )
+                          }
+                          title="Show in client-facing email"
+                          style={{ cursor: 'pointer', width: 15, height: 15 }}
+                        />
+                      </div>
+
+                      {/* Requires approval checkbox */}
+                      <div
+                        style={{
+                          padding: '3px 6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRight: '1px solid var(--theme-elevation-100)',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={step.requiresApproval}
+                          onChange={(e) =>
+                            updateValue(
+                              `${path}.${pi}.steps.${si}.requiresApproval`,
+                              e.target.checked,
+                            )
+                          }
+                          title="Requires client approval"
+                          style={{ cursor: 'pointer', width: 15, height: 15 }}
+                        />
+                      </div>
+
                       {/* Actions */}
                       <div
                         style={{
@@ -832,6 +901,37 @@ function ProcessTemplateWorksheet(props: any) {
                           gap: 12,
                         }}
                       >
+                        {step.clientVisible && (
+                          <>
+                            <div>
+                              <label style={detailLabelStyle}>Client Label (friendly name)</label>
+                              <EditableCell
+                                value={step.clientLabel}
+                                onSave={(v) =>
+                                  updateValue(`${path}.${pi}.steps.${si}.clientLabel`, v)
+                                }
+                                placeholder="e.g. Analytics Review"
+                                className="ws-input"
+                                style={{
+                                  border: '1px solid var(--theme-elevation-200)',
+                                  padding: '6px 8px',
+                                  borderRadius: 4,
+                                  background: 'var(--theme-elevation-0)',
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label style={detailLabelStyle}>Internal Notes (team only)</label>
+                              <EditableTextarea
+                                value={step.internalNotes}
+                                onSave={(v) =>
+                                  updateValue(`${path}.${pi}.steps.${si}.internalNotes`, v)
+                                }
+                                placeholder="Team-only notes..."
+                              />
+                            </div>
+                          </>
+                        )}
                         {step.isAutomatable && (
                           <div style={{ gridColumn: step.stepType === 'communication' ? 'span 1' : 'span 2' }}>
                             <label style={detailLabelStyle}>Automation Notes</label>
