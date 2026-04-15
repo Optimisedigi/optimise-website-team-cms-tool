@@ -22,15 +22,9 @@ const ViewportMeta: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       meta.name = 'viewport'
       document.head.appendChild(meta)
     }
+    // Keep maximum-scale=1 permanently to prevent iOS auto-zoom on input
+    // focus (inputs < 16px font-size). Pinch-zoom is not needed in the admin.
     meta.content = 'width=device-width, initial-scale=1, maximum-scale=1'
-
-    // After a brief tick, remove maximum-scale so pinch-zoom is allowed again
-    // but the initial zoom is reset to 1x
-    const timer = setTimeout(() => {
-      if (meta) meta.content = 'width=device-width, initial-scale=1'
-    }, 100)
-
-    return () => clearTimeout(timer)
   }, [pathname])
 
   return children

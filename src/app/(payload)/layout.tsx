@@ -13,6 +13,7 @@ import './custom.scss'
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
 }
 
 type Args = {
