@@ -383,7 +383,7 @@ function CurrentSetupTab({ lists }: { lists: ExistingNKL[] }) {
       </div>
 
       {lists.map((list, idx) => (
-        <NKLCard key={idx} list={list} />
+        <NKLCard key={idx} list={list} defaultExpanded />
       ))}
     </div>
   )
@@ -391,12 +391,12 @@ function CurrentSetupTab({ lists }: { lists: ExistingNKL[] }) {
 
 // ── NKL Card (single existing list) ──
 
-function NKLCard({ list }: { list: ExistingNKL }) {
-  const [expanded, setExpanded] = useState(false)
+function NKLCard({ list, defaultExpanded }: { list: ExistingNKL; defaultExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded ?? true)
   const scopeLabel = SCOPE_LABELS[list.scope] || list.scope
 
   return (
-    <div style={{ marginBottom: 12, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden', opacity: list.isActive ? 1 : 0.6 }}>
+    <div style={{ marginBottom: 12, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', opacity: list.isActive ? 1 : 0.6 }}>
       <div
         style={{ padding: '14px 18px', background: '#f9fafb', borderBottom: expanded ? '1px solid #e2e8f0' : 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
         onClick={() => setExpanded(!expanded)}
@@ -441,9 +441,9 @@ function NKLCard({ list }: { list: ExistingNKL }) {
                     const mc = MATCH_COLORS[kw.matchType] || MATCH_COLORS.exact
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '6px 16px', fontFamily: 'monospace', fontSize: 13 }}>{kw.keyword}</td>
-                        <td style={{ padding: '6px 16px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: mc.bg, color: mc.color }}>
+                        <td style={{ padding: '6px 16px', fontFamily: 'monospace', fontSize: 13, wordBreak: 'break-word' }}>{kw.keyword || '—'}</td>
+                        <td style={{ padding: '6px 16px', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: mc.bg, color: mc.color, display: 'inline-block' }}>
                             {kw.matchType}
                           </span>
                         </td>
@@ -523,11 +523,11 @@ function FlatKeywordTable({
 
       {/* Table */}
       <div style={{ maxHeight: 600, overflowY: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
           <thead>
             <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1 }}>
               <th style={thStyle}>Keyword</th>
-              <th style={{ ...thStyle, width: 90 }}>Match Type</th>
+              <th style={{ ...thStyle, width: 110, minWidth: 110 }}>Match Type</th>
               {showSpend && <th style={{ ...thStyle, width: 80, textAlign: 'right' }}>Spend</th>}
               {showSpend && <th style={{ ...thStyle, width: 70, textAlign: 'right' }}>Clicks</th>}
               <th style={{ ...thStyle, width: 80, textAlign: 'center' }}>Actions</th>
@@ -560,12 +560,12 @@ function FlatKeywordTable({
                       onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
                     />
                   </td>
-                  <td style={tdStyle}>
+                  <td style={{ ...tdStyle, width: 110, minWidth: 110 }}>
                     <select
                       value={kw.matchType}
                       onChange={e => onUpdate(origIdx, 'matchType', e.target.value)}
                       disabled={isRemoved}
-                      style={{ fontSize: 11, padding: '4px 6px', border: '1px solid #e2e8f0', borderRadius: 4, background: '#fff', width: '100%' }}
+                      style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e8f0', borderRadius: 4, background: '#fff', width: 100, minWidth: 100, appearance: 'auto' as any }}
                     >
                       <option value="EXACT">EXACT</option>
                       <option value="PHRASE">PHRASE</option>
