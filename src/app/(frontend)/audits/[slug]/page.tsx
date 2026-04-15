@@ -491,7 +491,7 @@ export default async function AuditPage({ params }: { params: Promise<{ slug: st
       </header>
 
       {hasPassword ? (
-        <AuditPasswordGate auditSlug={(audit as any).reportSlug}>
+        <AuditPasswordGate auditSlug={(audit as any).reportSlug} businessName={formatDomain(audit.websiteUrl)} featureLabel="SEO Audit Report">
           {reportContent}
         </AuditPasswordGate>
       ) : (

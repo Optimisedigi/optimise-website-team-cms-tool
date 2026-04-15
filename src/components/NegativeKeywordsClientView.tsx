@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useCallback, useRef, useEffect, FormEvent } from "react";
 
 interface Keyword {
   index: number;
@@ -42,13 +42,14 @@ export default function NegativeKeywordsClientView({
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
+  const [digits, setDigits] = useState(['', '', '', '']);
   const [pinError, setPinError] = useState("");
   const [pinLoading, setPinLoading] = useState(false);
+  const pinInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [lists, setLists] = useState(initialLists);
   const [flagging, setFlagging] = useState<string | null>(null);
 
-  const handlePinSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const submitPin = useCallback(async (pinValue: string) => {
     setPinError("");
     setPinLoading(true);
 
@@ -60,20 +61,51 @@ export default function NegativeKeywordsClientView({
           clientId,
           listId: lists[0]?.id || 0,
           keywordIndex: -1,
-          pin,
+          pin: pinValue,
         }),
       });
       if (res.status === 403) {
         setPinError("Incorrect PIN");
       } else {
+        setPin(pinValue);
         setUnlocked(true);
       }
     } catch {
       setPinError("Something went wrong. Please try again.");
     } finally {
       setPinLoading(false);
+      setDigits(['', '', '', '']);
+      pinInputRefs.current[0]?.focus();
     }
-  };
+  }, [clientId, lists]);
+
+  const handlePinDigitChange = useCallback((index: number, value: string) => {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    const next = [...digits];
+    next[index] = digit;
+    setDigits(next);
+    setPinError("");
+    if (digit && index < 3) pinInputRefs.current[index + 1]?.focus();
+    if (digit && index === 3 && next.every(d => d !== '')) submitPin(next.join(''));
+  }, [digits, submitPin]);
+
+  const handlePinKeyDown = useCallback((index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) pinInputRefs.current[index - 1]?.focus();
+  }, [digits]);
+
+  const handlePinPaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+    if (!pasted.length) return;
+    const next = ['', '', '', ''];
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
+    setDigits(next);
+    setPinError("");
+    if (pasted.length === 4) submitPin(pasted);
+    else pinInputRefs.current[pasted.length]?.focus();
+  }, [submitPin]);
+
+  useEffect(() => { if (!unlocked) pinInputRefs.current[0]?.focus(); }, [unlocked]);
 
   const handleFlag = async (listId: number, keywordIndex: number, unflag: boolean) => {
     const key = `${listId}-${keywordIndex}`;
@@ -128,31 +160,32 @@ export default function NegativeKeywordsClientView({
 
   if (!unlocked) {
     return (
-      <div style={pageStyle}>
-        <div style={gateCard}>
-          <div style={{ marginBottom: 20, textAlign: "center" }}>
-            <h1 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px" }}>Negative Keywords List</h1>
-            <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>{clientName}</p>
-          </div>
-          <p style={{ fontSize: 14, color: "#6b7280", textAlign: "center", margin: "0 0 20px" }}>
-            Enter your PIN to view your negative keyword lists.
-          </p>
-          <form onSubmit={handlePinSubmit}>
-            <input
-              type="password"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              placeholder="Enter PIN"
-              maxLength={10}
-              style={inputStyle}
-              autoFocus
-            />
-            {pinError && <p style={{ color: "#dc2626", fontSize: 13, margin: "8px 0 0" }}>{pinError}</p>}
-            <button type="submit" disabled={pinLoading || !pin} style={submitBtn}>
-              {pinLoading ? "Verifying..." : "View Keywords"}
-            </button>
-          </form>
+      <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 16px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#fff', margin: '0 0 6px' }}>{clientName}</h1>
+          <h2 style={{ fontSize: 18, fontWeight: 500, color: '#94a3b8', margin: '0 0 8px' }}>Negative Keywords</h2>
+          <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>Enter your 4-digit PIN access code to view the negative keyword lists</p>
         </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }} onPaste={handlePinPaste}>
+          {digits.map((digit, i) => (
+            <input
+              key={i}
+              ref={(el) => { pinInputRefs.current[i] = el }}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              disabled={pinLoading}
+              onChange={(e) => handlePinDigitChange(i, e.target.value)}
+              onKeyDown={(e) => handlePinKeyDown(i, e)}
+              style={{ width: 64, height: 80, textAlign: 'center', fontSize: 24, fontWeight: 600, border: '2px solid #475569', borderRadius: 12, background: '#1e293b', color: '#fff', outline: 'none', opacity: pinLoading ? 0.5 : 1, transition: 'border-color 0.2s' }}
+              onFocus={(e) => { e.target.style.borderColor = '#60a5fa' }}
+              onBlur={(e) => { e.target.style.borderColor = '#475569' }}
+            />
+          ))}
+        </div>
+        {pinLoading && <p style={{ marginTop: 24, fontSize: 14, color: '#94a3b8', textAlign: 'center' }}>Verifying...</p>}
+        {pinError && <p style={{ marginTop: 24, fontSize: 14, color: '#f87171', textAlign: 'center' }}>{pinError}</p>}
       </div>
     );
   }
@@ -362,35 +395,4 @@ const pageStyle: React.CSSProperties = {
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
 };
 
-const gateCard: React.CSSProperties = {
-  maxWidth: 380,
-  margin: "80px auto 0",
-  background: "#fff",
-  borderRadius: 12,
-  padding: 32,
-  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-};
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 14px",
-  border: "1px solid #d1d5db",
-  borderRadius: 6,
-  fontSize: 16,
-  textAlign: "center",
-  letterSpacing: "0.2em",
-  boxSizing: "border-box",
-};
-
-const submitBtn: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 0",
-  marginTop: 12,
-  border: "none",
-  borderRadius: 6,
-  background: "#2563eb",
-  color: "#fff",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-};

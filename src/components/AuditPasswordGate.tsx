@@ -5,9 +5,13 @@ import { useState, useCallback, useRef, useEffect, ReactNode } from 'react'
 export default function AuditPasswordGate({
   auditSlug,
   children,
+  businessName,
+  featureLabel,
 }: {
   auditSlug: string
   children: ReactNode
+  businessName?: string
+  featureLabel?: string
 }) {
   const [unlocked, setUnlocked] = useState(false)
   const [digits, setDigits] = useState(['', '', '', ''])
@@ -72,8 +76,9 @@ export default function AuditPasswordGate({
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 16px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>Audit Report</h1>
-        <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>Enter your 4-digit PIN access code to view the audit report</p>
+        {businessName && <h1 style={{ fontSize: 28, fontWeight: 700, color: '#fff', margin: '0 0 6px' }}>{businessName}</h1>}
+        <h2 style={{ fontSize: businessName ? 18 : 24, fontWeight: businessName ? 500 : 700, color: businessName ? '#94a3b8' : '#fff', margin: '0 0 8px' }}>{featureLabel || 'Audit Report'}</h2>
+        <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>Enter your 4-digit PIN access code to view the {(featureLabel || 'audit report').toLowerCase()}</p>
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }} onPaste={handlePaste}>
         {digits.map((digit, i) => (

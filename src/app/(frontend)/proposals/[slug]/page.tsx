@@ -2517,7 +2517,7 @@ export default async function ProposalReportPage({ params }: { params: Promise<{
 
   if (proposalPin) {
     return (
-      <AuditPasswordGate auditSlug={proposal.slug}>
+      <AuditPasswordGate auditSlug={proposal.slug} businessName={proposal.businessName} featureLabel="Proposal">
         {reportContent}
       </AuditPasswordGate>
     )

@@ -855,6 +855,15 @@ const NegativeListBuilder = () => {
 
   return (
     <div style={{ maxWidth: 960 }}>
+      {/* ── Initial Campaign Build Note ── */}
+      <div style={{ ...card, background: '#eff6ff', borderColor: '#bfdbfe', marginBottom: 16 }}>
+        <p style={{ margin: 0, fontSize: 13, color: '#1e40af', lineHeight: 1.6 }}>
+          <strong>Initial Campaign Build Tool</strong> — This is a one-off negative keyword analysis for new campaign setup.
+          It sweeps 3 years of search term history to identify wasted spend and builds a comprehensive negative keyword list
+          that can be imported into the client&apos;s ongoing Negative Keyword Lists for daily Google Ads sync.
+        </p>
+      </div>
+
       {/* ── Section 1: Generate ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <button
@@ -915,15 +924,28 @@ const NegativeListBuilder = () => {
 
       {/* ── Import to CMS ── */}
       {hasData && (status === 'team_approved' || status === 'client_review' || status === 'client_approved' || status === 'applied') && (
-        <div style={{ ...card, background: '#f0fdf4', borderColor: '#bbf7d0' }}>
+        <div style={{
+          ...card,
+          background: status === 'client_approved' ? '#ecfdf5' : '#f0fdf4',
+          borderColor: status === 'client_approved' ? '#6ee7b7' : '#bbf7d0',
+          ...(status === 'client_approved' ? { borderWidth: 2, padding: 20 } : {}),
+        }}>
+          {status === 'client_approved' && (
+            <p style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#065f46' }}>
+              ✓ Client has approved — ready to import to their Negative Keyword Lists
+            </p>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <button
               type="button"
               onClick={handleImportToCms}
               disabled={actionLoading === 'import'}
-              style={btnStyle('success', actionLoading === 'import')}
+              style={{
+                ...btnStyle('success', actionLoading === 'import'),
+                ...(status === 'client_approved' ? { padding: '12px 24px', fontSize: 15 } : {}),
+              }}
             >
-              {actionLoading === 'import' ? 'Importing...' : 'Import to CMS Negative Keyword Lists'}
+              {actionLoading === 'import' ? 'Importing...' : "Add to Client's Negative Keyword Lists"}
             </button>
             <span style={{ fontSize: 12, color: '#64748b' }}>
               Creates lists in <a href="/admin/collections/negative-keyword-lists" target="_blank" style={{ color: '#2563eb' }}>Negative Keyword Lists</a> for daily Google Ads sync.

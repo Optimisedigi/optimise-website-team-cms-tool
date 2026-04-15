@@ -39,10 +39,11 @@ export interface NegativeKeywordData {
 
 interface Props {
   slug: string
+  businessName?: string
   children: (data: NegativeKeywordData, pin: string) => React.ReactNode
 }
 
-export default function NegativeKeywordPinGate({ slug, children }: Props) {
+export default function NegativeKeywordPinGate({ slug, businessName, children }: Props) {
   const [digits, setDigits] = useState(['', '', '', ''])
   const [data, setData] = useState<NegativeKeywordData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -106,7 +107,8 @@ export default function NegativeKeywordPinGate({ slug, children }: Props) {
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 16px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#fff', margin: '0 0 8px' }}>Negative Keyword Review</h1>
+        {businessName && <h1 style={{ fontSize: 28, fontWeight: 700, color: '#fff', margin: '0 0 6px' }}>{businessName}</h1>}
+        <h2 style={{ fontSize: businessName ? 18 : 24, fontWeight: businessName ? 500 : 700, color: businessName ? '#94a3b8' : '#fff', margin: '0 0 8px' }}>Negative Keyword Review</h2>
         <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>Enter your 4-digit PIN access code to view the negative keyword list</p>
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }} onPaste={handlePaste}>
