@@ -164,8 +164,10 @@ function SummaryCard({ data }: { data: NLBData }) {
 
 interface MoveDestination {
   label: string
-  tier: 'universal' | 'accountWide' | 'campaign'
+  tier: 'universal' | 'accountWide' | 'campaign' | 'nkl'
   catIndex: number
+  nklId?: string
+  nklCreate?: boolean
 }
 
 function KeywordTable({
@@ -330,25 +332,42 @@ function KeywordTable({
                       <td style={{ padding: '4px 8px', textAlign: 'right' }}>{kw.totalImpressions ?? '-'}</td>
                     </>
                   )}
-                  {editable && moveDestinations && (
-                    <td style={{ padding: '4px 4px' }}>
-                      <select
-                        value=""
-                        onChange={e => {
-                          const idx = parseInt(e.target.value)
-                          if (!isNaN(idx) && moveDestinations[idx]) {
-                            onMoveKeyword?.(origIdx, moveDestinations[idx])
-                          }
-                        }}
-                        style={{ fontSize: 10, padding: '1px 2px', border: '1px solid #e2e8f0', borderRadius: 3, cursor: 'pointer', width: '100%', color: '#64748b' }}
-                      >
-                        <option value="">Move to...</option>
-                        {moveDestinations.map((d, di) => (
-                          <option key={di} value={di}>{d.label}</option>
-                        ))}
-                      </select>
-                    </td>
-                  )}
+                  {editable && moveDestinations && (() => {
+                    const builderDests = moveDestinations.filter(d => d.tier !== 'nkl')
+                    const nklDests = moveDestinations.filter(d => d.tier === 'nkl')
+                    return (
+                      <td style={{ padding: '4px 4px' }}>
+                        <select
+                          value=""
+                          onChange={e => {
+                            const idx = parseInt(e.target.value)
+                            if (!isNaN(idx) && moveDestinations[idx]) {
+                              onMoveKeyword?.(origIdx, moveDestinations[idx])
+                            }
+                          }}
+                          style={{ fontSize: 10, padding: '1px 2px', border: '1px solid #e2e8f0', borderRadius: 3, cursor: 'pointer', width: '100%', color: '#64748b' }}
+                        >
+                          <option value="">Move to...</option>
+                          {builderDests.length > 0 && (
+                            <optgroup label="Move Within Builder">
+                              {builderDests.map((d) => {
+                                const globalIdx = moveDestinations.indexOf(d)
+                                return <option key={globalIdx} value={globalIdx}>{d.label}</option>
+                              })}
+                            </optgroup>
+                          )}
+                          {nklDests.length > 0 && (
+                            <optgroup label="Send to Negative Keyword List">
+                              {nklDests.map((d) => {
+                                const globalIdx = moveDestinations.indexOf(d)
+                                return <option key={globalIdx} value={globalIdx}>{d.label}</option>
+                              })}
+                            </optgroup>
+                          )}
+                        </select>
+                      </td>
+                    )
+                  })()}
                 </tr>
               )
             })}
@@ -513,6 +532,8 @@ const NegativeListBuilder = () => {
   const [selectedNKLTarget, setSelectedNKLTarget] = useState<string>('create_new')
   const [newListName, setNewListName] = useState('')
   const [clientIdForNKL, setClientIdForNKL] = useState<string | null>(null)
+  const [showCreateNKLDialog, setShowCreateNKLDialog] = useState(false)
+  const [pendingMoveKw, setPendingMoveKw] = useState<{ fromTier: 'universal' | 'accountWide' | 'campaign'; fromCatIndex: number; kwIndex: number; phrase: string; matchType: 'PHRASE' | 'EXACT' } | null>(null)
 
   // Load existing data by fetching the document directly
   useEffect(() => {
@@ -1009,8 +1030,27 @@ const NegativeListBuilder = () => {
     setDirty(true)
   }
 
-  // ── Move a keyword to Account-Wide or a specific Campaign ──
-  const moveKeyword = (
+  // ── Remove a keyword from its current NLB tier ──
+  const removeKeywordFromTier = (
+    fromTier: 'universal' | 'accountWide' | 'campaign',
+    fromCatIndex: number,
+    kwIndex: number,
+  ) => {
+    if (!nlbData) return
+    const fromKey = fromTier === 'universal' ? 'universalNegatives' : fromTier === 'accountWide' ? 'accountWideNegatives' : 'campaignSpecificNegatives'
+    const fromCats = nlbData[fromKey]
+    if (!fromCats) return
+
+    const updatedFrom = [...fromCats]
+    const fromCat = { ...updatedFrom[fromCatIndex] }
+    fromCat.keywords = fromCat.keywords.filter((_, i) => i !== kwIndex)
+    updatedFrom[fromCatIndex] = fromCat
+    setNlbData({ ...nlbData, [fromKey]: updatedFrom })
+    setDirty(true)
+  }
+
+  // ── Move a keyword to Account-Wide, a specific Campaign, or a CMS NKL ──
+  const moveKeyword = async (
     fromTier: 'universal' | 'accountWide' | 'campaign',
     fromCatIndex: number,
     kwIndex: number,
@@ -1020,6 +1060,65 @@ const NegativeListBuilder = () => {
     const fromKey = fromTier === 'universal' ? 'universalNegatives' : fromTier === 'accountWide' ? 'accountWideNegatives' : 'campaignSpecificNegatives'
     const fromCats = nlbData[fromKey]
     if (!fromCats) return
+
+    // Handle NKL destinations
+    if (dest.tier === 'nkl') {
+      const kw = fromCats[fromCatIndex]?.keywords[kwIndex]
+      if (!kw) return
+
+      if (dest.nklCreate) {
+        // Show create dialog, store pending keyword
+        setPendingMoveKw({ fromTier, fromCatIndex, kwIndex, phrase: kw.phrase, matchType: kw.matchType as 'PHRASE' | 'EXACT' })
+        setShowCreateNKLDialog(true)
+        return
+      }
+
+      if (dest.nklId) {
+        // Add keyword to existing CMS NKL
+        clearMessages()
+        try {
+          const listRes = await fetch(`/api/negative-keyword-lists/${dest.nklId}?depth=0`, { credentials: 'include' })
+          if (!listRes.ok) {
+            setError('Failed to fetch target list')
+            return
+          }
+          const targetList = await listRes.json()
+          const existingKeywords: { keyword: string; matchType: string; flaggedForRemoval?: boolean }[] = targetList.keywords || []
+
+          const nklMatchType = kw.matchType === 'PHRASE' ? 'phrase' : 'exact'
+          const dupeKey = `${kw.phrase.toLowerCase()}|${nklMatchType}`
+          const existingSet = new Set(existingKeywords.map((k: any) => `${k.keyword.toLowerCase()}|${k.matchType}`))
+
+          if (existingSet.has(dupeKey)) {
+            setMessage(`"${kw.phrase}" already exists in "${targetList.name}"`)
+          } else {
+            existingKeywords.push({ keyword: kw.phrase, matchType: nklMatchType, flaggedForRemoval: false })
+            const updateRes = await fetch(`/api/negative-keyword-lists/${dest.nklId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ keywords: existingKeywords }),
+            })
+            if (!updateRes.ok) {
+              const errData = await updateRes.json().catch(() => ({}))
+              setError(errData.errors?.[0]?.message || `Failed to update list (${updateRes.status})`)
+              return
+            }
+            // Update keyword count in existingNKLs state
+            setExistingNKLs(prev => prev.map(n => n.id === dest.nklId ? { ...n, keywordCount: existingKeywords.length } : n))
+            setMessage(`Moved "${kw.phrase}" to "${targetList.name}"`)
+          }
+
+          // Remove from NLB tier
+          removeKeywordFromTier(fromTier, fromCatIndex, kwIndex)
+          return
+        } catch {
+          setError('Network error moving keyword to list')
+          return
+        }
+      }
+      return
+    }
 
     // Remove from source
     const updatedFrom = [...fromCats]
@@ -1064,7 +1163,7 @@ const NegativeListBuilder = () => {
     setDirty(true)
   }
 
-  // ── Build move destinations: Account-Wide + each campaign from proposal ──
+  // ── Build move destinations: Account-Wide + each campaign + CMS NKLs ──
   const getMoveDestinations = (currentTier: string, _currentCatIndex: number): MoveDestination[] => {
     const dests: MoveDestination[] = []
 
@@ -1085,6 +1184,17 @@ const NegativeListBuilder = () => {
       const existingIdx = (nlbData?.campaignSpecificNegatives || []).findIndex(g => g.campaignName === name)
       dests.push({ label: `Campaign: ${name}`, tier: 'campaign', catIndex: existingIdx })
     }
+
+    // CMS Negative Keyword Lists
+    for (const nkl of existingNKLs) {
+      dests.push({
+        label: `${nkl.name} (${nkl.keywordCount} kws, ${nkl.scope})`,
+        tier: 'nkl',
+        catIndex: -1,
+        nklId: nkl.id,
+      })
+    }
+    dests.push({ label: '+ Create New List', tier: 'nkl', catIndex: -1, nklCreate: true })
 
     return dests
   }
@@ -1142,6 +1252,120 @@ const NegativeListBuilder = () => {
 
       {message && <p style={{ fontSize: 13, color: '#16a34a', marginBottom: 8 }}>{message}</p>}
       {error && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 8 }}>{error}</p>}
+
+      {/* ── Create New NKL Dialog ── */}
+      {showCreateNKLDialog && pendingMoveKw && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 8, padding: 24, maxWidth: 480, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Create New Negative Keyword List</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>
+              Keyword <strong>&quot;{pendingMoveKw.phrase}&quot;</strong> ({pendingMoveKw.matchType}) will be added to this new list.
+            </p>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>List Name</label>
+              <input
+                type="text"
+                id="nkl-dialog-name"
+                placeholder="e.g. Brand Negatives"
+                style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Scope</label>
+              <select
+                id="nkl-dialog-scope"
+                defaultValue="account"
+                style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13 }}
+              >
+                <option value="account">Account</option>
+                <option value="campaign">Campaign</option>
+                <option value="ad_group">Ad Group</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Campaign Regex</label>
+              <input
+                type="text"
+                id="nkl-dialog-regex"
+                defaultValue=".*"
+                placeholder=".*"
+                style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+              />
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94a3b8' }}>
+                Pattern for auto-assigning this list to matching campaigns. Use .* to match all. Examples: .*Search.*, .*Brand.*
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => { setShowCreateNKLDialog(false); setPendingMoveKw(null) }}
+                style={{ padding: '6px 16px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', fontSize: 13, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const nameInput = document.getElementById('nkl-dialog-name') as HTMLInputElement
+                  const scopeSelect = document.getElementById('nkl-dialog-scope') as HTMLSelectElement
+                  const regexInput = document.getElementById('nkl-dialog-regex') as HTMLInputElement
+                  const listName = nameInput?.value?.trim()
+                  const scope = scopeSelect?.value || 'account'
+                  const campaignRegex = regexInput?.value?.trim() || '.*'
+
+                  if (!listName) {
+                    setError('Enter a name for the new list')
+                    return
+                  }
+                  if (!clientIdForNKL) {
+                    setError('No client linked — cannot create list')
+                    return
+                  }
+
+                  clearMessages()
+                  try {
+                    const nklMatchType = pendingMoveKw.matchType === 'PHRASE' ? 'phrase' : 'exact'
+                    const createRes = await fetch('/api/negative-keyword-lists', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        client: clientIdForNKL,
+                        name: listName,
+                        scope,
+                        campaignRegex,
+                        keywords: [{ keyword: pendingMoveKw.phrase, matchType: nklMatchType, flaggedForRemoval: false }],
+                        isActive: true,
+                      }),
+                    })
+                    if (!createRes.ok) {
+                      const errData = await createRes.json().catch(() => ({}))
+                      setError(errData.errors?.[0]?.message || `Failed to create list (${createRes.status})`)
+                      return
+                    }
+                    const created = await createRes.json()
+
+                    // Add to existingNKLs state
+                    setExistingNKLs(prev => [...prev, { id: created.doc?.id || created.id, name: listName, scope, keywordCount: 1 }])
+
+                    // Remove keyword from NLB tier
+                    removeKeywordFromTier(pendingMoveKw.fromTier, pendingMoveKw.fromCatIndex, pendingMoveKw.kwIndex)
+
+                    setMessage(`Created "${listName}" and moved "${pendingMoveKw.phrase}" into it.`)
+                    setShowCreateNKLDialog(false)
+                    setPendingMoveKw(null)
+                  } catch {
+                    setError('Network error creating list')
+                  }
+                }}
+                style={{ padding: '6px 16px', border: 'none', borderRadius: 4, background: '#2563eb', color: '#fff', fontSize: 13, cursor: 'pointer' }}
+              >
+                Create &amp; Move
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!hasData && !loading && (
         <div style={card}>
