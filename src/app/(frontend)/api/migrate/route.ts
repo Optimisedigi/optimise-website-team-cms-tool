@@ -1809,6 +1809,38 @@ export async function POST(request: NextRequest) {
   // Mark Payload migration as executed so `npx payload migrate` doesn't re-run it
   await run("mark_migration:20260310_120000_add_process_templates_and_client_processes", `INSERT INTO payload_migrations (name, batch, created_at, updated_at) SELECT '20260310_120000_add_process_templates_and_client_processes', 1, datetime('now'), datetime('now') WHERE NOT EXISTS (SELECT 1 FROM payload_migrations WHERE name = '20260310_120000_add_process_templates_and_client_processes')`);
 
+  // ── Merge Timeline Into Processes (20260415) ──
+  // ProcessTemplates: phases — add week_range
+  await run("pt_phases.week_range", "ALTER TABLE `process_templates_phases` ADD `week_range` text");
+  // ProcessTemplates: steps — add client-facing fields
+  await run("pt_steps.client_visible", "ALTER TABLE `process_templates_phases_steps` ADD `client_visible` integer DEFAULT false");
+  await run("pt_steps.client_label", "ALTER TABLE `process_templates_phases_steps` ADD `client_label` text");
+  await run("pt_steps.requires_approval", "ALTER TABLE `process_templates_phases_steps` ADD `requires_approval` integer DEFAULT false");
+  await run("pt_steps.internal_notes", "ALTER TABLE `process_templates_phases_steps` ADD `internal_notes` text");
+  // ProcessTemplates: root — add duration_days
+  await run("pt.duration_days", "ALTER TABLE `process_templates` ADD `duration_days` numeric");
+
+  // ClientProcesses: phases — add week_range
+  await run("cp_phases.week_range", "ALTER TABLE `client_processes_phases` ADD `week_range` text");
+  // ClientProcesses: steps — add client-facing and tracking fields
+  await run("cp_steps.client_visible", "ALTER TABLE `client_processes_phases_steps` ADD `client_visible` integer DEFAULT false");
+  await run("cp_steps.client_label", "ALTER TABLE `client_processes_phases_steps` ADD `client_label` text");
+  await run("cp_steps.requires_approval", "ALTER TABLE `client_processes_phases_steps` ADD `requires_approval` integer DEFAULT false");
+  await run("cp_steps.approval_status", "ALTER TABLE `client_processes_phases_steps` ADD `approval_status` text DEFAULT 'not_needed'");
+  await run("cp_steps.client_approved_at", "ALTER TABLE `client_processes_phases_steps` ADD `client_approved_at` text");
+  await run("cp_steps.estimated_hours", "ALTER TABLE `client_processes_phases_steps` ADD `estimated_hours` numeric");
+  await run("cp_steps.internal_notes", "ALTER TABLE `client_processes_phases_steps` ADD `internal_notes` text");
+  await run("cp_steps.completed_by_id", "ALTER TABLE `client_processes_phases_steps` ADD `completed_by_id` integer REFERENCES users(id) ON DELETE SET NULL");
+  // ClientProcesses: root — add timeline sharing fields
+  await run("cp.start_date", "ALTER TABLE `client_processes` ADD `start_date` text");
+  await run("cp.end_date", "ALTER TABLE `client_processes` ADD `end_date` text");
+  await run("cp.last_shared_at", "ALTER TABLE `client_processes` ADD `last_shared_at` text");
+  await run("cp.shared_count", "ALTER TABLE `client_processes` ADD `shared_count` integer DEFAULT 0");
+  await run("cp.duration_days", "ALTER TABLE `client_processes` ADD `duration_days` numeric");
+
+  // Mark the merge migration
+  await run("mark_migration:20260415_120000_merge_timeline_into_processes", `INSERT INTO payload_migrations (name, batch, created_at, updated_at) SELECT '20260415_120000_merge_timeline_into_processes', 1, datetime('now'), datetime('now') WHERE NOT EXISTS (SELECT 1 FROM payload_migrations WHERE name = '20260415_120000_merge_timeline_into_processes')`);
+
   // Diagnostic: test payload.find on clients (same as /api/clients/list)
   let payloadFindTest: any = null;
   try {
