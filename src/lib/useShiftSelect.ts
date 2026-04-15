@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 
 /**
  * Hook that adds shift-click range selection to checkbox lists.
@@ -9,6 +9,9 @@ import { useRef, useCallback } from 'react'
  *
  * When shift is held, selects/deselects all items between the last clicked
  * item and the current one (inclusive).
+ *
+ * Shift key state is tracked via global keydown/keyup listeners for reliability
+ * (some browsers/React versions don't expose shiftKey on checkbox onChange nativeEvent).
  */
 export function useShiftSelect<T extends string | number>(
   /** The current ordered list of visible item IDs (after filtering/sorting) */
@@ -19,14 +22,29 @@ export function useShiftSelect<T extends string | number>(
   setSelected: React.Dispatch<React.SetStateAction<Set<T>>>,
 ) {
   const lastClickedIndex = useRef<number | null>(null)
+  const shiftHeld = useRef(false)
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeld.current = true }
+    const onKeyUp = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeld.current = false }
+    // Also reset on blur (e.g. user alt-tabs while holding shift)
+    const onBlur = () => { shiftHeld.current = false }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [])
 
   const onCheckboxChange = useCallback(
     (id: T, event: React.ChangeEvent<HTMLInputElement>) => {
       const currentIndex = orderedIds.indexOf(id)
-      const nativeEvent = event.nativeEvent as MouseEvent
-      const isShift = nativeEvent.shiftKey
 
-      if (isShift && lastClickedIndex.current !== null && currentIndex !== -1) {
+      if (shiftHeld.current && lastClickedIndex.current !== null && currentIndex !== -1) {
         const start = Math.min(lastClickedIndex.current, currentIndex)
         const end = Math.max(lastClickedIndex.current, currentIndex)
         const rangeIds = orderedIds.slice(start, end + 1)
