@@ -525,7 +525,6 @@ function FlatKeywordList({
   editable,
   selectedIds,
   setSelectedIds,
-  onToggleKeyword,
   onMoveKeyword,
   onChangeMatchType,
   onChangePhrase,
@@ -536,7 +535,6 @@ function FlatKeywordList({
   editable?: boolean
   selectedIds: Set<string>
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>
-  onToggleKeyword: (fk: FlatKeyword) => void
   onMoveKeyword: (fk: FlatKeyword, dest: MoveDestination) => void
   onChangeMatchType: (fk: FlatKeyword, matchType: 'PHRASE' | 'EXACT') => void
   onChangePhrase: (fk: FlatKeyword, phrase: string) => void
@@ -586,7 +584,6 @@ function FlatKeywordList({
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
-              {editable && <th style={{ width: 30, padding: '6px 4px' }}></th>}
               <th style={{ width: 30, padding: '6px 4px' }}></th>
               <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748b', fontWeight: 600 }}>Keyword</th>
               <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748b', fontWeight: 600, width: 80 }}>Match</th>
@@ -612,17 +609,6 @@ function FlatKeywordList({
                     background: isSelected ? '#eff6ff' : isRemoved ? '#fef2f2' : 'transparent',
                   }}
                 >
-                  {editable && (
-                    <td style={{ padding: '4px 4px', textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={!isRemoved}
-                        onChange={() => onToggleKeyword(fk)}
-                        style={{ cursor: 'pointer' }}
-                        title="Keep/Remove"
-                      />
-                    </td>
-                  )}
                   <td style={{ padding: '4px 4px', textAlign: 'center' }}>
                     <input
                       type="checkbox"
@@ -1956,7 +1942,6 @@ const NegativeListBuilder = () => {
             editable={canTeamReview}
             selectedIds={selectedKwIds}
             setSelectedIds={setSelectedKwIds}
-            onToggleKeyword={(fk) => toggleKeyword(fk.tier, fk.catIndex, fk.kwIndex)}
             onMoveKeyword={(fk, dest) => moveKeyword(fk.tier, fk.catIndex, fk.kwIndex, dest)}
             onChangeMatchType={(fk, mt) => changeMatchType(fk.tier, fk.catIndex, fk.kwIndex, mt)}
             onChangePhrase={(fk, phrase) => changePhrase(fk.tier, fk.catIndex, fk.kwIndex, phrase)}
