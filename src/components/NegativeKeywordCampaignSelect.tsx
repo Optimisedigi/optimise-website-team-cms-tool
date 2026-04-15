@@ -88,6 +88,11 @@ export default function NegativeKeywordCampaignSelect() {
       marginBottom: 12,
       fontSize: 13,
     }}>
+      <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--theme-elevation-500)', lineHeight: 1.5 }}>
+        Preview which campaigns this list will apply to when the Google Ads sync script runs.
+        This does not push anything to Google Ads — it just checks which campaign names match your regex.
+      </p>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button
           type="button"
@@ -104,11 +109,11 @@ export default function NegativeKeywordCampaignSelect() {
             opacity: loading ? 0.6 : 1,
           }}
         >
-          {loading ? 'Syncing campaigns...' : 'Sync Campaigns from Google Ads'}
+          {loading ? 'Checking...' : 'Preview Matching Campaigns'}
         </button>
         {currentCampaigns.length > 0 && (
           <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>
-            {currentCampaigns.length} campaign{currentCampaigns.length !== 1 ? 's' : ''} linked
+            {currentCampaigns.length} campaign{currentCampaigns.length !== 1 ? 's' : ''} will be targeted
           </span>
         )}
       </div>
@@ -139,8 +144,8 @@ export default function NegativeKeywordCampaignSelect() {
 
       <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 6 }}>
         {campaignRegex
-          ? `Matches campaigns against pattern: ${campaignRegex}`
-          : 'No regex set — will sync all campaigns. Set a Regex above to filter.'}
+          ? `Matching campaigns against: ${campaignRegex}`
+          : 'No regex set — will target all campaigns. Set a Regex above to filter.'}
       </div>
     </div>
   )
