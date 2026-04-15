@@ -524,7 +524,7 @@ function FlatKeywordList({
   keywords,
   editable,
   selectedIds,
-  onShiftSelect,
+  setSelectedIds,
   onToggleKeyword,
   onMoveKeyword,
   onChangeMatchType,
@@ -535,7 +535,7 @@ function FlatKeywordList({
   keywords: FlatKeyword[]
   editable?: boolean
   selectedIds: Set<string>
-  onShiftSelect: (id: string, e: React.ChangeEvent<HTMLInputElement>) => void
+  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>
   onToggleKeyword: (fk: FlatKeyword) => void
   onMoveKeyword: (fk: FlatKeyword, dest: MoveDestination) => void
   onChangeMatchType: (fk: FlatKeyword, matchType: 'PHRASE' | 'EXACT') => void
@@ -555,6 +555,10 @@ function FlatKeywordList({
   const displayLimit = 50
   const displayed = showAll ? filtered : filtered.slice(0, displayLimit)
   const hasMore = filtered.length > displayLimit && !showAll
+
+  // useShiftSelect operates on the currently displayed IDs so shift-click ranges are correct
+  const displayedIds = useMemo(() => displayed.map(fk => fk.flatId), [displayed])
+  const { onCheckboxChange: onShiftSelect } = useShiftSelect(displayedIds, selectedIds, setSelectedIds)
 
   const nklDests = moveDestinations.filter(d => d.tier === 'nkl')
 
@@ -1566,8 +1570,6 @@ const NegativeListBuilder = () => {
 
   // Multi-select state for flat keyword list
   const [selectedKwIds, setSelectedKwIds] = useState<Set<string>>(new Set())
-  const flatKwIds = useMemo(() => flatKeywords.map(fk => fk.flatId), [flatKeywords])
-  const { onCheckboxChange: onShiftSelectChange } = useShiftSelect(flatKwIds, selectedKwIds, setSelectedKwIds)
 
   return (
     <div style={{ maxWidth: 960 }}>
@@ -1953,7 +1955,7 @@ const NegativeListBuilder = () => {
             keywords={flatKeywords}
             editable={canTeamReview}
             selectedIds={selectedKwIds}
-            onShiftSelect={onShiftSelectChange}
+            setSelectedIds={setSelectedKwIds}
             onToggleKeyword={(fk) => toggleKeyword(fk.tier, fk.catIndex, fk.kwIndex)}
             onMoveKeyword={(fk, dest) => moveKeyword(fk.tier, fk.catIndex, fk.kwIndex, dest)}
             onChangeMatchType={(fk, mt) => changeMatchType(fk.tier, fk.catIndex, fk.kwIndex, mt)}
