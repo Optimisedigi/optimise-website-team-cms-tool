@@ -20,6 +20,7 @@ export const ClientProcesses: CollectionConfig = {
     description: "Live client onboarding/management processes",
     defaultColumns: [
       "processTitle",
+      "client",
       "overallStatus",
       "completionPercentage",
       "retainerType",

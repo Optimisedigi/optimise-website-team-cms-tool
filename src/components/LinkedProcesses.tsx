@@ -7,11 +7,24 @@ type Process = {
   id: string
   processTitle: string
   overallStatus: string
+  retainerType?: string
   lastSharedAt?: string
   sharedCount?: number
   phases?: Array<{
     steps?: Array<{ stepStatus?: string }>
   }>
+}
+
+const retainerLabels: Record<string, string> = {
+  google_ads_only: 'Google Ads',
+  meta_ads_only: 'Meta Ads',
+  seo_only: 'SEO',
+  website_build_only: 'Website Build',
+  website_seo: 'Website + SEO',
+  website_seo_google_ads: 'Website + SEO + Ads',
+  full_integration: 'Full Integration',
+  ai_automations: 'AI Automations',
+  custom: 'Custom',
 }
 
 const statusColors: Record<string, { bg: string; color: string }> = {
@@ -101,9 +114,16 @@ const LinkedProcesses = () => {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontWeight: 600, fontSize: 14, color: '#3b82f6' }}>
-                  {proc.processTitle || 'Untitled'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14, color: '#3b82f6' }}>
+                    {proc.processTitle || 'Untitled'}
+                  </span>
+                  {proc.retainerType && (
+                    <span style={{ fontSize: 10, color: '#6b7280', background: '#f3f4f6', padding: '1px 6px', borderRadius: 4 }}>
+                      {retainerLabels[proc.retainerType] || proc.retainerType}
+                    </span>
+                  )}
+                </div>
                 <span
                   style={{
                     display: 'inline-block',
