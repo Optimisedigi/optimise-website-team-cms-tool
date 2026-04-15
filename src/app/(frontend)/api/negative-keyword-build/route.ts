@@ -47,35 +47,57 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No negative keyword data" }, { status: 404 });
     }
 
-    // Merge universal + account-wide into one section, tag with sourceSection
+    // Flatten universal + account-wide into a single flat keyword array
     const accountWideKeywords: any[] = [];
 
     for (const cat of (nlb.universalNegatives || [])) {
-      accountWideKeywords.push({
-        name: cat.name,
-        totalWaste: cat.totalWaste,
-        keywords: (cat.keywords || [])
-          .filter((kw: any) => !kw.removed)
-          .map((kw: any) => ({
-            ...kw,
-            sourceSection: "universal",
-            sourceCategoryName: cat.name,
-          })),
-      });
+      for (const kw of (cat.keywords || [])) {
+        if (kw.removed) continue;
+        accountWideKeywords.push({
+          ...kw,
+          sourceSection: "universal",
+          sourceCategoryName: cat.name,
+        });
+      }
     }
 
     for (const cat of (nlb.accountWideNegatives || [])) {
-      accountWideKeywords.push({
-        name: cat.name,
-        totalWaste: cat.totalWaste,
-        keywords: (cat.keywords || [])
-          .filter((kw: any) => !kw.removed)
-          .map((kw: any) => ({
-            ...kw,
-            sourceSection: "accountWide",
-            sourceCategoryName: cat.name,
+      for (const kw of (cat.keywords || [])) {
+        if (kw.removed) continue;
+        accountWideKeywords.push({
+          ...kw,
+          sourceSection: "accountWide",
+          sourceCategoryName: cat.name,
+        });
+      }
+    }
+
+    // Fetch existing negative keyword lists for this client
+    let existingNegativeKeywordLists: any[] = [];
+    const clientId = audit.client
+      ? typeof audit.client === "object" ? audit.client.id : audit.client
+      : null;
+    if (clientId) {
+      try {
+        const nklResults = await payload.find({
+          collection: "negative-keyword-lists",
+          where: { client: { equals: clientId } },
+          limit: 100,
+          overrideAccess: true,
+        });
+        existingNegativeKeywordLists = nklResults.docs.map((doc: any) => ({
+          name: doc.name,
+          scope: doc.scope,
+          campaigns: doc.campaigns || [],
+          keywords: (doc.keywords || []).map((kw: any) => ({
+            keyword: kw.keyword,
+            matchType: kw.matchType,
           })),
-      });
+          isActive: doc.isActive,
+        }));
+      } catch {
+        // Non-critical — continue without NKL data
+      }
     }
 
     // Campaign-specific: filter removed, keep structure
@@ -97,6 +119,7 @@ export async function GET(req: NextRequest) {
       existingNegativeCount: nlb.existingNegativeCount,
       accountWideKeywords,
       campaignSpecificKeywords,
+      existingNegativeKeywordLists,
       clientNotes: nlb.clientNotes || "",
     });
   } catch {

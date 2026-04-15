@@ -53,43 +53,40 @@ export async function POST(req: NextRequest) {
     const accountWideMap = new Map<string, number>();
     accountWideNegatives.forEach((cat: any, i: number) => accountWideMap.set(cat.name, i));
 
-    // Process edited account-wide keywords (merged view) back into tiers
-    for (const cat of (body.accountWideKeywords || [])) {
-      for (const kw of (cat.keywords || [])) {
-        const source = kw.sourceSection || "accountWide";
-        const sourceCatName = kw.sourceCategoryName || cat.name;
-        const targetArr = source === "universal" ? universalNegatives : accountWideNegatives;
-        const targetMap = source === "universal" ? universalMap : accountWideMap;
+    // Process edited account-wide keywords (flat array) back into tiers
+    for (const kw of (body.accountWideKeywords || [])) {
+      const source = kw.sourceSection || "accountWide";
+      const sourceCatName = kw.sourceCategoryName || "Uncategorized";
+      const targetMap = source === "universal" ? universalMap : accountWideMap;
 
-        let catIdx = targetMap.get(sourceCatName);
-        if (catIdx === undefined) {
-          // Category was moved or new — put in accountWide
-          catIdx = accountWideNegatives.length;
-          accountWideNegatives.push({ name: sourceCatName, keywords: [] });
-          accountWideMap.set(sourceCatName, catIdx);
-        }
+      let catIdx = targetMap.get(sourceCatName);
+      if (catIdx === undefined) {
+        // Category was moved or new — put in accountWide
+        catIdx = accountWideNegatives.length;
+        accountWideNegatives.push({ name: sourceCatName, keywords: [] });
+        accountWideMap.set(sourceCatName, catIdx);
+      }
 
-        // Find and update the keyword, or add if new
-        const targetCat = source === "universal" ? universalNegatives[catIdx] : accountWideNegatives[catIdx];
-        const existingIdx = targetCat.keywords.findIndex(
-          (existing: any) => existing.phrase === kw.originalPhrase || existing.phrase === kw.phrase
-        );
-        const updatedKw = { ...kw };
-        delete updatedKw.sourceSection;
-        delete updatedKw.sourceCategoryName;
-        delete updatedKw.originalPhrase;
+      // Find and update the keyword, or add if new
+      const targetCat = source === "universal" ? universalNegatives[catIdx] : accountWideNegatives[catIdx];
+      const existingIdx = targetCat.keywords.findIndex(
+        (existing: any) => existing.phrase === kw.originalPhrase || existing.phrase === kw.phrase
+      );
+      const updatedKw = { ...kw };
+      delete updatedKw.sourceSection;
+      delete updatedKw.sourceCategoryName;
+      delete updatedKw.originalPhrase;
 
-        if (existingIdx >= 0) {
-          // Preserve agency `removed` flag, update everything else
-          targetCat.keywords[existingIdx] = {
-            ...targetCat.keywords[existingIdx],
-            phrase: updatedKw.phrase,
-            matchType: updatedKw.matchType,
-            clientRemoved: updatedKw.clientRemoved,
-          };
-        } else {
-          targetCat.keywords.push(updatedKw);
-        }
+      if (existingIdx >= 0) {
+        // Preserve agency `removed` flag, update everything else
+        targetCat.keywords[existingIdx] = {
+          ...targetCat.keywords[existingIdx],
+          phrase: updatedKw.phrase,
+          matchType: updatedKw.matchType,
+          clientRemoved: updatedKw.clientRemoved,
+        };
+      } else {
+        targetCat.keywords.push(updatedKw);
       }
     }
 

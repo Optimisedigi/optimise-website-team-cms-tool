@@ -12,18 +12,14 @@ export interface NegativeKeywordData {
   totalWasteIdentified: number
   existingNegativeCount: number
   accountWideKeywords: Array<{
-    name: string
-    totalWaste?: number
-    keywords: Array<{
-      phrase: string
-      matchType: 'PHRASE' | 'EXACT'
-      totalSpend?: number
-      totalClicks?: number
-      totalImpressions?: number
-      clientRemoved?: boolean
-      sourceSection?: string
-      sourceCategoryName?: string
-    }>
+    phrase: string
+    matchType: 'PHRASE' | 'EXACT'
+    totalSpend?: number
+    totalClicks?: number
+    totalImpressions?: number
+    clientRemoved?: boolean
+    sourceSection?: string
+    sourceCategoryName?: string
   }>
   campaignSpecificKeywords: Array<{
     campaignName: string
@@ -33,6 +29,13 @@ export interface NegativeKeywordData {
       reason?: string
       clientRemoved?: boolean
     }>
+  }>
+  existingNegativeKeywordLists: Array<{
+    name: string
+    scope: 'account' | 'campaign' | 'ad_group'
+    campaigns: Array<{ campaignName: string }>
+    keywords: Array<{ keyword: string; matchType: string }>
+    isActive: boolean
   }>
   clientNotes: string
 }
