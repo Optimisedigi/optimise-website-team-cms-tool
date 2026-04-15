@@ -112,7 +112,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       type: "text",
       label: "Regex",
       admin: {
-        description: "Pattern for auto-assigning this list to matching campaigns/ad groups. Type a keyword (e.g. Brand) or a regex (e.g. .*Brand.*). Examples: Brand (any campaign with 'Brand' in the name), Search (any campaign with 'Search'), .* (all campaigns). Leave blank to skip auto-assignment.",
+        description: "Pattern for auto-assigning this list to matching campaigns/ad groups. Type a keyword (e.g. Brand) or use | to match multiple (e.g. Brand|Generic). Examples: Brand (matches 'Brand_Product'), Brand|Generic (matches both), .* (all campaigns). Case insensitive. Save first, then preview.",
       },
     },
     {

@@ -147,6 +147,9 @@ export default function NegativeKeywordCampaignSelect() {
           ? `Matching campaigns against: ${campaignRegex}`
           : 'No regex set — will target all campaigns. Set a Regex above to filter.'}
       </div>
+      <div style={{ fontSize: 11, color: 'var(--theme-elevation-400)', marginTop: 4, fontStyle: 'italic' }}>
+        Save the document first if you&apos;ve changed the regex, then preview.
+      </div>
     </div>
   )
 }
