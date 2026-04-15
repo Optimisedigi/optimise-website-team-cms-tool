@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
-import { sql } from "drizzle-orm";
+import { sql } from "@payloadcms/db-sqlite";
 import config from "@/payload.config";
 
 const ALLOWED_FIELDS = ["rawData", "scoredReport"] as const;
