@@ -182,7 +182,7 @@ export default function NegativeKeywordEditorContent({
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       {/* Sticky header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 10 }}>
-        <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#1e293b' }}>Negative Keyword Review: {data.businessName}</h1>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
@@ -203,7 +203,7 @@ export default function NegativeKeywordEditorContent({
         </div>
       </div>
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 24px 60px' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 60px' }}>
         {/* Summary Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 24 }}>
           <div>
@@ -384,27 +384,12 @@ function CurrentSetupTab({ lists }: { lists: ExistingNKL[] }) {
         </span>
       </div>
 
-      {/* Account-Wide Lists (full width, always first) */}
-      {accountLists.length > 0 && (
-        <>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#334155', margin: '0 0 12px' }}>Account-Wide Lists</h3>
-          {accountLists.map((list, idx) => (
-            <NKLCard key={`account-${idx}`} list={list} defaultExpanded />
-          ))}
-        </>
-      )}
-
-      {/* Campaign / Ad Group Lists (2-column grid) */}
-      {campaignLists.length > 0 && (
-        <>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#334155', margin: '24px 0 12px' }}>Campaign-Specific Lists</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-            {campaignLists.map((list, idx) => (
-              <NKLCard key={`campaign-${idx}`} list={list} defaultExpanded />
-            ))}
-          </div>
-        </>
-      )}
+      {/* All lists side by side — account-wide first, then campaign */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+        {[...accountLists, ...campaignLists].map((list, idx) => (
+          <NKLCard key={idx} list={list} defaultExpanded />
+        ))}
+      </div>
     </div>
   )
 }
