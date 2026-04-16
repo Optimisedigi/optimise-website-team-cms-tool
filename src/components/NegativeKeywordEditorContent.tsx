@@ -208,36 +208,24 @@ export default function NegativeKeywordEditorContent({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 24 }}>
           <div>
             <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Terms Analyzed</div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>{(data.totalSearchTermsAnalyzed || 0).toLocaleString()}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#1e293b' }}>{data.totalSearchTermsAnalyzed != null ? data.totalSearchTermsAnalyzed.toLocaleString() : '—'}</div>
           </div>
           <div>
             <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Total Waste</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#dc2626' }}>${(data.totalWasteIdentified || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#dc2626' }}>{data.totalWasteIdentified != null ? `$${Math.round(data.totalWasteIdentified).toLocaleString()}` : '—'}</div>
           </div>
           <div>
             <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Date Range</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{data.dateRangeStart} to {data.dateRangeEnd}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{data.dateRangeStart && data.dateRangeEnd ? `${data.dateRangeStart} to ${data.dateRangeEnd}` : '—'}</div>
           </div>
           <div>
             <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Existing Negatives</div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>{data.existingNegativeCount || 0}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#1e293b' }}>{data.existingNegativeCount != null ? data.existingNegativeCount.toLocaleString() : '—'}</div>
           </div>
         </div>
 
         {/* Tab Bar */}
         <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e2e8f0', marginBottom: 24 }}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('proposed')}
-            style={{
-              padding: '12px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              background: 'none', border: 'none', borderBottom: activeTab === 'proposed' ? '2px solid #2563eb' : '2px solid transparent',
-              color: activeTab === 'proposed' ? '#2563eb' : '#64748b',
-              marginBottom: -2,
-            }}
-          >
-            Proposed Changes
-          </button>
           <button
             type="button"
             onClick={() => setActiveTab('current')}
@@ -248,12 +236,24 @@ export default function NegativeKeywordEditorContent({
               marginBottom: -2,
             }}
           >
-            Current Setup
+            Current Negative Keyword List Setup
             {(data.existingNegativeKeywordLists || []).length > 0 && (
               <span style={{ marginLeft: 8, fontSize: 11, background: '#e2e8f0', color: '#475569', padding: '2px 8px', borderRadius: 10 }}>
                 {data.existingNegativeKeywordLists.length}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('proposed')}
+            style={{
+              padding: '12px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              background: 'none', border: 'none', borderBottom: activeTab === 'proposed' ? '2px solid #2563eb' : '2px solid transparent',
+              color: activeTab === 'proposed' ? '#2563eb' : '#64748b',
+              marginBottom: -2,
+            }}
+          >
+            Negative Keywords for Client Review
           </button>
         </div>
 
@@ -364,14 +364,16 @@ function CurrentSetupTab({ lists }: { lists: ExistingNKL[] }) {
       <div style={{ textAlign: 'center', padding: '48px 24px', color: '#64748b' }}>
         <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
         <p style={{ fontSize: 15, margin: 0 }}>No existing negative keyword lists found for this account.</p>
-        <p style={{ fontSize: 13, margin: '8px 0 0', color: '#94a3b8' }}>Check the &quot;Proposed Changes&quot; tab to review the recommended additions.</p>
+        <p style={{ fontSize: 13, margin: '8px 0 0', color: '#94a3b8' }}>Check the &quot;Negative Keywords for Client Review&quot; tab to review the recommended additions.</p>
       </div>
     )
   }
 
+  const accountLists = lists.filter(l => l.scope === 'account')
+  const campaignLists = lists.filter(l => l.scope === 'campaign' || l.scope === 'ad_group')
+  const totalKeywords = lists.reduce((n, l) => n + l.keywords.length, 0)
   const activeLists = lists.filter(l => l.isActive)
   const inactiveLists = lists.filter(l => !l.isActive)
-  const totalKeywords = lists.reduce((n, l) => n + l.keywords.length, 0)
 
   return (
     <div>
@@ -382,9 +384,27 @@ function CurrentSetupTab({ lists }: { lists: ExistingNKL[] }) {
         </span>
       </div>
 
-      {lists.map((list, idx) => (
-        <NKLCard key={idx} list={list} defaultExpanded />
-      ))}
+      {/* Account-Wide Lists (full width, always first) */}
+      {accountLists.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#334155', margin: '0 0 12px' }}>Account-Wide Lists</h3>
+          {accountLists.map((list, idx) => (
+            <NKLCard key={`account-${idx}`} list={list} defaultExpanded />
+          ))}
+        </>
+      )}
+
+      {/* Campaign / Ad Group Lists (2-column grid) */}
+      {campaignLists.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#334155', margin: '24px 0 12px' }}>Campaign-Specific Lists</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+            {campaignLists.map((list, idx) => (
+              <NKLCard key={`campaign-${idx}`} list={list} defaultExpanded />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
