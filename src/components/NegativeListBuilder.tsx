@@ -1577,16 +1577,59 @@ const NegativeListBuilder = () => {
         </p>
       </div>
 
-      {/* ── Section 1: Generate ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={loading || !customerId?.trim()}
-          style={btnStyle('primary', loading || !customerId?.trim())}
-        >
-          {loading ? 'Generating...' : hasData ? 'Re-Generate Negative List' : 'Generate Negative List'}
-        </button>
+      {/* ── Action Bar: Generate / Save / Submit ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        {!hasData ? (
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={loading || !customerId?.trim()}
+            style={btnStyle('primary', loading || !customerId?.trim())}
+          >
+            {loading ? 'Generating...' : 'Generate Negative List'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('Are you sure you want to re-generate? This will overwrite all current keyword selections, edits, and team review changes.')) {
+                handleGenerate()
+              }
+            }}
+            disabled={loading || !customerId?.trim()}
+            style={{
+              padding: '5px 12px', borderRadius: 5, border: '1px solid #e2e8f0',
+              background: '#fff', color: '#64748b', fontSize: 12, fontWeight: 500,
+              cursor: loading || !customerId?.trim() ? 'not-allowed' : 'pointer',
+              opacity: loading || !customerId?.trim() ? 0.5 : 1,
+            }}
+          >
+            {loading ? 'Generating...' : 'Re-Generate List'}
+          </button>
+        )}
+        {hasData && canTeamReview && (
+          <>
+            <button
+              type="button"
+              onClick={handleSaveEdits}
+              disabled={actionLoading === 'save-edits'}
+              style={{
+                ...btnStyle(dirty ? 'primary' : 'secondary', actionLoading === 'save-edits'),
+                ...(dirty ? { boxShadow: '0 0 0 2px #93c5fd' } : {}),
+              }}
+            >
+              {actionLoading === 'save-edits' ? 'Saving...' : dirty ? '● Save Changes' : 'Save Changes'}
+            </button>
+            <button
+              type="button"
+              onClick={handleTeamReview}
+              disabled={actionLoading === 'team-review'}
+              style={btnStyle('success', actionLoading === 'team-review')}
+            >
+              {actionLoading === 'team-review' ? 'Submitting...' : `Submit Team Review (${totalKept} keywords kept)`}
+            </button>
+          </>
+        )}
         <StatusBadge status={status} />
         {!customerId?.trim() && (
           <span style={{ fontSize: 12, color: '#94a3b8' }}>Set Customer ID first</span>
@@ -2006,30 +2049,8 @@ const NegativeListBuilder = () => {
                 onChange={e => setTeamNotes(e.target.value)}
                 placeholder="Team review notes (optional)"
                 rows={3}
-                style={{ width: '100%', maxWidth: 500, padding: 8, borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13, marginBottom: 8 }}
+                style={{ width: '100%', maxWidth: 500, padding: 8, borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13 }}
               />
-              <br />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={handleSaveEdits}
-                  disabled={actionLoading === 'save-edits'}
-                  style={{
-                    ...btnStyle(dirty ? 'primary' : 'secondary', actionLoading === 'save-edits'),
-                    ...(dirty ? { boxShadow: '0 0 0 2px #93c5fd' } : {}),
-                  }}
-                >
-                  {actionLoading === 'save-edits' ? 'Saving...' : dirty ? '● Save Changes' : 'Save Changes'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleTeamReview}
-                  disabled={actionLoading === 'team-review'}
-                  style={btnStyle('success', actionLoading === 'team-review')}
-                >
-                  {actionLoading === 'team-review' ? 'Submitting...' : `Submit Team Review (${totalKept} keywords kept)`}
-                </button>
-              </div>
             </div>
           )}
 
