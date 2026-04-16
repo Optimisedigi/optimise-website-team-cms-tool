@@ -1554,8 +1554,17 @@ const NegativeListBuilder = () => {
     return result
   }, [nlbData])
 
-  // Multi-select state for flat keyword list
+  // Multi-select state for flat keyword list — pre-select non-removed keywords
   const [selectedKwIds, setSelectedKwIds] = useState<Set<string>>(new Set())
+  const [hasInitializedSelection, setHasInitializedSelection] = useState(false)
+
+  useEffect(() => {
+    if (!hasInitializedSelection && flatKeywords.length > 0) {
+      const keptIds = new Set(flatKeywords.filter(fk => !fk.removed).map(fk => fk.flatId))
+      setSelectedKwIds(keptIds)
+      setHasInitializedSelection(true)
+    }
+  }, [flatKeywords, hasInitializedSelection])
 
   return (
     <div style={{ maxWidth: 960 }}>
