@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
           phrase: updatedKw.phrase,
           matchType: updatedKw.matchType,
           clientRemoved: updatedKw.clientRemoved,
+          clientComment: updatedKw.clientComment,
         };
       } else {
         targetCat.keywords.push(updatedKw);

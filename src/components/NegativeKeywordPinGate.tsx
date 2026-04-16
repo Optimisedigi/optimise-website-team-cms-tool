@@ -18,6 +18,7 @@ export interface NegativeKeywordData {
     totalClicks?: number
     totalImpressions?: number
     clientRemoved?: boolean
+    clientComment?: string
     sourceSection?: string
     sourceCategoryName?: string
   }>
@@ -28,6 +29,7 @@ export interface NegativeKeywordData {
       matchType: 'PHRASE' | 'EXACT'
       reason?: string
       clientRemoved?: boolean
+      clientComment?: string
     }>
   }>
   existingNegativeKeywordLists: Array<{

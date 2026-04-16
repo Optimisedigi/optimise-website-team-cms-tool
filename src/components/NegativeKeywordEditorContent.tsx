@@ -528,20 +528,21 @@ function FlatKeywordTable({
 
       {/* Table */}
       <div style={{ maxHeight: 600, overflowY: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1 }}>
-              <th style={thStyle}>Keyword</th>
-              <th style={{ ...thStyle, width: 110, minWidth: 110 }}>Match Type</th>
+              <th style={{ ...thStyle, width: 220 }}>Keyword</th>
+              <th style={{ ...thStyle, width: 120, whiteSpace: 'nowrap' }}>Match Type</th>
               {showSpend && <th style={{ ...thStyle, width: 80, textAlign: 'right' }}>Spend</th>}
               {showSpend && <th style={{ ...thStyle, width: 70, textAlign: 'right' }}>Clicks</th>}
+              <th style={thStyle}>Comment</th>
               <th style={{ ...thStyle, width: 80, textAlign: 'center' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {displayed.length === 0 ? (
               <tr>
-                <td colSpan={showSpend ? 5 : 3} style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>
+                <td colSpan={showSpend ? 6 : 4} style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>
                   {keywords.length === 0 ? 'No keywords.' : 'No keywords match the search.'}
                 </td>
               </tr>
@@ -549,7 +550,7 @@ function FlatKeywordTable({
               const isRemoved = !!kw.clientRemoved
               return (
                 <tr key={origIdx} style={{ borderBottom: '1px solid #f1f5f9', background: isRemoved ? '#fef2f2' : 'transparent', opacity: isRemoved ? 0.5 : 1 }}>
-                  <td style={tdStyle}>
+                  <td style={{ ...tdStyle, width: 220 }}>
                     <input
                       type="text"
                       value={kw.phrase}
@@ -565,12 +566,12 @@ function FlatKeywordTable({
                       onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
                     />
                   </td>
-                  <td style={{ ...tdStyle, width: 110, minWidth: 110 }}>
+                  <td style={{ ...tdStyle, width: 120, whiteSpace: 'nowrap' }}>
                     <select
                       value={kw.matchType}
                       onChange={e => onUpdate(origIdx, 'matchType', e.target.value)}
                       disabled={isRemoved}
-                      style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #e2e8f0', borderRadius: 4, background: '#fff', width: 100, minWidth: 100, appearance: 'auto' as any }}
+                      style={{ fontSize: 12, padding: '4px 8px', border: '1px solid #e2e8f0', borderRadius: 4, background: '#fff', width: 110 }}
                     >
                       <option value="EXACT">EXACT</option>
                       <option value="PHRASE">PHRASE</option>
@@ -586,6 +587,23 @@ function FlatKeywordTable({
                       {kw.totalClicks != null ? kw.totalClicks.toLocaleString() : '—'}
                     </td>
                   )}
+                  <td style={tdStyle}>
+                    <input
+                      type="text"
+                      value={(kw as any).clientComment || ''}
+                      onChange={e => onUpdate(origIdx, 'clientComment', e.target.value)}
+                      disabled={isRemoved}
+                      placeholder="Add comment..."
+                      style={{
+                        width: '100%', padding: '4px 6px', fontSize: 12,
+                        border: '1px solid transparent', borderRadius: 4, outline: 'none',
+                        background: 'transparent', boxSizing: 'border-box',
+                        color: '#475569',
+                      }}
+                      onFocus={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.background = '#fff' }}
+                      onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
+                    />
+                  </td>
                   <td style={{ ...tdStyle, textAlign: 'center' }}>
                     {isRemoved ? (
                       <button type="button" onClick={() => onRestore(origIdx)}
@@ -713,24 +731,36 @@ function CampaignKeywordRows({
               onChange={e => onUpdate(origIdx, 'phrase', e.target.value)}
               disabled={isRemoved}
               style={{
-                flex: 1, padding: '6px 8px', fontSize: 13, fontFamily: 'monospace',
+                width: 200, minWidth: 120, padding: '6px 8px', fontSize: 13, fontFamily: 'monospace',
                 border: '1px solid #e2e8f0', borderRadius: 4, outline: 'none',
                 textDecoration: isRemoved ? 'line-through' : 'none',
                 background: isRemoved ? '#fef2f2' : '#fff',
-                minWidth: 0,
               }}
             />
             <select
               value={kw.matchType}
               onChange={e => onUpdate(origIdx, 'matchType', e.target.value)}
               disabled={isRemoved}
-              style={{ fontSize: 11, padding: '6px 4px', border: '1px solid #e2e8f0', borderRadius: 4, background: '#fff', width: 72 }}
+              style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 4, background: '#fff', width: 100 }}
             >
               <option value="EXACT">EXACT</option>
               <option value="PHRASE">PHRASE</option>
             </select>
+            <input
+              type="text"
+              value={kw.clientComment || ''}
+              onChange={e => onUpdate(origIdx, 'clientComment', e.target.value)}
+              disabled={isRemoved}
+              placeholder="Add comment..."
+              style={{
+                flex: 1, padding: '6px 8px', fontSize: 12,
+                border: '1px solid #e2e8f0', borderRadius: 4, outline: 'none',
+                background: isRemoved ? '#fef2f2' : '#fff', color: '#475569',
+                minWidth: 0,
+              }}
+            />
             {kw.reason && (
-              <span style={{ fontSize: 10, color: '#94a3b8', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={kw.reason}>
+              <span style={{ fontSize: 10, color: '#94a3b8', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={kw.reason}>
                 {kw.reason}
               </span>
             )}
