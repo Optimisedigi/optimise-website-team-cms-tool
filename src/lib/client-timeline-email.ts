@@ -216,7 +216,7 @@ export function generateClientTimelineEmailHtml(data: TimelineEmailData): string
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escapeHtml(timelineTitle)}</title>
+<title></title>
 </head>
 <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#ffffff;color:#111827">
 <div style="max-width:600px;margin:0;padding:5px 24px 5px">
