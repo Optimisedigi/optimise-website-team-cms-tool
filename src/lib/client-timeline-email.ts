@@ -219,7 +219,7 @@ export function generateClientTimelineEmailHtml(data: TimelineEmailData): string
 <title>${escapeHtml(timelineTitle)}</title>
 </head>
 <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#ffffff;color:#111827">
-<div style="max-width:600px;margin:0 auto;padding:48px 24px 48px">
+<div style="max-width:600px;margin:0;padding:48px 24px 48px">
 
   <!-- Spacer so you can type above the email content -->
   <div style="height:24px"></div>
