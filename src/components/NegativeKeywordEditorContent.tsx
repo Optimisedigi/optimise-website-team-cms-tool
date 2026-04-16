@@ -28,7 +28,7 @@ export default function NegativeKeywordEditorContent({
   data: NegativeKeywordData
   pin: string
 }) {
-  const [activeTab, setActiveTab] = useState<'current' | 'proposed'>('proposed')
+  const [activeTab, setActiveTab] = useState<'current' | 'proposed'>('current')
   const [accountWide, setAccountWide] = useState<AccountWideKeyword[]>(data.accountWideKeywords || [])
   const [campaigns, setCampaigns] = useState<CampaignGroup[]>(data.campaignSpecificKeywords || [])
   const [clientNotes, setClientNotes] = useState(data.clientNotes || '')
@@ -429,11 +429,11 @@ function NKLCard({ list, defaultExpanded }: { list: ExistingNKL; defaultExpanded
             <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No keywords in this list.</div>
           ) : (
             <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
                 <thead>
-                  <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0 }}>
-                    <th style={{ padding: '8px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Keyword</th>
-                    <th style={{ padding: '8px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', width: 100 }}>Match Type</th>
+                  <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 1 }}>
+                    <th style={{ padding: '8px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', width: '70%' }}>Keyword</th>
+                    <th style={{ padding: '8px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', width: '30%' }}>Match Type</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -441,7 +441,7 @@ function NKLCard({ list, defaultExpanded }: { list: ExistingNKL; defaultExpanded
                     const mc = MATCH_COLORS[kw.matchType] || MATCH_COLORS.exact
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '6px 16px', fontFamily: 'monospace', fontSize: 13, wordBreak: 'break-word' }}>{kw.keyword || '—'}</td>
+                        <td style={{ padding: '6px 16px', fontFamily: 'monospace', fontSize: 13, color: '#1e293b', wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis' }}>{kw.keyword || '—'}</td>
                         <td style={{ padding: '6px 16px', whiteSpace: 'nowrap' }}>
                           <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: mc.bg, color: mc.color, display: 'inline-block' }}>
                             {kw.matchType}
