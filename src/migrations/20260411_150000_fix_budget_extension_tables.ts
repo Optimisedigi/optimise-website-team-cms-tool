@@ -20,6 +20,18 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   } catch { /* already exists */ }
 
   // ── 2. Drop broken tables (wrong schema from previous migrations) ──
+  //
+  // Idempotency guard: if the correct-schema sub-tables already exist,
+  // this migration’s work has already been applied out-of-band (happened
+  // on the shared dev Turso DB). Re-running the DROPs would destroy live
+  // rows in google_ads_campaign_budgets, so short-circuit here.
+  const { rows: check } = await db.run(
+    sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'google_ads_campaign_budgets_location_ids'`,
+  )
+  if (check.length > 0) {
+    return
+  }
+
   await db.run(sql`DROP TABLE IF EXISTS \`google_ads_campaign_budgets\``)
   await db.run(sql`DROP TABLE IF EXISTS \`google_ads_ad_extensions\``)
   // Drop any sub-tables that might partially exist
