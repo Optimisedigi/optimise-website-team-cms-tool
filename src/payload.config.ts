@@ -40,6 +40,9 @@ import { ProcessTemplates } from "./collections/ProcessTemplates";
 import { ClientProcesses } from "./collections/ClientProcesses";
 import { TagSetupAudits } from "./collections/TagSetupAudits";
 import { SiteHealthReports } from "./collections/SiteHealthReports";
+import { AiVisibilitySnapshots } from "./collections/AiVisibilitySnapshots";
+import { SerpDisplacementSnapshots } from "./collections/SerpDisplacementSnapshots";
+import { SerpDisplacementAlerts } from "./collections/SerpDisplacementAlerts";
 import { ApiCostRates } from "./globals/ApiCostRates";
 import { SheetsAuth } from "./globals/SheetsAuth";
 import { EmailTemplates } from "./globals/EmailTemplates";
@@ -91,6 +94,8 @@ export default buildConfig({
     InternalLinkSuggestions,
     // Audits
     SeoAudits, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, NegativeSweepCandidates, NegativeKeywordLists, SiteHealthReports,
+    // Reports
+    AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Finance
     BusinessCosts, CostCategories, CostRules,
     // Admin

@@ -91,6 +91,9 @@ export interface Config {
     'negative-sweep-candidates': NegativeSweepCandidate;
     'negative-keyword-lists': NegativeKeywordList;
     'site-health-reports': SiteHealthReport;
+    'ai-visibility-snapshots': AiVisibilitySnapshot;
+    'serp-displacement-snapshots': SerpDisplacementSnapshot;
+    'serp-displacement-alerts': SerpDisplacementAlert;
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
@@ -143,6 +146,9 @@ export interface Config {
     'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
     'negative-keyword-lists': NegativeKeywordListsSelect<false> | NegativeKeywordListsSelect<true>;
     'site-health-reports': SiteHealthReportsSelect<false> | SiteHealthReportsSelect<true>;
+    'ai-visibility-snapshots': AiVisibilitySnapshotsSelect<false> | AiVisibilitySnapshotsSelect<true>;
+    'serp-displacement-snapshots': SerpDisplacementSnapshotsSelect<false> | SerpDisplacementSnapshotsSelect<true>;
+    'serp-displacement-alerts': SerpDisplacementAlertsSelect<false> | SerpDisplacementAlertsSelect<true>;
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
@@ -819,6 +825,106 @@ export interface Client {
   ga4AccessToken?: string | null;
   ga4RefreshToken?: string | null;
   ga4TokenExpiry?: string | null;
+  /**
+   * Shared analytics identifiers used by Growth Tools (tag audit, AI Visibility Tracker, etc).
+   */
+  analytics?: {
+    /**
+     * Numeric GA4 property ID (e.g. 308123456). Strip the 'properties/' prefix. Used by AI Visibility Tracker and other GA4-powered tools.
+     */
+    ga4PropertyId?: string | null;
+  };
+  /**
+   * Configure weekly AI Visibility snapshots — traffic from ChatGPT, Gemini, Perplexity, Claude, etc. — and buyer-question probes run across those assistants.
+   */
+  aiVisibility?: {
+    /**
+     * Enable weekly AI Visibility snapshots (traffic from ChatGPT, Gemini, Perplexity, Claude, etc).
+     */
+    enabled?: boolean | null;
+    /**
+     * Who receives the weekly AI Visibility digest.
+     */
+    recipientEmails?:
+      | {
+          email: string;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Phase 4 — buyer questions to run through ChatGPT/Gemini/Perplexity/Claude each week. Leave empty to skip probing.
+     */
+    probePrompts?:
+      | {
+          prompt: string;
+          id?: string | null;
+        }[]
+      | null;
+  };
+  /**
+   * Daily SERP tracking — detects AI Overview appearance and paid-displacement risk.
+   */
+  serpMonitor?: {
+    enabled?: boolean | null;
+    /**
+     * Root domain to track in SERPs (e.g. 'optimisedigital.online'). Defaults to the client's main website.
+     */
+    domain?: string | null;
+    keywords?:
+      | {
+          keyword: string;
+          location:
+            | 'au'
+            | 'au:sydney'
+            | 'au:melbourne'
+            | 'au:brisbane'
+            | 'au:perth'
+            | 'us'
+            | 'us:new-york'
+            | 'us:los-angeles'
+            | 'us:chicago'
+            | 'us:houston'
+            | 'us:miami'
+            | 'uk'
+            | 'uk:london'
+            | 'uk:manchester'
+            | 'uk:birmingham'
+            | 'ca'
+            | 'ca:toronto'
+            | 'ca:vancouver'
+            | 'ca:montreal'
+            | 'de'
+            | 'fr'
+            | 'fr:paris'
+            | 'es'
+            | 'it'
+            | 'jp'
+            | 'jp:tokyo'
+            | 'in'
+            | 'sg'
+            | 'hk'
+            | 'nl';
+          device?: ('desktop' | 'mobile') | null;
+          id?: string | null;
+        }[]
+      | null;
+    alertRecipientEmails?:
+      | {
+          email: string;
+          id?: string | null;
+        }[]
+      | null;
+    alertThresholds?: {
+      /**
+       * Alert when our organic position drops by this many spots day-over-day.
+       */
+      organicDropPositions?: number | null;
+      /**
+       * Alert when estimated vertical pixel offset increases by this much (lower = more sensitive).
+       */
+      pixelOffsetDrop?: number | null;
+    };
+  };
   /**
    * Original proposal that became this client
    */
@@ -2830,7 +2936,7 @@ export interface NegativeKeywordList {
    */
   adGroupName?: string | null;
   /**
-   * Pattern for auto-assigning this list to matching campaigns. Use .* to match anything. Examples: .*Search.* (any campaign with 'Search' in the name), .*Brand.* (any campaign with 'Brand'), .* (all campaigns). Leave blank to skip auto-assignment.
+   * Pattern for auto-assigning this list to matching campaigns/ad groups. Type a keyword (e.g. Brand) or use | to match multiple (e.g. Brand|Generic). Examples: Brand (matches 'Brand_Product'), Brand|Generic (matches both), .* (all campaigns). Case insensitive. Save first, then preview.
    */
   campaignRegex?: string | null;
   /**
@@ -4287,6 +4393,205 @@ export interface NegativeSweepCandidate {
   createdAt: string;
 }
 /**
+ * Weekly AI assistant referral traffic snapshots (ChatGPT, Perplexity, Gemini, Claude, Copilot, etc.) pulled from GA4 by Growth Tools.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ai-visibility-snapshots".
+ */
+export interface AiVisibilitySnapshot {
+  id: number;
+  /**
+   * Linked client
+   */
+  client: number | Client;
+  /**
+   * Denormalised client name for the admin list view. Auto-populated from the linked client when left blank.
+   */
+  clientName?: string | null;
+  /**
+   * GA4 property ID the snapshot was pulled from
+   */
+  propertyId: string;
+  /**
+   * Start of the reporting window (YYYY-MM-DD)
+   */
+  periodStart: string;
+  /**
+   * End of the reporting window (YYYY-MM-DD)
+   */
+  periodEnd: string;
+  totalSessions: number;
+  totalUsers: number;
+  totalConversions: number;
+  conversionValue?: number | null;
+  engagedSessions?: number | null;
+  /**
+   * Average engagement time in seconds
+   */
+  avgEngagementTime?: number | null;
+  /**
+   * Full per-assistant breakdown. Shape: Array<{ source, assistant, sessions, users, conversions, conversionValue, engagedSessions, topLandingPages: Array<{ path, sessions, conversions }> }>
+   */
+  bySource?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Share of AI referrals per assistant. Shape: Record<string, number> (values 0-1)
+   */
+  shareBySource?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * ISO timestamp of when the snapshot was pulled from GA4
+   */
+  fetchedAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Daily SERP layout snapshots per monitored keyword — tracks AI Overview appearance, SERP features, organic position, pixel offset, and paid position. Pushed by Growth Tools' SERP Displacement Monitor.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "serp-displacement-snapshots".
+ */
+export interface SerpDisplacementSnapshot {
+  id: number;
+  /**
+   * Linked client
+   */
+  client: number | Client;
+  /**
+   * Denormalised client name for the admin list view. Auto-populated from the linked client when left blank.
+   */
+  clientName?: string | null;
+  /**
+   * The search query that was captured
+   */
+  keyword: string;
+  /**
+   * Geo target (e.g. "au:sydney")
+   */
+  location: string;
+  device: 'desktop' | 'mobile';
+  /**
+   * When the SERP was captured
+   */
+  capturedAt: string;
+  /**
+   * AI Overview block present on the SERP
+   */
+  hasAiOverview?: boolean | null;
+  /**
+   * AIO was rendered expanded (null = unknown)
+   */
+  aiOverviewExpanded?: boolean | null;
+  /**
+   * Client domain is cited in AIO references
+   */
+  aiOverviewCitesDomain?: boolean | null;
+  /**
+   * AIO reference list. Shape: Array<{ domain, link, title }>
+   */
+  aiOverviewReferences?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  hasAnswerBox?: boolean | null;
+  hasKnowledgeGraph?: boolean | null;
+  hasShopping?: boolean | null;
+  hasLocalPack?: boolean | null;
+  /**
+   * Sponsored ads above the organic results
+   */
+  topAdCount?: number | null;
+  /**
+   * Sponsored ads below the organic results
+   */
+  bottomAdCount?: number | null;
+  /**
+   * Client domain's organic position (null = not in top 100)
+   */
+  organicPosition?: number | null;
+  /**
+   * Estimated vertical pixel offset of the client's organic listing from the top of the SERP (heuristic).
+   */
+  organicPixelOffset?: number | null;
+  /**
+   * Average paid position from Google Ads
+   */
+  paidPosition?: number | null;
+  /**
+   * Absolute top impression share (0-1)
+   */
+  paidAbsoluteTopIs?: number | null;
+  /**
+   * Top impression share (0-1)
+   */
+  paidTopIs?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Material SERP changes flagged by the daily displacement diff (AI Overview appeared/lost, citations gained/lost, organic drop, paid displaced). Pushed by Growth Tools.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "serp-displacement-alerts".
+ */
+export interface SerpDisplacementAlert {
+  id: number;
+  /**
+   * Linked client
+   */
+  client: number | Client;
+  /**
+   * Denormalised client name for the admin list view. Auto-populated from the linked client when left blank.
+   */
+  clientName?: string | null;
+  /**
+   * The monitored keyword this alert is about
+   */
+  keyword: string;
+  alertType:
+    | 'ai_overview_appeared'
+    | 'ai_overview_lost'
+    | 'cited_in_aio'
+    | 'dropped_from_aio'
+    | 'organic_drop'
+    | 'paid_displaced';
+  severity: 'info' | 'warning' | 'critical';
+  /**
+   * Short human-readable summary of what changed
+   */
+  description: string;
+  /**
+   * The "what to do" chip text — guidance the account manager should action (see plan §2.9).
+   */
+  recommendedAction?: string | null;
+  /**
+   * Digest email that surfaced this alert has been sent
+   */
+  emailSent?: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "business-costs".
  */
@@ -4442,7 +4747,8 @@ export interface ActivityLog {
     | 'lead_stage_changed'
     | 'template_created'
     | 'timeline_created'
-    | 'process_started';
+    | 'process_started'
+    | 'ai_visibility_snapshot_created';
   title: string;
   description?: string | null;
   /**
@@ -4816,6 +5122,18 @@ export interface PayloadLockedDocument {
         value: number | SiteHealthReport;
       } | null)
     | ({
+        relationTo: 'ai-visibility-snapshots';
+        value: number | AiVisibilitySnapshot;
+      } | null)
+    | ({
+        relationTo: 'serp-displacement-snapshots';
+        value: number | SerpDisplacementSnapshot;
+      } | null)
+    | ({
+        relationTo: 'serp-displacement-alerts';
+        value: number | SerpDisplacementAlert;
+      } | null)
+    | ({
         relationTo: 'business-costs';
         value: number | BusinessCost;
       } | null)
@@ -5097,6 +5415,54 @@ export interface ClientsSelect<T extends boolean = true> {
   ga4AccessToken?: T;
   ga4RefreshToken?: T;
   ga4TokenExpiry?: T;
+  analytics?:
+    | T
+    | {
+        ga4PropertyId?: T;
+      };
+  aiVisibility?:
+    | T
+    | {
+        enabled?: T;
+        recipientEmails?:
+          | T
+          | {
+              email?: T;
+              id?: T;
+            };
+        probePrompts?:
+          | T
+          | {
+              prompt?: T;
+              id?: T;
+            };
+      };
+  serpMonitor?:
+    | T
+    | {
+        enabled?: T;
+        domain?: T;
+        keywords?:
+          | T
+          | {
+              keyword?: T;
+              location?: T;
+              device?: T;
+              id?: T;
+            };
+        alertRecipientEmails?:
+          | T
+          | {
+              email?: T;
+              id?: T;
+            };
+        alertThresholds?:
+          | T
+          | {
+              organicDropPositions?: T;
+              pixelOffsetDrop?: T;
+            };
+      };
   clientProposals?: T;
   gscConnected?: T;
   gscPropertyUrl?: T;
@@ -6103,6 +6469,73 @@ export interface SiteHealthReportsSelect<T extends boolean = true> {
       };
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ai-visibility-snapshots_select".
+ */
+export interface AiVisibilitySnapshotsSelect<T extends boolean = true> {
+  client?: T;
+  clientName?: T;
+  propertyId?: T;
+  periodStart?: T;
+  periodEnd?: T;
+  totalSessions?: T;
+  totalUsers?: T;
+  totalConversions?: T;
+  conversionValue?: T;
+  engagedSessions?: T;
+  avgEngagementTime?: T;
+  bySource?: T;
+  shareBySource?: T;
+  fetchedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "serp-displacement-snapshots_select".
+ */
+export interface SerpDisplacementSnapshotsSelect<T extends boolean = true> {
+  client?: T;
+  clientName?: T;
+  keyword?: T;
+  location?: T;
+  device?: T;
+  capturedAt?: T;
+  hasAiOverview?: T;
+  aiOverviewExpanded?: T;
+  aiOverviewCitesDomain?: T;
+  aiOverviewReferences?: T;
+  hasAnswerBox?: T;
+  hasKnowledgeGraph?: T;
+  hasShopping?: T;
+  hasLocalPack?: T;
+  topAdCount?: T;
+  bottomAdCount?: T;
+  organicPosition?: T;
+  organicPixelOffset?: T;
+  paidPosition?: T;
+  paidAbsoluteTopIs?: T;
+  paidTopIs?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "serp-displacement-alerts_select".
+ */
+export interface SerpDisplacementAlertsSelect<T extends boolean = true> {
+  client?: T;
+  clientName?: T;
+  keyword?: T;
+  alertType?: T;
+  severity?: T;
+  description?: T;
+  recommendedAction?: T;
+  emailSent?: T;
+  createdAt?: T;
+  updatedAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

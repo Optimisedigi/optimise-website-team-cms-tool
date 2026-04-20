@@ -22,6 +22,8 @@ import * as migration_20260411_150000_fix_budget_extension_tables from './202604
 import * as migration_20260412_120000_add_monthly_budget_to_google_ads_audits from './20260412_120000_add_monthly_budget_to_google_ads_audits';
 import * as migration_20260412_130000_add_enabled_to_campaign_budgets from './20260412_130000_add_enabled_to_campaign_budgets';
 import * as migration_20260415_120000_merge_timeline_into_processes from './20260415_120000_merge_timeline_into_processes';
+import * as migration_20260420_120000_add_ai_visibility_snapshots from './20260420_120000_add_ai_visibility_snapshots';
+import * as migration_20260420_130000_add_serp_displacement_collections from './20260420_130000_add_serp_displacement_collections';
 import * as migration_20260420_140000_add_ai_visibility_serp_monitor_fields from './20260420_140000_add_ai_visibility_serp_monitor_fields';
 
 export const migrations = [
@@ -144,6 +146,16 @@ export const migrations = [
     up: migration_20260415_120000_merge_timeline_into_processes.up,
     down: migration_20260415_120000_merge_timeline_into_processes.down,
     name: '20260415_120000_merge_timeline_into_processes'
+  },
+  {
+    up: migration_20260420_120000_add_ai_visibility_snapshots.up,
+    down: migration_20260420_120000_add_ai_visibility_snapshots.down,
+    name: '20260420_120000_add_ai_visibility_snapshots'
+  },
+  {
+    up: migration_20260420_130000_add_serp_displacement_collections.up,
+    down: migration_20260420_130000_add_serp_displacement_collections.down,
+    name: '20260420_130000_add_serp_displacement_collections'
   },
   {
     up: migration_20260420_140000_add_ai_visibility_serp_monitor_fields.up,

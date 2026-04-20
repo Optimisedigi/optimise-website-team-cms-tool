@@ -1620,6 +1620,191 @@ export const Clients: CollectionConfig = {
               type: "date",
               admin: { hidden: true },
             },
+            // ─ Shared analytics config (used by AI Visibility Tracker + future GA4-powered tools) ─
+            {
+              name: "analytics",
+              type: "group",
+              label: "Analytics (Shared)",
+              admin: {
+                description: "Shared analytics identifiers used by Growth Tools (tag audit, AI Visibility Tracker, etc).",
+              },
+              fields: [
+                {
+                  name: "ga4PropertyId",
+                  type: "text",
+                  admin: {
+                    description:
+                      "Numeric GA4 property ID (e.g. 308123456). Strip the 'properties/' prefix. Used by AI Visibility Tracker and other GA4-powered tools.",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        {
+          label: "AI Visibility",
+          fields: [
+            {
+              name: "aiVisibility",
+              type: "group",
+              label: "AI Visibility Tracker",
+              admin: {
+                description:
+                  "Configure weekly AI Visibility snapshots — traffic from ChatGPT, Gemini, Perplexity, Claude, etc. — and buyer-question probes run across those assistants.",
+              },
+              fields: [
+                {
+                  name: "enabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description:
+                      "Enable weekly AI Visibility snapshots (traffic from ChatGPT, Gemini, Perplexity, Claude, etc).",
+                  },
+                },
+                {
+                  name: "recipientEmails",
+                  type: "array",
+                  fields: [{ name: "email", type: "email", required: true }],
+                  admin: {
+                    description: "Who receives the weekly AI Visibility digest.",
+                  },
+                },
+                {
+                  name: "probePrompts",
+                  type: "array",
+                  maxRows: 20,
+                  fields: [
+                    { name: "prompt", type: "text", required: true, maxLength: 500 },
+                  ],
+                  admin: {
+                    description:
+                      "Phase 4 — buyer questions to run through ChatGPT/Gemini/Perplexity/Claude each week. Leave empty to skip probing.",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        {
+          label: "SERP Monitor",
+          fields: [
+            {
+              name: "serpMonitor",
+              type: "group",
+              admin: {
+                description:
+                  "Daily SERP tracking — detects AI Overview appearance and paid-displacement risk.",
+              },
+              fields: [
+                {
+                  name: "enabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                },
+                {
+                  name: "domain",
+                  type: "text",
+                  admin: {
+                    description:
+                      "Root domain to track in SERPs (e.g. 'optimisedigital.online'). Defaults to the client's main website.",
+                  },
+                },
+                {
+                  name: "keywords",
+                  type: "array",
+                  maxRows: 50,
+                  fields: [
+                    {
+                      name: "keyword",
+                      type: "text",
+                      required: true,
+                      maxLength: 200,
+                    },
+                    {
+                      name: "location",
+                      type: "select",
+                      required: true,
+                      defaultValue: "au:sydney",
+                      options: [
+                        { label: "🇦🇺 Australia", value: "au" },
+                        { label: "🏄 Sydney", value: "au:sydney" },
+                        { label: "☕ Melbourne", value: "au:melbourne" },
+                        { label: "🦘 Brisbane", value: "au:brisbane" },
+                        { label: "🌴 Perth", value: "au:perth" },
+                        { label: "🇺🇸 United States", value: "us" },
+                        { label: "🗽 New York", value: "us:new-york" },
+                        { label: "🌴 Los Angeles", value: "us:los-angeles" },
+                        { label: "🏙️ Chicago", value: "us:chicago" },
+                        { label: "🚀 Houston", value: "us:houston" },
+                        { label: "🏖️ Miami", value: "us:miami" },
+                        { label: "🇬🇧 United Kingdom", value: "uk" },
+                        { label: "🏛️ London", value: "uk:london" },
+                        { label: "⚽ Manchester", value: "uk:manchester" },
+                        { label: "🏭 Birmingham", value: "uk:birmingham" },
+                        { label: "🇨🇦 Canada", value: "ca" },
+                        { label: "🍁 Toronto", value: "ca:toronto" },
+                        { label: "🏔️ Vancouver", value: "ca:vancouver" },
+                        { label: "🎭 Montreal", value: "ca:montreal" },
+                        { label: "🇩🇪 Germany", value: "de" },
+                        { label: "🇫🇷 France", value: "fr" },
+                        { label: "🗼 Paris", value: "fr:paris" },
+                        { label: "🇪🇸 Spain", value: "es" },
+                        { label: "🇮🇹 Italy", value: "it" },
+                        { label: "🇯🇵 Japan", value: "jp" },
+                        { label: "🗼 Tokyo", value: "jp:tokyo" },
+                        { label: "🇮🇳 India", value: "in" },
+                        { label: "🇸🇬 Singapore", value: "sg" },
+                        { label: "🇭🇰 Hong Kong", value: "hk" },
+                        { label: "🇳🇱 Netherlands", value: "nl" },
+                      ],
+                    },
+                    {
+                      name: "device",
+                      type: "radio",
+                      defaultValue: "desktop",
+                      options: [
+                        { label: "Desktop", value: "desktop" },
+                        { label: "Mobile", value: "mobile" },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  name: "alertRecipientEmails",
+                  type: "array",
+                  fields: [{ name: "email", type: "email", required: true }],
+                },
+                {
+                  name: "alertThresholds",
+                  type: "group",
+                  fields: [
+                    {
+                      name: "organicDropPositions",
+                      type: "number",
+                      defaultValue: 3,
+                      min: 1,
+                      max: 50,
+                      admin: {
+                        description:
+                          "Alert when our organic position drops by this many spots day-over-day.",
+                      },
+                    },
+                    {
+                      name: "pixelOffsetDrop",
+                      type: "number",
+                      defaultValue: 400,
+                      min: 100,
+                      max: 2000,
+                      admin: {
+                        description:
+                          "Alert when estimated vertical pixel offset increases by this much (lower = more sensitive).",
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
           ],
         },
         {
