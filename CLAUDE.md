@@ -42,7 +42,7 @@ Still actively expanding — core audit/proposal/content/GSC features are built,
 
 ```
 src/
-  collections/            # 23 Payload collection configs
+  collections/            # 25+ Payload collection configs
   globals/                # ApiCostRates (per-unit API costs)
   migrations/             # Drizzle migration files
   lib/                    # Service clients and utilities
@@ -55,15 +55,17 @@ src/
     google-ads-email-generator.ts  # Styled HTML email from audit results
     google-ads-types.ts     # Google Ads audit TypeScript types
     proposalEditor.ts       # Proposal editing utilities
-  components/             # ~46 custom admin UI components
+    client-timeline-email.ts  # Gmail-ready HTML progress update emails
+  components/             # ~50+ custom admin UI components
   app/
     (payload)/admin/      # Payload admin (importMap.js lives here)
     (frontend)/
-      api/                # ~38 API routes (19 route groups)
+      api/                # ~45+ API routes (20+ route groups)
       audits/[slug]       # Public audit report (PIN-gated)
       proposals/[slug]    # Public proposal report (PIN-gated)
       reports/[slug]      # SEO/CRO report viewer
       mockup/[slug]       # Client mockup previewer
+      negative-keyword-build/[slug]  # Client NLB review page (PIN-gated, tabs, comments)
 tests/                    # Vitest tests (~340 tests, <1s)
   lib/                      # Unit tests for src/lib/
   collections/              # Collection config + hook tests
@@ -72,13 +74,15 @@ tests/                    # Vitest tests (~340 tests, <1s)
 scripts/                  # Utility scripts (e.g. migrate-richtext)
 ```
 
-## Collections (23)
+## Collections (25+)
 
 **Core:** `clients`, `client-proposals`, `users`, `media`
 **Audits:** `seo-audits`, `cro-audits`, `keyword-snapshots`, `competitor-analyses`, `content-researches`, `google-ads-audits`
 **GSC:** `gsc-snapshots`, `gsc-daily`, `gsc-alerts`
 **Content:** `blog-posts`, `blog-prompts`, `job-posts`, `internal-link-suggestions`
 **Finance:** `business-costs`, `cost-categories`, `cost-rules`
+**Negative Keywords:** `negative-keyword-lists` (ongoing NKL management per client)
+**Processes:** `process-templates` (reusable blueprints), `client-processes` (live trackable instances)
 **Utility:** `activity-log`, `usage-reports`, `api-key-access`
 
 ### Key Relationships
@@ -90,9 +94,14 @@ Client
   │   ├→ ContentResearches (hasMany)
   │   └→ GoogleAdsAudit
   ├→ GoogleAdsAudit (also linkable from proposal)
+  │   └→ negativeListBuilder (JSON: NLB data, client review, approval)
+  ├→ NegativeKeywordList (multiple per client, synced to Google Ads)
+  ├→ ClientProcess (created from ProcessTemplate, tracks onboarding phases)
   ├→ GscSnapshot → GscAlert
   ├→ BlogPost
   └→ JobPost
+
+ProcessTemplate → ClientProcess (snapshot copy of phases/steps at creation time)
 ```
 
 ## Key API Routes
@@ -111,6 +120,11 @@ Client
 | `/api/costs/categorise` | POST | AI cost categorization |
 | `/api/migrate` | POST | Manual schema migration (x-api-key: AUDIT_API_KEY) |
 | `/api/audit-auth` | POST | PIN auth for public reports (rate-limited) |
+| `/api/negative-keyword-build` | GET | Client-facing NLB preview data (PIN-gated) |
+| `/api/negative-keyword-build-comments` | POST | Client save-edits and submit-approval for NLB |
+| `/api/client-processes/[id]/email-preview` | POST | Generate Gmail-ready progress update email |
+| `/api/client-processes/create-from-template` | POST | Create client process from a template |
+| `/api/process-templates/import-from-process` | POST | Import existing client process as reusable template |
 
 ## Key Workflows
 
@@ -121,6 +135,20 @@ Client
 4. Team curates findings in "Finding Curation" tab
 5. Share PIN-protected report with prospect
 6. "Convert to Client" toggle creates a Client record
+
+**Negative Keyword List Builder (NLB) → Client Review:**
+1. Generate NLB from Google Ads audit (analyses search term data)
+2. Agency reviews in CMS flat keyword list — remove/keep/edit keywords, move to NKL
+3. Publish and share PIN-protected client review page
+4. Client sees two tabs: "Current Negative Keyword List Setup" (existing NKLs) and "Negative Keywords for Client Review" (proposed additions with inline comments)
+5. Client removes/approves keywords, adds per-keyword comments, submits
+6. Agency reviews client feedback and applies changes
+
+**Client Process Tracking:**
+1. Create ProcessTemplate with phases, steps, week ranges, assignees
+2. Create ClientProcess from template (snapshot copy)
+3. Track step completion, share Gmail-ready progress updates with clients
+4. Email is left-aligned, no title tag, 5px padding for clean Gmail paste
 
 **GSC Monitoring (re-application in progress — steps 1-3 of 6 done):**
 1. Client connects GSC via OAuth
