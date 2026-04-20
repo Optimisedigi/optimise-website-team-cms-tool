@@ -49,6 +49,9 @@ export const ActivityLog: CollectionConfig = {
         { label: "Template Created", value: "template_created" },
         { label: "Timeline Created", value: "timeline_created" },
         { label: "Process Started", value: "process_started" },
+        { label: "AI Visibility Snapshot Created", value: "ai_visibility_snapshot_created" },
+        { label: "SERP Displacement Snapshot Created", value: "serp_displacement_snapshot_created" },
+        { label: "SERP Displacement Alert Created", value: "serp_displacement_alert_created" },
       ],
     },
     {

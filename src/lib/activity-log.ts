@@ -28,7 +28,10 @@ type ActivityType =
   | "timeline_created"
   | "process_step_completed"
   | "meeting_scheduled"
-  | "meeting_confirmed";
+  | "meeting_confirmed"
+  | "ai_visibility_snapshot_created"
+  | "serp_displacement_snapshot_created"
+  | "serp_displacement_alert_created";
 
 interface ActivityEntry {
   type: ActivityType;
