@@ -3925,16 +3925,13 @@ export interface MeetingScheduler {
    * Slot interval (mins)
    */
   slotIntervalMinutes?: number | null;
-  daySchedule?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
+  /**
+   * Business hours start (HH:MM)
+   */
   businessHoursStart?: string | null;
+  /**
+   * Business hours end (HH:MM)
+   */
   businessHoursEnd?: string | null;
   attendees?:
     | {
@@ -5821,7 +5818,6 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
   dateRangeEnd?: T;
   timezone?: T;
   slotIntervalMinutes?: T;
-  daySchedule?: T;
   businessHoursStart?: T;
   businessHoursEnd?: T;
   attendees?:
