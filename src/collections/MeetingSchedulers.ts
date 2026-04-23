@@ -218,7 +218,7 @@ export const MeetingSchedulers: CollectionConfig = {
               minRows: 0,
               maxRows: 10,
               admin: {
-                condition: () => false, // Hidden — managed via the table UI above
+                hidden: true, // Hidden from default UI; managed via the table UI above
               },
               fields: [
                 {

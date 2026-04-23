@@ -1,85 +1,88 @@
 'use client'
 
-import { useDocumentInfo, useAllFormFields, useAuth } from '@payloadcms/ui'
-import { useState, useMemo } from 'react'
+import { useDocumentInfo, useAuth } from '@payloadcms/ui'
+import { useState } from 'react'
 
 type Attendee = {
-  name: string
+  name?: string
   email: string
-  token: string
+  token?: string
 }
 
-function extractAttendees(fields: Record<string, any>): Attendee[] {
-  const attendees: Attendee[] = []
-  let i = 0
-  while (true) {
-    const hasRow =
-      fields[`attendees.${i}.name`] !== undefined ||
-      fields[`attendees.${i}.email`] !== undefined
-    if (!hasRow) break
-    attendees.push({
-      name: fields[`attendees.${i}.name`]?.value ?? '',
-      email: fields[`attendees.${i}.email`]?.value ?? '',
-      token: fields[`attendees.${i}.token`]?.value ?? '',
-    })
-    i++
-  }
-  return attendees
+type SchedulerDoc = {
+  title?: string
+  meetingTopic?: string
+  durationMinutes?: string
+  timezone?: string
+  generatedSlots?: string[] | null
+  attendees?: Attendee[]
 }
 
 export default function CopyScheduleEmailButton() {
   const { id } = useDocumentInfo()
-  const [fields] = useAllFormFields()
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [doc, setDoc] = useState<SchedulerDoc | null>(null)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [copied, setCopied] = useState<'none' | 'recipients' | 'subject' | 'body'>('none')
+  const [error, setError] = useState<string | null>(null)
 
-  const data = useMemo(() => {
-    const anyFields = fields as Record<string, any>
-    const title = anyFields?.title?.value ?? ''
-    const topic = anyFields?.meetingTopic?.value ?? ''
-    const duration = anyFields?.durationMinutes?.value ?? '30'
-    const timezone = anyFields?.timezone?.value ?? 'Australia/Sydney'
-    const slots = anyFields?.generatedSlots?.value
-    const hasSlots = Array.isArray(slots) && slots.length > 0
-    const attendees = extractAttendees(anyFields || {})
-    return { title, topic, duration, timezone, hasSlots, attendees }
-  }, [fields])
-
-  const missingTokens = data.attendees.filter((a) => !a.token).length
   const anyName = (user as any)?.name || (user as any)?.email?.split('@')[0] || ''
 
-  const handleOpen = () => {
-    const baseUrl = window.location.origin
-    const subj = `${data.title || 'Meeting'} — please pick your available times`
+  const handleOpen = async () => {
+    if (!id) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/meeting-schedulers/${id}?depth=0`)
+      if (!res.ok) throw new Error(`Failed to load scheduler (${res.status})`)
+      const fetched: SchedulerDoc = await res.json()
+      setDoc(fetched)
 
-    const linkLines = data.attendees
-      .filter((a) => a.email && a.token)
-      .map((a) => `• ${a.name || a.email}: ${baseUrl}/schedule/${a.token}`)
+      const baseUrl = window.location.origin
+      const title = fetched.title || 'Meeting'
+      const topic = (fetched.meetingTopic || '').trim()
+      const duration = fetched.durationMinutes || '30'
+      const timezone = fetched.timezone || 'Australia/Sydney'
+      const attendees = fetched.attendees || []
 
-    const bodyText = [
-      'Hi team,',
-      '',
-      `I'm scheduling a meeting${data.title ? `: ${data.title}` : ''}.`,
-      data.topic ? `\n${data.topic}\n` : null,
-      `Duration: ${data.duration} min (${data.timezone}).`,
-      '',
-      "Please click YOUR personal link below and select every time that works for you. Once everyone has responded, we'll automatically match a time that works for all attendees and send a calendar invite.",
-      '',
-      ...linkLines,
-      '',
-      'Cheers,',
-      anyName,
-    ]
-      .filter((l) => l !== null && l !== undefined)
-      .join('\n')
+      const subj = `${title} — please pick your available times`
 
-    setSubject(subj)
-    setBody(bodyText)
-    setOpen(true)
-    setCopied('none')
+      const linkLines = attendees
+        .filter((a) => a.email && a.token)
+        .map((a) => `• ${a.name || a.email}: ${baseUrl}/schedule/${a.token}`)
+
+      const bodyParts: string[] = [
+        'Hi team,',
+        '',
+        `I'm scheduling a meeting: ${title}.`,
+      ]
+      if (topic) {
+        bodyParts.push('', topic)
+      }
+      bodyParts.push(
+        '',
+        `Duration: ${duration} min (${timezone}).`,
+        '',
+        "Please click YOUR personal link below and select every time that works for you. Once everyone has responded, we'll automatically match a time that works for all attendees and send a calendar invite.",
+        '',
+      )
+      if (linkLines.length > 0) {
+        bodyParts.push(...linkLines, '')
+      }
+      bodyParts.push('Cheers,', anyName)
+
+      setSubject(subj)
+      setBody(bodyParts.join('\n'))
+      setOpen(true)
+      setCopied('none')
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const copy = async (text: string, which: 'recipients' | 'subject' | 'body') => {
@@ -92,26 +95,40 @@ export default function CopyScheduleEmailButton() {
     }
   }
 
-  const recipients = data.attendees.map((a) => a.email).filter(Boolean).join(', ')
+  const attendees = doc?.attendees || []
+  const recipients = attendees.map((a) => a.email).filter(Boolean).join(', ')
+  const missingTokens = attendees.filter((a) => !a.token && a.email).length
+  const hasSlots = Array.isArray(doc?.generatedSlots) && (doc?.generatedSlots?.length || 0) > 0
 
   if (!id) return null
 
   return (
     <div style={{ marginTop: 12, marginBottom: 16 }}>
-      <button onClick={open ? () => setOpen(false) : handleOpen} type="button" style={styles.openButton}>
-        {open ? 'Close' : 'Copy Email for All Attendees'}
+      <button
+        onClick={open ? () => setOpen(false) : handleOpen}
+        disabled={loading}
+        type="button"
+        style={{ ...styles.openButton, opacity: loading ? 0.6 : 1 }}
+      >
+        {loading ? 'Loading…' : open ? 'Close' : 'Copy Email for All Attendees'}
       </button>
+      {error && <span style={{ marginLeft: 12, color: '#dc2626', fontSize: 12 }}>{error}</span>}
 
       {open && (
         <div style={styles.panel}>
-          {!data.hasSlots && (
+          {!hasSlots && (
             <div style={styles.warn}>
               No available slots generated yet. Attendee links will open an empty picker. Run <strong>Generate Available Slots</strong> first.
             </div>
           )}
+          {attendees.length === 0 && (
+            <div style={styles.warn}>
+              No attendees saved on this scheduler. Add attendees and click Save before copying the email.
+            </div>
+          )}
           {missingTokens > 0 && (
             <div style={styles.warn}>
-              {missingTokens} attendee(s) missing scheduling tokens. Save this record first to generate links for everyone.
+              {missingTokens} attendee(s) missing scheduling tokens. Save this record again to generate links.
             </div>
           )}
 
@@ -184,9 +201,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 12,
     border: '1px solid var(--theme-warning-250, #fde68a)',
   },
-  field: {
-    marginBottom: 14,
-  },
+  field: { marginBottom: 14 },
   label: {
     display: 'block',
     fontSize: 12,
@@ -196,11 +211,7 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
   },
-  inputRow: {
-    display: 'flex',
-    gap: 8,
-    alignItems: 'stretch',
-  },
+  inputRow: { display: 'flex', gap: 8, alignItems: 'stretch' },
   input: {
     flex: 1,
     padding: '6px 10px',
