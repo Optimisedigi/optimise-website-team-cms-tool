@@ -346,6 +346,15 @@ export const MeetingSchedulers: CollectionConfig = {
           label: "Actions",
           fields: [
             {
+              name: "copyEmailButton",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/CopyScheduleEmailButton",
+                },
+              },
+            },
+            {
               name: "sendInvitesButton",
               type: "ui",
               admin: {

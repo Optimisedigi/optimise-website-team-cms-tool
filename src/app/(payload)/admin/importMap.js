@@ -58,6 +58,7 @@ import { default as default_f3192da0e1eaceb3549701f5cee70cf7 } from '../../../co
 import { default as default_392e7f41a027f157fd32e33bbc1ae135 } from '../../../components/MeetingSchedulerInstructions'
 import { default as default_bc615a67c4e11c38db54a3bb23baf563 } from '../../../components/MeetingSchedulerAttendeesTable'
 import { default as default_meeting_scheduler_day_schedule } from '../../../components/MeetingSchedulerDaySchedule'
+import { default as default_copy_schedule_email_button } from '../../../components/CopyScheduleEmailButton'
 import { default as default_971d902ea7bb079a9f85d3af6410683c } from '../../../components/GenerateSlotsButton'
 import { default as default_0038b26ea788903db0f6afa6e94f619a } from '../../../components/SendScheduleInvitesButton'
 import { default as default_b1a172dcaa4141cf8a8a49b72ea9569b } from '../../../components/ScheduleResponseStatus'
@@ -177,6 +178,7 @@ export const importMap = {
   "./components/MeetingSchedulerInstructions#default": default_392e7f41a027f157fd32e33bbc1ae135,
   "./components/MeetingSchedulerAttendeesTable#default": default_bc615a67c4e11c38db54a3bb23baf563,
   "./components/MeetingSchedulerDaySchedule#default": default_meeting_scheduler_day_schedule,
+  "./components/CopyScheduleEmailButton#default": default_copy_schedule_email_button,
   "./components/GenerateSlotsButton#default": default_971d902ea7bb079a9f85d3af6410683c,
   "./components/SendScheduleInvitesButton#default": default_0038b26ea788903db0f6afa6e94f619a,
   "./components/ScheduleResponseStatus#default": default_b1a172dcaa4141cf8a8a49b72ea9569b,
