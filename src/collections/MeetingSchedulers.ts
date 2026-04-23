@@ -204,21 +204,14 @@ export const MeetingSchedulers: CollectionConfig = {
           label: "Attendees",
           fields: [
             {
-              name: "attendeesTable",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/MeetingSchedulerAttendeesTable",
-                },
-              },
-            },
-            {
               name: "attendees",
               type: "array",
               minRows: 0,
               maxRows: 10,
               admin: {
-                hidden: true, // Hidden from default UI; managed via the table UI above
+                components: {
+                  Field: "./components/MeetingSchedulerAttendeesTable",
+                },
               },
               fields: [
                 {

@@ -3918,14 +3918,6 @@ export interface MeetingScheduler {
    */
   dateRangeEnd: string;
   /**
-   * Business hours start (HH:MM)
-   */
-  businessHoursStart?: string | null;
-  /**
-   * Business hours end (HH:MM)
-   */
-  businessHoursEnd?: string | null;
-  /**
    * Timezone for slots
    */
   timezone?: string | null;
@@ -3933,6 +3925,17 @@ export interface MeetingScheduler {
    * Slot interval (mins)
    */
   slotIntervalMinutes?: number | null;
+  daySchedule?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  businessHoursStart?: string | null;
+  businessHoursEnd?: string | null;
   attendees?:
     | {
         name: string;
@@ -4748,7 +4751,9 @@ export interface ActivityLog {
     | 'template_created'
     | 'timeline_created'
     | 'process_started'
-    | 'ai_visibility_snapshot_created';
+    | 'ai_visibility_snapshot_created'
+    | 'serp_displacement_snapshot_created'
+    | 'serp_displacement_alert_created';
   title: string;
   description?: string | null;
   /**
@@ -5814,10 +5819,11 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
   meetingTopic?: T;
   dateRangeStart?: T;
   dateRangeEnd?: T;
-  businessHoursStart?: T;
-  businessHoursEnd?: T;
   timezone?: T;
   slotIntervalMinutes?: T;
+  daySchedule?: T;
+  businessHoursStart?: T;
+  businessHoursEnd?: T;
   attendees?:
     | T
     | {
