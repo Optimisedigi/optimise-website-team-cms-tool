@@ -101,18 +101,33 @@ export async function fetchAvailableSlots(
 ): Promise<string[]> {
   const calendar = await getAuthenticatedCalendarClient(refreshToken);
 
-  // Use the widest window across schedule to fetch freebusy once.
-  const earliestStart = options.daySchedule?.reduce(
-    (min, d) => (d.enabled && d.start < min ? d.start : min),
-    options.businessHoursStart
-  ) || options.businessHoursStart;
-  const latestEnd = options.daySchedule?.reduce(
-    (max, d) => (d.enabled && d.end > max ? d.end : max),
-    options.businessHoursEnd
-  ) || options.businessHoursEnd;
+  // Normalise dates — Payload stores as ISO strings; we only want YYYY-MM-DD.
+  const toYMD = (input: string | undefined | null): string => {
+    if (!input) throw new Error("Date range start/end is required");
+    const match = String(input).match(/^(\d{4}-\d{2}-\d{2})/);
+    if (!match) throw new Error(`Invalid date: ${input}`);
+    return match[1];
+  };
+  const dateStart = toYMD(options.dateRangeStart);
+  const dateEnd = toYMD(options.dateRangeEnd);
 
-  const timeMin = new Date(`${options.dateRangeStart}T${earliestStart}:00`);
-  const timeMax = new Date(`${options.dateRangeEnd}T${latestEnd}:00`);
+  // Use the widest window across schedule to fetch freebusy once.
+  const enabledDays = (options.daySchedule || []).filter((d) => d.enabled);
+  const earliestStart = enabledDays.length
+    ? enabledDays.reduce((min, d) => (d.start < min ? d.start : min), enabledDays[0].start)
+    : options.businessHoursStart;
+  const latestEnd = enabledDays.length
+    ? enabledDays.reduce((max, d) => (d.end > max ? d.end : max), enabledDays[0].end)
+    : options.businessHoursEnd;
+
+  const timeMin = new Date(`${dateStart}T${earliestStart}:00`);
+  const timeMax = new Date(`${dateEnd}T${latestEnd}:00`);
+
+  if (isNaN(timeMin.getTime()) || isNaN(timeMax.getTime())) {
+    throw new Error(
+      `Invalid time window: dateStart=${dateStart} dateEnd=${dateEnd} earliestStart=${earliestStart} latestEnd=${latestEnd}`
+    );
+  }
 
   const freebusyRes = await calendar.freebusy.query({
     requestBody: {
