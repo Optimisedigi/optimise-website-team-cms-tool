@@ -121,9 +121,11 @@ function EditableCell({
 /* Main Component                                                      */
 /* ------------------------------------------------------------------ */
 
-export default function MeetingSchedulerAttendeesTable(props: any) {
-  const path = props?.path || 'attendees'
-  const schemaPath = props?.schemaPath || 'attendees'
+export default function MeetingSchedulerAttendeesTable(_props: any) {
+  // Hardcoded — this custom component always manages the `attendees`
+  // array field, not the `attendeesTable` UI field it's mounted on.
+  const path = 'attendees'
+  const schemaPath = 'attendees'
   const [fields, dispatchFields] = useAllFormFields()
   const { addFieldRow, removeFieldRow } = useForm()
 
