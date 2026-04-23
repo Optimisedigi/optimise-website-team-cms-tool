@@ -70,7 +70,6 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
   const [data, setData] = useState<MeetingData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set())
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -100,27 +99,6 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
     if (!data) return []
     return groupSlotsByDay(data.generatedSlots, data.timezone)
   }, [data])
-
-  const toggleDay = (dateKey: string) => {
-    setSelectedDays((prev) => {
-      const next = new Set(prev)
-      if (next.has(dateKey)) {
-        next.delete(dateKey)
-        // Remove slots for this day
-        const group = dayGroups.find((g) => g.dateKey === dateKey)
-        if (group) {
-          setSelectedSlots((prevSlots) => {
-            const nextSlots = new Set(prevSlots)
-            group.slots.forEach((s) => nextSlots.delete(s.iso))
-            return nextSlots
-          })
-        }
-      } else {
-        next.add(dateKey)
-      }
-      return next
-    })
-  }
 
   const toggleSlot = (iso: string) => {
     setSelectedSlots((prev) => {
@@ -183,10 +161,14 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
   if (data.status === 'confirmed') {
     return (
       <div style={styles.wrapper}>
+        <div style={styles.siteHeader}>
+          <img
+            src="/Optimise-Digital-Logo-rocket-animation (larger file).gif"
+            alt="Optimise Digital"
+            style={styles.logo}
+          />
+        </div>
         <div style={styles.card}>
-          <div style={styles.header}>
-            <h1 style={styles.brand}>Optimise Digital</h1>
-          </div>
           <div style={styles.body}>
             <div style={styles.confirmedBanner}>
               <p style={styles.confirmedTitle}>Meeting Confirmed!</p>
@@ -204,10 +186,14 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
   if (submitted && !submitResult?.confirmed) {
     return (
       <div style={styles.wrapper}>
+        <div style={styles.siteHeader}>
+          <img
+            src="/Optimise-Digital-Logo-rocket-animation (larger file).gif"
+            alt="Optimise Digital"
+            style={styles.logo}
+          />
+        </div>
         <div style={styles.card}>
-          <div style={styles.header}>
-            <h1 style={styles.brand}>Optimise Digital</h1>
-          </div>
           <div style={styles.body}>
             <div style={styles.successBanner}>
               <p style={styles.successTitle}>
@@ -242,10 +228,14 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
 
     return (
       <div style={styles.wrapper}>
+        <div style={styles.siteHeader}>
+          <img
+            src="/Optimise-Digital-Logo-rocket-animation (larger file).gif"
+            alt="Optimise Digital"
+            style={styles.logo}
+          />
+        </div>
         <div style={styles.card}>
-          <div style={styles.header}>
-            <h1 style={styles.brand}>Optimise Digital</h1>
-          </div>
           <div style={styles.body}>
             <div style={styles.confirmedBanner}>
               <p style={styles.confirmedTitle}>Meeting Confirmed!</p>
@@ -268,10 +258,14 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
 
   return (
     <div style={styles.wrapper}>
+      <div style={styles.siteHeader}>
+        <img
+          src="/Optimise-Digital-Logo-rocket-animation (larger file).gif"
+          alt="Optimise Digital"
+          style={styles.logo}
+        />
+      </div>
       <div style={styles.card}>
-        <div style={styles.header}>
-          <h1 style={styles.brand}>Optimise Digital</h1>
-        </div>
         <div style={styles.body}>
           <h2 style={styles.title}>{data.title}</h2>
           {data.meetingTopic && <p style={styles.topic}>{data.meetingTopic}</p>}
@@ -279,30 +273,12 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
             {data.durationMinutes} min meeting ({data.timezone})
           </p>
 
-          {/* Step 1: Select days */}
-          <p style={styles.stepLabel}>
-            {data.attendeeName ? `Hi ${data.attendeeName}, w` : 'W'}hich days work for you?
+          <p style={styles.instructions}>
+            Select every time that works for you below. Once everyone has responded, we'll automatically match availability and send a calendar invite for the first slot that works for all attendees.
           </p>
-          <div style={styles.dayGrid}>
-            {dayGroups.map((group) => (
-              <button
-                key={group.dateKey}
-                type="button"
-                onClick={() => toggleDay(group.dateKey)}
-                style={{
-                  ...styles.dayPill,
-                  ...(selectedDays.has(group.dateKey) ? styles.dayPillActive : {}),
-                }}
-              >
-                {group.label}
-              </button>
-            ))}
-          </div>
 
-          {/* Step 2: Select times for chosen days */}
-          {dayGroups
-            .filter((g) => selectedDays.has(g.dateKey))
-            .map((group) => (
+          <div style={styles.daysGrid}>
+            {dayGroups.map((group) => (
               <div key={group.dateKey} style={styles.timeSection}>
                 <p style={styles.timeSectionLabel}>{group.label}</p>
                 <div style={styles.timeGrid}>
@@ -322,6 +298,7 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
                 </div>
               </div>
             ))}
+          </div>
 
           {error && <p style={styles.errorText}>{error}</p>}
 
@@ -338,7 +315,7 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
             >
               {submitting
                 ? 'Submitting...'
-                : `Confirm ${selectedSlots.size} time${selectedSlots.size > 1 ? 's' : ''}`}
+                : `Submit availability (${selectedSlots.size} selected)`}
             </button>
           )}
         </div>
@@ -350,33 +327,35 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
     minHeight: '100vh',
-    background: '#f1f5f9',
+    background: '#ffffff',
     display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    padding: '40px 16px',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    padding: '16px 16px 40px',
     fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+  },
+  siteHeader: {
+    width: '100%',
+    maxWidth: 960,
+    padding: '6px 4px 14px',
+    display: 'flex',
+    justifyContent: 'flex-start',
   },
   card: {
     width: '100%',
-    maxWidth: 520,
-    background: '#ffffff',
+    maxWidth: 960,
+    background: '#f1f5f9',
     borderRadius: 12,
     overflow: 'hidden',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
   },
-  header: {
-    background: '#1e293b',
-    padding: '20px 24px',
-  },
-  brand: {
-    margin: 0,
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 600,
+  logo: {
+    height: 22,
+    width: 'auto',
+    display: 'block',
   },
   body: {
-    padding: '28px 24px 32px',
+    padding: '24px 24px 28px',
   },
   title: {
     margin: '0 0 8px',
@@ -391,43 +370,31 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
   meta: {
-    margin: '0 0 24px',
+    margin: '0 0 20px',
     fontSize: 13,
     color: '#94a3b8',
   },
-  stepLabel: {
-    margin: '0 0 12px',
-    fontSize: 15,
-    fontWeight: 500,
+  instructions: {
+    margin: '0 0 24px',
+    padding: '12px 14px',
+    background: '#eff6ff',
+    borderLeft: '3px solid #2563eb',
+    borderRadius: 4,
+    fontSize: 14,
+    lineHeight: 1.5,
     color: '#334155',
   },
-  dayGrid: {
-    display: 'flex',
-    flexWrap: 'wrap' as const,
-    gap: 8,
-    marginBottom: 20,
-  },
-  dayPill: {
-    padding: '10px 16px',
-    border: '2px solid #e2e8f0',
-    borderRadius: 8,
-    background: '#ffffff',
-    color: '#475569',
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-  },
-  dayPillActive: {
-    border: '2px solid #059669',
-    background: '#f0fdf4',
-    color: '#059669',
+  daysGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+    gap: 12,
+    marginBottom: 8,
   },
   timeSection: {
-    marginBottom: 16,
-    padding: '16px',
-    background: '#f8fafc',
+    padding: '14px 12px',
+    background: '#ffffff',
     borderRadius: 8,
+    border: '1px solid #e2e8f0',
   },
   timeSectionLabel: {
     margin: '0 0 10px',
@@ -436,14 +403,15 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#334155',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
+    textAlign: 'center' as const,
   },
   timeGrid: {
     display: 'flex',
-    flexWrap: 'wrap' as const,
-    gap: 8,
+    flexDirection: 'column' as const,
+    gap: 6,
   },
   timeSlot: {
-    padding: '8px 14px',
+    padding: '8px 10px',
     border: '2px solid #e2e8f0',
     borderRadius: 6,
     background: '#ffffff',
@@ -452,16 +420,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     cursor: 'pointer',
     transition: 'all 0.15s',
+    textAlign: 'center' as const,
   },
   timeSlotActive: {
-    border: '2px solid #059669',
-    background: '#dcfce7',
-    color: '#166534',
+    border: '2px solid #2563eb',
+    background: '#dbeafe',
+    color: '#1e40af',
   },
   confirmButton: {
     width: '100%',
     padding: '14px 24px',
-    background: '#059669',
+    background: '#2563eb',
     color: '#ffffff',
     border: 'none',
     borderRadius: 8,
@@ -477,7 +446,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
   },
   successBanner: {
-    background: '#f0fdf4',
+    background: '#eff6ff',
     borderRadius: 8,
     padding: '24px 20px',
     textAlign: 'center' as const,
@@ -486,16 +455,16 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '0 0 8px',
     fontSize: 18,
     fontWeight: 600,
-    color: '#166534',
+    color: '#1e40af',
   },
   successText: {
     margin: 0,
     fontSize: 14,
-    color: '#15803d',
+    color: '#1d4ed8',
     lineHeight: 1.5,
   },
   confirmedBanner: {
-    background: '#f0fdf4',
+    background: '#eff6ff',
     borderRadius: 8,
     padding: '24px 20px',
     textAlign: 'center' as const,
@@ -504,23 +473,23 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '0 0 8px',
     fontSize: 20,
     fontWeight: 600,
-    color: '#166534',
+    color: '#1e40af',
   },
   confirmedSubtitle: {
     margin: '0 0 8px',
     fontSize: 16,
     fontWeight: 500,
-    color: '#15803d',
+    color: '#1d4ed8',
   },
   confirmedText: {
     margin: '0 0 4px',
     fontSize: 14,
-    color: '#15803d',
+    color: '#1d4ed8',
   },
   confirmedMeta: {
     margin: '0 0 12px',
     fontSize: 13,
-    color: '#16a34a',
+    color: '#2563eb',
   },
   errorText: {
     margin: '12px 0 0',

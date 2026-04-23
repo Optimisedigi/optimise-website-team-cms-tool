@@ -49,6 +49,7 @@ export async function POST(
       timezone: (scheduler as any).timezone || "Australia/Sydney",
       durationMinutes: parseInt((scheduler as any).durationMinutes || "30", 10),
       slotIntervalMinutes: (scheduler as any).slotIntervalMinutes || 30,
+      daySchedule: (scheduler as any).daySchedule,
     });
 
     await payload.update({

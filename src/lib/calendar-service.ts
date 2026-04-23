@@ -65,6 +65,23 @@ export async function getAuthenticatedCalendarClient(refreshToken: string) {
   return google.calendar({ version: "v3", auth: oauth2Client });
 }
 
+export type DayScheduleEntry = {
+  day: string;
+  enabled: boolean;
+  start: string;
+  end: string;
+};
+
+const DAYS_MON_FIRST = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function getDayEntry(schedule: DayScheduleEntry[] | undefined, jsDay: number): DayScheduleEntry | null {
+  if (!schedule || schedule.length !== 7) return null;
+  // JS getDay(): 0=Sun, 1=Mon, ..., 6=Sat. Map to Mon-first array index.
+  const monFirstIdx = (jsDay + 6) % 7;
+  const key = DAYS_MON_FIRST[monFirstIdx];
+  return schedule.find((d) => d.day === key) || schedule[monFirstIdx] || null;
+}
+
 /**
  * Fetch available time slots from Google Calendar using the freebusy API.
  * Returns an array of ISO datetime strings representing available slot start times.
@@ -79,12 +96,23 @@ export async function fetchAvailableSlots(
     timezone: string;
     durationMinutes: number;
     slotIntervalMinutes: number;
+    daySchedule?: DayScheduleEntry[];
   }
 ): Promise<string[]> {
   const calendar = await getAuthenticatedCalendarClient(refreshToken);
 
-  const timeMin = new Date(`${options.dateRangeStart}T${options.businessHoursStart}:00`);
-  const timeMax = new Date(`${options.dateRangeEnd}T${options.businessHoursEnd}:00`);
+  // Use the widest window across schedule to fetch freebusy once.
+  const earliestStart = options.daySchedule?.reduce(
+    (min, d) => (d.enabled && d.start < min ? d.start : min),
+    options.businessHoursStart
+  ) || options.businessHoursStart;
+  const latestEnd = options.daySchedule?.reduce(
+    (max, d) => (d.enabled && d.end > max ? d.end : max),
+    options.businessHoursEnd
+  ) || options.businessHoursEnd;
+
+  const timeMin = new Date(`${options.dateRangeStart}T${earliestStart}:00`);
+  const timeMax = new Date(`${options.dateRangeEnd}T${latestEnd}:00`);
 
   const freebusyRes = await calendar.freebusy.query({
     requestBody: {
@@ -95,49 +123,56 @@ export async function fetchAvailableSlots(
     },
   });
 
-  const busyPeriods =
-    freebusyRes.data.calendars?.primary?.busy || [];
+  const busyPeriods = freebusyRes.data.calendars?.primary?.busy || [];
 
   const slots: string[] = [];
-  const current = new Date(timeMin);
+  const cursorDate = new Date(timeMin);
+  cursorDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(timeMax);
 
-  while (current < timeMax) {
-    const dayOfWeek = current.getDay();
-    // Skip weekends
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      current.setDate(current.getDate() + 1);
-      const [h, m] = options.businessHoursStart.split(":").map(Number);
-      current.setHours(h, m, 0, 0);
-      continue;
+  while (cursorDate <= endDate) {
+    const jsDay = cursorDate.getDay();
+    const entry = getDayEntry(options.daySchedule, jsDay);
+
+    // Determine this day's window
+    let startHHMM: string;
+    let endHHMM: string;
+    if (entry) {
+      if (!entry.enabled) {
+        cursorDate.setDate(cursorDate.getDate() + 1);
+        continue;
+      }
+      startHHMM = entry.start;
+      endHHMM = entry.end;
+    } else {
+      // Fallback: legacy behavior (skip weekends, global business hours)
+      if (jsDay === 0 || jsDay === 6) {
+        cursorDate.setDate(cursorDate.getDate() + 1);
+        continue;
+      }
+      startHHMM = options.businessHoursStart;
+      endHHMM = options.businessHoursEnd;
     }
 
-    const [startH, startM] = options.businessHoursStart.split(":").map(Number);
-    const [endH, endM] = options.businessHoursEnd.split(":").map(Number);
-    const dayStart = new Date(current);
+    const [startH, startM] = startHHMM.split(":").map(Number);
+    const [endH, endM] = endHHMM.split(":").map(Number);
+
+    const dayStart = new Date(cursorDate);
     dayStart.setHours(startH, startM, 0, 0);
-    const dayEnd = new Date(current);
+    const dayEnd = new Date(cursorDate);
     dayEnd.setHours(endH, endM, 0, 0);
 
-    // If current is before business hours start, move to start
-    if (current < dayStart) {
-      current.setTime(dayStart.getTime());
-    }
-
-    // Generate slots for this day within business hours
-    while (current < dayEnd && current < timeMax) {
+    const current = new Date(dayStart);
+    while (current < dayEnd) {
       const slotEnd = new Date(current.getTime() + options.durationMinutes * 60000);
-
-      // Check slot fits within business hours
       if (slotEnd > dayEnd) break;
 
-      // Check no overlap with busy periods
       const isAvailable = !busyPeriods.some((busy) => {
         const busyStart = new Date(busy.start!);
         const busyEnd = new Date(busy.end!);
         return current < busyEnd && slotEnd > busyStart;
       });
 
-      // Skip past slots
       if (isAvailable && current > new Date()) {
         slots.push(current.toISOString());
       }
@@ -145,9 +180,7 @@ export async function fetchAvailableSlots(
       current.setMinutes(current.getMinutes() + options.slotIntervalMinutes);
     }
 
-    // Move to next day
-    current.setDate(current.getDate() + 1);
-    current.setHours(startH, startM, 0, 0);
+    cursorDate.setDate(cursorDate.getDate() + 1);
   }
 
   return slots;

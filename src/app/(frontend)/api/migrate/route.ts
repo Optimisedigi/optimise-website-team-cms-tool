@@ -2011,6 +2011,9 @@ export async function POST(request: NextRequest) {
   // locked_documents_rels column for meeting_schedulers
   await run("locked_docs_meeting_schedulers_id", "ALTER TABLE `payload_locked_documents_rels` ADD `meeting_schedulers_id` integer");
 
+  // Per-day availability schedule (JSON)
+  await run("meeting_schedulers_day_schedule", "ALTER TABLE `meeting_schedulers` ADD `day_schedule` text");
+
   // --- Negative List Builder (JSON column on google_ads_audits) ---
   await run("gads_negative_list_builder", "ALTER TABLE `google_ads_audits` ADD `negative_list_builder` text");
   await run("gads_nlb_published", "ALTER TABLE `google_ads_audits` ADD `negative_list_builder_published` integer DEFAULT 0");

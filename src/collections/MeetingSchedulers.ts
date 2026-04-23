@@ -149,30 +149,12 @@ export const MeetingSchedulers: CollectionConfig = {
               type: "row",
               fields: [
                 {
-                  name: "businessHoursStart",
-                  type: "text",
-                  defaultValue: "09:00",
-                  admin: {
-                    description: "Business hours start (HH:MM)",
-                    width: "25%",
-                  },
-                },
-                {
-                  name: "businessHoursEnd",
-                  type: "text",
-                  defaultValue: "17:00",
-                  admin: {
-                    description: "Business hours end (HH:MM)",
-                    width: "25%",
-                  },
-                },
-                {
                   name: "timezone",
                   type: "text",
                   defaultValue: "Australia/Sydney",
                   admin: {
                     description: "Timezone for slots",
-                    width: "25%",
+                    width: "50%",
                   },
                 },
                 {
@@ -181,10 +163,40 @@ export const MeetingSchedulers: CollectionConfig = {
                   defaultValue: 30,
                   admin: {
                     description: "Slot interval (mins)",
-                    width: "25%",
+                    width: "50%",
                   },
                 },
               ],
+            },
+            {
+              name: "daySchedule",
+              type: "json",
+              defaultValue: [
+                { day: "Mon", enabled: true, start: "09:00", end: "17:00" },
+                { day: "Tue", enabled: true, start: "09:00", end: "17:00" },
+                { day: "Wed", enabled: true, start: "09:00", end: "17:00" },
+                { day: "Thu", enabled: true, start: "09:00", end: "17:00" },
+                { day: "Fri", enabled: true, start: "09:00", end: "17:00" },
+                { day: "Sat", enabled: false, start: "09:00", end: "17:00" },
+                { day: "Sun", enabled: false, start: "09:00", end: "17:00" },
+              ],
+              admin: {
+                components: {
+                  Field: "./components/MeetingSchedulerDaySchedule",
+                },
+              },
+            },
+            {
+              name: "businessHoursStart",
+              type: "text",
+              defaultValue: "09:00",
+              admin: { hidden: true },
+            },
+            {
+              name: "businessHoursEnd",
+              type: "text",
+              defaultValue: "17:00",
+              admin: { hidden: true },
             },
           ],
         },
