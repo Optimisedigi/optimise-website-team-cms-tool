@@ -23,7 +23,15 @@ export const MeetingSchedulers: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      async ({ data, operation }) => {
+      async ({ data, operation, originalDoc }) => {
+        try {
+          console.log(
+            `[meeting-schedulers beforeChange] op=${operation} id=${(originalDoc as any)?.id} ` +
+            `dataKeys=${Object.keys(data || {}).join(',')} ` +
+            `attendees=${JSON.stringify((data as any)?.attendees)?.slice(0, 300)} ` +
+            `daySchedule=${JSON.stringify((data as any)?.daySchedule)?.slice(0, 300)}`
+          );
+        } catch {}
         if (operation === "create" && data) {
           if (!data.slug) {
             data.slug = crypto.randomBytes(16).toString("hex");
