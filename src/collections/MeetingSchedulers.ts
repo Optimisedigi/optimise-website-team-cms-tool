@@ -214,7 +214,10 @@ export const MeetingSchedulers: CollectionConfig = {
               minRows: 0,
               maxRows: 10,
               admin: {
-                description: "Add each person who needs to choose a time. Their unique scheduling link is generated on save.",
+                description: "Add each person who needs to choose a time. Press Tab from the email field to add a new row. Unique scheduling links are generated on save.",
+                components: {
+                  Field: "./components/MeetingSchedulerAttendeesTable",
+                },
               },
               fields: [
                 {
