@@ -64,10 +64,12 @@ export default function CopyScheduleEmailButton() {
     const plainParts: string[] = [
       'Hi team,',
       '',
+      "Let's lock in a time without a long email thread.",
+      '',
       "We're scheduling:",
       title,
       '',
-      "Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share, without a long email thread.",
+      "Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share.",
     ]
     if (topic) plainParts.push('', topic)
     plainParts.push('', `Duration: ${data.duration} min (${data.timezone}).`, '')
@@ -93,10 +95,12 @@ export default function CopyScheduleEmailButton() {
     const lines: string[] = [
       '<div>Hi team,</div>',
       '<div>&nbsp;</div>',
+      "<div>Let's lock in a time without a long email thread.</div>",
+      '<div>&nbsp;</div>',
       "<div>We're scheduling:</div>",
       `<div style="color:#2563eb;font-weight:600;font-size:16px">${esc(title)}</div>`,
       '<div>&nbsp;</div>',
-      "<div>Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share, without a long email thread.</div>",
+      "<div>Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share.</div>",
     ]
     if (topic) lines.push('<div>&nbsp;</div>', `<div>${esc(topic).replace(/\n/g, '<br>')}</div>`)
     lines.push('<div>&nbsp;</div>', `<div>Duration: ${esc(data.duration)} min (${esc(data.timezone)}).</div>`, '<div>&nbsp;</div>')
