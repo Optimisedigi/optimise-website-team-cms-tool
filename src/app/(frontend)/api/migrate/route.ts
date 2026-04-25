@@ -2013,6 +2013,7 @@ export async function POST(request: NextRequest) {
 
   // Per-day availability schedule (JSON)
   await run("meeting_schedulers_day_schedule", "ALTER TABLE `meeting_schedulers` ADD `day_schedule` text");
+  await run("meeting_schedulers_date_overrides", "ALTER TABLE `meeting_schedulers` ADD `date_overrides` text");
 
   // Fix meeting_schedulers_attendees.id type from integer to text (Payload v3 uses 24-char hex IDs)
   await run("att_id_check", `SELECT type FROM pragma_table_info('meeting_schedulers_attendees') WHERE name='id'`);

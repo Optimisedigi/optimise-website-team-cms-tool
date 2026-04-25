@@ -50,6 +50,7 @@ export async function POST(
       durationMinutes: parseInt((scheduler as any).durationMinutes || "30", 10),
       slotIntervalMinutes: (scheduler as any).slotIntervalMinutes || 30,
       daySchedule: (scheduler as any).daySchedule,
+      dateOverrides: (scheduler as any).dateOverrides,
     });
 
     await payload.update({

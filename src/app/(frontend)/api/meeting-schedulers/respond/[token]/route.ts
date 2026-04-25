@@ -102,6 +102,7 @@ export async function GET(
     timezone: doc.timezone || "Australia/Sydney",
     generatedSlots: doc.generatedSlots || [],
     attendeeName: attendee.name,
+    attendeeEmail: attendee.email,
     responded: attendee.responded || false,
     selectedSlots: attendee.selectedSlots || [],
     status: doc.status,

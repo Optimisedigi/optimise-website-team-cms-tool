@@ -27,6 +27,7 @@ import * as migration_20260420_130000_add_serp_displacement_collections from './
 import * as migration_20260420_140000_add_ai_visibility_serp_monitor_fields from './20260420_140000_add_ai_visibility_serp_monitor_fields';
 import * as migration_20260423_120000_add_meeting_scheduler_day_schedule from './20260423_120000_add_meeting_scheduler_day_schedule';
 import * as migration_20260425_120000_fix_meeting_attendees_id_type from './20260425_120000_fix_meeting_attendees_id_type';
+import * as migration_20260426_120000_add_meeting_scheduler_date_overrides from './20260426_120000_add_meeting_scheduler_date_overrides';
 
 export const migrations = [
   {
@@ -173,5 +174,10 @@ export const migrations = [
     up: migration_20260425_120000_fix_meeting_attendees_id_type.up,
     down: migration_20260425_120000_fix_meeting_attendees_id_type.down,
     name: '20260425_120000_fix_meeting_attendees_id_type'
+  },
+  {
+    up: migration_20260426_120000_add_meeting_scheduler_date_overrides.up,
+    down: migration_20260426_120000_add_meeting_scheduler_date_overrides.down,
+    name: '20260426_120000_add_meeting_scheduler_date_overrides'
   },
 ];

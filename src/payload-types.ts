@@ -3925,14 +3925,29 @@ export interface MeetingScheduler {
    * Slot interval (mins)
    */
   slotIntervalMinutes?: number | null;
-  /**
-   * Business hours start (HH:MM)
-   */
+  daySchedule?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  dateOverrides?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   businessHoursStart?: string | null;
-  /**
-   * Business hours end (HH:MM)
-   */
   businessHoursEnd?: string | null;
+  /**
+   * Add each person who needs to choose a time. Their unique scheduling link is generated on save.
+   */
   attendees?:
     | {
         name: string;
@@ -5818,6 +5833,8 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
   dateRangeEnd?: T;
   timezone?: T;
   slotIntervalMinutes?: T;
+  daySchedule?: T;
+  dateOverrides?: T;
   businessHoursStart?: T;
   businessHoursEnd?: T;
   attendees?:

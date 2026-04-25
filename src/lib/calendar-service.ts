@@ -72,6 +72,13 @@ export type DayScheduleEntry = {
   end: string;
 };
 
+export type DateOverride = {
+  date: string; // YYYY-MM-DD
+  enabled: boolean;
+  start: string;
+  end: string;
+};
+
 const DAYS_MON_FIRST = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function getDayEntry(schedule: DayScheduleEntry[] | undefined, jsDay: number): DayScheduleEntry | null {
@@ -97,6 +104,7 @@ export async function fetchAvailableSlots(
     durationMinutes: number;
     slotIntervalMinutes: number;
     daySchedule?: DayScheduleEntry[];
+    dateOverrides?: DateOverride[];
   }
 ): Promise<string[]> {
   const calendar = await getAuthenticatedCalendarClient(refreshToken);
@@ -111,13 +119,16 @@ export async function fetchAvailableSlots(
   const dateStart = toYMD(options.dateRangeStart);
   const dateEnd = toYMD(options.dateRangeEnd);
 
-  // Use the widest window across schedule to fetch freebusy once.
-  const enabledDays = (options.daySchedule || []).filter((d) => d.enabled);
-  const earliestStart = enabledDays.length
-    ? enabledDays.reduce((min, d) => (d.start < min ? d.start : min), enabledDays[0].start)
+  // Use the widest window across schedule + overrides to fetch freebusy once.
+  const allWindows = [
+    ...((options.daySchedule || []).filter((d) => d.enabled)),
+    ...((options.dateOverrides || []).filter((d) => d.enabled)),
+  ];
+  const earliestStart = allWindows.length
+    ? allWindows.reduce((min, d) => (d.start < min ? d.start : min), allWindows[0].start)
     : options.businessHoursStart;
-  const latestEnd = enabledDays.length
-    ? enabledDays.reduce((max, d) => (d.end > max ? d.end : max), enabledDays[0].end)
+  const latestEnd = allWindows.length
+    ? allWindows.reduce((max, d) => (d.end > max ? d.end : max), allWindows[0].end)
     : options.businessHoursEnd;
 
   const timeMin = new Date(`${dateStart}T${earliestStart}:00`);
@@ -145,14 +156,32 @@ export async function fetchAvailableSlots(
   cursorDate.setHours(0, 0, 0, 0);
   const endDate = new Date(timeMax);
 
+  // Index date overrides by YYYY-MM-DD for O(1) lookup
+  const overrideByDate: Record<string, DateOverride> = {};
+  for (const ov of options.dateOverrides || []) {
+    if (ov && typeof ov.date === "string") {
+      const ymd = ov.date.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+      if (ymd) overrideByDate[ymd] = ov;
+    }
+  }
+
   while (cursorDate <= endDate) {
     const jsDay = cursorDate.getDay();
+    const ymd = `${cursorDate.getFullYear()}-${String(cursorDate.getMonth() + 1).padStart(2, "0")}-${String(cursorDate.getDate()).padStart(2, "0")}`;
+    const override = overrideByDate[ymd];
     const entry = getDayEntry(options.daySchedule, jsDay);
 
-    // Determine this day's window
+    // Determine this day's window — date override wins over day-of-week
     let startHHMM: string;
     let endHHMM: string;
-    if (entry) {
+    if (override) {
+      if (!override.enabled) {
+        cursorDate.setDate(cursorDate.getDate() + 1);
+        continue;
+      }
+      startHHMM = override.start;
+      endHHMM = override.end;
+    } else if (entry) {
       if (!entry.enabled) {
         cursorDate.setDate(cursorDate.getDate() + 1);
         continue;
