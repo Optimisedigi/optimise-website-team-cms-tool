@@ -64,10 +64,7 @@ export default function CopyScheduleEmailButton() {
     const plainParts: string[] = [
       'Hi team,',
       '',
-      "Let's lock in a time without a long email thread.",
-      '',
-      "We're scheduling:",
-      title,
+      `Let's lock in a time for the meeting we're scheduling: ${title}, without a long email thread or comparing everyone's calendars.`,
       '',
       "Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share.",
     ]
@@ -95,10 +92,7 @@ export default function CopyScheduleEmailButton() {
     const lines: string[] = [
       '<div>Hi team,</div>',
       '<div>&nbsp;</div>',
-      "<div>Let's lock in a time without a long email thread.</div>",
-      '<div>&nbsp;</div>',
-      "<div>We're scheduling:</div>",
-      `<div style="color:#2563eb;font-weight:600;font-size:16px">${esc(title)}</div>`,
+      `<div>Let's lock in a time for the meeting we're scheduling: <span style="color:#2563eb;font-weight:600">${esc(title)}</span>, without a long email thread or comparing everyone's calendars.</div>`,
       '<div>&nbsp;</div>',
       "<div>Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share.</div>",
     ]
