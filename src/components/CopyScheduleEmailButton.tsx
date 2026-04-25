@@ -36,7 +36,7 @@ export default function CopyScheduleEmailButton() {
   const [open, setOpen] = useState(false)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
-  const [copied, setCopied] = useState<'none' | 'recipients' | 'subject' | 'body'>('none')
+  const [copied, setCopied] = useState<'none' | 'recipients' | 'subject' | 'body' | 'bodyPlain'>('none')
 
   const data = useMemo(() => {
     const anyFields = fields as Record<string, any>
@@ -119,7 +119,7 @@ export default function CopyScheduleEmailButton() {
     setCopied('none')
   }
 
-  const copy = async (text: string, which: 'recipients' | 'subject' | 'body') => {
+  const copy = async (text: string, which: 'recipients' | 'subject' | 'body' | 'bodyPlain') => {
     try {
       if (which === 'body' && typeof ClipboardItem !== 'undefined') {
         const html = buildHtml()
@@ -204,13 +204,26 @@ export default function CopyScheduleEmailButton() {
               rows={14}
               style={{ ...styles.input, resize: 'vertical', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12 }}
             />
-            <button type="button" style={{ ...styles.copyBtn, marginTop: 8 }} onClick={() => copy(body, 'body')}>
-              {copied === 'body' ? 'Copied body to clipboard' : 'Copy body to clipboard'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                style={{ ...styles.copyBtn, ...styles.copyBtnPrimary }}
+                onClick={() => copy(body, 'body')}
+              >
+                {copied === 'body' ? 'Copied for Gmail' : 'Copy for Gmail (rich text)'}
+              </button>
+              <button
+                type="button"
+                style={styles.copyBtn}
+                onClick={() => copy(body, 'bodyPlain')}
+              >
+                {copied === 'bodyPlain' ? 'Copied as plain text' : 'Copy as plain text'}
+              </button>
+            </div>
           </div>
 
           <p style={styles.hint}>
-            Tip: use BCC so attendees don't see each other's addresses. Paste the body into Gmail as plain text to keep the per-person links.
+            <strong>Copy for Gmail</strong> keeps the title in blue and links clickable when pasted into Gmail's compose window. Use BCC so attendees don't see each other's addresses.
           </p>
         </div>
       )}
@@ -277,6 +290,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 500,
     whiteSpace: 'nowrap',
+  },
+  copyBtnPrimary: {
+    background: '#2563eb',
+    color: '#ffffff',
+    border: '1px solid #2563eb',
   },
   hint: {
     margin: '8px 0 0',
