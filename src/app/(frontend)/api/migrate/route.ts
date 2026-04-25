@@ -2014,6 +2014,28 @@ export async function POST(request: NextRequest) {
   // Per-day availability schedule (JSON)
   await run("meeting_schedulers_day_schedule", "ALTER TABLE `meeting_schedulers` ADD `day_schedule` text");
 
+  // Fix meeting_schedulers_attendees.id type from integer to text (Payload v3 uses 24-char hex IDs)
+  await run("att_id_check", `SELECT type FROM pragma_table_info('meeting_schedulers_attendees') WHERE name='id'`);
+  await run("att_new_table", `CREATE TABLE IF NOT EXISTS \`meeting_schedulers_attendees_new\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`name\` text NOT NULL,
+    \`email\` text NOT NULL,
+    \`token\` text,
+    \`responded\` integer DEFAULT 0,
+    \`responded_at\` text,
+    \`email_sent_at\` text,
+    \`selected_slots\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`meeting_schedulers\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("att_copy_rows", `INSERT INTO \`meeting_schedulers_attendees_new\` (\`_order\`, \`_parent_id\`, \`id\`, \`name\`, \`email\`, \`token\`, \`responded\`, \`responded_at\`, \`email_sent_at\`, \`selected_slots\`) SELECT \`_order\`, \`_parent_id\`, CAST(\`id\` AS text), \`name\`, \`email\`, \`token\`, \`responded\`, \`responded_at\`, \`email_sent_at\`, \`selected_slots\` FROM \`meeting_schedulers_attendees\``);
+  await run("att_drop_old", "DROP TABLE IF EXISTS `meeting_schedulers_attendees`");
+  await run("att_rename", "ALTER TABLE `meeting_schedulers_attendees_new` RENAME TO `meeting_schedulers_attendees`");
+  await run("att_idx_order", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_attendees_order_idx` ON `meeting_schedulers_attendees` (`_order`)");
+  await run("att_idx_parent", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_attendees_parent_idx` ON `meeting_schedulers_attendees` (`_parent_id`)");
+  await run("att_idx_token", "CREATE UNIQUE INDEX IF NOT EXISTS `meeting_schedulers_attendees_token_idx` ON `meeting_schedulers_attendees` (`token`)");
+
   // --- Negative List Builder (JSON column on google_ads_audits) ---
   await run("gads_negative_list_builder", "ALTER TABLE `google_ads_audits` ADD `negative_list_builder` text");
   await run("gads_nlb_published", "ALTER TABLE `google_ads_audits` ADD `negative_list_builder_published` integer DEFAULT 0");
