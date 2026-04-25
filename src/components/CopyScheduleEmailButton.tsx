@@ -63,15 +63,13 @@ export default function CopyScheduleEmailButton() {
       .filter((a) => a.email && a.token)
       .map((a) => `• ${a.name || a.email}: ${baseUrl}/schedule/${a.token}`)
 
-    const parts: string[] = ['Hi team,', '', `I'm scheduling a meeting: ${title}.`]
+    const parts: string[] = [
+      'Hi team,',
+      '',
+      `Let's get ${title} on the calendar without the usual back-and-forth. Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share.`,
+    ]
     if (topic) parts.push('', topic)
-    parts.push(
-      '',
-      `Duration: ${data.duration} min (${data.timezone}).`,
-      '',
-      "Please click YOUR personal link below and select every time that works for you. Once everyone has responded, we'll automatically match a time that works for all attendees and send a calendar invite.",
-      '',
-    )
+    parts.push('', `Duration: ${data.duration} min (${data.timezone}).`, '')
     if (linkLines.length) parts.push(...linkLines, '')
     parts.push('Cheers,', anyName)
     return { subject: subj, body: parts.join('\n') }
