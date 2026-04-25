@@ -326,16 +326,18 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
       </div>
       <div style={styles.card}>
         <div style={styles.body}>
-          <h2 style={styles.title}>{data.title}</h2>
+          <div style={styles.titleRow}>
+            <h2 style={styles.title}>{data.title}</h2>
+            {data.attendeeEmail && (
+              <span style={styles.attendeeBadge}>
+                Booking for <strong>{data.attendeeEmail}</strong>. This link is unique to you.
+              </span>
+            )}
+          </div>
           {data.meetingTopic && <p style={styles.topic}>{data.meetingTopic}</p>}
           <p style={styles.meta}>
             {data.durationMinutes} min meeting ({data.timezone})
           </p>
-          {data.attendeeEmail && (
-            <p style={styles.attendeeBadge}>
-              Booking for <strong>{data.attendeeEmail}</strong> — this link is unique to you.
-            </p>
-          )}
 
           <p style={styles.instructions}>
             Select every time that works for you below. Once everyone has responded, we'll automatically match availability and send a calendar invite for the first slot that works for all attendees.
@@ -419,59 +421,63 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block',
   },
   body: {
-    padding: '24px 24px 28px',
+    padding: '18px 20px 22px',
+  },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 16,
+    flexWrap: 'wrap' as const,
+    margin: '0 0 6px',
   },
   title: {
-    margin: '0 0 8px',
-    fontSize: 20,
+    margin: 0,
+    fontSize: 19,
     fontWeight: 600,
     color: '#0f172a',
   },
   topic: {
-    margin: '0 0 12px',
-    fontSize: 14,
+    margin: '0 0 6px',
+    fontSize: 13,
     color: '#64748b',
-    lineHeight: 1.5,
+    lineHeight: 1.45,
   },
   meta: {
     margin: '0 0 12px',
-    fontSize: 13,
+    fontSize: 12,
     color: '#94a3b8',
   },
   attendeeBadge: {
-    margin: '0 0 20px',
-    padding: '8px 12px',
-    background: '#ffffff',
-    border: '1px solid #e2e8f0',
-    borderRadius: 6,
-    fontSize: 13,
-    color: '#475569',
+    fontSize: 12,
+    color: '#64748b',
+    whiteSpace: 'nowrap' as const,
   },
   instructions: {
-    margin: '0 0 24px',
-    padding: '12px 14px',
+    margin: '0 0 14px',
+    padding: '8px 12px',
     background: '#eff6ff',
     borderLeft: '3px solid #2563eb',
     borderRadius: 4,
-    fontSize: 14,
-    lineHeight: 1.5,
+    fontSize: 13,
+    lineHeight: 1.45,
     color: '#334155',
   },
   daysGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-    gap: 12,
-    marginBottom: 8,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+    gap: 10,
+    marginBottom: 4,
   },
   timeSection: {
-    padding: '14px 12px',
+    padding: '10px 10px',
     background: '#ffffff',
     borderRadius: 8,
     border: '1px solid #e2e8f0',
   },
   timeSectionLabel: {
-    margin: '0 0 10px',
-    fontSize: 13,
+    margin: '0 0 8px',
+    fontSize: 12,
     fontWeight: 600,
     color: '#334155',
     textTransform: 'uppercase' as const,
@@ -481,10 +487,10 @@ const styles: Record<string, React.CSSProperties> = {
   timeGrid: {
     display: 'flex',
     flexDirection: 'column' as const,
-    gap: 6,
+    gap: 5,
   },
   timeSlot: {
-    padding: '8px 10px',
+    padding: '6px 10px',
     border: '2px solid #e2e8f0',
     borderRadius: 6,
     background: '#ffffff',
@@ -502,14 +508,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   confirmButton: {
     width: '100%',
-    padding: '14px 24px',
+    padding: '12px 24px',
     background: '#2563eb',
     color: '#ffffff',
     border: 'none',
     borderRadius: 8,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 600,
-    marginTop: 24,
+    marginTop: 14,
     cursor: 'pointer',
   },
   loadingText: {

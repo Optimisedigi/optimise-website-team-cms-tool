@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Meeting Scheduler — Preview</title>
+<style>
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #ffffff;
+  }
+  .site-header {
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 10px 16px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 13px;
+  }
+  .site-header .switcher { display: flex; gap: 8px; }
+  .site-header button {
+    background: #fff;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .site-header button.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+  .wrapper {
+    min-height: calc(100vh - 50px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 0 16px 40px;
+  }
+  .card {
+    width: 100%;
+    max-width: 960px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .logo {
+    height: 22px;
+    width: auto;
+    display: block;
+  }
+  .body { padding: 18px 20px 22px; }
+
+  .title { margin: 0 0 8px; font-size: 20px; font-weight: 600; color: #0f172a; }
+  .topic { margin: 0 0 12px; font-size: 14px; color: #64748b; line-height: 1.5; }
+  .meta { margin: 0 0 20px; font-size: 13px; color: #94a3b8; }
+
+  .instructions {
+    margin: 0 0 24px;
+    padding: 12px 14px;
+    background: #eff6ff;
+    border-left: 3px solid #2563eb;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #334155;
+  }
+
+  .days-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .time-section {
+    padding: 14px 12px;
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+  .time-section-label {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+  }
+  .time-grid { display: flex; flex-direction: column; gap: 6px; }
+  .time-slot {
+    padding: 8px 10px;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    text-align: center;
+  }
+  .time-slot.active {
+    border-color: #2563eb;
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .confirm-button {
+    width: 100%;
+    padding: 14px 24px;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 24px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .success-banner, .confirmed-banner {
+    background: #eff6ff;
+    border-radius: 8px;
+    padding: 24px 20px;
+    text-align: center;
+  }
+  .success-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; color: #1e40af; }
+  .success-text { margin: 0; font-size: 14px; color: #1d4ed8; line-height: 1.5; }
+  .confirmed-title { margin: 0 0 8px; font-size: 20px; font-weight: 600; color: #1e40af; }
+  .confirmed-subtitle { margin: 0 0 8px; font-size: 16px; font-weight: 500; color: #1d4ed8; }
+  .confirmed-text { margin: 0 0 4px; font-size: 14px; color: #1d4ed8; }
+  .confirmed-meta { margin: 0 0 12px; font-size: 13px; color: #2563eb; }
+
+  .view { display: none; }
+  .view.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="site-header">
+  <img class="logo" src="public/Optimise-Digital-Logo-rocket-animation (larger file).gif" alt="Optimise Digital">
+  <div class="switcher">
+    <button onclick="showView('picker')" id="btn-picker" class="active">Time picker</button>
+    <button onclick="showView('submitted')" id="btn-submitted">After submit</button>
+    <button onclick="showView('confirmed')" id="btn-confirmed">Confirmed</button>
+  </div>
+</div>
+
+<!-- VIEW 1: TIME PICKER -->
+<div class="view active" id="view-picker">
+  <div class="wrapper">
+    <div class="card">
+      <div class="body">
+        <h2 class="title">Q2 Strategy Review</h2>
+        <p class="topic">Quick session to review performance for the last quarter and align on priorities for the next one.</p>
+        <p class="meta">30 min meeting (Australia/Sydney)</p>
+
+        <p class="instructions">
+          Select every time that works for you below. Once everyone has responded, we'll automatically match availability and send a calendar invite for the first slot that works for all attendees.
+        </p>
+
+        <div class="days-grid">
+        <div class="time-section">
+          <p class="time-section-label">Mon 27 Apr</p>
+          <div class="time-grid">
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">9:00 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">9:30 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">10:00 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">10:30 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">11:00 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">2:00 PM</button>
+          </div>
+        </div>
+
+        <div class="time-section">
+          <p class="time-section-label">Tue 28 Apr</p>
+          <div class="time-grid">
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">9:00 AM</button>
+            <button type="button" class="time-slot active" onclick="this.classList.toggle('active')">9:30 AM</button>
+            <button type="button" class="time-slot active" onclick="this.classList.toggle('active')">10:00 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">10:30 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">11:00 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">2:00 PM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">2:30 PM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">3:00 PM</button>
+          </div>
+        </div>
+
+        <div class="time-section">
+          <p class="time-section-label">Wed 29 Apr</p>
+          <div class="time-grid">
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">9:00 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">9:30 AM</button>
+            <button type="button" class="time-slot active" onclick="this.classList.toggle('active')">10:00 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">10:30 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">1:00 PM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">1:30 PM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">2:00 PM</button>
+          </div>
+        </div>
+
+        <div class="time-section">
+          <p class="time-section-label">Thu 30 Apr</p>
+          <div class="time-grid">
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">9:00 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">9:30 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">10:00 AM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">2:00 PM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">2:30 PM</button>
+            <button type="button" class="time-slot" onclick="this.classList.toggle('active')">3:00 PM</button>
+          </div>
+        </div>
+        </div>
+
+        <button type="button" class="confirm-button">Submit availability (3 selected)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW 2: AFTER SUBMIT -->
+<div class="view" id="view-submitted">
+  <div class="wrapper">
+    <div class="card">
+      <div class="body">
+        <div class="success-banner">
+          <p class="success-title">Thanks, Jane!</p>
+          <p class="success-text">Your availability has been recorded. We will confirm the meeting time once everyone has responded.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW 3: CONFIRMED -->
+<div class="view" id="view-confirmed">
+  <div class="wrapper">
+    <div class="card">
+      <div class="body">
+        <div class="confirmed-banner">
+          <p class="confirmed-title">Meeting Confirmed!</p>
+          <p class="confirmed-subtitle">Q2 Strategy Review</p>
+          <p class="confirmed-text">Wednesday, 29 April at 10:00 AM</p>
+          <p class="confirmed-meta">30 min (Australia/Sydney)</p>
+          <p class="confirmed-text">A Google Calendar invite has been sent to all attendees.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function showView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    document.querySelectorAll('.preview-toolbar button').forEach(b => b.classList.remove('active'));
+    document.getElementById('btn-' + name).classList.add('active');
+  }
+</script>
+
+</body>
+</html>
