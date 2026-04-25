@@ -24,12 +24,25 @@ export const MeetingSchedulers: CollectionConfig = {
   hooks: {
     beforeChange: [
       async ({ data, operation, originalDoc }) => {
+        // Derive dateRangeStart/End from the dateOverrides (now the single
+        // source of truth) so the freebusy time-window query has bounds.
+        const overrides = (data as any)?.dateOverrides;
+        if (Array.isArray(overrides) && overrides.length > 0) {
+          const dates = overrides
+            .filter((o: any) => o && typeof o.date === "string" && o.enabled !== false)
+            .map((o: any) => o.date.match(/^(\d{4}-\d{2}-\d{2})/)?.[1])
+            .filter(Boolean) as string[];
+          if (dates.length > 0) {
+            const sorted = [...dates].sort();
+            (data as any).dateRangeStart = `${sorted[0]}T00:00:00.000Z`;
+            (data as any).dateRangeEnd = `${sorted[sorted.length - 1]}T00:00:00.000Z`;
+          }
+        }
         try {
           console.log(
             `[meeting-schedulers beforeChange] op=${operation} id=${(originalDoc as any)?.id} ` +
             `dataKeys=${Object.keys(data || {}).join(',')} ` +
-            `attendees=${JSON.stringify((data as any)?.attendees)?.slice(0, 500)} ` +
-            `originalAttendees=${JSON.stringify((originalDoc as any)?.attendees)?.slice(0, 500)}`
+            `dateOverrides=${JSON.stringify((data as any)?.dateOverrides)?.slice(0, 500)}`
           );
         } catch {}
         if (operation === "create" && data) {
@@ -134,29 +147,6 @@ export const MeetingSchedulers: CollectionConfig = {
               type: "row",
               fields: [
                 {
-                  name: "dateRangeStart",
-                  type: "date",
-                  required: true,
-                  admin: {
-                    date: { pickerAppearance: "dayOnly", displayFormat: "d MMM yyyy" },
-                    description: "Start of availability window",
-                  },
-                },
-                {
-                  name: "dateRangeEnd",
-                  type: "date",
-                  required: true,
-                  admin: {
-                    date: { pickerAppearance: "dayOnly", displayFormat: "d MMM yyyy" },
-                    description: "End of availability window",
-                  },
-                },
-              ],
-            },
-            {
-              type: "row",
-              fields: [
-                {
                   name: "timezone",
                   type: "text",
                   defaultValue: "Australia/Sydney",
@@ -177,22 +167,19 @@ export const MeetingSchedulers: CollectionConfig = {
               ],
             },
             {
+              name: "dateRangeStart",
+              type: "date",
+              admin: { hidden: true },
+            },
+            {
+              name: "dateRangeEnd",
+              type: "date",
+              admin: { hidden: true },
+            },
+            {
               name: "daySchedule",
               type: "json",
-              defaultValue: [
-                { day: "Mon", enabled: true, start: "09:00", end: "17:00" },
-                { day: "Tue", enabled: true, start: "09:00", end: "17:00" },
-                { day: "Wed", enabled: true, start: "09:00", end: "17:00" },
-                { day: "Thu", enabled: true, start: "09:00", end: "17:00" },
-                { day: "Fri", enabled: true, start: "09:00", end: "17:00" },
-                { day: "Sat", enabled: false, start: "09:00", end: "17:00" },
-                { day: "Sun", enabled: false, start: "09:00", end: "17:00" },
-              ],
-              admin: {
-                components: {
-                  Field: "./components/MeetingSchedulerDaySchedule",
-                },
-              },
+              admin: { hidden: true },
             },
             {
               name: "dateOverrides",

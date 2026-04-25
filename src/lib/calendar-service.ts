@@ -111,13 +111,23 @@ export async function fetchAvailableSlots(
 
   // Normalise dates — Payload stores as ISO strings; we only want YYYY-MM-DD.
   const toYMD = (input: string | undefined | null): string => {
-    if (!input) throw new Error("Date range start/end is required");
+    if (!input) throw new Error("Date range required (set at least one available date)");
     const match = String(input).match(/^(\d{4}-\d{2}-\d{2})/);
     if (!match) throw new Error(`Invalid date: ${input}`);
     return match[1];
   };
-  const dateStart = toYMD(options.dateRangeStart);
-  const dateEnd = toYMD(options.dateRangeEnd);
+
+  // If dateOverrides are populated, derive bounds from them (new mode).
+  // Otherwise use the legacy date range fields.
+  const enabledOverrides = (options.dateOverrides || [])
+    .filter((o) => o && typeof o.date === "string" && o.enabled !== false);
+
+  const dateStart = enabledOverrides.length
+    ? toYMD([...enabledOverrides].sort((a, b) => a.date.localeCompare(b.date))[0].date)
+    : toYMD(options.dateRangeStart);
+  const dateEnd = enabledOverrides.length
+    ? toYMD([...enabledOverrides].sort((a, b) => b.date.localeCompare(a.date))[0].date)
+    : toYMD(options.dateRangeEnd);
 
   // Use the widest window across schedule + overrides to fetch freebusy once.
   const allWindows = [
@@ -164,6 +174,7 @@ export async function fetchAvailableSlots(
       if (ymd) overrideByDate[ymd] = ov;
     }
   }
+  const strictDateMode = enabledOverrides.length > 0;
 
   while (cursorDate <= endDate) {
     const jsDay = cursorDate.getDay();
@@ -171,7 +182,8 @@ export async function fetchAvailableSlots(
     const override = overrideByDate[ymd];
     const entry = getDayEntry(options.daySchedule, jsDay);
 
-    // Determine this day's window — date override wins over day-of-week
+    // Determine this day's window — date override wins over day-of-week.
+    // In strict mode (dateOverrides populated), only listed dates are considered.
     let startHHMM: string;
     let endHHMM: string;
     if (override) {
@@ -181,6 +193,9 @@ export async function fetchAvailableSlots(
       }
       startHHMM = override.start;
       endHHMM = override.end;
+    } else if (strictDateMode) {
+      cursorDate.setDate(cursorDate.getDate() + 1);
+      continue;
     } else if (entry) {
       if (!entry.enabled) {
         cursorDate.setDate(cursorDate.getDate() + 1);

@@ -42,9 +42,9 @@ export default function MeetingSchedulerDateOverrides() {
 
   return (
     <div className="field-type" style={{ marginBottom: 24 }}>
-      <label style={styles.label}>Date Overrides (optional)</label>
+      <label style={styles.label}>Available Dates &amp; Times</label>
       <p style={styles.help}>
-        Add specific dates that should override the day-of-week schedule above. Useful for one-off windows like "Wed 29 Apr 10:00–12:00 only" or disabling a single day.
+        Add each date you're available, with the start and end of that day's window. Add as many rows as you need — each row is one specific date.
       </p>
       <div style={styles.table}>
         {rows.length > 0 && (
