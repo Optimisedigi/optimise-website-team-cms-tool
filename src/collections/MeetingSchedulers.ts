@@ -28,8 +28,8 @@ export const MeetingSchedulers: CollectionConfig = {
           console.log(
             `[meeting-schedulers beforeChange] op=${operation} id=${(originalDoc as any)?.id} ` +
             `dataKeys=${Object.keys(data || {}).join(',')} ` +
-            `attendees=${JSON.stringify((data as any)?.attendees)?.slice(0, 300)} ` +
-            `daySchedule=${JSON.stringify((data as any)?.daySchedule)?.slice(0, 300)}`
+            `attendees=${JSON.stringify((data as any)?.attendees)?.slice(0, 500)} ` +
+            `originalAttendees=${JSON.stringify((originalDoc as any)?.attendees)?.slice(0, 500)}`
           );
         } catch {}
         if (operation === "create" && data) {
