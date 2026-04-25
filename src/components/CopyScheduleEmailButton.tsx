@@ -67,7 +67,7 @@ export default function CopyScheduleEmailButton() {
       "We're scheduling:",
       title,
       '',
-      "Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share, without the usual back-and-forth.",
+      "Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share, without a long email thread.",
     ]
     if (topic) plainParts.push('', topic)
     plainParts.push('', `Duration: ${data.duration} min (${data.timezone}).`, '')
@@ -96,7 +96,7 @@ export default function CopyScheduleEmailButton() {
       "<div>We're scheduling:</div>",
       `<div style="color:#2563eb;font-weight:600;font-size:16px">${esc(title)}</div>`,
       '<div>&nbsp;</div>',
-      "<div>Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share, without the usual back-and-forth.</div>",
+      "<div>Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share, without a long email thread.</div>",
     ]
     if (topic) lines.push('<div>&nbsp;</div>', `<div>${esc(topic).replace(/\n/g, '<br>')}</div>`)
     lines.push('<div>&nbsp;</div>', `<div>Duration: ${esc(data.duration)} min (${esc(data.timezone)}).</div>`, '<div>&nbsp;</div>')
