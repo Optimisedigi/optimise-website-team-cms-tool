@@ -57,22 +57,60 @@ export default function CopyScheduleEmailButton() {
     const baseUrl = window.location.origin
     const title = data.title || 'Meeting'
     const topic = (data.topic || '').trim()
-    const subj = `${title} — please pick your available times`
+    const subj = `${title}: please pick your available times`
 
-    const linkLines = data.attendees
-      .filter((a) => a.email && a.token)
-      .map((a) => `• ${a.name || a.email}: ${baseUrl}/schedule/${a.token}`)
+    const linkAttendees = data.attendees.filter((a) => a.email && a.token)
 
-    const parts: string[] = [
+    const plainParts: string[] = [
       'Hi team,',
       '',
-      `Let's get ${title} on the calendar without the usual back-and-forth. Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share.`,
+      "We're scheduling:",
+      title,
+      '',
+      "Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share, without the usual back-and-forth.",
     ]
-    if (topic) parts.push('', topic)
-    parts.push('', `Duration: ${data.duration} min (${data.timezone}).`, '')
-    if (linkLines.length) parts.push(...linkLines, '')
-    parts.push('Cheers,', anyName)
-    return { subject: subj, body: parts.join('\n') }
+    if (topic) plainParts.push('', topic)
+    plainParts.push('', `Duration: ${data.duration} min (${data.timezone}).`, '')
+    if (linkAttendees.length) {
+      plainParts.push(
+        ...linkAttendees.map((a) => `• ${a.name || a.email}: ${baseUrl}/schedule/${a.token}`),
+        '',
+      )
+    }
+    plainParts.push('Cheers,', anyName)
+
+    return { subject: subj, body: plainParts.join('\n') }
+  }
+
+  const buildHtml = () => {
+    const baseUrl = window.location.origin
+    const title = data.title || 'Meeting'
+    const topic = (data.topic || '').trim()
+    const linkAttendees = data.attendees.filter((a) => a.email && a.token)
+    const esc = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+    const lines: string[] = [
+      '<div>Hi team,</div>',
+      '<div>&nbsp;</div>',
+      "<div>We're scheduling:</div>",
+      `<div style="color:#2563eb;font-weight:600;font-size:16px">${esc(title)}</div>`,
+      '<div>&nbsp;</div>',
+      "<div>Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share, without the usual back-and-forth.</div>",
+    ]
+    if (topic) lines.push('<div>&nbsp;</div>', `<div>${esc(topic).replace(/\n/g, '<br>')}</div>`)
+    lines.push('<div>&nbsp;</div>', `<div>Duration: ${esc(data.duration)} min (${esc(data.timezone)}).</div>`, '<div>&nbsp;</div>')
+    if (linkAttendees.length) {
+      lines.push('<ul style="margin:0;padding-left:20px">')
+      for (const a of linkAttendees) {
+        const label = esc(a.name || a.email)
+        const url = `${baseUrl}/schedule/${a.token}`
+        lines.push(`<li>${label}: <a href="${url}">${url}</a></li>`)
+      }
+      lines.push('</ul>', '<div>&nbsp;</div>')
+    }
+    lines.push('<div>Cheers,</div>', `<div>${esc(anyName)}</div>`)
+    return lines.join('')
   }
 
   const handleOpen = () => {
@@ -85,11 +123,26 @@ export default function CopyScheduleEmailButton() {
 
   const copy = async (text: string, which: 'recipients' | 'subject' | 'body') => {
     try {
-      await navigator.clipboard.writeText(text)
+      if (which === 'body' && typeof ClipboardItem !== 'undefined') {
+        const html = buildHtml()
+        const item = new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+        })
+        await navigator.clipboard.write([item])
+      } else {
+        await navigator.clipboard.writeText(text)
+      }
       setCopied(which)
       setTimeout(() => setCopied('none'), 2000)
     } catch {
-      alert('Could not access clipboard. Select and copy manually.')
+      try {
+        await navigator.clipboard.writeText(text)
+        setCopied(which)
+        setTimeout(() => setCopied('none'), 2000)
+      } catch {
+        alert('Could not access clipboard. Select and copy manually.')
+      }
     }
   }
 
