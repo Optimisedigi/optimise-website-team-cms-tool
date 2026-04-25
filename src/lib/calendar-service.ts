@@ -93,6 +93,57 @@ function getDayEntry(schedule: DayScheduleEntry[] | undefined, jsDay: number): D
  * Fetch available time slots from Google Calendar using the freebusy API.
  * Returns an array of ISO datetime strings representing available slot start times.
  */
+/**
+ * Convert a wall-clock date+time in a specific timezone to a UTC Date instance.
+ * Uses Intl.DateTimeFormat for DST-correct offset computation.
+ */
+function zonedToUtc(ymd: string, hhmm: string, timeZone: string): Date {
+  const [y, mo, d] = ymd.split("-").map(Number);
+  const [h, mi] = hhmm.split(":").map(Number);
+  // Treat the wall-clock as if it were UTC, then subtract the actual offset
+  // for that timezone at that instant.
+  const utcGuess = Date.UTC(y, mo - 1, d, h, mi);
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(new Date(utcGuess));
+  const map: Record<string, string> = {};
+  for (const p of parts) if (p.type !== "literal") map[p.type] = p.value;
+  const hour = Number(map.hour) === 24 ? 0 : Number(map.hour);
+  const wallInTz = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    hour,
+    Number(map.minute),
+    Number(map.second || 0)
+  );
+  // Offset = how far ahead UTC is of the given timezone at that instant
+  const offset = utcGuess - wallInTz;
+  return new Date(utcGuess + offset);
+}
+
+function nextYmd(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + 1);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+function jsDayInTz(ymd: string, timeZone: string): number {
+  const utc = zonedToUtc(ymd, "12:00", timeZone);
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(utc);
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return map[wd] ?? 0;
+}
+
 export async function fetchAvailableSlots(
   refreshToken: string,
   options: {
@@ -108,8 +159,8 @@ export async function fetchAvailableSlots(
   }
 ): Promise<string[]> {
   const calendar = await getAuthenticatedCalendarClient(refreshToken);
+  const tz = options.timezone || "Australia/Sydney";
 
-  // Normalise dates — Payload stores as ISO strings; we only want YYYY-MM-DD.
   const toYMD = (input: string | undefined | null): string => {
     if (!input) throw new Error("Date range required (set at least one available date)");
     const match = String(input).match(/^(\d{4}-\d{2}-\d{2})/);
@@ -117,129 +168,79 @@ export async function fetchAvailableSlots(
     return match[1];
   };
 
-  // If dateOverrides are populated, derive bounds from them (new mode).
-  // Otherwise use the legacy date range fields.
-  const enabledOverrides = (options.dateOverrides || [])
-    .filter((o) => o && typeof o.date === "string" && o.enabled !== false);
+  // Build the list of date+window pairs we'll generate slots for.
+  type Window = { ymd: string; start: string; end: string };
+  const enabledOverrides = (options.dateOverrides || []).filter(
+    (o) => o && typeof o.date === "string" && o.enabled !== false
+  );
+  const strictDateMode = enabledOverrides.length > 0;
 
-  const dateStart = enabledOverrides.length
-    ? toYMD([...enabledOverrides].sort((a, b) => a.date.localeCompare(b.date))[0].date)
-    : toYMD(options.dateRangeStart);
-  const dateEnd = enabledOverrides.length
-    ? toYMD([...enabledOverrides].sort((a, b) => b.date.localeCompare(a.date))[0].date)
-    : toYMD(options.dateRangeEnd);
-
-  // Use the widest window across schedule + overrides to fetch freebusy once.
-  const allWindows = [
-    ...((options.daySchedule || []).filter((d) => d.enabled)),
-    ...((options.dateOverrides || []).filter((d) => d.enabled)),
-  ];
-  const earliestStart = allWindows.length
-    ? allWindows.reduce((min, d) => (d.start < min ? d.start : min), allWindows[0].start)
-    : options.businessHoursStart;
-  const latestEnd = allWindows.length
-    ? allWindows.reduce((max, d) => (d.end > max ? d.end : max), allWindows[0].end)
-    : options.businessHoursEnd;
-
-  const timeMin = new Date(`${dateStart}T${earliestStart}:00`);
-  const timeMax = new Date(`${dateEnd}T${latestEnd}:00`);
-
-  if (isNaN(timeMin.getTime()) || isNaN(timeMax.getTime())) {
-    throw new Error(
-      `Invalid time window: dateStart=${dateStart} dateEnd=${dateEnd} earliestStart=${earliestStart} latestEnd=${latestEnd}`
-    );
+  const windows: Window[] = [];
+  if (strictDateMode) {
+    for (const o of enabledOverrides) {
+      const ymd = o.date.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+      if (ymd) windows.push({ ymd, start: o.start, end: o.end });
+    }
+  } else {
+    const startYmd = toYMD(options.dateRangeStart);
+    const endYmd = toYMD(options.dateRangeEnd);
+    let cur = startYmd;
+    while (cur <= endYmd) {
+      const jsDay = jsDayInTz(cur, tz);
+      const entry = getDayEntry(options.daySchedule, jsDay);
+      if (entry) {
+        if (entry.enabled) windows.push({ ymd: cur, start: entry.start, end: entry.end });
+      } else if (jsDay !== 0 && jsDay !== 6) {
+        windows.push({ ymd: cur, start: options.businessHoursStart, end: options.businessHoursEnd });
+      }
+      cur = nextYmd(cur);
+    }
   }
+
+  if (windows.length === 0) return [];
+
+  // Compute freebusy bounds across all windows in the target timezone
+  const utcWindows = windows.map((w) => ({
+    ymd: w.ymd,
+    startUtc: zonedToUtc(w.ymd, w.start, tz),
+    endUtc: zonedToUtc(w.ymd, w.end, tz),
+  }));
+  const earliestUtc = utcWindows.reduce(
+    (min, w) => (w.startUtc < min ? w.startUtc : min),
+    utcWindows[0].startUtc
+  );
+  const latestUtc = utcWindows.reduce(
+    (max, w) => (w.endUtc > max ? w.endUtc : max),
+    utcWindows[0].endUtc
+  );
 
   const freebusyRes = await calendar.freebusy.query({
     requestBody: {
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      timeZone: options.timezone,
+      timeMin: earliestUtc.toISOString(),
+      timeMax: latestUtc.toISOString(),
+      timeZone: tz,
       items: [{ id: "primary" }],
     },
   });
-
   const busyPeriods = freebusyRes.data.calendars?.primary?.busy || [];
 
   const slots: string[] = [];
-  const cursorDate = new Date(timeMin);
-  cursorDate.setHours(0, 0, 0, 0);
-  const endDate = new Date(timeMax);
-
-  // Index date overrides by YYYY-MM-DD for O(1) lookup
-  const overrideByDate: Record<string, DateOverride> = {};
-  for (const ov of options.dateOverrides || []) {
-    if (ov && typeof ov.date === "string") {
-      const ymd = ov.date.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
-      if (ymd) overrideByDate[ymd] = ov;
-    }
-  }
-  const strictDateMode = enabledOverrides.length > 0;
-
-  while (cursorDate <= endDate) {
-    const jsDay = cursorDate.getDay();
-    const ymd = `${cursorDate.getFullYear()}-${String(cursorDate.getMonth() + 1).padStart(2, "0")}-${String(cursorDate.getDate()).padStart(2, "0")}`;
-    const override = overrideByDate[ymd];
-    const entry = getDayEntry(options.daySchedule, jsDay);
-
-    // Determine this day's window — date override wins over day-of-week.
-    // In strict mode (dateOverrides populated), only listed dates are considered.
-    let startHHMM: string;
-    let endHHMM: string;
-    if (override) {
-      if (!override.enabled) {
-        cursorDate.setDate(cursorDate.getDate() + 1);
-        continue;
-      }
-      startHHMM = override.start;
-      endHHMM = override.end;
-    } else if (strictDateMode) {
-      cursorDate.setDate(cursorDate.getDate() + 1);
-      continue;
-    } else if (entry) {
-      if (!entry.enabled) {
-        cursorDate.setDate(cursorDate.getDate() + 1);
-        continue;
-      }
-      startHHMM = entry.start;
-      endHHMM = entry.end;
-    } else {
-      // Fallback: legacy behavior (skip weekends, global business hours)
-      if (jsDay === 0 || jsDay === 6) {
-        cursorDate.setDate(cursorDate.getDate() + 1);
-        continue;
-      }
-      startHHMM = options.businessHoursStart;
-      endHHMM = options.businessHoursEnd;
-    }
-
-    const [startH, startM] = startHHMM.split(":").map(Number);
-    const [endH, endM] = endHHMM.split(":").map(Number);
-
-    const dayStart = new Date(cursorDate);
-    dayStart.setHours(startH, startM, 0, 0);
-    const dayEnd = new Date(cursorDate);
-    dayEnd.setHours(endH, endM, 0, 0);
-
-    const current = new Date(dayStart);
-    while (current < dayEnd) {
-      const slotEnd = new Date(current.getTime() + options.durationMinutes * 60000);
-      if (slotEnd > dayEnd) break;
-
+  const now = new Date();
+  for (const w of utcWindows) {
+    let cursor = new Date(w.startUtc);
+    while (cursor < w.endUtc) {
+      const slotEnd = new Date(cursor.getTime() + options.durationMinutes * 60000);
+      if (slotEnd > w.endUtc) break;
       const isAvailable = !busyPeriods.some((busy) => {
-        const busyStart = new Date(busy.start!);
-        const busyEnd = new Date(busy.end!);
-        return current < busyEnd && slotEnd > busyStart;
+        const bs = new Date(busy.start!);
+        const be = new Date(busy.end!);
+        return cursor < be && slotEnd > bs;
       });
-
-      if (isAvailable && current > new Date()) {
-        slots.push(current.toISOString());
+      if (isAvailable && cursor > now) {
+        slots.push(cursor.toISOString());
       }
-
-      current.setMinutes(current.getMinutes() + options.slotIntervalMinutes);
+      cursor = new Date(cursor.getTime() + options.slotIntervalMinutes * 60000);
     }
-
-    cursorDate.setDate(cursorDate.getDate() + 1);
   }
 
   return slots;

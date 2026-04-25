@@ -44,7 +44,7 @@ export default function MeetingSchedulerDateOverrides() {
     <div className="field-type" style={{ marginBottom: 24 }}>
       <label style={styles.label}>Available Dates &amp; Times</label>
       <p style={styles.help}>
-        Add each date you're available, with the start and end of that day's window. Add as many rows as you need — each row is one specific date.
+        Add each date you're available with the start and end of that day's window. Add as many rows as you need; each row is one specific date. Times are in the timezone selected above (am / pm shown by your browser locale).
       </p>
       <div style={styles.table}>
         {rows.length > 0 && (

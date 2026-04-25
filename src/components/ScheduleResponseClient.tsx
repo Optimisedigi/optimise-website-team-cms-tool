@@ -80,12 +80,13 @@ function groupSlotsByDay(slots: string[], timezone: string): SlotsByDay[] {
     // Skip past slots
     if (d <= new Date()) continue
 
-    const dateKey = d.toLocaleDateString('en-AU', {
+    // Use ISO YYYY-MM-DD as the sort key so chronological order is correct.
+    const dateKey = new Intl.DateTimeFormat('en-CA', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
       timeZone: timezone,
-    })
+    }).format(d)
     const label = d.toLocaleDateString('en-AU', {
       weekday: 'short',
       day: 'numeric',
