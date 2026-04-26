@@ -224,7 +224,7 @@ export async function fetchAvailableSlots(
   });
   const busyPeriods = freebusyRes.data.calendars?.primary?.busy || [];
 
-  const slots: string[] = [];
+  const seen = new Set<string>();
   const now = new Date();
   for (const w of utcWindows) {
     let cursor = new Date(w.startUtc);
@@ -237,13 +237,14 @@ export async function fetchAvailableSlots(
         return cursor < be && slotEnd > bs;
       });
       if (isAvailable && cursor > now) {
-        slots.push(cursor.toISOString());
+        seen.add(cursor.toISOString());
       }
       cursor = new Date(cursor.getTime() + options.slotIntervalMinutes * 60000);
     }
   }
 
-  return slots;
+  // Sort by time so output is chronological even when windows arrive out of order
+  return Array.from(seen).sort();
 }
 
 /**
