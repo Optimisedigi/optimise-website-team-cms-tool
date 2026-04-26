@@ -85,6 +85,42 @@ export const MeetingSchedulers: CollectionConfig = {
   },
   fields: [
     {
+      name: "generateSlotsButton",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/GenerateSlotsButton",
+        },
+      },
+    },
+    {
+      name: "copyEmailButton",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/CopyScheduleEmailButton",
+        },
+      },
+    },
+    {
+      name: "sendInvitesButton",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/SendScheduleInvitesButton",
+        },
+      },
+    },
+    {
+      name: "responseStatus",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/ScheduleResponseStatus",
+        },
+      },
+    },
+    {
       type: "tabs",
       tabs: [
         {
@@ -292,15 +328,6 @@ export const MeetingSchedulers: CollectionConfig = {
           label: "Availability & Result",
           fields: [
             {
-              name: "generateSlotsButton",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/GenerateSlotsButton",
-                },
-              },
-            },
-            {
               name: "generatedSlots",
               type: "json",
               admin: {
@@ -338,38 +365,6 @@ export const MeetingSchedulers: CollectionConfig = {
                   admin: { readOnly: true },
                 },
               ],
-            },
-          ],
-        },
-        {
-          label: "Actions",
-          fields: [
-            {
-              name: "copyEmailButton",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/CopyScheduleEmailButton",
-                },
-              },
-            },
-            {
-              name: "sendInvitesButton",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/SendScheduleInvitesButton",
-                },
-              },
-            },
-            {
-              name: "responseStatus",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/ScheduleResponseStatus",
-                },
-              },
             },
           ],
         },
