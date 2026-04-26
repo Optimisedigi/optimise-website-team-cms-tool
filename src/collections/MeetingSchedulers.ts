@@ -120,15 +120,6 @@ export const MeetingSchedulers: CollectionConfig = {
       ],
     },
     {
-      name: "responseStatus",
-      type: "ui",
-      admin: {
-        components: {
-          Field: "./components/ScheduleResponseStatus",
-        },
-      },
-    },
-    {
       type: "tabs",
       tabs: [
         {
@@ -377,6 +368,15 @@ export const MeetingSchedulers: CollectionConfig = {
           ],
         },
       ],
+    },
+    {
+      name: "responseStatus",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/ScheduleResponseStatus",
+        },
+      },
     },
     // Sidebar fields
     {
