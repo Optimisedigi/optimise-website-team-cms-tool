@@ -85,31 +85,39 @@ export const MeetingSchedulers: CollectionConfig = {
   },
   fields: [
     {
-      name: "generateSlotsButton",
-      type: "ui",
-      admin: {
-        components: {
-          Field: "./components/GenerateSlotsButton",
+      type: "row",
+      fields: [
+        {
+          name: "generateSlotsButton",
+          type: "ui",
+          admin: {
+            width: "33%",
+            components: {
+              Field: "./components/GenerateSlotsButton",
+            },
+          },
         },
-      },
-    },
-    {
-      name: "copyEmailButton",
-      type: "ui",
-      admin: {
-        components: {
-          Field: "./components/CopyScheduleEmailButton",
+        {
+          name: "copyEmailButton",
+          type: "ui",
+          admin: {
+            width: "33%",
+            components: {
+              Field: "./components/CopyScheduleEmailButton",
+            },
+          },
         },
-      },
-    },
-    {
-      name: "sendInvitesButton",
-      type: "ui",
-      admin: {
-        components: {
-          Field: "./components/SendScheduleInvitesButton",
+        {
+          name: "sendInvitesButton",
+          type: "ui",
+          admin: {
+            width: "34%",
+            components: {
+              Field: "./components/SendScheduleInvitesButton",
+            },
+          },
         },
-      },
+      ],
     },
     {
       name: "responseStatus",
