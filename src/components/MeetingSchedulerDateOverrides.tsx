@@ -100,7 +100,7 @@ export default function MeetingSchedulerDateOverrides() {
         ))}
         <div style={{ padding: 10, textAlign: 'center', borderTop: rows.length ? '1px solid var(--theme-elevation-100)' : 'none' }}>
           <button type="button" onClick={addRow} style={styles.addBtn}>
-            + Add Date Override
+            + Add Date
           </button>
         </div>
       </div>
