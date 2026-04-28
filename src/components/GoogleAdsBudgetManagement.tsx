@@ -1137,11 +1137,25 @@ const GoogleAdsBudgetManagementInner = () => {
           </div>
 
           {(() => {
-            const filtered = campaigns.filter(c =>
-              campaignFilter === 'all' ? true :
-              campaignFilter === 'enabled' ? c.enabled :
-              !c.enabled
-            );
+            // Sort campaigns by conversions (highest first), tiebreaker by spend
+            // (highest first). Campaigns with the same conversions and spend
+            // fall back to alphabetical order so the list stays stable.
+            const filtered = campaigns
+              .filter(c =>
+                campaignFilter === 'all' ? true :
+                campaignFilter === 'enabled' ? c.enabled :
+                !c.enabled
+              )
+              .slice()
+              .sort((a, b) => {
+                const convDiff = (b.conversions || 0) - (a.conversions || 0);
+                if (convDiff !== 0) return convDiff;
+                const spendA = a.mtdSpend ?? a.spend ?? 0;
+                const spendB = b.mtdSpend ?? b.spend ?? 0;
+                const spendDiff = spendB - spendA;
+                if (spendDiff !== 0) return spendDiff;
+                return a.campaignName.localeCompare(b.campaignName);
+              });
             if (filtered.length === 0) {
               return (
                 <div style={{ padding: '32px 16px', textAlign: 'center', color: '#64748b' }}>
