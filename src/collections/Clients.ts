@@ -929,6 +929,20 @@ export const Clients: CollectionConfig = {
               },
             },
 
+            // ─ Budget Management (inline view of latest audit's budget tab) ─
+            // Uses the most recent Google Ads audit for this client. Hidden until
+            // a Google Ads customer ID is set, since the underlying tool needs one.
+            {
+              name: "clientBudgetManagement",
+              type: "ui",
+              admin: {
+                condition: (data: any) => !!data?.googleAdsCustomerId,
+                components: {
+                  Field: "./components/ClientBudgetManagementInline",
+                },
+              },
+            },
+
             // ─ Negative List Builder ─
             {
               name: "openNegativeListBuilder",

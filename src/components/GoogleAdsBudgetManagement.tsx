@@ -243,8 +243,17 @@ function generateEmailHtml(
 </div>`;
 }
 
-const GoogleAdsBudgetManagementInner = () => {
-  const { id } = useDocumentInfo();
+// When rendered as a Payload UI field on a Google Ads audit document, the
+// audit ID comes from useDocumentInfo (no props needed). When embedded on a
+// different document type (e.g. a Client), the parent passes auditId
+// explicitly via props.
+interface GoogleAdsBudgetManagementProps {
+  auditId?: string | number;
+}
+
+const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementProps) => {
+  const docInfo = useDocumentInfo();
+  const id: string | number | undefined = auditId ?? docInfo.id;
   const [campaigns, setCampaigns] = useState<BudgetCampaign[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -1322,7 +1331,7 @@ const GoogleAdsBudgetManagementInner = () => {
   );
 };
 
-const GoogleAdsBudgetManagement = () => {
+const GoogleAdsBudgetManagement = ({ auditId }: GoogleAdsBudgetManagementProps = {}) => {
   const [renderError, setRenderError] = useState<string | null>(null);
 
   if (renderError) {
@@ -1330,7 +1339,7 @@ const GoogleAdsBudgetManagement = () => {
   }
 
   try {
-    return <GoogleAdsBudgetManagementInner />;
+    return <GoogleAdsBudgetManagementInner auditId={auditId} />;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (!renderError) setRenderError(msg);
@@ -1339,3 +1348,5 @@ const GoogleAdsBudgetManagement = () => {
 };
 
 export default GoogleAdsBudgetManagement;
+export { GoogleAdsBudgetManagement };
+export type { GoogleAdsBudgetManagementProps };

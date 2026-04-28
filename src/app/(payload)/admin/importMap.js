@@ -31,6 +31,7 @@ import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_f27ec21ed5917413961c1954b63a7552 } from '../../../components/GoogleAdsConversionActionPicker'
 import { default as default_fb5d37b90851b3851c29f4b754a04aca } from '../../../components/RunGoogleAdsAuditFromClientButton'
+import { default as default_1bf9b6022af35fb04791a726c14020b8 } from '../../../components/ClientBudgetManagementInline'
 import { default as default_6dfadcdca189a18cf07afd7b4bca75a0 } from '../../../components/OpenNegativeListBuilderButton'
 import { default as default_d4ebfcd7dcd43ec537c0f248f26cef22 } from '../../../components/ViewGoogleDashboardButton'
 import { default as default_c48582730ce567b18023caac0e161ded } from '../../../components/RunNegativeSweepButton'
@@ -152,6 +153,7 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/GoogleAdsConversionActionPicker#default": default_f27ec21ed5917413961c1954b63a7552,
   "./components/RunGoogleAdsAuditFromClientButton#default": default_fb5d37b90851b3851c29f4b754a04aca,
+  "./components/ClientBudgetManagementInline#default": default_1bf9b6022af35fb04791a726c14020b8,
   "./components/OpenNegativeListBuilderButton#default": default_6dfadcdca189a18cf07afd7b4bca75a0,
   "./components/ViewGoogleDashboardButton#default": default_d4ebfcd7dcd43ec537c0f248f26cef22,
   "./components/RunNegativeSweepButton#default": default_c48582730ce567b18023caac0e161ded,
