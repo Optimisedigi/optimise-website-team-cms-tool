@@ -456,50 +456,50 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
                 className="rounded-lg border-2 border-slate-300 bg-white overflow-hidden hover:border-slate-400 hover:shadow-sm transition-all"
               >
                 {/* Ad preview — image-first for display ads, text-first for search ads.
-                    Tightly stacked to mirror how the ad actually looks in market. */}
-                {hasImage ? (
-                  <div className="bg-slate-50 border-b border-slate-200 flex items-center justify-center" style={{ height: 160 }}>
+                    Single tight padding block, no internal section gaps. */}
+                {hasImage && (
+                  <div className="bg-slate-50 border-b border-slate-200 flex items-center justify-center" style={{ height: 140 }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={ad.imageUrl!}
                       alt={ad.adName || headline}
                       className="max-h-full max-w-full object-contain"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
                     />
                   </div>
-                ) : null}
-                <div className="px-4 pt-3 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-block bg-slate-100 text-slate-600 text-[10px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider">
+                )}
+                <div className="px-3 pt-2 pb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block bg-slate-100 text-slate-600 text-[9px] font-medium px-1.5 py-0 rounded uppercase tracking-wider leading-snug">
                       Sponsored
                     </span>
                     {ad.finalUrl && (
-                      <span className="text-xs text-slate-700 truncate leading-tight" title={ad.finalUrl}>
+                      <span className="text-[11px] text-slate-700 truncate leading-snug" title={ad.finalUrl}>
                         {truncateUrl(ad.finalUrl, 50)}
                       </span>
                     )}
                   </div>
-                  <p className="text-blue-700 text-base font-medium leading-tight mt-0.5" title={headline}>
+                  <p className="text-blue-700 text-sm font-medium leading-snug" title={headline}>
                     {headline}
                   </p>
                   {ad.descriptions[0] && (
-                    <p className="text-sm text-slate-600 leading-snug mt-0.5">
+                    <p className="text-[12px] text-slate-600 leading-snug">
                       {ad.descriptions[0]}
                     </p>
                   )}
+                  <div className="mt-1 text-[11px] text-slate-500 leading-snug space-y-0">
+                    <p className="truncate" title={`Campaign: ${ad.campaignName}`}>
+                      <span className="text-slate-400">Campaign:</span> {ad.campaignName}
+                    </p>
+                    <p className="truncate" title={`Ad Group: ${ad.adGroupName}`}>
+                      <span className="text-slate-400">Ad Group:</span> {ad.adGroupName}
+                    </p>
+                  </div>
                 </div>
 
-                {/* Campaign / Ad Group footer */}
-                <div className="px-4 pb-2 text-[11px] text-slate-500">
-                  <p className="truncate" title={`Campaign: ${ad.campaignName}`}>
-                    <span className="text-slate-400">Campaign:</span> {ad.campaignName}
-                  </p>
-                  <p className="truncate" title={`Ad Group: ${ad.adGroupName}`}>
-                    <span className="text-slate-400">Ad Group:</span> {ad.adGroupName}
-                  </p>
-                </div>
-
-                {/* Stats row — compact, single visual band */}
-                <div className="px-4 py-1.5 grid grid-cols-5 gap-1 bg-slate-50 border-t border-slate-200">
+                {/* Stats row — compact single band */}
+                <div className="px-3 py-1 grid grid-cols-5 gap-1 bg-slate-50 border-t border-slate-200">
                   <div className="text-center">
                     <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">Impr</p>
                     <p className="text-[11px] font-medium text-slate-700 leading-tight">{ad.impressions.toLocaleString()}</p>
