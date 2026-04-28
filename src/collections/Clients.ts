@@ -541,15 +541,6 @@ export const Clients: CollectionConfig = {
               },
             },
             {
-              name: "dashboardConversionActions",
-              type: "textarea",
-              admin: {
-                description:
-                  "Filters the Google Ads dashboard to only show these conversion actions (one per line). Leave blank to show all.",
-                condition: (data: any) => !!data?.googleAdsCustomerId,
-              },
-            },
-            {
               name: "legacyNotes",
               type: "textarea",
               admin: {
@@ -902,6 +893,21 @@ export const Clients: CollectionConfig = {
         {
           label: "Google Ads",
           fields: [
+            // ─ Default Conversion Actions Picker ─
+            // Saved selection is the default for both the Google Ads dashboard
+            // and the Budget Management tool. Stored as newline-separated
+            // names for back-compat with existing dashboard read paths.
+            {
+              name: "dashboardConversionActions",
+              type: "textarea",
+              admin: {
+                condition: (data: any) => !!data?.googleAdsCustomerId,
+                components: {
+                  Field: "./components/GoogleAdsConversionActionPicker",
+                },
+              },
+            },
+
             // ─ Audit Button + Linked Audits ─
             {
               name: "runGoogleAdsAudit",

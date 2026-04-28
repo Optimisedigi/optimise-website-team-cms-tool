@@ -58,9 +58,14 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const [chartMonthlyTrend, setChartMonthlyTrend] = useState(initialData.monthlyTrend);
 
   // Conversion action filtering
+  // `defaultSelected` reflects the client's saved defaults (CMS Clients > Google Ads >
+  // Default Conversion Actions). These are pre-checked but the user can override
+  // ad-hoc here — the saved set is shown with a small "Default" badge so it's clear
+  // which items are the persistent client setting vs. session overrides.
   const defaultSelected = defaultConversionActions
     ? defaultConversionActions.split("\n").map((s) => s.trim()).filter(Boolean)
     : [];
+  const defaultSelectedSet = new Set(defaultSelected);
   const [selectedConversions, setSelectedConversions] = useState<string[]>(defaultSelected);
   const [conversionDropdownOpen, setConversionDropdownOpen] = useState(false);
   const conversionDropdownRef = useRef<HTMLDivElement>(null);
@@ -311,20 +316,31 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                       </div>
                     </div>
                     <div className="max-h-64 overflow-y-auto">
-                      {availableActions.map((action) => (
-                        <label
-                          key={action}
-                          className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedConversions.includes(action)}
-                            onChange={() => toggleConversion(action)}
-                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
-                          />
-                          <span className="text-sm text-slate-700 truncate">{action}</span>
-                        </label>
-                      ))}
+                      {availableActions.map((action) => {
+                        const isDefault = defaultSelectedSet.has(action);
+                        return (
+                          <label
+                            key={action}
+                            className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedConversions.includes(action)}
+                              onChange={() => toggleConversion(action)}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                            />
+                            <span className="text-sm text-slate-700 truncate flex-1">{action}</span>
+                            {isDefault && (
+                              <span
+                                className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 flex-shrink-0"
+                                title="Saved as a default for this client"
+                              >
+                                Default
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
