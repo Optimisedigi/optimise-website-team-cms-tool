@@ -122,8 +122,8 @@ function generateEmailHtml(
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px">${c.campaignName}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.budgetPercentage}%</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:600">$${c.calculatedDailyBudget.toFixed(2)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${mtd.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${c.calculatedDailyBudget.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:600">$${mtd.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.impressions || 0).toLocaleString()}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.clicks || 0).toLocaleString()}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${(c.avgCpc || 0).toFixed(2)}</td>
@@ -1251,7 +1251,7 @@ const GoogleAdsBudgetManagementInner = () => {
                         </div>
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>MTD Spend</div>
-                          <div style={{ fontWeight: 600, color: '#d97706' }}>${(campaign.mtdSpend || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                          <div style={{ fontWeight: 600, color: '#d97706' }}>${(campaign.mtdSpend || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                         </div>
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>Adj. Daily Budget</div>
