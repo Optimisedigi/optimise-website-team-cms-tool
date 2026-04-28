@@ -71,13 +71,17 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const conversionDropdownRef = useRef<HTMLDivElement>(null);
   const availableActions = data.availableConversionActions || defaultSelected;
 
-  // Derive the active conversionActions param from selection
-  // Always send explicit action names so Growth Tools uses consistent filtering
+  // Derive the active conversionActions param from selection.
+  // Always send explicit action names (comma-separated) so Growth Tools
+  // uses consistent filtering. The fallback uses defaultSelected (already
+  // parsed from the newline-separated CMS textarea) joined with commas —
+  // never the raw `defaultConversionActions` string, which would carry
+  // newlines into the GAQL query and trigger BAD_VALUE.
   const activeConversionActions = selectedConversions.length > 0
     ? selectedConversions.join(",")
     : availableActions.length > 0
       ? availableActions.join(",")
-      : defaultConversionActions || "";
+      : defaultSelected.join(",");
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -221,7 +225,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       ? selectedConversions.join(",")
       : availableActions.length > 0
         ? availableActions.join(",")
-        : defaultConversionActions || "";
+        : defaultSelected.join(",");
     setLoading(true);
     const params = new URLSearchParams({ slug: data.slug, range });
     if (data.customerId) params.set("customerId", data.customerId);

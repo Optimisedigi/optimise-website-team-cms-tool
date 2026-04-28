@@ -27,7 +27,16 @@ async function fetchDashboardData(
     const cleanCustomerId = customerId.replace(/-/g, "");
     const params = new URLSearchParams({ range: "this_month", customerId: cleanCustomerId, clientName });
     if (brandKeywords) params.set("brandKeywords", brandKeywords);
-    if (conversionActions) params.set("conversionActions", conversionActions);
+    // dashboardConversionActions is stored newline-separated in the CMS
+    // (textarea field), but Growth Tools expects comma-separated values.
+    if (conversionActions) {
+      const normalized = conversionActions
+        .split(/[\r\n,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .join(",");
+      if (normalized) params.set("conversionActions", normalized);
+    }
     const endpoint = `${url}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
     const res = await fetch(endpoint, {
       headers: { "x-internal-key": key },
