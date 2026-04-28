@@ -480,19 +480,22 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
                       </span>
                     )}
                   </div>
-                  <p className="text-blue-700 text-sm font-medium leading-snug" title={headline}>
+                  {/* Headline + description sit close together to mirror real
+                      Google SERP ad spacing (no paragraph gap between them). */}
+                  <p className="text-blue-700 text-sm font-medium leading-snug m-0" title={headline}>
                     {headline}
                   </p>
                   {ad.descriptions[0] && (
-                    <p className="text-[12px] text-slate-600 leading-snug">
+                    <p className="text-[12px] text-slate-600 leading-snug m-0 mt-0.5">
                       {ad.descriptions[0]}
                     </p>
                   )}
-                  <div className="mt-1 text-[11px] text-slate-500 leading-snug space-y-0">
-                    <p className="truncate" title={`Campaign: ${ad.campaignName}`}>
+                  {/* Campaign + Ad Group on consecutive tight lines */}
+                  <div className="mt-1.5 text-[11px] text-slate-500 leading-tight">
+                    <p className="truncate m-0" title={`Campaign: ${ad.campaignName}`}>
                       <span className="text-slate-400">Campaign:</span> {ad.campaignName}
                     </p>
-                    <p className="truncate" title={`Ad Group: ${ad.adGroupName}`}>
+                    <p className="truncate m-0" title={`Ad Group: ${ad.adGroupName}`}>
                       <span className="text-slate-400">Ad Group:</span> {ad.adGroupName}
                     </p>
                   </div>
@@ -927,6 +930,24 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
           </div>
         </div>
       )}
+
+      {/* Footer note explaining N/A ratings on new campaigns / keywords.
+          Heads off client questions about empty Quality Score, Ad Relevance,
+          and Landing Page Experience values. */}
+      <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-xs text-slate-600 leading-relaxed">
+        <p className="flex gap-2">
+          <span className="shrink-0 text-slate-400" aria-hidden="true">ℹ</span>
+          <span>
+            <span className="font-medium text-slate-700">Why am I seeing N/A?</span>{" "}
+            Google Ads needs enough impressions on a keyword before it can assign
+            a Quality Score, Ad Relevance, or Landing Page Experience rating.
+            New campaigns, new keywords, and ones with low search volume will show
+            as N/A until enough data accumulates — typically after a few hundred
+            impressions on exact-match searches. The score appears automatically
+            once Google has enough signal.
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
