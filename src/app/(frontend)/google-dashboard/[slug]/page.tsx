@@ -95,14 +95,20 @@ export default async function GoogleDashboardPage({ params }: Props) {
     initialData = result.data;
     fetchError = result.error;
 
-    // Fetch quality scores server-side to avoid cookie auth issues on client
+    // Fetch quality scores server-side to avoid cookie auth issues on client.
+    // Match the dashboard's initial range (this_month) so the Quality Score
+    // tab's keyword + ad tables align with the rest of the dashboard.
     const growthUrl = process.env.GROWTH_TOOLS_URL;
     const apiKey = process.env.INTERNAL_API_KEY;
     if (growthUrl && apiKey) {
       try {
         const cleanCid = client.googleAdsCustomerId.replace(/-/g, "");
+        const qsParams = new URLSearchParams({
+          customerId: cleanCid,
+          range: "this_month",
+        });
         const qsRes = await fetch(
-          `${growthUrl}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?customerId=${encodeURIComponent(cleanCid)}`,
+          `${growthUrl}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?${qsParams}`,
           { headers: { "x-internal-key": apiKey }, cache: "no-store" },
         );
         if (qsRes.ok) {

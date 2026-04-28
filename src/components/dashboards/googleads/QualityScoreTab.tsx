@@ -385,13 +385,23 @@ function DualAxisChart({ points, metric }: DualAxisChartProps) {
 
 function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Default: hide display/non-search ads. Toggle reveals them when the team
+  // wants to review Display / PMax / Video creative performance.
+  const [showDisplay, setShowDisplay] = useState(false);
 
-  // Filter to search ads only when adType is available from Growth Tools
+  // Older Growth Tools versions don’t populate adType. When that’s the case
+  // we have no way to distinguish search vs display, so just show everything
+  // (preserves prior behavior).
   const hasAdTypes = ads.some((ad) => !!ad.adType);
-  const searchAds = hasAdTypes
-    ? ads.filter((ad) => !ad.adType || ad.adType === "SEARCH" || ad.adType === "RESPONSIVE_SEARCH_AD")
-    : ads; // show all when adType field isn't present yet
-  const filteredCount = ads.length - searchAds.length;
+  const isSearchAd = (ad: GoogleAdsDashboardTopAd) =>
+    !ad.adType || ad.adType === "SEARCH" || ad.adType === "RESPONSIVE_SEARCH_AD" || ad.adType === "EXPANDED_TEXT_AD";
+
+  const visibleAds = (() => {
+    if (!hasAdTypes) return ads;
+    return showDisplay ? ads : ads.filter(isSearchAd);
+  })();
+
+  const displayCount = ads.filter((ad) => !isSearchAd(ad)).length;
 
   return (
     <div className="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">
@@ -399,14 +409,26 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
         <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
           Top Ads by Impressions
         </h2>
-        {filteredCount > 0 && (
-          <span className="text-xs text-slate-400">
-            Showing search ads only ({filteredCount} display/other ad{filteredCount !== 1 ? "s" : ""} filtered)
-          </span>
+        {hasAdTypes && displayCount > 0 && (
+          <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showDisplay}
+              onChange={(e) => setShowDisplay(e.target.checked)}
+              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+            />
+            Show display ads
+            <span className="text-slate-400">({displayCount})</span>
+          </label>
         )}
       </div>
       <div className="divide-y divide-slate-100">
-        {searchAds.map((ad) => {
+        {visibleAds.length === 0 && (
+          <div className="px-5 py-8 text-center text-xs text-slate-400">
+            No ads to show for the selected date range.
+          </div>
+        )}
+        {visibleAds.map((ad) => {
           const isOpen = expanded === ad.adId;
           return (
             <div key={ad.adId}>
@@ -572,9 +594,13 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
     });
   };
 
-  // Chart data points
+  // Chart data points — always show the last 6 snapshots regardless of
+  // the dashboard's date range selector. The chart is a quality-score trend
+  // view, not a per-period summary, so a fixed 6-month window keeps it
+  // interpretable as the user changes the rest of the dashboard.
   const chartPoints: ChartPoint[] = useMemo(() => {
-    return data.snapshots.map((snap) => {
+    const last6 = data.snapshots.slice(-6);
+    return last6.map((snap) => {
       const filtered = filterKeywords(snap.keywords);
       let primary: number | null;
       if (chartMetric === "qualityScore") {

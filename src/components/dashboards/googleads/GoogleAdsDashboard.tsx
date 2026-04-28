@@ -155,13 +155,18 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   );
 
   const fetchQualityData = useCallback(
-    async () => {
+    async (rangeOverride?: string) => {
       if (!data.slug || !data.customerId) return;
       setQualityLoading(true);
       setQualityError("");
       try {
+        const params = new URLSearchParams({
+          slug: data.slug,
+          customerId: data.customerId,
+          range: rangeOverride || range,
+        });
         const res = await fetch(
-          `/api/dashboard/quality-scores?slug=${encodeURIComponent(data.slug)}&customerId=${encodeURIComponent(data.customerId)}`,
+          `/api/dashboard/quality-scores?${params}`,
           { credentials: "include" },
         );
         if (res.ok) {
@@ -180,7 +185,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         setQualityLoading(false);
       }
     },
-    [data.slug, data.customerId],
+    [data.slug, data.customerId, range],
   );
 
   const handleTabChange = useCallback(
@@ -192,6 +197,15 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     },
     [fetchQualityData],
   );
+
+  // Re-fetch quality data when the date range changes — but only if the
+  // Quality tab has already been opened at least once. Avoids a wasted
+  // request for users who never click into the tab.
+  useEffect(() => {
+    if (!qualityFetched.current) return;
+    fetchQualityData(range);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range]);
 
   const toggleConversion = useCallback(
     (action: string) => {

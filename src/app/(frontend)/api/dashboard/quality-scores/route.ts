@@ -7,6 +7,7 @@ const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
   const customerId = req.nextUrl.searchParams.get("customerId") || "";
+  const range = req.nextUrl.searchParams.get("range") || "";
 
   if (!slug) {
     return NextResponse.json({ error: "Missing slug" }, { status: 400 });
@@ -31,7 +32,9 @@ export async function GET(req: NextRequest) {
   try {
     // Strip dashes from customerId — Google Ads API uses dashless format
     const cleanCustomerId = customerId.replace(/-/g, "");
-    const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?customerId=${encodeURIComponent(cleanCustomerId)}`;
+    const params = new URLSearchParams({ customerId: cleanCustomerId });
+    if (range) params.set("range", range);
+    const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?${params}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },
       cache: "no-store",
