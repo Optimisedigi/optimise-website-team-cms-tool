@@ -499,26 +499,26 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
                 </div>
 
                 {/* Stats row — compact single band */}
-                <div className="px-3 py-1 grid grid-cols-5 gap-1 bg-slate-50 border-t border-slate-200">
+                <div className="px-3 py-1.5 grid grid-cols-5 gap-1 bg-slate-50 border-t border-slate-200">
                   <div className="text-center">
-                    <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">Impr</p>
-                    <p className="text-[11px] font-medium text-slate-700 leading-tight">{ad.impressions.toLocaleString()}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 leading-tight">Impr</p>
+                    <p className="text-xs font-medium text-slate-700 leading-tight">{ad.impressions.toLocaleString()}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">Clicks</p>
-                    <p className="text-[11px] font-medium text-slate-700 leading-tight">{ad.clicks.toLocaleString()}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 leading-tight">Clicks</p>
+                    <p className="text-xs font-medium text-slate-700 leading-tight">{ad.clicks.toLocaleString()}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">CTR</p>
-                    <p className="text-[11px] font-medium text-slate-700 leading-tight">{(ad.ctr * 100).toFixed(1)}%</p>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 leading-tight">CTR</p>
+                    <p className="text-xs font-medium text-slate-700 leading-tight">{(ad.ctr * 100).toFixed(1)}%</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">Spend</p>
-                    <p className="text-[11px] font-medium text-slate-700 leading-tight">{formatDollars(ad.spend)}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 leading-tight">Spend</p>
+                    <p className="text-xs font-medium text-slate-700 leading-tight">{formatDollars(ad.spend)}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">Conv</p>
-                    <p className={`text-[11px] font-medium leading-tight ${ad.conversions > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 leading-tight">Conv</p>
+                    <p className={`text-xs font-medium leading-tight ${ad.conversions > 0 ? "text-emerald-600" : "text-slate-400"}`}>
                       {ad.conversions > 0 ? Math.round(ad.conversions) : "—"}
                     </p>
                   </div>
