@@ -169,10 +169,33 @@ export interface GoogleAdsDashboardQualitySnapshot {
   keywords: GoogleAdsDashboardQualityKeyword[];
 }
 
+/**
+ * Per-month aggregate of historical quality-score components, pulled live
+ * from Google Ads (metrics.historical_*) so the dashboard chart can show
+ * a real 6-month trend even before the monthly snapshot writer has
+ * accumulated data.
+ *
+ * - qualityScore: 1-10, impression-weighted across enabled keywords
+ * - creativeQuality / landingPageQuality / searchPredictedCtr: 1-3 numeric
+ *   conversions of the BELOW_AVERAGE / AVERAGE / ABOVE_AVERAGE enums
+ */
+export interface GoogleAdsDashboardQualityTrendPoint {
+  month: string; // YYYY-MM
+  qualityScore: number | null;
+  creativeQuality: number | null;
+  searchPredictedCtr: number | null;
+  landingPageQuality: number | null;
+  avgCpc: number;
+  impressions: number;
+}
+
 export interface GoogleAdsDashboardQualityData {
   campaigns: Array<{ id: string; name: string }>;
   snapshots: GoogleAdsDashboardQualitySnapshot[];
   topAds: GoogleAdsDashboardTopAd[];
+  /** 6-month live QS trend from Google Ads. Optional for back-compat with
+   * older Growth Tools deployments. */
+  qualityTrend?: GoogleAdsDashboardQualityTrendPoint[];
 }
 
 // ============================================================================

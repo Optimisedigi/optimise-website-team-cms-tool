@@ -61,15 +61,15 @@ function ratingLabel(rating: string | null): string {
   return rating.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Two-line rating label for compact table display */
+/** Single-line rating label for compact table display */
 function RatingCell({ rating, className }: { rating: string | null; className?: string }) {
   if (!rating) return <span className={`text-slate-400 ${className || ""}`}>N/A</span>;
-  if (rating === "AVERAGE") return <span className={`text-amber-500 ${className || ""}`}>Average</span>;
-  const prefix = rating === "ABOVE_AVERAGE" ? "Above" : "Below";
+  if (rating === "AVERAGE") return <span className={`text-amber-500 whitespace-nowrap ${className || ""}`}>Average</span>;
+  const label = rating === "ABOVE_AVERAGE" ? "Above Average" : "Below Average";
   const color = rating === "ABOVE_AVERAGE" ? "text-emerald-600" : "text-red-500";
   return (
-    <span className={`${color} text-center ${className || ""}`} style={{ lineHeight: '1.1' }}>
-      {prefix}<br />Average
+    <span className={`${color} whitespace-nowrap ${className || ""}`}>
+      {label}
     </span>
   );
 }
@@ -384,7 +384,7 @@ function DualAxisChart({ points, metric }: DualAxisChartProps) {
 // Top Ads Section
 
 function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedAdId, setExpandedAdId] = useState<string | null>(null);
   // Default: hide display/non-search ads. Toggle reveals them when the team
   // wants to review Display / PMax / Video creative performance.
   const [showDisplay, setShowDisplay] = useState(false);
@@ -422,124 +422,116 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
           </label>
         )}
       </div>
-      <div className="divide-y divide-slate-100">
-        {visibleAds.length === 0 && (
-          <div className="px-5 py-8 text-center text-xs text-slate-400">
-            No ads to show for the selected date range.
-          </div>
-        )}
-        {visibleAds.map((ad) => {
-          const isOpen = expanded === ad.adId;
-          return (
-            <div key={ad.adId}>
-              <button
-                onClick={() => setExpanded(isOpen ? null : ad.adId)}
-                className="w-full px-5 py-3 flex items-center gap-4 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+      {visibleAds.length === 0 ? (
+        <div className="px-5 py-8 text-center text-xs text-slate-400">
+          No ads to show for the selected date range.
+        </div>
+      ) : (
+        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {visibleAds.map((ad) => {
+            const isOpen = expandedAdId === ad.adId;
+            const headline = (ad.headlines.slice(0, 3).filter(Boolean).join(" | ")) || "Untitled ad";
+            return (
+              <div
+                key={ad.adId}
+                className="rounded-lg border border-slate-200 bg-white overflow-hidden hover:border-slate-300 transition-colors"
               >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-blue-700 truncate">
-                    {ad.headlines[0] || "Untitled ad"}
+                {/* Ad preview — mimics how the ad shows in Google search */}
+                <div className="px-4 py-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-block bg-slate-100 text-slate-600 text-[10px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider">
+                      Sponsored
+                    </span>
+                    {ad.finalUrl && (
+                      <span className="text-xs text-slate-700 truncate" title={ad.finalUrl}>
+                        {truncateUrl(ad.finalUrl, 50)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-blue-700 text-base font-medium leading-snug" title={headline}>
+                    {headline}
                   </p>
-                  <p className="text-xs text-slate-500 truncate mt-0.5">
+                  {ad.descriptions[0] && (
+                    <p className="text-sm text-slate-600 leading-snug mt-1">
+                      {ad.descriptions[0]}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-slate-400 mt-2 truncate" title={`${ad.campaignName} / ${ad.adGroupName}`}>
                     {ad.campaignName} / {ad.adGroupName}
                   </p>
                 </div>
-                <div className="flex items-center gap-5 text-xs text-slate-500 shrink-0">
-                  <div className="text-right">
-                    <p className="font-medium text-slate-700">{ad.impressions.toLocaleString()}</p>
-                    <p>impr</p>
+
+                {/* Stats row */}
+                <div className="px-4 py-2.5 grid grid-cols-5 gap-2 bg-slate-50/50">
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Impr</p>
+                    <p className="text-xs font-medium text-slate-700">{ad.impressions.toLocaleString()}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-slate-700">{ad.clicks.toLocaleString()}</p>
-                    <p>clicks</p>
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Clicks</p>
+                    <p className="text-xs font-medium text-slate-700">{ad.clicks.toLocaleString()}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-slate-700">{(ad.ctr * 100).toFixed(1)}%</p>
-                    <p>CTR</p>
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400">CTR</p>
+                    <p className="text-xs font-medium text-slate-700">{(ad.ctr * 100).toFixed(1)}%</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-slate-700">{formatDollars(ad.spend)}</p>
-                    <p>spend</p>
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Spend</p>
+                    <p className="text-xs font-medium text-slate-700">{formatDollars(ad.spend)}</p>
                   </div>
-                  {ad.conversions > 0 && (
-                    <div className="text-right">
-                      <p className="font-medium text-emerald-600">{Math.round(ad.conversions)}</p>
-                      <p>conv</p>
-                    </div>
-                  )}
-                  <svg
-                    className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Conv</p>
+                    <p className={`text-xs font-medium ${ad.conversions > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                      {ad.conversions > 0 ? Math.round(ad.conversions) : "—"}
+                    </p>
+                  </div>
                 </div>
-              </button>
-              {isOpen && (
-                <div className="px-5 pb-4 pt-1 bg-slate-50 border-t border-slate-100">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Ad preview card */}
-                    <div className="rounded-lg border border-slate-200 bg-white p-4">
-                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">Ad Preview</p>
-                      <div className="space-y-1">
-                        <p className="text-blue-700 text-base font-medium leading-tight">
-                          {ad.headlines.slice(0, 3).join(" | ")}
-                        </p>
-                        {ad.finalUrl && (
-                          <p className="text-xs text-green-700">{truncateUrl(ad.finalUrl, 60)}</p>
-                        )}
-                        {ad.descriptions.length > 0 && (
-                          <p className="text-sm text-slate-600 leading-snug mt-1">
-                            {ad.descriptions[0]}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    {/* All headlines + descriptions */}
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Headlines ({ad.headlines.length})</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {ad.headlines.map((h, i) => (
-                            <span key={i} className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded border border-blue-100">
-                              {h}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Descriptions ({ad.descriptions.length})</p>
-                        <div className="space-y-1">
-                          {ad.descriptions.map((d, i) => (
-                            <p key={i} className="text-xs text-slate-600 leading-snug">
-                              {d}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                      {ad.finalUrl && (
+
+                {/* Expand toggle for full asset list */}
+                {(ad.headlines.length > 3 || ad.descriptions.length > 1) && (
+                  <>
+                    <button
+                      onClick={() => setExpandedAdId(isOpen ? null : ad.adId)}
+                      className="w-full px-4 py-1.5 text-[11px] text-slate-500 hover:bg-slate-50 border-t border-slate-100 cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      {isOpen ? "Hide" : "Show"} all assets
+                      <span>({ad.headlines.length} headlines, {ad.descriptions.length} descriptions)</span>
+                      <svg
+                        className={`w-3 h-3 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {isOpen && (
+                      <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 space-y-3">
                         <div>
-                          <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Final URL</p>
-                          <a
-                            href={ad.finalUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline break-all"
-                          >
-                            {ad.finalUrl}
-                          </a>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">All Headlines ({ad.headlines.length})</p>
+                          <div className="flex flex-wrap gap-1">
+                            {ad.headlines.map((h, i) => (
+                              <span key={i} className="inline-block bg-blue-50 text-blue-700 text-[11px] px-1.5 py-0.5 rounded border border-blue-100">
+                                {h}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                        <div>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">All Descriptions ({ad.descriptions.length})</p>
+                          <div className="space-y-1">
+                            {ad.descriptions.map((d, i) => (
+                              <p key={i} className="text-[11px] text-slate-600 leading-snug">• {d}</p>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -594,11 +586,31 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
     });
   };
 
-  // Chart data points — always show the last 6 snapshots regardless of
-  // the dashboard's date range selector. The chart is a quality-score trend
-  // view, not a per-period summary, so a fixed 6-month window keeps it
-  // interpretable as the user changes the rest of the dashboard.
+  // Chart data points — always show the last 6 months regardless of the
+  // dashboard's date range selector. The chart is a quality-score trend view,
+  // not a per-period summary, so a fixed 6-month window keeps it interpretable.
+  //
+  // Source priority:
+  //   1. data.qualityTrend (live 6-month series from Google Ads, present in
+  //      newer Growth Tools deployments). Used directly — no campaign/ad-group
+  //      filtering since it's pre-aggregated server-side.
+  //   2. data.snapshots (DB monthly snapshots, last 6) — fallback for older
+  //      deployments and clients with extensive snapshot history.
   const chartPoints: ChartPoint[] = useMemo(() => {
+    if (data.qualityTrend && data.qualityTrend.length > 0) {
+      return data.qualityTrend.map((p) => {
+        let primary: number | null;
+        if (chartMetric === "qualityScore") primary = p.qualityScore;
+        else if (chartMetric === "creativeQuality") primary = p.creativeQuality;
+        else if (chartMetric === "searchPredictedCtr") primary = p.searchPredictedCtr;
+        else primary = p.landingPageQuality;
+        return {
+          label: monthLabel(p.month),
+          primary,
+          cpc: p.avgCpc,
+        };
+      });
+    }
     const last6 = data.snapshots.slice(-6);
     return last6.map((snap) => {
       const filtered = filterKeywords(snap.keywords);
@@ -615,7 +627,7 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
       };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.snapshots, selectedCampaign, selectedAdGroup, chartMetric]);
+  }, [data.qualityTrend, data.snapshots, selectedCampaign, selectedAdGroup, chartMetric]);
 
   // Latest snapshot for breakdown cards + table
   const latestSnapshot = data.snapshots[data.snapshots.length - 1];
@@ -775,8 +787,8 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
                 <tr className="text-left text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-100">
                   <th className="px-2.5 py-2 font-medium">Keyword</th>
                   <th className="px-2.5 py-2 font-medium text-center">QS</th>
-                  <th className="px-2.5 py-2 font-medium text-center">Ad Relevance</th>
-                  <th className="px-2.5 py-2 font-medium text-center">Landing Page</th>
+                  <th className="px-2.5 py-2 font-medium text-center whitespace-nowrap min-w-[110px]">Ad Relevance</th>
+                  <th className="px-2.5 py-2 font-medium text-center whitespace-nowrap min-w-[110px]">Landing Page</th>
                   <th className="px-2.5 py-2 font-medium text-right">Spend</th>
                   <th className="px-2.5 py-2 font-medium text-right">Clicks</th>
                   <th className="px-2.5 py-2 font-medium text-center">Conv</th>
