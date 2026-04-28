@@ -53,18 +53,20 @@ export async function POST(
     return NextResponse.json({ error: "Audit not found" }, { status: 404 });
   }
 
-  // Prefer client account ID over audit's (which may be MCC)
+  // Prefer client account ID over audit's (which may be MCC).
+  // Also capture the linked client so we can read its default conversion actions.
   let customerId = audit.customerId;
+  let linkedClient: any = null;
   if (audit.client) {
     try {
       const clientId = typeof audit.client === 'object' ? audit.client.id : audit.client;
-      const client = typeof audit.client === 'object' ? audit.client : await payload.findByID({
+      linkedClient = typeof audit.client === 'object' ? audit.client : await payload.findByID({
         collection: "clients",
         id: clientId,
         overrideAccess: true,
       });
-      if (client?.googleAdsCustomerId) {
-        customerId = client.googleAdsCustomerId;
+      if (linkedClient?.googleAdsCustomerId) {
+        customerId = linkedClient.googleAdsCustomerId;
       }
     } catch { /* client lookup failed, use audit customerId */ }
   }
@@ -74,6 +76,15 @@ export async function POST(
       { status: 400 }
     );
   }
+
+  // Read the client's default conversion actions (stored newline-separated on
+  // the Clients collection). Growth Tools uses these to filter
+  // metrics.conversions per campaign.
+  const dashboardConversionActions: string = linkedClient?.dashboardConversionActions || "";
+  const conversionActions: string[] = dashboardConversionActions
+    .split(/[\r\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   // Get all campaign budgets if no specific IDs provided
   let budgetsToUpdate: any[] = [];
@@ -110,22 +121,16 @@ export async function POST(
   // Fetch metrics from Growth Tools
   if (GROWTH_TOOLS_URL && INTERNAL_API_KEY) {
     try {
-      const response = await fetch(
-        `${GROWTH_TOOLS_URL}/api/google-ads/campaign-budgets/get-metrics`,
-        {
-          method: "GET",
-          headers: {
-            "x-internal-key": INTERNAL_API_KEY!,
-          },
-        }
-      );
-
-      // Parse the URL with query params
-      const url = new URL(req.url);
+      // Build the Growth Tools URL with query params (was previously built from
+      // req.url which pointed at the CMS itself — bug fix)
+      const url = new URL(`${GROWTH_TOOLS_URL}/api/google-ads/campaign-budgets/get-metrics`);
       url.searchParams.set("customerId", customerId.replace(/-/g, ""));
       url.searchParams.set("dateRange", dateRange);
       if (campaignIds) {
         url.searchParams.set("campaignIds", campaignIds.join(","));
+      }
+      if (conversionActions.length > 0) {
+        url.searchParams.set("conversionActions", conversionActions.join(","));
       }
 
       const metricsResponse = await fetch(url.toString(), {

@@ -40,18 +40,20 @@ export async function GET(
     return NextResponse.json({ error: "Audit not found" }, { status: 404 });
   }
 
-  // Prefer client account ID over audit's (which may be MCC)
+  // Prefer client account ID over audit's (which may be MCC).
+  // Also capture the linked client so we can read its default conversion actions.
   let customerId = audit.customerId;
+  let linkedClient: any = null;
   if (audit.client) {
     try {
       const clientId = typeof audit.client === 'object' ? audit.client.id : audit.client;
-      const client = typeof audit.client === 'object' ? audit.client : await payload.findByID({
+      linkedClient = typeof audit.client === 'object' ? audit.client : await payload.findByID({
         collection: "clients",
         id: clientId,
         overrideAccess: true,
       });
-      if (client?.googleAdsCustomerId) {
-        customerId = client.googleAdsCustomerId;
+      if (linkedClient?.googleAdsCustomerId) {
+        customerId = linkedClient.googleAdsCustomerId;
       }
     } catch { /* client lookup failed, use audit customerId */ }
   }
@@ -61,6 +63,17 @@ export async function GET(
       { status: 400 }
     );
   }
+
+  // Read the client's default conversion actions (stored newline-separated on the
+  // Clients collection, set via the Default Conversion Actions picker on the Google
+  // Ads tab). Growth Tools uses these to filter metrics.conversions per campaign so
+  // the Budget Management tab matches what the user expects — same scoping the
+  // dashboard uses.
+  const dashboardConversionActions: string = linkedClient?.dashboardConversionActions || "";
+  const conversionActions: string[] = dashboardConversionActions
+    .split(/[\r\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   // If Growth Tools URL is configured, fetch from there
   if (GROWTH_TOOLS_URL && INTERNAL_API_KEY) {
@@ -77,6 +90,7 @@ export async function GET(
           body: JSON.stringify({
             customerId: customerId.replace(/-/g, ""),
             dateRange: "THIS_MONTH",
+            ...(conversionActions.length > 0 && { conversionActions }),
           }),
         }
       );
