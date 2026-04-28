@@ -829,6 +829,10 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
               </div>
             )}
           </div>
+          {/* Note explaining sort order so users don't expect strict spend desc */}
+          <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 text-[11px] text-slate-500 leading-snug">
+            <span className="text-slate-600 font-medium">Showing keywords with conversions first</span> (sorted by spend), followed by the remaining top keywords by spend.
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead>
