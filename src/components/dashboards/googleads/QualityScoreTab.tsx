@@ -383,6 +383,12 @@ function DualAxisChart({ points, metric }: DualAxisChartProps) {
 
 // Top Ads Section
 
+// How many ads to show in each visibility mode. Limits keep the section
+// scannable rather than a wall of identical-looking creatives — the user
+// can still drill into Google Ads itself to see everything.
+const MAX_SEARCH_ADS = 4;
+const MAX_DISPLAY_ADS = 4;
+
 function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
   const [expandedAdId, setExpandedAdId] = useState<string | null>(null);
   // Default: hide display/non-search ads. Toggle reveals them when the team
@@ -391,15 +397,18 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
 
   // Older Growth Tools versions don’t populate adType. When that’s the case
   // we have no way to distinguish search vs display, so just show everything
-  // (preserves prior behavior).
+  // (preserves prior behavior, capped to MAX_SEARCH_ADS).
   const hasAdTypes = ads.some((ad) => !!ad.adType);
   const isSearchAd = (ad: GoogleAdsDashboardTopAd) =>
     !ad.adType || ad.adType === "SEARCH" || ad.adType === "RESPONSIVE_SEARCH_AD" || ad.adType === "EXPANDED_TEXT_AD";
 
-  const visibleAds = (() => {
-    if (!hasAdTypes) return ads;
-    return showDisplay ? ads : ads.filter(isSearchAd);
-  })();
+  const visibleAds = useMemo(() => {
+    if (!hasAdTypes) return ads.slice(0, MAX_SEARCH_ADS);
+    const search = ads.filter(isSearchAd).slice(0, MAX_SEARCH_ADS);
+    if (!showDisplay) return search;
+    const display = ads.filter((ad) => !isSearchAd(ad)).slice(0, MAX_DISPLAY_ADS);
+    return [...search, ...display];
+  }, [ads, hasAdTypes, showDisplay]);
 
   const displayCount = ads.filter((ad) => !isSearchAd(ad)).length;
 
@@ -418,7 +427,9 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
               className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
             />
             Show display ads
-            <span className="text-slate-400">({displayCount})</span>
+            <span className="text-slate-400">
+              ({Math.min(displayCount, MAX_DISPLAY_ADS)} shown)
+            </span>
           </label>
         )}
       </div>
@@ -434,54 +445,62 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
             return (
               <div
                 key={ad.adId}
-                className="rounded-lg border border-slate-200 bg-white overflow-hidden hover:border-slate-300 transition-colors"
+                className="rounded-lg border-2 border-slate-300 bg-white overflow-hidden hover:border-slate-400 hover:shadow-sm transition-all"
               >
-                {/* Ad preview — mimics how the ad shows in Google search */}
-                <div className="px-4 py-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2 mb-1">
+                {/* Ad preview — tightly stacked to mirror how the ad actually
+                    looks in a Google search SERP listing. */}
+                <div className="px-4 pt-3 pb-3">
+                  <div className="flex items-center gap-2">
                     <span className="inline-block bg-slate-100 text-slate-600 text-[10px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider">
                       Sponsored
                     </span>
                     {ad.finalUrl && (
-                      <span className="text-xs text-slate-700 truncate" title={ad.finalUrl}>
+                      <span className="text-xs text-slate-700 truncate leading-tight" title={ad.finalUrl}>
                         {truncateUrl(ad.finalUrl, 50)}
                       </span>
                     )}
                   </div>
-                  <p className="text-blue-700 text-base font-medium leading-snug" title={headline}>
+                  <p className="text-blue-700 text-base font-medium leading-tight mt-0.5" title={headline}>
                     {headline}
                   </p>
                   {ad.descriptions[0] && (
-                    <p className="text-sm text-slate-600 leading-snug mt-1">
+                    <p className="text-sm text-slate-600 leading-snug mt-0.5">
                       {ad.descriptions[0]}
                     </p>
                   )}
-                  <p className="text-[11px] text-slate-400 mt-2 truncate" title={`${ad.campaignName} / ${ad.adGroupName}`}>
-                    {ad.campaignName} / {ad.adGroupName}
+                </div>
+
+                {/* Campaign / Ad Group footer */}
+                <div className="px-4 pb-2 text-[11px] text-slate-500">
+                  <p className="truncate" title={`Campaign: ${ad.campaignName}`}>
+                    <span className="text-slate-400">Campaign:</span> {ad.campaignName}
+                  </p>
+                  <p className="truncate" title={`Ad Group: ${ad.adGroupName}`}>
+                    <span className="text-slate-400">Ad Group:</span> {ad.adGroupName}
                   </p>
                 </div>
 
-                {/* Stats row */}
-                <div className="px-4 py-2.5 grid grid-cols-5 gap-2 bg-slate-50/50">
+                {/* Stats row — compact, single visual band */}
+                <div className="px-4 py-1.5 grid grid-cols-5 gap-1 bg-slate-50 border-t border-slate-200">
                   <div className="text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Impr</p>
-                    <p className="text-xs font-medium text-slate-700">{ad.impressions.toLocaleString()}</p>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">Impr</p>
+                    <p className="text-[11px] font-medium text-slate-700 leading-tight">{ad.impressions.toLocaleString()}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Clicks</p>
-                    <p className="text-xs font-medium text-slate-700">{ad.clicks.toLocaleString()}</p>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">Clicks</p>
+                    <p className="text-[11px] font-medium text-slate-700 leading-tight">{ad.clicks.toLocaleString()}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400">CTR</p>
-                    <p className="text-xs font-medium text-slate-700">{(ad.ctr * 100).toFixed(1)}%</p>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">CTR</p>
+                    <p className="text-[11px] font-medium text-slate-700 leading-tight">{(ad.ctr * 100).toFixed(1)}%</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Spend</p>
-                    <p className="text-xs font-medium text-slate-700">{formatDollars(ad.spend)}</p>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">Spend</p>
+                    <p className="text-[11px] font-medium text-slate-700 leading-tight">{formatDollars(ad.spend)}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400">Conv</p>
-                    <p className={`text-xs font-medium ${ad.conversions > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-tight">Conv</p>
+                    <p className={`text-[11px] font-medium leading-tight ${ad.conversions > 0 ? "text-emerald-600" : "text-slate-400"}`}>
                       {ad.conversions > 0 ? Math.round(ad.conversions) : "—"}
                     </p>
                   </div>
@@ -492,7 +511,7 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
                   <>
                     <button
                       onClick={() => setExpandedAdId(isOpen ? null : ad.adId)}
-                      className="w-full px-4 py-1.5 text-[11px] text-slate-500 hover:bg-slate-50 border-t border-slate-100 cursor-pointer flex items-center justify-center gap-1"
+                      className="w-full px-4 py-1 text-[11px] text-slate-500 hover:bg-slate-50 border-t border-slate-200 cursor-pointer flex items-center justify-center gap-1"
                     >
                       {isOpen ? "Hide" : "Show"} all assets
                       <span>({ad.headlines.length} headlines, {ad.descriptions.length} descriptions)</span>
@@ -504,7 +523,7 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
                       </svg>
                     </button>
                     {isOpen && (
-                      <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 space-y-3">
+                      <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 space-y-3">
                         <div>
                           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">All Headlines ({ad.headlines.length})</p>
                           <div className="flex flex-wrap gap-1">
