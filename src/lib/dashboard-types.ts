@@ -129,11 +129,19 @@ export interface GoogleAdsDashboardData {
 
 export interface GoogleAdsDashboardTopAd {
   adId: string;
+  /** Internal Google Ads name field (often the asset filename for image ads,
+   * e.g. "display_gads_300x250.jpg"). Useful as a fallback label when an
+   * image ad has no headline copy. */
+  adName?: string;
   campaignName: string;
   adGroupName: string;
   headlines: string[];
   descriptions: string[];
   finalUrl: string | null;
+  /** Public Google CDN image URL when available. Set for IMAGE_AD
+   * (preview_image_url) and RESPONSIVE_DISPLAY_AD (resolved from the first
+   * marketing image asset). null for search ads. */
+  imageUrl?: string | null;
   impressions: number;
   clicks: number;
   spend: number;

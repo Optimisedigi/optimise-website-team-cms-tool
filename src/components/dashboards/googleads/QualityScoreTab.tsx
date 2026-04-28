@@ -441,14 +441,32 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
         <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
           {visibleAds.map((ad) => {
             const isOpen = expandedAdId === ad.adId;
-            const headline = (ad.headlines.slice(0, 3).filter(Boolean).join(" | ")) || "Untitled ad";
+            // Headline source priority:
+            //   1. responsive ad headlines (Search RSA / Responsive Display)
+            //   2. ad.adName (Image Ad asset filename, e.g. "display_gads_300x250")
+            //   3. "Untitled ad"
+            const topHeadlineParts = ad.headlines.slice(0, 3).filter(Boolean);
+            const headline = topHeadlineParts.length > 0
+              ? topHeadlineParts.join(" | ")
+              : (ad.adName || "Untitled ad");
+            const hasImage = !!ad.imageUrl;
             return (
               <div
                 key={ad.adId}
                 className="rounded-lg border-2 border-slate-300 bg-white overflow-hidden hover:border-slate-400 hover:shadow-sm transition-all"
               >
-                {/* Ad preview — tightly stacked to mirror how the ad actually
-                    looks in a Google search SERP listing. */}
+                {/* Ad preview — image-first for display ads, text-first for search ads.
+                    Tightly stacked to mirror how the ad actually looks in market. */}
+                {hasImage ? (
+                  <div className="bg-slate-50 border-b border-slate-200 flex items-center justify-center" style={{ height: 160 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={ad.imageUrl!}
+                      alt={ad.adName || headline}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                ) : null}
                 <div className="px-4 pt-3 pb-3">
                   <div className="flex items-center gap-2">
                     <span className="inline-block bg-slate-100 text-slate-600 text-[10px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider">
@@ -656,13 +674,24 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
   const adRelevance = dominantRating(latestKeywords, "creativeQuality");
   const lpRating = dominantRating(latestKeywords, "landingPageQuality");
 
-  // Sort keywords by spend desc, take top 10
+  // Order keywords for the table:
+  //   1. Keywords with conversions, sorted by spend desc (these are the ones
+  //      actually generating outcomes — most useful to see first)
+  //   2. Then keywords without conversions, sorted by spend desc (high spend
+  //      / no conversion = optimisation opportunity, second-priority)
+  // Top 30 across both buckets combined.
   const filteredByBrand = keywordFilter === "all"
     ? latestKeywords
     : keywordFilter === "brand"
       ? latestKeywords.filter((kw) => isBrandKeyword(kw.keywordText))
       : latestKeywords.filter((kw) => !isBrandKeyword(kw.keywordText));
-  const sortedKeywords = [...filteredByBrand].sort((a, b) => b.spend - a.spend).slice(0, 30);
+  const withConversions = filteredByBrand
+    .filter((kw) => (kw.conversions || 0) > 0)
+    .sort((a, b) => b.spend - a.spend);
+  const withoutConversions = filteredByBrand
+    .filter((kw) => (kw.conversions || 0) === 0)
+    .sort((a, b) => b.spend - a.spend);
+  const sortedKeywords = [...withConversions, ...withoutConversions].slice(0, 30);
 
   const currentQs = weightedQs(latestKeywords);
 
@@ -825,7 +854,7 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
                 )}
                 {sortedKeywords.map((kw, i) => (
                   <tr key={`${kw.keywordText}-${i}`} className="hover:bg-slate-50">
-                    <td className="px-2.5 py-1.5 font-medium text-slate-700 max-w-[220px] truncate" title={kw.keywordText}>
+                    <td className="px-2.5 py-1 font-medium text-slate-700 max-w-[220px] truncate" title={kw.keywordText}>
                       <span className="inline-flex items-center gap-1">
                         {kw.keywordText}
                         {kw.finalUrl && (
@@ -843,7 +872,7 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
                         )}
                       </span>
                     </td>
-                    <td className="px-2.5 py-1.5 text-center">
+                    <td className="px-2.5 py-1 text-center">
                       {kw.qualityScore != null ? (
                         <span
                           className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
@@ -860,19 +889,19 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
                         <span className="text-slate-300">{"\u2014"}</span>
                       )}
                     </td>
-                    <td className="px-2.5 py-1.5 text-center">
+                    <td className="px-2.5 py-1 text-center">
                       <RatingCell rating={kw.creativeQuality} />
                     </td>
-                    <td className="px-2.5 py-1.5 text-center">
+                    <td className="px-2.5 py-1 text-center">
                       <RatingCell rating={kw.landingPageQuality} />
                     </td>
-                    <td className="px-2.5 py-1.5 text-right text-slate-600 font-medium">
+                    <td className="px-2.5 py-1 text-right text-slate-600 font-medium">
                       {formatDollars(kw.spend)}
                     </td>
-                    <td className="px-2.5 py-1.5 text-right text-slate-600">
+                    <td className="px-2.5 py-1 text-right text-slate-600">
                       {(kw.clicks ?? 0).toLocaleString()}
                     </td>
-                    <td className="px-2.5 py-1.5 text-center text-slate-600">
+                    <td className="px-2.5 py-1 text-center text-slate-600">
                       {kw.conversions > 0 ? (
                         <span className="font-medium text-emerald-600">
                           {Math.round(kw.conversions)}
@@ -881,10 +910,10 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
                         <span className="text-slate-300">0</span>
                       )}
                     </td>
-                    <td className="px-2.5 py-1.5 text-right text-slate-600">
+                    <td className="px-2.5 py-1 text-right text-slate-600">
                       {formatDollars(kw.costPerConversion)}
                     </td>
-                    <td className="px-2.5 py-1.5 text-right text-slate-600">
+                    <td className="px-2.5 py-1 text-right text-slate-600">
                       ${kw.avgCpc.toFixed(2)}
                     </td>
                   </tr>
