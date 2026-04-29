@@ -269,7 +269,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-[11px] pb-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
           <div className="flex items-center gap-3 flex-wrap">
             {data.logoUrl ? (
               <img
@@ -286,26 +286,30 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               Google Ads Dashboard
             </span>
           </div>
-          <div className="flex items-start gap-3 pt-1">
-            {/* Date range dropdown + resolved date label below it */}
-            <div className="flex flex-col items-start gap-1">
-              <select
-                value={range}
-                onChange={(e) => changeRange(e.target.value)}
-                disabled={loading}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-              >
-                {RANGE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <span className="text-xs text-slate-500">{displayedDateLabel}</span>
-            </div>
+          {/* Right side: 2-row grid so all controls share one top row and all
+              labels share one bottom row, regardless of individual heights.
+              Parent is items-center so the title vertically centers against
+              the whole right block (controls + labels). */}
+          <div
+            className="grid items-start gap-x-3 gap-y-1"
+            style={{ gridTemplateColumns: 'repeat(3, auto)' }}
+          >
+            {/* Row 1, Col 1: Date range dropdown */}
+            <select
+              value={range}
+              onChange={(e) => changeRange(e.target.value)}
+              disabled={loading}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+            >
+              {RANGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
 
-            {/* Conversion action selector */}
-            {availableActions.length > 1 && (
+            {/* Row 1, Col 2: Conversion action selector */}
+            {availableActions.length > 1 ? (
               <div className="relative" ref={conversionDropdownRef}>
                 <button
                   onClick={() => setConversionDropdownOpen((o) => !o)}
@@ -365,45 +369,49 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                   </div>
                 )}
               </div>
+            ) : (
+              <span />
             )}
 
-            {activeTab === "overview" && (
-              <div className="flex flex-col items-start gap-1">
-                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
-                  <button
-                    onClick={() => setCompareMode("month")}
-                    className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                      compareMode === "month"
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    vs Last Month
-                  </button>
-                  <button
-                    onClick={() => setCompareMode("year")}
-                    className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                      compareMode === "year"
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    vs Last Year
-                  </button>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Updated {timeAgo(data.lastUpdated)}
-                </p>
+            {/* Row 1, Col 3: vs Last Month/Year toggle (Overview only) */}
+            {activeTab === "overview" ? (
+              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
+                <button
+                  onClick={() => setCompareMode("month")}
+                  className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                    compareMode === "month"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  vs Last Month
+                </button>
+                <button
+                  onClick={() => setCompareMode("year")}
+                  className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                    compareMode === "year"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  vs Last Year
+                </button>
               </div>
+            ) : (
+              <span />
             )}
 
-            {/* When not on Overview, the toggle is hidden — still show the
-                'Updated X ago' line so it doesn't disappear with the toggle. */}
-            {activeTab !== "overview" && (
-              <p className="text-xs text-slate-400 self-end">
-                Updated {timeAgo(data.lastUpdated)}
-              </p>
-            )}
+            {/* Row 2, Col 1: date range label under dropdown */}
+            <span className="text-xs text-slate-500 whitespace-nowrap">{displayedDateLabel}</span>
+
+            {/* Row 2, Col 2: empty spacer under conversion selector */}
+            <span />
+
+            {/* Row 2, Col 3: 'Updated X ago' under the toggle (or right-aligned
+                when toggle is hidden on non-Overview tabs) */}
+            <p className="text-xs text-slate-400 whitespace-nowrap">
+              Updated {timeAgo(data.lastUpdated)}
+            </p>
           </div>
         </div>
 
