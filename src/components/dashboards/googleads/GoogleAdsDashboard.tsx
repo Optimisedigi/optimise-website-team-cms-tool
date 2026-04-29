@@ -269,8 +269,8 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-[11px] pb-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
+          <div className="flex flex-col items-start gap-0">
             {data.logoUrl ? (
               <img
                 src={data.logoUrl}
@@ -278,29 +278,31 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 className="w-auto object-contain" style={{ height: '28px' }}
               />
             ) : (
-              <h1 className="font-bold tracking-tight text-slate-900" style={{ fontSize: '29px' }}>
+              <h1 className="font-bold tracking-tight text-slate-900 leading-tight" style={{ fontSize: '26px' }}>
                 {data.clientName}
               </h1>
             )}
-            <span className="text-slate-400 font-normal" style={{ fontSize: '18px', position: 'relative', top: '1px' }}>
+            <span className="text-slate-400 font-normal" style={{ fontSize: '18px' }}>
               Google Ads Dashboard
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            {/* Date range dropdown */}
-            <select
-              value={range}
-              onChange={(e) => changeRange(e.target.value)}
-              disabled={loading}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-            >
-              {RANGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs text-slate-500">{displayedDateLabel}</span>
+          <div className="flex items-start gap-3">
+            {/* Date range dropdown + resolved date label below it */}
+            <div className="flex flex-col items-start gap-1">
+              <select
+                value={range}
+                onChange={(e) => changeRange(e.target.value)}
+                disabled={loading}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+              >
+                {RANGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-500">{displayedDateLabel}</span>
+            </div>
 
             {/* Conversion action selector */}
             {availableActions.length > 1 && (
@@ -366,33 +368,42 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             )}
 
             {activeTab === "overview" && (
-              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
-                <button
-                  onClick={() => setCompareMode("month")}
-                  className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                    compareMode === "month"
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  vs Last Month
-                </button>
-                <button
-                  onClick={() => setCompareMode("year")}
-                  className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                    compareMode === "year"
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  vs Last Year
-                </button>
+              <div className="flex flex-col items-start gap-1">
+                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
+                  <button
+                    onClick={() => setCompareMode("month")}
+                    className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                      compareMode === "month"
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    vs Last Month
+                  </button>
+                  <button
+                    onClick={() => setCompareMode("year")}
+                    className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                      compareMode === "year"
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    vs Last Year
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Updated {timeAgo(data.lastUpdated)}
+                </p>
               </div>
             )}
 
-            <p className="text-xs text-slate-400">
-              Updated {timeAgo(data.lastUpdated)}
-            </p>
+            {/* When not on Overview, the toggle is hidden — still show the
+                'Updated X ago' line so it doesn't disappear with the toggle. */}
+            {activeTab !== "overview" && (
+              <p className="text-xs text-slate-400 self-end">
+                Updated {timeAgo(data.lastUpdated)}
+              </p>
+            )}
           </div>
         </div>
 
