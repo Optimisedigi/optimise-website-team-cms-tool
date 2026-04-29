@@ -10,7 +10,7 @@ import { useEffect } from "react";
  * Uses a MutationObserver so toggles are added even when the form renders
  * after this component mounts (e.g. when navigating into "Create New User").
  */
-const ShowPasswordToggle = () => {
+const ShowPasswordToggle = ({ children }: { children?: React.ReactNode }) => {
   useEffect(() => {
     const TOGGLE_FLAG = "pwToggleAdded";
 
@@ -98,7 +98,7 @@ const ShowPasswordToggle = () => {
     };
   }, []);
 
-  return null;
+  return <>{children}</>;
 };
 
 export default ShowPasswordToggle;
