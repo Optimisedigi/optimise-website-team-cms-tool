@@ -1,1 +1,207 @@
 @import "tailwindcss";
+
+/* ─── Rocket Splash Loading ───────────────────────────────
+ *
+ * Mirrors the admin's RocketSplash styles from src/app/(payload)/custom.scss
+ * so the same <RocketSplash /> component renders identically here.
+ * Text color is dashboard-themed (slate-400 on slate-900 bg) instead of
+ * the admin theme variable.
+ */
+
+.od-splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 420px;
+  gap: 24px;
+}
+
+.od-splash__scene {
+  position: relative;
+  width: 80px;
+  height: 140px;
+}
+
+.od-splash__rocket {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: od-rocket-offset-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  z-index: 2;
+}
+
+.od-splash__rocket img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  transform: rotate(-30deg);
+  /* Dashboard is dark-themed (slate-900) and the source rocket logo is black,
+     so invert it to white. The admin uses the same black logo on a light bg
+     and intentionally doesn't invert. */
+  filter: brightness(0) invert(1);
+}
+
+.od-splash__flames {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 60px;
+  animation: od-rocket-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  z-index: 1;
+}
+
+.od-splash__flame {
+  position: absolute;
+  bottom: 0;
+  border-radius: 50%;
+}
+
+.od-splash__flame--1 {
+  width: 10px;
+  height: 28px;
+  left: 5px;
+  background: linear-gradient(to top, transparent, #f59e0b, #ef4444);
+  border-radius: 50% 50% 40% 40%;
+  opacity: 0;
+  animation:
+    od-flame-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite,
+    od-flame-flicker 0.15s ease-in-out infinite alternate;
+}
+
+.od-splash__flame--2 {
+  width: 6px;
+  height: 18px;
+  left: 2px;
+  background: linear-gradient(to top, transparent, #fbbf24);
+  border-radius: 50% 50% 40% 40%;
+  opacity: 0;
+  animation:
+    od-flame-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) 0.08s infinite,
+    od-flame-flicker 0.2s ease-in-out infinite alternate;
+}
+
+.od-splash__flame--3 {
+  width: 6px;
+  height: 20px;
+  left: 10px;
+  background: linear-gradient(to top, transparent, #fb923c);
+  border-radius: 50% 50% 40% 40%;
+  opacity: 0;
+  animation:
+    od-flame-loop 2.6s cubic-bezier(0.4, 0, 0.2, 1) 0.04s infinite,
+    od-flame-flicker 0.18s ease-in-out infinite alternate;
+}
+
+.od-splash__text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8; /* slate-400, matches dashboard dark theme */
+  letter-spacing: 0.5px;
+}
+
+@keyframes od-rocket-loop {
+  0% {
+    transform: translateX(calc(-50% - 5px)) translateY(0);
+    opacity: 0;
+  }
+  8% {
+    transform: translateX(calc(-50% - 5px)) translateY(0);
+    opacity: 1;
+  }
+  18% {
+    transform: translateX(calc(-50% - 5px)) translateY(2px);
+    opacity: 1;
+  }
+  32% {
+    transform: translateX(calc(-50% - 5px)) translateY(-6px);
+    opacity: 1;
+  }
+  78% {
+    transform: translateX(calc(-50% - 5px)) translateY(-130px);
+    opacity: 1;
+  }
+  92% {
+    transform: translateX(calc(-50% - 5px)) translateY(-220px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(calc(-50% - 5px)) translateY(-220px);
+    opacity: 0;
+  }
+}
+
+@keyframes od-rocket-offset-loop {
+  0% {
+    transform: translateX(calc(-50% - 7px)) translateY(0);
+    opacity: 0;
+  }
+  8% {
+    transform: translateX(calc(-50% - 7px)) translateY(0);
+    opacity: 1;
+  }
+  18% {
+    transform: translateX(calc(-50% - 7px)) translateY(2px);
+    opacity: 1;
+  }
+  32% {
+    transform: translateX(calc(-50% - 7px)) translateY(-6px);
+    opacity: 1;
+  }
+  78% {
+    transform: translateX(calc(-50% - 7px)) translateY(-130px);
+    opacity: 1;
+  }
+  92% {
+    transform: translateX(calc(-50% - 7px)) translateY(-220px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(calc(-50% - 7px)) translateY(-220px);
+    opacity: 0;
+  }
+}
+
+@keyframes od-flame-loop {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+  10% {
+    opacity: 0.6;
+    transform: scaleY(0.4);
+  }
+  22% {
+    opacity: 0.9;
+    transform: scaleY(0.6);
+  }
+  36% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  76% {
+    opacity: 1;
+    transform: scaleY(1.4);
+  }
+  90% {
+    opacity: 0;
+    transform: scaleY(1.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+}
+
+@keyframes od-flame-flicker {
+  0% {
+    transform: scaleX(0.85) translateX(-1px);
+  }
+  100% {
+    transform: scaleX(1.15) translateX(1px);
+  }
+}
