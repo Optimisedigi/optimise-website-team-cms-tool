@@ -3086,3 +3086,12 @@ $svg-close: "%3C/svg%3E";
   height: 70vh;
   border: none;
 }
+
+// Hide the built-in API tab on document edit views for non-admin users.
+// Payload's `admin.hideAPIURL` is a boolean only — there's no per-user gate —
+// so we tag the body with `role-non-admin` (via RoleBodyClass) and hide the
+// tab via its aria-label. See src/components/RoleBodyClass.tsx.
+body.role-non-admin .doc-tabs a.doc-tab[aria-label="API"],
+body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
+  display: none !important;
+}
