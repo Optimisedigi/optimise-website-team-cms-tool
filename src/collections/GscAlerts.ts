@@ -1,6 +1,5 @@
 import type { CollectionConfig } from "payload";
 import { hasValidApiKey } from "./api-key-access";
-import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const GscAlerts: CollectionConfig = {
   slug: "gsc-alerts",
@@ -13,13 +12,15 @@ export const GscAlerts: CollectionConfig = {
     group: "Growth Tools",
     defaultColumns: ["client", "severity", "category", "title", "resolved", "createdAt"],
     description: "Alerts triggered by GSC snapshot comparisons",
-    hidden: hideUnlessFeature("gsc-alerts"),
   },
   access: {
-    read: canAccessOrApiKey("gsc-alerts", hasValidApiKey),
-    update: canAccessOrApiKey("gsc-alerts", hasValidApiKey),
-    delete: adminOnlyDelete,
-    create: canAccessOrApiKey("gsc-alerts", hasValidApiKey),
+    read: ({ req }) => !!req.user || hasValidApiKey(req),
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => {
+      if (!req.user) return false;
+      return req.user.role === "admin";
+    },
+    create: ({ req }) => !!req.user || hasValidApiKey(req),
   },
   fields: [
     {

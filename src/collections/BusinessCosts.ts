@@ -1,5 +1,4 @@
 import type { CollectionConfig } from "payload";
-import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const BusinessCosts: CollectionConfig = {
   slug: "business-costs",
@@ -14,13 +13,12 @@ export const BusinessCosts: CollectionConfig = {
         },
       },
     },
-    hidden: hideUnlessFeature("business-costs"),
   },
   access: {
-    read: canAccess("business-costs"),
-    create: canAccess("business-costs"),
-    update: canAccess("business-costs"),
-    delete: adminOnlyDelete,
+    read: ({ req }) => !!req.user,
+    create: ({ req }) => !!req.user,
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => req.user?.role === "admin",
   },
   hooks: {
     beforeChange: [

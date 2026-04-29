@@ -1,6 +1,5 @@
 import type { CollectionConfig } from "payload";
 import { logActivity } from "../lib/activity-log";
-import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const TagSetupAudits: CollectionConfig = {
   slug: "tag-setup-audits",
@@ -13,7 +12,6 @@ export const TagSetupAudits: CollectionConfig = {
     group: "Growth Tools",
     defaultColumns: ["url", "status", "client", "createdAt"],
     description: "GA4 and GTM tag validation results",
-    hidden: hideUnlessFeature("tag-setup-audits"),
   },
   hooks: {
     afterChange: [
@@ -31,10 +29,13 @@ export const TagSetupAudits: CollectionConfig = {
     ],
   },
   access: {
-    read: canAccess("tag-setup-audits"),
-    create: canAccess("tag-setup-audits"),
-    update: canAccess("tag-setup-audits"),
-    delete: adminOnlyDelete,
+    read: ({ req }) => !!req.user,
+    create: ({ req }) => !!req.user,
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => {
+      if (!req.user) return false;
+      return req.user.role === "admin";
+    },
   },
   fields: [
     {

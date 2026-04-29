@@ -1,6 +1,5 @@
 import type { CollectionConfig } from "payload";
 import { hasValidApiKey } from "./api-key-access";
-import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const SiteHealthReports: CollectionConfig = {
   slug: "site-health-reports",
@@ -13,13 +12,15 @@ export const SiteHealthReports: CollectionConfig = {
     group: "Growth Tools",
     defaultColumns: ["client", "siteUrl", "healthScore", "reportDate"],
     description: "Monthly Ahrefs-style SEO health audit reports",
-    hidden: hideUnlessFeature("site-health-reports"),
   },
   access: {
-    read: canAccessOrApiKey("site-health-reports", hasValidApiKey),
-    update: canAccessOrApiKey("site-health-reports", hasValidApiKey),
-    delete: adminOnlyDelete,
-    create: canAccessOrApiKey("site-health-reports", hasValidApiKey),
+    read: ({ req }) => !!req.user || hasValidApiKey(req),
+    update: ({ req }) => !!req.user || hasValidApiKey(req),
+    delete: ({ req }) => {
+      if (!req.user) return false;
+      return req.user.role === "admin";
+    },
+    create: ({ req }) => !!req.user || hasValidApiKey(req),
   },
   fields: [
     {

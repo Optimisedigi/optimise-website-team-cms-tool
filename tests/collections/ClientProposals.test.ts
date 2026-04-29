@@ -124,22 +124,9 @@ describe("ClientProposals Collection", () => {
     expect((access?.create as any)({ req: {} })).toBe(false);
     expect((access?.update as any)({ req: {} })).toBe(false);
 
-    // Admin = access
-    const admin = { user: { role: "admin" } };
-    expect((access?.read as any)({ req: admin })).toBe(true);
-    expect((access?.create as any)({ req: admin })).toBe(true);
-
-    // Non-admin with the feature ticked = access
-    const withFeature = {
-      user: { role: "specialist", featureAccess: ["client-proposals"] },
-    };
-    expect((access?.read as any)({ req: withFeature })).toBe(true);
-    expect((access?.create as any)({ req: withFeature })).toBe(true);
-
-    // Non-admin without the feature = no access
-    const withoutFeature = { user: { role: "specialist", featureAccess: [] } };
-    expect((access?.read as any)({ req: withoutFeature })).toBe(false);
-    expect((access?.create as any)({ req: withoutFeature })).toBe(false);
+    // With user = access
+    expect((access?.read as any)({ req: { user: { role: "writer" } } })).toBe(true);
+    expect((access?.create as any)({ req: { user: { role: "writer" } } })).toBe(true);
   });
 
   it("should only allow admin to delete", () => {
@@ -581,7 +568,6 @@ describe("ClientProposals: convertToClient hook", () => {
       averageOrderValue: 150,
       annualPurchaseFrequency: 2.5,
       newCustomersLast12Months: 100,
-      // notes field removed — legacyNotes is now hidden and not mapped.
     };
 
     await convertToClientHook({
@@ -606,6 +592,7 @@ describe("ClientProposals: convertToClient hook", () => {
     expect(clientData.targetLocation).toBe("au:sydney");
     expect(clientData.clientGoals).toBe("Double revenue");
     expect(clientData.tam).toEqual({ root: {} });
+    expect(clientData.notes).toBe("Custom notes");
     expect(clientData.leadConversionRate).toBe(5.5);
     expect(clientData.leadToSaleConversionRate).toBe(20);
     expect(clientData.averageOrderValue).toBe(150);
@@ -614,9 +601,28 @@ describe("ClientProposals: convertToClient hook", () => {
     expect(clientData.isActive).toBe(true);
   });
 
-  // Removed: "should set default notes when notes field is empty" — the convertToClient
-  // hook does not write a `notes` field on the Client, and the legacyNotes field on
-  // Client is now hidden + auto-migrated to clientNotes. Test no longer reflects reality.
+  it("should set default notes when notes field is empty", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
+    mockPayload.create.mockResolvedValueOnce({ id: "c1" });
+    mockPayload.update.mockResolvedValue({});
+    mockPayload.delete.mockResolvedValue({});
+
+    const doc = {
+      id: "prop-1",
+      convertToClient: true,
+      businessName: "No Notes Biz",
+      slug: "no-notes",
+    };
+
+    await convertToClientHook({
+      doc,
+      req: mockReq(),
+      previousDoc: { convertToClient: false },
+    });
+
+    const createCall = mockPayload.create.mock.calls[0][0];
+    expect(createCall.data.notes).toBe("Converted from proposal: No Notes Biz");
+  });
 });
 
 // ─── afterChange: activity logging on create ───────────────────

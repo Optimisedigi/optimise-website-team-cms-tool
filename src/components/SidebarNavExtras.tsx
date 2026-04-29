@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useAuth } from '@payloadcms/ui'
-import { userHasFeature } from '../lib/access'
 
 function injectLink(
   containerSelector: string,
@@ -40,12 +38,6 @@ const ICONS = {
 }
 
 const SidebarNavExtras = () => {
-  const { user } = useAuth()
-  const canIntegrations = userHasFeature(user, 'nav:integrations')
-  const canDeployments = userHasFeature(user, 'nav:deployments')
-  const canIndexingHelper = userHasFeature(user, 'nav:indexing-helper')
-  const canInvoices = userHasFeature(user, 'nav:invoices')
-
   // Watch for active nav link and apply highlight + keep icon visible
   useEffect(() => {
     let prevPath = ''
@@ -86,51 +78,47 @@ const SidebarNavExtras = () => {
   }, [])
 
   useEffect(() => {
-    if (canIntegrations) {
-      injectLink(
-        '#nav-group-Settings .nav-group__content',
-        'integrations',
-        '/admin/settings/integrations',
-        ICONS.integrations,
-        'Integrations',
-      )
-    }
+    // Integrations link under Settings
+    injectLink(
+      '#nav-group-Settings .nav-group__content',
+      'integrations',
+      '/admin/settings/integrations',
+      ICONS.integrations,
+      'Integrations',
+    )
 
-    if (canDeployments) {
-      injectLink(
-        '#nav-group-Performance .nav-group__content',
-        'deployments',
-        '/admin/deployments',
-        ICONS.deployments,
-        'Deployments',
-        'append',
-      )
-    }
+    // Deployments link under Performance (alongside Google Analytics & Search Console)
+    injectLink(
+      '#nav-group-Performance .nav-group__content',
+      'deployments',
+      '/admin/deployments',
+      ICONS.deployments,
+      'Deployments',
+      'append',
+    )
 
-    if (canIndexingHelper) {
-      injectLink(
-        '#nav-group-Growth\\ Tools .nav-group__content',
-        'indexing-helper',
-        '/admin/growth-tools/indexing-helper',
-        ICONS.indexingHelper,
-        'Indexing Helper',
-        'append',
-      )
-    }
+    // GSC Indexing Helper link under Growth Tools
+    injectLink(
+      '#nav-group-Growth\\ Tools .nav-group__content',
+      'indexing-helper',
+      '/admin/growth-tools/indexing-helper',
+      ICONS.indexingHelper,
+      'Indexing Helper',
+      'append',
+    )
 
-    if (canInvoices) {
-      injectLink(
-        '#nav-group-Finance .nav-group__content',
-        'invoices',
-        '/admin/finance/invoices',
-        ICONS.invoices,
-        'Invoices',
-        'prepend',
-      )
-    }
+    // Xero Invoices link under Finance
+    injectLink(
+      '#nav-group-Finance .nav-group__content',
+      'invoices',
+      '/admin/finance/invoices',
+      ICONS.invoices,
+      'Invoices',
+      'prepend',
+    )
 
     // Icons for collection/global nav links are now handled via CSS ::before in custom.scss
-  }, [canIntegrations, canDeployments, canIndexingHelper, canInvoices])
+  }, [])
 
   // Mobile: bounce-back zoom — allow pinch zoom but snap back to 1x when released
   useEffect(() => {

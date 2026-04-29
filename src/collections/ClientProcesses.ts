@@ -1,6 +1,5 @@
 import type { CollectionConfig } from "payload";
 import { logActivity } from "../lib/activity-log";
-import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 /**
  * ClientProcesses Collection
@@ -31,13 +30,12 @@ export const ClientProcesses: CollectionConfig = {
     components: {
       beforeListTable: ["./components/CreateProcessFromTemplate"],
     },
-    hidden: hideUnlessFeature("client-processes"),
   },
   access: {
-    read: canAccess("client-processes"),
-    create: canAccess("client-processes"),
-    update: canAccess("client-processes"),
-    delete: adminOnlyDelete,
+    read: ({ req }) => !!req.user,
+    create: ({ req }) => !!req.user,
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => req.user?.role === "admin",
   },
   defaultSort: "-updatedAt",
   hooks: {

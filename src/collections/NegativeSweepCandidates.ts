@@ -1,5 +1,4 @@
 import type { CollectionConfig } from "payload";
-import { adminOnlyDelete } from "../lib/access";
 
 export const NegativeSweepCandidates: CollectionConfig = {
   slug: "negative-sweep-candidates",
@@ -17,7 +16,7 @@ export const NegativeSweepCandidates: CollectionConfig = {
     read: ({ req }) => !!req.user,
     create: ({ req }) => !!req.user,
     update: ({ req }) => !!req.user,
-    delete: adminOnlyDelete,
+    delete: ({ req }) => !!req.user,
   },
   fields: [
     {

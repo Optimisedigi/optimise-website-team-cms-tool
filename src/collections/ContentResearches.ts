@@ -1,6 +1,5 @@
 import type { CollectionConfig } from "payload";
 import { hasValidApiKey } from "./api-key-access";
-import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const ContentResearches: CollectionConfig = {
   slug: "content-researches",
@@ -13,13 +12,15 @@ export const ContentResearches: CollectionConfig = {
     group: "Growth Tools",
     defaultColumns: ["keyword", "location", "totalQuestions", "createdAt"],
     description: "Content research results from the growth tools",
-    hidden: hideUnlessFeature("content-researches"),
   },
   access: {
-    read: canAccessOrApiKey("content-researches", hasValidApiKey),
-    update: canAccessOrApiKey("content-researches", hasValidApiKey),
-    delete: adminOnlyDelete,
-    create: canAccessOrApiKey("content-researches", hasValidApiKey),
+    read: ({ req }) => !!req.user || hasValidApiKey(req),
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => {
+      if (!req.user) return false;
+      return req.user.role === "admin";
+    },
+    create: ({ req }) => !!req.user || hasValidApiKey(req),
   },
   fields: [
     {

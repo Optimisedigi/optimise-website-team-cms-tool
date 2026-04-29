@@ -2,23 +2,14 @@
 
 import { useRouter } from 'next/navigation'
 import { useNav, useAuth } from '@payloadcms/ui'
-import { userHasFeature, type FeatureSlug } from '../lib/access'
 
 const MINI_WIDTH = 48
 const BG = '#1a1a2e'
 
-type MiniIcon = {
-  label: string
-  href: string
-  feature: FeatureSlug
-  svg: React.ReactNode
-}
-
-const icons: MiniIcon[] = [
+const icons = [
   {
     label: 'Dashboard',
     href: '/admin',
-    feature: 'nav:dashboard',
     svg: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -29,7 +20,6 @@ const icons: MiniIcon[] = [
   {
     label: 'Clients',
     href: '/admin/collections/clients',
-    feature: 'clients',
     svg: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -42,7 +32,6 @@ const icons: MiniIcon[] = [
   {
     label: 'Proposals',
     href: '/admin/collections/client-proposals',
-    feature: 'client-proposals',
     svg: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -56,7 +45,6 @@ const icons: MiniIcon[] = [
   {
     label: 'Blog Posts',
     href: '/admin/collections/blog-posts',
-    feature: 'blog-posts',
     svg: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 20h9" />
@@ -67,7 +55,6 @@ const icons: MiniIcon[] = [
   {
     label: 'Search Console',
     href: '/admin/performance/search-console',
-    feature: 'nav:search-console',
     svg: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -92,7 +79,6 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
 
   // Hide sidebar entirely when not logged in (login, create-first-user, etc.)
   const isLoggedIn = !!user
-  const visibleIcons = icons.filter((item) => userHasFeature(user, item.feature))
 
   return (
     <>
@@ -143,7 +129,7 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
           <div style={{ width: 24, height: 1, background: 'rgba(255,255,255,0.12)', marginBottom: 8 }} />
 
           {/* Nav icons */}
-          {visibleIcons.map((item) => (
+          {icons.map((item) => (
             <button
               key={item.href}
               type="button"
@@ -204,7 +190,7 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
           style={{
             position: 'fixed',
             top: 12,
-            left: 'min(calc(var(--nav-width, 275px) - 48px), calc(100vw - 48px))',
+            left: 'min(calc(var(--nav-width, 275px) - 44px), calc(100vw - 44px))',
             zIndex: 10000,
             background: 'none',
             border: 'none',

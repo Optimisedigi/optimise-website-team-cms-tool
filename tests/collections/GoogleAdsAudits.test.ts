@@ -94,7 +94,7 @@ describe("GoogleAdsAudits Collection", () => {
   it("should have presentationPin field in sidebar", () => {
     const field = findField(GoogleAdsAudits.fields, "presentationPin");
     expect(field).toBeDefined();
-    // Note: uniqueness was removed (commit 6c2acce) — PINs can repeat.
+    expect(field.unique).toBe(true);
     expect(field.admin?.position).toBe("sidebar");
   });
 
@@ -169,22 +169,9 @@ describe("GoogleAdsAudits: access control", () => {
     vi.clearAllMocks();
   });
 
-  it("should allow read for users with the feature", () => {
+  it("should allow read for authenticated users", () => {
     const readFn = GoogleAdsAudits.access?.read as any;
-    // Admin always passes
-    expect(readFn({ req: { user: { role: "admin" } } })).toBe(true);
-    // Non-admin with feature passes
-    expect(
-      readFn({
-        req: {
-          user: { role: "specialist", featureAccess: ["google-ads-audits"] },
-        },
-      }),
-    ).toBe(true);
-    // Non-admin without feature is denied
-    expect(
-      readFn({ req: { user: { role: "specialist", featureAccess: [] } } }),
-    ).toBe(false);
+    expect(readFn({ req: { user: { role: "writer" } } })).toBe(true);
   });
 
   it("should allow read for valid API key", () => {
@@ -205,19 +192,9 @@ describe("GoogleAdsAudits: access control", () => {
     expect(deleteFn({ req: {} })).toBe(false);
   });
 
-  it("should allow create for users with the feature", () => {
+  it("should allow create for authenticated users", () => {
     const createFn = GoogleAdsAudits.access?.create as any;
-    expect(createFn({ req: { user: { role: "admin" } } })).toBe(true);
-    expect(
-      createFn({
-        req: {
-          user: { role: "specialist", featureAccess: ["google-ads-audits"] },
-        },
-      }),
-    ).toBe(true);
-    expect(
-      createFn({ req: { user: { role: "specialist", featureAccess: [] } } }),
-    ).toBe(false);
+    expect(createFn({ req: { user: { role: "writer" } } })).toBe(true);
   });
 
   it("should allow create for valid API key", () => {
@@ -599,9 +576,30 @@ describe("GoogleAdsAudits: presentationPin field", () => {
     expect(await validate("1234", { req: mockReq(), id: undefined })).toBe(true);
   });
 
-  // Removed: "should reject duplicate PIN" and "should exclude own id when
-  // checking duplicates" — the uniqueness constraint on presentationPin was
-  // intentionally removed in commit 6c2acce (PINs can repeat across audits).
+  it("should reject duplicate PIN", async () => {
+    const validate = pinField.validate;
+    mockPayload.find.mockResolvedValueOnce({
+      totalDocs: 1,
+      docs: [{ businessName: "Other Audit" }],
+    });
+    const result = await validate("5678", { req: mockReq(), id: "my-id" });
+    expect(result).toContain("already in use");
+    expect(result).toContain("Other Audit");
+  });
+
+  it("should exclude own id when checking duplicates", async () => {
+    const validate = pinField.validate;
+    mockPayload.find.mockResolvedValueOnce({ totalDocs: 0 });
+    await validate("9999", { req: mockReq(), id: "self-id" });
+
+    expect(mockPayload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { not_equals: "self-id" },
+        }),
+      }),
+    );
+  });
 });
 
 // ─── afterChange: activity logging on create ───────────────────

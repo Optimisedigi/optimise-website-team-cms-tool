@@ -1,5 +1,4 @@
 import type { GlobalConfig } from "payload";
-import { globalAccess, hideGlobalUnlessFeature } from "../lib/access";
 
 export const ApiCostRates: GlobalConfig = {
   slug: "api-cost-rates",
@@ -7,9 +6,11 @@ export const ApiCostRates: GlobalConfig = {
   admin: {
     group: "Finance",
     description: "Configurable cost-per-unit rates (AUD) and monthly subscriptions. Update when provider prices change.",
-    hidden: hideGlobalUnlessFeature("api-cost-rates"),
   },
-  access: globalAccess("api-cost-rates"),
+  access: {
+    read: ({ req }) => !!req.user,
+    update: ({ req }) => req.user?.role === "admin",
+  },
   fields: [
     {
       type: "tabs",

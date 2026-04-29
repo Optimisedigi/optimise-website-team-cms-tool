@@ -48,7 +48,6 @@ import { SheetsAuth } from "./globals/SheetsAuth";
 import { EmailTemplates } from "./globals/EmailTemplates";
 import { CalendarAuth } from "./globals/CalendarAuth";
 import { MeetingSchedulers } from "./collections/MeetingSchedulers";
-import { PermissionProfiles } from "./collections/PermissionProfiles";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -81,7 +80,8 @@ export default buildConfig({
       actions: ["./components/UserDisplayName"],
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
-      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/PomodoroTimer", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle"],
+      afterLogin: ["./components/ShowPasswordToggle"],
+      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/PomodoroTimer", "./components/PayloadShiftSelect"],
       beforeDashboard: ["./components/Dashboard"],
     },
   },
@@ -99,7 +99,7 @@ export default buildConfig({
     // Finance
     BusinessCosts, CostCategories, CostRules,
     // Admin
-    Users, PermissionProfiles, UsageReports, ActivityLog,
+    Users, UsageReports, ActivityLog,
     // Hidden (no group impact)
     GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions,
   ].map((c) => ({

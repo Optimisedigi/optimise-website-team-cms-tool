@@ -1,5 +1,4 @@
 import type { CollectionConfig } from "payload";
-import { FEATURE_KEYS, adminOnlyField } from "../lib/access";
 
 export const Users: CollectionConfig = {
   slug: "users",
@@ -10,8 +9,7 @@ export const Users: CollectionConfig = {
   admin: {
     useAsTitle: "email",
     group: "Admin",
-    // Hide Users tab from anyone except admins.
-    hidden: ({ user }) => user?.role !== "admin",
+    hidden: ({ user }) => user?.role === "specialist",
   },
   access: {
     read: ({ req }) => {
@@ -50,42 +48,7 @@ export const Users: CollectionConfig = {
       defaultValue: "specialist",
       required: true,
       access: {
-        update: adminOnlyField,
-      },
-      admin: {
-        description:
-          "Admins have full access to everything. Managers and Specialists are limited to the features ticked below.",
-      },
-    },
-    {
-      name: "permissionProfiles",
-      type: "relationship",
-      relationTo: "permission-profiles",
-      hasMany: true,
-      access: {
-        update: adminOnlyField,
-      },
-      admin: {
-        description:
-          "Reusable feature bundles. The user inherits all features from each assigned profile, on top of their own per-user overrides below.",
-        condition: (data) => data?.role !== "admin",
-      },
-    },
-    {
-      name: "featureAccess",
-      type: "select",
-      hasMany: true,
-      options: FEATURE_KEYS as unknown as { label: string; value: string }[],
-      access: {
-        update: adminOnlyField,
-      },
-      admin: {
-        // Custom grouped checkbox UI showing auto-granted features as ticked
-        // + disabled. See src/components/FeatureAccessPicker.tsx.
-        components: {
-          Field: "./components/FeatureAccessPicker",
-        },
-        condition: (data) => data?.role !== "admin",
+        update: ({ req }) => req.user?.role === "admin",
       },
     },
     {

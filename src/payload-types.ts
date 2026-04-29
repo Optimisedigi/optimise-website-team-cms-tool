@@ -98,7 +98,6 @@ export interface Config {
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
     users: User;
-    'permission-profiles': PermissionProfile;
     'usage-reports': UsageReport;
     'activity-log': ActivityLog;
     'gsc-snapshots': GscSnapshot;
@@ -154,7 +153,6 @@ export interface Config {
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
-    'permission-profiles': PermissionProfilesSelect<false> | PermissionProfilesSelect<true>;
     'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
     'activity-log': ActivityLogSelect<false> | ActivityLogSelect<true>;
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
@@ -393,6 +391,13 @@ export interface Client {
    * Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.
    */
   googleAdsCustomerId?: string | null;
+  /**
+   * Filters the Google Ads dashboard to only show these conversion actions (one per line). Leave blank to show all.
+   */
+  dashboardConversionActions?: string | null;
+  /**
+   * Goals, notes, and context about this client (legacy — use Notes tab for new notes)
+   */
   legacyNotes?: string | null;
   /**
    * Automatic log of revenue changes
@@ -406,16 +411,19 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Add timestamped notes about this client — meetings, decisions, updates, etc.
+   */
   clientNotes?:
     | {
         category?: ('general' | 'meeting' | 'strategy' | 'issue' | 'win' | 'feedback' | 'internal') | null;
         date: string;
         /**
-         * Auto-filled from the user who added the note
+         * Who wrote this note
          */
         author?: string | null;
         /**
-         * Note content (point form supported)
+         * Note content
          */
         content: string;
         id?: string | null;
@@ -555,7 +563,6 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
-  dashboardConversionActions?: string | null;
   /**
    * Google Ads audits linked to this client
    */
@@ -3851,61 +3858,7 @@ export interface ClientProcess {
 export interface User {
   id: number;
   name: string;
-  /**
-   * Admins have full access to everything. Managers and Specialists are limited to the features ticked below.
-   */
   role: 'admin' | 'manager' | 'specialist';
-  /**
-   * Reusable feature bundles. The user inherits all features from each assigned profile, on top of their own per-user overrides below.
-   */
-  permissionProfiles?: (number | PermissionProfile)[] | null;
-  featureAccess?:
-    | (
-        | 'clients'
-        | 'client-proposals'
-        | 'contracts'
-        | 'sales-leads'
-        | 'process-templates'
-        | 'client-processes'
-        | 'meeting-schedulers'
-        | 'email-templates'
-        | 'clients-basic'
-        | 'media-basic'
-        | 'blog-posts'
-        | 'blog-prompts'
-        | 'job-posts'
-        | 'media'
-        | 'internal-link-suggestions'
-        | 'seo-audits'
-        | 'cro-audits'
-        | 'google-ads-audits'
-        | 'tag-setup-audits'
-        | 'keyword-snapshots'
-        | 'competitor-analyses'
-        | 'content-researches'
-        | 'gsc-alerts'
-        | 'gsc-indexing-audits'
-        | 'negative-keyword-lists'
-        | 'site-health-reports'
-        | 'ai-visibility-snapshots'
-        | 'serp-displacement-snapshots'
-        | 'serp-displacement-alerts'
-        | 'business-costs'
-        | 'cost-categories'
-        | 'cost-rules'
-        | 'api-cost-rates'
-        | 'nav:invoices'
-        | 'nav:google-analytics'
-        | 'nav:search-console'
-        | 'nav:deployments'
-        | 'nav:integrations'
-        | 'nav:indexing-helper'
-        | 'sheets-auth'
-        | 'calendar-auth'
-        | 'nav:dashboard'
-        | 'usage-reports'
-      )[]
-    | null;
   /**
    * Whether this user has completed their first-login setup
    */
@@ -3931,76 +3884,6 @@ export interface User {
     | null;
   password?: string | null;
   collection: 'users';
-}
-/**
- * Reusable feature-access bundles assignable to users (e.g. 'Content Specialist').
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "permission-profiles".
- */
-export interface PermissionProfile {
-  id: number;
-  /**
-   * Display name (e.g. 'Content Specialist', 'Account Manager').
-   */
-  name: string;
-  /**
-   * Optional summary of what this profile is for.
-   */
-  description?: string | null;
-  /**
-   * Features granted by this profile. Auto-grants (like clients-basic) apply automatically when this profile is assigned to a user.
-   */
-  features?:
-    | (
-        | 'clients'
-        | 'client-proposals'
-        | 'contracts'
-        | 'sales-leads'
-        | 'process-templates'
-        | 'client-processes'
-        | 'meeting-schedulers'
-        | 'email-templates'
-        | 'clients-basic'
-        | 'media-basic'
-        | 'blog-posts'
-        | 'blog-prompts'
-        | 'job-posts'
-        | 'media'
-        | 'internal-link-suggestions'
-        | 'seo-audits'
-        | 'cro-audits'
-        | 'google-ads-audits'
-        | 'tag-setup-audits'
-        | 'keyword-snapshots'
-        | 'competitor-analyses'
-        | 'content-researches'
-        | 'gsc-alerts'
-        | 'gsc-indexing-audits'
-        | 'negative-keyword-lists'
-        | 'site-health-reports'
-        | 'ai-visibility-snapshots'
-        | 'serp-displacement-snapshots'
-        | 'serp-displacement-alerts'
-        | 'business-costs'
-        | 'cost-categories'
-        | 'cost-rules'
-        | 'api-cost-rates'
-        | 'nav:invoices'
-        | 'nav:google-analytics'
-        | 'nav:search-console'
-        | 'nav:deployments'
-        | 'nav:integrations'
-        | 'nav:indexing-helper'
-        | 'sheets-auth'
-        | 'calendar-auth'
-        | 'nav:dashboard'
-        | 'usage-reports'
-      )[]
-    | null;
-  featuresCount?: number | null;
-  updatedAt: string;
-  createdAt: string;
 }
 /**
  * Schedule meetings with multiple client contacts by finding overlapping availability
@@ -4057,7 +3940,7 @@ export interface MeetingScheduler {
   businessHoursStart?: string | null;
   businessHoursEnd?: string | null;
   /**
-   * Add each person who needs to choose a time. Press Tab from the email field to add a new row. Unique scheduling links are generated on save.
+   * Add each person who needs to choose a time. Their unique scheduling link is generated on save.
    */
   attendees?:
     | {
@@ -5278,10 +5161,6 @@ export interface PayloadLockedDocument {
         value: number | User;
       } | null)
     | ({
-        relationTo: 'permission-profiles';
-        value: number | PermissionProfile;
-      } | null)
-    | ({
         relationTo: 'usage-reports';
         value: number | UsageReport;
       } | null)
@@ -5399,6 +5278,7 @@ export interface ClientsSelect<T extends boolean = true> {
   signedContractUrl?: T;
   signedContract?: T;
   googleAdsCustomerId?: T;
+  dashboardConversionActions?: T;
   legacyNotes?: T;
   retainerHistory?:
     | T
@@ -5445,7 +5325,6 @@ export interface ClientsSelect<T extends boolean = true> {
         googleMapsUrl?: T;
         id?: T;
       };
-  dashboardConversionActions?: T;
   googleAdsAudits?: T;
   negativeKeywordLists?: T;
   gadsAuto?:
@@ -6718,8 +6597,6 @@ export interface CostRulesSelect<T extends boolean = true> {
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
   role?: T;
-  permissionProfiles?: T;
-  featureAccess?: T;
   setupCompleted?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -6740,18 +6617,6 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "permission-profiles_select".
- */
-export interface PermissionProfilesSelect<T extends boolean = true> {
-  name?: T;
-  description?: T;
-  features?: T;
-  featuresCount?: T;
-  updatedAt?: T;
-  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

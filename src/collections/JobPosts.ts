@@ -1,5 +1,4 @@
 import type { CollectionConfig } from "payload";
-import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 /**
  * Job Posts Collection
@@ -14,13 +13,25 @@ export const JobPosts: CollectionConfig = {
     group: "Content",
     defaultColumns: ["jobTitle", "department", "location", "employmentType", "status"],
     description: "Manage open roles displayed on the careers page",
-    hidden: hideUnlessFeature("job-posts"),
+    hidden: ({ user }) => user?.role === "specialist",
   },
   access: {
-    read: canAccess("job-posts"),
-    create: canAccess("job-posts"),
-    update: canAccess("job-posts"),
-    delete: adminOnlyDelete,
+    read: ({ req }) => {
+      if (!req.user) return false;
+      return ["admin", "manager"].includes(req.user.role);
+    },
+    create: ({ req }) => {
+      if (!req.user) return false;
+      return ["admin", "manager"].includes(req.user.role);
+    },
+    update: ({ req }) => {
+      if (!req.user) return false;
+      return ["admin", "manager"].includes(req.user.role);
+    },
+    delete: ({ req }) => {
+      if (!req.user) return false;
+      return ["admin", "manager"].includes(req.user.role);
+    },
   },
   versions: {
     drafts: true,

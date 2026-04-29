@@ -138,29 +138,24 @@ describe("JobPosts Collection", () => {
 
 // ─── Access Control Tests ──────────────────────────────────────
 describe("JobPosts: access control", () => {
-  // The access system is now feature-based, not role-based.
-  const adminUser = { id: 1, role: "admin" };
-  const userWith = { id: 2, role: "specialist", featureAccess: ["job-posts"] };
-  const userWithout = { id: 3, role: "specialist", featureAccess: [] };
-
   it("should allow read for admin users", () => {
     const access = JobPosts.access?.read;
     if (typeof access === "function") {
-      expect(access({ req: mockReq({ user: adminUser }) } as any)).toBe(true);
+      expect(access({ req: mockReq() } as any)).toBe(true);
     }
   });
 
-  it("should allow read for users with the feature", () => {
+  it("should allow read for manager users", () => {
     const access = JobPosts.access?.read;
     if (typeof access === "function") {
-      expect(access({ req: mockReq({ user: userWith }) } as any)).toBe(true);
+      expect(access({ req: mockReq({ user: { id: 2, role: "manager" } }) } as any)).toBe(true);
     }
   });
 
-  it("should deny read for users without the feature", () => {
+  it("should deny read for specialist users", () => {
     const access = JobPosts.access?.read;
     if (typeof access === "function") {
-      expect(access({ req: mockReq({ user: userWithout }) } as any)).toBe(false);
+      expect(access({ req: mockReq({ user: { id: 3, role: "specialist" } }) } as any)).toBe(false);
     }
   });
 
@@ -174,50 +169,49 @@ describe("JobPosts: access control", () => {
   it("should allow create for admin users", () => {
     const access = JobPosts.access?.create;
     if (typeof access === "function") {
-      expect(access({ req: mockReq({ user: adminUser }) } as any)).toBe(true);
+      expect(access({ req: mockReq() } as any)).toBe(true);
     }
   });
 
-  it("should allow create for users with the feature", () => {
+  it("should allow create for manager users", () => {
     const access = JobPosts.access?.create;
     if (typeof access === "function") {
-      expect(access({ req: mockReq({ user: userWith }) } as any)).toBe(true);
+      expect(access({ req: mockReq({ user: { id: 2, role: "manager" } }) } as any)).toBe(true);
     }
   });
 
-  it("should deny create for users without the feature", () => {
+  it("should deny create for specialist users", () => {
     const access = JobPosts.access?.create;
     if (typeof access === "function") {
-      expect(access({ req: mockReq({ user: userWithout }) } as any)).toBe(false);
+      expect(access({ req: mockReq({ user: { id: 3, role: "specialist" } }) } as any)).toBe(false);
     }
   });
 
   it("should allow update for admin users", () => {
     const access = JobPosts.access?.update;
     if (typeof access === "function") {
-      expect(access({ req: mockReq({ user: adminUser }) } as any)).toBe(true);
+      expect(access({ req: mockReq() } as any)).toBe(true);
     }
   });
 
-  it("should deny update for users without the feature", () => {
+  it("should deny update for specialist users", () => {
     const access = JobPosts.access?.update;
     if (typeof access === "function") {
-      expect(access({ req: mockReq({ user: userWithout }) } as any)).toBe(false);
+      expect(access({ req: mockReq({ user: { id: 3, role: "specialist" } }) } as any)).toBe(false);
     }
   });
 
   it("should allow delete for admin users", () => {
     const access = JobPosts.access?.delete;
     if (typeof access === "function") {
-      expect(access({ req: mockReq({ user: adminUser }) } as any)).toBe(true);
+      expect(access({ req: mockReq() } as any)).toBe(true);
     }
   });
 
-  it("should deny delete for non-admins", () => {
+  it("should deny delete for specialist users", () => {
     const access = JobPosts.access?.delete;
     if (typeof access === "function") {
-      expect(access({ req: mockReq({ user: userWith }) } as any)).toBe(false);
-      expect(access({ req: mockReq({ user: userWithout }) } as any)).toBe(false);
+      expect(access({ req: mockReq({ user: { id: 3, role: "specialist" } }) } as any)).toBe(false);
     }
   });
 
@@ -231,12 +225,10 @@ describe("JobPosts: access control", () => {
 
 // ─── Admin hidden function ─────────────────────────────────────
 describe("JobPosts: admin hidden", () => {
-  it("should hide from users without the feature", () => {
+  it("should hide from specialist users", () => {
     const hidden = JobPosts.admin?.hidden;
     if (typeof hidden === "function") {
-      expect(
-        hidden({ user: { role: "specialist", featureAccess: [] } } as any),
-      ).toBe(true);
+      expect(hidden({ user: { role: "specialist" } } as any)).toBe(true);
     }
   });
 
@@ -247,12 +239,57 @@ describe("JobPosts: admin hidden", () => {
     }
   });
 
-  it("should not hide from users with the feature", () => {
+  it("should not hide from manager users", () => {
     const hidden = JobPosts.admin?.hidden;
     if (typeof hidden === "function") {
-      expect(
-        hidden({ user: { role: "specialist", featureAccess: ["job-posts"] } } as any),
-      ).toBe(false);
+      expect(hidden({ user: { role: "manager" } } as any)).toBe(false);
     }
+  });
+});
+
+// ─── Slug beforeValidate hook ──────────────────────────────────
+describe("JobPosts: slug beforeValidate hook", () => {
+  it("should auto-generate slug from jobTitle when no value", () => {
+    const slugField = findField(JobPosts.fields, "slug");
+    expect(slugField).toBeDefined();
+    expect(slugField.hooks?.beforeValidate).toBeDefined();
+    const hook = slugField.hooks.beforeValidate[0];
+    const result = hook({ value: undefined, data: { jobTitle: "Senior SEO Specialist" } });
+    expect(result).toBe("senior-seo-specialist");
+  });
+
+  it("should preserve existing slug value", () => {
+    const slugField = findField(JobPosts.fields, "slug");
+    const hook = slugField.hooks.beforeValidate[0];
+    const result = hook({ value: "existing-slug", data: { jobTitle: "Ignored Title" } });
+    expect(result).toBe("existing-slug");
+  });
+
+  it("should strip special characters from generated slug", () => {
+    const slugField = findField(JobPosts.fields, "slug");
+    const hook = slugField.hooks.beforeValidate[0];
+    const result = hook({ value: undefined, data: { jobTitle: "CRO & UX Designer (Remote)" } });
+    expect(result).toBe("cro-ux-designer-remote");
+  });
+
+  it("should strip leading and trailing hyphens", () => {
+    const slugField = findField(JobPosts.fields, "slug");
+    const hook = slugField.hooks.beforeValidate[0];
+    const result = hook({ value: undefined, data: { jobTitle: "  —Design Lead— " } });
+    expect(result).toBe("design-lead");
+  });
+
+  it("should return undefined when no value and no jobTitle", () => {
+    const slugField = findField(JobPosts.fields, "slug");
+    const hook = slugField.hooks.beforeValidate[0];
+    const result = hook({ value: undefined, data: {} });
+    expect(result).toBeUndefined();
+  });
+
+  it("should return undefined when data is missing", () => {
+    const slugField = findField(JobPosts.fields, "slug");
+    const hook = slugField.hooks.beforeValidate[0];
+    const result = hook({ value: undefined, data: undefined });
+    expect(result).toBeUndefined();
   });
 });

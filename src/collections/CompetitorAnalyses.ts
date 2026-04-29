@@ -1,7 +1,6 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { hasValidApiKey } from "./api-key-access";
-import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = ({ data }) => {
   if (data && !data.reportSlug && data.websiteUrl) {
@@ -28,16 +27,18 @@ export const CompetitorAnalyses: CollectionConfig = {
     group: "Growth Tools",
     defaultColumns: ["websiteUrl", "totalCompetitors", "createdAt"],
     description: "Competitor analysis reports",
-    hidden: hideUnlessFeature("competitor-analyses"),
   },
   hooks: {
     beforeChange: [autoGenerateSlug],
   },
   access: {
-    read: canAccessOrApiKey("competitor-analyses", hasValidApiKey),
-    update: canAccessOrApiKey("competitor-analyses", hasValidApiKey),
-    delete: adminOnlyDelete,
-    create: canAccessOrApiKey("competitor-analyses", hasValidApiKey),
+    read: ({ req }) => !!req.user || hasValidApiKey(req),
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => {
+      if (!req.user) return false;
+      return req.user.role === "admin";
+    },
+    create: ({ req }) => !!req.user || hasValidApiKey(req),
   },
   fields: [
     {

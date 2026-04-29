@@ -1,5 +1,4 @@
 import type { CollectionConfig } from "payload";
-import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const BlogPrompts: CollectionConfig = {
   slug: "blog-prompts",
@@ -47,13 +46,12 @@ export const BlogPrompts: CollectionConfig = {
         },
       },
     },
-    hidden: hideUnlessFeature("blog-prompts"),
   },
   access: {
-    read: canAccess("blog-prompts"),
-    create: canAccess("blog-prompts"),
-    update: canAccess("blog-prompts"),
-    delete: adminOnlyDelete,
+    read: ({ req }) => !!req.user,
+    create: ({ req }) => !!req.user,
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => !!req.user,
   },
   fields: [
     {

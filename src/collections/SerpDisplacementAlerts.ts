@@ -1,7 +1,6 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
-import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 /**
  * Denormalise the linked client's name onto the alert so the admin list view
@@ -45,7 +44,6 @@ export const SerpDisplacementAlerts: CollectionConfig = {
     group: "Reports",
     description:
       "Material SERP changes flagged by the daily displacement diff (AI Overview appeared/lost, citations gained/lost, organic drop, paid displaced). Pushed by Growth Tools.",
-    hidden: hideUnlessFeature("serp-displacement-alerts"),
   },
   hooks: {
     beforeChange: [denormaliseClientName],
@@ -64,10 +62,13 @@ export const SerpDisplacementAlerts: CollectionConfig = {
     ],
   },
   access: {
-    read: canAccessOrApiKey("serp-displacement-alerts", hasValidApiKey),
-    update: canAccessOrApiKey("serp-displacement-alerts", hasValidApiKey),
-    delete: adminOnlyDelete,
-    create: canAccessOrApiKey("serp-displacement-alerts", hasValidApiKey),
+    read: ({ req }) => !!req.user || hasValidApiKey(req),
+    update: ({ req }) => !!req.user || hasValidApiKey(req),
+    delete: ({ req }) => {
+      if (!req.user) return false;
+      return req.user.role === "admin";
+    },
+    create: ({ req }) => !!req.user || hasValidApiKey(req),
   },
   fields: [
     {
