@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import RocketSplash from "./RocketSplash"
 
 interface ClientOption {
   id: string
@@ -162,13 +163,7 @@ export default function Ga4PerformancePage() {
         </div>
       )}
 
-      {loading && !data && (
-        <div className="od-box od-box--muted">
-          <div className="od-box__body" style={{ padding: "40px 20px", textAlign: "center" }}>
-            <p style={{ color: "var(--theme-elevation-400)", fontSize: 14, margin: 0 }}>Loading GA4 data...</p>
-          </div>
-        </div>
-      )}
+      {loading && !data && <RocketSplash />}
 
       {data && !data.ga4Connected && (
         <div className="od-box od-box--muted">

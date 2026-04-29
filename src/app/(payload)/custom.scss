@@ -90,34 +90,35 @@
   letter-spacing: 0.5px;
 }
 
-// Looping launch: starts invisible at bottom, fades in, launches up, fades out, resets
+// Looping launch: starts invisible at bottom, fades in, launches up, fades out, resets.
+// Flame plume is offset +3px on X so it lines up under the rotated rocket nozzle.
 @keyframes od-rocket-loop {
   0% {
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(calc(-50% - 5px)) translateY(0);
     opacity: 0;
   }
   8% {
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(calc(-50% - 5px)) translateY(0);
     opacity: 1;
   }
   18% {
-    transform: translateX(-50%) translateY(2px); // slight settle
+    transform: translateX(calc(-50% - 5px)) translateY(2px); // slight settle
     opacity: 1;
   }
   32% {
-    transform: translateX(-50%) translateY(-6px); // start lifting
+    transform: translateX(calc(-50% - 5px)) translateY(-6px); // start lifting
     opacity: 1;
   }
   78% {
-    transform: translateX(-50%) translateY(-130px);
+    transform: translateX(calc(-50% - 5px)) translateY(-130px);
     opacity: 1;
   }
   92% {
-    transform: translateX(-50%) translateY(-220px);
+    transform: translateX(calc(-50% - 5px)) translateY(-220px);
     opacity: 0;
   }
   100% {
-    transform: translateX(-50%) translateY(-220px);
+    transform: translateX(calc(-50% - 5px)) translateY(-220px);
     opacity: 0;
   }
 }
@@ -428,6 +429,10 @@ $svg-close: "%3C/svg%3E";
 }
 .nav #nav-users {
   @include nav-icon("#{$svg-open}%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E#{$svg-close}");
+}
+// Permission Profiles — shield-with-check icon (suggests access/permissions)
+.nav #nav-permission-profiles {
+  @include nav-icon("#{$svg-open}%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpolyline points='9 12 11 14 15 10'/%3E#{$svg-close}");
 }
 
 // Hide Payload's default active indicator (we use our own blue highlight)
