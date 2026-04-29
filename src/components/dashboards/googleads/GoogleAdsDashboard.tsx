@@ -269,7 +269,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-[11px] pb-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-[20px]">
           <div className="flex items-center gap-3 flex-wrap">
             {data.logoUrl ? (
               <img
@@ -278,7 +278,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 className="w-auto object-contain" style={{ height: '28px' }}
               />
             ) : (
-              <h1 className="font-bold tracking-tight text-slate-900 leading-tight" style={{ fontSize: '26px' }}>
+              <h1 className="font-bold tracking-tight text-slate-900 leading-tight my-0" style={{ fontSize: '26px', transform: 'translateY(-1px)' }}>
                 {data.clientName}
               </h1>
             )}
@@ -409,9 +409,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
 
             {/* Row 2, Col 3: 'Updated X ago' under the toggle (or right-aligned
                 when toggle is hidden on non-Overview tabs) */}
-            <p className="text-xs text-slate-400 whitespace-nowrap">
+            <span className="text-xs text-slate-400 whitespace-nowrap ml-[15px]">
               Updated {timeAgo(data.lastUpdated)}
-            </p>
+            </span>
           </div>
         </div>
 

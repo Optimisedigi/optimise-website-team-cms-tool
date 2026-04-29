@@ -1,73 +1,82 @@
-:root {
-  --font-mono: 'Roboto Mono', monospace;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html {
-  font-size: 18px;
-  line-height: 32px;
-
-  background: rgb(0, 0, 0);
-  -webkit-font-smoothing: antialiased;
-}
-
-html,
-body,
-#app {
-  height: 100%;
-}
-
-body {
-  font-family: system-ui;
-  font-size: 18px;
-  line-height: 32px;
-
-  margin: 0;
-  color: rgb(1000, 1000, 1000);
-
-  @media (max-width: 1024px) {
-    font-size: 15px;
-    line-height: 24px;
-  }
-}
-
-img {
-  max-width: 100%;
-  height: auto;
-  display: block;
-}
-
-h1 {
-  margin: 40px 0;
-  font-size: 64px;
-  line-height: 70px;
-  font-weight: bold;
-
-  @media (max-width: 1024px) {
-    margin: 24px 0;
-    font-size: 42px;
-    line-height: 42px;
+/* Element-level defaults are wrapped in @layer base so Tailwind v4
+   utilities (which sit in @layer utilities) can override them on routes
+   that load Tailwind (e.g. /google-dashboard/*). Before this, the
+   unlayered rules below were beating every Tailwind utility and making
+   classes like `my-0`, `text-xs`, `font-bold` silently no-op on those
+   pages. Marketing pages still get the same defaults because base-layer
+   rules cascade normally inside this layout. */
+@layer base {
+  :root {
+    --font-mono: 'Roboto Mono', monospace;
   }
 
-  @media (max-width: 768px) {
-    font-size: 38px;
-    line-height: 38px;
+  * {
+    box-sizing: border-box;
   }
 
-  @media (max-width: 400px) {
-    font-size: 32px;
+  html {
+    font-size: 18px;
     line-height: 32px;
+
+    background: rgb(0, 0, 0);
+    -webkit-font-smoothing: antialiased;
   }
-}
 
-p {
-  margin: 24px 0;
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
 
-  @media (max-width: 1024px) {
-    margin: calc(var(--base) * 0.75) 0;
+  body {
+    font-family: system-ui;
+    font-size: 18px;
+    line-height: 32px;
+
+    margin: 0;
+    color: rgb(1000, 1000, 1000);
+
+    @media (max-width: 1024px) {
+      font-size: 15px;
+      line-height: 24px;
+    }
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  h1 {
+    margin: 40px 0;
+    font-size: 64px;
+    line-height: 70px;
+    font-weight: bold;
+
+    @media (max-width: 1024px) {
+      margin: 24px 0;
+      font-size: 42px;
+      line-height: 42px;
+    }
+
+    @media (max-width: 768px) {
+      font-size: 38px;
+      line-height: 38px;
+    }
+
+    @media (max-width: 400px) {
+      font-size: 32px;
+      line-height: 32px;
+    }
+  }
+
+  p {
+    margin: 24px 0;
+
+    @media (max-width: 1024px) {
+      margin: calc(var(--base) * 0.75) 0;
+    }
   }
 }
 
