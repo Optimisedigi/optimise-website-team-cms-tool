@@ -74,11 +74,12 @@ const GoogleAdsAdExtensionsInner = () => {
         credentials: 'include',
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(`Sync failed (${res.status})`);
+        throw new Error(data.error || `Sync failed (${res.status})`);
       }
 
-      const data = await res.json();
       setSuccess(`Synced ${data.total} extensions (${data.created} created, ${data.updated} updated)`);
       fetchExtensions();
     } catch (e: any) {

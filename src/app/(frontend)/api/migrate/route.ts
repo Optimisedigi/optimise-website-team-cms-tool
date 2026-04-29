@@ -1302,6 +1302,7 @@ export async function POST(request: NextRequest) {
     '20260325_120000_add_client_account_timeline',
     '20260327_120000_add_client_to_proposals',
     '20260410_120000_add_client_timeline_templates_and_client_timelines',
+    '20260420_120000_add_ai_visibility_snapshots',
   ];
   for (const migName of allMigrationNames) {
     await run(`mark_migration:${migName}`, `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('${migName}', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
@@ -2060,7 +2061,35 @@ export async function POST(request: NextRequest) {
   // ── Hidden keyword categories JSON column on client_proposals (2026-04-15) ──
   await run("client_proposals.hidden_keyword_categories", "ALTER TABLE `client_proposals` ADD `hidden_keyword_categories` text");
 
-  return NextResponse.json({ ok: true, version: "2026-04-15", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── AI Visibility Snapshots (2026-04-20) ──
+  await run("ai_visibility_snapshots", `CREATE TABLE IF NOT EXISTS \`ai_visibility_snapshots\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`client_name\` text,
+    \`property_id\` text NOT NULL,
+    \`period_start\` text NOT NULL,
+    \`period_end\` text NOT NULL,
+    \`total_sessions\` numeric NOT NULL,
+    \`total_users\` numeric NOT NULL,
+    \`total_conversions\` numeric NOT NULL,
+    \`conversion_value\` numeric DEFAULT 0,
+    \`engaged_sessions\` numeric DEFAULT 0,
+    \`avg_engagement_time\` numeric DEFAULT 0,
+    \`by_source\` text,
+    \`share_by_source\` text,
+    \`fetched_at\` text NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("ai_visibility_snapshots_client_idx", "CREATE INDEX IF NOT EXISTS `ai_visibility_snapshots_client_idx` ON `ai_visibility_snapshots` (`client_id`)");
+  await run("ai_visibility_snapshots_period_end_idx", "CREATE INDEX IF NOT EXISTS `ai_visibility_snapshots_period_end_idx` ON `ai_visibility_snapshots` (`period_end`)");
+  await run("ai_visibility_snapshots_client_period_end_idx", "CREATE INDEX IF NOT EXISTS `ai_visibility_snapshots_client_period_end_idx` ON `ai_visibility_snapshots` (`client_id`, `period_end`)");
+  await run("ai_visibility_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `ai_visibility_snapshots_created_at_idx` ON `ai_visibility_snapshots` (`created_at`)");
+  await run("ai_visibility_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `ai_visibility_snapshots_updated_at_idx` ON `ai_visibility_snapshots` (`updated_at`)");
+  await run("locked_docs_rels.ai_visibility_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `ai_visibility_snapshots_id` integer REFERENCES `ai_visibility_snapshots`(`id`) ON DELETE CASCADE");
+
+  return NextResponse.json({ ok: true, version: "2026-04-20", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
