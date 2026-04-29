@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const ShowPasswordToggle = () => {
+const ShowPasswordToggle = ({ children }: { children?: React.ReactNode }) => {
   useEffect(() => {
     const passwordInput = document.querySelector<HTMLInputElement>(
       'input[type="password"][name="password"]'
@@ -39,7 +39,7 @@ const ShowPasswordToggle = () => {
     wrapper.appendChild(btn);
   }, []);
 
-  return null;
+  return <>{children}</>;
 };
 
 export default ShowPasswordToggle;
