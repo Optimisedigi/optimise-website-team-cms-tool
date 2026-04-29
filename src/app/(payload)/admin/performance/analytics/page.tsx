@@ -3,6 +3,7 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload, createLocalReq } from 'payload'
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import Ga4PerformancePage from '../../../../../components/Ga4PerformancePage'
+import { getVisibleEntities } from '../../../../../lib/visible-entities'
 
 export default async function Page() {
   const payload = await getPayload({ config })
@@ -11,14 +12,7 @@ export default async function Page() {
   const { permissions, user } = await payload.auth({ headers })
   const req = await createLocalReq({ user: user ?? undefined }, payload)
 
-  const visibleEntities = {
-    collections: payload.config.collections
-      .filter((c) => !c.admin?.hidden)
-      .map((c) => c.slug),
-    globals: payload.config.globals
-      .filter((g) => !g.admin?.hidden)
-      .map((g) => g.slug),
-  }
+  const visibleEntities = getVisibleEntities(payload, user)
 
   return (
     <DefaultTemplate
