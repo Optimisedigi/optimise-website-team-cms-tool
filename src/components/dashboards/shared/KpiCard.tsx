@@ -44,14 +44,14 @@ export function KpiCard({ label, value, previousValue, format, invertColors, com
 
   return (
     <div className="rounded-xl bg-white border border-slate-200 shadow-sm px-4" style={{ paddingTop: 3, paddingBottom: 3 }}>
-      <p className="text-xs font-medium uppercase tracking-wider text-slate-500" style={{ lineHeight: 1, marginBottom: -2 }}>
+      <p className="text-xs font-medium uppercase tracking-wider text-slate-500" style={{ lineHeight: 1, marginBottom: -4 }}>
         {label}
       </p>
       <p className="font-bold text-slate-900" style={{ fontSize: '19px', lineHeight: 1 }}>
         {formatValue(value, format)}
       </p>
       {change != null && (
-        <p className={`text-[10px] font-medium ${arrowColor}`} style={{ lineHeight: 1, marginTop: -2 }}>
+        <p className={`text-[10px] font-medium ${arrowColor}`} style={{ lineHeight: 1, marginTop: -4 }}>
           {arrowIcon} {change > 0 ? "+" : ""}{change}% {comparisonLabel}
         </p>
       )}
