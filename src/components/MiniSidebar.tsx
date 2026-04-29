@@ -190,7 +190,7 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
           style={{
             position: 'fixed',
             top: 12,
-            left: 'min(calc(var(--nav-width, 275px) - 44px), calc(100vw - 44px))',
+            left: 'min(calc(var(--nav-width, 275px) - 49px), calc(100vw - 49px))',
             zIndex: 10000,
             background: 'none',
             border: 'none',
