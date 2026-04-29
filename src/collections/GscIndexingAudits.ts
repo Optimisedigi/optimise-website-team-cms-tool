@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const GscIndexingAudits: CollectionConfig = {
   slug: "gsc-indexing-audits",
@@ -11,15 +12,13 @@ export const GscIndexingAudits: CollectionConfig = {
     group: "Growth Tools",
     defaultColumns: ["client", "status", "totalUrls", "inspectedCount", "createdAt"],
     description: "Full indexing audits via the URL Inspection API",
+    hidden: hideUnlessFeature("gsc-indexing-audits"),
   },
   access: {
-    read: ({ req }) => !!req.user,
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => {
-      if (!req.user) return false;
-      return req.user.role === "admin";
-    },
-    create: ({ req }) => !!req.user,
+    read: canAccess("gsc-indexing-audits"),
+    update: canAccess("gsc-indexing-audits"),
+    delete: adminOnlyDelete,
+    create: canAccess("gsc-indexing-audits"),
   },
   fields: [
     {

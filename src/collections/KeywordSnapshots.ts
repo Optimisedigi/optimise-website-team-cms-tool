@@ -2,6 +2,7 @@ import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
+import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = ({ data }) => {
   if (data && !data.reportSlug && data.websiteUrl) {
@@ -28,6 +29,7 @@ export const KeywordSnapshots: CollectionConfig = {
     group: "Growth Tools",
     defaultColumns: ["websiteUrl", "label", "totalKeywords", "createdAt"],
     description: "Keyword ranking snapshots from the growth tools",
+    hidden: hideUnlessFeature("keyword-snapshots"),
   },
   hooks: {
     beforeChange: [autoGenerateSlug],
@@ -46,13 +48,10 @@ export const KeywordSnapshots: CollectionConfig = {
     ],
   },
   access: {
-    read: ({ req }) => !!req.user || hasValidApiKey(req),
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => {
-      if (!req.user) return false;
-      return req.user.role === "admin";
-    },
-    create: ({ req }) => !!req.user || hasValidApiKey(req),
+    read: canAccessOrApiKey("keyword-snapshots", hasValidApiKey),
+    update: canAccessOrApiKey("keyword-snapshots", hasValidApiKey),
+    delete: adminOnlyDelete,
+    create: canAccessOrApiKey("keyword-snapshots", hasValidApiKey),
   },
   fields: [
     {

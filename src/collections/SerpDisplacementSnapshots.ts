@@ -1,6 +1,7 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
+import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 /**
  * Denormalise the linked client's name onto the snapshot so the admin list view
@@ -31,8 +32,8 @@ const denormaliseClientName: CollectionBeforeChangeHook = async ({ data, req }) 
 export const SerpDisplacementSnapshots: CollectionConfig = {
   slug: "serp-displacement-snapshots",
   labels: {
-    singular: "SERP Displacement Snapshot",
-    plural: "SERP Displacement Snapshots",
+    singular: "SERP Displacement",
+    plural: "SERP Displacement",
   },
   admin: {
     useAsTitle: "keyword",
@@ -46,6 +47,7 @@ export const SerpDisplacementSnapshots: CollectionConfig = {
     group: "Reports",
     description:
       "Daily SERP layout snapshots per monitored keyword — tracks AI Overview appearance, SERP features, organic position, pixel offset, and paid position. Pushed by Growth Tools' SERP Displacement Monitor.",
+    hidden: hideUnlessFeature("serp-displacement-snapshots"),
   },
   hooks: {
     beforeChange: [denormaliseClientName],
@@ -64,13 +66,10 @@ export const SerpDisplacementSnapshots: CollectionConfig = {
     ],
   },
   access: {
-    read: ({ req }) => !!req.user || hasValidApiKey(req),
-    update: ({ req }) => !!req.user || hasValidApiKey(req),
-    delete: ({ req }) => {
-      if (!req.user) return false;
-      return req.user.role === "admin";
-    },
-    create: ({ req }) => !!req.user || hasValidApiKey(req),
+    read: canAccessOrApiKey("serp-displacement-snapshots", hasValidApiKey),
+    update: canAccessOrApiKey("serp-displacement-snapshots", hasValidApiKey),
+    delete: adminOnlyDelete,
+    create: canAccessOrApiKey("serp-displacement-snapshots", hasValidApiKey),
   },
   fields: [
     {

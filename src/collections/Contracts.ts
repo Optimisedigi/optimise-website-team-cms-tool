@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const Contracts: CollectionConfig = {
   slug: "contracts",
@@ -16,12 +17,13 @@ export const Contracts: CollectionConfig = {
     components: {
       beforeListTable: ["./components/CreateFromTemplateButton"],
     },
+    hidden: hideUnlessFeature("contracts"),
   },
   access: {
-    read: ({ req }) => !!req.user,
-    create: ({ req }) => !!req.user,
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => req.user?.role === "admin",
+    read: canAccess("contracts"),
+    create: canAccess("contracts"),
+    update: canAccess("contracts"),
+    delete: adminOnlyDelete,
   },
   hooks: {
     beforeChange: [

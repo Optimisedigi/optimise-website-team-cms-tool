@@ -1,4 +1,5 @@
 import type { GlobalConfig } from "payload";
+import { globalAccess, hideGlobalUnlessFeature } from "../lib/access";
 
 export const EmailTemplates: GlobalConfig = {
   slug: "email-templates",
@@ -7,11 +8,9 @@ export const EmailTemplates: GlobalConfig = {
     group: "Clients",
     description:
       "Auto-reply email template fragments sent to new leads. Edit any field to customise; leave blank to use the default.",
+    hidden: hideGlobalUnlessFeature("email-templates"),
   },
-  access: {
-    read: ({ req }) => !!req.user,
-    update: ({ req }) => req.user?.role === "admin",
-  },
+  access: globalAccess("email-templates"),
   fields: [
     {
       type: "tabs",

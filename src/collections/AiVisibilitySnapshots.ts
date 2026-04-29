@@ -1,6 +1,7 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
+import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 /**
  * Denormalise the linked client's name onto the snapshot so the admin list view
@@ -30,8 +31,8 @@ const denormaliseClientName: CollectionBeforeChangeHook = async ({ data, req }) 
 export const AiVisibilitySnapshots: CollectionConfig = {
   slug: "ai-visibility-snapshots",
   labels: {
-    singular: "AI Visibility Snapshot",
-    plural: "AI Visibility Snapshots",
+    singular: "AI Visibility",
+    plural: "AI Visibility",
   },
   admin: {
     useAsTitle: "clientName",
@@ -39,6 +40,7 @@ export const AiVisibilitySnapshots: CollectionConfig = {
     group: "Reports",
     description:
       "Weekly AI assistant referral traffic snapshots (ChatGPT, Perplexity, Gemini, Claude, Copilot, etc.) pulled from GA4 by Growth Tools.",
+    hidden: hideUnlessFeature("ai-visibility-snapshots"),
   },
   hooks: {
     beforeChange: [denormaliseClientName],
@@ -57,13 +59,10 @@ export const AiVisibilitySnapshots: CollectionConfig = {
     ],
   },
   access: {
-    read: ({ req }) => !!req.user || hasValidApiKey(req),
-    update: ({ req }) => !!req.user || hasValidApiKey(req),
-    delete: ({ req }) => {
-      if (!req.user) return false;
-      return req.user.role === "admin";
-    },
-    create: ({ req }) => !!req.user || hasValidApiKey(req),
+    read: canAccessOrApiKey("ai-visibility-snapshots", hasValidApiKey),
+    update: canAccessOrApiKey("ai-visibility-snapshots", hasValidApiKey),
+    delete: adminOnlyDelete,
+    create: canAccessOrApiKey("ai-visibility-snapshots", hasValidApiKey),
   },
   fields: [
     {

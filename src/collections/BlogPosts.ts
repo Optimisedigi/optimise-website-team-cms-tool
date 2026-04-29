@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 import matter from "gray-matter";
 import { logActivity } from "../lib/activity-log";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 /**
  * Blog Posts Collection
@@ -11,7 +12,11 @@ import { logActivity } from "../lib/activity-log";
 export const BlogPosts: CollectionConfig = {
   slug: "blog-posts",
   access: {
+    // Blog posts are read by public website pages, so reads stay open.
     read: () => true,
+    create: canAccess("blog-posts"),
+    update: canAccess("blog-posts"),
+    delete: adminOnlyDelete,
   },
   admin: {
     useAsTitle: "title",
@@ -22,6 +27,7 @@ export const BlogPosts: CollectionConfig = {
     components: {
       beforeListTable: ["./components/BlogPostsClientFilter"],
     },
+    hidden: hideUnlessFeature("blog-posts"),
   },
   versions: {
     drafts: true,

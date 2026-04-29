@@ -2,6 +2,7 @@ import { default as default_5164bc2f3a3226d7b1d82146ff4ed3f0 } from '../../../co
 import { default as default_e7d7aad66827a99befb1746a4455cced } from '../../../components/ClientBillingSummary'
 import { default as default_3d79dbcfcaa26d85aa8754377a3675dd } from '../../../components/AgencyBadge'
 import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../components/MonthlyRetainerCell'
+import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../components/ClientNotesTable'
 import { default as default_30019ca76d88f22be3a9fab3c840976c } from '../../../components/AccountTimelineTable'
 import { default as default_1a2b8d9a179321ad34f0f546c6575e98 } from '../../../components/StartProcessButton'
 import { default as default_b625d4fd2a78fb543eb54574c50e62fc } from '../../../components/LinkedProcesses'
@@ -100,22 +101,24 @@ import { default as default_5cc9c48eac9f9681086cee91da012e9f } from '../../../co
 import { default as default_20396e04db8c07a5e3383d2e16b34dc4 } from '../../../components/RunSiteHealthButton'
 import { default as default_b058368eb7c5859811170004e5dd59a8 } from '../../../components/SiteHealthReportView'
 import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
+import { default as default_0a0f3b40e58f63623cf710a9f1c57a57 } from '../../../components/FeatureAccessPicker'
 import { default as default_d7691cd6896b18804e19a29368edb888 } from '../../../components/ConnectSheetsButton'
 import { default as default_f7ce8484c2a04dac97a85c29cde49f11 } from '../../../components/ConnectCalendarButton'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_4a8985253bad55ee72042259cf28f1d7 } from '../../../components/UserDisplayName'
-import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
 import { default as default_5c16f7aa63b8992f2b26b1a5603015ac } from '../../../components/SidebarNavExtras'
 import { default as default_c22c6ded068ed0e94e9b6d1c50d7f3ee } from '../../../components/Dashboard'
 import { default as default_cc474ecbeaf676f497427d66a0f4dd38 } from '../../../components/SidebarLogo'
 import { default as default_33065b9984d3bdded8a6f86ee55a36a3 } from '../../../components/ViewportMeta'
 import { default as default_e04f18ecb5b37d25b0e6d09a3fc98708 } from '../../../components/RocketLoader'
 import { default as default_f79b4ca75381164e95f118cd1e894463 } from '../../../components/FirstLoginSetup'
+import { default as default_74b6b86d3385b0ec4a17d6136dd3b989 } from '../../../components/DashboardGate'
 import { default as default_30b462c31bfed4dfe63e7ef34d180475 } from '../../../components/NavigationRecovery'
 import { default as default_47cb45239198beef21a512f6c005e728 } from '../../../components/MiniSidebar'
 import { default as default_02b1efea3bcfc49be1b8b522d8ca967d } from '../../../components/PomodoroTimer'
 import { default as default_8c91d6ed757c0622a0f1976e63b1d36b } from '../../../components/PayloadShiftSelect'
+import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
@@ -124,6 +127,7 @@ export const importMap = {
   "./components/ClientBillingSummary#default": default_e7d7aad66827a99befb1746a4455cced,
   "./components/AgencyBadge#default": default_3d79dbcfcaa26d85aa8754377a3675dd,
   "./components/MonthlyRetainerCell#default": default_1048d3ef8844cd92abe61dc0b4e55a00,
+  "./components/ClientNotesTable#default": default_0c04cad98ec5e03879ab56990698fc12,
   "./components/AccountTimelineTable#default": default_30019ca76d88f22be3a9fab3c840976c,
   "./components/StartProcessButton#default": default_1a2b8d9a179321ad34f0f546c6575e98,
   "./components/LinkedProcesses#default": default_b625d4fd2a78fb543eb54574c50e62fc,
@@ -222,22 +226,24 @@ export const importMap = {
   "./components/RunSiteHealthButton#default": default_20396e04db8c07a5e3383d2e16b34dc4,
   "./components/SiteHealthReportView#default": default_b058368eb7c5859811170004e5dd59a8,
   "./components/BusinessCostsListView#default": default_6f9be25dea842550674d5a5331ed4ffe,
+  "./components/FeatureAccessPicker#default": default_0a0f3b40e58f63623cf710a9f1c57a57,
   "./components/ConnectSheetsButton#default": default_d7691cd6896b18804e19a29368edb888,
   "./components/ConnectCalendarButton#default": default_f7ce8484c2a04dac97a85c29cde49f11,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/UserDisplayName#default": default_4a8985253bad55ee72042259cf28f1d7,
-  "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
   "./components/SidebarNavExtras#default": default_5c16f7aa63b8992f2b26b1a5603015ac,
   "./components/Dashboard#default": default_c22c6ded068ed0e94e9b6d1c50d7f3ee,
   "./components/SidebarLogo#default": default_cc474ecbeaf676f497427d66a0f4dd38,
   "./components/ViewportMeta#default": default_33065b9984d3bdded8a6f86ee55a36a3,
   "./components/RocketLoader#default": default_e04f18ecb5b37d25b0e6d09a3fc98708,
   "./components/FirstLoginSetup#default": default_f79b4ca75381164e95f118cd1e894463,
+  "./components/DashboardGate#default": default_74b6b86d3385b0ec4a17d6136dd3b989,
   "./components/NavigationRecovery#default": default_30b462c31bfed4dfe63e7ef34d180475,
   "./components/MiniSidebar#default": default_47cb45239198beef21a512f6c005e728,
   "./components/PomodoroTimer#default": default_02b1efea3bcfc49be1b8b522d8ca967d,
   "./components/PayloadShiftSelect#default": default_8c91d6ed757c0622a0f1976e63b1d36b,
+  "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

@@ -1,5 +1,6 @@
 import type { CollectionConfig } from "payload";
 import { logActivity } from "../lib/activity-log";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 /**
  * SalesLeads Collection
@@ -27,13 +28,14 @@ export const SalesLeads: CollectionConfig = {
       "contactName",
       "updatedAt",
     ],
+    hidden: hideUnlessFeature("sales-leads"),
   },
   disableDuplicate: false,
   access: {
-    read: ({ req }) => !!req.user,
-    create: ({ req }) => !!req.user,
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => req.user?.role === "admin",
+    read: canAccess("sales-leads"),
+    create: canAccess("sales-leads"),
+    update: canAccess("sales-leads"),
+    delete: adminOnlyDelete,
   },
   defaultSort: "-updatedAt",
   hooks: {
