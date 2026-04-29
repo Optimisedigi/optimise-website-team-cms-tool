@@ -544,7 +544,10 @@ export const Clients: CollectionConfig = {
               name: "legacyNotes",
               type: "textarea",
               admin: {
-                description: "Goals, notes, and context about this client (legacy — use Notes tab for new notes)",
+                // Hidden — superseded by the Notes tab. Existing content was
+                // migrated into clientNotes by scripts/migrate-legacy-notes.ts.
+                // Kept in schema for back-compat / safety.
+                hidden: true,
               },
             },
             {
@@ -571,59 +574,52 @@ export const Clients: CollectionConfig = {
               type: "array",
               dbName: "client_notes",
               admin: {
-                description: "Add timestamped notes about this client — meetings, decisions, updates, etc.",
+                // Custom spreadsheet-style editor (one note per row, free-form).
+                components: {
+                  RowLabel: false as any,
+                  Field: "./components/ClientNotesTable",
+                },
                 initCollapsed: false,
               },
               fields: [
+                // The fields below stay in the schema for back-compat with
+                // existing rows, but `category` and `date` are not exposed in
+                // the new ClientNotesTable UI — they default automatically.
                 {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "category",
-                      type: "select",
-                      defaultValue: "general",
-                      admin: {
-                        width: "30%",
-                      },
-                      options: [
-                        { label: "General", value: "general" },
-                        { label: "Meeting", value: "meeting" },
-                        { label: "Strategy", value: "strategy" },
-                        { label: "Issue", value: "issue" },
-                        { label: "Win", value: "win" },
-                        { label: "Feedback", value: "feedback" },
-                        { label: "Internal", value: "internal" },
-                      ],
-                    },
-                    {
-                      name: "date",
-                      type: "date",
-                      required: true,
-                      defaultValue: () => new Date().toISOString(),
-                      admin: {
-                        width: "30%",
-                        date: {
-                          pickerAppearance: "dayOnly",
-                          displayFormat: "d MMM yyyy",
-                        },
-                      },
-                    },
-                    {
-                      name: "author",
-                      type: "text",
-                      admin: {
-                        width: "40%",
-                        description: "Who wrote this note",
-                      },
-                    },
+                  name: "category",
+                  type: "select",
+                  defaultValue: "general",
+                  admin: { hidden: true },
+                  options: [
+                    { label: "General", value: "general" },
+                    { label: "Meeting", value: "meeting" },
+                    { label: "Strategy", value: "strategy" },
+                    { label: "Issue", value: "issue" },
+                    { label: "Win", value: "win" },
+                    { label: "Feedback", value: "feedback" },
+                    { label: "Internal", value: "internal" },
                   ],
+                },
+                {
+                  name: "date",
+                  type: "date",
+                  required: true,
+                  defaultValue: () => new Date().toISOString(),
+                  admin: { hidden: true },
+                },
+                {
+                  name: "author",
+                  type: "text",
+                  admin: {
+                    description: "Auto-filled from the user who added the note",
+                  },
                 },
                 {
                   name: "content",
                   type: "textarea",
                   required: true,
                   admin: {
-                    description: "Note content",
+                    description: "Note content (point form supported)",
                   },
                 },
               ],

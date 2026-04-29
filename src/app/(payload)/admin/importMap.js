@@ -2,6 +2,7 @@ import { default as default_5164bc2f3a3226d7b1d82146ff4ed3f0 } from '../../../co
 import { default as default_e7d7aad66827a99befb1746a4455cced } from '../../../components/ClientBillingSummary'
 import { default as default_3d79dbcfcaa26d85aa8754377a3675dd } from '../../../components/AgencyBadge'
 import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../components/MonthlyRetainerCell'
+import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../components/ClientNotesTable'
 import { default as default_30019ca76d88f22be3a9fab3c840976c } from '../../../components/AccountTimelineTable'
 import { default as default_1a2b8d9a179321ad34f0f546c6575e98 } from '../../../components/StartProcessButton'
 import { default as default_b625d4fd2a78fb543eb54574c50e62fc } from '../../../components/LinkedProcesses'
@@ -124,6 +125,7 @@ export const importMap = {
   "./components/ClientBillingSummary#default": default_e7d7aad66827a99befb1746a4455cced,
   "./components/AgencyBadge#default": default_3d79dbcfcaa26d85aa8754377a3675dd,
   "./components/MonthlyRetainerCell#default": default_1048d3ef8844cd92abe61dc0b4e55a00,
+  "./components/ClientNotesTable#default": default_0c04cad98ec5e03879ab56990698fc12,
   "./components/AccountTimelineTable#default": default_30019ca76d88f22be3a9fab3c840976c,
   "./components/StartProcessButton#default": default_1a2b8d9a179321ad34f0f546c6575e98,
   "./components/LinkedProcesses#default": default_b625d4fd2a78fb543eb54574c50e62fc,

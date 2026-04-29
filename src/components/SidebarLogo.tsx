@@ -17,7 +17,18 @@ const IconSearch = () => (
 const SidebarLogo = () => {
   return (
     <>
-      <div style={{ padding: "11px 8px 8px 4px", overflow: "visible" }}>
+      {/* Logo wrapper — fixed 60px height with the image vertically centered
+          so its midline lines up with the collapse-button midline
+          (collapse btn: top:12 + 8 padding + 10 (half of 20px svg) = 30px). */}
+      <div
+        style={{
+          height: 60,
+          padding: "0 8px 0 4px",
+          display: "flex",
+          alignItems: "center",
+          overflow: "visible",
+        }}
+      >
         <img
           src="/optimise-digital-logo-white-no-rocket.png"
           alt="Optimise Digital"
