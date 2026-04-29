@@ -270,7 +270,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-[11px] pb-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
-          <div className="flex flex-col items-start gap-0">
+          <div className="flex items-center gap-3 flex-wrap pt-1">
             {data.logoUrl ? (
               <img
                 src={data.logoUrl}
