@@ -6,6 +6,7 @@ import type {
 import crypto from "crypto";
 import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
+import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = async ({
   data,
@@ -121,6 +122,7 @@ export const GoogleAdsAudits: CollectionConfig = {
     group: "Growth Tools",
     defaultColumns: ["businessName", "overallScore", "auditStatus", "createdAt"],
     description: "Google Ads audit pipeline. Requires client to grant access to the Optimise Digital MCC (manager account) before the audit can pull data.",
+    hidden: hideUnlessFeature("google-ads-audits"),
   },
   hooks: {
     afterRead: [
@@ -186,13 +188,10 @@ export const GoogleAdsAudits: CollectionConfig = {
     ],
   },
   access: {
-    read: ({ req }) => !!req.user || hasValidApiKey(req),
-    update: ({ req }) => !!req.user || hasValidApiKey(req),
-    delete: ({ req }) => {
-      if (!req.user) return false;
-      return req.user.role === "admin";
-    },
-    create: ({ req }) => !!req.user || hasValidApiKey(req),
+    read: canAccessOrApiKey("google-ads-audits", hasValidApiKey),
+    update: canAccessOrApiKey("google-ads-audits", hasValidApiKey),
+    delete: adminOnlyDelete,
+    create: canAccessOrApiKey("google-ads-audits", hasValidApiKey),
   },
   fields: [
     {

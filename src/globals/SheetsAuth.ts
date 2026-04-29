@@ -1,4 +1,5 @@
 import type { GlobalConfig } from "payload";
+import { globalAccess, hideGlobalUnlessFeature } from "../lib/access";
 
 export const SheetsAuth: GlobalConfig = {
   slug: "sheets-auth",
@@ -7,11 +8,9 @@ export const SheetsAuth: GlobalConfig = {
     group: "Settings",
     description:
       "Google Sheets OAuth token for writing negative keywords to client spreadsheets. Connect once to enable all clients.",
+    hidden: hideGlobalUnlessFeature("sheets-auth"),
   },
-  access: {
-    read: ({ req }) => !!req.user,
-    update: ({ req }) => req.user?.role === "admin",
-  },
+  access: globalAccess("sheets-auth"),
   fields: [
     {
       name: "refreshToken",

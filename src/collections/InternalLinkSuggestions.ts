@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const InternalLinkSuggestions: CollectionConfig = {
   slug: "internal-link-suggestions",
@@ -14,12 +15,14 @@ export const InternalLinkSuggestions: CollectionConfig = {
         },
       },
     },
+    hidden: hideUnlessFeature("internal-link-suggestions"),
   },
   access: {
+    // Public read — used by the website to fetch link suggestions.
     read: () => true,
-    create: ({ req }) => !!req.user,
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => !!req.user,
+    create: canAccess("internal-link-suggestions"),
+    update: canAccess("internal-link-suggestions"),
+    delete: adminOnlyDelete,
   },
   fields: [
     {

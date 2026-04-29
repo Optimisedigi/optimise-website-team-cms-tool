@@ -6,6 +6,7 @@ import type {
 } from "payload";
 import { proposalEditor } from "@/lib/proposalEditor";
 import { logActivity } from "../lib/activity-log";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 const DEFAULT_FLIGHT_PLAN_RECS = [
   { enabled: false, title: "New Website Build", description: "A modern, mobile-first website built for conversions. Fast-loading, professional design that builds trust and drives enquiries.", benefit: "Higher conversion rates" },
@@ -243,15 +244,13 @@ export const ClientProposals: CollectionConfig = {
     useAsTitle: "businessName",
     group: "Clients",
     description: "Proposals for prospective clients",
+    hidden: hideUnlessFeature("client-proposals"),
   },
   access: {
-    read: ({ req }) => !!req.user,
-    create: ({ req }) => !!req.user,
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => {
-      if (!req.user) return false;
-      return req.user.role === "admin";
-    },
+    read: canAccess("client-proposals"),
+    create: canAccess("client-proposals"),
+    update: canAccess("client-proposals"),
+    delete: adminOnlyDelete,
   },
   fields: [
     {
@@ -283,7 +282,7 @@ export const ClientProposals: CollectionConfig = {
               type: "text",
               required: true,
               admin: {
-                description: "Prospect website URL",
+                description: "Prospect website URL. Used by SEO, CRO, and content audits to crawl and analyse the site.",
               },
             },
             {
@@ -332,7 +331,7 @@ export const ClientProposals: CollectionConfig = {
               type: "array",
               maxRows: 10,
               admin: {
-                description: "Google Maps listing URLs for GBP analysis",
+                description: "Google Maps listing URLs. Used by the audit to analyse Google Business Profile listings against competitors.",
                 condition: (data: any) => data?.hasPhysicalLocations,
               },
               fields: [
@@ -358,7 +357,7 @@ export const ClientProposals: CollectionConfig = {
               type: "select",
               admin: {
                 description:
-                  "Type of business — used for audit weighting",
+                  "Drives SEO/CRO audit scoring weights, proposal report presentation, and carries over to the Client record on conversion.",
               },
               options: [
                 { label: "Trades & Home Services", value: "trades" },
@@ -377,7 +376,7 @@ export const ClientProposals: CollectionConfig = {
               type: "select",
               admin: {
                 description:
-                  "Primary conversion goal — used for CRO audit",
+                  "Drives CRO audit analysis and is shown on the client-facing proposal report.",
               },
               options: [
                 { label: "Lead Generation", value: "lead generation" },
@@ -458,7 +457,7 @@ export const ClientProposals: CollectionConfig = {
               maxRows: 6,
               admin: {
                 description:
-                  "Up to 6 keyword categories (e.g. by service). Each category becomes a separate table on the report. Keywords from all categories are combined for the audit.",
+                  "Up to 6 keyword categories (e.g. by service). Each category becomes a separate table on the report. All keywords across categories are sent to the audit engine for SEO ranking checks and competitor analysis.",
               },
               fields: [
                 {
@@ -496,7 +495,7 @@ export const ClientProposals: CollectionConfig = {
               type: "select",
               admin: {
                 description:
-                  "Location for keyword tracking and competitor analysis",
+                  "Determines the geo-location used for keyword volume lookups and competitor ranking checks.",
                 isSortable: false,
               },
               options: [

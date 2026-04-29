@@ -1,6 +1,14 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
+import {
+  canAccess,
+  canAccessAny,
+  adminOnlyDelete,
+  hideUnlessFeature,
+  conditionRequiresFeature,
+  sensitiveFieldAccess,
+} from "../lib/access";
 
 function monthsBetween(start: Date, end: Date): number {
   const months =
@@ -59,6 +67,18 @@ export const Clients: CollectionConfig = {
     group: "Clients",
     description: "Manage client websites",
     defaultColumns: ["name", "monthlyRetainer", "billingSummary", "clientPin", "isActive"],
+    hidden: hideUnlessFeature("clients"),
+  },
+  access: {
+    // Read is allowed for both full `clients` users and `clients-basic`
+    // users (who get auto-granted read so relationship pickers can render
+    // "Acme Corp" instead of "Untitled — ID: 1"). Field-level access on
+    // sensitive fields below restricts what `clients-basic` users can
+    // actually see.
+    read: canAccessAny("clients", "clients-basic"),
+    create: canAccess("clients"),
+    update: canAccess("clients"),
+    delete: adminOnlyDelete,
   },
   hooks: {
     beforeChange: [trackRetainerChange],
@@ -133,12 +153,16 @@ export const Clients: CollectionConfig = {
       label: "Billing Summary",
       type: "number",
       virtual: true,
+      access: sensitiveFieldAccess("clients"),
       admin: {
         components: {
           Field: "./components/ClientBillingSummary",
           Cell: "./components/BillingSummaryCell",
         },
-        condition: (data: any) => !data?.isAgency && data?.id,
+        condition: conditionRequiresFeature(
+          "clients",
+          (data: any) => !data?.isAgency && data?.id,
+        ),
       },
     },
     {
@@ -184,9 +208,11 @@ export const Clients: CollectionConfig = {
             {
               name: "apiKey",
               type: "text",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 description: "API key for this client (auto-generated)",
                 readOnly: true,
+                condition: conditionRequiresFeature("clients"),
               },
               hooks: {
                 beforeChange: [
@@ -220,18 +246,26 @@ export const Clients: CollectionConfig = {
               name: "yearlySalesTarget",
               type: "number",
               min: 0,
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 description: "Yearly revenue target ($). Shown as a progress bar on the dashboard.",
                 step: 1,
-                condition: (data: any) => !!data?.isAgency,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !!data?.isAgency,
+                ),
               },
             },
             {
               name: "targetDeadlineDate",
               type: "date",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 description: "Target deadline (defaults to Dec 31 of current year if not set)",
-                condition: (data: any) => !!data?.isAgency,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !!data?.isAgency,
+                ),
                 date: {
                   pickerAppearance: "dayOnly",
                   displayFormat: "d MMM yyyy",
@@ -441,19 +475,27 @@ export const Clients: CollectionConfig = {
             {
               name: "clientStartDate",
               type: "date",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 description: "When this client started working with us",
-                condition: (data: any) => !data?.isAgency,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
               },
             },
             {
               name: "monthlyRetainer",
               type: "number",
               min: 0,
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 description: "Monthly revenue amount ($)",
                 step: 1,
-                condition: (data: any) => !data?.isAgency,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
                 components: {
                   Cell: "./components/MonthlyRetainerCell",
                 },
@@ -462,9 +504,13 @@ export const Clients: CollectionConfig = {
             {
               name: "oneOffProjects",
               type: "array",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 description: "One-off projects (website builds, audits, etc.)",
-                condition: (data: any) => !data?.isAgency,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
               },
               fields: [
                 {
@@ -499,38 +545,54 @@ export const Clients: CollectionConfig = {
               name: "historicalRevenue",
               type: "number",
               min: 0,
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 description: "Pre-CMS revenue ($). Added to auto-calculated total for clients who started before the CMS was set up.",
                 step: 1,
-                condition: (data: any) => !data?.isAgency,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
               },
             },
             {
               name: "contract",
               type: "upload",
               relationTo: "media",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 description: "Client contract document (legacy upload)",
-                condition: (data: any) => !data?.isAgency,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
               },
             },
             {
               name: "signedContractUrl",
               type: "text",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 readOnly: true,
                 description: "URL of the signed contract PDF (from e-signature flow)",
-                condition: (data: any) => !data?.isAgency,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
               },
             },
             {
               name: "signedContract",
               type: "relationship",
               relationTo: "contracts",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 readOnly: true,
                 description: "Linked signed contract record",
-                condition: (data: any) => !data?.isAgency,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
               },
             },
             {
@@ -544,15 +606,20 @@ export const Clients: CollectionConfig = {
               name: "legacyNotes",
               type: "textarea",
               admin: {
-                description: "Goals, notes, and context about this client (legacy — use Notes tab for new notes)",
+                // Hidden — superseded by the Notes tab. Existing content was
+                // migrated into clientNotes by scripts/migrate-legacy-notes.ts.
+                // Kept in schema for back-compat / safety.
+                hidden: true,
               },
             },
             {
               name: "retainerHistory",
               type: "array",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 readOnly: true,
                 description: "Automatic log of revenue changes",
+                condition: conditionRequiresFeature("clients"),
               },
               fields: [
                 { name: "amount", type: "number" },
@@ -571,59 +638,52 @@ export const Clients: CollectionConfig = {
               type: "array",
               dbName: "client_notes",
               admin: {
-                description: "Add timestamped notes about this client — meetings, decisions, updates, etc.",
+                // Custom spreadsheet-style editor (one note per row, free-form).
+                components: {
+                  RowLabel: false as any,
+                  Field: "./components/ClientNotesTable",
+                },
                 initCollapsed: false,
               },
               fields: [
+                // The fields below stay in the schema for back-compat with
+                // existing rows, but `category` and `date` are not exposed in
+                // the new ClientNotesTable UI — they default automatically.
                 {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "category",
-                      type: "select",
-                      defaultValue: "general",
-                      admin: {
-                        width: "30%",
-                      },
-                      options: [
-                        { label: "General", value: "general" },
-                        { label: "Meeting", value: "meeting" },
-                        { label: "Strategy", value: "strategy" },
-                        { label: "Issue", value: "issue" },
-                        { label: "Win", value: "win" },
-                        { label: "Feedback", value: "feedback" },
-                        { label: "Internal", value: "internal" },
-                      ],
-                    },
-                    {
-                      name: "date",
-                      type: "date",
-                      required: true,
-                      defaultValue: () => new Date().toISOString(),
-                      admin: {
-                        width: "30%",
-                        date: {
-                          pickerAppearance: "dayOnly",
-                          displayFormat: "d MMM yyyy",
-                        },
-                      },
-                    },
-                    {
-                      name: "author",
-                      type: "text",
-                      admin: {
-                        width: "40%",
-                        description: "Who wrote this note",
-                      },
-                    },
+                  name: "category",
+                  type: "select",
+                  defaultValue: "general",
+                  admin: { hidden: true },
+                  options: [
+                    { label: "General", value: "general" },
+                    { label: "Meeting", value: "meeting" },
+                    { label: "Strategy", value: "strategy" },
+                    { label: "Issue", value: "issue" },
+                    { label: "Win", value: "win" },
+                    { label: "Feedback", value: "feedback" },
+                    { label: "Internal", value: "internal" },
                   ],
+                },
+                {
+                  name: "date",
+                  type: "date",
+                  required: true,
+                  defaultValue: () => new Date().toISOString(),
+                  admin: { hidden: true },
+                },
+                {
+                  name: "author",
+                  type: "text",
+                  admin: {
+                    description: "Auto-filled from the user who added the note",
+                  },
                 },
                 {
                   name: "content",
                   type: "textarea",
                   required: true,
                   admin: {
-                    description: "Note content",
+                    description: "Note content (point form supported)",
                   },
                 },
               ],
@@ -1628,16 +1688,19 @@ export const Clients: CollectionConfig = {
             {
               name: "ga4AccessToken",
               type: "text",
+              access: sensitiveFieldAccess("clients"),
               admin: { hidden: true },
             },
             {
               name: "ga4RefreshToken",
               type: "text",
+              access: sensitiveFieldAccess("clients"),
               admin: { hidden: true },
             },
             {
               name: "ga4TokenExpiry",
               type: "date",
+              access: sensitiveFieldAccess("clients"),
               admin: { hidden: true },
             },
             // ─ Shared analytics config (used by AI Visibility Tracker + future GA4-powered tools) ─
@@ -1865,6 +1928,7 @@ export const Clients: CollectionConfig = {
             {
               name: "gscAccessToken",
               type: "text",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 disabled: true,
                 hidden: true,
@@ -1873,6 +1937,7 @@ export const Clients: CollectionConfig = {
             {
               name: "gscRefreshToken",
               type: "text",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 disabled: true,
                 hidden: true,
@@ -1881,6 +1946,7 @@ export const Clients: CollectionConfig = {
             {
               name: "gscTokenExpiry",
               type: "date",
+              access: sensitiveFieldAccess("clients"),
               admin: {
                 disabled: true,
                 hidden: true,

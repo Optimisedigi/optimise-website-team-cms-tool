@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 /**
  * Media Collection
@@ -15,9 +16,19 @@ export const Media: CollectionConfig = {
     group: "Content",
     description:
       "Upload and manage media. Images: max 800 KB. Videos: max 10 MB (no bulk upload).",
+    hidden: hideUnlessFeature("media"),
   },
   access: {
+    // Public read so blob URLs and metadata work on public pages (audits,
+    // proposals, blog posts, etc.) AND so relationship pickers in collections
+    // like Blog Posts can render media thumbnails for non-admin users. The
+    // `media-basic` auto-grant feature is recorded on users who get this
+    // implicitly (visible in the user edit screen) but doesn't change
+    // anything functionally because read is already public.
     read: () => true,
+    create: canAccess("media"),
+    update: canAccess("media"),
+    delete: adminOnlyDelete,
   },
   upload: {
     staticDir: "../public/media",

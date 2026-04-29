@@ -1,5 +1,6 @@
 import type { CollectionConfig } from "payload";
 import { hasValidApiKey } from "./api-key-access";
+import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const UsageReports: CollectionConfig = {
   slug: "usage-reports",
@@ -12,15 +13,13 @@ export const UsageReports: CollectionConfig = {
     group: "Admin",
     defaultColumns: ["label", "seoAudits", "croAudits", "totalEstimatedCost", "createdAt"],
     description: "Monthly usage and estimated API cost reports from the growth tools",
+    hidden: hideUnlessFeature("usage-reports"),
   },
   access: {
-    read: ({ req }) => !!req.user || hasValidApiKey(req),
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => {
-      if (!req.user) return false;
-      return req.user.role === "admin";
-    },
-    create: ({ req }) => !!req.user || hasValidApiKey(req),
+    read: canAccessOrApiKey("usage-reports", hasValidApiKey),
+    update: canAccessOrApiKey("usage-reports", hasValidApiKey),
+    delete: adminOnlyDelete,
+    create: canAccessOrApiKey("usage-reports", hasValidApiKey),
   },
   hooks: {
     beforeChange: [
