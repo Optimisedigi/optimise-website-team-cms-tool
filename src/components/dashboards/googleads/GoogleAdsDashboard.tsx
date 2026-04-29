@@ -267,9 +267,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-[11px] pb-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
           <div className="flex items-center gap-4">
             {data.logoUrl ? (
               <img
@@ -282,7 +282,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 {data.clientName}
               </h1>
             )}
-            <span className="text-slate-400 font-normal" style={{ fontSize: '18px' }}>
+            <span className="text-slate-400 font-normal" style={{ fontSize: '18px', position: 'relative', top: '1px' }}>
               Google Ads Dashboard
             </span>
           </div>
