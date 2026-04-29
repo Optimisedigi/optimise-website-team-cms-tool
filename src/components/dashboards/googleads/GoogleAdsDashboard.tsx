@@ -270,7 +270,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-[11px] pb-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
-          <div className="flex items-center gap-3 flex-wrap pt-1">
+          <div className="flex items-center gap-3 flex-wrap">
             {data.logoUrl ? (
               <img
                 src={data.logoUrl}
@@ -286,7 +286,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               Google Ads Dashboard
             </span>
           </div>
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-3 pt-1">
             {/* Date range dropdown + resolved date label below it */}
             <div className="flex flex-col items-start gap-1">
               <select
@@ -372,7 +372,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
                   <button
                     onClick={() => setCompareMode("month")}
-                    className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                    className={`px-3 py-1 rounded-md font-medium transition-colors ${
                       compareMode === "month"
                         ? "bg-blue-600 text-white shadow-sm"
                         : "text-slate-600 hover:text-slate-900"
@@ -382,7 +382,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                   </button>
                   <button
                     onClick={() => setCompareMode("year")}
-                    className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                    className={`px-3 py-1 rounded-md font-medium transition-colors ${
                       compareMode === "year"
                         ? "bg-blue-600 text-white shadow-sm"
                         : "text-slate-600 hover:text-slate-900"
