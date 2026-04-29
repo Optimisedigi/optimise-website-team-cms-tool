@@ -66,6 +66,7 @@ type PeriodValue = typeof PERIODS[number]["value"]
 
 export default function Ga4PerformancePage() {
   const [clients, setClients] = useState<ClientOption[]>([])
+  const [clientsLoaded, setClientsLoaded] = useState(false)
   const [selectedClient, setSelectedClient] = useState<string>("")
   const [period, setPeriod] = useState<PeriodValue>("30d")
   const [data, setData] = useState<Ga4Report | null>(null)
@@ -81,6 +82,7 @@ export default function Ga4PerformancePage() {
         if (connected) setSelectedClient(connected.id)
       })
       .catch(() => {})
+      .finally(() => setClientsLoaded(true))
   }, [])
 
   // Fetch GA4 data when client or period changes
@@ -149,7 +151,11 @@ export default function Ga4PerformancePage() {
         </div>
       </div>
 
-      {connectedClients.length === 0 && !loading && (
+      {/* Show splash until the clients list has loaded so the empty state
+          doesn't flash before we know whether any client has GA4 connected. */}
+      {!clientsLoaded && <RocketSplash />}
+
+      {clientsLoaded && connectedClients.length === 0 && !loading && (
         <div className="od-box od-box--muted">
           <div className="od-box__body" style={{ padding: "40px 20px", textAlign: "center" }}>
             <p style={{ color: "var(--theme-elevation-400)", fontSize: 14, margin: 0 }}>
@@ -163,7 +169,7 @@ export default function Ga4PerformancePage() {
         </div>
       )}
 
-      {loading && !data && <RocketSplash />}
+      {clientsLoaded && loading && !data && <RocketSplash />}
 
       {data && !data.ga4Connected && (
         <div className="od-box od-box--muted">
