@@ -29,22 +29,22 @@ const NavigationRecovery: React.FC<{ children: React.ReactNode }> = ({ children 
       const isPayloadApi = url.includes('/api/')
 
       // ── Session expiry detection ─────────────────────────────
-      // When Payload API calls return 401, the session has expired.
-      // Redirect to login rather than showing a broken sidebar.
-      if (response.status === 401 && isPayloadApi) {
-        // Ignore login endpoint itself and public endpoints
-        const isLoginEndpoint = url.includes('/api/users/login') || url.includes('/api/audit-auth')
-        if (!isLoginEndpoint) {
-          const key = 'nav-recovery:session-expired'
-          const lastRedirect = sessionStorage.getItem(key)
-          const now = Date.now()
+      // Only `/api/users/me` returning 401 reliably means the session has
+      // expired. Other endpoints can return 401 for permission reasons
+      // (per-user featureAccess), so treating those as expiry would
+      // wrongly redirect users away from pages they're allowed to see.
+      const isMeEndpoint =
+        url.includes('/api/users/me') || url.endsWith('/users/me')
+      if (response.status === 401 && isPayloadApi && isMeEndpoint) {
+        const key = 'nav-recovery:session-expired'
+        const lastRedirect = sessionStorage.getItem(key)
+        const now = Date.now()
 
-          if (!lastRedirect || now - Number(lastRedirect) > 30000) {
-            sessionStorage.setItem(key, String(now))
-            console.warn('[NavigationRecovery] Session expired (401), redirecting to login.')
-            window.location.href = '/admin/login'
-            return response
-          }
+        if (!lastRedirect || now - Number(lastRedirect) > 30000) {
+          sessionStorage.setItem(key, String(now))
+          console.warn('[NavigationRecovery] Session expired (401 on /users/me), redirecting to login.')
+          window.location.href = '/admin/login'
+          return response
         }
       }
 
