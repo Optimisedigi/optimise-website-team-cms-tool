@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const NegativeKeywordLists: CollectionConfig = {
   slug: "negative-keyword-lists",
@@ -7,13 +8,14 @@ export const NegativeKeywordLists: CollectionConfig = {
     group: "Growth Tools",
     useAsTitle: "name",
     defaultColumns: ["client", "name", "scope", "keywordCount", "isActive"],
+    hidden: hideUnlessFeature("negative-keyword-lists"),
   },
   defaultSort: "client",
   access: {
-    read: ({ req }) => !!req.user,
-    create: ({ req }) => !!req.user,
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => !!req.user,
+    read: canAccess("negative-keyword-lists"),
+    create: canAccess("negative-keyword-lists"),
+    update: canAccess("negative-keyword-lists"),
+    delete: adminOnlyDelete,
   },
   hooks: {
     beforeChange: [

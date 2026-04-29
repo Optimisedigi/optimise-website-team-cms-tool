@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const MeetingSchedulers: CollectionConfig = {
   slug: "meeting-schedulers",
@@ -14,12 +15,13 @@ export const MeetingSchedulers: CollectionConfig = {
     description: "Schedule meetings with multiple client contacts by finding overlapping availability",
     defaultColumns: ["title", "client", "status", "dateRangeStart", "createdAt"],
     components: {},
+    hidden: hideUnlessFeature("meeting-schedulers"),
   },
   access: {
-    read: ({ req }) => !!req.user,
-    create: ({ req }) => !!req.user,
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => req.user?.role === "admin",
+    read: canAccess("meeting-schedulers"),
+    create: canAccess("meeting-schedulers"),
+    update: canAccess("meeting-schedulers"),
+    delete: adminOnlyDelete,
   },
   hooks: {
     beforeChange: [

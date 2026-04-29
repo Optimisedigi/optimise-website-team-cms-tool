@@ -41,6 +41,13 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Dashboard contains agency-wide data — only admins, or users explicitly
+  // granted the `nav:dashboard` feature, may read it.
+  const { userHasFeature } = await import("@/lib/access");
+  if (!userHasFeature(user, "nav:dashboard")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   // Read configurable API cost rates from global, fallback to defaults
   let COST_PER_AUD = { ...DEFAULT_COST_PER_AUD };
   try {

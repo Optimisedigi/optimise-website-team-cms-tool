@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 export const CostCategories: CollectionConfig = {
   slug: "cost-categories",
@@ -7,12 +8,13 @@ export const CostCategories: CollectionConfig = {
     group: "Finance",
     useAsTitle: "name",
     defaultColumns: ["name", "color", "budget", "isActive"],
+    hidden: hideUnlessFeature("cost-categories"),
   },
   access: {
-    read: ({ req }) => !!req.user,
-    create: ({ req }) => !!req.user,
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => req.user?.role === "admin",
+    read: canAccess("cost-categories"),
+    create: canAccess("cost-categories"),
+    update: canAccess("cost-categories"),
+    delete: adminOnlyDelete,
   },
   fields: [
     {

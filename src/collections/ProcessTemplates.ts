@@ -4,6 +4,7 @@ import type {
   CollectionAfterChangeHook,
 } from "payload";
 import { logActivity } from "../lib/activity-log";
+import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 const generateUniqueSlug: CollectionBeforeChangeHook = async ({
   data,
@@ -82,15 +83,13 @@ export const ProcessTemplates: CollectionConfig = {
     group: "Clients",
     description:
       "Standardised client process templates from lead to ongoing management",
+    hidden: hideUnlessFeature("process-templates"),
   },
   access: {
-    read: ({ req }) => !!req.user,
-    create: ({ req }) => !!req.user,
-    update: ({ req }) => !!req.user,
-    delete: ({ req }) => {
-      if (!req.user) return false;
-      return req.user.role === "admin";
-    },
+    read: canAccess("process-templates"),
+    create: canAccess("process-templates"),
+    update: canAccess("process-templates"),
+    delete: adminOnlyDelete,
   },
   defaultSort: "name",
   hooks: {
