@@ -6,9 +6,8 @@ describe("Users Collection", () => {
     expect(Users.slug).toBe("users");
   });
 
-  it("should have auth enabled with API key and max login attempts", () => {
+  it("should have auth enabled with max login attempts (no per-user API key)", () => {
     expect(Users.auth).toEqual({
-      useAPIKey: true,
       maxLoginAttempts: 5,
     });
   });

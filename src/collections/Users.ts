@@ -4,7 +4,10 @@ import { FEATURE_KEYS, adminOnlyField } from "../lib/access";
 export const Users: CollectionConfig = {
   slug: "users",
   auth: {
-    useAPIKey: true,
+    // Per-user API key feature is intentionally OFF — nothing in this
+    // codebase consumes Payload's per-user API keys. Service-to-service
+    // calls use the shared AUDIT_API_KEY env var checked via the
+    // x-api-key header (see src/collections/api-key-access.ts).
     maxLoginAttempts: 5,
   },
   admin: {

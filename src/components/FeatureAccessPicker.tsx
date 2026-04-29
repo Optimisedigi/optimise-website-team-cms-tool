@@ -16,12 +16,16 @@
  */
 
 import { useField, useAllFormFields } from '@payloadcms/ui'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   FEATURE_KEYS,
   computeAutoGrants,
   type FeatureSlug,
 } from '../lib/access'
+
+// In-memory cache so re-renders don't re-fetch the same profiles. Cleared
+// on full page reload, which is fine for an admin tool.
+const PROFILE_FEATURE_CACHE = new Map<string | number, string[]>()
 
 // Group definitions for display. Order = render order.
 const GROUPS: { label: string; values: FeatureSlug[] }[] = [
@@ -111,13 +115,81 @@ const FeatureAccessPicker = (props: any) => {
     [value],
   )
 
-  // Permission profile features: read populated profiles from the form. Each
-  // row in the relationship hasMany is at `permissionProfiles.0`, etc. When
-  // depth>=1 the picker selects render the populated docs; here we just have
-  // their IDs in the form state so we have to fetch the profiles separately.
-  // For now (until the picker fetches profiles), only consider explicit grants.
-  // TODO: fetch profile features and include in `effective` once profiles ship.
-  const profileFeatures = useMemo(() => new Set<string>(), [allFields])
+  // Read the currently selected permission profile IDs from the form. The
+  // hasMany relationship stores them as { value, relationTo } objects or as
+  // raw ids depending on Payload version — normalise both shapes.
+  const profileIds = useMemo<(string | number)[]>(() => {
+    const field = (allFields as any)?.permissionProfiles
+    const raw = field?.value
+    if (!Array.isArray(raw)) return []
+    return raw
+      .map((item: any) =>
+        item && typeof item === 'object' && 'value' in item ? item.value : item,
+      )
+      .filter((id: any) => id != null)
+  }, [allFields])
+
+  // Fetch the `features` array for every selected profile. Cached in module
+  // scope so re-renders don't refetch. The picker re-runs whenever profileIds
+  // change.
+  const [profileFeaturesById, setProfileFeaturesById] = useState<
+    Record<string, string[]>
+  >({})
+
+  useEffect(() => {
+    let cancelled = false
+    const idsToFetch = profileIds.filter(
+      (id) => !PROFILE_FEATURE_CACHE.has(id),
+    )
+
+    if (idsToFetch.length === 0) {
+      // All cached — just project the cache into local state.
+      const next: Record<string, string[]> = {}
+      for (const id of profileIds) {
+        next[String(id)] = PROFILE_FEATURE_CACHE.get(id) || []
+      }
+      setProfileFeaturesById(next)
+      return
+    }
+
+    Promise.all(
+      idsToFetch.map((id) =>
+        fetch(`/api/permission-profiles/${id}?depth=0`, {
+          credentials: 'include',
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((doc) => {
+            const features: string[] = Array.isArray(doc?.features)
+              ? doc.features
+              : []
+            PROFILE_FEATURE_CACHE.set(id, features)
+          })
+          .catch(() => {
+            PROFILE_FEATURE_CACHE.set(id, [])
+          }),
+      ),
+    ).then(() => {
+      if (cancelled) return
+      const next: Record<string, string[]> = {}
+      for (const id of profileIds) {
+        next[String(id)] = PROFILE_FEATURE_CACHE.get(id) || []
+      }
+      setProfileFeaturesById(next)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [profileIds.join(',')])
+
+  const profileFeatures = useMemo(() => {
+    const s = new Set<string>()
+    for (const id of profileIds) {
+      const feats = profileFeaturesById[String(id)] || []
+      for (const f of feats) s.add(f)
+    }
+    return s
+  }, [profileIds, profileFeaturesById])
 
   const explicitPlusProfiles = useMemo(() => {
     const s = new Set<string>(explicit)
