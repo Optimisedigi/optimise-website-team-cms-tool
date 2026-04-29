@@ -49,3 +49,6 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# agent-local scratch (plans, skills, notes)
+.gg/
