@@ -723,9 +723,15 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
           only; the chart is pre-aggregated server-side and intentionally
           unfiltered. */}
       <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-4">
-          {METRIC_LABELS[chartMetric]} vs Avg CPC
-        </h2>
+        <div className="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
+            {METRIC_LABELS[chartMetric]} vs Avg CPC
+          </h2>
+        </div>
+        <p className="text-xs text-slate-500 mb-4 leading-snug">
+          This trend covers <span className="font-medium text-slate-600">all keywords across the account</span>.
+          The campaign / ad group filter below only changes the breakdown cards and keywords table — not this chart.
+        </p>
         {chartPoints.length > 0 ? (
           <DualAxisChart points={chartPoints} metric={chartMetric} />
         ) : (
@@ -854,14 +860,14 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
               <tbody className="divide-y divide-slate-50">
                 {sortedKeywords.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-2.5 py-8 text-center text-xs text-slate-400">
+                    <td colSpan={9} className="px-2.5 py-6 text-center text-xs text-slate-400">
                       No {keywordFilter === "brand" ? "brand" : "generic"} keywords found
                     </td>
                   </tr>
                 )}
                 {sortedKeywords.map((kw, i) => (
                   <tr key={`${kw.keywordText}-${i}`} className="hover:bg-slate-50">
-                    <td className="px-2.5 py-1 font-medium text-slate-700 max-w-[220px] truncate" title={kw.keywordText}>
+                    <td className="px-2.5 py-0.5 font-medium text-slate-700 max-w-[220px] truncate" title={kw.keywordText}>
                       <span className="inline-flex items-center gap-1">
                         {kw.keywordText}
                         {kw.finalUrl && (
@@ -879,10 +885,10 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
                         )}
                       </span>
                     </td>
-                    <td className="px-2.5 py-1 text-center">
+                    <td className="px-2.5 py-0.5 text-center">
                       {kw.qualityScore != null ? (
                         <span
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
+                          className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold ${
                             kw.qualityScore >= 7
                               ? "bg-emerald-100 text-emerald-700"
                               : kw.qualityScore >= 5
@@ -896,19 +902,19 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
                         <span className="text-slate-300">{"\u2014"}</span>
                       )}
                     </td>
-                    <td className="px-2.5 py-1 text-center">
+                    <td className="px-2.5 py-0.5 text-center">
                       <RatingCell rating={kw.creativeQuality} />
                     </td>
-                    <td className="px-2.5 py-1 text-center">
+                    <td className="px-2.5 py-0.5 text-center">
                       <RatingCell rating={kw.landingPageQuality} />
                     </td>
-                    <td className="px-2.5 py-1 text-right text-slate-600 font-medium">
+                    <td className="px-2.5 py-0.5 text-right text-slate-600 font-medium">
                       {formatDollars(kw.spend)}
                     </td>
-                    <td className="px-2.5 py-1 text-right text-slate-600">
+                    <td className="px-2.5 py-0.5 text-right text-slate-600">
                       {(kw.clicks ?? 0).toLocaleString()}
                     </td>
-                    <td className="px-2.5 py-1 text-center text-slate-600">
+                    <td className="px-2.5 py-0.5 text-center text-slate-600">
                       {kw.conversions > 0 ? (
                         <span className="font-medium text-emerald-600">
                           {Math.round(kw.conversions)}
@@ -917,10 +923,10 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
                         <span className="text-slate-300">0</span>
                       )}
                     </td>
-                    <td className="px-2.5 py-1 text-right text-slate-600">
+                    <td className="px-2.5 py-0.5 text-right text-slate-600">
                       {formatDollars(kw.costPerConversion)}
                     </td>
-                    <td className="px-2.5 py-1 text-right text-slate-600">
+                    <td className="px-2.5 py-0.5 text-right text-slate-600">
                       ${kw.avgCpc.toFixed(2)}
                     </td>
                   </tr>
