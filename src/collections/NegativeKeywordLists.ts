@@ -187,5 +187,14 @@ export const NegativeKeywordLists: CollectionConfig = {
         description: "Inactive lists are excluded from the Google Ads sync",
       },
     },
+    {
+      name: "source",
+      type: "text",
+      defaultValue: "nlb",
+      admin: {
+        readOnly: true,
+        description: "Where this list originated: 'nlb' (Negative List Builder) or 'deep_dive' (Keyword Deep Dive)",
+      },
+    },
   ],
 };

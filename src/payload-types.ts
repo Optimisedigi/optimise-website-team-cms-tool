@@ -2954,6 +2954,10 @@ export interface NegativeKeywordList {
    * Inactive lists are excluded from the Google Ads sync
    */
   isActive?: boolean | null;
+  /**
+   * Where this list originated: 'nlb' (Negative List Builder) or 'deep_dive' (Keyword Deep Dive)
+   */
+  source?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3912,9 +3916,6 @@ export interface User {
   setupCompleted?: boolean | null;
   updatedAt: string;
   createdAt: string;
-  enableAPIKey?: boolean | null;
-  apiKey?: string | null;
-  apiKeyIndex?: string | null;
   email: string;
   resetPasswordToken?: string | null;
   resetPasswordExpiration?: string | null;
@@ -6547,6 +6548,7 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
       };
   keywordCount?: T;
   isActive?: T;
+  source?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -6723,9 +6725,6 @@ export interface UsersSelect<T extends boolean = true> {
   setupCompleted?: T;
   updatedAt?: T;
   createdAt?: T;
-  enableAPIKey?: T;
-  apiKey?: T;
-  apiKeyIndex?: T;
   email?: T;
   resetPasswordToken?: T;
   resetPasswordExpiration?: T;

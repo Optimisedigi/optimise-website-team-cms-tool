@@ -68,6 +68,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
     limit: 1,
     overrideAccess: true,
     select: {
+      id: true,
       name: true,
       clientPin: true,
       googleAdsCustomerId: true,
@@ -80,6 +81,16 @@ export default async function GoogleDashboardPage({ params }: Props) {
   if (!client || !client.googleAdsCustomerId) {
     notFound();
   }
+
+  // Load any existing deep-dive keyword selections for this client
+  const nklResult = await payload.find({
+    collection: "negative-keyword-lists",
+    where: { client: { equals: client.id }, source: { equals: "deep_dive" } },
+    limit: 1,
+    overrideAccess: true,
+  });
+  const initialKeywordSelections: string[] =
+    (nklResult.docs[0] as any)?.keywords?.map((k: any) => k.keyword) ?? [];
 
   // Check if user has a valid dashboard session (HMAC-signed cookie)
   const cookieStore = await cookies();
@@ -123,6 +134,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
   return (
     <DashboardClient
       slug={slug}
+      clientId={client.id as string}
       clientName={client.name}
       isAuthenticated={isAuthenticated}
       initialData={initialData}
@@ -130,6 +142,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
       initialQualityData={initialQualityData}
       brandKeywords={client.brandKeywords || ""}
       conversionActions={client.dashboardConversionActions || ""}
+      initialKeywordSelections={initialKeywordSelections}
     />
   );
 }

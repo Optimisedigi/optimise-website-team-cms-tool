@@ -7,6 +7,7 @@ import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData } from "@/li
 
 interface DashboardClientProps {
   slug: string;
+  clientId: string;
   clientName: string;
   isAuthenticated: boolean;
   initialData: GoogleAdsDashboardData | null;
@@ -14,9 +15,10 @@ interface DashboardClientProps {
   initialQualityData?: GoogleAdsDashboardQualityData | null;
   brandKeywords?: string;
   conversionActions?: string;
+  initialKeywordSelections?: string[];
 }
 
-export function DashboardClient({ slug, clientName, isAuthenticated, initialData, initialError, initialQualityData, brandKeywords, conversionActions }: DashboardClientProps) {
+export function DashboardClient({ slug, clientId, clientName, isAuthenticated, initialData, initialError, initialQualityData, brandKeywords, conversionActions, initialKeywordSelections }: DashboardClientProps) {
   const [authed, setAuthed] = useState(isAuthenticated);
   const [data, setData] = useState<GoogleAdsDashboardData | null>(initialData);
   const [error, setError] = useState(initialError || "");
@@ -75,7 +77,7 @@ export function DashboardClient({ slug, clientName, isAuthenticated, initialData
 
   // Dashboard
   if (data) {
-    return <GoogleAdsDashboard data={data} initialQualityData={initialQualityData ?? undefined} brandKeywords={brandKeywords} conversionActions={conversionActions} />;
+    return <GoogleAdsDashboard data={data} initialQualityData={initialQualityData ?? undefined} brandKeywords={brandKeywords} conversionActions={conversionActions} clientId={clientId} initialKeywordSelections={initialKeywordSelections} />;
   }
 
   return null;

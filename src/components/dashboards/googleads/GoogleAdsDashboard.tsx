@@ -19,6 +19,8 @@ interface GoogleAdsDashboardProps {
   initialQualityData?: GoogleAdsDashboardQualityData;
   brandKeywords?: string;
   conversionActions?: string;
+  clientId?: string;
+  initialKeywordSelections?: string[];
 }
 
 function timeAgo(iso: string): string {
@@ -44,7 +46,7 @@ const RANGE_OPTIONS = [
 
 type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress";
 
-export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions }: GoogleAdsDashboardProps) {
+export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions, clientId, initialKeywordSelections }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
   const [compareMode, setCompareMode] = useState<"month" | "year">("year");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -516,6 +518,8 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               irrelevantTerms={data.irrelevantTerms}
               customerId={data.customerId}
               slug={data.slug}
+              clientId={clientId}
+              initialKeywordSelections={initialKeywordSelections}
             />
           )}
 

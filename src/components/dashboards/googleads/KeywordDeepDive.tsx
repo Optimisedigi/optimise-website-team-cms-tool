@@ -48,6 +48,8 @@ interface KeywordDeepDiveProps {
   irrelevantTerms: GoogleAdsDashboardSearchTerm[];
   customerId: string;
   slug?: string;
+  clientId?: string;
+  initialKeywordSelections?: string[];
 }
 
 export function KeywordDeepDive({
@@ -56,6 +58,8 @@ export function KeywordDeepDive({
   irrelevantTerms,
   customerId,
   slug,
+  clientId,
+  initialKeywordSelections,
 }: KeywordDeepDiveProps) {
   const storageKey = `dashboard-keep-terms:${customerId}`;
 
@@ -64,12 +68,13 @@ export function KeywordDeepDive({
 
   // Negative keyword selection state
   const [selectedNegatives, setSelectedNegatives] = useState<Set<string>>(new Set());
-  const [applyingNegatives, setApplyingNegatives] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [negativeResult, setNegativeResult] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
 
+  // Load kept terms from localStorage (unchanged)
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey);
@@ -78,6 +83,24 @@ export function KeywordDeepDive({
       // ignore
     }
   }, [storageKey]);
+
+  // Load initial saved selections (server-side prop, or belt-and-suspenders fetch)
+  useEffect(() => {
+    if (initialKeywordSelections?.length) {
+      setSelectedNegatives(new Set(initialKeywordSelections));
+      return;
+    }
+    if (!clientId || !slug) return;
+    fetch(
+      `/api/dashboard/keyword-selections?slug=${encodeURIComponent(slug)}&clientId=${encodeURIComponent(clientId)}`,
+      { credentials: "include" }
+    )
+      .then((r) => (r.ok ? r.json() : { keywords: [] }))
+      .then((d) => {
+        if (d.keywords?.length) setSelectedNegatives(new Set(d.keywords));
+      })
+      .catch(() => {});
+  }, [clientId, slug, initialKeywordSelections]);
 
   function toggleKeep(term: string) {
     setKeptTerms((prev) => {
@@ -120,45 +143,34 @@ export function KeywordDeepDive({
   const { onCheckboxChange: shiftSelectBudgetWaster } = useShiftSelect(budgetWasterTerms, selectedNegatives, setSelectedNegatives);
   const { onCheckboxChange: shiftSelectIrrelevant } = useShiftSelect(irrelevantTermIds, selectedNegatives, setSelectedNegatives);
 
-  const applyNegativeKeywords = useCallback(async () => {
-    if (selectedNegatives.size === 0 || !slug) return;
-    setApplyingNegatives(true);
+  const saveSelections = useCallback(async () => {
+    if (selectedNegatives.size === 0 || !clientId || !slug) return;
+    setSaving(true);
     setNegativeResult(null);
     try {
-      const keywords = Array.from(selectedNegatives).map((term) => ({
-        term,
-        matchType: "EXACT",
-      }));
-      const res = await fetch("/api/dashboard/negative-keywords", {
+      const res = await fetch("/api/dashboard/keyword-selections", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, customerId, keywords }),
+        body: JSON.stringify({
+          clientId,
+          slug,
+          selectedTerms: Array.from(selectedNegatives),
+        }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        const count = data.successCount ?? selectedNegatives.size;
-        setNegativeResult({
-          type: "success",
-          message: `Successfully added ${count} negative keyword${count !== 1 ? "s" : ""}`,
-        });
-        setSelectedNegatives(new Set());
-      } else {
-        const errData = await res.json().catch(() => ({ error: "Unknown error" }));
-        setNegativeResult({
-          type: "error",
-          message: errData.error || `Failed (${res.status})`,
-        });
-      }
-    } catch (err) {
+      const data = await res.json();
       setNegativeResult({
-        type: "error",
-        message: (err as Error).message || "Network error",
+        type: res.ok ? "success" : "error",
+        message: res.ok
+          ? `${data.count} term${data.count !== 1 ? "s" : ""} saved`
+          : data.error || "Save failed",
       });
+    } catch {
+      setNegativeResult({ type: "error", message: "Network error" });
     } finally {
-      setApplyingNegatives(false);
+      setSaving(false);
     }
-  }, [selectedNegatives, slug, customerId]);
+  }, [selectedNegatives, clientId, slug]);
 
   const visibleConverters = showAllConverters
     ? topConverters
@@ -174,7 +186,7 @@ export function KeywordDeepDive({
   return (
     <div className="space-y-6">
       {/* Negative keyword action bar */}
-      {selectedCount > 0 && slug && (
+      {selectedCount > 0 && clientId && (
         <div className="sticky top-0 z-20 rounded-xl bg-red-50 border border-red-200 shadow-sm px-5 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-700 text-sm font-bold">
@@ -197,11 +209,11 @@ export function KeywordDeepDive({
               Clear
             </button>
             <button
-              onClick={applyNegativeKeywords}
-              disabled={applyingNegatives}
+              onClick={saveSelections}
+              disabled={saving}
               className="px-4 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
             >
-              {applyingNegatives ? "Applying..." : "Add as Negatives"}
+              {saving ? "Saving..." : "Save Selection"}
             </button>
           </div>
         </div>
@@ -265,7 +277,7 @@ export function KeywordDeepDive({
               Low-Converting Keywords
             </h2>
           </div>
-          {slug && budgetWasters.length > 0 && (
+          {clientId && budgetWasters.length > 0 && (
             <button
               onClick={() => selectAllNegatives(budgetWasters)}
               className="text-xs font-medium text-red-600 hover:text-red-700 transition-colors"
@@ -288,7 +300,7 @@ export function KeywordDeepDive({
             <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="border-b border-slate-200">
-                  {slug && (
+                  {clientId && (
                     <th className="py-2 px-3 text-left font-medium text-xs uppercase tracking-wider text-slate-500 w-10">
                       <span className="sr-only">Negative</span>
                       <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -324,7 +336,7 @@ export function KeywordDeepDive({
                           : "hover:bg-slate-50"
                       }`}
                     >
-                      {slug && (
+                      {clientId && (
                         <td className="py-2.5 px-3">
                           <input
                             type="checkbox"
@@ -374,7 +386,7 @@ export function KeywordDeepDive({
               Possibly Irrelevant
             </h2>
           </div>
-          {slug && irrelevantTerms.length > 0 && (
+          {clientId && irrelevantTerms.length > 0 && (
             <button
               onClick={() => selectAllNegatives(irrelevantTerms)}
               className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors"
@@ -401,7 +413,7 @@ export function KeywordDeepDive({
                   <th className="py-2 px-3 text-left font-medium text-xs uppercase tracking-wider text-slate-500 w-12">
                     Keep
                   </th>
-                  {slug && (
+                  {clientId && (
                     <th className="py-2 px-3 text-left font-medium text-xs uppercase tracking-wider text-slate-500 w-10">
                       <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -447,7 +459,7 @@ export function KeywordDeepDive({
                           className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                         />
                       </td>
-                      {slug && (
+                      {clientId && (
                         <td className="py-2.5 px-3">
                           <input
                             type="checkbox"
