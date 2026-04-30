@@ -92,10 +92,14 @@ function ImpressionKpiCard({
   description: string;
   color: "blue" | "amber" | "red";
 }) {
-  const colorMap = {
-    blue: "border-blue-200 bg-blue-50",
-    amber: "border-amber-200 bg-amber-50",
-    red: "border-red-200 bg-red-50",
+  // Dimensions match the Overview KpiCard / Progress StatCard so all rows
+  // sitting directly under the tabs feel like the same component. Colour is
+  // preserved as a top accent strip + text tint so the semantic blue/amber/
+  // red distinction is still readable at a glance.
+  const accentMap = {
+    blue: "#3b82f6",
+    amber: "#f59e0b",
+    red: "#ef4444",
   };
   const textMap = {
     blue: "text-blue-700",
@@ -104,13 +108,30 @@ function ImpressionKpiCard({
   };
   return (
     <div
-      className={`rounded-xl border p-5 ${colorMap[color]}`}
+      className="rounded-xl bg-white border border-slate-200 shadow-sm px-4 text-center relative overflow-hidden"
+      style={{ paddingTop: 3, paddingBottom: 3 }}
+      title={description}
     >
-      <p className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-1">
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-[2px]"
+        style={{ background: accentMap[color] }}
+      />
+      <p
+        className="text-xs font-medium uppercase tracking-wider text-slate-500"
+        style={{ lineHeight: 1.4 }}
+      >
         {label}
       </p>
-      <p className={`text-2xl font-bold ${textMap[color]}`}>{value}</p>
-      <p className="text-xs text-slate-500 mt-1">{description}</p>
+      <p
+        className={`font-bold ${textMap[color]}`}
+        style={{ fontSize: 20, lineHeight: 1, paddingTop: 4 }}
+      >
+        {value}
+      </p>
+      <p className="text-[10px] text-slate-500" style={{ lineHeight: 1.4 }}>
+        {description}
+      </p>
     </div>
   );
 }
@@ -304,24 +325,24 @@ export function CompetitorAnalysis({
 
   return (
     <div className="space-y-6">
-      {/* Impression Share KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Impression Share KPIs — compact format matches the Overview tab. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <ImpressionKpiCard
-          label="Your Search Visibility"
+          label="Search Visibility"
           value={pct(impressionShare.overallVisibility)}
-          description={`You appeared in ${pct(impressionShare.overallVisibility)} of all searches where your ads were eligible`}
+          description="of eligible searches you appeared in"
           color="blue"
         />
         <ImpressionKpiCard
-          label="Missed Due to Budget"
+          label="Missed — Budget"
           value={pct(impressionShare.budgetLost)}
-          description={`You missed ${pct(impressionShare.budgetLost)} of searches because your daily budget ran out before the day ended`}
+          description="missed because daily budget ran out"
           color="amber"
         />
         <ImpressionKpiCard
-          label="Missed Due to Ad Rank"
+          label="Missed — Ad Rank"
           value={pct(impressionShare.rankLost)}
-          description={`You missed ${pct(impressionShare.rankLost)} of searches because competitors had higher bids or better ad quality`}
+          description="missed to higher bids or better ad quality"
           color="red"
         />
       </div>
