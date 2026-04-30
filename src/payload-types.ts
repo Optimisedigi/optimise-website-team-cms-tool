@@ -106,6 +106,7 @@ export interface Config {
     'gsc-daily': GscDaily;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudget;
     'google-ads-ad-extensions': GoogleAdsAdExtension;
+    'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCache;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -164,6 +165,7 @@ export interface Config {
     'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudgetsSelect<false> | GoogleAdsCampaignBudgetsSelect<true>;
     'google-ads-ad-extensions': GoogleAdsAdExtensionsSelect<false> | GoogleAdsAdExtensionsSelect<true>;
+    'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCacheSelect<false> | NegativeKeywordAvoidedSpendCacheSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -2954,6 +2956,10 @@ export interface NegativeKeywordList {
          * Flagged by client for removal review
          */
         flaggedForRemoval?: boolean | null;
+        /**
+         * When this keyword became a negative. Used for the avoided-spend dashboard so we don't credit spend from before it was blocked.
+         */
+        negatedAt?: string | null;
         id?: string | null;
       }[]
     | null;
@@ -5201,6 +5207,31 @@ export interface GoogleAdsAdExtension {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "negative-keyword-avoided-spend-cache".
+ */
+export interface NegativeKeywordAvoidedSpendCache {
+  id: number;
+  client: number | Client;
+  keyword: string;
+  matchType: 'EXACT' | 'PHRASE' | 'BROAD';
+  /**
+   * YYYY-MM
+   */
+  yearMonth: string;
+  spend: number;
+  /**
+   * True once the month is in the past — never refetched.
+   */
+  isFinal?: boolean | null;
+  /**
+   * ISO timestamp of the last fetch from Growth Tools.
+   */
+  fetchedAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -5378,6 +5409,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'google-ads-ad-extensions';
         value: number | GoogleAdsAdExtension;
+      } | null)
+    | ({
+        relationTo: 'negative-keyword-avoided-spend-cache';
+        value: number | NegativeKeywordAvoidedSpendCache;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -6618,6 +6653,7 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
         keyword?: T;
         matchType?: T;
         flaggedForRemoval?: T;
+        negatedAt?: T;
         id?: T;
       };
   keywordCount?: T;
@@ -6996,6 +7032,21 @@ export interface GoogleAdsAdExtensionsSelect<T extends boolean = true> {
       };
   status?: T;
   deployedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "negative-keyword-avoided-spend-cache_select".
+ */
+export interface NegativeKeywordAvoidedSpendCacheSelect<T extends boolean = true> {
+  client?: T;
+  keyword?: T;
+  matchType?: T;
+  yearMonth?: T;
+  spend?: T;
+  isFinal?: T;
+  fetchedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

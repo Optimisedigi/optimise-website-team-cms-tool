@@ -125,6 +125,26 @@ export interface GoogleAdsDashboardData {
   workDone: Array<{ description: string; date: string }>;
 }
 
+/** Avoided Spend (negative keyword value tracking) */
+
+export interface GoogleAdsDashboardAvoidedSpend {
+  monthsBack: number;
+  /** YYYY-MM strings, oldest first. Length = monthsBack. */
+  months: string[];
+  perKeyword: Array<{
+    text: string;
+    matchType: "EXACT" | "PHRASE" | "BROAD";
+    negatedSince: string;
+    monthlySpend: Record<string, number>;
+  }>;
+  /** Sum across keywords for each month (post-dedup). */
+  totals: Record<string, number>;
+  /** Convenience sum across all months. */
+  cumulativeAvoided: number;
+  /** Distinct (keyword, matchType) count after dedup. */
+  keywordCount: number;
+}
+
 /** Top Ads type */
 
 export interface GoogleAdsDashboardTopAd {

@@ -5,12 +5,21 @@ import type {
   GoogleAdsDashboardMonthly,
   GoogleAdsDashboardSearchTerm,
   GoogleAdsDashboardKpis,
+  GoogleAdsDashboardAvoidedSpend,
 } from "@/lib/dashboard-types";
 
 interface ProgressTabProps {
   monthlyTrend: GoogleAdsDashboardMonthly[];
   budgetWasters: GoogleAdsDashboardSearchTerm[];
+  /** Terms the team or client flagged as irrelevant (deep-dive submits, NKL
+   *  members surfaced as having recent spend). Used by the Keyword Relevancy
+   *  metric — spend on these terms counts against the relevancy rate. */
+  irrelevantTerms: GoogleAdsDashboardSearchTerm[];
   kpis: GoogleAdsDashboardKpis;
+  /** "Estimated Avoided Spend" data for the negative keyword value section.
+   *  Null until the dashboard fetch resolves; gated on clientId + customerId
+   *  being present. */
+  avoidedSpend?: GoogleAdsDashboardAvoidedSpend | null;
 }
 
 type ProgressMetric = "spend" | "conversions" | "cpa" | "wasteRate";
@@ -96,7 +105,10 @@ function TrendChart({ points, metrics }: TrendChartProps) {
   const soloConfig = soloMetric ? METRIC_CONFIG[soloMetric] : null;
 
   const height = 260;
-  const padTop = 30;
+  // Extra top padding when multiple metrics are overlaid — each additional
+  // line gets a 12px vertical offset on its labels so they don't overlap
+  // at the same x position. Reserve space for that.
+  const padTop = 30 + Math.max(0, metrics.length - 1) * 12;
   const padBottom = 40;
   const padLeft = isSingle ? 55 : 20; // no Y labels when overlaying multiple
   const padRight = 20;
@@ -188,12 +200,28 @@ function TrendChart({ points, metrics }: TrendChartProps) {
             />
           )}
 
-          {/* Lines + dots, one per selected metric */}
-          {metrics.map((m) => {
+          {/* Lines + dots + value labels, one set per selected metric.
+              Label cadence depends on how many metrics + points are visible —
+              dense charts only label every 2nd or 3rd point so adjacent labels
+              don't overlap. Single-metric mode always labels every point. */}
+          {metrics.map((m, metricIndex) => {
             const config = METRIC_CONFIG[m];
             const linePath = points
               .map((p, i) => `${toX(i)},${toY(m, p[m])}`)
               .join(" ");
+
+            // Figure out the labelling cadence (1 = every point, 2 = every
+            // other, etc). With wider charts we can fit more labels; with
+            // multiple metrics overlaid we need more space per label.
+            const approxLabelWidth = 40; // px — enough for "$12.4k" / "100%"
+            const slotsPerLabel = Math.max(
+              1,
+              Math.ceil((approxLabelWidth * metrics.length) / Math.max(xStep, 1)),
+            );
+            // In multi-metric mode, stagger labels so different metrics don't
+            // sit on top of each other vertically at the same x.
+            const labelOffset = -10 - metricIndex * 12;
+
             return (
               <g key={m}>
                 <polyline
@@ -204,22 +232,24 @@ function TrendChart({ points, metrics }: TrendChartProps) {
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
-                {points.map((p, i) => (
-                  <g key={`${m}-${i}`}>
-                    <circle
-                      cx={toX(i)}
-                      cy={toY(m, p[m])}
-                      r={3}
-                      fill="white"
-                      stroke={config.color}
-                      strokeWidth={2}
-                    />
-                    {/* Value labels: only in single-metric mode (multi gets crowded fast) */}
-                    {isSingle &&
-                      (i === 0 || i === points.length - 1 || i % 3 === 0) && (
+                {points.map((p, i) => {
+                  const isLastPoint = i === points.length - 1;
+                  const showLabel =
+                    i === 0 || isLastPoint || i % slotsPerLabel === 0;
+                  return (
+                    <g key={`${m}-${i}`}>
+                      <circle
+                        cx={toX(i)}
+                        cy={toY(m, p[m])}
+                        r={3}
+                        fill="white"
+                        stroke={config.color}
+                        strokeWidth={2}
+                      />
+                      {showLabel && (
                         <text
                           x={toX(i)}
-                          y={toY(m, p[m]) - 10}
+                          y={toY(m, p[m]) + labelOffset}
                           fontSize={10}
                           fill={config.color}
                           textAnchor="middle"
@@ -228,8 +258,9 @@ function TrendChart({ points, metrics }: TrendChartProps) {
                           {config.format(p[m])}
                         </text>
                       )}
-                  </g>
-                ))}
+                    </g>
+                  );
+                })}
               </g>
             );
           })}
@@ -253,6 +284,62 @@ function TrendChart({ points, metrics }: TrendChartProps) {
         </svg>
       )}
     </div>
+  );
+}
+
+// Hint icon — small (?) badge with a CSS tooltip that appears on hover
+// or focus. Uses inline styles + a `peer` pattern so it works without a
+// global style change. The native `title` attribute is unreliable (long
+// delay, varying browser styling, hidden on mobile), so we render our
+// own tooltip element styled to match the dashboard.
+function HintIcon({ text }: { text: string }) {
+  return (
+    <span
+      className="relative inline-flex items-center group"
+      style={{ marginLeft: 2 }}
+    >
+      <button
+        type="button"
+        aria-label={text}
+        tabIndex={0}
+        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate-300 bg-white text-slate-400 hover:text-slate-600 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-help"
+        style={{ fontSize: 9, lineHeight: 1, padding: 0 }}
+        onClick={(e) => e.preventDefault()}
+      >
+        ?
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute z-30 hidden group-hover:block group-focus-within:block left-1/2 -translate-x-1/2 normal-case tracking-normal"
+        style={{
+          bottom: "calc(100% + 6px)",
+          width: 240,
+          background: "#0f172a",
+          color: "#f1f5f9",
+          padding: "6px 10px",
+          borderRadius: 6,
+          fontSize: 11,
+          fontWeight: 400,
+          lineHeight: 1.45,
+          boxShadow: "0 4px 12px rgba(15, 23, 42, 0.15)",
+          textAlign: "left",
+          whiteSpace: "normal",
+        }}
+      >
+        {text}
+        <span
+          aria-hidden
+          className="absolute left-1/2 -translate-x-1/2 top-full"
+          style={{
+            width: 0,
+            height: 0,
+            borderLeft: "5px solid transparent",
+            borderRight: "5px solid transparent",
+            borderTop: "5px solid #0f172a",
+          }}
+        />
+      </span>
+    </span>
   );
 }
 
@@ -291,16 +378,7 @@ function StatCard({
         style={{ lineHeight: 1.4 }}
       >
         <span>{label}</span>
-        {hint && (
-          <span
-            title={hint}
-            aria-label={hint}
-            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate-300 text-slate-400 cursor-help"
-            style={{ fontSize: 9, lineHeight: 1 }}
-          >
-            ?
-          </span>
-        )}
+        {hint && <HintIcon text={hint} />}
       </p>
       <p
         className="font-bold text-slate-900"
@@ -330,7 +408,9 @@ const METRIC_ORDER: ProgressMetric[] = ["spend", "conversions", "cpa", "wasteRat
 export function ProgressTab({
   monthlyTrend,
   budgetWasters,
+  irrelevantTerms,
   kpis,
+  avoidedSpend,
 }: ProgressTabProps) {
   // Multi-select: 1–3 metrics. Default to conversions only (matches the
   // previous single-metric default). Clicking a chip toggles — unless that
@@ -355,6 +435,18 @@ export function ProgressTab({
   // Compute non-converting spend share per month (estimated using the latest
   // budget-wasters total ÷ that month's spend; capped at 100%).
   const totalWaste = budgetWasters.reduce((s, t) => s + t.spend, 0);
+
+  // Keyword Relevancy: % of spend on terms that either converted or have not
+  // been flagged as irrelevant by the team. Math:
+  //   relevancy = (totalSpend − sumSpendOf(irrelevantTerms)) / totalSpend
+  // Innocent until proven irrelevant — a non-converting term is NOT counted
+  // against relevancy until someone reviews and flags it.
+  const totalSpend = kpis.spend ?? 0;
+  const irrelevantSpend = irrelevantTerms.reduce((s, t) => s + t.spend, 0);
+  const relevancyRate =
+    totalSpend > 0
+      ? Math.max(0, Math.min(100, ((totalSpend - irrelevantSpend) / totalSpend) * 100))
+      : null;
 
   // Build chart data with computed CPA and estimated waste
   const chartData = useMemo(() => {
@@ -411,6 +503,13 @@ export function ProgressTab({
     ? changeLabel(kpis.conversions, kpis.yoyConversions)
     : null;
 
+  // Avoided spend — only render the section when there are negative keywords
+  // tracked for this client. If every month is $0 we still render but in a
+  // "tracking starts soon" state so the client knows the section exists and
+  // numbers will populate as Growth Tools accumulates spend signal.
+  const hasAvoidedSpendKeywords = !!avoidedSpend && avoidedSpend.keywordCount > 0;
+  const avoidedSpendAllZero = !!avoidedSpend && avoidedSpend.cumulativeAvoided === 0;
+
   return (
     <div className="space-y-6">
       {/* Summary Cards — sizing matches the Overview tab's KPI row. */}
@@ -427,10 +526,16 @@ export function ProgressTab({
           invertChange
         />
         <StatCard
-          label="Efficiency"
-          value={`${currentEfficiency.toFixed(1)} conv/$1k`}
-          change={prevEfficiency > 0 ? changeLabel(currentEfficiency, prevEfficiency) : null}
-          hint="Conversions generated per $1,000 spent. Higher is better. This is the inverse of CPA \u2014 it's not a waste rate."
+          label="Keyword Relevancy"
+          value={relevancyRate != null ? `${relevancyRate.toFixed(0)}%` : "\u2014"}
+          change={null}
+          hint={
+            relevancyRate == null
+              ? "Share of ad spend on search terms that are either converting or haven't been flagged as irrelevant. We'll start tracking this once spend data is available."
+              : irrelevantTerms.length === 0
+                ? "Share of ad spend on search terms that are either converting or haven't been flagged as irrelevant. No terms have been marked irrelevant yet \u2014 review the Keyword Deep Dive tab regularly to keep this rate honest."
+                : `Share of ad spend on search terms that are either converting or haven't been flagged as irrelevant. Currently $${Math.round(irrelevantSpend).toLocaleString()} across ${irrelevantTerms.length} term${irrelevantTerms.length !== 1 ? "s" : ""} is flagged irrelevant \u2014 ${(100 - relevancyRate).toFixed(0)}% of spend. To improve this: open the Keyword Deep Dive tab, flag irrelevant search terms for review, and the team will add them as negative keywords. Once excluded, those terms stop triggering ads and the rate rises in the next reporting period.`
+          }
         />
         <StatCard
           label="Non-Converting Spend"
@@ -442,6 +547,7 @@ export function ProgressTab({
 
       {/* Trend chart — multi-metric overlay (1–3). Each metric uses its own
           y-scale; legend below the chart shows the latest value per metric. */}
+      {/* (Avoided-spend section is rendered just below this chart — see below.) */}
       <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
           <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
@@ -521,6 +627,12 @@ export function ProgressTab({
         )}
       </div>
 
+      {/* Estimated Avoided Spend — negative keyword value tracking. Renders
+          below the multi-metric chart, above the 3-Month Progress section. */}
+      {hasAvoidedSpendKeywords && avoidedSpend && (
+        <AvoidedSpendSection data={avoidedSpend} allZero={avoidedSpendAllZero} />
+      )}
+
       {/* 3-Month Progress Comparison */}
       {threeMonthsAgo && latestMonth && (
         <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
@@ -598,7 +710,7 @@ export function ProgressTab({
           Key Insights
         </h2>
         <div className="space-y-2">
-          {generateInsights(monthlyTrend, budgetWasters, kpis, currentCpa, prevCpa, currentEfficiency, yoyConvChange).map(
+          {generateInsights(monthlyTrend, budgetWasters, kpis, currentCpa, prevCpa, currentEfficiency, yoyConvChange, relevancyRate, irrelevantSpend, irrelevantTerms.length, avoidedSpend ?? null).map(
             (insight, i) => (
               <div
                 key={i}
@@ -666,6 +778,235 @@ function ComparisonRow({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Estimated Avoided Spend section
+//
+// Renders the headline card + smooth cumulative area chart of monthly totals.
+// Hidden by parent when keywordCount = 0; when all months are $0 the chart
+// is replaced by a friendly "tracking starts soon" message so the section
+// still appears (so clients know it exists and what's coming).
+// ---------------------------------------------------------------------------
+
+const AVOIDED_SPEND_HINT =
+  "Calculated by looking at each keyword in your Negative Keyword List and asking Google Ads how much spend that exact term (or matching phrases, for phrase/broad negatives) would have triggered each month. We only count months where the keyword was actively blocked \u2014 no retroactive credit for months before it was added.";
+
+function formatDollars(v: number): string {
+  return `$${Math.round(v).toLocaleString()}`;
+}
+
+function AvoidedSpendSection({
+  data,
+  allZero,
+}: {
+  data: GoogleAdsDashboardAvoidedSpend;
+  allZero: boolean;
+}) {
+  const cumulative = formatDollars(data.cumulativeAvoided);
+  const kwCount = data.keywordCount;
+
+  // Build cumulative running totals month-by-month for the area chart.
+  const cumulativePoints = useMemo(() => {
+    let running = 0;
+    return data.months.map((m) => {
+      running += data.totals[m] || 0;
+      return { month: m, label: monthLabel(m), value: running };
+    });
+  }, [data.months, data.totals]);
+
+  return (
+    <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+        <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 inline-flex items-center gap-1">
+          <span>Estimated Avoided Spend</span>
+          <HintIcon text={AVOIDED_SPEND_HINT} />
+        </h2>
+      </div>
+
+      {/* Headline card: dollar figure + keyword count + methodology copy. */}
+      <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 mb-4">
+        <p className="text-2xl font-bold text-emerald-700" style={{ lineHeight: 1.2 }}>
+          {allZero ? "\u2014" : cumulative}
+          <span className="ml-2 text-sm font-medium text-emerald-700/80">
+            across {kwCount} negative keyword{kwCount !== 1 ? "s" : ""}
+          </span>
+        </p>
+        <p className="text-xs text-emerald-700/70 mt-1" style={{ lineHeight: 1.45 }}>
+          Estimated spend our negative keywords have prevented over the last {data.monthsBack} months.
+          Based on Google Ads search term reports — how much each blocked term would have spent if
+          it weren&apos;t negated.
+        </p>
+      </div>
+
+      {allZero ? (
+        <div className="rounded-lg bg-slate-50 border border-slate-100 px-4 py-6 text-center">
+          <p className="text-sm text-slate-500">
+            Tracking starts soon. As your negative keywords accumulate spend signal in Google Ads, this
+            chart will fill in month-by-month showing how much budget they&apos;ve protected.
+          </p>
+        </div>
+      ) : (
+        <AvoidedSpendChart points={cumulativePoints} />
+      )}
+    </div>
+  );
+}
+
+// Smooth cumulative area chart, hand-rolled SVG so we don't pull in a chart
+// lib for one curve. Uses a Catmull-Rom → cubic-Bezier conversion for a
+// gentle, monotone-ish curve through the cumulative totals.
+function AvoidedSpendChart({
+  points,
+}: {
+  points: Array<{ month: string; label: string; value: number }>;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) setWidth(entry.contentRect.width);
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const height = 220;
+  const padTop = 24;
+  const padBottom = 36;
+  const padLeft = 56;
+  const padRight = 16;
+  const chartH = height - padTop - padBottom;
+  const chartW = Math.max(0, width - padLeft - padRight);
+
+  if (points.length === 0) return null;
+
+  const yMax = Math.max(1, points[points.length - 1].value); // cumulative is monotonic non-decreasing
+  const yRange = yMax * 1.05; // 5% headroom so the curve doesn't kiss the top
+
+  const xStep = points.length > 1 ? chartW / (points.length - 1) : 0;
+  const toX = (i: number) => padLeft + i * xStep;
+  const toY = (v: number) => padTop + chartH - (v / yRange) * chartH;
+
+  // Build a smooth path through the cumulative points using Catmull-Rom → cubic
+  // Bezier conversion. Tension = 0.5 gives the standard CR curve.
+  function buildSmoothPath(): string {
+    if (points.length === 1) {
+      return `M${toX(0)},${toY(points[0].value)}`;
+    }
+    const segments: string[] = [`M${toX(0)},${toY(points[0].value)}`];
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[Math.max(0, i - 1)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(points.length - 1, i + 2)];
+      const cp1x = toX(i) + (toX(i + 1) - toX(Math.max(0, i - 1))) / 6;
+      const cp1y = toY(p1.value) + (toY(p2.value) - toY(p0.value)) / 6;
+      const cp2x = toX(i + 1) - (toX(Math.min(points.length - 1, i + 2)) - toX(i)) / 6;
+      const cp2y = toY(p2.value) - (toY(p3.value) - toY(p1.value)) / 6;
+      segments.push(`C${cp1x},${cp1y} ${cp2x},${cp2y} ${toX(i + 1)},${toY(p2.value)}`);
+    }
+    return segments.join(" ");
+  }
+
+  const linePath = buildSmoothPath();
+  // Close the area path back to the baseline so we get a filled curve.
+  const areaPath = `${linePath} L${toX(points.length - 1)},${padTop + chartH} L${toX(0)},${padTop + chartH} Z`;
+
+  // 4 ticks across the y axis.
+  const yTicks = Array.from({ length: 5 }, (_, i) => {
+    const val = (yRange * i) / 4;
+    return { val, y: toY(val) };
+  });
+
+  return (
+    <div ref={containerRef} className="w-full">
+      {width > 0 && (
+        <svg width={width} height={height}>
+          <defs>
+            <linearGradient id="avoided-spend-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity={0.28} />
+              <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+
+          {/* Gridlines + Y labels */}
+          {yTicks.map((tick, i) => (
+            <g key={i}>
+              <line
+                x1={padLeft}
+                x2={width - padRight}
+                y1={tick.y}
+                y2={tick.y}
+                stroke="#e2e8f0"
+                strokeWidth={1}
+              />
+              <text
+                x={padLeft - 8}
+                y={tick.y + 4}
+                fontSize={10}
+                fill="#94a3b8"
+                textAnchor="end"
+              >
+                {formatDollars(tick.val)}
+              </text>
+            </g>
+          ))}
+
+          {/* Area fill */}
+          <path d={areaPath} fill="url(#avoided-spend-grad)" />
+          {/* Line on top */}
+          <path
+            d={linePath}
+            fill="none"
+            stroke="#10b981"
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+
+          {/* End-point dot + label so the running total reads at a glance. */}
+          <circle
+            cx={toX(points.length - 1)}
+            cy={toY(points[points.length - 1].value)}
+            r={3.5}
+            fill="white"
+            stroke="#10b981"
+            strokeWidth={2}
+          />
+          <text
+            x={toX(points.length - 1)}
+            y={toY(points[points.length - 1].value) - 10}
+            fontSize={11}
+            fontWeight={600}
+            fill="#10b981"
+            textAnchor={points.length > 1 ? "end" : "middle"}
+          >
+            {formatDollars(points[points.length - 1].value)}
+          </text>
+
+          {/* X axis labels (every other when crowded). */}
+          {points.map((p, i) => {
+            if (points.length > 8 && i % 2 !== 0 && i !== points.length - 1) return null;
+            return (
+              <text
+                key={`x-${i}`}
+                x={toX(i)}
+                y={height - 10}
+                fontSize={10}
+                fill="#94a3b8"
+                textAnchor="middle"
+              >
+                {p.label}
+              </text>
+            );
+          })}
+        </svg>
+      )}
+    </div>
+  );
+}
+
 function YoyCard({
   label,
   current,
@@ -710,6 +1051,10 @@ function generateInsights(
   prevCpa: number,
   currentEfficiency: number,
   yoyConvChange: { text: string; positive: boolean } | null,
+  relevancyRate: number | null,
+  irrelevantSpend: number,
+  irrelevantTermCount: number,
+  avoidedSpend: GoogleAdsDashboardAvoidedSpend | null,
 ): Insight[] {
   const insights: Insight[] = [];
 
@@ -783,6 +1128,43 @@ function generateInsights(
     insights.push({
       icon: "\u26A1",
       text: `Strong efficiency at ${currentEfficiency.toFixed(1)} conversions per $1,000 spent.`,
+      type: "positive",
+    });
+  }
+
+  // Keyword Relevancy — surface a concrete next-step when the rate is
+  // dragging, or a positive signal when it's healthy. Defines what "good"
+  // looks like and tells the client exactly how to move the number.
+  if (relevancyRate != null && irrelevantTermCount > 0) {
+    if (relevancyRate < 75) {
+      insights.push({
+        icon: "\uD83C\uDFAF",
+        text: `Keyword relevancy is at ${relevancyRate.toFixed(0)}% \u2014 $${Math.round(irrelevantSpend).toLocaleString()} of spend across ${irrelevantTermCount} term${irrelevantTermCount !== 1 ? "s" : ""} is currently flagged irrelevant. Open the Keyword Deep Dive tab and submit these for review so the team can add them as negative keywords. Once excluded, the rate climbs in the next reporting period.`,
+        type: "negative",
+      });
+    } else if (relevancyRate < 90) {
+      insights.push({
+        icon: "\uD83C\uDFAF",
+        text: `Keyword relevancy is at ${relevancyRate.toFixed(0)}%. ${irrelevantTermCount} term${irrelevantTermCount !== 1 ? "s" : ""} flagged irrelevant ($${Math.round(irrelevantSpend).toLocaleString()} of spend) \u2014 review and submit them in the Keyword Deep Dive tab to push this above 90%.`,
+        type: "neutral",
+      });
+    } else {
+      insights.push({
+        icon: "\u2728",
+        text: `Keyword relevancy is strong at ${relevancyRate.toFixed(0)}%. Most of the budget is going to terms that are converting or haven't been flagged as irrelevant.`,
+        type: "positive",
+      });
+    }
+  }
+
+  // Avoided spend — surface a green positive insight once the cumulative
+  // figure is meaningful ($100+). Below that threshold the number isn't
+  // worth the screen real estate and could come across as performative.
+  if (avoidedSpend && avoidedSpend.cumulativeAvoided > 100) {
+    const dollars = Math.round(avoidedSpend.cumulativeAvoided).toLocaleString();
+    insights.push({
+      icon: "\uD83D\uDEE1\uFE0F",
+      text: `Negative keywords have avoided ~$${dollars} of irrelevant spend over the last ${avoidedSpend.monthsBack} months. That's budget redirected to converting search terms.`,
       type: "positive",
     });
   }

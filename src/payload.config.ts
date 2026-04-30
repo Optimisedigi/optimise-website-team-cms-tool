@@ -34,6 +34,7 @@ import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
 import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
 import { NegativeKeywordLists } from "./collections/NegativeKeywordLists";
+import { NegativeKeywordAvoidedSpendCache } from "./collections/NegativeKeywordAvoidedSpendCache";
 import KeywordDeepDiveSessions from "./collections/KeywordDeepDiveSessions";
 import { Contracts } from "./collections/Contracts";
 import { SalesLeads } from "./collections/SalesLeads";
@@ -102,7 +103,7 @@ export default buildConfig({
     // Admin
     Users, PermissionProfiles, UsageReports, ActivityLog,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions,
+    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache,
   ].map((c) => ({
     ...c,
     admin: {

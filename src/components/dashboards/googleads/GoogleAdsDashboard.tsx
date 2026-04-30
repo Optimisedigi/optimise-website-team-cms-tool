@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData } from "@/lib/dashboard-types";
+import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData, GoogleAdsDashboardAvoidedSpend } from "@/lib/dashboard-types";
 import { KpiRow } from "./KpiRow";
 import { MonthlyChart } from "./MonthlyChart";
 import { CategoryBreakdown } from "./CategoryBreakdown";
@@ -58,6 +58,26 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const qualityFetched = useRef(!!initialQualityData || !!mockQualityData);
   // Chart always shows last 13 months, fetched once on mount with all_time range
   const [chartMonthlyTrend, setChartMonthlyTrend] = useState(initialData.monthlyTrend);
+  // Avoided-spend (negative keyword value) data — fetched once on mount when
+  // both clientId and customerId are available. Stays null otherwise so the
+  // Progress tab gracefully hides the section.
+  const [avoidedSpend, setAvoidedSpend] = useState<GoogleAdsDashboardAvoidedSpend | null>(null);
+
+  useEffect(() => {
+    if (!clientId || !initialData.customerId || !initialData.slug) return;
+    const params = new URLSearchParams({
+      slug: initialData.slug,
+      clientId,
+      customerId: initialData.customerId,
+      monthsBack: "12",
+    });
+    fetch(`/api/dashboard/avoided-spend?${params}`, { credentials: "include", cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: GoogleAdsDashboardAvoidedSpend | null) => {
+        if (data) setAvoidedSpend(data);
+      })
+      .catch(() => {});
+  }, [clientId, initialData.customerId, initialData.slug]);
 
   // Conversion action filtering
   // `defaultSelected` reflects the client's saved defaults (CMS Clients > Google Ads >
@@ -499,7 +519,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             <ProgressTab
               monthlyTrend={data.monthlyTrend}
               budgetWasters={data.budgetWasters}
+              irrelevantTerms={data.irrelevantTerms}
               kpis={data.kpis}
+              avoidedSpend={avoidedSpend}
             />
           )}
 

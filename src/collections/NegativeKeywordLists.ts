@@ -25,8 +25,82 @@ export const NegativeKeywordLists: CollectionConfig = {
       ({ data }) => {
         if (data?.keywords) {
           data.keywordCount = Array.isArray(data.keywords) ? data.keywords.length : 0;
+          // Stamp negated_at on every new keyword that doesn't have one yet.
+          // Existing entries (with a value) are left untouched so we keep the
+          // accurate "when was this term added" date for the avoided-spend
+          // calculation. Use `now` rather than the parent list's createdAt
+          // because individual keywords are added and removed over time.
+          const now = new Date().toISOString();
+          for (const kw of data.keywords) {
+            if (kw && !kw.negatedAt) {
+              kw.negatedAt = now;
+            }
+          }
         }
         return data;
+      },
+    ],
+    afterChange: [
+      async ({ doc, previousDoc, req, operation }) => {
+        // Diff keywords against the previous version. For any keyword that
+        // disappeared (removed), delete its avoided-spend cache rows so the
+        // dashboard total drops immediately.
+        if (operation !== "update") return;
+        try {
+          const prev = Array.isArray(previousDoc?.keywords) ? previousDoc.keywords : [];
+          const next = Array.isArray(doc?.keywords) ? doc.keywords : [];
+          const nextKeys = new Set(
+            next.map((k: any) => `${(k.keyword || "").toLowerCase()}|${(k.matchType || "").toUpperCase()}`),
+          );
+          const removed = prev.filter((k: any) => {
+            const key = `${(k.keyword || "").toLowerCase()}|${(k.matchType || "").toUpperCase()}`;
+            return !nextKeys.has(key);
+          });
+          if (removed.length === 0) return;
+          const clientId = typeof doc.client === "object" ? doc.client?.id : doc.client;
+          if (!clientId) return;
+          for (const kw of removed) {
+            await req.payload.delete({
+              collection: "negative-keyword-avoided-spend-cache",
+              where: {
+                and: [
+                  { client: { equals: clientId } },
+                  { keyword: { equals: kw.keyword } },
+                  { matchType: { equals: (kw.matchType || "").toUpperCase() } },
+                ],
+              },
+              overrideAccess: true,
+            });
+          }
+        } catch (err) {
+          req.payload.logger?.warn?.(`[NegativeKeywordLists] cache cleanup failed: ${err}`);
+        }
+      },
+    ],
+    afterDelete: [
+      async ({ doc, req }) => {
+        // Remove every cache row for this NKL's keywords so deleted lists
+        // stop contributing to the avoided-spend total.
+        try {
+          const clientId = typeof doc.client === "object" ? doc.client?.id : doc.client;
+          if (!clientId) return;
+          const keywords = Array.isArray(doc.keywords) ? doc.keywords : [];
+          for (const kw of keywords) {
+            await req.payload.delete({
+              collection: "negative-keyword-avoided-spend-cache",
+              where: {
+                and: [
+                  { client: { equals: clientId } },
+                  { keyword: { equals: kw.keyword } },
+                  { matchType: { equals: (kw.matchType || "").toUpperCase() } },
+                ],
+              },
+              overrideAccess: true,
+            });
+          }
+        } catch (err) {
+          req.payload.logger?.warn?.(`[NegativeKeywordLists] cache cleanup on delete failed: ${err}`);
+        }
       },
     ],
   },
@@ -168,6 +242,16 @@ export const NegativeKeywordLists: CollectionConfig = {
           defaultValue: false,
           admin: {
             description: "Flagged by client for removal review",
+          },
+        },
+        {
+          name: "negatedAt",
+          type: "date",
+          admin: {
+            description: "When this keyword became a negative. Used for the avoided-spend dashboard so we don't credit spend from before it was blocked.",
+            date: {
+              pickerAppearance: "dayOnly",
+            },
           },
         },
       ],
