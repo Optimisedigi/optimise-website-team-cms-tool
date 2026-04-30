@@ -22,7 +22,7 @@ interface ProgressTabProps {
   avoidedSpend?: GoogleAdsDashboardAvoidedSpend | null;
 }
 
-type ProgressMetric = "spend" | "conversions" | "cpa" | "wasteRate";
+type ProgressMetric = "spend" | "conversions" | "cpa" | "wasteRate" | "relevancy";
 
 const METRIC_CONFIG: Record<
   ProgressMetric,
@@ -52,6 +52,13 @@ const METRIC_CONFIG: Record<
     format: (v) => `${v.toFixed(1)}%`,
     description:
       "Estimated share of spend going to search terms that didn't convert in the selected period. Some of this is normal \u2014 the goal is to keep it trending down.",
+  },
+  relevancy: {
+    label: "Keyword Relevancy %",
+    color: "#8b5cf6",
+    format: (v) => `${v.toFixed(1)}%`,
+    description:
+      "Estimated share of monthly spend going to search terms that are either converting or haven't been flagged as irrelevant. Higher is better. Per-month figure projects the latest period's flagged-irrelevant total against each month's spend \u2014 trends with monthly spend volume.",
   },
 };
 
@@ -293,10 +300,42 @@ function TrendChart({ points, metrics }: TrendChartProps) {
 // delay, varying browser styling, hidden on mobile), so we render our
 // own tooltip element styled to match the dashboard.
 function HintIcon({ text }: { text: string }) {
+  const wrapperRef = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  // Tooltip positioning: by default centered above the (?) icon. When the
+  // icon is too close to the right edge of the viewport, the 240px-wide
+  // tooltip overflows and gets clipped. We measure on open and shift the
+  // tooltip horizontally so it always stays inside the viewport with an 8px
+  // safety margin. The arrow stays anchored to the icon's center.
+  const TOOLTIP_WIDTH = 240;
+  const SAFETY_MARGIN = 8;
+  const [shift, setShift] = useState(0); // px to add to the centered position
+
+  useEffect(() => {
+    if (!open || !wrapperRef.current) return;
+    const iconRect = wrapperRef.current.getBoundingClientRect();
+    const iconCenter = iconRect.left + iconRect.width / 2;
+    const idealLeft = iconCenter - TOOLTIP_WIDTH / 2;
+    const idealRight = iconCenter + TOOLTIP_WIDTH / 2;
+    const viewportRight = window.innerWidth - SAFETY_MARGIN;
+    let nextShift = 0;
+    if (idealRight > viewportRight) {
+      nextShift = viewportRight - idealRight; // negative, push left
+    } else if (idealLeft < SAFETY_MARGIN) {
+      nextShift = SAFETY_MARGIN - idealLeft; // positive, push right
+    }
+    setShift(nextShift);
+  }, [open]);
+
   return (
     <span
-      className="relative inline-flex items-center group"
+      ref={wrapperRef}
+      className="relative inline-flex items-center"
       style={{ marginLeft: 2 }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
     >
       <button
         type="button"
@@ -308,37 +347,47 @@ function HintIcon({ text }: { text: string }) {
       >
         ?
       </button>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute z-30 hidden group-hover:block group-focus-within:block left-1/2 -translate-x-1/2 normal-case tracking-normal"
-        style={{
-          bottom: "calc(100% + 6px)",
-          width: 240,
-          background: "#0f172a",
-          color: "#f1f5f9",
-          padding: "6px 10px",
-          borderRadius: 6,
-          fontSize: 11,
-          fontWeight: 400,
-          lineHeight: 1.45,
-          boxShadow: "0 4px 12px rgba(15, 23, 42, 0.15)",
-          textAlign: "left",
-          whiteSpace: "normal",
-        }}
-      >
-        {text}
+      {open && (
         <span
-          aria-hidden
-          className="absolute left-1/2 -translate-x-1/2 top-full"
+          role="tooltip"
+          className="pointer-events-none absolute z-30 normal-case tracking-normal"
           style={{
-            width: 0,
-            height: 0,
-            borderLeft: "5px solid transparent",
-            borderRight: "5px solid transparent",
-            borderTop: "5px solid #0f172a",
+            bottom: "calc(100% + 6px)",
+            // Center on the icon, then apply the viewport-aware shift so the
+            // tooltip can never get clipped at either edge.
+            left: "50%",
+            transform: `translateX(calc(-50% + ${shift}px))`,
+            width: TOOLTIP_WIDTH,
+            background: "#0f172a",
+            color: "#f1f5f9",
+            padding: "6px 10px",
+            borderRadius: 6,
+            fontSize: 11,
+            fontWeight: 400,
+            lineHeight: 1.45,
+            boxShadow: "0 4px 12px rgba(15, 23, 42, 0.15)",
+            textAlign: "left",
+            whiteSpace: "normal",
           }}
-        />
-      </span>
+        >
+          {text}
+          {/* Arrow stays anchored to the icon's center, regardless of the
+              tooltip's horizontal shift — we counter-shift it by -shift. */}
+          <span
+            aria-hidden
+            className="absolute top-full"
+            style={{
+              left: "50%",
+              transform: `translateX(calc(-50% - ${shift}px))`,
+              width: 0,
+              height: 0,
+              borderLeft: "5px solid transparent",
+              borderRight: "5px solid transparent",
+              borderTop: "5px solid #0f172a",
+            }}
+          />
+        </span>
+      )}
     </span>
   );
 }
@@ -403,7 +452,7 @@ function StatCard({
 }
 
 const MAX_SELECTED_METRICS = 3;
-const METRIC_ORDER: ProgressMetric[] = ["spend", "conversions", "cpa", "wasteRate"];
+const METRIC_ORDER: ProgressMetric[] = ["spend", "conversions", "cpa", "wasteRate", "relevancy"];
 
 export function ProgressTab({
   monthlyTrend,
@@ -448,7 +497,14 @@ export function ProgressTab({
       ? Math.max(0, Math.min(100, ((totalSpend - irrelevantSpend) / totalSpend) * 100))
       : null;
 
-  // Build chart data with computed CPA and estimated waste
+  // Build chart data with computed CPA, estimated waste, and per-month
+  // relevancy. Per-month relevancy uses the same modelling trick as the
+  // existing wasteRate: project the *latest period's* irrelevant-flagged
+  // total against each month's spend. Months with higher spend pull the
+  // % up; lower-spend months sit lower. Honest because the irrelevant
+  // signal we have today is period-aggregate — we surface that as a
+  // best-effort trend rather than pretending we have full historical
+  // per-month data.
   const chartData = useMemo(() => {
     return monthlyTrend.map((m) => {
       const cpa = m.conversions > 0 ? m.spend / m.conversions : 0;
@@ -456,6 +512,12 @@ export function ProgressTab({
         m.spend > 0 && totalWaste > 0
           ? Math.min((totalWaste / m.spend) * 100, 100)
           : 0;
+      const relevancy =
+        m.spend > 0 && irrelevantSpend > 0
+          ? Math.max(0, Math.min(100, 100 - (irrelevantSpend / m.spend) * 100))
+          : m.spend > 0
+            ? 100
+            : 0;
       return {
         month: m.month,
         label: monthLabel(m.month),
@@ -463,9 +525,10 @@ export function ProgressTab({
         conversions: m.conversions,
         cpa,
         wasteRate,
+        relevancy,
       };
     });
-  }, [monthlyTrend, totalWaste]);
+  }, [monthlyTrend, totalWaste, irrelevantSpend]);
 
   // The chart now consumes ALL metric values per point (it picks the ones
   // listed in `metrics`). One row per month with every metric pre-computed.
@@ -475,6 +538,7 @@ export function ProgressTab({
     conversions: d.conversions,
     cpa: d.cpa,
     wasteRate: d.wasteRate,
+    relevancy: d.relevancy,
   }));
 
   // Summary stats

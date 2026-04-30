@@ -288,7 +288,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const chart14Months = chartMonthlyTrend.slice(-14);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="od-dashboard-root min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-[11px] pb-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-[20px]">

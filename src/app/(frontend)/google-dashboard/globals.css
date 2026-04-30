@@ -13,6 +13,24 @@ h1, h2, h3, h4, h5, h6, p {
   margin: 0;
 }
 
+/* ─── Default zoom: 85% on desktop ─────────────────────
+ *
+ * Ken prefers viewing the Google Ads dashboard at ~85% (roughly one
+ * Cmd-minus). Using CSS `zoom` (not `transform: scale`) so layout widths
+ * recompute against the zoomed viewport — mx-auto max-w-7xl still centers
+ * correctly, hover states track the cursor, and tooltip positioning logic
+ * still measures the right pixel coordinates.
+ *
+ * Skipped on small screens: Tailwind's `lg` breakpoint is 1024px — below
+ * that the dashboard already runs in its single-column mobile layout and
+ * shrinking it further would make text too small to read.
+ */
+@media (min-width: 1024px) {
+  .od-dashboard-root {
+    zoom: 0.85;
+  }
+}
+
 /* ─── Rocket Splash Loading ───────────────────────────────
  *
  * Mirrors the admin's RocketSplash styles from src/app/(payload)/custom.scss
