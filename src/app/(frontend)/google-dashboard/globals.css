@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* ─── Element-margin reset ─────────────────────────────
+ *
+ * (frontend)/styles.css declares `h1 { margin: 40px 0 }` and
+ * `p { margin: 24px 0 }` inside @layer base. Tailwind v4's preflight
+ * (also @layer base) sets these to 0 but loses on source order because
+ * styles.css is imported by the layout *after* Tailwind. These unlayered
+ * resets win the cascade on the dashboard route only, so component
+ * classes (text-xs, font-bold, my-0, ml-[15px], etc.) behave normally.
+ */
+h1, h2, h3, h4, h5, h6, p {
+  margin: 0;
+}
+
 /* ─── Rocket Splash Loading ───────────────────────────────
  *
  * Mirrors the admin's RocketSplash styles from src/app/(payload)/custom.scss
