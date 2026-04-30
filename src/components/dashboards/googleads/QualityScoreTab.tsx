@@ -710,7 +710,32 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Selectors */}
+      {/* Note banner when < 2 months */}
+      {data.snapshots.length < 2 && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
+          Quality score tracking started {latestSnapshot?.month || "recently"}. The trend chart
+          builds as monthly snapshots are collected.
+        </div>
+      )}
+
+      {/* Dual-axis chart — sits at the top, account-level. The campaign /
+          ad group filter below scopes the breakdown cards + keywords table
+          only; the chart is pre-aggregated server-side and intentionally
+          unfiltered. */}
+      <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
+        <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-4">
+          {METRIC_LABELS[chartMetric]} vs Avg CPC
+        </h2>
+        {chartPoints.length > 0 ? (
+          <DualAxisChart points={chartPoints} metric={chartMetric} />
+        ) : (
+          <p className="text-sm text-slate-400 py-8 text-center">No data available</p>
+        )}
+      </div>
+
+      {/* Selectors — placed directly above the breakdown cards + keywords
+          table they scope. The filter applies to the QS / Ad Relevance /
+          Landing Page Experience cards and the Top 30 keywords table only. */}
       <div className="flex flex-wrap gap-3">
         <select
           value={selectedCampaign}
@@ -741,26 +766,6 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
             <span className="text-slate-500">Weighted avg QS:</span>
             <span className="font-semibold text-blue-600">{currentQs.toFixed(1)}/10</span>
           </div>
-        )}
-      </div>
-
-      {/* Note banner when < 2 months */}
-      {data.snapshots.length < 2 && (
-        <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
-          Quality score tracking started {latestSnapshot?.month || "recently"}. The trend chart
-          builds as monthly snapshots are collected.
-        </div>
-      )}
-
-      {/* Dual-axis chart */}
-      <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-4">
-          {METRIC_LABELS[chartMetric]} vs Avg CPC
-        </h2>
-        {chartPoints.length > 0 ? (
-          <DualAxisChart points={chartPoints} metric={chartMetric} />
-        ) : (
-          <p className="text-sm text-slate-400 py-8 text-center">No data available</p>
         )}
       </div>
 
@@ -796,11 +801,6 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
           );
         })}
       </div>
-
-      {/* Top Ads */}
-      {data.topAds && data.topAds.length > 0 && (
-        <TopAdsSection ads={data.topAds} />
-      )}
 
       {/* Keyword table */}
       {(latestKeywords.length > 0) && (
@@ -929,6 +929,12 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Top Ads by Impressions — sits at the bottom (account-level, not
+          affected by the campaign / ad group filter above). */}
+      {data.topAds && data.topAds.length > 0 && (
+        <TopAdsSection ads={data.topAds} />
       )}
 
       {/* Footer note explaining N/A ratings on new campaigns / keywords.
