@@ -2184,7 +2184,42 @@ export async function POST(request: NextRequest) {
     "ALTER TABLE `payload_locked_documents_rels` ADD `keyword_deep_dive_sessions_id` integer REFERENCES `keyword_deep_dive_sessions`(`id`) ON DELETE CASCADE",
   );
 
-  return NextResponse.json({ ok: true, version: "2026-04-29", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── Negative keyword avoided-spend cache (2026-04-30) ──
+  await run("negative_keyword_avoided_spend_cache", `CREATE TABLE IF NOT EXISTS \`negative_keyword_avoided_spend_cache\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`keyword\` text NOT NULL,
+    \`match_type\` text NOT NULL,
+    \`year_month\` text NOT NULL,
+    \`spend\` numeric DEFAULT 0 NOT NULL,
+    \`is_final\` integer DEFAULT 0,
+    \`fetched_at\` text NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("avoided_spend_cache_unique_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `avoided_spend_cache_unique_idx` ON `negative_keyword_avoided_spend_cache` (`client_id`, `keyword`, `match_type`, `year_month`)");
+  await run("avoided_spend_cache_client_month_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_client_month_idx` ON `negative_keyword_avoided_spend_cache` (`client_id`, `year_month`)");
+  await run("avoided_spend_cache_client_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_client_idx` ON `negative_keyword_avoided_spend_cache` (`client_id`)");
+  await run("avoided_spend_cache_keyword_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_keyword_idx` ON `negative_keyword_avoided_spend_cache` (`keyword`)");
+  await run("avoided_spend_cache_year_month_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_year_month_idx` ON `negative_keyword_avoided_spend_cache` (`year_month`)");
+  await run("avoided_spend_cache_created_at_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_created_at_idx` ON `negative_keyword_avoided_spend_cache` (`created_at`)");
+  await run("avoided_spend_cache_updated_at_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_updated_at_idx` ON `negative_keyword_avoided_spend_cache` (`updated_at`)");
+  // locked_docs_rels FK column for the new collection — without this, saving any
+  // cache row crashes with "no such column".
+  await run("locked_docs_rels.negative_keyword_avoided_spend_cache_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_keyword_avoided_spend_cache_id` integer REFERENCES `negative_keyword_avoided_spend_cache`(`id`) ON DELETE cascade");
+  // negated_at sub-field on negative_keyword_lists.keywords array.
+  await run("negative_keyword_lists_keywords.negated_at", "ALTER TABLE `negative_keyword_lists_keywords` ADD `negated_at` text");
+  // Backfill existing entries to their parent list's created_at so older NKLs
+  // get an honest "we know it was negated by this date" timestamp.
+  await run("backfill_negated_at", `UPDATE \`negative_keyword_lists_keywords\`
+    SET \`negated_at\` = (
+      SELECT \`created_at\` FROM \`negative_keyword_lists\`
+      WHERE \`negative_keyword_lists\`.\`id\` = \`negative_keyword_lists_keywords\`.\`_parent_id\`
+    )
+    WHERE \`negated_at\` IS NULL`);
+
+  return NextResponse.json({ ok: true, version: "2026-04-30", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
@@ -2780,42 +2815,6 @@ export async function GET(request: NextRequest) {
 
   // ── Hidden keyword categories JSON column on client_proposals (2026-04-15) ──
   await run("client_proposals.hidden_keyword_categories_get", "ALTER TABLE `client_proposals` ADD `hidden_keyword_categories` text");
-
-  // ── Negative keyword avoided-spend cache (2026-04-30) ──
-  await run("negative_keyword_avoided_spend_cache", `CREATE TABLE IF NOT EXISTS \`negative_keyword_avoided_spend_cache\` (
-    \`id\` integer PRIMARY KEY NOT NULL,
-    \`client_id\` integer NOT NULL,
-    \`keyword\` text NOT NULL,
-    \`match_type\` text NOT NULL,
-    \`year_month\` text NOT NULL,
-    \`spend\` numeric DEFAULT 0 NOT NULL,
-    \`is_final\` integer DEFAULT 0,
-    \`fetched_at\` text NOT NULL,
-    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  )`);
-  await run("avoided_spend_cache_unique_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `avoided_spend_cache_unique_idx` ON `negative_keyword_avoided_spend_cache` (`client_id`, `keyword`, `match_type`, `year_month`)");
-  await run("avoided_spend_cache_client_month_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_client_month_idx` ON `negative_keyword_avoided_spend_cache` (`client_id`, `year_month`)");
-  await run("avoided_spend_cache_client_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_client_idx` ON `negative_keyword_avoided_spend_cache` (`client_id`)");
-  await run("avoided_spend_cache_keyword_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_keyword_idx` ON `negative_keyword_avoided_spend_cache` (`keyword`)");
-  await run("avoided_spend_cache_year_month_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_year_month_idx` ON `negative_keyword_avoided_spend_cache` (`year_month`)");
-  await run("avoided_spend_cache_created_at_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_created_at_idx` ON `negative_keyword_avoided_spend_cache` (`created_at`)");
-  await run("avoided_spend_cache_updated_at_idx", "CREATE INDEX IF NOT EXISTS `avoided_spend_cache_updated_at_idx` ON `negative_keyword_avoided_spend_cache` (`updated_at`)");
-  // locked_docs_rels FK column for the new collection — without this, saving any
-  // cache row crashes with "no such column".
-  await run("locked_docs_rels.negative_keyword_avoided_spend_cache_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_keyword_avoided_spend_cache_id` integer REFERENCES `negative_keyword_avoided_spend_cache`(`id`) ON DELETE cascade");
-
-  // negated_at sub-field on negative_keyword_lists.keywords array.
-  await run("negative_keyword_lists_keywords.negated_at", "ALTER TABLE `negative_keyword_lists_keywords` ADD `negated_at` text");
-  // Backfill existing entries to their parent list's created_at so older NKLs
-  // get an honest "we know it was negated by this date" timestamp.
-  await run("backfill_negated_at", `UPDATE \`negative_keyword_lists_keywords\`
-    SET \`negated_at\` = (
-      SELECT \`created_at\` FROM \`negative_keyword_lists\`
-      WHERE \`negative_keyword_lists\`.\`id\` = \`negative_keyword_lists_keywords\`.\`_parent_id\`
-    )
-    WHERE \`negated_at\` IS NULL`);
 
   let allTables: string[] = [];
   try {
