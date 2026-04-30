@@ -91,6 +91,7 @@ import { default as default_ddaec31b968f43d933a752ed934bde0a } from '../../../co
 import { default as default_0875500ed79e3068678d80b63965f2c2 } from '../../../components/GoogleAdsAdExtensions'
 import { default as default_fd2febb67d3357a3222a3d4b42c00e68 } from '../../../components/NegativeListBuilder'
 import { default as default_3dedd88d620dc77baa17f61edda4911f } from '../../../components/GoogleAdsNegativeKeywordLists'
+import { default as default_f7cd7bb1cdadc6401b03afe470d6711d } from '../../../components/GoogleAdsKeywordDeepDiveSessions'
 import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../components/GscIndexingAuditInfo'
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
@@ -98,6 +99,7 @@ import { default as default_c99210795b28d20ce793bfa990d64a2d } from '../../../co
 import { default as default_782e1e631e6dbac23bb6406c8354b517 } from '../../../components/NegativeKeywordCampaignSelect'
 import { default as default_67cd75f7dc15172a4e21290c38ac2619 } from '../../../components/NegativeKeywordBulkAdd'
 import { default as default_5cc9c48eac9f9681086cee91da012e9f } from '../../../components/NegativeKeywordTable'
+import { default as default_c6dc19d9268bf85af3aeeca1819ed97d } from '../../../components/ApplyToNKLButton'
 import { default as default_20396e04db8c07a5e3383d2e16b34dc4 } from '../../../components/RunSiteHealthButton'
 import { default as default_b058368eb7c5859811170004e5dd59a8 } from '../../../components/SiteHealthReportView'
 import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
@@ -119,7 +121,7 @@ import { default as default_47cb45239198beef21a512f6c005e728 } from '../../../co
 import { default as default_02b1efea3bcfc49be1b8b522d8ca967d } from '../../../components/PomodoroTimer'
 import { default as default_8c91d6ed757c0622a0f1976e63b1d36b } from '../../../components/PayloadShiftSelect'
 import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
-import { default as default_8e4f7c2a1b3d5f9e0a6c8d2b4f7a1e3c } from '../../../components/RoleBodyClass'
+import { default as default_54545d17487007f83f65ecb3f857577d } from '../../../components/RoleBodyClass'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
@@ -217,6 +219,7 @@ export const importMap = {
   "./components/GoogleAdsAdExtensions#default": default_0875500ed79e3068678d80b63965f2c2,
   "./components/NegativeListBuilder#default": default_fd2febb67d3357a3222a3d4b42c00e68,
   "./components/GoogleAdsNegativeKeywordLists#default": default_3dedd88d620dc77baa17f61edda4911f,
+  "./components/GoogleAdsKeywordDeepDiveSessions#default": default_f7cd7bb1cdadc6401b03afe470d6711d,
   "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/GscIndexingAuditInfo#default": default_6d638ae0812e4c3b3793e2cfa8990bb7,
   "./components/GscIndexingAuditResults#default": default_14da33fa7cd5bda0159f477250995b44,
@@ -224,6 +227,7 @@ export const importMap = {
   "./components/NegativeKeywordCampaignSelect#default": default_782e1e631e6dbac23bb6406c8354b517,
   "./components/NegativeKeywordBulkAdd#default": default_67cd75f7dc15172a4e21290c38ac2619,
   "./components/NegativeKeywordTable#default": default_5cc9c48eac9f9681086cee91da012e9f,
+  "./components/ApplyToNKLButton#default": default_c6dc19d9268bf85af3aeeca1819ed97d,
   "./components/RunSiteHealthButton#default": default_20396e04db8c07a5e3383d2e16b34dc4,
   "./components/SiteHealthReportView#default": default_b058368eb7c5859811170004e5dd59a8,
   "./components/BusinessCostsListView#default": default_6f9be25dea842550674d5a5331ed4ffe,
@@ -245,7 +249,7 @@ export const importMap = {
   "./components/PomodoroTimer#default": default_02b1efea3bcfc49be1b8b522d8ca967d,
   "./components/PayloadShiftSelect#default": default_8c91d6ed757c0622a0f1976e63b1d36b,
   "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
-  "./components/RoleBodyClass#default": default_8e4f7c2a1b3d5f9e0a6c8d2b4f7a1e3c,
+  "./components/RoleBodyClass#default": default_54545d17487007f83f65ecb3f857577d,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

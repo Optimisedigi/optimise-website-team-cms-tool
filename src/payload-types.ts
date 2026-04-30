@@ -90,6 +90,7 @@ export interface Config {
     'gsc-indexing-audits': GscIndexingAudit;
     'negative-sweep-candidates': NegativeSweepCandidate;
     'negative-keyword-lists': NegativeKeywordList;
+    'keyword-deep-dive-sessions': KeywordDeepDiveSession;
     'site-health-reports': SiteHealthReport;
     'ai-visibility-snapshots': AiVisibilitySnapshot;
     'serp-displacement-snapshots': SerpDisplacementSnapshot;
@@ -114,6 +115,7 @@ export interface Config {
     clients: {
       googleAdsAudits: 'google-ads-audits';
       negativeKeywordLists: 'negative-keyword-lists';
+      keywordDeepDiveSessions: 'keyword-deep-dive-sessions';
       siteHealthReports: 'site-health-reports';
       tagSetupAudits: 'tag-setup-audits';
       clientProposals: 'client-proposals';
@@ -146,6 +148,7 @@ export interface Config {
     'gsc-indexing-audits': GscIndexingAuditsSelect<false> | GscIndexingAuditsSelect<true>;
     'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
     'negative-keyword-lists': NegativeKeywordListsSelect<false> | NegativeKeywordListsSelect<true>;
+    'keyword-deep-dive-sessions': KeywordDeepDiveSessionsSelect<false> | KeywordDeepDiveSessionsSelect<true>;
     'site-health-reports': SiteHealthReportsSelect<false> | SiteHealthReportsSelect<true>;
     'ai-visibility-snapshots': AiVisibilitySnapshotsSelect<false> | AiVisibilitySnapshotsSelect<true>;
     'serp-displacement-snapshots': SerpDisplacementSnapshotsSelect<false> | SerpDisplacementSnapshotsSelect<true>;
@@ -569,6 +572,14 @@ export interface Client {
    */
   negativeKeywordLists?: {
     docs?: (number | NegativeKeywordList)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  /**
+   * Negative Keyword submits sent from the client's Google Ads dashboard for review
+   */
+  keywordDeepDiveSessions?: {
+    docs?: (number | KeywordDeepDiveSession)[];
     hasNextPage?: boolean;
     totalDocs?: number;
   };
@@ -2962,6 +2973,60 @@ export interface NegativeKeywordList {
   createdAt: string;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "keyword-deep-dive-sessions".
+ */
+export interface KeywordDeepDiveSession {
+  id: number;
+  /**
+   * The client this session belongs to
+   */
+  client: number | Client;
+  /**
+   * Which audit this session was created from (optional)
+   */
+  googleAdsAudit?: (number | null) | GoogleAdsAudit;
+  /**
+   * Whether these keywords have been applied to a Negative Keyword List
+   */
+  status: 'pending' | 'applied' | 'archived';
+  /**
+   * The NKL these keywords were applied to
+   */
+  appliedToNKL?: (number | null) | NegativeKeywordList;
+  /**
+   * Session title (auto-generated if left blank)
+   */
+  title: string;
+  /**
+   * Internal notes about this session
+   */
+  notes?: string | null;
+  /**
+   * Auto-calculated keyword count
+   */
+  keywordCount?: number | null;
+  /**
+   * Search terms the client submitted from the Keyword Deep Dive tool
+   */
+  keywords?:
+    | {
+        /**
+         * The search term
+         */
+        keyword: string;
+        matchType: 'broad' | 'phrase' | 'exact';
+        /**
+         * Exclude from applying to NKL
+         */
+        flaggedForRemoval?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Monthly Ahrefs-style SEO health audit reports
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3890,6 +3955,7 @@ export interface User {
         | 'gsc-alerts'
         | 'gsc-indexing-audits'
         | 'negative-keyword-lists'
+        | 'keyword-deep-dive-sessions'
         | 'site-health-reports'
         | 'ai-visibility-snapshots'
         | 'serp-displacement-snapshots'
@@ -3902,6 +3968,7 @@ export interface User {
         | 'nav:google-analytics'
         | 'nav:search-console'
         | 'nav:deployments'
+        | 'nav:google-ads'
         | 'nav:integrations'
         | 'nav:indexing-helper'
         | 'sheets-auth'
@@ -3979,6 +4046,7 @@ export interface PermissionProfile {
         | 'gsc-alerts'
         | 'gsc-indexing-audits'
         | 'negative-keyword-lists'
+        | 'keyword-deep-dive-sessions'
         | 'site-health-reports'
         | 'ai-visibility-snapshots'
         | 'serp-displacement-snapshots'
@@ -3991,6 +4059,7 @@ export interface PermissionProfile {
         | 'nav:google-analytics'
         | 'nav:search-console'
         | 'nav:deployments'
+        | 'nav:google-ads'
         | 'nav:integrations'
         | 'nav:indexing-helper'
         | 'sheets-auth'
@@ -5247,6 +5316,10 @@ export interface PayloadLockedDocument {
         value: number | NegativeKeywordList;
       } | null)
     | ({
+        relationTo: 'keyword-deep-dive-sessions';
+        value: number | KeywordDeepDiveSession;
+      } | null)
+    | ({
         relationTo: 'site-health-reports';
         value: number | SiteHealthReport;
       } | null)
@@ -5449,6 +5522,7 @@ export interface ClientsSelect<T extends boolean = true> {
   dashboardConversionActions?: T;
   googleAdsAudits?: T;
   negativeKeywordLists?: T;
+  keywordDeepDiveSessions?: T;
   gadsAuto?:
     | T
     | {
@@ -6549,6 +6623,29 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
   keywordCount?: T;
   isActive?: T;
   source?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "keyword-deep-dive-sessions_select".
+ */
+export interface KeywordDeepDiveSessionsSelect<T extends boolean = true> {
+  client?: T;
+  googleAdsAudit?: T;
+  status?: T;
+  appliedToNKL?: T;
+  title?: T;
+  notes?: T;
+  keywordCount?: T;
+  keywords?:
+    | T
+    | {
+        keyword?: T;
+        matchType?: T;
+        flaggedForRemoval?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

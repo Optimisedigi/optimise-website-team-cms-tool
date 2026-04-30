@@ -5,10 +5,13 @@ export const NegativeKeywordLists: CollectionConfig = {
   slug: "negative-keyword-lists",
   labels: { singular: "Negative Keyword List", plural: "Negative Keyword Lists" },
   admin: {
-    group: "Growth Tools",
+    // Sidebar entry is hidden via CSS in src/app/(payload)/custom.scss so
+    // the collection still has working edit routes (Payload's `hidden: true`
+    // excludes it from routes too, which would break the deep-link flow).
+    // Non-admins without the feature key are blocked the standard way.
+    hidden: hideUnlessFeature("negative-keyword-lists"),
     useAsTitle: "name",
     defaultColumns: ["client", "name", "scope", "keywordCount", "isActive"],
-    hidden: hideUnlessFeature("negative-keyword-lists"),
   },
   defaultSort: "client",
   access: {

@@ -30,6 +30,7 @@ import * as migration_20260425_120000_fix_meeting_attendees_id_type from './2026
 import * as migration_20260426_120000_add_meeting_scheduler_date_overrides from './20260426_120000_add_meeting_scheduler_date_overrides';
 import * as migration_20260428_120000_add_user_feature_access from './20260428_120000_add_user_feature_access';
 import * as migration_20260429_120000_add_permission_profiles from './20260429_120000_add_permission_profiles';
+import * as migration_20260429_140000_add_keyword_deep_dive_sessions from './20260429_140000_add_keyword_deep_dive_sessions';
 
 export const migrations = [
   {
@@ -191,5 +192,10 @@ export const migrations = [
     up: migration_20260429_120000_add_permission_profiles.up,
     down: migration_20260429_120000_add_permission_profiles.down,
     name: '20260429_120000_add_permission_profiles'
+  },
+  {
+    up: migration_20260429_140000_add_keyword_deep_dive_sessions.up,
+    down: migration_20260429_140000_add_keyword_deep_dive_sessions.down,
+    name: '20260429_140000_add_keyword_deep_dive_sessions'
   },
 ];

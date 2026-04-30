@@ -148,29 +148,52 @@ export function KeywordDeepDive({
     setSaving(true);
     setNegativeResult(null);
     try {
-      const res = await fetch("/api/dashboard/keyword-selections", {
+      const res: Response = await fetch("/api/dashboard/keyword-selections", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId,
           slug,
+          // The server resolves the latest Google Ads audit for this client
+          // and links the session to it — we don't need to send anything.
           selectedTerms: Array.from(selectedNegatives),
         }),
       });
-      const data = await res.json();
-      setNegativeResult({
-        type: res.ok ? "success" : "error",
-        message: res.ok
-          ? `${data.count} term${data.count !== 1 ? "s" : ""} saved`
-          : data.error || "Save failed",
-      });
+      const data: {
+        count: number;
+        skipped?: number;
+        message?: string;
+        error?: string;
+      } = await res.json();
+      if (res.ok) {
+        const skipped = data.skipped ?? 0;
+        let message: string;
+        if (data.count === 0) {
+          message =
+            data.message ||
+            "All selected terms are already saved or in your negative keyword lists. Nothing new to send.";
+        } else {
+          const sentCopy =
+            `${data.count} term${data.count !== 1 ? "s" : ""} sent to the Optimise team for review. ` +
+            `We'll review and add the right ones to your negative keyword list.`;
+          message =
+            skipped > 0
+              ? `${sentCopy} (${skipped} duplicate${skipped !== 1 ? "s" : ""} skipped.)`
+              : sentCopy;
+        }
+        setNegativeResult({ type: "success", message });
+        // Clear selection after save
+        setSelectedNegatives(new Set());
+      } else {
+        setNegativeResult({ type: "error", message: data.error || "Save failed" });
+      }
     } catch {
       setNegativeResult({ type: "error", message: "Network error" });
     } finally {
       setSaving(false);
     }
-  }, [selectedNegatives, clientId, slug]);
+  }, [selectedNegatives, clientId, slug, customerId]);
 
   const visibleConverters = showAllConverters
     ? topConverters
@@ -213,7 +236,7 @@ export function KeywordDeepDive({
               disabled={saving}
               className="px-4 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
             >
-              {saving ? "Saving..." : "Save Selection"}
+              {saving ? "Saving..." : "Save for Review"}
             </button>
           </div>
         </div>

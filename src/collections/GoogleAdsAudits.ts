@@ -1047,7 +1047,26 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 12: History ──
+        // ── Tab 12: Negative Keyword Submits ──
+        // Submissions the client makes from the Google Ads dashboard's
+        // Keyword Deep Dive tool. Team reviews here and applies keywords to
+        // a Negative Keyword List from the submission's edit view.
+        {
+          label: "Negative Keyword Submits",
+          fields: [
+            {
+              name: "keywordDeepDiveSessionsUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GoogleAdsKeywordDeepDiveSessions",
+                },
+              },
+            },
+          ],
+        },
+
+        // ── Tab 13: History ──
         {
           label: "History",
           fields: [

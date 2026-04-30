@@ -62,6 +62,7 @@ export const FEATURE_KEYS = [
   { label: "GSC Alerts", value: "gsc-alerts" },
   { label: "GSC Indexing Audits", value: "gsc-indexing-audits" },
   { label: "Negative Keyword Lists", value: "negative-keyword-lists" },
+  { label: "Negative Keyword Submits", value: "keyword-deep-dive-sessions" },
   { label: "Site Health Reports", value: "site-health-reports" },
   // Reports
   { label: "AI Visibility", value: "ai-visibility-snapshots" },
@@ -77,6 +78,7 @@ export const FEATURE_KEYS = [
   { label: "Google Analytics", value: "nav:google-analytics" },
   { label: "Search Console", value: "nav:search-console" },
   { label: "Deployments", value: "nav:deployments" },
+  { label: "Google Ads (hub)", value: "nav:google-ads" },
   // Settings
   { label: "Integrations", value: "nav:integrations" },
   { label: "Indexing Helper", value: "nav:indexing-helper" },
@@ -118,6 +120,7 @@ export const AUTO_GRANT_CLIENTS_BASIC_TRIGGERS: readonly FeatureSlug[] = [
   "gsc-alerts",
   "gsc-indexing-audits",
   "negative-keyword-lists",
+  "nav:google-ads",
   "site-health-reports",
   "ai-visibility-snapshots",
   "serp-displacement-snapshots",

@@ -2089,7 +2089,102 @@ export async function POST(request: NextRequest) {
   await run("ai_visibility_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `ai_visibility_snapshots_updated_at_idx` ON `ai_visibility_snapshots` (`updated_at`)");
   await run("locked_docs_rels.ai_visibility_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `ai_visibility_snapshots_id` integer REFERENCES `ai_visibility_snapshots`(`id`) ON DELETE CASCADE");
 
-  return NextResponse.json({ ok: true, version: "2026-04-20", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── Negative Keyword Lists: source column (2026-04-29) ──
+  // Tracks where the list originated: 'nlb' (Negative List Builder) or
+  // 'deep_dive' (Keyword Deep Dive). Added to the collection config but the
+  // matching column was never added to the live DB.
+  await run(
+    "negative_keyword_lists.source",
+    "ALTER TABLE `negative_keyword_lists` ADD `source` text DEFAULT 'nlb'",
+  );
+
+  // ── Keyword Deep Dive Sessions (2026-04-29) ──
+  // An earlier deploy created a broken keyword_deep_dive_sessions table with
+  // the relationship columns named `client`/`google_ads_audit`/`applied_to_nkl`
+  // (no `_id` suffix), which Drizzle's relationship mapper can't read. Drop
+  // the broken table once and recreate it with the correct schema.
+  //
+  // NOTE on column naming: Drizzle converts camelCase Payload field names to
+  // snake_case by inserting underscores between EVERY consecutive letter case
+  // change. So `appliedToNKL` becomes `applied_to_n_k_l` (each capital in NKL
+  // gets its own underscore), then `_id` is appended for the FK. The other
+  // relationship fields (`client`, `googleAdsAudit`) follow the normal
+  // snake_case + `_id` rule.
+  await run(
+    "drop_broken_keyword_deep_dive_sessions",
+    "DROP TABLE IF EXISTS `keyword_deep_dive_sessions_keywords`",
+  );
+  await run(
+    "drop_broken_keyword_deep_dive_sessions_root",
+    "DROP TABLE IF EXISTS `keyword_deep_dive_sessions`",
+  );
+  await run(
+    "keyword_deep_dive_sessions",
+    `CREATE TABLE IF NOT EXISTS \`keyword_deep_dive_sessions\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`google_ads_audit_id\` integer,
+      \`applied_to_n_k_l_id\` integer,
+      \`title\` text,
+      \`notes\` text,
+      \`status\` text DEFAULT 'pending',
+      \`keyword_count\` numeric DEFAULT 0,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`google_ads_audit_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`applied_to_n_k_l_id\`) REFERENCES \`negative_keyword_lists\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`,
+  );
+  // If the table was already created with the wrong column name (e.g. from
+  // the earlier broken migration), rename it. ALTER TABLE RENAME COLUMN is
+  // idempotent only when wrapped in try/catch via the run() helper.
+  await run(
+    "keyword_deep_dive_sessions.rename_applied_to_nkl_id",
+    "ALTER TABLE `keyword_deep_dive_sessions` RENAME COLUMN `applied_to_nkl_id` TO `applied_to_n_k_l_id`",
+  );
+  await run(
+    "keyword_deep_dive_sessions_keywords",
+    `CREATE TABLE IF NOT EXISTS \`keyword_deep_dive_sessions_keywords\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`keyword\` text NOT NULL,
+      \`match_type\` text DEFAULT 'exact',
+      \`flagged_for_removal\` integer DEFAULT false,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`keyword_deep_dive_sessions\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`,
+  );
+  await run(
+    "kdds_client_idx",
+    "CREATE INDEX IF NOT EXISTS `keyword_deep_dive_sessions_client_idx` ON `keyword_deep_dive_sessions` (`client_id`)",
+  );
+  await run(
+    "kdds_audit_idx",
+    "CREATE INDEX IF NOT EXISTS `keyword_deep_dive_sessions_audit_idx` ON `keyword_deep_dive_sessions` (`google_ads_audit_id`)",
+  );
+  await run(
+    "kdds_status_idx",
+    "CREATE INDEX IF NOT EXISTS `keyword_deep_dive_sessions_status_idx` ON `keyword_deep_dive_sessions` (`status`)",
+  );
+  await run(
+    "kdds_created_idx",
+    "CREATE INDEX IF NOT EXISTS `keyword_deep_dive_sessions_created_idx` ON `keyword_deep_dive_sessions` (`created_at`)",
+  );
+  await run(
+    "kdds_kw_order_idx",
+    "CREATE INDEX IF NOT EXISTS `keyword_deep_dive_sessions_keywords_order_idx` ON `keyword_deep_dive_sessions_keywords` (`_order`)",
+  );
+  await run(
+    "kdds_kw_parent_idx",
+    "CREATE INDEX IF NOT EXISTS `keyword_deep_dive_sessions_keywords_parent_idx` ON `keyword_deep_dive_sessions_keywords` (`_parent_id`)",
+  );
+  await run(
+    "locked_docs_rels.keyword_deep_dive_sessions_id",
+    "ALTER TABLE `payload_locked_documents_rels` ADD `keyword_deep_dive_sessions_id` integer REFERENCES `keyword_deep_dive_sessions`(`id`) ON DELETE CASCADE",
+  );
+
+  return NextResponse.json({ ok: true, version: "2026-04-29", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**

@@ -1025,6 +1025,21 @@ export const Clients: CollectionConfig = {
               },
             },
 
+            // ─ Negative Keyword Submits ─
+            // Created from the dashboard's Keyword Deep Dive tool when a
+            // client clicks "Save for Review". Reviewed by the team and
+            // applied to a Negative Keyword List from the submit's edit view.
+            {
+              name: "keywordDeepDiveSessions",
+              type: "join",
+              collection: "keyword-deep-dive-sessions",
+              on: "client",
+              admin: {
+                description: "Negative Keyword submits sent from the client's Google Ads dashboard for review",
+                defaultColumns: ["title", "keywordCount", "status", "appliedToNKL", "createdAt"],
+              },
+            },
+
             // ─ Automation Config ─
             {
               name: "gadsAuto",

@@ -295,6 +295,16 @@
   padding-left: 6px;
 }
 
+// Hide specific collection links from the sidebar that should only be reached
+// via deep links (e.g. from a parent collection's tab or an inline UI button).
+// Their slugs still work for direct route access — we only hide the nav entry.
+// Pair with `hideUnlessFeature(...)` in the collection config so non-admins
+// without the feature are also blocked from the route.
+.nav .nav__link[href="/admin/collections/keyword-deep-dive-sessions"],
+.nav .nav__link[href="/admin/collections/negative-keyword-lists"] {
+  display: none !important;
+}
+
 // Clear sub-item hierarchy — target both <a> (inactive) and <div> (active) nav links
 // Override Payload's default 17.5px to match sidebar-extras__link (13px)
 .nav .nav__link {
