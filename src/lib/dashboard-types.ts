@@ -162,6 +162,14 @@ export interface GoogleAdsDashboardTopAd {
    * (preview_image_url) and RESPONSIVE_DISPLAY_AD (resolved from the first
    * marketing image asset). null for search ads. */
   imageUrl?: string | null;
+  /** Up to 3 representative assets for RDA ads — the best-performing
+   * landscape, square, and logo asset (each with Google's BEST/GOOD/LOW/
+   * PENDING `performance_label`). Empty for search and IMAGE_AD ads. */
+  topAssets?: Array<{
+    url: string;
+    shape: "landscape" | "square" | "logo";
+    performanceLabel: string;
+  }>;
   impressions: number;
   clicks: number;
   spend: number;

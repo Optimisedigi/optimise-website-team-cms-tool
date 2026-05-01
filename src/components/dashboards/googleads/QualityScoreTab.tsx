@@ -136,6 +136,63 @@ function truncateUrl(url: string | null, maxLen = 40): string {
   }
 }
 
+// ── Top performing asset thumbnail ────────────────────────────
+//
+// Compact thumbnail with a shape label (LANDSCAPE / SQUARE / LOGO) and a
+// performance badge (BEST / GOOD / LOW). PENDING gets no badge — we don't
+// want a row of grey "PENDING" labels on a brand-new campaign distracting
+// from the actual creative.
+function TopAssetThumbnail({
+  asset,
+}: {
+  asset: { url: string; shape: "landscape" | "square" | "logo"; performanceLabel: string };
+}) {
+  const shapeLabel = asset.shape === "landscape" ? "1.91:1" : asset.shape === "square" ? "1:1" : "Logo";
+  // Visual aspect ratio matches the asset's actual ratio so the team can
+  // tell at a glance which shape is which without reading the label.
+  const widthPx = asset.shape === "landscape" ? 76 : 40; // 1.91:1 vs 1:1
+  const heightPx = 40;
+  const labelColor =
+    asset.performanceLabel === "BEST"
+      ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+      : asset.performanceLabel === "GOOD"
+        ? "bg-blue-100 text-blue-700 border-blue-200"
+        : asset.performanceLabel === "LOW"
+          ? "bg-amber-100 text-amber-700 border-amber-200"
+          : ""; // PENDING / unknown — no badge
+  const showBadge = asset.performanceLabel === "BEST" || asset.performanceLabel === "GOOD" || asset.performanceLabel === "LOW";
+  return (
+    <div className="flex flex-col items-center gap-0.5" title={`${shapeLabel} — ${asset.performanceLabel}`}>
+      <div
+        className="relative bg-slate-100 border border-slate-200 rounded overflow-hidden flex items-center justify-center"
+        style={{ width: widthPx, height: heightPx }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={asset.url}
+          alt={`${shapeLabel} asset`}
+          className="max-h-full max-w-full object-cover"
+          style={{ width: widthPx, height: heightPx }}
+          referrerPolicy="no-referrer"
+          loading="lazy"
+        />
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-[8px] uppercase tracking-wider text-slate-400 leading-none">
+          {shapeLabel}
+        </span>
+        {showBadge && (
+          <span
+            className={`text-[8px] uppercase font-medium px-1 py-px rounded border leading-none ${labelColor}`}
+          >
+            {asset.performanceLabel}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Most common rating across keywords (weighted by impressions) */
 function dominantRating(
   keywords: GoogleAdsDashboardQualityKeyword[],
@@ -467,6 +524,23 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
                       referrerPolicy="no-referrer"
                       loading="lazy"
                     />
+                  </div>
+                )}
+
+                {/* Top assets strip — best-performing landscape / square / logo
+                    for RDA ads. Communicates "this ad has varied creative
+                    running" without overwhelming the card. Only renders when
+                    Growth Tools returned at least one entry. */}
+                {ad.topAssets && ad.topAssets.length > 0 && (
+                  <div className="px-3 pt-2 pb-2 border-b border-slate-200 bg-white">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400 mb-1.5">
+                      Top performing assets
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {ad.topAssets.map((asset, i) => (
+                        <TopAssetThumbnail key={`${asset.url}-${i}`} asset={asset} />
+                      ))}
+                    </div>
                   </div>
                 )}
                 <div className="px-3 pt-2 pb-2">
