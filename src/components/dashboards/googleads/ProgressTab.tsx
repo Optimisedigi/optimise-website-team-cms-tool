@@ -20,6 +20,15 @@ interface ProgressTabProps {
    *  Null until the dashboard fetch resolves; gated on clientId + customerId
    *  being present. */
   avoidedSpend?: GoogleAdsDashboardAvoidedSpend | null;
+  /** Independent of the global date range — used by the Monthly Trend chart's
+   *  wasteRate / relevancy overlay lines so they don't go flat on "this month"
+   *  early in the month. Fetched once on mount against a fixed lookback. */
+  trendBudgetWasters?: GoogleAdsDashboardSearchTerm[];
+  trendIrrelevantTerms?: GoogleAdsDashboardSearchTerm[];
+  /** Total spend over the trend lookback. Used as the denominator for the
+   *  chart's relevancy line so the % stays sensible regardless of which
+   *  range the rest of the dashboard is on. */
+  trendTotalSpend?: number;
 }
 
 type ProgressMetric = "spend" | "conversions" | "cpa" | "wasteRate" | "relevancy";
@@ -507,6 +516,9 @@ export function ProgressTab({
   irrelevantTerms,
   kpis,
   avoidedSpend,
+  trendBudgetWasters,
+  trendIrrelevantTerms,
+  trendTotalSpend,
 }: ProgressTabProps) {
   // Multi-select: 1–3 metrics. Default to conversions only (matches the
   // previous single-metric default). Clicking a chip toggles — unless that
@@ -544,24 +556,30 @@ export function ProgressTab({
       ? Math.max(0, Math.min(100, ((totalSpend - irrelevantSpend) / totalSpend) * 100))
       : null;
 
+  // The chart's wasteRate / relevancy overlay lines use a separate, fixed
+  // lookback (fetched in the parent against last_6_months) so they don't go
+  // flat at 0% / 100% when the user picks "This month" early in the month.
+  // Falls back to the range-scoped totals if the parent hasn't supplied
+  // the trend-scoped data yet (graceful first-render).
+  const trendWaste = (trendBudgetWasters ?? budgetWasters).reduce((s, t) => s + t.spend, 0);
+  const trendIrrelevant = (trendIrrelevantTerms ?? irrelevantTerms).reduce((s, t) => s + t.spend, 0);
+
   // Build chart data with computed CPA, estimated waste, and per-month
-  // relevancy. Per-month relevancy uses the same modelling trick as the
-  // existing wasteRate: project the *latest period's* irrelevant-flagged
-  // total against each month's spend. Months with higher spend pull the
-  // % up; lower-spend months sit lower. Honest because the irrelevant
-  // signal we have today is period-aggregate — we surface that as a
-  // best-effort trend rather than pretending we have full historical
-  // per-month data.
+  // relevancy. Per-month metrics project the trend-window aggregate
+  // (waste / irrelevant spend) against each month's spend so months with
+  // more spend show a higher absolute waste/lower relevancy and vice versa.
+  // Honest because we don't have full historical per-month flagged-term
+  // data — we surface what we have as a best-effort trend.
   const chartData = useMemo(() => {
     return monthlyTrend.map((m) => {
       const cpa = m.conversions > 0 ? m.spend / m.conversions : 0;
       const wasteRate =
-        m.spend > 0 && totalWaste > 0
-          ? Math.min((totalWaste / m.spend) * 100, 100)
+        m.spend > 0 && trendWaste > 0
+          ? Math.min((trendWaste / m.spend) * 100, 100)
           : 0;
       const relevancy =
-        m.spend > 0 && irrelevantSpend > 0
-          ? Math.max(0, Math.min(100, 100 - (irrelevantSpend / m.spend) * 100))
+        m.spend > 0 && trendIrrelevant > 0
+          ? Math.max(0, Math.min(100, 100 - (trendIrrelevant / m.spend) * 100))
           : m.spend > 0
             ? 100
             : 0;
@@ -575,7 +593,7 @@ export function ProgressTab({
         relevancy,
       };
     });
-  }, [monthlyTrend, totalWaste, irrelevantSpend]);
+  }, [monthlyTrend, trendWaste, trendIrrelevant]);
 
   // The chart now consumes ALL metric values per point (it picks the ones
   // listed in `metrics`). One row per month with every metric pre-computed.
@@ -664,7 +682,11 @@ export function ProgressTab({
           <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
             Monthly Trend
           </h2>
-          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] text-slate-400">
+              Pick up to {MAX_SELECTED_METRICS}
+            </span>
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
             {METRIC_ORDER.map((key) => {
               const isSelected = selectedMetrics.includes(key);
               const isDisabled =
@@ -699,6 +721,7 @@ export function ProgressTab({
                 </button>
               );
             })}
+            </div>
           </div>
         </div>
         {/* Description: show only the single selected metric's description in

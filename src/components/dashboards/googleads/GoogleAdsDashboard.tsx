@@ -68,6 +68,14 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const qualityFetched = useRef(!!initialQualityData || !!mockQualityData);
   // Chart always shows last 13 months, fetched once on mount with all_time range
   const [chartMonthlyTrend, setChartMonthlyTrend] = useState(initialData.monthlyTrend);
+  // Search-term lists scoped to a fixed lookback (last_6_months) for the
+  // Progress tab's Monthly Trend chart. The chart's wasteRate / relevancy
+  // overlay lines use these so they don't go flat at 0% / 100% when the
+  // global range is set to "this month" early in the month. Independent of
+  // the user's selected range.
+  const [trendBudgetWasters, setTrendBudgetWasters] = useState<typeof initialData.budgetWasters | null>(null);
+  const [trendIrrelevantTerms, setTrendIrrelevantTerms] = useState<typeof initialData.irrelevantTerms | null>(null);
+  const [trendTotalSpend, setTrendTotalSpend] = useState<number | null>(null);
   // Avoided-spend (negative keyword value) data — fetched once on mount when
   // both clientId and customerId are available. Stays null otherwise so the
   // Progress tab gracefully hides the section.
@@ -146,6 +154,27 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       .then((res) => res.ok ? res.json() : null)
       .then((fullData) => {
         if (fullData?.monthlyTrend) setChartMonthlyTrend(fullData.monthlyTrend);
+      })
+      .catch(() => {});
+  }, [initialData.slug, initialData.customerId, initialData.clientName, brandKeywords, activeConversionActions]);
+
+  // Separate fetch for the Progress chart's overlay metrics (waste / relevancy).
+  // Fixed last_6_months lookback so the chart lines stay meaningful regardless
+  // of which date range the rest of the dashboard is on.
+  useEffect(() => {
+    if (!initialData.slug) return;
+    const params = new URLSearchParams({ slug: initialData.slug, range: "last_6_months" });
+    if (initialData.customerId) params.set("customerId", initialData.customerId);
+    if (initialData.clientName) params.set("clientName", initialData.clientName);
+    if (brandKeywords) params.set("brandKeywords", brandKeywords);
+    if (activeConversionActions) params.set("conversionActions", activeConversionActions);
+    fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
+      .then((res) => res.ok ? res.json() : null)
+      .then((trendData) => {
+        if (!trendData) return;
+        if (Array.isArray(trendData.budgetWasters)) setTrendBudgetWasters(trendData.budgetWasters);
+        if (Array.isArray(trendData.irrelevantTerms)) setTrendIrrelevantTerms(trendData.irrelevantTerms);
+        if (typeof trendData.kpis?.spend === "number") setTrendTotalSpend(trendData.kpis.spend);
       })
       .catch(() => {});
   }, [initialData.slug, initialData.customerId, initialData.clientName, brandKeywords, activeConversionActions]);
@@ -638,6 +667,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               irrelevantTerms={data.irrelevantTerms}
               kpis={data.kpis}
               avoidedSpend={avoidedSpend}
+              trendBudgetWasters={trendBudgetWasters ?? undefined}
+              trendIrrelevantTerms={trendIrrelevantTerms ?? undefined}
+              trendTotalSpend={trendTotalSpend ?? undefined}
             />
           )}
 
