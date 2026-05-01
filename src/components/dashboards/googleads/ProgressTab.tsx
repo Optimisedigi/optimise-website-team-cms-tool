@@ -301,19 +301,36 @@ function TrendChart({ points, metrics }: TrendChartProps) {
 // own tooltip element styled to match the dashboard.
 function HintIcon({ text }: { text: string }) {
   const wrapperRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
-  // Tooltip positioning: by default centered above the (?) icon. When the
-  // icon is too close to the right edge of the viewport, the 240px-wide
-  // tooltip overflows and gets clipped. We measure on open and shift the
-  // tooltip horizontally so it always stays inside the viewport with an 8px
-  // safety margin. The arrow stays anchored to the icon's center.
+  // Tooltip positioning: by default centered above the (?) icon. We measure
+  // on open and:
+  //   1. Shift horizontally if the 240px-wide tooltip would clip the left or
+  //      right edge of the viewport (8px safety margin).
+  //   2. Flip the tooltip below the icon when there isn't enough room above
+  //      (e.g. card is near the top of the viewport).
+  // The arrow always points back at the icon — horizontally counter-shifted
+  // and vertically anchored to whichever edge of the tooltip is nearest the
+  // icon.
   const TOOLTIP_WIDTH = 240;
   const SAFETY_MARGIN = 8;
-  const [shift, setShift] = useState(0); // px to add to the centered position
+  const ARROW_GAP = 6; // px between icon and tooltip
+  const [shift, setShift] = useState(0); // horizontal shift (px)
+  const [placement, setPlacement] = useState<"top" | "bottom">("top");
+  // Tooltip starts hidden until measurement completes — prevents the
+  // briefly-misplaced flicker on the first frame after open.
+  const [measured, setMeasured] = useState(false);
 
   useEffect(() => {
-    if (!open || !wrapperRef.current) return;
+    if (!open) {
+      setMeasured(false);
+      return;
+    }
+    if (!wrapperRef.current || !tooltipRef.current) return;
     const iconRect = wrapperRef.current.getBoundingClientRect();
+    const tooltipHeight = tooltipRef.current.offsetHeight;
+
+    // Horizontal: shift to keep tooltip inside the viewport.
     const iconCenter = iconRect.left + iconRect.width / 2;
     const idealLeft = iconCenter - TOOLTIP_WIDTH / 2;
     const idealRight = iconCenter + TOOLTIP_WIDTH / 2;
@@ -324,7 +341,16 @@ function HintIcon({ text }: { text: string }) {
     } else if (idealLeft < SAFETY_MARGIN) {
       nextShift = SAFETY_MARGIN - idealLeft; // positive, push right
     }
+
+    // Vertical: prefer top, but flip to bottom if there isn't enough room
+    // above the icon for the tooltip + arrow gap + safety margin.
+    const spaceAbove = iconRect.top;
+    const needed = tooltipHeight + ARROW_GAP + SAFETY_MARGIN;
+    const nextPlacement: "top" | "bottom" = spaceAbove >= needed ? "top" : "bottom";
+
     setShift(nextShift);
+    setPlacement(nextPlacement);
+    setMeasured(true);
   }, [open]);
 
   return (
@@ -349,10 +375,16 @@ function HintIcon({ text }: { text: string }) {
       </button>
       {open && (
         <span
+          ref={tooltipRef}
           role="tooltip"
           className="pointer-events-none absolute z-30 normal-case tracking-normal"
           style={{
-            bottom: "calc(100% + 6px)",
+            // Stack vertically based on measured placement. The first render
+            // (before measurement) places it above with opacity 0 so the
+            // browser can compute offsetHeight without flashing the user.
+            ...(placement === "top"
+              ? { bottom: `calc(100% + ${ARROW_GAP}px)` }
+              : { top: `calc(100% + ${ARROW_GAP}px)` }),
             // Center on the icon, then apply the viewport-aware shift so the
             // tooltip can never get clipped at either edge.
             left: "50%",
@@ -368,22 +400,37 @@ function HintIcon({ text }: { text: string }) {
             boxShadow: "0 4px 12px rgba(15, 23, 42, 0.15)",
             textAlign: "left",
             whiteSpace: "normal",
+            opacity: measured ? 1 : 0,
+            transition: measured ? "opacity 80ms ease-out" : undefined,
           }}
         >
           {text}
-          {/* Arrow stays anchored to the icon's center, regardless of the
-              tooltip's horizontal shift — we counter-shift it by -shift. */}
+          {/* Arrow points back at the icon. Anchored to whichever edge of
+              the tooltip is nearest the icon (bottom edge when placement=top,
+              top edge when placement=bottom). Counter-shifted horizontally
+              so it stays under the icon center even when the tooltip is
+              shifted to avoid viewport clipping. */}
           <span
             aria-hidden
-            className="absolute top-full"
+            className="absolute"
             style={{
+              ...(placement === "top"
+                ? {
+                    top: "100%",
+                    borderLeft: "5px solid transparent",
+                    borderRight: "5px solid transparent",
+                    borderTop: "5px solid #0f172a",
+                  }
+                : {
+                    bottom: "100%",
+                    borderLeft: "5px solid transparent",
+                    borderRight: "5px solid transparent",
+                    borderBottom: "5px solid #0f172a",
+                  }),
               left: "50%",
               transform: `translateX(calc(-50% - ${shift}px))`,
               width: 0,
               height: 0,
-              borderLeft: "5px solid transparent",
-              borderRight: "5px solid transparent",
-              borderTop: "5px solid #0f172a",
             }}
           />
         </span>
