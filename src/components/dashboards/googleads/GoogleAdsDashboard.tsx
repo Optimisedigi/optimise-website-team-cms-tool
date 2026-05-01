@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData, GoogleAdsDashboardAvoidedSpend } from "@/lib/dashboard-types";
+import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData, GoogleAdsDashboardAvoidedSpend, GoogleAdsDashboardMonthlyWasteRelevancy } from "@/lib/dashboard-types";
 import { KpiRow } from "./KpiRow";
 import { MonthlyChart } from "./MonthlyChart";
 import { CategoryBreakdown } from "./CategoryBreakdown";
@@ -74,10 +74,16 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   // Progress tab's Monthly Trend chart. The chart's wasteRate / relevancy
   // overlay lines use these so they don't go flat at 0% / 100% when the
   // global range is set to "this month" early in the month. Independent of
-  // the user's selected range.
+  // the user's selected range. Used as a fallback when monthlyWasteRelevancy
+  // hasn't loaded yet.
   const [trendBudgetWasters, setTrendBudgetWasters] = useState<typeof initialData.budgetWasters | null>(null);
   const [trendIrrelevantTerms, setTrendIrrelevantTerms] = useState<typeof initialData.irrelevantTerms | null>(null);
   const [trendTotalSpend, setTrendTotalSpend] = useState<number | null>(null);
+  // True per-month historical waste / relevancy figures — each month gets
+  // its own real numerator (no projection trick). When this loads, the
+  // chart's wasteRate / relevancy lines reflect actual historical search-
+  // term spend per month against today's NKL.
+  const [monthlyWasteRelevancy, setMonthlyWasteRelevancy] = useState<GoogleAdsDashboardMonthlyWasteRelevancy[] | null>(null);
   // Avoided-spend (negative keyword value) data — fetched once on mount when
   // both clientId and customerId are available. Stays null otherwise so the
   // Progress tab gracefully hides the section.
@@ -162,7 +168,8 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
 
   // Separate fetch for the Progress chart's overlay metrics (waste / relevancy).
   // Fixed last_6_months lookback so the chart lines stay meaningful regardless
-  // of which date range the rest of the dashboard is on.
+  // of which date range the rest of the dashboard is on. Used as fallback
+  // until monthlyWasteRelevancy resolves with true per-month data.
   useEffect(() => {
     if (!initialData.slug) return;
     const params = new URLSearchParams({ slug: initialData.slug, range: "last_6_months" });
@@ -180,6 +187,29 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       })
       .catch(() => {});
   }, [initialData.slug, initialData.customerId, initialData.clientName, brandKeywords, activeConversionActions]);
+
+  // True per-month historical waste/relevancy fetch. Heavier than the
+  // last_6_months overlay fetch — pulls 12 months of search-term data
+  // from Google Ads — so it's gated on having a clientId + customerId.
+  // Runs once on mount; the Progress tab gracefully shows the projected
+  // overlay numbers in the meantime.
+  useEffect(() => {
+    if (!clientId || !initialData.customerId || !initialData.slug) return;
+    const params = new URLSearchParams({
+      slug: initialData.slug,
+      clientId,
+      customerId: initialData.customerId,
+      monthsBack: "12",
+    });
+    fetch(`/api/dashboard/monthly-waste-relevancy?${params}`, { credentials: "include", cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.monthly)) {
+          setMonthlyWasteRelevancy(data.monthly);
+        }
+      })
+      .catch(() => {});
+  }, [clientId, initialData.customerId, initialData.slug]);
 
   const changeRange = useCallback(
     async (newRange: string) => {
@@ -672,6 +702,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               trendBudgetWasters={trendBudgetWasters ?? undefined}
               trendIrrelevantTerms={trendIrrelevantTerms ?? undefined}
               trendTotalSpend={trendTotalSpend ?? undefined}
+              monthlyWasteRelevancy={monthlyWasteRelevancy ?? undefined}
             />
           )}
 

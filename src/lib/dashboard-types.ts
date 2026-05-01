@@ -125,6 +125,22 @@ export interface GoogleAdsDashboardData {
   workDone: Array<{ description: string; date: string }>;
 }
 
+/** Per-month historical waste / relevancy figures for the Progress tab's
+ * Monthly Trend chart. Powers true per-month overlay lines (instead of
+ * projecting a single period's aggregate against each month). */
+export interface GoogleAdsDashboardMonthlyWasteRelevancy {
+  /** YYYY-MM string. */
+  month: string;
+  /** Total ad spend that month. */
+  totalSpend: number;
+  /** Spend on search terms with 0 conversions that month. */
+  nonConvertingSpend: number;
+  /** Spend on terms currently flagged as irrelevant (in the client's NKL
+   *  set today). The trend tells the story "how much budget would today's
+   *  NKL have saved each month if it had been in place then." */
+  irrelevantSpend: number;
+}
+
 /** Avoided Spend (negative keyword value tracking) */
 
 export interface GoogleAdsDashboardAvoidedSpend {

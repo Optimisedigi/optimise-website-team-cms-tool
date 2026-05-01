@@ -6,6 +6,7 @@ import type {
   GoogleAdsDashboardSearchTerm,
   GoogleAdsDashboardKpis,
   GoogleAdsDashboardAvoidedSpend,
+  GoogleAdsDashboardMonthlyWasteRelevancy,
 } from "@/lib/dashboard-types";
 
 interface ProgressTabProps {
@@ -22,13 +23,21 @@ interface ProgressTabProps {
   avoidedSpend?: GoogleAdsDashboardAvoidedSpend | null;
   /** Independent of the global date range — used by the Monthly Trend chart's
    *  wasteRate / relevancy overlay lines so they don't go flat on "this month"
-   *  early in the month. Fetched once on mount against a fixed lookback. */
+   *  early in the month. Fetched once on mount against a fixed lookback.
+   *  Fallback only — superseded by monthlyWasteRelevancy when it loads. */
   trendBudgetWasters?: GoogleAdsDashboardSearchTerm[];
   trendIrrelevantTerms?: GoogleAdsDashboardSearchTerm[];
   /** Total spend over the trend lookback. Used as the denominator for the
    *  chart's relevancy line so the % stays sensible regardless of which
    *  range the rest of the dashboard is on. */
   trendTotalSpend?: number;
+  /** True per-month historical waste / relevancy figures. When present the
+   *  chart's overlay lines use these directly instead of projecting a single
+   *  aggregate against each month. Tells the honest story: relevancy was
+   *  higher in months before the team flagged a term as irrelevant, dips
+   *  during the months that term burned budget, and rises back as the
+   *  negative blocks future spend. */
+  monthlyWasteRelevancy?: GoogleAdsDashboardMonthlyWasteRelevancy[];
 }
 
 type ProgressMetric = "spend" | "conversions" | "cpa" | "wasteRate" | "relevancy";
@@ -67,7 +76,7 @@ const METRIC_CONFIG: Record<
     color: "#8b5cf6",
     format: (v) => `${v.toFixed(1)}%`,
     description:
-      "Estimated share of monthly spend going to search terms that are either converting or haven't been flagged as irrelevant. Higher is better. Per-month figure projects the latest period's flagged-irrelevant total against each month's spend \u2014 trends with monthly spend volume.",
+      "Share of each month's spend that did NOT go to search terms currently flagged as irrelevant. Higher is better. Tells the story 'how much budget would today's negative keyword list have saved each month if it had been in place then' \u2014 the line dips during months heavy with terms we now block, and rises in months where those terms barely spent.",
   },
 };
 
@@ -528,6 +537,7 @@ export function ProgressTab({
   trendBudgetWasters,
   trendIrrelevantTerms,
   trendTotalSpend,
+  monthlyWasteRelevancy,
 }: ProgressTabProps) {
   // Multi-select: 1–3 metrics. Default to conversions only (matches the
   // previous single-metric default). Clicking a chip toggles — unless that
@@ -565,33 +575,62 @@ export function ProgressTab({
       ? Math.max(0, Math.min(100, ((totalSpend - irrelevantSpend) / totalSpend) * 100))
       : null;
 
-  // The chart's wasteRate / relevancy overlay lines use a separate, fixed
-  // lookback (fetched in the parent against last_6_months) so they don't go
-  // flat at 0% / 100% when the user picks "This month" early in the month.
-  // Falls back to the range-scoped totals if the parent hasn't supplied
-  // the trend-scoped data yet (graceful first-render).
+  // Fallback aggregates — used only when the per-month historical data
+  // (monthlyWasteRelevancy) hasn't loaded yet. Falls back further to
+  // range-scoped totals if even the trend-scoped fetch hasn't returned.
   const trendWaste = (trendBudgetWasters ?? budgetWasters).reduce((s, t) => s + t.spend, 0);
   const trendIrrelevant = (trendIrrelevantTerms ?? irrelevantTerms).reduce((s, t) => s + t.spend, 0);
 
+  // Index per-month historical figures by YYYY-MM so the chart can look
+  // up the right bucket per row. When this map has data, we use real
+  // per-month numerators instead of projecting a single aggregate.
+  const wasteByMonth = useMemo(() => {
+    const map = new Map<string, GoogleAdsDashboardMonthlyWasteRelevancy>();
+    if (monthlyWasteRelevancy) {
+      for (const row of monthlyWasteRelevancy) map.set(row.month, row);
+    }
+    return map;
+  }, [monthlyWasteRelevancy]);
+
   // Build chart data with computed CPA, estimated waste, and per-month
-  // relevancy. Per-month metrics project the trend-window aggregate
-  // (waste / irrelevant spend) against each month's spend so months with
-  // more spend show a higher absolute waste/lower relevancy and vice versa.
-  // Honest because we don't have full historical per-month flagged-term
-  // data — we surface what we have as a best-effort trend.
+  // relevancy.
+  //
+  //   - When monthlyWasteRelevancy is loaded: use the real per-month
+  //     numerators. Each month's waste/relevancy reflects actual
+  //     historical search-term spend against today's NKL set. The line
+  //     can genuinely tell the story "relevancy dropped here when this
+  //     irrelevant term was burning budget; rose here when we negated it."
+  //   - Fallback: project the trend-window aggregate against each month's
+  //     spend (less honest but keeps the chart populated during the first
+  //     paint and when the heavier fetch fails).
+  const hasHistorical = wasteByMonth.size > 0;
   const chartData = useMemo(() => {
     return monthlyTrend.map((m) => {
       const cpa = m.conversions > 0 ? m.spend / m.conversions : 0;
-      const wasteRate =
-        m.spend > 0 && trendWaste > 0
+      const historical = wasteByMonth.get(m.month);
+      let wasteRate: number;
+      let relevancy: number;
+      if (historical && historical.totalSpend > 0) {
+        wasteRate = Math.min((historical.nonConvertingSpend / historical.totalSpend) * 100, 100);
+        relevancy = Math.max(
+          0,
+          Math.min(100, 100 - (historical.irrelevantSpend / historical.totalSpend) * 100),
+        );
+      } else if (historical) {
+        // Month exists in the historical pull but had zero spend.
+        wasteRate = 0;
+        relevancy = m.spend > 0 ? 100 : 0;
+      } else {
+        // Pre-historical-load fallback: the projection trick.
+        wasteRate = m.spend > 0 && trendWaste > 0
           ? Math.min((trendWaste / m.spend) * 100, 100)
           : 0;
-      const relevancy =
-        m.spend > 0 && trendIrrelevant > 0
+        relevancy = m.spend > 0 && trendIrrelevant > 0
           ? Math.max(0, Math.min(100, 100 - (trendIrrelevant / m.spend) * 100))
           : m.spend > 0
             ? 100
             : 0;
+      }
       return {
         month: m.month,
         label: monthLabel(m.month),
@@ -602,7 +641,7 @@ export function ProgressTab({
         relevancy,
       };
     });
-  }, [monthlyTrend, trendWaste, trendIrrelevant]);
+  }, [monthlyTrend, wasteByMonth, trendWaste, trendIrrelevant]);
 
   // The chart now consumes ALL metric values per point (it picks the ones
   // listed in `metrics`). One row per month with every metric pre-computed.
