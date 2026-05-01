@@ -142,11 +142,39 @@ function truncateUrl(url: string | null, maxLen = 40): string {
 // performance badge (BEST / GOOD / LOW). PENDING gets no badge — we don't
 // want a row of grey "PENDING" labels on a brand-new campaign distracting
 // from the actual creative.
+// Main ad image. Collapses the wrapper when the image fails to load so a
+// broken Google CDN URL doesn't leave a phantom 140px grey rectangle on
+// the card. We deliberately do NOT set referrerPolicy="no-referrer" —
+// Google's ad-asset CDN appears to serve content based on referrer and
+// stripping it caused all preview images to load as blank greys.
+function MainAdImage({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <div className="bg-slate-50 border-b border-slate-200 flex items-center justify-center" style={{ height: 140 }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        className="max-h-full max-w-full object-contain"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  );
+}
+
 function TopAssetThumbnail({
   asset,
 }: {
   asset: { url: string; shape: "landscape" | "square" | "logo"; performanceLabel: string };
 }) {
+  const [failed, setFailed] = useState(false);
+  // Don't render the thumbnail at all when its asset URL fails to load —
+  // an empty grey square with just "1.91:1" underneath looks broken. The
+  // parent already gracefully reflows when there are 0–3 thumbnails so
+  // dropping a failed one is fine.
+  if (failed) return null;
   const shapeLabel = asset.shape === "landscape" ? "1.91:1" : asset.shape === "square" ? "1:1" : "Logo";
   // Visual aspect ratio matches the asset's actual ratio so the team can
   // tell at a glance which shape is which without reading the label.
@@ -173,8 +201,8 @@ function TopAssetThumbnail({
           alt={`${shapeLabel} asset`}
           className="max-h-full max-w-full object-cover"
           style={{ width: widthPx, height: heightPx }}
-          referrerPolicy="no-referrer"
           loading="lazy"
+          onError={() => setFailed(true)}
         />
       </div>
       <div className="flex items-center gap-1">
@@ -513,18 +541,11 @@ function TopAdsSection({ ads }: { ads: GoogleAdsDashboardTopAd[] }) {
                 className="rounded-lg border-2 border-slate-300 bg-white overflow-hidden hover:border-slate-400 hover:shadow-sm transition-all"
               >
                 {/* Ad preview — image-first for display ads, text-first for search ads.
-                    Single tight padding block, no internal section gaps. */}
+                    Wrapped in MainAdImage which collapses the placeholder if
+                    the image fails to load (e.g. Google CDN URL expired, CORS
+                    block) so we never show an empty grey 140px box. */}
                 {hasImage && (
-                  <div className="bg-slate-50 border-b border-slate-200 flex items-center justify-center" style={{ height: 140 }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={ad.imageUrl!}
-                      alt={ad.adName || headline}
-                      className="max-h-full max-w-full object-contain"
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                    />
-                  </div>
+                  <MainAdImage src={ad.imageUrl!} alt={ad.adName || headline} />
                 )}
 
                 {/* Top assets strip — best-performing landscape / square / logo
