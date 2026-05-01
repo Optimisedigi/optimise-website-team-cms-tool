@@ -37,11 +37,21 @@ const RANGE_OPTIONS = [
   { value: "this_month", label: "This month" },
   { value: "last_month", label: "Last month" },
   { value: "last_30_days", label: "Last 30 days" },
+  { value: "last_60_days", label: "Last 60 days" },
   { value: "last_3_months", label: "Last 3 months" },
   { value: "last_6_months", label: "Last 6 months" },
   { value: "this_year", label: "This year" },
   { value: "last_year", label: "Last year" },
   { value: "all_time", label: "All time" },
+] as const;
+
+// Deep Dive uses a narrower set — negative keyword review needs a recent
+// rolling window, not a calendar-month or full-year view.
+const DEEP_DIVE_RANGE_OPTIONS = [
+  { value: "last_30_days", label: "Last 30 days" },
+  { value: "last_60_days", label: "Last 60 days" },
+  { value: "last_3_months", label: "Last 3 months" },
+  { value: "last_6_months", label: "Last 6 months" },
 ] as const;
 
 type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress";
@@ -62,6 +72,15 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   // both clientId and customerId are available. Stays null otherwise so the
   // Progress tab gracefully hides the section.
   const [avoidedSpend, setAvoidedSpend] = useState<GoogleAdsDashboardAvoidedSpend | null>(null);
+  // Keyword Deep Dive owns its own date range — negative-keyword review wants
+  // a recent rolling window (default 60 days), independent of whatever the
+  // global selector is set to. We fetch dashboard data scoped to this range
+  // and stash the search-term lists separately so they don't clobber the
+  // global `data` (which other tabs rely on).
+  const [deepDiveRange, setDeepDiveRange] = useState<string>("last_60_days");
+  const [deepDiveData, setDeepDiveData] = useState<GoogleAdsDashboardData | null>(null);
+  const [deepDiveLoading, setDeepDiveLoading] = useState(false);
+  const deepDiveFetched = useRef(false);
 
   useEffect(() => {
     if (!clientId || !initialData.customerId || !initialData.slug) return;
@@ -210,9 +229,41 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     [data.slug, data.customerId, range],
   );
 
-  // Track whether we've already auto-switched the range on the first Deep
-  // Dive open. After that, respect whatever the user has manually picked.
-  const deepDiveAutoSwitched = useRef(false);
+  // Fetch Deep Dive search-term lists scoped to the deep-dive-only range.
+  // Reuses /api/dashboard/data but stores the result separately so the rest
+  // of the dashboard (Overview / Progress / Quality) keeps using the global
+  // range's data. We only need the search-term arrays for Deep Dive but the
+  // endpoint returns the full payload — cheap enough not to optimise.
+  const fetchDeepDiveData = useCallback(
+    async (rangeOverride?: string) => {
+      if (!data.slug) return;
+      setDeepDiveLoading(true);
+      try {
+        const params = new URLSearchParams({
+          slug: data.slug,
+          range: rangeOverride || deepDiveRange,
+        });
+        if (data.customerId) params.set("customerId", data.customerId);
+        if (data.clientName) params.set("clientName", data.clientName);
+        if (brandKeywords) params.set("brandKeywords", brandKeywords);
+        if (activeConversionActions) params.set("conversionActions", activeConversionActions);
+        const res = await fetch(
+          `/api/dashboard/data?${params}`,
+          { credentials: "include", cache: "no-store" },
+        );
+        if (res.ok) {
+          const result = await res.json();
+          setDeepDiveData(result);
+          deepDiveFetched.current = true;
+        }
+      } catch (err) {
+        console.error("[DeepDive] Fetch error:", err);
+      } finally {
+        setDeepDiveLoading(false);
+      }
+    },
+    [data.slug, data.customerId, data.clientName, brandKeywords, activeConversionActions, deepDiveRange],
+  );
 
   const handleTabChange = useCallback(
     async (tab: Tab) => {
@@ -220,23 +271,37 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       if (tab === "quality" && !qualityFetched.current) {
         await fetchQualityData();
       }
-      // Negative-keyword review needs a recent rolling window. When the user
-      // first opens Keyword Deep Dive while the range is the default
-      // "this_month" (which is too short and skewed against early-in-the-
-      // month opens), auto-switch to last 30 days. Only fires once per
-      // session so we don't fight the user if they later pick a different
-      // range and come back.
-      if (
-        tab === "keywords" &&
-        !deepDiveAutoSwitched.current &&
-        range === "this_month"
-      ) {
-        deepDiveAutoSwitched.current = true;
-        await changeRange("last_30_days");
+      if (tab === "keywords" && !deepDiveFetched.current) {
+        await fetchDeepDiveData();
       }
     },
-    [fetchQualityData, range, changeRange],
+    [fetchQualityData, fetchDeepDiveData],
   );
+
+  const changeDeepDiveRange = useCallback(
+    (newRange: string) => {
+      if (newRange === deepDiveRange) return;
+      setDeepDiveRange(newRange);
+      // The fetch effect below picks this up.
+    },
+    [deepDiveRange],
+  );
+
+  // Re-fetch Deep Dive data when its range changes — but only if the user
+  // has already opened the tab. Avoids a wasted request for users who
+  // never click in.
+  useEffect(() => {
+    if (!deepDiveFetched.current) return;
+    fetchDeepDiveData(deepDiveRange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepDiveRange]);
+
+  // Re-fetch when conversion-action selection changes — same gate.
+  useEffect(() => {
+    if (!deepDiveFetched.current) return;
+    fetchDeepDiveData(deepDiveRange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversionActions]);
 
   // Re-fetch quality data when the date range changes — but only if the
   // Quality tab has already been opened at least once. Avoids a wasted
@@ -300,7 +365,14 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
 
   const rangeLabel =
     RANGE_OPTIONS.find((r) => r.value === range)?.label || "Last month";
-  const displayedDateLabel = data.dateRangeLabel || rangeLabel;
+  const deepDiveRangeLabel =
+    DEEP_DIVE_RANGE_OPTIONS.find((r) => r.value === deepDiveRange)?.label || "Last 60 days";
+  // On the Keyword Deep Dive tab show the deep-dive scope under the
+  // selector; everywhere else use the global range's label.
+  const displayedDateLabel =
+    activeTab === "keywords"
+      ? (deepDiveData?.dateRangeLabel || deepDiveRangeLabel)
+      : (data.dateRangeLabel || rangeLabel);
 
   // Monthly chart always shows last 14 months, unaffected by date range
   const chart14Months = chartMonthlyTrend.slice(-14);
@@ -334,19 +406,39 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             className="grid items-start gap-x-3 gap-y-1"
             style={{ gridTemplateColumns: 'repeat(3, auto)' }}
           >
-            {/* Row 1, Col 1: Date range dropdown */}
-            <select
-              value={range}
-              onChange={(e) => changeRange(e.target.value)}
-              disabled={loading}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-            >
-              {RANGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            {/* Row 1, Col 1: Date range dropdown.
+                Keyword Deep Dive owns its own narrower range (default 60 days)
+                so a different selector is shown there. The global range
+                doesn't apply on that tab — negative-keyword review wants a
+                recent rolling window independent of how the rest of the
+                dashboard is scoped. */}
+            {activeTab === "keywords" ? (
+              <select
+                value={deepDiveRange}
+                onChange={(e) => changeDeepDiveRange(e.target.value)}
+                disabled={deepDiveLoading}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+              >
+                {DEEP_DIVE_RANGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                value={range}
+                onChange={(e) => changeRange(e.target.value)}
+                disabled={loading}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+              >
+                {RANGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
 
             {/* Row 1, Col 2: Conversion action selector */}
             {availableActions.length > 1 ? (
@@ -479,7 +571,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         </div>
 
         {/* Loading overlay */}
-        {loading && (
+        {(loading || (deepDiveLoading && activeTab === "keywords")) && (
           <div className="flex items-center gap-2 mb-4 text-sm text-slate-500">
             <svg
               className="animate-spin h-4 w-4 text-blue-600"
@@ -501,11 +593,11 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
               />
             </svg>
-            Loading {rangeLabel.toLowerCase()} data...
+            Loading {(activeTab === "keywords" ? deepDiveRangeLabel : rangeLabel).toLowerCase()} data...
           </div>
         )}
 
-        <div className={loading ? "opacity-50 pointer-events-none" : ""}>
+        <div className={(loading || (deepDiveLoading && activeTab === "keywords")) ? "opacity-50 pointer-events-none" : ""}>
           {activeTab === "overview" && (
             <>
               <KpiRow kpis={data.kpis} compareMode={compareMode} />
@@ -558,15 +650,23 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
           )}
 
           {activeTab === "keywords" && (
-            <KeywordDeepDive
-              topConverters={data.topConverters}
-              budgetWasters={data.budgetWasters}
-              irrelevantTerms={data.irrelevantTerms}
-              customerId={data.customerId}
-              slug={data.slug}
-              clientId={clientId}
-              initialKeywordSelections={initialKeywordSelections}
-            />
+            // Use deep-dive-scoped data once it's fetched. Until then, fall
+            // back to the global `data` so the tab isn't blank during the
+            // first-open fetch (loading spinner above covers the difference).
+            (() => {
+              const dd = deepDiveData ?? data;
+              return (
+                <KeywordDeepDive
+                  topConverters={dd.topConverters}
+                  budgetWasters={dd.budgetWasters}
+                  irrelevantTerms={dd.irrelevantTerms}
+                  customerId={dd.customerId}
+                  slug={dd.slug}
+                  clientId={clientId}
+                  initialKeywordSelections={initialKeywordSelections}
+                />
+              );
+            })()
           )}
 
           {activeTab === "quality" && (
