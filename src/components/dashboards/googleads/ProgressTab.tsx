@@ -126,8 +126,12 @@ function TrendChart({ points, metrics }: TrendChartProps) {
   // at the same x position. Reserve space for that.
   const padTop = 30 + Math.max(0, metrics.length - 1) * 12;
   const padBottom = 40;
-  const padLeft = isSingle ? 55 : 20; // no Y labels when overlaying multiple
-  const padRight = 20;
+  // Edge padding has to accommodate the leftmost / rightmost X-axis labels
+  // (e.g. "May '26") which are anchored to the corresponding data point.
+  // Without this padding the rightmost label clips past the chart edge and
+  // visually crowds the second-to-last label.
+  const padLeft = isSingle ? 55 : 36;
+  const padRight = 36;
   const chartH = height - padTop - padBottom;
   const chartW = width - padLeft - padRight;
 
@@ -281,9 +285,14 @@ function TrendChart({ points, metrics }: TrendChartProps) {
             );
           })}
 
-          {/* X axis labels */}
+          {/* X axis labels. Edge labels (first / last) anchor to start /
+              end so they don't extend past the chart bounds and crowd
+              their neighbours. */}
           {points.map((p, i) => {
             if (points.length > 8 && i % 2 !== 0 && i !== points.length - 1) return null;
+            const isFirst = i === 0;
+            const isLast = i === points.length - 1;
+            const anchor: "start" | "middle" | "end" = isFirst ? "start" : isLast ? "end" : "middle";
             return (
               <text
                 key={`x-${i}`}
@@ -291,7 +300,7 @@ function TrendChart({ points, metrics }: TrendChartProps) {
                 y={height - 10}
                 fontSize={10}
                 fill="#94a3b8"
-                textAnchor="middle"
+                textAnchor={anchor}
               >
                 {p.label}
               </text>
