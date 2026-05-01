@@ -242,6 +242,19 @@ export async function GET(req: NextRequest) {
         }> = Array.isArray(data?.perKeyword) ? data.perKeyword : [];
 
         const fetchedAt = new Date().toISOString();
+
+        // Build the full list of writes first — then run them in parallel
+        // with a concurrency cap. Sequential awaits here were the dominant
+        // cost (53 keywords × 14 months = 742 round-trips to Turso, ~30-60s
+        // total on a fresh client). Parallel pipelining cuts that to a few
+        // seconds. Cap at 16 concurrent writes so we don't exhaust Turso's
+        // libSQL connection pool on big accounts.
+        type Write =
+          | { kind: "update"; id: number | string; data: { spend: number; isFinal: boolean; fetchedAt: string } }
+          | { kind: "create"; data: { client: number; keyword: string; matchType: MatchType; yearMonth: string; spend: number; isFinal: boolean; fetchedAt: string } };
+        const writes: Write[] = [];
+        // Also stage the new/updated rows into the in-memory cache so step 5
+        // can read from memory and skip a Turso round-trip at the end.
         for (const kwResp of perKw) {
           const text = String(kwResp.text || "").trim();
           const matchType = String(kwResp.matchType || "").toUpperCase() as MatchType;
@@ -251,37 +264,60 @@ export async function GET(req: NextRequest) {
             const isFinal = month < currentMonth;
             const cacheKey = `${text.toLowerCase()}|${matchType}|${month}`;
             const existing = cache.get(cacheKey);
-            try {
-              if (existing) {
-                await payload.update({
-                  collection: "negative-keyword-avoided-spend-cache",
-                  id: existing.id,
-                  data: {
-                    spend,
-                    isFinal,
-                    fetchedAt,
-                  },
-                  overrideAccess: true,
-                });
-              } else {
-                await payload.create({
-                  collection: "negative-keyword-avoided-spend-cache",
-                  data: {
-                    client: clientId,
-                    keyword: text,
-                    matchType,
-                    yearMonth: month,
-                    spend,
-                    isFinal,
-                    fetchedAt,
-                  },
-                  overrideAccess: true,
-                });
-              }
-            } catch (err) {
-              payload.logger?.warn?.(`[avoided-spend] cache upsert failed for ${text}/${matchType}/${month}: ${err}`);
+            if (existing) {
+              writes.push({ kind: "update", id: existing.id, data: { spend, isFinal, fetchedAt } });
+              // Mutate the in-memory copy so the response builder picks up
+              // the fresh value without a re-read.
+              existing.spend = spend;
+              existing.isFinal = isFinal;
+              existing.fetchedAt = fetchedAt;
+            } else {
+              writes.push({
+                kind: "create",
+                data: { client: clientId, keyword: text, matchType, yearMonth: month, spend, isFinal, fetchedAt },
+              });
+              // Synthesise an in-memory cache entry. We don't have the real
+              // row id (assigned by the DB), but the response builder only
+              // reads keyword/matchType/yearMonth/spend so id=-1 is fine.
+              cache.set(cacheKey, {
+                id: -1,
+                client: clientId,
+                keyword: text,
+                matchType,
+                yearMonth: month,
+                spend,
+                isFinal,
+                fetchedAt,
+              });
             }
           }
+        }
+
+        const CONCURRENCY = 16;
+        for (let i = 0; i < writes.length; i += CONCURRENCY) {
+          const batch = writes.slice(i, i + CONCURRENCY);
+          await Promise.all(
+            batch.map(async (w) => {
+              try {
+                if (w.kind === "update") {
+                  await payload.update({
+                    collection: "negative-keyword-avoided-spend-cache",
+                    id: w.id,
+                    data: w.data,
+                    overrideAccess: true,
+                  });
+                } else {
+                  await payload.create({
+                    collection: "negative-keyword-avoided-spend-cache",
+                    data: w.data,
+                    overrideAccess: true,
+                  });
+                }
+              } catch (err) {
+                payload.logger?.warn?.(`[avoided-spend] cache upsert failed: ${err}`);
+              }
+            }),
+          );
         }
       } else {
         const text = await res.text().catch(() => "");
@@ -292,15 +328,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 5. Re-read the full cache and aggregate.
-  const finalCache = await payload.find({
-    collection: "negative-keyword-avoided-spend-cache",
-    where: { client: { equals: clientId } },
-    limit: 10000,
-    depth: 0,
-    overrideAccess: true,
-  });
-
+  // 5. Aggregate from the in-memory cache. We mutated/extended `cache`
+  // during the write loop above so it reflects the latest data without
+  // needing another Turso round-trip.
   const dedupedKeySet = new Set(
     deduped.map((k) => `${k.keyword.toLowerCase()}|${k.matchType}`),
   );
@@ -325,7 +355,7 @@ export async function GET(req: NextRequest) {
 
   const totals: Record<string, number> = Object.fromEntries(months.map((m) => [m, 0]));
 
-  for (const row of finalCache.docs as unknown as CacheRow[]) {
+  for (const row of cache.values()) {
     const key = `${row.keyword.toLowerCase()}|${row.matchType}`;
     if (!dedupedKeySet.has(key)) continue; // dropped/replaced keyword
     if (!months.includes(row.yearMonth)) continue;
