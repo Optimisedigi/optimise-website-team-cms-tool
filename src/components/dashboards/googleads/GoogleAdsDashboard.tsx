@@ -210,14 +210,32 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     [data.slug, data.customerId, range],
   );
 
+  // Track whether we've already auto-switched the range on the first Deep
+  // Dive open. After that, respect whatever the user has manually picked.
+  const deepDiveAutoSwitched = useRef(false);
+
   const handleTabChange = useCallback(
     async (tab: Tab) => {
       setActiveTab(tab);
       if (tab === "quality" && !qualityFetched.current) {
         await fetchQualityData();
       }
+      // Negative-keyword review needs a recent rolling window. When the user
+      // first opens Keyword Deep Dive while the range is the default
+      // "this_month" (which is too short and skewed against early-in-the-
+      // month opens), auto-switch to last 30 days. Only fires once per
+      // session so we don't fight the user if they later pick a different
+      // range and come back.
+      if (
+        tab === "keywords" &&
+        !deepDiveAutoSwitched.current &&
+        range === "this_month"
+      ) {
+        deepDiveAutoSwitched.current = true;
+        await changeRange("last_30_days");
+      }
     },
-    [fetchQualityData],
+    [fetchQualityData, range, changeRange],
   );
 
   // Re-fetch quality data when the date range changes — but only if the
