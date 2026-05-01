@@ -129,12 +129,17 @@ function TrendChart({ points, metrics }: TrendChartProps) {
   const soloMetric = isSingle ? metrics[0] : null;
   const soloConfig = soloMetric ? METRIC_CONFIG[soloMetric] : null;
 
-  const height = 260;
+  // X-axis labels are tilted 35° below 1024px chart width so all 13 months
+  // can fit without overlapping. Tilted labels need extra room below the
+  // chart — ~52px tall once rotated. Bump total chart height when tilting
+  // so the plotting area itself doesn't shrink.
+  const tiltLabels = points.length > 8;
+  const height = tiltLabels ? 280 : 260;
   // Extra top padding when multiple metrics are overlaid — each additional
   // line gets a 12px vertical offset on its labels so they don't overlap
   // at the same x position. Reserve space for that.
   const padTop = 30 + Math.max(0, metrics.length - 1) * 12;
-  const padBottom = 40;
+  const padBottom = tiltLabels ? 56 : 40;
   // Edge padding has to accommodate the leftmost / rightmost X-axis labels
   // (e.g. "May '26") which are anchored to the corresponding data point.
   // Without this padding the rightmost label clips past the chart edge and
@@ -294,18 +299,35 @@ function TrendChart({ points, metrics }: TrendChartProps) {
             );
           })}
 
-          {/* X axis labels. Edge labels (first / last) anchor to start /
-              end so they don't extend past the chart bounds and crowd
-              their neighbours. */}
+          {/* X axis labels. Every month rendered — tilted 35° when there are
+              enough points that horizontal labels would overlap (13 months
+              at typical chart widths). Tilted labels anchor to `end` so the
+              text reads up-and-to-the-right from the data point underneath. */}
           {points.map((p, i) => {
-            if (points.length > 8 && i % 2 !== 0 && i !== points.length - 1) return null;
             const isFirst = i === 0;
             const isLast = i === points.length - 1;
+            const x = toX(i);
+            const y = height - (tiltLabels ? 22 : 10);
+            if (tiltLabels) {
+              return (
+                <text
+                  key={`x-${i}`}
+                  x={x}
+                  y={y}
+                  fontSize={10}
+                  fill="#94a3b8"
+                  textAnchor="end"
+                  transform={`rotate(-35 ${x} ${y})`}
+                >
+                  {p.label}
+                </text>
+              );
+            }
             const anchor: "start" | "middle" | "end" = isFirst ? "start" : isLast ? "end" : "middle";
             return (
               <text
                 key={`x-${i}`}
-                x={toX(i)}
+                x={x}
                 y={height - 10}
                 fontSize={10}
                 fill="#94a3b8"
@@ -1053,9 +1075,14 @@ function AvoidedSpendChart({
     return () => observer.disconnect();
   }, []);
 
-  const height = 220;
+  // Tilt labels and reserve more bottom padding when there are too many
+  // months to fit horizontally. Keeps every month visible on the axis
+  // instead of skipping every other one. Bump total height when tilting so
+  // the plotting area itself doesn't shrink.
+  const tiltLabels = points.length > 8;
+  const height = tiltLabels ? 240 : 220;
   const padTop = 24;
-  const padBottom = 36;
+  const padBottom = tiltLabels ? 56 : 36;
   const padLeft = 56;
   const padRight = 16;
   const chartH = height - padTop - padBottom;
@@ -1167,13 +1194,30 @@ function AvoidedSpendChart({
             {formatDollars(points[points.length - 1].value)}
           </text>
 
-          {/* X axis labels (every other when crowded). */}
+          {/* X axis labels. Every month rendered, tilted 35° when crowded so
+              13 months can all fit. */}
           {points.map((p, i) => {
-            if (points.length > 8 && i % 2 !== 0 && i !== points.length - 1) return null;
+            const x = toX(i);
+            const y = height - (tiltLabels ? 22 : 10);
+            if (tiltLabels) {
+              return (
+                <text
+                  key={`x-${i}`}
+                  x={x}
+                  y={y}
+                  fontSize={10}
+                  fill="#94a3b8"
+                  textAnchor="end"
+                  transform={`rotate(-35 ${x} ${y})`}
+                >
+                  {p.label}
+                </text>
+              );
+            }
             return (
               <text
                 key={`x-${i}`}
-                x={toX(i)}
+                x={x}
                 y={height - 10}
                 fontSize={10}
                 fill="#94a3b8"
