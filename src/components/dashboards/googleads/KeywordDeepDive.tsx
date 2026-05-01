@@ -70,9 +70,6 @@ export function KeywordDeepDive({
   initialAddedSelections,
   initialAddedNegatives,
 }: KeywordDeepDiveProps) {
-  const storageKey = `dashboard-keep-terms:${customerId}`;
-
-  const [keptTerms, setKeptTerms] = useState<Set<string>>(new Set());
   const [showAllConverters, setShowAllConverters] = useState(false);
 
   // Negative keyword selection state
@@ -88,16 +85,6 @@ export function KeywordDeepDive({
     type: "success" | "error";
     message: string;
   } | null>(null);
-
-  // Load kept terms from localStorage (unchanged)
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) setKeptTerms(new Set(JSON.parse(saved)));
-    } catch {
-      // ignore
-    }
-  }, [storageKey]);
 
   // Load initial saved selections (server-side prop, or belt-and-suspenders fetch).
   // The server-side props split deep-dive saves into pending (selectedNegatives)
@@ -138,20 +125,6 @@ export function KeywordDeepDive({
       })
       .catch(() => {});
   }, [clientId, slug, initialKeywordSelections, initialAddedNegatives]);
-
-  function toggleKeep(term: string) {
-    setKeptTerms((prev) => {
-      const next = new Set(prev);
-      if (next.has(term)) next.delete(term);
-      else next.add(term);
-      try {
-        localStorage.setItem(storageKey, JSON.stringify([...next]));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  }
 
   // Helper: a term is locked when the agency has already promoted it into a
   // real (non-deep-dive) NKL. These rows show as "Added as Negative" and
@@ -409,7 +382,13 @@ export function KeywordDeepDive({
                               type="checkbox"
                               checked={isSelected}
                               onChange={(e) => shiftSelectBudgetWaster(row.term, e)}
-                              className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                              // accent-red-600 colours the tick itself red,
+                              // not just the box border. Negative-keyword
+                              // selection is destructive (we're going to
+                              // block these terms) so the red tick reads
+                              // more accurately than the browser's default
+                              // blue.
+                              className="h-4 w-4 rounded border-slate-300 accent-red-600 text-red-600 focus:ring-red-500"
                             />
                           )}
                         </td>
@@ -468,8 +447,8 @@ export function KeywordDeepDive({
           )}
         </div>
         <p className="text-xs text-slate-400 mb-3">
-          Low click-through terms that may not match your services. Tick &quot;Keep&quot; for
-          terms you want to protect, or check the box to flag as negative.
+          Low click-through terms that may not match your services. Tick the box
+          to flag a term as a negative; leave it unchecked to keep it running.
         </p>
         {irrelevantTerms.length === 0 ? (
           <p className="text-sm text-slate-400 py-4 text-center">
@@ -480,9 +459,6 @@ export function KeywordDeepDive({
             <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="py-2 px-3 text-left font-medium text-xs uppercase tracking-wider text-slate-500 w-12">
-                    Keep
-                  </th>
                   {clientId && (
                     <th className="py-2 px-3 text-left font-medium text-xs uppercase tracking-wider text-slate-500 w-10">
                       <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -508,7 +484,6 @@ export function KeywordDeepDive({
               </thead>
               <tbody>
                 {irrelevantTerms.map((row) => {
-                  const isKept = keptTerms.has(row.term);
                   const isNeg = selectedNegatives.has(row.term);
                   const isAdded = isAddedNegative(row.term);
                   return (
@@ -517,22 +492,11 @@ export function KeywordDeepDive({
                       className={`border-b border-slate-100 last:border-0 transition-colors ${
                         isAdded
                           ? "bg-slate-50 opacity-75"
-                          : isKept
-                            ? "bg-emerald-50/50"
-                            : isNeg
-                              ? "bg-red-50/50"
-                              : "hover:bg-slate-50"
+                          : isNeg
+                            ? "bg-red-50/50"
+                            : "hover:bg-slate-50"
                       }`}
                     >
-                      <td className="py-2.5 px-3">
-                        <input
-                          type="checkbox"
-                          checked={isKept}
-                          disabled={isAdded}
-                          onChange={() => !isAdded && toggleKeep(row.term)}
-                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-30"
-                        />
-                      </td>
                       {clientId && (
                         <td className="py-2.5 px-3">
                           {isAdded ? (
@@ -541,9 +505,8 @@ export function KeywordDeepDive({
                             <input
                               type="checkbox"
                               checked={isNeg}
-                              disabled={isKept}
-                              onChange={(e) => !isKept && shiftSelectIrrelevant(row.term, e)}
-                              className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:opacity-30"
+                              onChange={(e) => shiftSelectIrrelevant(row.term, e)}
+                              className="h-4 w-4 rounded border-slate-300 accent-red-600 text-red-600 focus:ring-red-500"
                             />
                           )}
                         </td>
