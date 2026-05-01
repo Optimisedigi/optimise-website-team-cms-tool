@@ -104,7 +104,10 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       slug: initialData.slug,
       clientId,
       customerId: initialData.customerId,
-      monthsBack: "12",
+      // 14 months gives the chart a slightly longer trend than the standard
+      // 12-month rolling window — the extra two months help spot seasonality
+      // changes year-over-year without the cost of a full 24-month pull.
+      monthsBack: "14",
     });
     fetch(`/api/dashboard/avoided-spend?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
@@ -189,17 +192,18 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   }, [initialData.slug, initialData.customerId, initialData.clientName, brandKeywords, activeConversionActions]);
 
   // True per-month historical waste/relevancy fetch. Heavier than the
-  // last_6_months overlay fetch — pulls 12 months of search-term data
+  // last_6_months overlay fetch — pulls 14 months of search-term data
   // from Google Ads — so it's gated on having a clientId + customerId.
   // Runs once on mount; the Progress tab gracefully shows the projected
-  // overlay numbers in the meantime.
+  // overlay numbers in the meantime. 14 months matches the avoided-spend
+  // window so both charts share the same x-axis range.
   useEffect(() => {
     if (!clientId || !initialData.customerId || !initialData.slug) return;
     const params = new URLSearchParams({
       slug: initialData.slug,
       clientId,
       customerId: initialData.customerId,
-      monthsBack: "12",
+      monthsBack: "14",
     });
     fetch(`/api/dashboard/monthly-waste-relevancy?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
