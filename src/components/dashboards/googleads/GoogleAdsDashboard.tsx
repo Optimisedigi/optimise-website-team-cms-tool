@@ -516,8 +516,14 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
           )}
 
           {activeTab === "progress" && (
+            // Pass the always-13-month trend (fetched once on mount with
+            // range=all_time) instead of the range-scoped data.monthlyTrend.
+            // The Progress tab's Monthly Trend chart should always show the
+            // full historical view regardless of which date range the user
+            // picks at the top of the dashboard — otherwise selecting
+            // "This month" on the 1st collapses the chart to a single point.
             <ProgressTab
-              monthlyTrend={data.monthlyTrend}
+              monthlyTrend={chartMonthlyTrend}
               budgetWasters={data.budgetWasters}
               irrelevantTerms={data.irrelevantTerms}
               kpis={data.kpis}
