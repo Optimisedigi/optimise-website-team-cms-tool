@@ -82,15 +82,51 @@ export default async function GoogleDashboardPage({ params }: Props) {
     notFound();
   }
 
-  // Load any existing deep-dive keyword selections for this client
+  // Load any existing deep-dive keyword selections for this client.
   const nklResult = await payload.find({
     collection: "negative-keyword-lists",
     where: { client: { equals: client.id }, source: { equals: "deep_dive" } },
     limit: 1,
     overrideAccess: true,
   });
-  const initialKeywordSelections: string[] =
+  const allDeepDiveSelections: string[] =
     (nklResult.docs[0] as any)?.keywords?.map((k: any) => k.keyword) ?? [];
+
+  // Load every keyword from real (synced) NKLs so the dashboard can render
+  // promoted terms in an "Added as Negative" state. Same logic as the
+  // /api/dashboard/keyword-selections GET handler so the server-rendered
+  // first paint matches the hydration fetch.
+  const realListsResult = await payload.find({
+    collection: "negative-keyword-lists",
+    where: {
+      and: [
+        { client: { equals: client.id } },
+        { isActive: { equals: true } },
+        { source: { not_equals: "deep_dive" } },
+      ],
+    },
+    limit: 200,
+    overrideAccess: true,
+  });
+  const addedSet = new Set<string>();
+  for (const list of realListsResult.docs as any[]) {
+    for (const kw of list?.keywords ?? []) {
+      if (typeof kw?.keyword === "string" && kw.keyword) {
+        addedSet.add(kw.keyword.toLowerCase());
+      }
+    }
+  }
+
+  const initialKeywordSelections: string[] = [];
+  const initialAddedSelections: string[] = [];
+  for (const term of allDeepDiveSelections) {
+    if (addedSet.has(term.toLowerCase())) {
+      initialAddedSelections.push(term);
+    } else {
+      initialKeywordSelections.push(term);
+    }
+  }
+  const initialAddedNegatives: string[] = Array.from(addedSet);
 
   // Check if user has a valid dashboard session (HMAC-signed cookie)
   const cookieStore = await cookies();
@@ -143,6 +179,8 @@ export default async function GoogleDashboardPage({ params }: Props) {
       brandKeywords={client.brandKeywords || ""}
       conversionActions={client.dashboardConversionActions || ""}
       initialKeywordSelections={initialKeywordSelections}
+      initialAddedSelections={initialAddedSelections}
+      initialAddedNegatives={initialAddedNegatives}
     />
   );
 }

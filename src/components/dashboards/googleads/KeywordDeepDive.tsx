@@ -49,7 +49,14 @@ interface KeywordDeepDiveProps {
   customerId: string;
   slug?: string;
   clientId?: string;
+  /** Pending review (saved by the client, not yet promoted by the agency). */
   initialKeywordSelections?: string[];
+  /** Saved deep-dive selections already promoted into a synced NKL. */
+  initialAddedSelections?: string[];
+  /** Every keyword across all non-deep-dive active NKLs for this client.
+   *  Used to label rows with "Added as Negative" even if the client never
+   *  saved them through the dashboard (e.g. agency added directly via CMS). */
+  initialAddedNegatives?: string[];
 }
 
 export function KeywordDeepDive({
@@ -60,6 +67,8 @@ export function KeywordDeepDive({
   slug,
   clientId,
   initialKeywordSelections,
+  initialAddedSelections,
+  initialAddedNegatives,
 }: KeywordDeepDiveProps) {
   const storageKey = `dashboard-keep-terms:${customerId}`;
 
@@ -68,6 +77,12 @@ export function KeywordDeepDive({
 
   // Negative keyword selection state
   const [selectedNegatives, setSelectedNegatives] = useState<Set<string>>(new Set());
+  // Terms the agency has already promoted into a synced NKL. Lower-cased
+  // for case-insensitive comparisons since Google Ads + the CMS preserve
+  // raw casing but match negatives case-insensitively.
+  const [addedNegatives, setAddedNegatives] = useState<Set<string>>(
+    () => new Set((initialAddedNegatives || []).map((t) => t.toLowerCase())),
+  );
   const [saving, setSaving] = useState(false);
   const [negativeResult, setNegativeResult] = useState<{
     type: "success" | "error";
@@ -84,23 +99,45 @@ export function KeywordDeepDive({
     }
   }, [storageKey]);
 
-  // Load initial saved selections (server-side prop, or belt-and-suspenders fetch)
+  // Load initial saved selections (server-side prop, or belt-and-suspenders fetch).
+  // The server-side props split deep-dive saves into pending (selectedNegatives)
+  // and added (addedNegatives) so the dashboard can render them differently:
+  //   - Pending  → still checkbox-controlled; client can uncheck to remove
+  //                from the next save.
+  //   - Added    → disabled with an "Added as Negative" badge; the agency
+  //                already promoted them into a synced NKL.
   useEffect(() => {
+    // Hydrate from server-rendered props first — avoids a flash of empty state.
     if (initialKeywordSelections?.length) {
       setSelectedNegatives(new Set(initialKeywordSelections));
-      return;
+    }
+    if (initialAddedNegatives?.length) {
+      setAddedNegatives(new Set(initialAddedNegatives.map((t) => t.toLowerCase())));
     }
     if (!clientId || !slug) return;
+    // Belt-and-suspenders refetch: if the agency promoted a term to a real
+    // NKL since the page was last rendered server-side, the GET pulls the
+    // up-to-date split.
     fetch(
       `/api/dashboard/keyword-selections?slug=${encodeURIComponent(slug)}&clientId=${encodeURIComponent(clientId)}`,
       { credentials: "include" }
     )
-      .then((r) => (r.ok ? r.json() : { keywords: [] }))
+      .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d.keywords?.length) setSelectedNegatives(new Set(d.keywords));
+        if (!d) return;
+        // `keywords` (legacy) is now the same as `pendingSelections`.
+        const pending: string[] = Array.isArray(d.pendingSelections)
+          ? d.pendingSelections
+          : Array.isArray(d.keywords)
+            ? d.keywords
+            : [];
+        if (pending.length) setSelectedNegatives(new Set(pending));
+        if (Array.isArray(d.addedNegatives)) {
+          setAddedNegatives(new Set(d.addedNegatives.map((t: string) => t.toLowerCase())));
+        }
       })
       .catch(() => {});
-  }, [clientId, slug, initialKeywordSelections]);
+  }, [clientId, slug, initialKeywordSelections, initialAddedNegatives]);
 
   function toggleKeep(term: string) {
     setKeptTerms((prev) => {
@@ -116,7 +153,16 @@ export function KeywordDeepDive({
     });
   }
 
+  // Helper: a term is locked when the agency has already promoted it into a
+  // real (non-deep-dive) NKL. These rows show as "Added as Negative" and
+  // can't be toggled.
+  const isAddedNegative = useCallback(
+    (term: string) => addedNegatives.has(term.toLowerCase()),
+    [addedNegatives],
+  );
+
   function toggleNegative(term: string) {
+    if (isAddedNegative(term)) return; // already a real negative — read-only
     setSelectedNegatives((prev) => {
       const next = new Set(prev);
       if (next.has(term)) next.delete(term);
@@ -126,13 +172,16 @@ export function KeywordDeepDive({
   }
 
   function selectAllNegatives(terms: GoogleAdsDashboardSearchTerm[]) {
+    // Only act on terms that aren't already promoted negatives.
+    const targetable = terms.filter((t) => !isAddedNegative(t.term));
+    if (targetable.length === 0) return;
     setSelectedNegatives((prev) => {
       const next = new Set(prev);
-      const allSelected = terms.every((t) => next.has(t.term));
+      const allSelected = targetable.every((t) => next.has(t.term));
       if (allSelected) {
-        terms.forEach((t) => next.delete(t.term));
+        targetable.forEach((t) => next.delete(t.term));
       } else {
-        terms.forEach((t) => next.add(t.term));
+        targetable.forEach((t) => next.add(t.term));
       }
       return next;
     });
@@ -161,30 +210,17 @@ export function KeywordDeepDive({
         }),
       });
       const data: {
-        count: number;
-        skipped?: number;
-        message?: string;
+        success?: boolean;
+        count?: number;
         error?: string;
       } = await res.json();
       if (res.ok) {
-        const skipped = data.skipped ?? 0;
-        let message: string;
-        if (data.count === 0) {
-          message =
-            data.message ||
-            "All selected terms are already saved or in your negative keyword lists. Nothing new to send.";
-        } else {
-          const sentCopy =
-            `${data.count} term${data.count !== 1 ? "s" : ""} sent to the Optimise team for review. ` +
-            `We'll review and add the right ones to your negative keyword list.`;
-          message =
-            skipped > 0
-              ? `${sentCopy} (${skipped} duplicate${skipped !== 1 ? "s" : ""} skipped.)`
-              : sentCopy;
-        }
+        const count = data.count ?? 0;
+        const message =
+          count === 0
+            ? "Selection cleared. Nothing saved for review."
+            : `${count} term${count !== 1 ? "s" : ""} saved for review. We'll add the right ones to your negative keyword list.`;
         setNegativeResult({ type: "success", message });
-        // Clear selection after save
-        setSelectedNegatives(new Set());
       } else {
         setNegativeResult({ type: "error", message: data.error || "Save failed" });
       }
@@ -236,7 +272,7 @@ export function KeywordDeepDive({
               disabled={saving}
               className="px-4 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
             >
-              {saving ? "Saving..." : "Save for Review"}
+              {saving ? "Saving..." : "Save Selection"}
             </button>
           </div>
         </div>
@@ -300,12 +336,14 @@ export function KeywordDeepDive({
               Low-Converting Keywords
             </h2>
           </div>
-          {clientId && budgetWasters.length > 0 && (
+          {clientId && budgetWasters.length > 0 && budgetWasters.some((t) => !isAddedNegative(t.term)) && (
             <button
               onClick={() => selectAllNegatives(budgetWasters)}
               className="text-xs font-medium text-red-600 hover:text-red-700 transition-colors"
             >
-              {budgetWasters.every((t) => selectedNegatives.has(t.term))
+              {budgetWasters
+                .filter((t) => !isAddedNegative(t.term))
+                .every((t) => selectedNegatives.has(t.term))
                 ? "Deselect all"
                 : "Select all as negatives"}
             </button>
@@ -350,23 +388,30 @@ export function KeywordDeepDive({
               <tbody>
                 {budgetWasters.map((row) => {
                   const isSelected = selectedNegatives.has(row.term);
+                  const isAdded = isAddedNegative(row.term);
                   return (
                     <tr
                       key={row.term}
                       className={`border-b border-slate-100 last:border-0 transition-colors ${
-                        isSelected
-                          ? "bg-red-50/50"
-                          : "hover:bg-slate-50"
+                        isAdded
+                          ? "bg-slate-50 opacity-75"
+                          : isSelected
+                            ? "bg-red-50/50"
+                            : "hover:bg-slate-50"
                       }`}
                     >
                       {clientId && (
                         <td className="py-2.5 px-3">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => shiftSelectBudgetWaster(row.term, e)}
-                            className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
-                          />
+                          {isAdded ? (
+                            <AddedNegativeBadge />
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => shiftSelectBudgetWaster(row.term, e)}
+                              className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                            />
+                          )}
                         </td>
                       )}
                       {reducedColumns.map((col) => {
@@ -409,12 +454,14 @@ export function KeywordDeepDive({
               Possibly Irrelevant
             </h2>
           </div>
-          {clientId && irrelevantTerms.length > 0 && (
+          {clientId && irrelevantTerms.length > 0 && irrelevantTerms.some((t) => !isAddedNegative(t.term)) && (
             <button
               onClick={() => selectAllNegatives(irrelevantTerms)}
               className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors"
             >
-              {irrelevantTerms.every((t) => selectedNegatives.has(t.term))
+              {irrelevantTerms
+                .filter((t) => !isAddedNegative(t.term))
+                .every((t) => selectedNegatives.has(t.term))
                 ? "Deselect all"
                 : "Select all as negatives"}
             </button>
@@ -463,34 +510,42 @@ export function KeywordDeepDive({
                 {irrelevantTerms.map((row) => {
                   const isKept = keptTerms.has(row.term);
                   const isNeg = selectedNegatives.has(row.term);
+                  const isAdded = isAddedNegative(row.term);
                   return (
                     <tr
                       key={row.term}
                       className={`border-b border-slate-100 last:border-0 transition-colors ${
-                        isKept
-                          ? "bg-emerald-50/50"
-                          : isNeg
-                            ? "bg-red-50/50"
-                            : "hover:bg-slate-50"
+                        isAdded
+                          ? "bg-slate-50 opacity-75"
+                          : isKept
+                            ? "bg-emerald-50/50"
+                            : isNeg
+                              ? "bg-red-50/50"
+                              : "hover:bg-slate-50"
                       }`}
                     >
                       <td className="py-2.5 px-3">
                         <input
                           type="checkbox"
                           checked={isKept}
-                          onChange={() => toggleKeep(row.term)}
-                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                          disabled={isAdded}
+                          onChange={() => !isAdded && toggleKeep(row.term)}
+                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-30"
                         />
                       </td>
                       {clientId && (
                         <td className="py-2.5 px-3">
-                          <input
-                            type="checkbox"
-                            checked={isNeg}
-                            disabled={isKept}
-                            onChange={(e) => !isKept && shiftSelectIrrelevant(row.term, e)}
-                            className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:opacity-30"
-                          />
+                          {isAdded ? (
+                            <AddedNegativeBadge />
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={isNeg}
+                              disabled={isKept}
+                              onChange={(e) => !isKept && shiftSelectIrrelevant(row.term, e)}
+                              className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:opacity-30"
+                            />
+                          )}
                         </td>
                       )}
                       {reducedColumns.map((col) => {
@@ -524,5 +579,24 @@ export function KeywordDeepDive({
         )}
       </div>
     </div>
+  );
+}
+
+// Small green badge shown in place of the negative-keyword checkbox when
+// the agency has already promoted a term into a real, synced NKL. Tells
+// the client "yes, we acted on this one" without letting them try to
+// re-select it.
+function AddedNegativeBadge() {
+  return (
+    <span
+      title="Added as a negative keyword in your Google Ads account"
+      className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider"
+      style={{ lineHeight: 1 }}
+    >
+      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+      </svg>
+      Added
+    </span>
   );
 }

@@ -48,17 +48,20 @@ describe("GET /api/dashboard/keyword-selections", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns existing pending session keywords", async () => {
-    vi.mocked(mockPayload.find).mockResolvedValueOnce({
-      docs: [{
-        id: 5,
-        title: "Session 1",
-        keywords: [
-          { keyword: "bad term", matchType: "exact" },
-          { keyword: "waste spend", matchType: "broad" },
-        ],
-      }],
-    });
+  it("returns existing deep-dive list keywords", async () => {
+    // First find() = deep-dive list. Second find() = real (synced) NKLs
+    // — empty here so all deep-dive selections fall into the pending bucket.
+    vi.mocked(mockPayload.find)
+      .mockResolvedValueOnce({
+        docs: [{
+          id: 5,
+          keywords: [
+            { keyword: "bad term", matchType: "exact" },
+            { keyword: "waste spend", matchType: "broad" },
+          ],
+        }],
+      })
+      .mockResolvedValueOnce({ docs: [] });
 
     const token = signToken("acme");
     const req = new NextRequest(
@@ -70,12 +73,76 @@ describe("GET /api/dashboard/keyword-selections", () => {
 
     expect(res.status).toBe(200);
     expect(body.keywords).toEqual(["bad term", "waste spend"]);
-    expect(body.sessionId).toBe(5);
-    expect(body.title).toBe("Session 1");
+    expect(body.pendingSelections).toEqual(["bad term", "waste spend"]);
+    expect(body.addedSelections).toEqual([]);
+    expect(body.addedNegatives).toEqual([]);
+    expect(body.listId).toBe(5);
   });
 
-  it("returns empty keywords when no pending session exists", async () => {
-    vi.mocked(mockPayload.find).mockResolvedValueOnce({ docs: [] });
+  it("splits deep-dive selections into pending vs added when terms appear in synced NKLs", async () => {
+    // Deep-dive list has both "bad term" (still pending) and "already added"
+    // (already in a synced NKL). The second find() returns one synced NKL
+    // containing "already added" — so it should land in addedSelections.
+    vi.mocked(mockPayload.find)
+      .mockResolvedValueOnce({
+        docs: [{
+          id: 5,
+          keywords: [
+            { keyword: "bad term", matchType: "exact" },
+            { keyword: "already added", matchType: "exact" },
+          ],
+        }],
+      })
+      .mockResolvedValueOnce({
+        docs: [{ id: 11, keywords: [{ keyword: "already added" }, { keyword: "another negative" }] }],
+      });
+
+    const token = signToken("acme");
+    const req = new NextRequest(
+      `http://localhost:3001/api/dashboard/keyword-selections?slug=acme&clientId=1`,
+      { headers: { cookie: `dashboard_token=${token}` }, method: "GET" }
+    );
+    const res = await GET(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.pendingSelections).toEqual(["bad term"]);
+    expect(body.addedSelections).toEqual(["already added"]);
+    // addedNegatives includes every keyword in synced NKLs, not just deep-dive ones.
+    expect(body.addedNegatives.sort()).toEqual(["already added", "another negative"].sort());
+    // Legacy `keywords` field still mirrors pendingSelections.
+    expect(body.keywords).toEqual(["bad term"]);
+  });
+
+  it("queries negative-keyword-lists with source=deep_dive", async () => {
+    vi.mocked(mockPayload.find)
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] });
+
+    const token = signToken("acme");
+    const req = new NextRequest(
+      `http://localhost:3001/api/dashboard/keyword-selections?slug=acme&clientId=42`,
+      { headers: { cookie: `dashboard_token=${token}` }, method: "GET" }
+    );
+    await GET(req);
+
+    expect(mockPayload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "negative-keyword-lists",
+        where: expect.objectContaining({
+          and: expect.arrayContaining([
+            { client: { equals: "42" } },
+            { source: { equals: "deep_dive" } },
+          ]),
+        }),
+      })
+    );
+  });
+
+  it("returns empty keywords when no deep-dive list exists", async () => {
+    vi.mocked(mockPayload.find)
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] });
 
     const token = signToken("acme");
     const req = new NextRequest(
@@ -87,7 +154,10 @@ describe("GET /api/dashboard/keyword-selections", () => {
 
     expect(res.status).toBe(200);
     expect(body.keywords).toEqual([]);
-    expect(body.sessionId).toBeUndefined();
+    expect(body.pendingSelections).toEqual([]);
+    expect(body.addedSelections).toEqual([]);
+    expect(body.addedNegatives).toEqual([]);
+    expect(body.listId).toBeNull();
   });
 });
 
@@ -127,14 +197,9 @@ describe("POST /api/dashboard/keyword-selections", () => {
     expect(res.status).toBe(401);
   });
 
-  it("creates a new session with correct keyword structure", async () => {
-    // Route looks up the latest Google Ads audit for the client — mock it.
-    vi.mocked(mockPayload.find).mockResolvedValueOnce({
-      docs: [{ id: 55 }],
-      totalDocs: 1,
-      hasNextPage: false,
-      hasPrevPage: false,
-    } as any);
+  it("creates a new deep-dive list when none exists", async () => {
+    // First find() (in POST) returns no existing list.
+    vi.mocked(mockPayload.find).mockResolvedValueOnce({ docs: [] });
     vi.mocked(mockPayload.create).mockResolvedValueOnce({ id: 99 });
 
     const token = signToken("acme");
@@ -145,7 +210,6 @@ describe("POST /api/dashboard/keyword-selections", () => {
         clientId: "1",
         slug: "acme",
         selectedTerms: ["negative term", "waste spend"],
-        title: "My review",
       }),
     });
     const res = await POST(req);
@@ -154,17 +218,16 @@ describe("POST /api/dashboard/keyword-selections", () => {
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.count).toBe(2);
-    expect(body.sessionId).toBe(99);
 
     expect(mockPayload.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        collection: "keyword-deep-dive-sessions",
+        collection: "negative-keyword-lists",
         data: expect.objectContaining({
-          client: "1",
-          status: "pending",
-          // Route resolves this server-side from the latest audit for the client.
-          googleAdsAudit: 55,
-          title: "My review",
+          client: 1,
+          name: "Deep Dive Selections",
+          scope: "account",
+          source: "deep_dive",
+          isActive: true,
           keywords: expect.arrayContaining([
             expect.objectContaining({ keyword: "negative term", matchType: "exact", flaggedForRemoval: false }),
             expect.objectContaining({ keyword: "waste spend", matchType: "exact", flaggedForRemoval: false }),
@@ -172,36 +235,14 @@ describe("POST /api/dashboard/keyword-selections", () => {
         }),
       })
     );
+    expect(mockPayload.update).not.toHaveBeenCalled();
   });
 
-  it("does not include flaggedForRemoval in created keywords", async () => {
-    vi.mocked(mockPayload.create).mockResolvedValueOnce({ id: 99 });
-
-    const token = signToken("acme");
-    const req = new NextRequest("http://localhost:3001/api/dashboard/keyword-selections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", cookie: `dashboard_token=${token}` },
-      body: JSON.stringify({ clientId: "1", slug: "acme", selectedTerms: ["kw"] }),
+  it("updates the existing deep-dive list, replacing keywords", async () => {
+    vi.mocked(mockPayload.find).mockResolvedValueOnce({
+      docs: [{ id: 7, keywords: [{ keyword: "old1" }, { keyword: "old2" }] }],
     });
-    await POST(req);
-
-    const call = mockPayload.create.mock.calls[0][0];
-    const keywords = call.data.keywords;
-    expect(keywords[0].flaggedForRemoval).toBe(false);
-  });
-
-  it("skips terms that already exist in a prior submit (case-insensitive)", async () => {
-    // Three find() calls happen in order: latest audit, prior submits, NKLs.
-    vi.mocked(mockPayload.find)
-      .mockResolvedValueOnce({ docs: [{ id: 55 }], totalDocs: 1 } as any)
-      .mockResolvedValueOnce({
-        docs: [
-          { id: 1, keywords: [{ keyword: "AG Cylinders" }, { keyword: "old waste" }] },
-        ],
-        totalDocs: 1,
-      } as any)
-      .mockResolvedValueOnce({ docs: [], totalDocs: 0 } as any);
-    vi.mocked(mockPayload.create).mockResolvedValueOnce({ id: 99 });
+    vi.mocked(mockPayload.update).mockResolvedValueOnce({ id: 7 });
 
     const token = signToken("acme");
     const req = new NextRequest("http://localhost:3001/api/dashboard/keyword-selections", {
@@ -210,71 +251,7 @@ describe("POST /api/dashboard/keyword-selections", () => {
       body: JSON.stringify({
         clientId: "1",
         slug: "acme",
-        // "ag cylinders" already exists (different case), "new term" doesn't.
-        selectedTerms: ["ag cylinders", "new term"],
-      }),
-    });
-    const res = await POST(req);
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(body.count).toBe(1);
-    expect(body.skipped).toBe(1);
-
-    const created = mockPayload.create.mock.calls[0][0].data.keywords;
-    expect(created).toHaveLength(1);
-    expect(created[0].keyword).toBe("new term");
-  });
-
-  it("skips terms that already exist in a Negative Keyword List", async () => {
-    vi.mocked(mockPayload.find)
-      .mockResolvedValueOnce({ docs: [{ id: 55 }], totalDocs: 1 } as any)
-      .mockResolvedValueOnce({ docs: [], totalDocs: 0 } as any)
-      .mockResolvedValueOnce({
-        docs: [
-          { id: 10, keywords: [{ keyword: "already negated" }] },
-        ],
-        totalDocs: 1,
-      } as any);
-    vi.mocked(mockPayload.create).mockResolvedValueOnce({ id: 99 });
-
-    const token = signToken("acme");
-    const req = new NextRequest("http://localhost:3001/api/dashboard/keyword-selections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", cookie: `dashboard_token=${token}` },
-      body: JSON.stringify({
-        clientId: "1",
-        slug: "acme",
-        selectedTerms: ["already negated", "fresh keyword"],
-      }),
-    });
-    const res = await POST(req);
-    const body = await res.json();
-
-    expect(body.count).toBe(1);
-    expect(body.skipped).toBe(1);
-    expect(mockPayload.create.mock.calls[0][0].data.keywords[0].keyword).toBe(
-      "fresh keyword",
-    );
-  });
-
-  it("returns success without creating a submit when all terms are duplicates", async () => {
-    vi.mocked(mockPayload.find)
-      .mockResolvedValueOnce({ docs: [{ id: 55 }], totalDocs: 1 } as any)
-      .mockResolvedValueOnce({
-        docs: [{ id: 1, keywords: [{ keyword: "dup1" }, { keyword: "dup2" }] }],
-        totalDocs: 1,
-      } as any)
-      .mockResolvedValueOnce({ docs: [], totalDocs: 0 } as any);
-
-    const token = signToken("acme");
-    const req = new NextRequest("http://localhost:3001/api/dashboard/keyword-selections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", cookie: `dashboard_token=${token}` },
-      body: JSON.stringify({
-        clientId: "1",
-        slug: "acme",
-        selectedTerms: ["dup1", "dup2"],
+        selectedTerms: ["fresh1", "fresh2", "fresh3"],
       }),
     });
     const res = await POST(req);
@@ -282,19 +259,26 @@ describe("POST /api/dashboard/keyword-selections", () => {
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(body.count).toBe(0);
-    expect(body.skipped).toBe(2);
-    expect(body.sessionId).toBeNull();
-    expect(body.message).toMatch(/already saved|nothing new/i);
-    // Crucially: no create call was made.
+    expect(body.count).toBe(3);
+
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "negative-keyword-lists",
+        id: 7,
+        data: expect.objectContaining({
+          keywords: [
+            { keyword: "fresh1", matchType: "exact", flaggedForRemoval: false },
+            { keyword: "fresh2", matchType: "exact", flaggedForRemoval: false },
+            { keyword: "fresh3", matchType: "exact", flaggedForRemoval: false },
+          ],
+        }),
+      })
+    );
     expect(mockPayload.create).not.toHaveBeenCalled();
   });
 
-  it("deduplicates within the submitted batch itself", async () => {
-    vi.mocked(mockPayload.find)
-      .mockResolvedValueOnce({ docs: [], totalDocs: 0 } as any)
-      .mockResolvedValueOnce({ docs: [], totalDocs: 0 } as any)
-      .mockResolvedValueOnce({ docs: [], totalDocs: 0 } as any);
+  it("deduplicates within the submitted batch (case + whitespace insensitive)", async () => {
+    vi.mocked(mockPayload.find).mockResolvedValueOnce({ docs: [] });
     vi.mocked(mockPayload.create).mockResolvedValueOnce({ id: 99 });
 
     const token = signToken("acme");
@@ -304,7 +288,6 @@ describe("POST /api/dashboard/keyword-selections", () => {
       body: JSON.stringify({
         clientId: "1",
         slug: "acme",
-        // Same term twice (different case + whitespace).
         selectedTerms: ["foo bar", " Foo Bar ", "foo bar", "unique"],
       }),
     });
@@ -312,9 +295,37 @@ describe("POST /api/dashboard/keyword-selections", () => {
     const body = await res.json();
 
     expect(body.count).toBe(2);
-    expect(body.skipped).toBe(2);
     const keywords = mockPayload.create.mock.calls[0][0].data.keywords;
     expect(keywords).toHaveLength(2);
-    expect(keywords.map((k: any) => k.keyword)).toEqual(["foo bar", "unique"]);
+    expect(keywords.map((k: { keyword: string }) => k.keyword)).toEqual(["foo bar", "unique"]);
+  });
+
+  it("scopes find-or-create to the correct client AND source=deep_dive", async () => {
+    vi.mocked(mockPayload.find).mockResolvedValueOnce({ docs: [] });
+    vi.mocked(mockPayload.create).mockResolvedValueOnce({ id: 99 });
+
+    const token = signToken("acme");
+    const req = new NextRequest("http://localhost:3001/api/dashboard/keyword-selections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie: `dashboard_token=${token}` },
+      body: JSON.stringify({
+        clientId: "42",
+        slug: "acme",
+        selectedTerms: ["x"],
+      }),
+    });
+    await POST(req);
+
+    expect(mockPayload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "negative-keyword-lists",
+        where: expect.objectContaining({
+          and: expect.arrayContaining([
+            { client: { equals: "42" } },
+            { source: { equals: "deep_dive" } },
+          ]),
+        }),
+      })
+    );
   });
 });

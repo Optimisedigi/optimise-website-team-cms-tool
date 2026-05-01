@@ -16,9 +16,17 @@ interface DashboardClientProps {
   brandKeywords?: string;
   conversionActions?: string;
   initialKeywordSelections?: string[];
+  /** Saved deep-dive selections that have already been promoted into a real,
+   *  synced NKL by the agency. The dashboard renders these in an
+   *  "Added as Negative" disabled state. */
+  initialAddedSelections?: string[];
+  /** Every keyword from any non-deep-dive active NKL for this client. Lets
+   *  the dashboard show "Added as Negative" status for terms that are
+   *  currently displayed but were never in the deep-dive saved list. */
+  initialAddedNegatives?: string[];
 }
 
-export function DashboardClient({ slug, clientId, clientName, isAuthenticated, initialData, initialError, initialQualityData, brandKeywords, conversionActions, initialKeywordSelections }: DashboardClientProps) {
+export function DashboardClient({ slug, clientId, clientName, isAuthenticated, initialData, initialError, initialQualityData, brandKeywords, conversionActions, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: DashboardClientProps) {
   const [authed, setAuthed] = useState(isAuthenticated);
   const [data, setData] = useState<GoogleAdsDashboardData | null>(initialData);
   const [error, setError] = useState(initialError || "");
@@ -77,7 +85,7 @@ export function DashboardClient({ slug, clientId, clientName, isAuthenticated, i
 
   // Dashboard
   if (data) {
-    return <GoogleAdsDashboard data={data} initialQualityData={initialQualityData ?? undefined} brandKeywords={brandKeywords} conversionActions={conversionActions} clientId={clientId} initialKeywordSelections={initialKeywordSelections} />;
+    return <GoogleAdsDashboard data={data} initialQualityData={initialQualityData ?? undefined} brandKeywords={brandKeywords} conversionActions={conversionActions} clientId={clientId} initialKeywordSelections={initialKeywordSelections} initialAddedSelections={initialAddedSelections} initialAddedNegatives={initialAddedNegatives} />;
   }
 
   return null;

@@ -3,6 +3,51 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
 
+/**
+ * Keyword Deep Dive — client-facing save endpoint.
+ *
+ * The Google Ads dashboard's Keyword Deep Dive tab lets the client mark
+ * search terms they want added as negatives. When they hit "Save Selection"
+ * we persist their list to a single Negative Keyword List per client where
+ * `source = "deep_dive"`. The agency reviews this list in the CMS and
+ * promotes terms into the live, synced NKLs as appropriate.
+ *
+ *   POST  → find-or-create the deep-dive list, replace keywords with the
+ *           selected terms (each as { keyword, matchType: "exact",
+ *           flaggedForRemoval: false }).
+ *   GET   → return the saved keywords (for hydrating the dashboard on load).
+ */
+
+interface DeepDiveKeyword {
+  keyword: string;
+  matchType?: string;
+  flaggedForRemoval?: boolean;
+}
+
+interface DeepDiveListDoc {
+  id: number | string;
+  keywords?: DeepDiveKeyword[];
+}
+
+async function findDeepDiveList(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  clientId: string | number,
+): Promise<DeepDiveListDoc | undefined> {
+  const result = await payload.find({
+    collection: "negative-keyword-lists",
+    where: {
+      and: [
+        { client: { equals: clientId } },
+        { source: { equals: "deep_dive" } },
+      ],
+    },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  });
+  return (result.docs as unknown as DeepDiveListDoc[])[0];
+}
+
 export async function GET(req: NextRequest) {
   const token = req.cookies.get("dashboard_token")?.value;
   const { searchParams } = new URL(req.url);
@@ -16,24 +61,63 @@ export async function GET(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
-  // Return the most recent pending session for this client
-  const result = await payload.find({
-    collection: "keyword-deep-dive-sessions",
-    where: { client: { equals: clientId }, status: { equals: "pending" } },
-    sort: "-createdAt",
-    limit: 1,
+  const doc = await findDeepDiveList(payload, clientId);
+  const allDeepDiveSelections: string[] = (doc?.keywords ?? [])
+    .map((k) => k?.keyword)
+    .filter((k): k is string => typeof k === "string" && k.length > 0);
+
+  // Pull every keyword from any *real* (non-deep-dive) active NKL for this
+  // client. These are terms the agency has already promoted into a synced
+  // negative list — the dashboard renders them in an "Added as Negative"
+  // disabled state so the client sees their reviewed picks have landed.
+  const realLists = await payload.find({
+    collection: "negative-keyword-lists",
+    where: {
+      and: [
+        { client: { equals: clientId } },
+        { isActive: { equals: true } },
+        { source: { not_equals: "deep_dive" } },
+      ],
+    },
+    limit: 200,
+    depth: 0,
     overrideAccess: true,
   });
 
-  const doc = result.docs[0] as unknown as
-    | (Record<string, unknown> & { keywords?: Array<{ keyword: string }> })
-    | undefined;
+  const addedSet = new Set<string>();
+  for (const list of realLists.docs as unknown as DeepDiveListDoc[]) {
+    for (const kw of list?.keywords ?? []) {
+      if (typeof kw?.keyword === "string" && kw.keyword) {
+        addedSet.add(kw.keyword.toLowerCase());
+      }
+    }
+  }
 
-  const keywords: string[] = (doc?.keywords ?? []).map((k) => k.keyword);
+  // Pending = saved-for-review but not yet promoted. Added = promoted into
+  // a synced NKL. We split the deep-dive list into the two buckets so the
+  // dashboard can render them differently without a second round-trip.
+  const pendingSelections: string[] = [];
+  const addedSelections: string[] = [];
+  for (const term of allDeepDiveSelections) {
+    if (addedSet.has(term.toLowerCase())) {
+      addedSelections.push(term);
+    } else {
+      pendingSelections.push(term);
+    }
+  }
+
+  // Also include terms that are negatives but were never in the deep-dive
+  // list (e.g. agency added them directly via the CMS). These show as
+  // "Added as Negative" too if they happen to appear in the dashboard's
+  // current search-term lists.
+  const addedNegatives: string[] = Array.from(addedSet);
+
   return NextResponse.json({
-    keywords,
-    sessionId: doc?.id,
-    title: doc?.title,
+    keywords: pendingSelections,           // legacy field — still the source for the saved-for-review checkbox state
+    pendingSelections,
+    addedSelections,
+    addedNegatives,
+    listId: doc?.id ?? null,
   });
 }
 
@@ -41,11 +125,12 @@ export async function POST(req: NextRequest) {
   try {
     const token = req.cookies.get("dashboard_token")?.value;
     const body = await req.json();
-    const { clientId, slug, selectedTerms, title } = body;
-
-    if (!validateDashboardToken(token, slug)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { clientId, slug, selectedTerms } = body as {
+      clientId?: string | number;
+      slug?: string;
+      customerId?: string;
+      selectedTerms?: unknown;
+    };
 
     if (!clientId || !slug || !Array.isArray(selectedTerms)) {
       return NextResponse.json(
@@ -54,135 +139,66 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const payloadConfig = await config;
-    const payload = await getPayload({ config: payloadConfig });
-
-    // Resolve the latest Google Ads audit for this client so we can link the
-    // submit to it. The dashboard only knows the Google Ads customer ID
-    // (e.g. "8230563869") — not the Payload audit document ID — so we look
-    // it up server-side. Optional: skip if no audit exists yet.
-    let googleAdsAuditDocId: number | undefined;
-    try {
-      const audits = await payload.find({
-        collection: "google-ads-audits",
-        where: { client: { equals: clientId } },
-        sort: "-createdAt",
-        limit: 1,
-        depth: 0,
-        overrideAccess: true,
-      });
-      const latest = (audits.docs as any[])[0];
-      if (latest?.id) googleAdsAuditDocId = latest.id as number;
-    } catch {
-      // Non-fatal — still create the submit without the audit link.
+    if (!validateDashboardToken(token, slug)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Dedupe: drop any term that already exists for this client in either
-    // (a) a previous submit (any status) or (b) a live Negative Keyword List.
-    // Match is case-insensitive on the keyword text (match type ignored —
-    // "ag cylinders" already negated as exact shouldn't be re-flagged as a
-    // new submit).
-    const existingKeywords = new Set<string>();
-    try {
-      const [priorSubmits, nkls] = await Promise.all([
-        payload.find({
-          collection: "keyword-deep-dive-sessions",
-          where: { client: { equals: clientId } },
-          limit: 500,
-          depth: 0,
-          overrideAccess: true,
-        }),
-        payload.find({
-          collection: "negative-keyword-lists",
-          where: { client: { equals: clientId } },
-          limit: 500,
-          depth: 0,
-          overrideAccess: true,
-        }),
-      ]);
-      for (const doc of priorSubmits.docs as any[]) {
-        for (const k of (doc.keywords as any[]) ?? []) {
-          if (typeof k?.keyword === "string") {
-            existingKeywords.add(k.keyword.trim().toLowerCase());
-          }
-        }
-      }
-      for (const list of nkls.docs as any[]) {
-        for (const k of (list.keywords as any[]) ?? []) {
-          if (typeof k?.keyword === "string") {
-            existingKeywords.add(k.keyword.trim().toLowerCase());
-          }
-        }
-      }
-    } catch (err) {
-      // Non-fatal — if the dedupe lookup fails we'll just create the submit
-      // with the original list of terms (worst case: a duplicate sneaks in).
-      console.warn("[keyword-selections POST] dedupe lookup failed:", err);
-    }
-
-    const seenInBatch = new Set<string>();
-    const newTerms: string[] = [];
-    let skipped = 0;
+    // Normalise & dedupe within the submitted batch (case-insensitive).
+    const seen = new Set<string>();
+    const cleanTerms: string[] = [];
     for (const raw of selectedTerms) {
       if (typeof raw !== "string") continue;
       const trimmed = raw.trim();
       if (!trimmed) continue;
-      const norm = trimmed.toLowerCase();
-      if (seenInBatch.has(norm)) {
-        skipped += 1;
-        continue;
-      }
-      seenInBatch.add(norm);
-      if (existingKeywords.has(norm)) {
-        skipped += 1;
-        continue;
-      }
-      newTerms.push(trimmed);
+      const key = trimmed.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      cleanTerms.push(trimmed);
     }
 
-    // If everything was a duplicate, don't create an empty submit — just
-    // tell the dashboard there was nothing new to save.
-    if (newTerms.length === 0) {
-      return NextResponse.json({
-        success: true,
-        count: 0,
-        skipped,
-        sessionId: null,
-        message:
-          "All selected terms are already saved or in your negative keyword lists. Nothing new to send.",
-      });
-    }
-
-    const keywords = newTerms.map((term) => ({
+    const keywords = cleanTerms.map((term) => ({
       keyword: term,
       matchType: "exact" as const,
       flaggedForRemoval: false,
     }));
 
-    // Create a new submit every time the user saves
-    const session = await payload.create({
-      collection: "keyword-deep-dive-sessions",
-      data: {
-        client: clientId,
-        googleAdsAudit: googleAdsAuditDocId,
-        title: title ?? undefined,
-        keywords,
-        status: "pending",
-      },
-      overrideAccess: true,
-    });
+    const payloadConfig = await config;
+    const payload = await getPayload({ config: payloadConfig });
+
+    const existing = await findDeepDiveList(payload, clientId);
+
+    if (existing) {
+      // Update — replace the keywords array with the latest selection.
+      await payload.update({
+        collection: "negative-keyword-lists",
+        id: existing.id,
+        data: { keywords },
+        overrideAccess: true,
+      });
+    } else {
+      // Create — first save for this client.
+      await payload.create({
+        collection: "negative-keyword-lists",
+        data: {
+          client: typeof clientId === "string" ? Number(clientId) : clientId,
+          name: "Deep Dive Selections",
+          scope: "account",
+          source: "deep_dive",
+          isActive: true,
+          keywords,
+        },
+        overrideAccess: true,
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      count: newTerms.length,
-      skipped,
-      sessionId: session.id,
+      count: keywords.length,
     });
-  } catch (err: any) {
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to save keyword selections";
     console.error("[keyword-selections POST] error:", err);
-    return NextResponse.json(
-      { error: err?.message || "Failed to save keyword selections" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
