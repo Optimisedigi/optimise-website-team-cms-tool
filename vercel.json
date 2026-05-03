@@ -3,6 +3,10 @@
     {
       "path": "/api/gsc/cron",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/dashboard/prewarm",
+      "schedule": "0 5 * * *"
     }
   ],
   "functions": {
@@ -35,6 +39,12 @@
     },
     "src/app/(frontend)/api/gsc/cron/route.ts": {
       "maxDuration": 120
+    },
+    "src/app/(frontend)/api/dashboard/prewarm/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/(frontend)/api/dashboard/prewarm/run/route.ts": {
+      "maxDuration": 300
     }
   }
 }

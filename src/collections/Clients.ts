@@ -94,10 +94,11 @@ export const Clients: CollectionConfig = {
           }).catch(() => {});
         }
       },
-      // Flush the avoided-spend cache when googleAdsCustomerId changes.
-      // Spend numbers are tied to a specific Google Ads customer ID — if the
-      // client switches accounts (rare but possible) every cached row is
-      // suddenly wrong. Flushing forces the next dashboard load to refetch.
+      // Flush the dashboard caches when googleAdsCustomerId changes.
+      // Spend / waste numbers are tied to a specific Google Ads customer ID —
+      // if the client switches accounts (rare but possible) every cached row
+      // is suddenly wrong. Flushing forces the next dashboard load (or the
+      // next prewarm cron run) to refetch.
       async ({ doc, previousDoc, operation, req }) => {
         if (operation !== "update") return;
         const prevId = previousDoc?.googleAdsCustomerId || "";
@@ -111,6 +112,15 @@ export const Clients: CollectionConfig = {
           });
         } catch (err) {
           req.payload.logger?.warn?.(`[Clients] avoided-spend cache flush failed: ${err}`);
+        }
+        try {
+          await req.payload.delete({
+            collection: "negative-keyword-monthly-waste-relevancy-cache",
+            where: { client: { equals: doc.id } },
+            overrideAccess: true,
+          });
+        } catch (err) {
+          req.payload.logger?.warn?.(`[Clients] waste-relevancy cache flush failed: ${err}`);
         }
       },
     ],

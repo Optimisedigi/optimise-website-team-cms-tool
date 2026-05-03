@@ -32,6 +32,7 @@ import * as migration_20260428_120000_add_user_feature_access from './20260428_1
 import * as migration_20260429_120000_add_permission_profiles from './20260429_120000_add_permission_profiles';
 import * as migration_20260429_140000_add_keyword_deep_dive_sessions from './20260429_140000_add_keyword_deep_dive_sessions';
 import * as migration_20260430_120000_add_avoided_spend_cache from './20260430_120000_add_avoided_spend_cache';
+import * as migration_20260501_120000_add_monthly_waste_relevancy_cache from './20260501_120000_add_monthly_waste_relevancy_cache';
 
 export const migrations = [
   {
@@ -203,5 +204,10 @@ export const migrations = [
     up: migration_20260430_120000_add_avoided_spend_cache.up,
     down: migration_20260430_120000_add_avoided_spend_cache.down,
     name: '20260430_120000_add_avoided_spend_cache'
+  },
+  {
+    up: migration_20260501_120000_add_monthly_waste_relevancy_cache.up,
+    down: migration_20260501_120000_add_monthly_waste_relevancy_cache.down,
+    name: '20260501_120000_add_monthly_waste_relevancy_cache'
   },
 ];

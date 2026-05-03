@@ -2219,7 +2219,31 @@ export async function POST(request: NextRequest) {
     )
     WHERE \`negated_at\` IS NULL`);
 
-  return NextResponse.json({ ok: true, version: "2026-04-30", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── Negative keyword monthly waste/relevancy cache (2026-05-01) ──
+  // Mirrors the avoided-spend cache: one row per (client, yearMonth). Past
+  // months are immutable, current month refreshed at most every hour. Warmed
+  // nightly by /api/dashboard/prewarm so dashboard loads are fast.
+  await run("negative_keyword_monthly_waste_relevancy_cache", `CREATE TABLE IF NOT EXISTS \`negative_keyword_monthly_waste_relevancy_cache\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`year_month\` text NOT NULL,
+    \`total_spend\` numeric DEFAULT 0 NOT NULL,
+    \`non_converting_spend\` numeric DEFAULT 0 NOT NULL,
+    \`irrelevant_spend\` numeric DEFAULT 0 NOT NULL,
+    \`is_final\` integer DEFAULT 0,
+    \`fetched_at\` text NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("waste_relevancy_cache_unique_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `waste_relevancy_cache_unique_idx` ON `negative_keyword_monthly_waste_relevancy_cache` (`client_id`, `year_month`)");
+  await run("waste_relevancy_cache_client_idx", "CREATE INDEX IF NOT EXISTS `waste_relevancy_cache_client_idx` ON `negative_keyword_monthly_waste_relevancy_cache` (`client_id`)");
+  await run("waste_relevancy_cache_year_month_idx", "CREATE INDEX IF NOT EXISTS `waste_relevancy_cache_year_month_idx` ON `negative_keyword_monthly_waste_relevancy_cache` (`year_month`)");
+  await run("waste_relevancy_cache_created_at_idx", "CREATE INDEX IF NOT EXISTS `waste_relevancy_cache_created_at_idx` ON `negative_keyword_monthly_waste_relevancy_cache` (`created_at`)");
+  await run("waste_relevancy_cache_updated_at_idx", "CREATE INDEX IF NOT EXISTS `waste_relevancy_cache_updated_at_idx` ON `negative_keyword_monthly_waste_relevancy_cache` (`updated_at`)");
+  await run("locked_docs_rels.negative_keyword_monthly_waste_relevancy_cache_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_keyword_monthly_waste_relevancy_cache_id` integer REFERENCES `negative_keyword_monthly_waste_relevancy_cache`(`id`) ON DELETE cascade");
+
+  return NextResponse.json({ ok: true, version: "2026-05-01", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**

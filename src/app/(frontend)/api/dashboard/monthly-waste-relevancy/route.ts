@@ -2,21 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { validateDashboardToken } from "../verify/route";
-
-const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
-const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
+import {
+  warmMonthlyWasteRelevancyForClient,
+  buildMonthlyWasteRelevancyResponse,
+} from "@/lib/monthly-waste-relevancy-warmer";
 
 /**
  * Per-month waste / relevancy figures for the Progress tab's Monthly Trend
- * chart. Pulls 12 months of search-term spend from Google Ads (via Growth
- * Tools) and computes:
- *   - totalSpend            — sum of cost across all search terms that month
- *   - nonConvertingSpend    — cost on terms with 0 conversions that month
- *   - irrelevantSpend       — cost on terms currently in the client's NKL set
+ * chart. Read-through cache pattern (mirrors avoided-spend):
+ *   1. Read cache rows for client.
+ *   2. Compute misses (any month not in cache, or current month older than 1h).
+ *   3. If misses, fetch from Growth Tools and upsert.
+ *   4. Build response from cache.
  *
- * The CMS resolves "irrelevant terms" from the client's active NKLs (every
- * source — deep-dive saves, NLB-imported lists, manual additions). Sends
- * that list to Growth Tools so the per-month bucketing can match.
+ * Nightly /api/dashboard/prewarm cron keeps the cache warm so the on-demand
+ * path is almost always a fresh cache hit.
  *
  * Auth: dashboard_token cookie (same pattern as the other dashboard routes).
  */
@@ -38,78 +38,35 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!GROWTH_TOOLS_URL || !GROWTH_TOOLS_API_KEY || !customerId) {
-    // Without an upstream we can't compute the chart values; respond with
-    // an empty monthly array so the dashboard falls back gracefully.
-    return NextResponse.json({ success: false, monthsBack, monthly: [] });
-  }
-
   const clientId = parseInt(clientIdParam, 10);
   if (Number.isNaN(clientId)) {
     return NextResponse.json({ error: "Invalid clientId" }, { status: 400 });
   }
 
-  // Pull every keyword from this client's active NKLs (any source). These
-  // are the "currently flagged irrelevant" terms — Growth Tools matches
-  // search-term spend against this set per month.
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
-  const nkls = await payload.find({
-    collection: "negative-keyword-lists",
-    where: {
-      and: [
-        { client: { equals: clientId } },
-        { isActive: { equals: true } },
-      ],
-    },
-    limit: 500,
-    depth: 0,
-    overrideAccess: true,
-  });
 
-  const irrelevantSet = new Set<string>();
-  for (const list of nkls.docs as any[]) {
-    for (const kw of list?.keywords ?? []) {
-      if (typeof kw?.keyword === "string" && kw.keyword.trim()) {
-        irrelevantSet.add(kw.keyword.trim());
-      }
-    }
-  }
-  const irrelevantTerms = Array.from(irrelevantSet);
+  const result = await warmMonthlyWasteRelevancyForClient(
+    payload,
+    clientId,
+    customerId,
+    slug,
+    monthsBack,
+  );
 
-  try {
-    const cleanCustomerId = customerId.replace(/-/g, "");
-    const res = await fetch(`${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/monthly-waste-relevancy`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-internal-key": GROWTH_TOOLS_API_KEY,
-      },
-      body: JSON.stringify({
-        customerId: cleanCustomerId,
-        irrelevantTerms,
-        monthsBack,
-      }),
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      console.warn(`[monthly-waste-relevancy] Growth Tools ${res.status}: ${text}`);
-      return NextResponse.json({ success: false, monthsBack, monthly: [] });
-    }
-
-    const data = await res.json();
-    const out = NextResponse.json({
-      success: true,
-      monthsBack: data.monthsBack ?? monthsBack,
-      monthly: Array.isArray(data.monthly) ? data.monthly : [],
-      irrelevantTermCount: irrelevantTerms.length,
-    });
-    out.headers.set("Cache-Control", "no-store");
-    return out;
-  } catch (err) {
-    console.error("[monthly-waste-relevancy]", err);
+  // If the upstream config is missing entirely, return the empty shape so
+  // the dashboard falls back gracefully (matches the pre-cache behaviour).
+  if (result.error === "missing upstream config" && result.cache.size === 0) {
     return NextResponse.json({ success: false, monthsBack, monthly: [] });
   }
+
+  const built = buildMonthlyWasteRelevancyResponse(result);
+  const out = NextResponse.json({
+    success: !result.error,
+    monthsBack: built.monthsBack,
+    monthly: built.monthly,
+    irrelevantTermCount: built.irrelevantTermCount,
+  });
+  out.headers.set("Cache-Control", "no-store");
+  return out;
 }

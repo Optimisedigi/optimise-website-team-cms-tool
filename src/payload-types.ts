@@ -107,6 +107,7 @@ export interface Config {
     'google-ads-campaign-budgets': GoogleAdsCampaignBudget;
     'google-ads-ad-extensions': GoogleAdsAdExtension;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCache;
+    'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCache;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -166,6 +167,7 @@ export interface Config {
     'google-ads-campaign-budgets': GoogleAdsCampaignBudgetsSelect<false> | GoogleAdsCampaignBudgetsSelect<true>;
     'google-ads-ad-extensions': GoogleAdsAdExtensionsSelect<false> | GoogleAdsAdExtensionsSelect<true>;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCacheSelect<false> | NegativeKeywordAvoidedSpendCacheSelect<true>;
+    'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCacheSelect<false> | NegativeKeywordMonthlyWasteRelevancyCacheSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -5232,6 +5234,40 @@ export interface NegativeKeywordAvoidedSpendCache {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "negative-keyword-monthly-waste-relevancy-cache".
+ */
+export interface NegativeKeywordMonthlyWasteRelevancyCache {
+  id: number;
+  client: number | Client;
+  /**
+   * YYYY-MM
+   */
+  yearMonth: string;
+  /**
+   * Sum of cost across all search terms that month.
+   */
+  totalSpend: number;
+  /**
+   * Cost on terms with 0 conversions that month.
+   */
+  nonConvertingSpend: number;
+  /**
+   * Cost on terms currently in the client's NKL set.
+   */
+  irrelevantSpend: number;
+  /**
+   * True once the month is in the past — never refetched.
+   */
+  isFinal?: boolean | null;
+  /**
+   * ISO timestamp of the last fetch from Growth Tools.
+   */
+  fetchedAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -5413,6 +5449,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'negative-keyword-avoided-spend-cache';
         value: number | NegativeKeywordAvoidedSpendCache;
+      } | null)
+    | ({
+        relationTo: 'negative-keyword-monthly-waste-relevancy-cache';
+        value: number | NegativeKeywordMonthlyWasteRelevancyCache;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -7045,6 +7085,21 @@ export interface NegativeKeywordAvoidedSpendCacheSelect<T extends boolean = true
   matchType?: T;
   yearMonth?: T;
   spend?: T;
+  isFinal?: T;
+  fetchedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "negative-keyword-monthly-waste-relevancy-cache_select".
+ */
+export interface NegativeKeywordMonthlyWasteRelevancyCacheSelect<T extends boolean = true> {
+  client?: T;
+  yearMonth?: T;
+  totalSpend?: T;
+  nonConvertingSpend?: T;
+  irrelevantSpend?: T;
   isFinal?: T;
   fetchedAt?: T;
   updatedAt?: T;
