@@ -132,6 +132,20 @@ const SidebarNavExtras = () => {
       )
     }
 
+    // Hide the auto-generated GoogleAdsAudits collection link in the sidebar
+    // so it doesn't duplicate the hub above. The collection itself is still
+    // reachable by URL (the hub deep-links into individual audit records).
+    const hideAuditCollectionLink = () => {
+      const link = document.querySelector(
+        '#nav-group-Growth\\ Tools a.nav__link[href="/admin/collections/google-ads-audits"]',
+      ) as HTMLElement | null
+      if (link && link.style.display !== 'none') {
+        link.style.display = 'none'
+      }
+    }
+    hideAuditCollectionLink()
+    const hideInterval = setInterval(hideAuditCollectionLink, 500)
+
     if (canInvoices) {
       injectLink(
         '#nav-group-Finance .nav-group__content',
@@ -144,6 +158,10 @@ const SidebarNavExtras = () => {
     }
 
     // Icons for collection/global nav links are now handled via CSS ::before in custom.scss
+
+    return () => {
+      clearInterval(hideInterval)
+    }
   }, [canIntegrations, canDeployments, canIndexingHelper, canInvoices, canGoogleAds])
 
   // Mobile: bounce-back zoom — allow pinch zoom but snap back to 1x when released
