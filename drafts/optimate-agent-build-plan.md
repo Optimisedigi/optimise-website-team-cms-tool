@@ -1,5 +1,8 @@
 # The Optimate Agent Build Plan
 
+> **Status: planning document only — no code has been built.**
+> Nothing in `src/lib/agents/` exists yet (the directory itself is not yet created). This file is the specification a developer (or coding agent) reads *before* writing any agent code. When implementation begins, build steps follow the order in `## Recommended Build Order (Working Backwards)` below. The existing `OptiMate` Google Ads chat in `src/components/GoogleAdsChat.tsx` and `website-growth-tools/server/routes.ts` is **separate, pre-existing infrastructure** and is documented under `## Pre-Build Inventory: What Already Exists` purely so the migration path is clear; it is not part of the new agent fleet until explicitly migrated per Phase 3.
+
 A working-backwards roadmap for building the Optimate AI agent fleet on top of the Content CMS platform.
 
 This document maps out:
@@ -1449,4 +1452,175 @@ The agent runs all of these on every diagnostic run. It surfaces only the ones t
 The agent's diagnostic run is the union of these patterns. On any given account, it executes all detection rules in parallel, surfaces only the patterns that hit thresholds, ranks by either spend at risk or conversion uplift, and packages the findings into the diagnostic JSON output. The recommendations sit in the structured output unbundled so the renderer (client report or internal weekly review) can include or exclude them by category as appropriate.
 
 New patterns are added to this library whenever the team identifies one in real-world client work. Each pattern, once added, is automatically applied to every future client diagnostic. The library grows as the agency's diagnostic vocabulary grows.
+
+---
+
+## Agent Tool Deep Dive: Landing Page Relevance Audit
+
+This is the first concrete agent tool we're specifying in detail, derived from the Berendsen optimisation work in May 2026. It became clear during that work that recommendations made without actually reading the live landing page are guesswork; the agent must fetch and inspect each page before recommending changes. This tool wraps that flow.
+
+### When the tool runs
+
+- **Monthly cadence** per active client, after at least 30 days of post-restructure data has accumulated. Earlier runs produce noisy recommendations because exact-match keywords haven't built impression history yet.
+- **On-demand** via chat mode when an internal user asks "audit the top landing pages for [client]" or similar.
+- **Triggered by other agent runs** when the diagnostic playbook detects pattern A1 (landing page receiving high spend with zero conversions).
+
+### What the tool does, end to end
+
+For a given Google Ads customer ID and analysis window:
+
+1. **Pull the top N landing pages by spend** (default N = 5) over the window via the Google Ads `landing_page_view` resource. Default window is 25 to 30 days.
+2. **For each landing page**, in parallel:
+   1. **Fetch the live page** via WebFetch (or Scrapling for harder targets), extracting structured signals: H1 text, hero subheading, all H2/H3 headings, presence and field-list of any forms, presence and href of any phone numbers (specifically `tel:` links), presence of branch locator widgets, presence of part catalogues or similar, count of links, evidence of broken sections (loading placeholders, "currently not available" messages, non-functional reset buttons).
+   2. **Pull the ad copy** (Responsive Search Ad headlines + descriptions + final URLs) from every enabled ad group whose ads point to this landing page, via `ad_group_ad` query.
+   3. **Pull the top 10 search terms** that drove traffic to this landing page in the window, via `search_term_view` aggregated by ad group, then traced to landing page via the ad's final URL.
+3. **Cross-reference the three data sources** to find:
+   - **Vocabulary mismatch**: search-term noun phrases not present in page headings or body
+   - **Geo mismatch**: city or "near me" search terms with no city/locator response on the page
+   - **Form mismatch**: ad copy promising "Get a Free Quote" / "Request Quote" with no quote form on the destination page
+   - **CTA mismatch**: ad copy promising click-to-call but the landing page has no `tel:` link near the fold
+   - **URL typo**: any ad final URL that doesn't resolve, returns 4xx, or differs from the same ad group's other final URLs by more than a Levenshtein distance of 2 characters (catches typos like "rexroth" vs "rexorth")
+   - **Broken page elements**: empty product loaders, "currently unavailable" copy, non-functional buttons surfaced by the page-fetch step
+   - **Geo-irrelevant H1**: H1 mentions a single city ("...in Melbourne") but the URL is national (i.e. no city in the path)
+4. **Generate a per-page recommendation block** for each landing page, in the structured output schema (see below).
+
+### Tool definition (CanonicalTool shape)
+
+```ts
+const landingPageRelevanceAudit: CanonicalTool = {
+  name: 'audit_landing_page_relevance',
+  description: 'For a given Google Ads customer, audits the top N landing pages by spend by fetching each page, comparing its content against the ad copy serving it and the search terms users typed, and producing per-page recommendations for copy, forms, CTAs, and ad/URL fixes.',
+  parameters: z.object({
+    customerId: z.string(),
+    startDate: z.string(),     // YYYY-MM-DD
+    endDate: z.string(),       // YYYY-MM-DD
+    topN: z.number().default(5),
+    minSpendForAudit: z.number().default(100),
+    template: z.enum(['client', 'internal']).default('internal'),
+  }),
+  execute: async (args, ctx) => {
+    // 1. Top-N LPs by spend (Google Ads API)
+    const topLps = await getTopLandingPagesBySpend(args.customerId, args.startDate, args.endDate, args.topN, args.minSpendForAudit)
+    // 2 + 3. For each LP: fetch page + ad copy + search terms in parallel
+    const audits = await Promise.all(topLps.map(lp => auditLandingPage(args.customerId, lp, args.startDate, args.endDate)))
+    // 4. Findings + recommendations
+    const findings = audits.map(generateFindings)
+    return { audits, findings, summary: summariseFindings(findings) }
+  },
+}
+```
+
+The page-fetch sub-step uses WebFetch with a structured prompt template that asks for the same eight signals every time. This consistency is what lets the cross-reference step work programmatically rather than agent-by-agent.
+
+### Output schema
+
+```ts
+interface LandingPageAudit {
+  url: string
+  metrics: { clicks: number; cost: number; conversions: number; cvr: number; cpa: number | null }
+  pageContent: {
+    h1: string
+    heroSubheading: string | null
+    headings: string[]                       // H2 + H3 in document order
+    formsFound: Array<{ fieldNames: string[] }>
+    phoneNumbersFound: Array<{ display: string; isClickToCall: boolean }>
+    branchLocator: 'present' | 'static-list' | 'absent'
+    productCatalogue: 'present' | 'broken' | 'absent'
+    visibleBrokenSections: string[]          // e.g. "empty product loader", "non-functional reset button"
+  }
+  adCopy: Array<{
+    adGroup: string
+    campaign: string
+    headlines: string[]
+    descriptions: string[]
+    finalUrls: string[]
+    adsCount: number
+  }>
+  topSearchTerms: Array<{ term: string; clicks: number; cost: number; conversions: number }>
+  findings: {
+    vocabularyMismatch: Array<{ searchTermPhrase: string; missingFromPage: boolean }>
+    geoMismatch: { geoIntentClicks: number; pageHasGeoResponse: boolean }
+    formMismatch: { adCopyPromisesQuote: boolean; pageHasForm: boolean }
+    ctaMismatch: { adCopyPromisesCall: boolean; pageHasClickToCall: boolean }
+    urlTypos: Array<{ adGroup: string; suspectedTypoUrl: string }>
+    brokenElements: string[]
+    geoIrrelevantH1: { h1: string; urlIsNational: boolean; cityInH1: string | null }
+  }
+  recommendations: Array<{
+    severity: 'critical' | 'high' | 'medium'
+    category: 'copy' | 'form' | 'cta' | 'page-bug' | 'ad-config' | 'geo'
+    summary: string
+    detail: string
+  }>
+}
+```
+
+### Severity rules
+
+- **critical**: a typo'd ad URL, a broken page element on a paid landing page, an ad-promise-to-page mismatch (ad promises quote form, page has no form). Surface for immediate action.
+- **high**: vocabulary mismatch where a single search term has over 10 clicks and is not present in page copy; geo-mismatch on a national page receiving over 30% geo-modified queries.
+- **medium**: minor copy expansion opportunities, "could also mention X".
+
+### Pre-flight, what the tool will not do
+
+- **Will not auto-edit the client's website.** Page changes are always recommendations, never actions. The agent's actionable side is restricted to Google Ads platform changes (pausing typo'd ads, adding negatives, etc.).
+- **Will not auto-pause an entire ad group on the basis of LP issues.** It can pause a single ad with a typo'd URL (after approval), but ad-group-level decisions stay manual.
+- **Will not assume page content based on URL.** Every recommendation is grounded in a successful page fetch. If the fetch fails (timeout, robots.txt, 404), the audit for that page is flagged as "could not audit" rather than fabricated.
+- **Will not surface findings from paused or removed structures.** Every Google Ads query underlying this tool must filter to ENABLED at all three levels: `campaign.status = 'ENABLED' AND ad_group.status = 'ENABLED' AND ad_group_ad.status = 'ENABLED'`. Old ad groups, paused campaigns, and legacy structures from previous agencies often contain typo'd URLs, broken ad copy, or zombie keywords that are not actually serving impressions. Flagging them creates noise and damages trust in the agent's findings. The agent must surface only what's currently in market.
+
+### Enabled-only filter, the precise guardrail
+
+When the agent fetches:
+- **Landing pages by spend**: filter `campaign.status = 'ENABLED'` on the `landing_page_view` query. (`ad_group` and `ad_group_ad` aren't directly addressable from `landing_page_view`, but the campaign filter eliminates 95% of zombie data.)
+- **Ad copy per ad group**: filter all three (`ad_group_ad.status`, `ad_group.status`, `campaign.status`) to ENABLED.
+- **Search terms**: filter `campaign.status` and `ad_group.status` to ENABLED, otherwise paused-ad-group history pollutes the analysis.
+- **Keyword performance**: same triple ENABLED filter.
+
+The guardrail is documented in the tool's source code as a top-level constant (e.g. `ENABLED_FILTER_CLAUSE`) imported by every query so it can never be forgotten. New tools added to the agent reuse the same constant.
+
+### Stronger guardrail, the "actually serving" filter
+
+ENABLED status is necessary but not sufficient. An ad can be marked ENABLED in Google Ads while receiving zero impressions because:
+- It's a deprecated ad format (e.g. EXPANDED_TEXT_AD, sunset by Google in 2022) that still appears in the account but is being phased out by the auction in favour of newer RSAs in the same ad group.
+- It has a sufficiently low Quality Score that Google never serves it.
+- A newer ad in the same ad group is winning every auction.
+- The keywords feeding it have all been paused or have rank-lost the entire impression share.
+
+Before the agent generates any finding tied to a specific ad (e.g. "this ad has a typo'd URL"), it must also verify that ad has `metrics.impressions > 0` over the analysis window. Zero-impression ads are functionally zombies, even if the status field says ENABLED. Flagging them in client reports creates noise and damages trust in the agent's findings.
+
+This rule was learned from a real Berendsen finding in May 2026: 3 legacy EXPANDED_TEXT_AD ads in the active Bosch-Rexroth ad group had typo'd final URLs ("rexorth" instead of "rexroth"). The status check returned them as ENABLED, but the impressions check returned 0 over 25 days. Surfacing the typo'd-URL finding in the client report would have been embarrassing because the ads weren't actually reaching anyone.
+
+So in code:
+
+```ts
+const ENABLED_AND_SERVING_FILTER = `
+  campaign.status = 'ENABLED'
+  AND ad_group.status = 'ENABLED'
+  AND ad_group_ad.status = 'ENABLED'
+  AND metrics.impressions > 0
+`
+```
+
+For ad-level findings (typo'd URLs, ad-copy-to-LP mismatches, headline copy issues), use `ENABLED_AND_SERVING_FILTER`. For account-structure-level findings (e.g. "this ad group exists in the account"), `ENABLED_FILTER_CLAUSE` alone is sufficient.
+
+### Why this is the right first tool to build
+
+Three reasons:
+
+1. **It uses every layer of the agent we've designed.** Pulls Google Ads data, pulls GA4 data adjacency, fetches external web content, runs a structured cross-reference, generates structured recommendations, routes some recommendations to the approval queue (e.g. pausing typo'd ads), feeds others into a client-facing report. If we can build this tool well, the rest of the diagnostic playbook is variations on the same pattern.
+2. **It's directly tied to the use case the agency runs most.** Berendsen and MTP both needed this. Every future client will need it. A monthly cadence per client gives the team a recurring, useful, defensible deliverable.
+3. **It's measurable.** Every recommendation either produces a page change (the agency or client implements it) or it doesn't. Conversion rate on the audited pages 30 days later is the success metric. Closes the feedback loop, turns recommendations into accountable predictions.
+
+### What gets built specifically
+
+- `src/lib/agents/optimate-google-ads/tools/audit-landing-page-relevance.ts` (the CanonicalTool)
+- `src/lib/agents/optimate-google-ads/page-fetch-prompt.md` (the WebFetch prompt template, identical across runs so output is structured)
+- `src/lib/agents/optimate-google-ads/cross-reference.ts` (the deterministic cross-reference logic, no LLM needed)
+- `src/lib/agents/optimate-google-ads/recommendation-generator.ts` (turns findings into the recommendations array, light LLM use for prose only)
+- Two renderers (per Build Decision 5): `templates/landing-page-audit-client.html` (verbose) and `templates/landing-page-audit-internal.md` (terse bullet form)
+
+### Cadence integration
+
+- Add to the existing scheduler in `server/index.ts` (or the CMS-side scheduler) as a monthly cron per active Google Ads client.
+- Output routes to the `agent-approval-queue` collection. Approved recommendations either trigger ad changes (typo'd URL pauses) automatically, or get rendered as a client email draft awaiting your sign-off.
 
