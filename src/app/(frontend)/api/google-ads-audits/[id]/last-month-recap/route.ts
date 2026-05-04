@@ -54,7 +54,7 @@ function buildInsights(
     insights.push({
       severity: "good",
       title: `Scale up: ${best.campaignName}`,
-      body: `Lowest cost-per-lead at $${best.cpl.toFixed(2)} (${best.conversions} conversions on $${best.cost.toFixed(0)} spend). Consider shifting more budget here this month.`,
+      body: `Lowest cost-per-lead at $${best.cpl.toFixed(2)} (${best.conversions} conversions on $${best.cost.toFixed(0)} spend). We will look to shift more budget here this month to compound the strongest performer.`,
     });
   }
 
@@ -82,8 +82,8 @@ function buildInsights(
     const totalWaste = wasteTerms.reduce((s, t) => s + t.cost, 0);
     insights.push({
       severity: "warning",
-      title: "Add negative keywords",
-      body: `${wasteTerms.length} search terms spent $${totalWaste.toFixed(0)} with zero conversions. Top wasters: ${sample}. Add as negatives to reclaim budget.`,
+      title: "Review high-spend, no-conversion search terms",
+      body: `${wasteTerms.length} search terms spent $${totalWaste.toFixed(0)} last month without converting (e.g. ${sample}). We will review whether any of these fit as negatives to lift conversion rate, and where they're genuinely relevant we will look at improving the landing page and ad copy so the click converts.`,
     });
   }
 
@@ -94,7 +94,7 @@ function buildInsights(
     insights.push({
       severity: "warning",
       title: `Refresh ad copy: ${c.campaignName}`,
-      body: `CTR of ${c.ctr.toFixed(2)}% on ${c.impressions.toLocaleString()} impressions. Test new headlines or descriptions to lift engagement.`,
+      body: `CTR of ${c.ctr.toFixed(2)}% on ${c.impressions.toLocaleString()} impressions suggests the ad isn't resonating. We will test new headlines, descriptions and CTAs to lift engagement and bring the cost per click down.`,
     });
   }
 
