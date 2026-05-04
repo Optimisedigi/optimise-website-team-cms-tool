@@ -513,6 +513,12 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   const [lastMonthRecap, setLastMonthRecap] = useState<LastMonthRecap | null>(null);
   const [loadingRecap, setLoadingRecap] = useState(false);
   const [recapError, setRecapError] = useState<string | null>(null);
+  const [actionItems, setActionItems] = useState<Array<{
+    id: string;
+    severity: 'good' | 'warning' | 'critical';
+    title: string;
+    body: string;
+  }>>([]);
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('enabled');
   const [businessName, setBusinessName] = useState('Client');
   const [clientSlug, setClientSlug] = useState('');
@@ -933,7 +939,8 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     let subject: string;
 
     if (emailViewMode === 'lastMonth' && lastMonthRecap) {
-      html = generateLastMonthEmailHtml(businessName, lastMonthRecap, clientSlug, clientPin);
+      const recapWithEdits = { ...lastMonthRecap, insights: actionItems };
+      html = generateLastMonthEmailHtml(businessName, recapWithEdits, clientSlug, clientPin);
       subject = `${businessName} - Google Ads Recap - ${lastMonthRecap.monthLabel}`;
     } else {
       const spend = calculateMonthlySpend(campaigns, monthlyTotal);
@@ -956,7 +963,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     }
     setEmailCopied(true);
     setTimeout(() => setEmailCopied(false), 2000);
-  }, [campaigns, monthlyTotal, businessName, clientSlug, clientPin, emailViewMode, lastMonthRecap]);
+  }, [campaigns, monthlyTotal, businessName, clientSlug, clientPin, emailViewMode, lastMonthRecap, actionItems]);
 
   // Auto-fetch recap when user switches to last-month tab
   useEffect(() => {
@@ -964,6 +971,51 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       fetchLastMonthRecap();
     }
   }, [showEmailModal, emailViewMode, lastMonthRecap, loadingRecap, fetchLastMonthRecap]);
+
+  // Seed editable action items from the recap's auto-generated insights.
+  // User edits are preserved across tab switches; refetching the recap
+  // resets them.
+  useEffect(() => {
+    if (lastMonthRecap) {
+      setActionItems(
+        lastMonthRecap.insights.map((ins, i) => ({
+          id: `auto-${i}-${Date.now()}`,
+          severity: ins.severity,
+          title: ins.title,
+          body: ins.body,
+        }))
+      );
+    }
+  }, [lastMonthRecap]);
+
+  const cycleSeverity = useCallback((id: string) => {
+    setActionItems(items => items.map(it => {
+      if (it.id !== id) return it;
+      const next: 'good' | 'warning' | 'critical' =
+        it.severity === 'good' ? 'warning' : it.severity === 'warning' ? 'critical' : 'good';
+      return { ...it, severity: next };
+    }));
+  }, []);
+
+  const updateActionItem = useCallback((id: string, patch: Partial<{ title: string; body: string }>) => {
+    setActionItems(items => items.map(it => it.id === id ? { ...it, ...patch } : it));
+  }, []);
+
+  const deleteActionItem = useCallback((id: string) => {
+    setActionItems(items => items.filter(it => it.id !== id));
+  }, []);
+
+  const addActionItem = useCallback(() => {
+    setActionItems(items => [
+      ...items,
+      {
+        id: `custom-${Date.now()}`,
+        severity: 'good',
+        title: 'New action item',
+        body: 'Describe the action.',
+      },
+    ]);
+  }, []);
 
   useEffect(() => {
     if (id) {
@@ -1655,11 +1707,87 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                     <button onClick={fetchLastMonthRecap} style={{ marginTop: 8, padding: '6px 12px', fontSize: 12, fontWeight: 500, background: '#fff', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer' }}>Retry</button>
                   </div>
                 )}
-                {lastMonthRecap && !loadingRecap && (
-                  <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16, maxHeight: 480, overflow: 'auto' }}
-                    dangerouslySetInnerHTML={{ __html: generateLastMonthEmailHtml(businessName, lastMonthRecap, clientSlug, clientPin) }}
-                  />
-                )}
+                {lastMonthRecap && !loadingRecap && (() => {
+                  const recapWithEdits = { ...lastMonthRecap, insights: actionItems };
+                  const sevColors = {
+                    good: { bg: '#f0fdf4', border: '#bbf7d0', accent: '#059669', label: 'Good', icon: '✓' },
+                    warning: { bg: '#fffbeb', border: '#fed7aa', accent: '#d97706', label: 'Warning', icon: '!' },
+                    critical: { bg: '#fef2f2', border: '#fecaca', accent: '#dc2626', label: 'Critical', icon: '✕' },
+                  } as const;
+                  return (
+                    <>
+                      {/* Action items editor */}
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                            Action Items ({actionItems.length})
+                          </div>
+                          <button
+                            onClick={addActionItem}
+                            style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+                          >
+                            + Add Action Item
+                          </button>
+                        </div>
+                        {actionItems.length === 0 && (
+                          <div style={{ padding: 16, background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 8, fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>
+                            No action items. Click "Add Action Item" to include one in the email.
+                          </div>
+                        )}
+                        {actionItems.map(item => {
+                          const c = sevColors[item.severity];
+                          return (
+                            <div
+                              key={item.id}
+                              style={{ padding: 12, background: c.bg, border: `1px solid ${c.border}`, borderLeft: `4px solid ${c.accent}`, borderRadius: 8, marginBottom: 8 }}
+                            >
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                                <button
+                                  onClick={() => cycleSeverity(item.id)}
+                                  title="Click to cycle severity"
+                                  style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700, background: c.accent, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                >
+                                  {c.icon} {c.label}
+                                </button>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <input
+                                    type="text"
+                                    value={item.title}
+                                    onChange={e => updateActionItem(item.id, { title: e.target.value })}
+                                    style={{ width: '100%', padding: '4px 6px', fontSize: 13, fontWeight: 600, color: c.accent, background: 'transparent', border: '1px solid transparent', borderRadius: 4, outline: 'none', marginBottom: 4 }}
+                                    onFocus={e => { e.currentTarget.style.borderColor = c.border; e.currentTarget.style.background = '#fff'; }}
+                                    onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = 'transparent'; }}
+                                  />
+                                  <textarea
+                                    value={item.body}
+                                    onChange={e => updateActionItem(item.id, { body: e.target.value })}
+                                    rows={2}
+                                    style={{ width: '100%', padding: '4px 6px', fontSize: 13, color: '#374151', background: 'transparent', border: '1px solid transparent', borderRadius: 4, outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+                                    onFocus={e => { e.currentTarget.style.borderColor = c.border; e.currentTarget.style.background = '#fff'; }}
+                                    onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = 'transparent'; }}
+                                  />
+                                </div>
+                                <button
+                                  onClick={() => deleteActionItem(item.id)}
+                                  title="Delete action item"
+                                  style={{ padding: '4px 8px', fontSize: 14, background: 'transparent', color: '#94a3b8', border: 'none', cursor: 'pointer' }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Live email preview */}
+                      <div
+                        style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16, maxHeight: 480, overflow: 'auto' }}
+                        dangerouslySetInnerHTML={{ __html: generateLastMonthEmailHtml(businessName, recapWithEdits, clientSlug, clientPin) }}
+                      />
+                    </>
+                  );
+                })()}
               </>
             )}
 

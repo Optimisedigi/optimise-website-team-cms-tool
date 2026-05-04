@@ -58,12 +58,19 @@ function buildInsights(
     });
   }
 
-  const wasters = campaigns.filter((c) => c.cost >= 100 && c.conversions === 0);
+  // Exclude obvious display/discovery/PMax patterns from the search-focused
+  // "review" recommendation — those need different optimisation levers than
+  // ad copy / landing page / keyword relevancy.
+  const isDisplayLike = (name: string) =>
+    /\b(display|discovery|pmax|performance\s*max|video|youtube|shopping)\b/i.test(name);
+  const wasters = campaigns.filter(
+    (c) => c.cost >= 100 && c.conversions === 0 && !isDisplayLike(c.campaignName)
+  );
   for (const c of wasters.slice(0, 2)) {
     insights.push({
       severity: "critical",
-      title: `Review: ${c.campaignName}`,
-      body: `Spent $${c.cost.toFixed(0)} last month with zero conversions. Pause, restructure, or refresh ad copy before continuing.`,
+      title: `Optimise: ${c.campaignName}`,
+      body: `Spent $${c.cost.toFixed(0)} last month with zero conversions. We will review ad copy and headlines, audit the landing page conversion path, tighten keyword relevancy, and reallocate budget toward higher-performing search campaigns.`,
     });
   }
 
@@ -215,6 +222,9 @@ export async function POST(
     stUrl.searchParams.set("customerId", cleanCustomerId);
     stUrl.searchParams.set("dateRange", "LAST_MONTH");
     stUrl.searchParams.set("limit", "500");
+    if (conversionActions.length > 0) {
+      stUrl.searchParams.set("conversionActions", conversionActions.join(","));
+    }
 
     const r = await fetch(stUrl.toString(), {
       headers: { "x-internal-key": INTERNAL_API_KEY },
