@@ -1,0 +1,304 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getPayload } from "payload";
+import config from "@/payload.config";
+
+const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+
+interface CampaignMetric {
+  campaignId: string;
+  campaignName: string;
+  impressions: number;
+  clicks: number;
+  cost: number;
+  conversions: number;
+  ctr: number;
+  avgCpc: number;
+  cpl: number;
+}
+
+interface SearchTermRow {
+  searchTerm: string;
+  campaignName: string;
+  impressions: number;
+  clicks: number;
+  cost: number;
+  conversions: number;
+}
+
+interface Insight {
+  severity: "good" | "warning" | "critical";
+  title: string;
+  body: string;
+}
+
+function lastMonthLabel(): { label: string; year: number; month: number } {
+  const now = new Date();
+  const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return {
+    label: lm.toLocaleDateString("en-AU", { month: "long", year: "numeric" }),
+    year: lm.getFullYear(),
+    month: lm.getMonth() + 1,
+  };
+}
+
+function buildInsights(
+  campaigns: CampaignMetric[],
+  topBySpend: SearchTermRow[]
+): Insight[] {
+  const insights: Insight[] = [];
+
+  const withConversions = campaigns.filter((c) => c.conversions >= 5);
+  if (withConversions.length > 0) {
+    const best = withConversions.reduce((a, b) => (a.cpl < b.cpl ? a : b));
+    insights.push({
+      severity: "good",
+      title: `Scale up: ${best.campaignName}`,
+      body: `Lowest cost-per-lead at $${best.cpl.toFixed(2)} (${best.conversions} conversions on $${best.cost.toFixed(0)} spend). Consider shifting more budget here this month.`,
+    });
+  }
+
+  const wasters = campaigns.filter((c) => c.cost >= 100 && c.conversions === 0);
+  for (const c of wasters.slice(0, 2)) {
+    insights.push({
+      severity: "critical",
+      title: `Review: ${c.campaignName}`,
+      body: `Spent $${c.cost.toFixed(0)} last month with zero conversions. Pause, restructure, or refresh ad copy before continuing.`,
+    });
+  }
+
+  const wasteTerms = topBySpend.filter(
+    (t) => t.cost >= 50 && t.conversions === 0
+  );
+  if (wasteTerms.length > 0) {
+    const sample = wasteTerms.slice(0, 3).map((t) => `"${t.searchTerm}"`).join(", ");
+    const totalWaste = wasteTerms.reduce((s, t) => s + t.cost, 0);
+    insights.push({
+      severity: "warning",
+      title: "Add negative keywords",
+      body: `${wasteTerms.length} search terms spent $${totalWaste.toFixed(0)} with zero conversions. Top wasters: ${sample}. Add as negatives to reclaim budget.`,
+    });
+  }
+
+  const lowCtr = campaigns.filter(
+    (c) => c.impressions >= 1000 && c.ctr < 1 && c.cost > 0
+  );
+  for (const c of lowCtr.slice(0, 2)) {
+    insights.push({
+      severity: "warning",
+      title: `Refresh ad copy: ${c.campaignName}`,
+      body: `CTR of ${c.ctr.toFixed(2)}% on ${c.impressions.toLocaleString()} impressions. Test new headlines or descriptions to lift engagement.`,
+    });
+  }
+
+  return insights;
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const auditId = Number(id);
+
+  const payloadConfig = await config;
+  const payload = await getPayload({ config: payloadConfig });
+
+  const { user } = await payload.auth({ headers: req.headers });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let audit: any;
+  try {
+    audit = await payload.findByID({
+      collection: "google-ads-audits",
+      id: auditId,
+      overrideAccess: true,
+    });
+  } catch {
+    return NextResponse.json({ error: "Audit not found" }, { status: 404 });
+  }
+
+  let customerId = audit.customerId;
+  if (audit.client) {
+    try {
+      const clientId =
+        typeof audit.client === "object" ? audit.client.id : audit.client;
+      const linkedClient =
+        typeof audit.client === "object"
+          ? audit.client
+          : await payload.findByID({
+              collection: "clients",
+              id: clientId,
+              overrideAccess: true,
+            });
+      if (linkedClient?.googleAdsCustomerId) {
+        customerId = linkedClient.googleAdsCustomerId;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  if (!customerId) {
+    return NextResponse.json(
+      { error: "No Google Ads customer ID on audit or client" },
+      { status: 400 }
+    );
+  }
+
+  if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) {
+    return NextResponse.json(
+      { error: "Growth Tools service not configured" },
+      { status: 500 }
+    );
+  }
+
+  const cleanCustomerId = String(customerId).replace(/-/g, "");
+  const { label, year, month } = lastMonthLabel();
+
+  // 1. Campaign metrics for LAST_MONTH
+  const metricsUrl = new URL(
+    `${GROWTH_TOOLS_URL}/api/google-ads/campaign-budgets/get-metrics`
+  );
+  metricsUrl.searchParams.set("customerId", cleanCustomerId);
+  metricsUrl.searchParams.set("dateRange", "LAST_MONTH");
+
+  let campaignMetrics: CampaignMetric[] = [];
+  try {
+    const r = await fetch(metricsUrl.toString(), {
+      headers: { "x-internal-key": INTERNAL_API_KEY },
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (r.ok) {
+      const { metrics } = await r.json();
+      campaignMetrics = (metrics || []).map((m: any) => {
+        const cost = Number(m.cost ?? m.spend ?? 0);
+        const impressions = Number(m.impressions ?? 0);
+        const clicks = Number(m.clicks ?? 0);
+        const conversions = Number(m.conversions ?? 0);
+        return {
+          campaignId: String(m.campaignId),
+          campaignName: m.campaignName || m.campaignId,
+          impressions,
+          clicks,
+          cost,
+          conversions,
+          ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+          avgCpc: clicks > 0 ? cost / clicks : 0,
+          cpl: conversions > 0 ? cost / conversions : 0,
+        };
+      });
+    }
+  } catch (e: any) {
+    console.error("[last-month-recap] metrics error:", e.message);
+  }
+
+  // 2. Search terms — try dedicated endpoint first, fall back to negative-sweep
+  let searchTerms: SearchTermRow[] = [];
+  try {
+    const stUrl = new URL(`${GROWTH_TOOLS_URL}/api/google-ads/search-terms`);
+    stUrl.searchParams.set("customerId", cleanCustomerId);
+    stUrl.searchParams.set("dateRange", "LAST_MONTH");
+    stUrl.searchParams.set("limit", "500");
+
+    const r = await fetch(stUrl.toString(), {
+      headers: { "x-internal-key": INTERNAL_API_KEY },
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      searchTerms = (data.searchTerms || data.terms || []).map((t: any) => ({
+        searchTerm: t.searchTerm || t.query || "",
+        campaignName: t.campaignName || "",
+        impressions: Number(t.impressions ?? 0),
+        clicks: Number(t.clicks ?? 0),
+        cost: Number(t.cost ?? t.spend ?? 0),
+        conversions: Number(t.conversions ?? 0),
+      }));
+    }
+  } catch (e: any) {
+    console.error("[last-month-recap] search-terms error:", e.message);
+  }
+
+  // Fallback: negative-sweep with relaxed thresholds (still returns search terms with metrics)
+  if (searchTerms.length === 0) {
+    try {
+      const r = await fetch(
+        `${GROWTH_TOOLS_URL}/api/google-ads/negative-sweep`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": INTERNAL_API_KEY,
+          },
+          body: JSON.stringify({
+            customerId: cleanCustomerId,
+            minSpend: 0,
+            minClicks: 0,
+            maxCandidates: 500,
+            dateRange: "LAST_MONTH",
+          }),
+          signal: AbortSignal.timeout(60_000),
+        }
+      );
+      if (r.ok) {
+        const data = await r.json();
+        searchTerms = (data.candidates || []).map((c: any) => ({
+          searchTerm: c.searchTerm,
+          campaignName: c.campaignName || "",
+          impressions: Number(c.impressions ?? 0),
+          clicks: Number(c.clicks ?? 0),
+          cost: Number(c.cost ?? 0),
+          conversions: Number(c.conversions ?? 0),
+        }));
+      }
+    } catch (e: any) {
+      console.error("[last-month-recap] negative-sweep fallback error:", e.message);
+    }
+  }
+
+  const topByClicks = [...searchTerms]
+    .filter((t) => t.clicks > 0)
+    .sort((a, b) => b.clicks - a.clicks)
+    .slice(0, 10);
+  const topByConversions = [...searchTerms]
+    .filter((t) => t.conversions > 0)
+    .sort((a, b) => b.conversions - a.conversions)
+    .slice(0, 10);
+  const topBySpend = [...searchTerms]
+    .filter((t) => t.cost > 0)
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 10);
+
+  const totals = campaignMetrics.reduce(
+    (acc, c) => ({
+      spend: acc.spend + c.cost,
+      clicks: acc.clicks + c.clicks,
+      impressions: acc.impressions + c.impressions,
+      conversions: acc.conversions + c.conversions,
+    }),
+    { spend: 0, clicks: 0, impressions: 0, conversions: 0 }
+  );
+
+  const insights = buildInsights(campaignMetrics, topBySpend);
+
+  return NextResponse.json({
+    success: true,
+    monthLabel: label,
+    year,
+    month,
+    totals: {
+      ...totals,
+      ctr: totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0,
+      avgCpc: totals.clicks > 0 ? totals.spend / totals.clicks : 0,
+      cpl: totals.conversions > 0 ? totals.spend / totals.conversions : 0,
+    },
+    campaigns: campaignMetrics.sort((a, b) => b.cost - a.cost),
+    topByClicks,
+    topByConversions,
+    topBySpend,
+    insights,
+    searchTermsAvailable: searchTerms.length > 0,
+  });
+}

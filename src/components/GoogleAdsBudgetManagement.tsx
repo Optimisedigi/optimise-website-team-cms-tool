@@ -134,7 +134,7 @@ function generateEmailHtml(
   const dashboardUrl = clientSlug ? `https://cms.optimisedigital.online/google-dashboard/${clientSlug}` : '';
 
   return `<div style="font-family:Arial,sans-serif;max-width:700px;color:#1e293b">
-  <p style="margin:0 0 20px;color:#64748b;font-size:14px">${month}</p>
+  <p style="margin:0 0 20px;color:#64748b;font-size:14px">${month} (Month-to-Date)</p>
 
   <!-- Budget Progress + Time Tracking side by side -->
   <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
@@ -243,6 +243,193 @@ function generateEmailHtml(
 </div>`;
 }
 
+interface LastMonthRecap {
+  monthLabel: string;
+  totals: {
+    spend: number;
+    clicks: number;
+    impressions: number;
+    conversions: number;
+    ctr: number;
+    avgCpc: number;
+    cpl: number;
+  };
+  campaigns: Array<{
+    campaignId: string;
+    campaignName: string;
+    impressions: number;
+    clicks: number;
+    cost: number;
+    conversions: number;
+    ctr: number;
+    avgCpc: number;
+    cpl: number;
+  }>;
+  topByClicks: Array<SearchTermRow>;
+  topByConversions: Array<SearchTermRow>;
+  topBySpend: Array<SearchTermRow>;
+  insights: Array<{ severity: 'good' | 'warning' | 'critical'; title: string; body: string }>;
+  searchTermsAvailable: boolean;
+}
+
+interface SearchTermRow {
+  searchTerm: string;
+  campaignName: string;
+  impressions: number;
+  clicks: number;
+  cost: number;
+  conversions: number;
+}
+
+function searchTermRows(
+  rows: SearchTermRow[],
+  metricKey: 'clicks' | 'conversions' | 'cost'
+): string {
+  if (rows.length === 0) {
+    return `<tr><td colspan="4" style="padding:12px;font-size:12px;color:#94a3b8;text-align:center;border-bottom:1px solid #e5e7eb">No data available</td></tr>`;
+  }
+  return rows.map((r, i) => {
+    const metricVal = metricKey === 'cost'
+      ? `$${r.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+      : r[metricKey].toLocaleString();
+    return `<tr>
+      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#64748b">${i + 1}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px">${r.searchTerm}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#64748b">${r.campaignName || '—'}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:right;font-weight:600">${metricVal}</td>
+    </tr>`;
+  }).join('');
+}
+
+function generateLastMonthEmailHtml(
+  businessName: string,
+  recap: LastMonthRecap,
+  clientSlug?: string,
+  clientPin?: string
+): string {
+  const t = recap.totals;
+  const dashboardUrl = clientSlug ? `https://cms.optimisedigital.online/google-dashboard/${clientSlug}` : '';
+
+  const campaignRows = recap.campaigns
+    .filter(c => c.cost > 0 || c.impressions > 0)
+    .map(c => `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px">${c.campaignName}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:600">$${c.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.impressions.toLocaleString()}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.clicks.toLocaleString()}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.ctr.toFixed(2)}%</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${c.avgCpc.toFixed(2)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.conversions.toLocaleString()}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.cpl > 0 ? `$${c.cpl.toFixed(0)}` : '—'}</td>
+    </tr>`).join('');
+
+  const insightCards = recap.insights.map(ins => {
+    const colorMap = {
+      good: { bg: '#f0fdf4', border: '#bbf7d0', accent: '#059669', icon: '✓' },
+      warning: { bg: '#fffbeb', border: '#fed7aa', accent: '#d97706', icon: '!' },
+      critical: { bg: '#fef2f2', border: '#fecaca', accent: '#dc2626', icon: '✕' },
+    };
+    const c = colorMap[ins.severity];
+    return `<div style="padding:14px 16px;background:${c.bg};border:1px solid ${c.border};border-left:4px solid ${c.accent};border-radius:8px;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;color:${c.accent};margin-bottom:4px">${c.icon} ${ins.title}</div>
+      <div style="font-size:13px;color:#374151;line-height:1.5">${ins.body}</div>
+    </div>`;
+  }).join('');
+
+  const thisMonthLabel = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+
+  return `<div style="font-family:Arial,sans-serif;max-width:700px;color:#1e293b">
+  <p style="margin:0 0 4px;color:#64748b;font-size:14px">${recap.monthLabel} Recap</p>
+  <p style="margin:0 0 20px;color:#94a3b8;font-size:12px">Performance summary for ${recap.monthLabel} with action items for ${thisMonthLabel}.</p>
+
+  <!-- Headline metrics -->
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+    <tr>
+      <td style="width:25%;padding:14px;background:#f8fafc;border-radius:8px 0 0 8px;border:1px solid #e2e8f0;text-align:center">
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">Total Spend</div>
+        <div style="font-size:20px;font-weight:700;color:#1e293b">$${t.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+      </td>
+      <td style="width:25%;padding:14px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:center">
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">Conversions</div>
+        <div style="font-size:20px;font-weight:700;color:#059669">${t.conversions.toLocaleString()}</div>
+      </td>
+      <td style="width:25%;padding:14px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:center">
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">Cost / Lead</div>
+        <div style="font-size:20px;font-weight:700;color:#1e293b">${t.cpl > 0 ? `$${t.cpl.toFixed(0)}` : '—'}</div>
+      </td>
+      <td style="width:25%;padding:14px;background:#f8fafc;border-radius:0 8px 8px 0;border:1px solid #e2e8f0;text-align:center">
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">CTR</div>
+        <div style="font-size:20px;font-weight:700;color:#1e293b">${t.ctr.toFixed(2)}%</div>
+      </td>
+    </tr>
+  </table>
+
+  ${recap.insights.length > 0 ? `
+  <h3 style="margin:0 0 10px;font-size:15px">Action Items for ${thisMonthLabel}</h3>
+  <div style="margin-bottom:24px">${insightCards}</div>
+  ` : ''}
+
+  <h3 style="margin:0 0 8px;font-size:15px">Campaign Performance</h3>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+    <tr style="background:#f1f5f9">
+      <th style="padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Spend</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Impr.</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Clicks</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">CTR</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Avg CPC</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Conv.</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">CPL</th>
+    </tr>
+    ${campaignRows || `<tr><td colspan="8" style="padding:12px;font-size:12px;color:#94a3b8;text-align:center">No campaign data</td></tr>`}
+  </table>
+
+  <h3 style="margin:0 0 8px;font-size:15px">Top Search Keywords</h3>
+  ${!recap.searchTermsAvailable ? `<p style="font-size:12px;color:#94a3b8;margin:0 0 16px">Search term data not available — connect or enable the search terms endpoint to populate this section.</p>` : ''}
+
+  <div style="margin-bottom:14px">
+    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">By Clicks</div>
+    <table style="width:100%;border-collapse:collapse">
+      <tr style="background:#f1f5f9">
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;width:30px">#</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Search Term</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
+        <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Clicks</th>
+      </tr>
+      ${searchTermRows(recap.topByClicks, 'clicks')}
+    </table>
+  </div>
+
+  <div style="margin-bottom:14px">
+    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">By Conversions</div>
+    <table style="width:100%;border-collapse:collapse">
+      <tr style="background:#f1f5f9">
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;width:30px">#</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Search Term</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
+        <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Conv.</th>
+      </tr>
+      ${searchTermRows(recap.topByConversions, 'conversions')}
+    </table>
+  </div>
+
+  <div style="margin-bottom:24px">
+    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">By Spend</div>
+    <table style="width:100%;border-collapse:collapse">
+      <tr style="background:#f1f5f9">
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb;width:30px">#</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Search Term</th>
+        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
+        <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Spend</th>
+      </tr>
+      ${searchTermRows(recap.topBySpend, 'cost')}
+    </table>
+  </div>
+
+  ${dashboardUrl ? `<p style="font-size:13px;color:#64748b;margin:0"><a href="${dashboardUrl}" style="color:#2563eb;text-decoration:none;font-weight:500">View live dashboard</a>${clientPin ? ` — PIN: ${clientPin}` : ''}</p>` : ''}
+</div>`;
+}
+
 // When rendered as a Payload UI field on a Google Ads audit document, the
 // audit ID comes from useDocumentInfo (no props needed). When embedded on a
 // different document type (e.g. a Client), the parent passes auditId
@@ -267,6 +454,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   const [monthlyTotal, setMonthlyTotal] = useState<number>(0);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+  const [emailViewMode, setEmailViewMode] = useState<'thisMonth' | 'lastMonth'>('thisMonth');
+  const [lastMonthRecap, setLastMonthRecap] = useState<LastMonthRecap | null>(null);
+  const [loadingRecap, setLoadingRecap] = useState(false);
+  const [recapError, setRecapError] = useState<string | null>(null);
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('enabled');
   const [businessName, setBusinessName] = useState('Client');
   const [clientSlug, setClientSlug] = useState('');
@@ -659,17 +850,49 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     }
   }, [id, campaigns, monthlyTotal]);
 
+  const fetchLastMonthRecap = useCallback(async () => {
+    if (!id) return;
+    setLoadingRecap(true);
+    setRecapError(null);
+    try {
+      const res = await fetch(`/api/google-ads-audits/${id}/last-month-recap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed (${res.status})`);
+      }
+      const data = await res.json();
+      setLastMonthRecap(data);
+    } catch (e: any) {
+      setRecapError(e.message);
+    } finally {
+      setLoadingRecap(false);
+    }
+  }, [id]);
+
   const copyEmailToClipboard = useCallback(async () => {
-    const spend = calculateMonthlySpend(campaigns, monthlyTotal);
-    const currentMonth = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-    const html = generateEmailHtml(businessName, currentMonth, spend, campaigns, monthlyTotal, clientSlug, clientPin);
+    let html: string;
+    let subject: string;
+
+    if (emailViewMode === 'lastMonth' && lastMonthRecap) {
+      html = generateLastMonthEmailHtml(businessName, lastMonthRecap, clientSlug, clientPin);
+      subject = `${businessName} - Google Ads Recap - ${lastMonthRecap.monthLabel}`;
+    } else {
+      const spend = calculateMonthlySpend(campaigns, monthlyTotal);
+      const currentMonth = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+      html = generateEmailHtml(businessName, currentMonth, spend, campaigns, monthlyTotal, clientSlug, clientPin);
+      subject = `${businessName} - Google Ads Budget Report - ${currentMonth}`;
+    }
 
     // Copy as HTML so it pastes formatted into Gmail
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
           'text/html': new Blob([html], { type: 'text/html' }),
-          'text/plain': new Blob([`${businessName} - Google Ads Budget Report - ${currentMonth}`], { type: 'text/plain' }),
+          'text/plain': new Blob([subject], { type: 'text/plain' }),
         }),
       ]);
     } catch {
@@ -678,7 +901,14 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     }
     setEmailCopied(true);
     setTimeout(() => setEmailCopied(false), 2000);
-  }, [campaigns, monthlyTotal, businessName, clientSlug, clientPin]);
+  }, [campaigns, monthlyTotal, businessName, clientSlug, clientPin, emailViewMode, lastMonthRecap]);
+
+  // Auto-fetch recap when user switches to last-month tab
+  useEffect(() => {
+    if (showEmailModal && emailViewMode === 'lastMonth' && !lastMonthRecap && !loadingRecap) {
+      fetchLastMonthRecap();
+    }
+  }, [showEmailModal, emailViewMode, lastMonthRecap, loadingRecap, fetchLastMonthRecap]);
 
   useEffect(() => {
     if (id) {
@@ -1304,23 +1534,87 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       {/* Email Modal */}
       {showEmailModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowEmailModal(false)}>
-          <div style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 700, maxHeight: '85vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 760, maxHeight: '85vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#1e293b' }}>Email Report Preview</h2>
               <button onClick={() => setShowEmailModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#64748b', padding: 4 }}>x</button>
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
+              <button
+                onClick={() => setEmailViewMode('thisMonth')}
+                style={{
+                  padding: '10px 16px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: emailViewMode === 'thisMonth' ? '2px solid #2563eb' : '2px solid transparent',
+                  color: emailViewMode === 'thisMonth' ? '#2563eb' : '#64748b',
+                  cursor: 'pointer',
+                  marginBottom: -1,
+                }}
+              >
+                This Month (MTD)
+              </button>
+              <button
+                onClick={() => setEmailViewMode('lastMonth')}
+                style={{
+                  padding: '10px 16px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: emailViewMode === 'lastMonth' ? '2px solid #2563eb' : '2px solid transparent',
+                  color: emailViewMode === 'lastMonth' ? '#2563eb' : '#64748b',
+                  cursor: 'pointer',
+                  marginBottom: -1,
+                }}
+              >
+                Last Month Recap
+              </button>
             </div>
 
             <p style={{ margin: '0 0 16px', fontSize: 13, color: '#64748b' }}>
               Click "Copy for Gmail" then paste directly into a Gmail compose window. The formatting will be preserved.
             </p>
 
-            <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16, maxHeight: 400, overflow: 'auto' }}
-              dangerouslySetInnerHTML={{ __html: generateEmailHtml(businessName, new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }), monthlySpend, campaigns, monthlyTotal, clientSlug, clientPin) }}
-            />
+            {emailViewMode === 'thisMonth' && (
+              <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16, maxHeight: 480, overflow: 'auto' }}
+                dangerouslySetInnerHTML={{ __html: generateEmailHtml(businessName, new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }), monthlySpend, campaigns, monthlyTotal, clientSlug, clientPin) }}
+              />
+            )}
+
+            {emailViewMode === 'lastMonth' && (
+              <>
+                {loadingRecap && (
+                  <div style={{ padding: 40, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+                    Loading last month's data from Google Ads...
+                  </div>
+                )}
+                {recapError && (
+                  <div style={{ padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginBottom: 16, color: '#dc2626', fontSize: 13 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Failed to load recap</div>
+                    <div>{recapError}</div>
+                    <button onClick={fetchLastMonthRecap} style={{ marginTop: 8, padding: '6px 12px', fontSize: 12, fontWeight: 500, background: '#fff', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer' }}>Retry</button>
+                  </div>
+                )}
+                {lastMonthRecap && !loadingRecap && (
+                  <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16, maxHeight: 480, overflow: 'auto' }}
+                    dangerouslySetInnerHTML={{ __html: generateLastMonthEmailHtml(businessName, lastMonthRecap, clientSlug, clientPin) }}
+                  />
+                )}
+              </>
+            )}
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowEmailModal(false)} style={{ padding: '10px 20px', fontSize: 14, fontWeight: 500, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer' }}>Close</button>
-              <button onClick={copyEmailToClipboard} style={{ padding: '10px 20px', fontSize: 14, fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+              <button
+                onClick={copyEmailToClipboard}
+                disabled={emailViewMode === 'lastMonth' && (!lastMonthRecap || loadingRecap)}
+                style={{ padding: '10px 20px', fontSize: 14, fontWeight: 600, background: emailViewMode === 'lastMonth' && (!lastMonthRecap || loadingRecap) ? '#9ca3af' : '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: emailViewMode === 'lastMonth' && (!lastMonthRecap || loadingRecap) ? 'not-allowed' : 'pointer' }}
+              >
                 {emailCopied ? 'Copied!' : 'Copy for Gmail'}
               </button>
             </div>
