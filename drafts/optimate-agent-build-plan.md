@@ -237,6 +237,9 @@ Mirrors Optimate-Google-Ads but for Meta. Weekly campaign analysis, creative fat
 | Anthropic | OAuth (Claude Code client impersonation) + API key fallback | You (one-time browser login + API key as backup) | All agents — primary for Proposal, Google-Ads, Legal |
 | Moonshot (Kimi) | API key | You (needs adding) | Primary for Optimate-Accounting; failover for analysis agents |
 | MiniMax | API key | You (needs adding) | Primary for Optimate-Meta-Ads; failover across the fleet |
+| OpenAI (Whisper API only) | API key | You (needs adding for Phase 1) | Mobile voice button on CMS chat (Phase 1) and Telegram voice notes (Phase 7) — **transcription only, not LLM inference** |
+| Telegram Bot API | Bot token | You (Phase 6/7 only) | Channel-agnostic alerts (Phase 6) and Telegram conversational mode (Phase 7) |
+| Twilio (SMS, optional) | Account SID + auth token | You (optional, Phase 6+) | SMS channel for channel-agnostic alerts — only if you want SMS as an alert channel |
 | Google Ads MCC | One-time agency setup | You (once) | Optimate-Google-Ads |
 | Meta Business Manager | One-time agency setup | You (once, new) | Optimate-Meta-Ads |
 
@@ -250,6 +253,7 @@ Mirrors Optimate-Google-Ads but for Meta. Weekly campaign analysis, creative fat
 - [ ] **Anthropic — API key fallback (mandatory):** Create an Anthropic API key at console.anthropic.com, add credit, add to Vercel env as `ANTHROPIC_API_KEY`. **This is not optional.** If Anthropic rotates the Claude Code OAuth client ID (which they can do at any time without notice) the OAuth path stops working overnight; the credential resolver transparently fails over to the API key so agents keep running. You may also exhaust your Max quota on a busy day; same fallback path covers it.
 - [ ] Create a Moonshot (Kimi) API key at platform.moonshot.ai, add credit, add to Vercel env as `MOONSHOT_API_KEY`
 - [ ] Create a MiniMax API key at minimaxi.com, add credit, add to Vercel env as `MINIMAX_API_KEY`
+- [ ] **Create an OpenAI API key for Whisper transcription** at platform.openai.com, add a small credit balance ($5–10 covers months at agency volume), add to Vercel env as `OPENAI_API_KEY`. Used only for the `/api/transcribe` route on mobile CMS chat (Phase 1) and Telegram voice notes (Phase 7); not used for LLM inference.
 - [ ] Decide on accounting platform (Xero recommended for AU)
 - [ ] Confirm Postmark template designs are finalised for client-facing emails
 
@@ -662,6 +666,184 @@ gg-coder's auth layer also includes a few things we skip because they don't appl
 
 ---
 
+## Communication Surfaces: How You (And Your Team) Talk To The Agents
+
+The agents need a way for humans to talk to them and for them to talk back. There are several plausible surfaces (in-CMS chat, Telegram bot, email/SMS alerts, voice notes from mobile, etc.). Building all of them at once is a mistake; building only one would constrain the workflow. The plan: **one rich primary surface (CMS chat) plus a thin mobile-friendly secondary surface (Telegram), with a channel-agnostic alert layer underneath both**, built in three explicit phases.
+
+### The 85/15 split (deliberate)
+
+Real usage on this product splits roughly:
+
+- **85% “substantial review” work** — reading drafts, approving proposals, reviewing contracts, evaluating diagnostic reports, walking through restructure recommendations. This needs tables, diff views, multi-section layouts, embedded approval buttons, side-by-side comparisons. Lives in the **CMS chat surface**.
+- **15% “mobile-while-out” work** — quick judgement calls ("pause that ad set"), receiving urgent alerts (spend anomalies at 11pm), forwarding screenshots, dictating a thought before it disappears. Lives on **Telegram**.
+
+Both surfaces use the **same agent runtime underneath**. The agent doesn't know or care whether its input came from CMS chat or Telegram; it sees text in, emits structured events out. The surfaces are thin transport layers, not separate products.
+
+This ratio is the reason CMS chat is built first and gets full UX investment, and Telegram is added later as a focused mobile escape hatch — not the reverse.
+
+### Surface 1: CMS chat (Phase 1, primary)
+
+A rich in-admin chat interface, embedded in the relevant client/agent admin page. Built once as a shared component, every agent inherits the same surface.
+
+**Capabilities:**
+
+- Tables, diff views, charts, inline approval buttons rendered directly in agent responses
+- Context-aware: if you're on a client's admin page, the chat already knows it's about that client
+- Approval queue items surface inside the same conversation thread that produced them
+- Activity log with collapsible reasoning panel (per Build Decision 4)
+- Multi-user-ready from day one (your team in 6 months gets logins, role-based permissions, attributed actions)
+- Rich Markdown, image upload, file attachment
+- Suggested-question chips per agent (lifted from the existing OptiMate chat pattern)
+
+**Voice input on CMS chat:**
+
+Users dictate using their existing tools, not anything the CMS provides. Specifically:
+
+- **Desktop**: users have their own dictation tool (Whisper-grade transcribers like SuperWhisper, MacWhisper, Wispr Flow, etc.). They dictate into the normal text input. The CMS does nothing special on desktop — a text input is enough, because dictation is happening at the OS layer, not the app layer.
+- **Mobile**: a mobile-only mic button in the chat input area uses MediaRecorder + OpenAI Whisper API for transcription. Mobile keyboard mics (iOS native dictation, Gboard voice) are noticeably worse quality than desktop Whisper-grade tools, so the CMS provides its own. **This is the only surface-specific voice integration we build for CMS chat.**
+
+#### Mobile voice button: how it works
+
+```
+User on mobile (iPhone or Android) taps mic button in chat input area
+  → browser asks for microphone permission (once, ever)
+  → user speaks
+  → user taps stop (or auto-stops on 2-second silence)
+  → audio blob uploaded to /api/transcribe
+  → server forwards audio to OpenAI Whisper API (whisper-1 model)
+  → transcribed text returns in 2–3 seconds
+  → text fills the chat input
+  → user reviews / edits / sends as normal
+```
+
+**Why MediaRecorder + Whisper API instead of browser SpeechRecognition API:**
+
+- Whisper-large-v3 quality matches what users have on desktop — no quality regression switching to mobile
+- Works identically on iOS Safari, mobile Chrome, mobile Firefox, Android Chrome
+- No quirks: no 60-second cutoffs, no permission popup roulette, no "sometimes works" failure modes
+- Same transcription pipeline gets reused for the Telegram bot in Phase 7 — build once, two consumers
+
+**Cost expectation (OpenAI Whisper API):**
+
+- $0.006 per minute of audio
+- Average voice note is 10–30 seconds (≈$0.001–$0.003 per note)
+- At realistic volume (30% of ≈20 daily interactions = 6 voice notes/day on mobile), monthly cost is **~$0.20–1.00**
+- At 10x scale (full team using mobile heavily), still **<$5/month**
+- For practical purposes, free at agency volume
+
+**Mobile-only by feature detection:** the `<MobileVoiceButton />` component renders only when `window.innerWidth < 768` AND the device reports as mobile via UA. On desktop the button doesn't appear, because users have better tools.
+
+**Files:**
+
+- `src/components/agent-chat/MobileVoiceButton.tsx` (~80 lines)
+- `src/app/(frontend)/api/transcribe/route.ts` (~25 lines, accepts audio blob, forwards to Whisper, returns text)
+
+### Surface 2: Channel-agnostic alerts (Phase 6, push notifications)
+
+One-way push notifications when an agent detects something that needs human attention outside of an active chat session. **Not conversational — just "FYI, here's what happened, click to act".**
+
+**Use cases:**
+
+- Optimate-Google-Ads detects a spend anomaly at 11pm (>150% pacing for 2+ days)
+- Optimate-Legal has a contract draft awaiting your review
+- Optimate-Accounting flags an unusual expense or overdue invoice
+- Optimate-Meta-Ads detects creative fatigue across multiple ad sets
+- Weekly review run completes with `status: 'red'`
+
+**Channel-agnostic design:** every alert goes through one dispatcher that fans out to the configured channels for the alert's urgency. Alerts can be sent via Telegram, email (Postmark, already integrated), or SMS (Twilio, optional add). Channel selection is per-alert-type and per-user, configured in the CMS settings.
+
+**Dispatcher API (one shape, multiple transports):**
+
+```ts
+await sendAlert({
+  urgency: 'urgent' | 'warn' | 'info',
+  summary: string,                  // one-line headline
+  detail?: string,                  // optional additional context, plain text
+  link: string,                     // "Open in CMS" deep link
+  channels: ('telegram' | 'email' | 'sms')[],   // explicit per call
+  recipients: string[],             // user IDs from CMS
+})
+```
+
+**Why channel-agnostic from day one:**
+
+- Telegram outage on a Wednesday shouldn't mean missing a spend-anomaly alert — same alert goes via email, you still see it
+- Different users on the future team might prefer different channels (e.g. operations on Telegram, you on email)
+- Adding SMS later is a one-line registry change, not a refactor
+- Mirrors the same architectural principle as the LLM provider layer: abstract behind a registry, swap implementations freely
+
+**Files:**
+
+- `src/lib/agents/_shared/alerts/dispatcher.ts` (~40 lines, the `sendAlert()` entry point and channel registry)
+- `src/lib/agents/_shared/alerts/channels/telegram.ts`
+- `src/lib/agents/_shared/alerts/channels/email.ts` (wraps existing Postmark integration)
+- `src/lib/agents/_shared/alerts/channels/sms.ts` (stub initially, optional Twilio add later)
+- `agent-alert-preferences` collection (or extend Users collection) — per-user channel preferences and quiet hours
+
+**Telegram setup at this stage:** create a bot via BotFather, store the token, configure webhook to point at the CMS. The webhook only handles outbound (sending alerts to known chat IDs); it doesn't yet listen for inbound messages. That's Phase 7.
+
+### Surface 3: Telegram conversational mode (Phase 7, mobile chat)
+
+Full two-way Telegram bot with voice notes, multi-turn conversation, inline keyboards for quick approvals. Mirrors gg-coder's `serve-mode` pattern but adapted for Vercel.
+
+**When to build this:** after all 5 agents are live and stable in CMS for 2–3 months. By then you'll know exactly which conversations you actually want to have on Telegram (probably fewer than expected upfront), and the agent runtime will be hardened. Telegram becomes a thin wrapper, not a co-equal product.
+
+**Capabilities:**
+
+- Send a text message to the bot → routed to the right agent based on chat-ID-to-agent mapping (same pattern as gg-coder's `~/.gg/serve.json`)
+- Send a voice note → OpenAI Whisper transcribes → routed as text
+- Inline keyboards for quick approvals ("Approve / Reject / Open in CMS")
+- Long agent responses split across messages with the 4096-character Telegram limit
+- Group chat support: multiple team members on the same client thread, agent posts updates, anyone with permission replies
+- Non-blocking: while an agent run is in progress, the bot acknowledges and works in the background, posting the result when ready
+
+**Webhook, not long-polling.** Vercel functions are stateless and ephemeral, so we use Telegram's webhook mode — Telegram POSTs to our endpoint when a message arrives. No polling loop, no daemon, no cost when idle.
+
+**Voice transcription:** reuses the **same `/api/transcribe` route** built for the mobile CMS voice button in Phase 1. Audio bytes are audio bytes regardless of source. Build once, two consumers.
+
+**The hard guardrail:** any approval involving more than 5 items, any contract review, any agent draft over 200 words — the bot replies with a one-line summary plus an "Open in CMS" deep link. Telegram never becomes the surface for substantial review work, even when technically possible. This preserves the 85/15 split deliberately.
+
+**Chat-ID-to-agent mapping:** stored as a CMS collection (`telegram-chat-bindings`), editable in admin. Mirrors gg-coder's `~/.gg/serve.json` structure but persisted in the database instead of a flat file:
+
+```ts
+{
+  chatId: number,                   // Telegram chat ID
+  agentName: string,                // 'optimate-google-ads' etc.
+  clientId?: string,                // optional default client context
+  allowedUserIds: number[],         // Telegram user IDs allowed to use this chat
+  permissions: ('chat' | 'approve')[]
+}
+```
+
+**Files:**
+
+- `src/lib/agents/_shared/telegram/bot.ts` (~250 lines, mirrors gg-coder's `core/telegram.js`: webhook handler, message splitting, inline keyboards, send/reply)
+- `src/app/(frontend)/api/telegram/webhook/route.ts` (~30 lines, the Vercel webhook endpoint Telegram POSTs to)
+- `telegram-chat-bindings` collection in the CMS
+
+### Build order (the explicit ordering)
+
+Built in this order to match the 85/15 reality and avoid double-investment in surfaces:
+
+| Phase | Surface | What gets built | Cost (rough effort) |
+|---|---|---|---|
+| 1 | CMS chat | Rich chat surface, agent integration, mobile voice button via Whisper API | ~5–7 days |
+| 6 | Channel-agnostic alerts | Alert dispatcher, Telegram outbound only, email/SMS channels, per-user preferences | ~2–3 days |
+| 7 | Telegram conversational | Webhook handler, chat-ID-to-agent mapping, voice notes via shared `/api/transcribe`, inline approvals, group chat | ~3–4 days |
+
+Notice the *total* Telegram investment (Phases 6 + 7 combined) is ~5–7 days — about the same as the CMS chat — but it's spent later, on a foundation that's already solid, not in parallel competing for attention.
+
+### Why this is the right shape
+
+- **The 85% surface gets the product investment.** Tables, diffs, approvals, multi-user, rich UI — all in CMS where you'll actually use them.
+- **The 15% surface gets a focused mobile escape hatch.** Voice notes, push alerts, quick approvals — the things Telegram is genuinely better at, nothing more.
+- **One agent runtime under everything.** Same `runAgent()` calls. Same approval queue. Same activity log. Same credentials. Two transports, one product.
+- **One transcription pipeline serves both surfaces.** The `/api/transcribe` route built for mobile CMS in Phase 1 is the same one Telegram uses in Phase 7. No duplicate Whisper integration.
+- **Channel-agnostic alerts mean no single point of failure.** Telegram down? Email still works. Email blocked? SMS still works. The dispatcher abstracts the transport.
+- **No premature complexity.** Telegram conversational comes after the agent runtime has been hardened in CMS for months. By then, Telegram is genuinely thin (a few hundred lines of bot wrapper) rather than "build the runtime *and* a complex Telegram surface at the same time".
+
+---
+
 ## File Structure (Locked)
 
 ```
@@ -679,6 +861,17 @@ src/lib/agents/
     activity-log.ts            # shared logging helpers
     tone-of-voice.md           # brand voice, imported into every system prompt
     system-prompt-builder.ts   # composes per-agent prompts with shared tone
+
+    alerts/                    # channel-agnostic push notifications (Phase 6)
+      dispatcher.ts            # sendAlert() — the one entry point, fans out to channels
+      channels/
+        telegram.ts            # outbound Telegram messages (uses Bot API)
+        email.ts               # wraps existing Postmark integration
+        sms.ts                 # Twilio (optional)
+
+    telegram/                  # Telegram bot transport (Phase 7)
+      bot.ts                   # webhook handler, message splitting, inline keyboards (modelled on gg-coder's core/telegram.js)
+      chat-bindings.ts         # chat-ID-to-agent routing (mirrors gg-coder's serve.json)
 
     llm/                       # Layer 1 — provider abstraction (our gg-ai)
       index.ts                 # exports callLLM(), the one entry point
@@ -700,6 +893,19 @@ src/lib/agents/
         to-openai.ts           # canonical → OpenAI-compatible format
         from-anthropic.ts      # Anthropic response → canonical
         from-openai.ts         # OpenAI-compatible response → canonical
+
+src/components/agent-chat/    # CMS chat surface (Phase 1) — shared by every agent
+  AgentChat.tsx               # the chat surface, drops into any client/agent admin page
+  ChatMessage.tsx              # renders a single message (Markdown, tables, diff views, approval buttons)
+  ChatInput.tsx                # text input + send button + mic button (mobile only)
+  MobileVoiceButton.tsx        # mobile-only mic, MediaRecorder → /api/transcribe (Phase 1)
+  ApprovalInline.tsx           # inline approve/reject UI for items in the approval queue
+  SuggestedQuestions.tsx       # per-agent suggested-question chips
+
+src/app/(frontend)/api/
+  transcribe/route.ts          # POST audio blob → OpenAI Whisper → text (Phase 1, reused in Phase 7)
+  agents/[agent-name]/chat/route.ts   # POST message → runAgent() → streamed response (Phase 1)
+  telegram/webhook/route.ts    # Telegram POSTs here when a bot message arrives (Phase 7)
 ```
 
 Each agent file holds:
