@@ -62,6 +62,7 @@ export async function GET() {
         name: c.name,
         slug: c.slug,
         googleAdsCustomerId: c.googleAdsCustomerId || null,
+        createdAt: c.createdAt,
         latestAudit: a
           ? {
               id: a.id,

@@ -21,6 +21,7 @@ interface ClientRow {
   name: string
   slug: string
   googleAdsCustomerId: string | null
+  createdAt: string
   latestAudit: {
     id: number
     overallScore: number | null
@@ -83,7 +84,7 @@ const formatStatus = (status: string | null) => {
 const GoogleAdsHubPage = () => {
   const [clients, setClients] = useState<ClientRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'active' | 'unconfigured'>('all')
+  const [filter, setFilter] = useState<'all' | 'active' | 'unconfigured'>('active')
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -218,6 +219,7 @@ const GoogleAdsHubPage = () => {
             <tr>
               <th style={thStyle}>Client</th>
               <th style={thStyle}>Customer ID</th>
+              <th style={thStyle}>Created</th>
               <th style={thStyle}>Latest score</th>
               <th style={thStyle}>Trend</th>
               <th style={thStyle}>Last audit</th>
@@ -228,7 +230,7 @@ const GoogleAdsHubPage = () => {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ padding: 32, textAlign: 'center', color: '#6b7280' }}>
+                <td colSpan={8} style={{ padding: 32, textAlign: 'center', color: '#6b7280' }}>
                   No clients match the current filter.
                 </td>
               </tr>
@@ -261,6 +263,19 @@ const GoogleAdsHubPage = () => {
                       </code>
                     ) : (
                       <span style={{ color: '#9ca3af' }}>Not set</span>
+                    )}
+                  </td>
+                  <td style={tdStyle}>
+                    {c.createdAt ? (
+                      <span style={{ color: '#475569' }}>
+                        {new Date(c.createdAt).toLocaleDateString('en-GB', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#9ca3af' }}>—</span>
                     )}
                   </td>
                   <td style={tdStyle}>

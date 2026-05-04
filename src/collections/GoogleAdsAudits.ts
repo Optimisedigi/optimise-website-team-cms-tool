@@ -6,7 +6,7 @@ import type {
 import crypto from "crypto";
 import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
-import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { canAccessOrApiKey, adminOnlyDelete } from "../lib/access";
 
 const autoGenerateSlug: CollectionBeforeChangeHook = async ({
   data,
@@ -122,7 +122,10 @@ export const GoogleAdsAudits: CollectionConfig = {
     group: "Growth Tools",
     defaultColumns: ["businessName", "overallScore", "auditStatus", "createdAt"],
     description: "Google Ads audit pipeline. Requires client to grant access to the Optimise Digital MCC (manager account) before the audit can pull data.",
-    hidden: hideUnlessFeature("google-ads-audits"),
+    // Always hide from sidebar — the Google Ads hub at /admin/google-ads is the
+    // canonical entry point. Audit records are still reachable by URL and are
+    // linked to from the hub, client tabs, and proposals.
+    hidden: true,
   },
   hooks: {
     afterRead: [
