@@ -1095,6 +1095,117 @@ To avoid building the same thing twice, here's the existing-code map:
 
 The new code is mostly the agent loop, the tool wrappers, the diagnostic playbook composer, the guardrail layer, and the report renderer. Everything else is calling code that's already shipped.
 
+## Pre-Build Inventory: What Already Exists
+
+Before writing a line of new code we need to be honest about what's already shipped, because a lot is. There is **already a working "OptiMate" Google Ads chat feature** in production. It does not match the agent architecture in this plan, but its UI and most of its data-fetching wrappers are reusable. Confronting this upfront avoids building two parallel systems that drift.
+
+### What's already deployed today
+
+**In `content-cms` (the CMS, on Vercel):**
+
+- `src/components/GoogleAdsChat.tsx` (~250 lines) — a polished React chat surface embedded in the Google Ads audit admin page. Renders markdown, suggested questions ("How is my budget pacing this month?"), message history, typing states.
+- `src/app/(frontend)/api/google-ads-audits/[id]/chat/route.ts` (~100 lines) — a thin proxy that takes the chat request, looks up the audit's `customerId` from Payload, forwards to Growth Tools.
+
+**In `website-growth-tools` (separate Express service):**
+
+- `server/routes.ts` lines ~9429–9600 — the actual chat brain. Builds a context block by fetching campaigns, MTD spend, last-MTD spend, monthly performance, conversion breakdown, and (optionally, by regex match on the message) keywords + search terms. Stuffs it into a system prompt that introduces itself as **"OptiMate, a Google Ads specialist at Optimise Digital"**. Calls Moonshot's `moonshot-v1-32k` model with the bundle and the user's question. Returns the reply.
+- A 5-minute in-memory context cache keyed by `{customerId}:{sessionId}` so follow-up questions don't re-fetch.
+- Custom date-range detection that runs on every message regardless of cache state.
+
+### What this is, architecturally
+
+**It is RAG, not an agent.** One LLM call per question. The server pre-decides what data to fetch (using regex on the message), packs it all into the system prompt upfront, and the model reasons over a static context block. The model has no tools, cannot iterate, cannot say "I need search terms now, then keywords next" — the server made those decisions before the model ran.
+
+This works fine for one-shot questions like "how's my pacing" or "which campaigns are spending the most". It cannot do multi-step diagnostics like the Berendsen / MTP investigation flow described earlier in this document, because that flow requires the model to look at the data, decide what to look at next, look at *that*, and so on. RAG can't do conditional fetching mid-thought.
+
+### Overlap matrix: existing OptiMate vs planned Optimate-Google-Ads
+
+| Plan calls for | Already have | Reusable | Action |
+|---|---|---|---|
+| Chat mode (Mode 1) UI | `GoogleAdsChat.tsx` | ✅ As-is | Keep, repoint its fetch URL |
+| Chat mode (Mode 1) brain | `routes.ts` 9429–9600 (RAG, single call, Moonshot only) | ❌ Architecture mismatch | Replace with agent loop |
+| Autonomous mode (Mode 2, weekly cron) | Nothing | — | Build new |
+| Tool wrapper: `get_google_ads_monthly_summary` | `googleAdsService.getCampaignMetricsByDate` | ✅ Direct | Wrap as `CanonicalTool` |
+| Tool wrapper: `get_google_ads_keyword_performance` | `googleAdsService.getKeywords` | ✅ Direct | Wrap as `CanonicalTool` |
+| Tool wrapper: `get_google_ads_search_terms` | `googleAdsService.getSearchTerms` | ✅ Direct | Wrap as `CanonicalTool` |
+| Tool wrapper: `get_google_ads_active_structure` | `googleAdsService.getCampaigns` | ✅ Direct | Wrap as `CanonicalTool` |
+| Tool wrapper: `compare_matched_windows` | None (we run this manually in chat threads) | ⚠️ Logic exists in our heads | Build composite tool |
+| Tool wrapper: `get_ga4_*` (4 tools) | `ga4-reporting-service.ts` | ✅ Direct | Wrap each as `CanonicalTool` |
+| Tool wrapper: `propose_phrase_match_additions` | `campaign-proposal-service.ts` | ✅ Strong | Wrap, plus add pre-flight checks |
+| Tool wrapper: `apply_phrase_match_additions` | Pattern in `addNegativeKeywords` | ✅ Pattern | New tool, follow the pattern |
+| Tool wrapper: `apply_negative_keywords` | `google-ads-negatives-service.ts` | ✅ Direct | Wrap as `CanonicalTool` |
+| Multi-provider auth (OAuth Anthropic + API key Kimi/MiniMax) | Hardcoded Moonshot key, single provider, no fallback | ❌ None | Build per Phase 0 |
+| Approval queue routing | None | — | Build new |
+| Activity log entries with reasoning panel | None (just `console.log`) | — | Build new |
+| System prompt with shared tone-of-voice | Inline hardcoded string in `routes.ts` | ⚠️ Exists, isolated | Replace with `system-prompt-builder.ts` |
+| Diagnostic report renderer (Berendsen six-section style) | `google-ads-email-generator.ts` (audit format only) | 🟡 Pattern exists | New renderer for diagnostic schema |
+| 5-minute context cache | In-memory `chatContextCache` map | 🟡 Conceptually right, wrong layer | Move to per-tool caching at the `CanonicalTool` level |
+| Custom date-range detection (`detectChatDateRange`) | Implemented in `routes.ts` | ✅ Useful | Promote to a shared utility, agent picks it up via tool |
+| Suggested questions in chat UI | Hardcoded in `GoogleAdsChat.tsx` | ✅ Reusable | Keep; agent doesn't need to change anything |
+
+### The two architectural mismatches that matter
+
+1. **RAG vs agent loop.** The current OptiMate fetches a fixed bundle, calls the LLM once, returns. The planned Optimate-Google-Ads has a `runAgent()` loop where the LLM calls tools iteratively and decides its own path. This is a fundamental shape change; you cannot incrementally upgrade RAG into an agent. The new agent has to be built fresh, then the existing chat surface is repointed at it.
+2. **Brain location.** The OptiMate brain lives in `website-growth-tools` (separate Express service on Replit/its own infra). The plan puts the agent in `content-cms/src/lib/agents/`, calling the LLM from inside the CMS where it sits next to the credential layer, the approval queue, and the activity log. After migration, Growth Tools' `/api/google-ads/chat` endpoint becomes deprecated and gets deleted.
+
+### Migration path (recommended): repoint the chat surface, replace the brain
+
+This is the cleanest of the three options I considered (the others were "keep both, run in parallel" — wasteful, and "rip everything and start over" — unnecessary).
+
+**Phase 3a — Build the new brain in the CMS:**
+
+1. Wrap the data-fetching services as `CanonicalTool` definitions per the inventory above (mostly mechanical — each tool is a Zod schema + a thin function call wrapping an existing service method).
+2. Build `runOptimateGoogleAds({ mode: 'chat' | 'autonomous', ... })` per the plan, using the Phase 0 agent loop.
+3. Build a new CMS API route `src/app/(frontend)/api/agents/google-ads/chat/route.ts` that calls `runOptimateGoogleAds({ mode: 'chat', message, history, customerId })` and streams or returns the response.
+
+**Phase 3b — Repoint the existing UI:**
+
+4. In `GoogleAdsChat.tsx` line 205, change the fetch URL from `/api/google-ads-audits/${id}/chat` to `/api/agents/google-ads/chat` (passing `customerId` directly rather than relying on the audit-doc lookup, since the new agent is audit-agnostic).
+5. Run both endpoints in parallel for two weeks under feature flag, comparing answers on the same questions to validate the new agent matches or beats the old chat. This is the "shadow mode" already specified in the agent build order — the chat migration is the natural way to do it.
+
+**Phase 3c — Deprecate the old code:**
+
+6. Delete `src/app/(frontend)/api/google-ads-audits/[id]/chat/route.ts` (the CMS proxy).
+7. Delete the chat route in `website-growth-tools/server/routes.ts` lines ~9429–9600 (about 250 lines including the schema and helpers). Keep `googleAdsService.*` methods because the new agent's tool wrappers call them remotely via Growth Tools' existing data endpoints — *unless* we also migrate the Google Ads service into the CMS, which is a separate decision (see below).
+8. Remove `MOONSHOT_API_KEY` from Growth Tools' env if it's not used anywhere else.
+9. Update `serve.json` and any docs referencing the old chat endpoint.
+
+### Open architectural decision: where do the Google Ads service methods live long-term
+
+Today's split is: CMS owns the user-facing surface; Growth Tools owns the Google Ads API integration (`googleAdsService.*`, `campaignProposalService.*`, etc.). The new agent in the CMS will call those service methods over HTTP from inside its tool wrappers. That works, but adds one extra network hop on every tool call.
+
+Three options for resolving this, in order of effort:
+
+- **Option A (do today): leave the services in Growth Tools.** Tool wrappers in the CMS call Growth Tools endpoints. Adds latency but minimises change. Likely correct for now — those services are 3,000+ lines and have their own ecosystem of routes, tests, and CSV exports that aren't agent-related.
+- **Option B (3–6 months out): extract the Google Ads service as a shared package.** Either as a private npm package or a workspace package in a monorepo. Both Growth Tools and the CMS import it. No HTTP hop, but introduces a build/publish step.
+- **Option C (1+ years out): consolidate Growth Tools into the CMS.** Bring the relevant services across. Drastic but cleanest. Only worth doing if Growth Tools as a separate product stops making sense.
+
+My recommendation: **Option A for the agent build**. Don't let architectural perfection block agent delivery. Revisit when the agent is in production for 2–3 months and we have data on whether the network hop matters in practice.
+
+### Pieces of the existing OptiMate worth keeping verbatim
+
+Not everything in the existing chat is wrong-shaped. These specific pieces should be preserved (and lifted into the new code rather than re-derived):
+
+- **The system-prompt rules block.** Lines like "ONLY use data explicitly provided below. Never extrapolate, estimate, or infer numbers for date ranges not covered by the data" and "If the data shows 0 or no rows for a period, say so clearly — the account may not have been active." These are battle-tested, hallucination-preventing instructions. Lift them verbatim into `_shared/tone-of-voice.md` (or a Google-Ads-specific addendum) so the new agent inherits them.
+- **`detectChatDateRange()`.** The function that parses "last month", "April vs March", "week of X", etc. into start/end/compare windows. Used by every diagnostic flow. Promote to a shared utility under `src/lib/agents/_shared/date-range-parser.ts` (or similar). Re-used by the agent's date-aware tools.
+- **The data-source labelling.** The existing chat returns a `dataSources: string[]` array (e.g. `["budget_audit", "monthly_comparison", "keywords"]`) so the UI can show "answered from: budget audit + keywords". Keep this. The new agent should populate it from which tool calls actually executed in the run.
+- **The 5-minute context cache concept.** Don't keep its current implementation (an in-memory map in a long-running Node process — doesn't fit Vercel's stateless functions), but the *concept* of caching per-customer baseline data for 5 minutes across follow-up questions in a chat session is correct. Reimplement in Vercel KV keyed by `customerId:sessionId`, expire after 5 minutes, populated by the read-only diagnostic tools when the agent calls them.
+
+### Naming and branding
+
+The existing chat already calls itself **OptiMate** (no hyphen, capital M). The build plan uses **Optimate** (no hyphen, lowercase 'm') and **Optimate-Google-Ads** for the agent file/code name.
+
+Recommendation: **standardise on "Optimate"** going forward (all lowercase except first letter), with the fleet members named `Optimate-Proposal`, `Optimate-Accounting`, `Optimate-Google-Ads`, etc. Update the existing chat's system prompt during the migration so the user-facing name aligns. The rename is invisible to clients (chat is internal-only per Build Decision 3) so there's no comms cost.
+
+### What this means for the build order
+
+The Phase 3 (Optimate-Google-Ads) build steps in the main "Recommended Build Order" section above stay the same in spirit but should be read with this overlay:
+
+- Step 12 ("Build Google Ads weekly review template") — net new, no overlap.
+- Step 13 ("Build optimisation recommendation template") — net new.
+- Step 14 ("Add `google-ads-weekly-reviews`, `optimisation-recommendations` collections") — net new.
+- Step 15 ("Build Optimate-Google-Ads agent") — substitute "build the new agent and migrate the existing OptiMate chat to use it (Phase 3a/3b/3c above)" for what was previously a single bullet. The migration is part of the build, not an afterthought.
+
 ## Build Decisions (Resolved)
 
 ### 1. CMS rules collection structure: single config global, modelled on existing CMS patterns
@@ -1185,4 +1296,157 @@ Same agent, same JSON output, two renderers, two prose styles. The agent's `draf
 ---
 
 That resolves all five upfront decisions. The remaining items in the build order can now be specified concretely without further blocking input.
+
+---
+
+## Optimisation Patterns Library (Seeded From Real Account Work)
+
+Every pattern below was identified by analysing live client accounts (Berendsen and MTP, May 2026). They are the rules the agent should encode into its diagnostic playbook. Each pattern has the same shape:
+
+- **Detect:** the data signal that surfaces the pattern
+- **Example:** what we found in real accounts
+- **Recommendation:** what the agent proposes when it finds this
+
+The agent runs all of these on every diagnostic run. It surfaces only the ones that hit a threshold, ranked by either total spend at risk or potential conversion uplift.
+
+### Category A: Landing Page Quality Patterns
+
+#### A1. LP receiving high spend with zero conversions
+
+- **Detect:** any landing page with cost over a threshold (default $200 in 25 days) AND zero conversions in the same window. Soft threshold scales with the account's overall spend.
+- **Example:** Berendsen `/service-repair/` spent $1,889 in 25 days with 0 conversions. The single biggest cost-no-return page in the account.
+- **Recommendation:** propose a CRO audit on the page. Specifically check: above-fold CTA presence, mobile click-to-call button, form length and friction, trust signals (reviews, accreditations), page load speed, and whether the page actually addresses the search intent of the keywords driving traffic to it (see A2).
+
+#### A2. LP-to-search-intent semantic mismatch
+
+- **Detect:** for each top LP, pull the top 10 search terms that drove traffic. Compare the noun phrases in the search terms against the headline copy of the page. Flag terms that represent a clear semantic gap.
+- **Example:** Berendsen `/hard-chrome-plating/` had 41 clicks across "chrome plating", "re-chroming", "chrome dipping", "chrome platers", "electroplating chrome", "chrome repairs", but the page is titled "Hard Chrome Plating" only. Users searching for re-chroming or electroplating may not see themselves in the copy.
+- **Recommendation:** propose synonym expansion in page copy. Add a short FAQ-style block "What's re-chroming? Can I get chrome repairs?" that uses the searcher's vocabulary explicitly. Mention the variant terms in the H2s and meta description.
+
+#### A3. Geo-modified queries landing on a non-geo page
+
+- **Detect:** for each top LP, count search terms with city/state modifiers (Sydney, Perth, Melbourne, Adelaide, Newcastle, Brisbane, Toowoomba, Bundaberg, Gold Coast, etc.) or "near me". If geo-modified queries make up over 30% of the LP's traffic but the LP is not geo-specific, flag it.
+- **Example:** Berendsen `/service-repair/` (national service page) received "hydraulic repairs near me" (40 clicks), "hydraulic ram repairs near me" (23), "hydraulic cylinder repairs near me" (20), "hydraulic cylinder repair near me" (7) - combined ~90 "near me" clicks with no city-specific response on the page.
+- **Recommendation:** either (a) add a prominent branch-locator widget to the page that uses the visitor's IP/location to surface the nearest branch, or (b) split the campaign so geo-modified queries route to dedicated city LPs (`/service-repair-sydney/` etc.). Both, ideally.
+
+#### A4. Adjacent-service vocabulary leaking into a single-service page
+
+- **Detect:** search terms for related but distinct services hitting one page that doesn't mention them.
+- **Example:** Berendsen `/hydraulic-system-design/` getting "hydraulic engineer" (5 across cities), "hydraulic consultants" (1), "hydraulic drafting" (1), "hydraulic design engineers" (1), all related to engineering services, but the page only talks about "system design".
+- **Recommendation:** broaden the page copy to cover the adjacent service vocabulary (engineering, consulting, drafting), or split into separate pages if the services are genuinely distinct.
+
+#### A5. Underutilised high-converting LP (capacity to scale)
+
+- **Detect:** LP with high conversion rate (over 10%) but low click volume (under 50 in the window).
+- **Example:** Berendsen `/product-category/valves/`, 16.7% CvR, $12 CPA, only 12 clicks. Underutilised.
+- **Recommendation:** check the feeding ad group's `search_budget_lost_impression_share`. If high, recommend bumping campaign budget. If low, recommend bid uplift on the relevant keywords. Either way, scale this page's traffic.
+
+#### A6. Branded query landing on a non-brand page
+
+- **Detect:** own-brand search terms (the client's own business name and variants) firing ads in non-brand ad groups.
+- **Example:** Berendsen, 142 own-brand clicks in 25 days fired in non-brand ad groups across Generic_Products_Hydraulic-Components and beyond. The brand search "berendsen fluid power" alone landed on `/product-category/cylinders/`, `/service-repair/`, `/brand/danfoss-power-solutions/`, `/product-category/valves/`, `/product-category/motors/`, and `/product-category/accessories/` depending on auction.
+- **Recommendation:** see B3 (brand-defence structural fix). Beyond the structure fix, decide whether the brand should land on a single dedicated LP (homepage, about page, or new brand LP) and route there explicitly.
+
+### Category B: Campaign Structure Patterns
+
+#### B1. Country-targeted campaign serving "near me" queries
+
+- **Detect:** a country-targeted campaign (geo target = Australia) serving "near me" or city-modified queries. The user is in one specific city, but the ad and LP they receive are nationally generic.
+- **Example:** Berendsen has all campaigns targeting "Australia". A user in Perth searching "hydraulic ram repairs near me" gets the same ad as a user in Sydney, served against the same generic `/service-repair/` page.
+- **Recommendation:** restructure to **state-level campaigns** (NSW, VIC, QLD, WA, SA) for service categories where local relevance matters. Phrase-match keywords with "near me" plus the state's cities should sit in the corresponding state campaign, with a state-specific LP and ad copy that mentions the city. National generic campaigns should add **negative phrase-match for "near me"** to prevent overlap.
+
+#### B2. Geo-modified queries captured by wrong-intent ad group
+
+- **Detect:** geo-modified service queries firing in product-category or unrelated ad groups because no dedicated location campaign covers that geo.
+- **Example:** Berendsen's "hydraulic repairs gold coast" fired in `Generic_Products_Hydraulic-Components > Hydraulic-Motors` because there's no Gold Coast / QLD service campaign. The user lands on `/product-category/motors/` instead of a service LP.
+- **Recommendation:** create state-level service campaigns and add the city/region modifiers as keywords there. Add the same modifiers as negatives in the product-category campaigns so they don't pick up service-intent geo queries.
+
+#### B3. Branded queries firing in non-brand ad groups (structural)
+
+- **Detect:** combination of (a) own-brand terms appearing as top search terms in non-brand ad groups, AND (b) the account having no dedicated own-brand ad group / campaign with positive exact-match on those terms, AND (c) no shared negative list applied to non-brand campaigns containing those terms.
+- **Example:** Berendsen has the third-party `Brand_Product` campaign (Parker, Danfoss, etc.) but no own-brand ad group. Own-brand terms ("berendsen", "berendsen fluid power", etc.) leak across all other ad groups.
+- **Recommendation:** create a dedicated own-brand ad group inside the brand campaign with positive exact + phrase on the business name and known variants, point to a dedicated brand LP. Then create a shared negative list with those exact terms and subscribe only the non-brand campaigns to it.
+
+#### B4. High rank-lost impression share = bid or QS issue, not budget
+
+- **Detect:** campaigns with `search_rank_lost_impression_share` over 20% AND budget headroom (low budget-lost share).
+- **Example:** Berendsen `Generic_Services_Location` 22.7% rank-lost; `Generic_Services_Hydraulics` 54.9%; `Generic_Services_Manufacturing` 65.2%; `Generic_Services_Repair-Maintenance` 42.1%.
+- **Recommendation:** these don't need budget bumps; they need bid increases, ad copy improvements, or Quality Score work (relevance, expected CTR, landing page experience). Surface QS by component.
+
+#### B5. Campaigns spending heavily with zero conversions
+
+- **Detect:** any campaign with cost over a threshold AND zero conversions over the analysis window. Different from A1 (page-level), this is campaign-level.
+- **Example:** Berendsen `Generic_Services_Repair-Maintenance` ($95/day, $2,020 spent in 25 days, 0 conversions) and `Display_remarketing_ga4-all-users` ($42/day, $521 spent, 0 conversions).
+- **Recommendation:** for the search campaign, run a combined LP-and-keyword audit. For Display, evaluate view-through and assist-conversion contribution; if neither is meaningful, propose pausing or significantly reducing spend.
+
+### Category C: Negative Keyword and List Hygiene Patterns
+
+#### C1. Brand-defence list contains misspellings only
+
+- **Detect:** the existence of a "brand defence" or similarly-named negative list, with content limited to misspellings or variants of the brand name (i.e. it does NOT contain the correct-spelling primary brand term).
+- **Example:** Berendsen has a list called `[OD] Brand Campaign Negative list` containing 10 misspellings (berensen, brendsen, berendson, etc.) but not "berendsen" or "berendsen fluid power" themselves.
+- **Recommendation:** the misspellings list is half-built. Add a separate shared list (`Own-Brand Phrase Negatives`) containing the correct-spelling brand terms as phrase-match negatives. Subscribe only non-brand campaigns to it. Confirm the own-brand ad group has positive bids on the same terms (see B3) so the brand campaign can still serve them.
+
+#### C2. Campaigns missing subscription to mandatory shared lists
+
+- **Detect:** any enabled campaign that doesn't subscribe to the agency-wide standard list set (account-wide negatives, brand defence list).
+- **Example:** Berendsen `Display_remarketing_ga4-all-users` subscribed to no shared lists.
+- **Recommendation:** add the campaign to the standard list set. Consider a CMS-stored "mandatory subscriptions" rule that the agent enforces on every weekly review.
+
+#### C3. Competitor brand leakage
+
+- **Detect:** known competitor brand names firing as search terms (clicks over 1, cost over $5 in the window).
+- **Example:** Berendsen had `hare and forbes`, `hare & forbes`, `hare and forbes machinery` (a competing manufacturing supplier brand) firing in the manufacturing ad group.
+- **Recommendation:** add the competitor brand as exact and phrase-match negative at the campaign level (or to a "Competitor Brand Negatives" shared list). Maintain a per-vertical competitor-brand list in the CMS so the agent can flag new ones automatically.
+
+#### C4. Generic terms appearing as expensive non-converting search terms
+
+- **Detect:** any single search term over a cost threshold (default $30) with zero conversions over the window, that isn't already in the negatives list.
+- **Recommendation:** review for negative-keyword candidacy. The agent can propose with rationale: "Search term `X` cost $Y across N clicks with 0 conversions; recommend adding as phrase negative."
+
+### Category D: Budget and Spend Allocation Patterns
+
+#### D1. Budget-constrained converting campaign (the no-brainer)
+
+- **Detect:** campaigns with conversions over a threshold AND `search_budget_lost_impression_share` over 10% AND the campaign isn't already at the client's budget ceiling.
+- **Example:** Berendsen `Generic_Products_Hydraulic-Components` ($27/day budget, $20 CPA, 18 conversions in 25 days, 79.2% impression share lost to budget).
+- **Recommendation:** propose specific budget uplift sized to capture the lost impression share (suggested daily = current * (1 + budget_lost_share)). Include projected conversion uplift at current CPA.
+
+#### D2. Spend spike with no proportionate conversion lift
+
+- **Detect:** week-over-week spend up over 30% but conversions flat or down. Catches campaigns that shift to broader matching or experiment with a new strategy that's burning money.
+- **Recommendation:** revert the change, or surface the underlying search terms that absorbed the new spend so the team can decide.
+
+#### D3. Underspending campaign with capacity
+
+- **Detect:** campaign spending under 50% of its daily budget AND impression share under 80% AND has historic conversion data.
+- **Recommendation:** check bid strategy. Often this is "Maximise Conversions" undersaturated against a low conversion volume, and needs either bid uplift or strategy change.
+
+### Category E: Conversion Tracking Health Patterns
+
+#### E1. Google Ads vs GA4 attribution gap
+
+- **Detect:** Google Ads platform clicks vs GA4 google/cpc sessions over the same period. If GA4 captures less than 70% of Google Ads clicks as `google / cpc`, flag it.
+- **Example:** MTP recorded 1,485 paid clicks via the Google Ads API across Jan to early April; GA4 recorded only 279 google/cpc sessions across the same period. Roughly 1 in 5 capture rate.
+- **Recommendation:** GCLID auto-tagging health check. Verify the GA4 to Google Ads link, verify the site isn't stripping the `gclid` parameter on redirects, verify the gtag fires on all landing pages.
+
+#### E2. Conversion tracking absent on previous account before restructure
+
+- **Detect:** the account being restructured has no conversion tracking enabled prior to the restructure.
+- **Example:** Berendsen had no conversion tracking before 10 April; we set it up as part of the restructure. This means we cannot compare new vs old conversion performance, only clicks.
+- **Recommendation:** flag this caveat in every diagnostic for the first 90 days post-restructure. After 90 days, the new-structure data is mature enough to stand on its own.
+
+### Category F: Account Site-Wide Patterns
+
+#### F1. Uniform multi-channel multi-state traffic collapse in a single month
+
+- **Detect:** look across the last 18 months of GA4 data for any month where total sessions dropped over 50% AND every state collapsed AND every default channel group collapsed simultaneously.
+- **Example:** Berendsen August 2025 (NSW down 72%, every state similar, every channel down 60% to 80%). MTP August 2025 (total down 99.6% to 8 sessions). Site-wide event signature.
+- **Recommendation:** this is a website migration without an SEO migration plan, until proven otherwise. Surface as the highest-priority finding because it dominates any campaign-level recommendation.
+
+### How These Patterns Drive the Agent
+
+The agent's diagnostic run is the union of these patterns. On any given account, it executes all detection rules in parallel, surfaces only the patterns that hit thresholds, ranks by either spend at risk or conversion uplift, and packages the findings into the diagnostic JSON output. The recommendations sit in the structured output unbundled so the renderer (client report or internal weekly review) can include or exclude them by category as appropriate.
+
+New patterns are added to this library whenever the team identifies one in real-world client work. Each pattern, once added, is automatically applied to every future client diagnostic. The library grows as the agency's diagnostic vocabulary grows.
 
