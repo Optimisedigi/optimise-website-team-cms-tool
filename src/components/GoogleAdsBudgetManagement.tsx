@@ -1005,6 +1005,18 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     setActionItems(items => items.filter(it => it.id !== id));
   }, []);
 
+  const moveActionItem = useCallback((id: string, direction: 'up' | 'down') => {
+    setActionItems(items => {
+      const idx = items.findIndex(it => it.id === id);
+      if (idx === -1) return items;
+      const target = direction === 'up' ? idx - 1 : idx + 1;
+      if (target < 0 || target >= items.length) return items;
+      const next = items.slice();
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  }, []);
+
   const addActionItem = useCallback(() => {
     setActionItems(items => [
       ...items,
@@ -1734,18 +1746,38 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                             No action items. Click "Add Action Item" to include one in the email.
                           </div>
                         )}
-                        {actionItems.map(item => {
+                        {actionItems.map((item, idx) => {
                           const c = sevColors[item.severity];
+                          const isFirst = idx === 0;
+                          const isLast = idx === actionItems.length - 1;
                           return (
                             <div
                               key={item.id}
                               style={{ padding: 12, background: c.bg, border: `1px solid ${c.border}`, borderLeft: `4px solid ${c.accent}`, borderRadius: 8, marginBottom: 8 }}
                             >
                               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <button
+                                    onClick={() => moveActionItem(item.id, 'up')}
+                                    disabled={isFirst}
+                                    title="Move up"
+                                    style={{ padding: '2px 6px', fontSize: 11, lineHeight: 1, background: isFirst ? 'transparent' : '#fff', color: isFirst ? '#cbd5e1' : '#475569', border: `1px solid ${isFirst ? 'transparent' : '#e2e8f0'}`, borderRadius: 3, cursor: isFirst ? 'not-allowed' : 'pointer' }}
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    onClick={() => moveActionItem(item.id, 'down')}
+                                    disabled={isLast}
+                                    title="Move down"
+                                    style={{ padding: '2px 6px', fontSize: 11, lineHeight: 1, background: isLast ? 'transparent' : '#fff', color: isLast ? '#cbd5e1' : '#475569', border: `1px solid ${isLast ? 'transparent' : '#e2e8f0'}`, borderRadius: 3, cursor: isLast ? 'not-allowed' : 'pointer' }}
+                                  >
+                                    ▼
+                                  </button>
+                                </div>
                                 <button
                                   onClick={() => cycleSeverity(item.id)}
                                   title="Click to cycle severity"
-                                  style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700, background: c.accent, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                  style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700, background: c.accent, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap', alignSelf: 'flex-start' }}
                                 >
                                   {c.icon} {c.label}
                                 </button>
@@ -1770,7 +1802,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                                 <button
                                   onClick={() => deleteActionItem(item.id)}
                                   title="Delete action item"
-                                  style={{ padding: '4px 8px', fontSize: 14, background: 'transparent', color: '#94a3b8', border: 'none', cursor: 'pointer' }}
+                                  style={{ padding: '4px 8px', fontSize: 14, background: 'transparent', color: '#94a3b8', border: 'none', cursor: 'pointer', alignSelf: 'flex-start' }}
                                 >
                                   ✕
                                 </button>
