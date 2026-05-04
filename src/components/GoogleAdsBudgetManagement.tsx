@@ -245,6 +245,9 @@ function generateEmailHtml(
 
 interface LastMonthRecap {
   monthLabel: string;
+  monthlyBudget?: number;
+  customerIdUsed?: string;
+  conversionActionsApplied?: string[];
   totals: {
     spend: number;
     clicks: number;
@@ -338,9 +341,61 @@ function generateLastMonthEmailHtml(
 
   const thisMonthLabel = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
 
+  // Budget progress (only if a monthly budget was set)
+  const budget = recap.monthlyBudget || 0;
+  const percentUsed = budget > 0 ? (t.spend / budget) * 100 : 0;
+  const remaining = Math.max(0, budget - t.spend);
+  const isOver = percentUsed > 100;
+  const isUnder = percentUsed < 95;
+  const statusColor = isOver ? '#dc2626' : isUnder ? '#059669' : '#d97706';
+  const statusBg = isOver ? '#fef2f2' : isUnder ? '#f0fdf4' : '#fffbeb';
+  const statusText = isOver ? 'Over Budget' : isUnder ? 'Under Budget' : 'On Target';
+
+  const budgetBlock = budget > 0 ? `
+  <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};margin-bottom:20px">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+      <tr>
+        <td style="text-align:left;font-size:14px;font-weight:600;color:#374151">${statusText} — ${recap.monthLabel}</td>
+        <td style="text-align:right;font-size:22px;font-weight:700;color:${statusColor}">${percentUsed.toFixed(0)}%</td>
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:8px" cellpadding="0" cellspacing="0">
+      <tr>${(() => {
+        const pct = Math.min(percentUsed, 100);
+        const rest = 100 - pct;
+        return `<td style="width:${pct}%;height:24px;background:${statusColor};border-radius:12px 0 0 12px;font-size:1px">&nbsp;</td><td style="width:${rest}%;height:24px;background:#e5e7eb;border-radius:0 12px 12px 0;font-size:1px">&nbsp;</td>`;
+      })()}
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:2px">
+      <tr>
+        <td style="text-align:left;font-size:11px;color:#64748b">$0</td>
+        <td style="text-align:right;font-size:11px;color:#64748b">$${budget.toLocaleString()}</td>
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-top:12px">
+      <tr>
+        <td style="text-align:center;width:33%">
+          <div style="font-size:18px;font-weight:700;color:${statusColor}">$${t.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+          <div style="font-size:11px;color:#64748b">Spent</div>
+        </td>
+        <td style="text-align:center;width:33%">
+          <div style="font-size:18px;font-weight:700;color:#1e293b">$${budget.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+          <div style="font-size:11px;color:#64748b">Monthly Budget</div>
+        </td>
+        <td style="text-align:center;width:33%">
+          <div style="font-size:18px;font-weight:700;color:#64748b">${isOver ? '−' : ''}$${(isOver ? t.spend - budget : remaining).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+          <div style="font-size:11px;color:#64748b">${isOver ? 'Over Budget' : 'Under Budget'}</div>
+        </td>
+      </tr>
+    </table>
+  </div>` : '';
+
   return `<div style="font-family:Arial,sans-serif;max-width:700px;color:#1e293b">
   <p style="margin:0 0 4px;color:#64748b;font-size:14px">${recap.monthLabel} Recap</p>
   <p style="margin:0 0 20px;color:#94a3b8;font-size:12px">Performance summary for ${recap.monthLabel} with action items for ${thisMonthLabel}.</p>
+
+  ${budgetBlock}
 
   <!-- Headline metrics -->
   <table style="width:100%;border-collapse:collapse;margin-bottom:20px">

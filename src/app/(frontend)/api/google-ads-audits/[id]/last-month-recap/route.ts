@@ -114,18 +114,22 @@ export async function POST(
     audit = await payload.findByID({
       collection: "google-ads-audits",
       id: auditId,
+      depth: 2,
       overrideAccess: true,
     });
   } catch {
     return NextResponse.json({ error: "Audit not found" }, { status: 404 });
   }
 
-  let customerId = audit.customerId;
+  // Always prefer the linked client's Google Ads customer ID (the audit's
+  // customerId is often the MCC manager ID, which aggregates all child
+  // accounts and gives wildly inflated spend totals).
+  let linkedClient: any = null;
   if (audit.client) {
     try {
       const clientId =
         typeof audit.client === "object" ? audit.client.id : audit.client;
-      const linkedClient =
+      linkedClient =
         typeof audit.client === "object"
           ? audit.client
           : await payload.findByID({
@@ -133,16 +137,15 @@ export async function POST(
               id: clientId,
               overrideAccess: true,
             });
-      if (linkedClient?.googleAdsCustomerId) {
-        customerId = linkedClient.googleAdsCustomerId;
-      }
     } catch {
       /* fall through */
     }
   }
+
+  const customerId = linkedClient?.googleAdsCustomerId || audit.customerId;
   if (!customerId) {
     return NextResponse.json(
-      { error: "No Google Ads customer ID on audit or client" },
+      { error: "No Google Ads customer ID on linked client or audit" },
       { status: 400 }
     );
   }
@@ -154,6 +157,14 @@ export async function POST(
     );
   }
 
+  // Use the same conversion-action filter the budget tracker uses, so
+  // "conversions" reflects the client's actual lead-generating actions
+  // (forms, calls etc) rather than the kitchen-sink Google Ads default.
+  const conversionActions: string[] = (linkedClient?.dashboardConversionActions || "")
+    .split(/[\r\n,]+/)
+    .map((s: string) => s.trim())
+    .filter(Boolean);
+
   const cleanCustomerId = String(customerId).replace(/-/g, "");
   const { label, year, month } = lastMonthLabel();
 
@@ -163,6 +174,9 @@ export async function POST(
   );
   metricsUrl.searchParams.set("customerId", cleanCustomerId);
   metricsUrl.searchParams.set("dateRange", "LAST_MONTH");
+  if (conversionActions.length > 0) {
+    metricsUrl.searchParams.set("conversionActions", conversionActions.join(","));
+  }
 
   let campaignMetrics: CampaignMetric[] = [];
   try {
@@ -288,6 +302,9 @@ export async function POST(
     monthLabel: label,
     year,
     month,
+    monthlyBudget: Number(audit.monthlyBudget || 0),
+    customerIdUsed: cleanCustomerId,
+    conversionActionsApplied: conversionActions,
     totals: {
       ...totals,
       ctr: totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0,
