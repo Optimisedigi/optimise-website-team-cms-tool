@@ -707,6 +707,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               trendIrrelevantTerms={trendIrrelevantTerms ?? undefined}
               trendTotalSpend={trendTotalSpend ?? undefined}
               monthlyWasteRelevancy={monthlyWasteRelevancy ?? undefined}
+              clientId={clientId}
             />
           )}
 

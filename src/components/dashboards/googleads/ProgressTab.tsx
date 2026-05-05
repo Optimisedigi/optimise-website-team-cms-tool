@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import type {
   GoogleAdsDashboardMonthly,
   GoogleAdsDashboardSearchTerm,
@@ -38,6 +38,10 @@ interface ProgressTabProps {
    *  during the months that term burned budget, and rises back as the
    *  negative blocks future spend. */
   monthlyWasteRelevancy?: GoogleAdsDashboardMonthlyWasteRelevancy[];
+  /** Numeric Payload ID for the client. Required for the agency-only
+   *  "Refresh historical relevancy" button to know which client's
+   *  cache to wipe. When absent, the button is hidden. */
+  clientId?: number | string;
 }
 
 type ProgressMetric = "spend" | "conversions" | "cpa" | "wasteRate" | "relevancy";
@@ -560,7 +564,48 @@ export function ProgressTab({
   trendIrrelevantTerms,
   trendTotalSpend,
   monthlyWasteRelevancy,
+  clientId,
 }: ProgressTabProps) {
+  // Agency-only: detect a logged-in Payload session so the cache-refresh
+  // button is hidden on PIN-gated client-facing dashboards.
+  const [isAgency, setIsAgency] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/users/me", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.user?.id) setIsAgency(true);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const [clearingCache, setClearingCache] = useState(false);
+  const handleClearRelevancyCache = useCallback(async () => {
+    if (!clientId) return;
+    if (!window.confirm("Clear the historical Keyword Relevancy cache for this client? Past months will re-pull from Google Ads on the next dashboard load.")) {
+      return;
+    }
+    setClearingCache(true);
+    try {
+      const r = await fetch("/api/dashboard/monthly-waste-relevancy/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ clientId }),
+      });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        throw new Error(data.error || `Failed (${r.status})`);
+      }
+      window.location.reload();
+    } catch (err) {
+      alert(`Failed to clear cache: ${(err as Error).message}`);
+    } finally {
+      setClearingCache(false);
+    }
+  }, [clientId]);
+
   // Multi-select: 1–3 metrics. Default to conversions only (matches the
   // previous single-metric default). Clicking a chip toggles — unless that
   // would either drop to zero metrics (no-op) or exceed MAX_SELECTED_METRICS.
@@ -749,9 +794,26 @@ export function ProgressTab({
       {/* (Avoided-spend section is rendered just below this chart — see below.) */}
       <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
-          <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
-            Monthly Trend
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
+              Monthly Trend
+            </h2>
+            {isAgency && clientId && (
+              <button
+                type="button"
+                onClick={handleClearRelevancyCache}
+                disabled={clearingCache}
+                title="Wipes the per-month historical Keyword Relevancy / Non-Converting Spend cache for this client. Past months will re-pull from Google Ads on the next dashboard load. Auto-runs whenever an NKL changes — only use this if you suspect the cache is stale."
+                className={`text-[11px] font-medium px-2 py-1 rounded border transition-colors ${
+                  clearingCache
+                    ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                    : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+                }`}
+              >
+                {clearingCache ? "Refreshing…" : "↻ Refresh history"}
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] text-slate-400">
               Pick up to {MAX_SELECTED_METRICS}

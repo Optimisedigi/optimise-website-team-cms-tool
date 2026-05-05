@@ -42,6 +42,31 @@ export const NegativeKeywordLists: CollectionConfig = {
     ],
     afterChange: [
       async ({ doc, previousDoc, req, operation }) => {
+        const clientId = typeof doc.client === "object" ? doc.client?.id : doc.client;
+
+        // Any keyword set change (add or remove) shifts what counts as
+        // "irrelevant" for the historical Monthly Trend chart. Wipe the
+        // per-month relevancy cache so past months get re-credited on the
+        // next dashboard view. (Skipped if only metadata fields changed.)
+        try {
+          const prevKw = Array.isArray(previousDoc?.keywords) ? previousDoc.keywords : [];
+          const nextKw = Array.isArray(doc?.keywords) ? doc.keywords : [];
+          const keysOf = (arr: any[]) =>
+            new Set(arr.map((k: any) => `${(k.keyword || "").toLowerCase()}|${(k.matchType || "").toUpperCase()}`));
+          const prevSet = keysOf(prevKw);
+          const nextSet = keysOf(nextKw);
+          const setsDiffer = prevSet.size !== nextSet.size || [...nextSet].some((k) => !prevSet.has(k));
+          if (clientId && setsDiffer) {
+            await req.payload.delete({
+              collection: "negative-keyword-monthly-waste-relevancy-cache",
+              where: { client: { equals: clientId } },
+              overrideAccess: true,
+            });
+          }
+        } catch (err) {
+          req.payload.logger?.warn?.(`[NegativeKeywordLists] relevancy cache cleanup failed: ${err}`);
+        }
+
         // Diff keywords against the previous version. For any keyword that
         // disappeared (removed), delete its avoided-spend cache rows so the
         // dashboard total drops immediately.
@@ -57,7 +82,6 @@ export const NegativeKeywordLists: CollectionConfig = {
             return !nextKeys.has(key);
           });
           if (removed.length === 0) return;
-          const clientId = typeof doc.client === "object" ? doc.client?.id : doc.client;
           if (!clientId) return;
           for (const kw of removed) {
             await req.payload.delete({
@@ -80,7 +104,9 @@ export const NegativeKeywordLists: CollectionConfig = {
     afterDelete: [
       async ({ doc, req }) => {
         // Remove every cache row for this NKL's keywords so deleted lists
-        // stop contributing to the avoided-spend total.
+        // stop contributing to the avoided-spend total. Also wipe the
+        // historical relevancy cache so the chart drops the deleted
+        // keywords' contribution from past months.
         try {
           const clientId = typeof doc.client === "object" ? doc.client?.id : doc.client;
           if (!clientId) return;
@@ -98,6 +124,11 @@ export const NegativeKeywordLists: CollectionConfig = {
               overrideAccess: true,
             });
           }
+          await req.payload.delete({
+            collection: "negative-keyword-monthly-waste-relevancy-cache",
+            where: { client: { equals: clientId } },
+            overrideAccess: true,
+          });
         } catch (err) {
           req.payload.logger?.warn?.(`[NegativeKeywordLists] cache cleanup on delete failed: ${err}`);
         }

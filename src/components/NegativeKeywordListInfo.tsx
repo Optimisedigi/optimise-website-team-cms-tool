@@ -173,6 +173,14 @@ export default function NegativeKeywordListInfo() {
         color: '#1e3a5f',
       }}
     >
+      {/* Dashboard relevancy auto-refresh notice */}
+      <div style={{ marginBottom: 14, padding: '10px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bae6fd', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <span title="Dashboard cache info" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#0ea5e9', color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0, cursor: 'help' }}>?</span>
+        <div style={{ fontSize: 12, color: '#1e3a5f', lineHeight: 1.5 }}>
+          <strong>Dashboard cache:</strong> any change to the keywords on this list automatically wipes the per-client historical Keyword Relevancy / Non-Converting Spend cache, so past months get re-credited on the next dashboard view. There's also a <em>Refresh history</em> button on the Progress tab if you ever want to force a re-pull manually.
+        </div>
+      </div>
+
       {/* Client share link */}
       {clientViewUrl && (
         <div style={{ marginBottom: 14, padding: '10px 14px', background: '#fff', borderRadius: 6, border: '1px solid #bae6fd' }}>
