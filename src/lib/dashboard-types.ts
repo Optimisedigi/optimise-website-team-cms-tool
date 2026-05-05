@@ -1,5 +1,42 @@
 /** Types mirrored from website-growth-tools GoogleAdsDashboardData */
 
+/**
+ * Build a YYYY-MM list ending at the current month, oldest first.
+ * Used to anchor every monthly chart to the same 14-month window so May 2026
+ * lines up with April 2025 across Overview, Progress, and Quality tabs.
+ */
+export function buildMonthAnchorList(monthsBack: number): string[] {
+  const today = new Date();
+  const list: string[] = [];
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - i, 1));
+    list.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
+  }
+  return list;
+}
+
+/**
+ * Pad a series of monthly data points to a complete N-month window ending at
+ * the current month. Missing months are filled by `makeEmpty(month)`. Existing
+ * data points outside the window are dropped; data points inside the window
+ * keep all their fields. Result is oldest-first.
+ */
+export function padMonthlySeries<T extends { month: string }>(
+  rows: T[] | null | undefined,
+  monthsBack: number,
+  makeEmpty: (month: string) => T,
+): T[] {
+  const anchor = buildMonthAnchorList(monthsBack);
+  const byMonth = new Map<string, T>();
+  for (const r of rows || []) {
+    if (r?.month) byMonth.set(String(r.month).slice(0, 7), r);
+  }
+  return anchor.map((m) => byMonth.get(m) ?? makeEmpty(m));
+}
+
+export const DASHBOARD_MONTHLY_WINDOW = 14;
+
+
 export interface GoogleAdsDashboardKpis {
   spend: number;
   clicks: number;

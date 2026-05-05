@@ -6,6 +6,7 @@ import type {
   GoogleAdsDashboardQualityKeyword,
   GoogleAdsDashboardTopAd,
 } from "@/lib/dashboard-types";
+import { DASHBOARD_MONTHLY_WINDOW, buildMonthAnchorList } from "@/lib/dashboard-types";
 
 interface QualityScoreTabProps {
   data: GoogleAdsDashboardQualityData;
@@ -721,33 +722,46 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
     });
   };
 
-  // Chart data points — always show the last 6 months regardless of the
-  // dashboard's date range selector. The chart is a quality-score trend view,
-  // not a per-period summary, so a fixed 6-month window keeps it interpretable.
+  // Chart data points — always show the last DASHBOARD_MONTHLY_WINDOW months
+  // (14) ending at the current month so May 2026 lines up with April 2025
+  // across the Overview / Progress / Quality tabs. Padded with empty months
+  // when no data exists for that bucket.
   //
   // Source priority:
-  //   1. data.qualityTrend (live 6-month series from Google Ads, present in
+  //   1. data.qualityTrend (live 14-month series from Google Ads, present in
   //      newer Growth Tools deployments). Used directly — no campaign/ad-group
   //      filtering since it's pre-aggregated server-side.
-  //   2. data.snapshots (DB monthly snapshots, last 6) — fallback for older
+  //   2. data.snapshots (DB monthly snapshots) — fallback for older
   //      deployments and clients with extensive snapshot history.
   const chartPoints: ChartPoint[] = useMemo(() => {
+    const anchor = buildMonthAnchorList(DASHBOARD_MONTHLY_WINDOW);
+
     if (data.qualityTrend && data.qualityTrend.length > 0) {
-      return data.qualityTrend.map((p) => {
+      const byMonth = new Map(data.qualityTrend.map((p) => [String(p.month).slice(0, 7), p]));
+      return anchor.map((m) => {
+        const p = byMonth.get(m);
+        if (!p) {
+          return { label: monthLabel(m), primary: null, cpc: 0 };
+        }
         let primary: number | null;
         if (chartMetric === "qualityScore") primary = p.qualityScore;
         else if (chartMetric === "creativeQuality") primary = p.creativeQuality;
         else if (chartMetric === "searchPredictedCtr") primary = p.searchPredictedCtr;
         else primary = p.landingPageQuality;
         return {
-          label: monthLabel(p.month),
+          label: monthLabel(m),
           primary,
           cpc: p.avgCpc,
         };
       });
     }
-    const last6 = data.snapshots.slice(-6);
-    return last6.map((snap) => {
+
+    const byMonth = new Map(data.snapshots.map((s) => [String(s.month).slice(0, 7), s]));
+    return anchor.map((m) => {
+      const snap = byMonth.get(m);
+      if (!snap) {
+        return { label: monthLabel(m), primary: null, cpc: 0 };
+      }
       const filtered = filterKeywords(snap.keywords);
       let primary: number | null;
       if (chartMetric === "qualityScore") {
@@ -756,7 +770,7 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
         primary = weightedRating(filtered, chartMetric);
       }
       return {
-        label: monthLabel(snap.month),
+        label: monthLabel(m),
         primary,
         cpc: avgCpc(filtered),
       };

@@ -5,7 +5,7 @@ const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
 
 const CURRENT_MONTH_TTL_MS = 60 * 60 * 1000; // 1 hour
-const DEFAULT_MONTHS_BACK = 12;
+const DEFAULT_MONTHS_BACK = 14;
 
 export interface WasteRelevancyCacheRow {
   id: number;

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData, GoogleAdsDashboardAvoidedSpend, GoogleAdsDashboardMonthlyWasteRelevancy } from "@/lib/dashboard-types";
+import { DASHBOARD_MONTHLY_WINDOW, padMonthlySeries } from "@/lib/dashboard-types";
 import { KpiRow } from "./KpiRow";
 import { MonthlyChart } from "./MonthlyChart";
 import { CategoryBreakdown } from "./CategoryBreakdown";
@@ -439,8 +440,15 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
       ? (deepDiveData?.dateRangeLabel || deepDiveRangeLabel)
       : (data.dateRangeLabel || rangeLabel);
 
-  // Monthly chart always shows last 14 months, unaffected by date range
-  const chart14Months = chartMonthlyTrend.slice(-14);
+  // Monthly chart always shows the last DASHBOARD_MONTHLY_WINDOW months
+  // ending at the current month, unaffected by the global date-range
+  // selector. Pad with zeros so missing months still appear on the X-axis
+  // and so May 2026 lines up with April 2025 across all tabs.
+  const chart14Months = padMonthlySeries(
+    chartMonthlyTrend,
+    DASHBOARD_MONTHLY_WINDOW,
+    (month) => ({ month, spend: 0, conversions: 0, brandSpend: 0, genericSpend: 0 }),
+  );
 
   return (
     <div className="od-dashboard-root min-h-screen bg-slate-50 text-slate-900">
