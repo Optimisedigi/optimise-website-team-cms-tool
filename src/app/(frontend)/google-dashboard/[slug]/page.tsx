@@ -178,6 +178,8 @@ export default async function GoogleDashboardPage({ params }: Props) {
       initialQualityData={initialQualityData}
       brandKeywords={client.brandKeywords || ""}
       conversionActions={client.dashboardConversionActions || ""}
+      phoneCallActions={(client as any).phoneCallConversionActions || ""}
+      formSubmitActions={(client as any).formSubmitConversionActions || ""}
       initialKeywordSelections={initialKeywordSelections}
       initialAddedSelections={initialAddedSelections}
       initialAddedNegatives={initialAddedNegatives}

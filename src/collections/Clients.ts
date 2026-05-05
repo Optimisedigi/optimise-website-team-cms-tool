@@ -3,12 +3,13 @@ import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
 import {
   canAccess,
-  canAccessAny,
+  canAccessAnyOrApiKey,
   adminOnlyDelete,
   hideUnlessFeature,
   conditionRequiresFeature,
   sensitiveFieldAccess,
 } from "../lib/access";
+import { hasValidApiKey } from "./api-key-access";
 
 function monthsBetween(start: Date, end: Date): number {
   const months =
@@ -75,7 +76,7 @@ export const Clients: CollectionConfig = {
     // "Acme Corp" instead of "Untitled — ID: 1"). Field-level access on
     // sensitive fields below restricts what `clients-basic` users can
     // actually see.
-    read: canAccessAny("clients", "clients-basic"),
+    read: canAccessAnyOrApiKey(hasValidApiKey, "clients", "clients-basic"),
     create: canAccess("clients"),
     update: canAccess("clients"),
     delete: adminOnlyDelete,
@@ -994,6 +995,30 @@ export const Clients: CollectionConfig = {
                 components: {
                   Field: "./components/GoogleAdsConversionActionPicker",
                 },
+              },
+            },
+
+            // ─ Conversion Split Categorisation ─
+            // Powers the Overview tab's "Conversion Split" card and the
+            // per-campaign phone-vs-form table. Each textarea takes a
+            // newline-separated list of conversion-action names — one or
+            // both can be left blank if the client only tracks one type.
+            {
+              name: "phoneCallConversionActions",
+              type: "textarea",
+              admin: {
+                condition: (data: any) => !!data?.googleAdsCustomerId,
+                description:
+                  'Conversion action names that count as Phone Calls on the dashboard\'s Conversion Split card. One per line.',
+              },
+            },
+            {
+              name: "formSubmitConversionActions",
+              type: "textarea",
+              admin: {
+                condition: (data: any) => !!data?.googleAdsCustomerId,
+                description:
+                  "Conversion action names that count as Form Submits on the dashboard's Conversion Split card. One per line.",
               },
             },
 

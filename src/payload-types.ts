@@ -570,6 +570,14 @@ export interface Client {
     | null;
   dashboardConversionActions?: string | null;
   /**
+   * Conversion action names that count as Phone Calls on the dashboard's Conversion Split card. One per line.
+   */
+  phoneCallConversionActions?: string | null;
+  /**
+   * Conversion action names that count as Form Submits on the dashboard's Conversion Split card. One per line.
+   */
+  formSubmitConversionActions?: string | null;
+  /**
    * Google Ads audits linked to this client
    */
   googleAdsAudits?: {
@@ -5191,6 +5199,10 @@ export interface GoogleAdsCampaignBudget {
    * When budget was last pushed to Google Ads
    */
   lastPushedAt?: string | null;
+  /**
+   * What triggered the last push (e.g. 'manual', 'cron-monthly-reset', 'cron-mid-month', 'agent'). Used by the Optimate agent to deduplicate work.
+   */
+  lastPushedSource?: string | null;
   bidStrategy:
     | 'manual_cpc'
     | 'maximize_conversions'
@@ -5752,6 +5764,8 @@ export interface ClientsSelect<T extends boolean = true> {
         id?: T;
       };
   dashboardConversionActions?: T;
+  phoneCallConversionActions?: T;
+  formSubmitConversionActions?: T;
   googleAdsAudits?: T;
   negativeKeywordLists?: T;
   keywordDeepDiveSessions?: T;
@@ -7232,6 +7246,7 @@ export interface GoogleAdsCampaignBudgetsSelect<T extends boolean = true> {
   calculatedDailyBudget?: T;
   actualDailyBudget?: T;
   lastPushedAt?: T;
+  lastPushedSource?: T;
   bidStrategy?: T;
   bidStrategyId?: T;
   manualCpcBid?: T;

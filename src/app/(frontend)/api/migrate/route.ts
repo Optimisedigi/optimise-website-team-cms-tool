@@ -1557,6 +1557,20 @@ export async function POST(request: NextRequest) {
   // ── Client Proposals: client_id column (links proposal to converted client) ──
   await run("client_proposals.client_id", "ALTER TABLE `client_proposals` ADD `client_id` integer REFERENCES `clients`(`id`) ON DELETE set null");
 
+  // ── payload_locked_documents_rels: negative_sweep_candidates_id ──
+  // The NegativeSweepCandidates collection is registered in payload.config.ts but
+  // the join column wasn't added to payload_locked_documents_rels. Without it,
+  // every collection update fails because Payload's locked-docs check generates
+  // SQL that references the missing column. Manifested as "Failed to update <id>"
+  // when pushing budget changes.
+  await run("payload_locked_documents_rels.negative_sweep_candidates_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_sweep_candidates_id` integer");
+
+  // ── google_ads_campaign_budgets.last_pushed_source ──
+  // Tracks what triggered the most recent push to Google Ads ('manual',
+  // 'cron-monthly-reset', 'cron-mid-month', 'agent'). The Optimate agent reads
+  // this to skip work the cron has already handled within a recent window.
+  await run("google_ads_campaign_budgets.last_pushed_source", "ALTER TABLE `google_ads_campaign_budgets` ADD `last_pushed_source` text");
+
   // ╔══════════════════════════════════════════════════════════════════╗
   // ║  ADD NEW MIGRATION STATEMENTS ABOVE THIS LINE                  ║
   // ║  This is the POST handler — all migrations must be here.       ║
@@ -2312,6 +2326,10 @@ export async function POST(request: NextRequest) {
   await run("locked_docs_rels.contractors_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contractors_id` integer REFERENCES `contractors`(`id`) ON DELETE cascade");
   await run("locked_docs_rels.contractor_payments_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contractor_payments_id` integer REFERENCES `contractor_payments`(`id`) ON DELETE cascade");
   await run("locked_docs_rels.contractor_time_entries_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contractor_time_entries_id` integer REFERENCES `contractor_time_entries`(`id`) ON DELETE cascade");
+
+  // ── Conversion split categorisation columns on clients (2026-05-05) ──
+  await run("clients.phone_call_conversion_actions", "ALTER TABLE `clients` ADD `phone_call_conversion_actions` text");
+  await run("clients.form_submit_conversion_actions", "ALTER TABLE `clients` ADD `form_submit_conversion_actions` text");
 
   return NextResponse.json({ ok: true, version: "2026-05-05", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }

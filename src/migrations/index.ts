@@ -34,6 +34,9 @@ import * as migration_20260429_140000_add_keyword_deep_dive_sessions from './202
 import * as migration_20260430_120000_add_avoided_spend_cache from './20260430_120000_add_avoided_spend_cache';
 import * as migration_20260501_120000_add_monthly_waste_relevancy_cache from './20260501_120000_add_monthly_waste_relevancy_cache';
 import * as migration_20260505_120000_add_contractor_invoicing from './20260505_120000_add_contractor_invoicing';
+import * as migration_20260505_140000_add_negative_sweep_candidates_lock from './20260505_140000_add_negative_sweep_candidates_lock';
+import * as migration_20260505_150000_add_last_pushed_source_to_campaign_budgets from './20260505_150000_add_last_pushed_source_to_campaign_budgets';
+import * as migration_20260505_160000_add_client_conversion_split_actions from './20260505_160000_add_client_conversion_split_actions';
 
 export const migrations = [
   {
@@ -215,5 +218,20 @@ export const migrations = [
     up: migration_20260505_120000_add_contractor_invoicing.up,
     down: migration_20260505_120000_add_contractor_invoicing.down,
     name: '20260505_120000_add_contractor_invoicing'
+  },
+  {
+    up: migration_20260505_140000_add_negative_sweep_candidates_lock.up,
+    down: migration_20260505_140000_add_negative_sweep_candidates_lock.down,
+    name: '20260505_140000_add_negative_sweep_candidates_lock'
+  },
+  {
+    up: migration_20260505_150000_add_last_pushed_source_to_campaign_budgets.up,
+    down: migration_20260505_150000_add_last_pushed_source_to_campaign_budgets.down,
+    name: '20260505_150000_add_last_pushed_source_to_campaign_budgets'
+  },
+  {
+    up: migration_20260505_160000_add_client_conversion_split_actions.up,
+    down: migration_20260505_160000_add_client_conversion_split_actions.down,
+    name: '20260505_160000_add_client_conversion_split_actions'
   },
 ];

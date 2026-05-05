@@ -160,6 +160,13 @@ export interface GoogleAdsDashboardData {
   activityStats: GoogleAdsDashboardActivityStats;
   notes: GoogleAdsDashboardNote[];
   workDone: Array<{ description: string; date: string }>;
+  /** Phone vs Form vs Other conversion totals for the active range. Null when
+   *  the client has no phoneCallConversionActions / formSubmitConversionActions
+   *  configured. */
+  conversionSplit?: { phone: number; form: number; other: number } | null;
+  /** Per-campaign phone vs form vs other split (top 15 by total). Empty array
+   *  when no split categorisation is configured. */
+  conversionSplitByCampaign?: Array<{ name: string; phone: number; form: number; other: number; total: number }>;
 }
 
 /** Per-month historical waste / relevancy figures for the Progress tab's

@@ -7,6 +7,7 @@ import { KpiRow } from "./KpiRow";
 import { MonthlyChart } from "./MonthlyChart";
 import { CategoryBreakdown } from "./CategoryBreakdown";
 import { TopKeywords } from "./TopKeywords";
+import { ConversionSplit } from "./ConversionSplit";
 import { NotesSection } from "./NotesSection";
 import { KeywordDeepDive } from "./KeywordDeepDive";
 import { CompetitorAnalysis } from "./CompetitorAnalysis";
@@ -20,6 +21,8 @@ interface GoogleAdsDashboardProps {
   initialQualityData?: GoogleAdsDashboardQualityData;
   brandKeywords?: string;
   conversionActions?: string;
+  phoneCallActions?: string;
+  formSubmitActions?: string;
   clientId?: string;
   initialKeywordSelections?: string[];
   initialAddedSelections?: string[];
@@ -59,7 +62,7 @@ const DEEP_DIVE_RANGE_OPTIONS = [
 
 type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress";
 
-export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions, clientId, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: GoogleAdsDashboardProps) {
+export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions, phoneCallActions, formSubmitActions, clientId, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
   const [compareMode, setCompareMode] = useState<"month" | "year">("year");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -162,13 +165,15 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     if (initialData.clientName) params.set("clientName", initialData.clientName);
     if (brandKeywords) params.set("brandKeywords", brandKeywords);
     if (activeConversionActions) params.set("conversionActions", activeConversionActions);
+    if (phoneCallActions) params.set("phoneCallActions", phoneCallActions);
+    if (formSubmitActions) params.set("formSubmitActions", formSubmitActions);
     fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => res.ok ? res.json() : null)
       .then((fullData) => {
         if (fullData?.monthlyTrend) setChartMonthlyTrend(fullData.monthlyTrend);
       })
       .catch(() => {});
-  }, [initialData.slug, initialData.customerId, initialData.clientName, brandKeywords, activeConversionActions]);
+  }, [initialData.slug, initialData.customerId, initialData.clientName, brandKeywords, activeConversionActions, phoneCallActions, formSubmitActions]);
 
   // Separate fetch for the Progress chart's overlay metrics (waste / relevancy).
   // Fixed last_6_months lookback so the chart lines stay meaningful regardless
@@ -181,6 +186,8 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     if (initialData.clientName) params.set("clientName", initialData.clientName);
     if (brandKeywords) params.set("brandKeywords", brandKeywords);
     if (activeConversionActions) params.set("conversionActions", activeConversionActions);
+    if (phoneCallActions) params.set("phoneCallActions", phoneCallActions);
+    if (formSubmitActions) params.set("formSubmitActions", formSubmitActions);
     fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => res.ok ? res.json() : null)
       .then((trendData) => {
@@ -237,6 +244,12 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         }
         if (activeConversionActions) {
           params.set("conversionActions", activeConversionActions);
+        }
+        if (phoneCallActions) {
+          params.set("phoneCallActions", phoneCallActions);
+        }
+        if (formSubmitActions) {
+          params.set("formSubmitActions", formSubmitActions);
         }
         const res = await fetch(
           `/api/dashboard/data?${params}`,
@@ -313,6 +326,8 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         if (data.clientName) params.set("clientName", data.clientName);
         if (brandKeywords) params.set("brandKeywords", brandKeywords);
         if (activeConversionActions) params.set("conversionActions", activeConversionActions);
+        if (phoneCallActions) params.set("phoneCallActions", phoneCallActions);
+        if (formSubmitActions) params.set("formSubmitActions", formSubmitActions);
         const res = await fetch(
           `/api/dashboard/data?${params}`,
           { credentials: "include", cache: "no-store" },
@@ -426,6 +441,8 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     if (data.clientName) params.set("clientName", data.clientName);
     if (brandKeywords) params.set("brandKeywords", brandKeywords);
     if (newActions) params.set("conversionActions", newActions);
+    if (phoneCallActions) params.set("phoneCallActions", phoneCallActions);
+    if (formSubmitActions) params.set("formSubmitActions", formSubmitActions);
     fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => res.ok ? res.json() : null)
       .then((newData) => {
@@ -695,6 +712,14 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               <div className="mt-6">
                 <MonthlyChart data={chart14Months} />
               </div>
+              {data.conversionSplit && (
+                <div className="mt-6">
+                  <ConversionSplit
+                    totals={data.conversionSplit ?? null}
+                    byCampaign={data.conversionSplitByCampaign ?? []}
+                  />
+                </div>
+              )}
               <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <CategoryBreakdown campaigns={data.campaignBreakdown} />
                 <TopKeywords
