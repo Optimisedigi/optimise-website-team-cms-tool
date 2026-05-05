@@ -63,24 +63,23 @@ export function KpiRow({ kpis, compareMode }: KpiRowProps) {
         />
       </div>
       {breakdown.length > 0 && (
-        <div className="mt-3 rounded-xl bg-white border border-slate-200 shadow-sm p-3">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-2">
-            Conversions by action ({breakdown.length})
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-            {breakdown.map(([action, count]) => (
-              <div
+        <div className="mt-2 flex justify-center">
+          <div className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 rounded-full bg-white border border-slate-200 px-4 py-1.5 shadow-sm text-xs">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+              By action
+            </span>
+            {breakdown.map(([action, count], idx) => (
+              <span
                 key={action}
-                className="rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-1.5"
+                className="flex items-baseline gap-1"
                 title={action}
               >
-                <div className="text-[10px] text-slate-500 truncate" title={action}>
-                  {action}
-                </div>
-                <div className="text-base font-semibold text-slate-900 leading-tight">
+                {idx > 0 && <span className="text-slate-200">·</span>}
+                <span className="text-slate-500 truncate max-w-[160px]">{action}</span>
+                <span className="font-semibold text-slate-700 tabular-nums">
                   {Math.round(count).toLocaleString()}
-                </div>
-              </div>
+                </span>
+              </span>
             ))}
           </div>
         </div>

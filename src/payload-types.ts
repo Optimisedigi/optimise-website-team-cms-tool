@@ -570,12 +570,20 @@ export interface Client {
     | null;
   dashboardConversionActions?: string | null;
   /**
-   * Conversion action names that count as Phone Calls on the dashboard's Conversion Split card. One per line.
+   * Group conversion actions into named categories. Each appears as its own column / tile on the dashboard.
    */
+  conversionActionCategories?:
+    | {
+        label: string;
+        color?: ('sky' | 'violet' | 'emerald' | 'amber' | 'rose' | 'slate') | null;
+        /**
+         * Google Ads conversion action names that fall into this category, one per line.
+         */
+        actions?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   phoneCallConversionActions?: string | null;
-  /**
-   * Conversion action names that count as Form Submits on the dashboard's Conversion Split card. One per line.
-   */
   formSubmitConversionActions?: string | null;
   /**
    * Google Ads audits linked to this client
@@ -5764,6 +5772,14 @@ export interface ClientsSelect<T extends boolean = true> {
         id?: T;
       };
   dashboardConversionActions?: T;
+  conversionActionCategories?:
+    | T
+    | {
+        label?: T;
+        color?: T;
+        actions?: T;
+        id?: T;
+      };
   phoneCallConversionActions?: T;
   formSubmitConversionActions?: T;
   googleAdsAudits?: T;

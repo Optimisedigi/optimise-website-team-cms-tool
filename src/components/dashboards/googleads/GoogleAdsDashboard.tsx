@@ -23,6 +23,9 @@ interface GoogleAdsDashboardProps {
   conversionActions?: string;
   phoneCallActions?: string;
   formSubmitActions?: string;
+  /** JSON-encoded `Array<{ label, color, actions: string[] }>` defining the
+   *  client's editable conversion-action categories. */
+  conversionActionCategories?: string;
   clientId?: string;
   initialKeywordSelections?: string[];
   initialAddedSelections?: string[];
@@ -62,7 +65,7 @@ const DEEP_DIVE_RANGE_OPTIONS = [
 
 type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress";
 
-export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions, phoneCallActions, formSubmitActions, clientId, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: GoogleAdsDashboardProps) {
+export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions, phoneCallActions, formSubmitActions, conversionActionCategories, clientId, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
   const [compareMode, setCompareMode] = useState<"month" | "year">("year");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -167,6 +170,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     if (activeConversionActions) params.set("conversionActions", activeConversionActions);
     if (phoneCallActions) params.set("phoneCallActions", phoneCallActions);
     if (formSubmitActions) params.set("formSubmitActions", formSubmitActions);
+    if (conversionActionCategories) params.set("conversionActionCategories", conversionActionCategories);
     fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => res.ok ? res.json() : null)
       .then((fullData) => {
@@ -188,6 +192,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     if (activeConversionActions) params.set("conversionActions", activeConversionActions);
     if (phoneCallActions) params.set("phoneCallActions", phoneCallActions);
     if (formSubmitActions) params.set("formSubmitActions", formSubmitActions);
+    if (conversionActionCategories) params.set("conversionActionCategories", conversionActionCategories);
     fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => res.ok ? res.json() : null)
       .then((trendData) => {
@@ -250,6 +255,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         }
         if (formSubmitActions) {
           params.set("formSubmitActions", formSubmitActions);
+        }
+        if (conversionActionCategories) {
+          params.set("conversionActionCategories", conversionActionCategories);
         }
         const res = await fetch(
           `/api/dashboard/data?${params}`,
@@ -443,6 +451,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     if (newActions) params.set("conversionActions", newActions);
     if (phoneCallActions) params.set("phoneCallActions", phoneCallActions);
     if (formSubmitActions) params.set("formSubmitActions", formSubmitActions);
+    if (conversionActionCategories) params.set("conversionActionCategories", conversionActionCategories);
     fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
       .then((res) => res.ok ? res.json() : null)
       .then((newData) => {
@@ -720,13 +729,17 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                   />
                 </div>
               )}
-              <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <CategoryBreakdown campaigns={data.campaignBreakdown} />
-                <TopKeywords
-                  keywords={data.topKeywords}
-                  limit={6}
-                  onViewAll={() => setActiveTab("keywords")}
-                />
+              <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 min-w-0">
+                  <CategoryBreakdown campaigns={data.campaignBreakdown} />
+                </div>
+                <div className="lg:col-span-1 min-w-0">
+                  <TopKeywords
+                    keywords={data.topKeywords}
+                    limit={6}
+                    onViewAll={() => setActiveTab("keywords")}
+                  />
+                </div>
               </div>
               <div className="mt-6">
                 <ActivityStats stats={data.activityStats} />

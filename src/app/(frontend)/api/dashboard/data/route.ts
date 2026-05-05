@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   const conversionActions = req.nextUrl.searchParams.get("conversionActions") || "";
   const phoneCallActions = req.nextUrl.searchParams.get("phoneCallActions") || "";
   const formSubmitActions = req.nextUrl.searchParams.get("formSubmitActions") || "";
+  const conversionActionCategories = req.nextUrl.searchParams.get("conversionActionCategories") || "";
 
   if (!slug) {
     return NextResponse.json({ error: "Missing slug" }, { status: 400 });
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
     if (conversionActions) params.set("conversionActions", conversionActions);
     if (phoneCallActions) params.set("phoneCallActions", phoneCallActions);
     if (formSubmitActions) params.set("formSubmitActions", formSubmitActions);
+    if (conversionActionCategories) params.set("conversionActionCategories", conversionActionCategories);
     const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },

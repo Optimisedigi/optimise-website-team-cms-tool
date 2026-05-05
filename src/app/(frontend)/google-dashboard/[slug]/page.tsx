@@ -180,6 +180,36 @@ export default async function GoogleDashboardPage({ params }: Props) {
       conversionActions={client.dashboardConversionActions || ""}
       phoneCallActions={(client as any).phoneCallConversionActions || ""}
       formSubmitActions={(client as any).formSubmitConversionActions || ""}
+      conversionActionCategories={(() => {
+        const arr = (client as any).conversionActionCategories;
+        if (Array.isArray(arr) && arr.length > 0) {
+          return JSON.stringify(
+            arr
+              .map((c: any) => ({
+                label: String(c?.label || "").trim(),
+                color: String(c?.color || "sky"),
+                actions: String(c?.actions || "")
+                  .split(/[\r\n]+/)
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              }))
+              .filter((c: any) => c.label && c.actions.length > 0),
+          );
+        }
+        // Fallback: build implicit Phone/Form categories from legacy fields
+        const phone = String((client as any).phoneCallConversionActions || "")
+          .split(/[\r\n]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const form = String((client as any).formSubmitConversionActions || "")
+          .split(/[\r\n]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const fallback: Array<{ label: string; color: string; actions: string[] }> = [];
+        if (phone.length > 0) fallback.push({ label: "Phone Calls", color: "sky", actions: phone });
+        if (form.length > 0) fallback.push({ label: "Form Submits", color: "violet", actions: form });
+        return fallback.length > 0 ? JSON.stringify(fallback) : "";
+      })()}
       initialKeywordSelections={initialKeywordSelections}
       initialAddedSelections={initialAddedSelections}
       initialAddedNegatives={initialAddedNegatives}

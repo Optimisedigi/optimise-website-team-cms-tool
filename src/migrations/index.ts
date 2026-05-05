@@ -37,6 +37,7 @@ import * as migration_20260505_120000_add_contractor_invoicing from './20260505_
 import * as migration_20260505_140000_add_negative_sweep_candidates_lock from './20260505_140000_add_negative_sweep_candidates_lock';
 import * as migration_20260505_150000_add_last_pushed_source_to_campaign_budgets from './20260505_150000_add_last_pushed_source_to_campaign_budgets';
 import * as migration_20260505_160000_add_client_conversion_split_actions from './20260505_160000_add_client_conversion_split_actions';
+import * as migration_20260505_180000_add_client_conversion_action_categories from './20260505_180000_add_client_conversion_action_categories';
 
 export const migrations = [
   {
@@ -233,5 +234,10 @@ export const migrations = [
     up: migration_20260505_160000_add_client_conversion_split_actions.up,
     down: migration_20260505_160000_add_client_conversion_split_actions.down,
     name: '20260505_160000_add_client_conversion_split_actions'
+  },
+  {
+    up: migration_20260505_180000_add_client_conversion_action_categories.up,
+    down: migration_20260505_180000_add_client_conversion_action_categories.down,
+    name: '20260505_180000_add_client_conversion_action_categories'
   },
 ];

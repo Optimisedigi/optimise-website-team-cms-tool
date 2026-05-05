@@ -17,6 +17,9 @@ interface DashboardClientProps {
   conversionActions?: string;
   phoneCallActions?: string;
   formSubmitActions?: string;
+  /** JSON-encoded array of `{ label, color, actions: string[] }` describing
+   *  the client's named conversion-action categories. */
+  conversionActionCategories?: string;
   initialKeywordSelections?: string[];
   /** Saved deep-dive selections that have already been promoted into a real,
    *  synced NKL by the agency. The dashboard renders these in an
@@ -28,7 +31,7 @@ interface DashboardClientProps {
   initialAddedNegatives?: string[];
 }
 
-export function DashboardClient({ slug, clientId, clientName, isAuthenticated, initialData, initialError, initialQualityData, brandKeywords, conversionActions, phoneCallActions, formSubmitActions, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: DashboardClientProps) {
+export function DashboardClient({ slug, clientId, clientName, isAuthenticated, initialData, initialError, initialQualityData, brandKeywords, conversionActions, phoneCallActions, formSubmitActions, conversionActionCategories, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: DashboardClientProps) {
   const [authed, setAuthed] = useState(isAuthenticated);
   const [data, setData] = useState<GoogleAdsDashboardData | null>(initialData);
   const [error, setError] = useState(initialError || "");
@@ -87,7 +90,7 @@ export function DashboardClient({ slug, clientId, clientName, isAuthenticated, i
 
   // Dashboard
   if (data) {
-    return <GoogleAdsDashboard data={data} initialQualityData={initialQualityData ?? undefined} brandKeywords={brandKeywords} conversionActions={conversionActions} phoneCallActions={phoneCallActions} formSubmitActions={formSubmitActions} clientId={clientId} initialKeywordSelections={initialKeywordSelections} initialAddedSelections={initialAddedSelections} initialAddedNegatives={initialAddedNegatives} />;
+    return <GoogleAdsDashboard data={data} initialQualityData={initialQualityData ?? undefined} brandKeywords={brandKeywords} conversionActions={conversionActions} phoneCallActions={phoneCallActions} formSubmitActions={formSubmitActions} conversionActionCategories={conversionActionCategories} clientId={clientId} initialKeywordSelections={initialKeywordSelections} initialAddedSelections={initialAddedSelections} initialAddedNegatives={initialAddedNegatives} />;
   }
 
   return null;

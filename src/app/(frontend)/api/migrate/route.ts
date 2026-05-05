@@ -2331,6 +2331,19 @@ export async function POST(request: NextRequest) {
   await run("clients.phone_call_conversion_actions", "ALTER TABLE `clients` ADD `phone_call_conversion_actions` text");
   await run("clients.form_submit_conversion_actions", "ALTER TABLE `clients` ADD `form_submit_conversion_actions` text");
 
+  // ── Editable conversion-action categories array sub-table (2026-05-05) ──
+  await run("clients_conversion_action_categories_table", `CREATE TABLE IF NOT EXISTS \`clients_conversion_action_categories\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`label\` text NOT NULL,
+    \`color\` text DEFAULT 'sky',
+    \`actions\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_conversion_action_categories_order_idx", "CREATE INDEX IF NOT EXISTS `clients_conversion_action_categories_order_idx` ON `clients_conversion_action_categories` (`_order`)");
+  await run("clients_conversion_action_categories_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_conversion_action_categories_parent_idx` ON `clients_conversion_action_categories` (`_parent_id`)");
+
   return NextResponse.json({ ok: true, version: "2026-05-05", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 

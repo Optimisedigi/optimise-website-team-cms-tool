@@ -1,12 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
-import { DataTable, type Column } from "@/components/dashboards/shared/DataTable";
 import type { GoogleAdsDashboardCampaign } from "@/lib/dashboard-types";
 
-function formatDollars(n: number | null): string {
+function formatDollars(n: number | null | undefined): string {
   if (n == null) return "—";
   return `$${Math.round(n).toLocaleString("en-US")}`;
+}
+
+function formatNumber(n: number | null | undefined): string {
+  if (n == null) return "—";
+  return Math.round(n).toLocaleString("en-US");
 }
 
 interface CategoryBreakdownProps {
@@ -15,10 +19,8 @@ interface CategoryBreakdownProps {
 
 export function CategoryBreakdown({ campaigns }: CategoryBreakdownProps) {
   // Discover the distinct conversion-action names that contributed to any
-  // campaign in the table. Sorted by total conversions across the table so
-  // the most-active action becomes the leftmost extra column. Truncated to
-  // the top 4 to keep the table readable; remaining actions still roll up
-  // into the existing Conv total.
+  // campaign. Sorted by total contribution; truncated to top 4 so the
+  // table stays readable.
   const actionColumns = useMemo(() => {
     const totals = new Map<string, number>();
     for (const c of campaigns) {
@@ -33,58 +35,6 @@ export function CategoryBreakdown({ campaigns }: CategoryBreakdownProps) {
       .slice(0, 4)
       .map(([action]) => action);
   }, [campaigns]);
-
-  const columns: Column<GoogleAdsDashboardCampaign>[] = useMemo(() => {
-    const base: Column<GoogleAdsDashboardCampaign>[] = [
-      { key: "name", label: "Campaign", align: "left" },
-      {
-        key: "spend",
-        label: "Spend",
-        align: "right",
-        format: (v) => formatDollars(v as number),
-      },
-      {
-        key: "clicks",
-        label: "Clicks",
-        align: "center",
-        format: (v) => (v as number).toLocaleString("en-US"),
-      },
-      {
-        key: "conversions",
-        label: "Conv",
-        align: "center",
-        format: (v) => String(Math.round(v as number)),
-      },
-    ];
-    // Per-action columns. The DataTable Column type is strictly typed by
-    // keyof T, so we cast — the format callback ignores the raw value and
-    // reads conversionsByAction[action] from the row.
-    const perAction: Column<GoogleAdsDashboardCampaign>[] = actionColumns.map(
-      (action) => {
-        const shortLabel = action.length > 18 ? action.slice(0, 16) + "…" : action;
-        return {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          key: (`__action_${action}`) as any,
-          label: shortLabel,
-          align: "center",
-          format: (_v: unknown, row: GoogleAdsDashboardCampaign) => {
-            const n = row?.conversionsByAction?.[action];
-            if (!n || n === 0) return "—";
-            return String(Math.round(n));
-          },
-        };
-      },
-    );
-    const tail: Column<GoogleAdsDashboardCampaign>[] = [
-      {
-        key: "cpa",
-        label: "CPA",
-        align: "right",
-        format: (v) => formatDollars(v as number | null),
-      },
-    ];
-    return [...base, ...perAction, ...tail];
-  }, [actionColumns]);
 
   return (
     <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
@@ -101,7 +51,62 @@ export function CategoryBreakdown({ campaigns }: CategoryBreakdownProps) {
           </span>
         )}
       </div>
-      <DataTable columns={columns} rows={campaigns} emptyMessage="No campaign data" />
+
+      {campaigns.length === 0 ? (
+        <p className="text-sm text-slate-400 py-4 text-center">No campaign data</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-medium">
+                <th className="py-2 px-3 text-left">Campaign</th>
+                <th className="py-2 px-3 text-right">Spend</th>
+                <th className="py-2 px-3 text-center">Clicks</th>
+                <th className="py-2 px-3 text-center">Conv</th>
+                {actionColumns.map((action) => (
+                  <th
+                    key={action}
+                    className="py-2 px-3 text-center font-medium normal-case tracking-normal"
+                    title={action}
+                  >
+                    <span className="text-[10px] uppercase tracking-wider text-slate-400">
+                      {action.length > 22 ? action.slice(0, 20) + "…" : action}
+                    </span>
+                  </th>
+                ))}
+                <th className="py-2 px-3 text-right">CPA</th>
+              </tr>
+            </thead>
+            <tbody>
+              {campaigns.map((c) => (
+                <tr
+                  key={c.name}
+                  className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors"
+                >
+                  <td className="py-2.5 px-3 text-slate-800">{c.name}</td>
+                  <td className="py-2.5 px-3 text-right text-slate-700">{formatDollars(c.spend)}</td>
+                  <td className="py-2.5 px-3 text-center text-slate-700">{formatNumber(c.clicks)}</td>
+                  <td className="py-2.5 px-3 text-center font-semibold text-slate-900">
+                    {formatNumber(c.conversions)}
+                  </td>
+                  {actionColumns.map((action) => {
+                    const n = c.conversionsByAction?.[action] ?? 0;
+                    return (
+                      <td
+                        key={action}
+                        className="py-2.5 px-3 text-center text-slate-400"
+                      >
+                        {n > 0 ? Math.round(n).toLocaleString("en-US") : "—"}
+                      </td>
+                    );
+                  })}
+                  <td className="py-2.5 px-3 text-right text-slate-700">{formatDollars(c.cpa)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

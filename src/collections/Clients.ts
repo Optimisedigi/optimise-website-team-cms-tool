@@ -998,28 +998,76 @@ export const Clients: CollectionConfig = {
               },
             },
 
-            // ─ Conversion Split Categorisation ─
+            // ─ Conversion Action Categories ─
             // Powers the Overview tab's "Conversion Split" card and the
-            // per-campaign phone-vs-form table. Each textarea takes a
-            // newline-separated list of conversion-action names — one or
-            // both can be left blank if the client only tracks one type.
+            // per-action breakdowns shown on the KPI row, Category
+            // Breakdown table, and per-campaign splits. Each row is a
+            // user-defined bucket — name it (e.g. "Phone Calls",
+            // "Form Submits", "Email Clicks", "Get Directions") and paste
+            // the matching Google-Ads conversion-action names underneath,
+            // one per line. Drag to reorder. Anything not categorised
+            // rolls up under "Other" so missing categorisations are
+            // visible.
+            //
+            // Supersedes the legacy phoneCallConversionActions /
+            // formSubmitConversionActions textareas. When this array is
+            // empty, the legacy fields are still respected as a fallback
+            // so existing client data isn't orphaned by the upgrade.
             {
-              name: "phoneCallConversionActions",
-              type: "textarea",
+              name: "conversionActionCategories",
+              type: "array",
+              labels: { singular: "Category", plural: "Categories" },
               admin: {
                 condition: (data: any) => !!data?.googleAdsCustomerId,
                 description:
-                  'Conversion action names that count as Phone Calls on the dashboard\'s Conversion Split card. One per line.',
+                  'Group conversion actions into named categories. Each appears as its own column / tile on the dashboard.',
+                initCollapsed: false,
               },
+              fields: [
+                {
+                  name: "label",
+                  type: "text",
+                  required: true,
+                  admin: { width: "30%", placeholder: "Phone Calls" },
+                },
+                {
+                  name: "color",
+                  type: "select",
+                  defaultValue: "sky",
+                  options: [
+                    { label: "Sky Blue", value: "sky" },
+                    { label: "Violet", value: "violet" },
+                    { label: "Emerald", value: "emerald" },
+                    { label: "Amber", value: "amber" },
+                    { label: "Rose", value: "rose" },
+                    { label: "Slate", value: "slate" },
+                  ],
+                  admin: { width: "20%" },
+                },
+                {
+                  name: "actions",
+                  type: "textarea",
+                  admin: {
+                    description:
+                      "Google Ads conversion action names that fall into this category, one per line.",
+                  },
+                },
+              ],
+            },
+
+            // Legacy fixed-bucket fields — still read as a fallback when
+            // conversionActionCategories is empty, so existing client data
+            // keeps working. Hidden from the admin form so new edits go
+            // through the categories array above.
+            {
+              name: "phoneCallConversionActions",
+              type: "textarea",
+              admin: { hidden: true },
             },
             {
               name: "formSubmitConversionActions",
               type: "textarea",
-              admin: {
-                condition: (data: any) => !!data?.googleAdsCustomerId,
-                description:
-                  "Conversion action names that count as Form Submits on the dashboard's Conversion Split card. One per line.",
-              },
+              admin: { hidden: true },
             },
 
             // ─ Audit Button + Linked Audits ─

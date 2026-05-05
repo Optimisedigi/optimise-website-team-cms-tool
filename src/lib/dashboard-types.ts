@@ -171,13 +171,15 @@ export interface GoogleAdsDashboardData {
   activityStats: GoogleAdsDashboardActivityStats;
   notes: GoogleAdsDashboardNote[];
   workDone: Array<{ description: string; date: string }>;
-  /** Phone vs Form vs Other conversion totals for the active range. Null when
-   *  the client has no phoneCallConversionActions / formSubmitConversionActions
-   *  configured. */
-  conversionSplit?: { phone: number; form: number; other: number } | null;
-  /** Per-campaign phone vs form vs other split (top 15 by total). Empty array
-   *  when no split categorisation is configured. */
-  conversionSplitByCampaign?: Array<{ name: string; phone: number; form: number; other: number; total: number }>;
+  /** Conversion split by user-defined category for the active range. Each
+   *  client configures their own buckets (Phone Calls, Form Submits, Email
+   *  Clicks, etc.) on the Client doc. Null when no categorisation exists. */
+  conversionSplit?: {
+    categories: Array<{ label: string; color: string }>;
+    totals: Record<string, number>;
+  } | null;
+  /** Per-campaign split keyed by category label (top 15 by total). */
+  conversionSplitByCampaign?: Array<{ name: string; byCategory: Record<string, number>; total: number }>;
 }
 
 /** Per-month historical waste / relevancy figures for the Progress tab's
