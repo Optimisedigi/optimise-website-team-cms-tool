@@ -55,6 +55,10 @@ export interface GoogleAdsDashboardKpis {
   yoyAvgCpc: number;
   yoyConversions: number;
   yoyCpa: number | null;
+  /** Per-conversion-action totals for the active range. Drives the
+   *  "Conversions broken down" mini cards under the main Conversions
+   *  KPI tile. Only populated when the conversion-action filter is on. */
+  conversionsByAction?: Record<string, number>;
 }
 
 export interface GoogleAdsDashboardMonthly {
@@ -63,6 +67,10 @@ export interface GoogleAdsDashboardMonthly {
   conversions: number;
   brandSpend: number;
   genericSpend: number;
+  /** Per-conversion-action breakdown for this month. Only populated when
+   *  the dashboard has a conversion-action filter active (the default
+   *  child-account-owned set or a user-picked subset). */
+  conversionsByAction?: Record<string, number>;
 }
 
 export interface GoogleAdsDashboardCampaign {
@@ -72,6 +80,9 @@ export interface GoogleAdsDashboardCampaign {
   clicks: number;
   conversions: number;
   cpa: number | null;
+  /** Per-conversion-action breakdown of conversions counted in this row.
+   *  Sums to conversions. Empty when the conversion-action filter is off. */
+  conversionsByAction?: Record<string, number>;
 }
 
 export interface GoogleAdsDashboardKeyword {
