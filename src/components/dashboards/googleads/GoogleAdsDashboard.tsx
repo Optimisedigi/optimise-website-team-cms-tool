@@ -394,6 +394,15 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     setSelectedConversions(availableActions);
   }, [availableActions]);
 
+  const selectDefaultConversions = useCallback(() => {
+    // Restore the client's CMS-saved default conversion actions, intersected
+    // with what the account currently exposes so we never select a stale
+    // action name that no longer exists.
+    const availableSet = new Set(availableActions);
+    const defaults = defaultSelected.filter((a) => availableSet.has(a));
+    setSelectedConversions(defaults.length > 0 ? defaults : defaultSelected);
+  }, [availableActions, defaultSelected]);
+
   const clearAllConversions = useCallback(() => {
     setSelectedConversions([]);
   }, []);
@@ -541,6 +550,15 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                       <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Conversion Actions</span>
                       <div className="flex gap-2">
                         <button onClick={selectAllConversions} className="text-xs text-blue-600 hover:text-blue-800">All</button>
+                        {defaultSelected.length > 0 && (
+                          <button
+                            onClick={selectDefaultConversions}
+                            className="text-xs text-blue-600 hover:text-blue-800"
+                            title="Restore the client's CMS-saved default conversion actions"
+                          >
+                            Default
+                          </button>
+                        )}
                         <button onClick={clearAllConversions} className="text-xs text-slate-400 hover:text-slate-600">None</button>
                       </div>
                     </div>
