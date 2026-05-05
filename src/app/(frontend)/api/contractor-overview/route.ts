@@ -155,5 +155,73 @@ export async function GET() {
     }),
   );
 
-  return NextResponse.json({ contractors: rows });
+  // Recent payments across all contractors (last 8)
+  const recentPayments = await payload.find({
+    collection: "contractor-payments",
+    sort: "-fortnightStartDate",
+    limit: 8,
+    depth: 1,
+    overrideAccess: true,
+  });
+
+  const recent = (recentPayments.docs as any[]).map((p) => {
+    const contractorObj = typeof p.contractor === "object" ? p.contractor : null;
+    return {
+      id: p.id,
+      contractorId: contractorObj?.id ?? p.contractor,
+      contractorName: contractorObj?.name || "—",
+      currency: contractorObj?.currency || "AUD",
+      fortnightStartDate: p.fortnightStartDate,
+      fortnightEndDate: p.fortnightEndDate,
+      transferAmount: Number(p.transferAmount || 0),
+      transferReference: p.transferReference || "",
+      status: p.status || "scheduled",
+      paymentDate: p.paymentDate,
+      sentAt: p.sentAt,
+    };
+  });
+
+  // Submitted entries across all contractors that need agency approval
+  const pendingEntries = await payload.find({
+    collection: "contractor-time-entries",
+    where: { status: { equals: "submitted" } },
+    sort: "-weekCommencing",
+    limit: 50,
+    depth: 1,
+    overrideAccess: true,
+  });
+
+  const pending = (pendingEntries.docs as any[]).map((e) => {
+    const contractorObj = typeof e.contractor === "object" ? e.contractor : null;
+    return {
+      id: e.id,
+      contractorId: contractorObj?.id ?? e.contractor,
+      contractorName: contractorObj?.name || "—",
+      currency: contractorObj?.currency || "AUD",
+      weekCommencing: e.weekCommencing,
+      hours: Number(e.hours || 0),
+      totalFee: Number(e.totalFee || 0),
+      notes: e.notes || "",
+    };
+  });
+
+  // Aggregate totals across all active contractors
+  const globals = rows.reduce(
+    (acc, r) => ({
+      activeContractors: acc.activeContractors + 1,
+      mtdHours: acc.mtdHours + r.mtd.hours,
+      mtdCost: acc.mtdCost + r.mtd.cost,
+      ytdHours: acc.ytdHours + r.ytd.hours,
+      ytdCost: acc.ytdCost + r.ytd.cost,
+      pendingCount: acc.pendingCount + r.pendingCount,
+    }),
+    { activeContractors: 0, mtdHours: 0, mtdCost: 0, ytdHours: 0, ytdCost: 0, pendingCount: 0 },
+  );
+
+  return NextResponse.json({
+    contractors: rows,
+    recentPayments: recent,
+    pendingEntries: pending,
+    globals,
+  });
 }

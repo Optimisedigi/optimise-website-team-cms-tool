@@ -135,19 +135,25 @@ const SidebarNavExtras = () => {
       )
     }
 
-    // Hide the auto-generated GoogleAdsAudits collection link in the sidebar
-    // so it doesn't duplicate the hub above. The collection itself is still
-    // reachable by URL (the hub deep-links into individual audit records).
-    const hideAuditCollectionLink = () => {
-      const link = document.querySelector(
-        '#nav-group-Growth\\ Tools a.nav__link[href="/admin/collections/google-ads-audits"]',
-      ) as HTMLElement | null
-      if (link && link.style.display !== 'none') {
-        link.style.display = 'none'
+    // Hide auto-generated collection links that already have a custom hub
+    // page injected above them. The records remain reachable by URL — the
+    // hubs deep-link into individual records, and the contractor hub also
+    // surfaces these collections in its tables.
+    const HIDDEN_COLLECTION_HREFS = [
+      '/admin/collections/google-ads-audits',
+      '/admin/collections/contractors',
+      '/admin/collections/contractor-payments',
+    ]
+    const hideAutoCollectionLinks = () => {
+      for (const href of HIDDEN_COLLECTION_HREFS) {
+        const link = document.querySelector(`a.nav__link[href="${href}"]`) as HTMLElement | null
+        if (link && link.style.display !== 'none') {
+          link.style.display = 'none'
+        }
       }
     }
-    hideAuditCollectionLink()
-    const hideInterval = setInterval(hideAuditCollectionLink, 500)
+    hideAutoCollectionLinks()
+    const hideInterval = setInterval(hideAutoCollectionLinks, 500)
 
     if (canInvoices) {
       injectLink(
@@ -166,7 +172,7 @@ const SidebarNavExtras = () => {
         'contractor-costs',
         '/admin/contractor-costs',
         ICONS.contractorCosts,
-        'Contractor Costs',
+        'Contractors',
         'prepend',
       )
     }
