@@ -740,7 +740,7 @@ export function ProgressTab({
           label="Non-Converting Spend"
           value={`$${Math.round(totalWaste)}`}
           change={null}
-          hint={`Spend on ${budgetWasters.length} search term${budgetWasters.length !== 1 ? "s" : ""} that didn't convert in this period. Some of this is expected \u2014 review the list to spot terms worth excluding as negatives.`}
+          hint={`Spend on the top 20 highest-spending search terms (each spending more than $20) that didn't convert in this period. Currently ${budgetWasters.length} term${budgetWasters.length !== 1 ? "s" : ""} match. Long-tail non-converting spend below the $20 threshold is excluded. Some of this is expected \u2014 review the list to spot terms worth excluding as negatives.`}
         />
       </div>
 
