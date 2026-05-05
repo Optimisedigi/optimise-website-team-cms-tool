@@ -25,6 +25,9 @@ import { ActivityLog } from "./collections/ActivityLog";
 import { CostCategories } from "./collections/CostCategories";
 import { CostRules } from "./collections/CostRules";
 import { BusinessCosts } from "./collections/BusinessCosts";
+import { Contractors } from "./collections/Contractors";
+import { ContractorTimeEntries } from "./collections/ContractorTimeEntries";
+import { ContractorPayments } from "./collections/ContractorPayments";
 import { BlogPrompts } from "./collections/BlogPrompts";
 import { GoogleAdsAudits } from "./collections/GoogleAdsAudits";
 import { GoogleAdsCampaignBudgets } from "./collections/GoogleAdsCampaignBudgets";
@@ -101,6 +104,7 @@ export default buildConfig({
     AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Finance
     BusinessCosts, CostCategories, CostRules,
+    Contractors, ContractorTimeEntries, ContractorPayments,
     // Admin
     Users, PermissionProfiles, UsageReports, ActivityLog,
     // Hidden (no group impact)

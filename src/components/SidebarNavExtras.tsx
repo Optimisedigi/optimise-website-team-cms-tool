@@ -39,6 +39,8 @@ const ICONS = {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
   googleAds:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>',
+  contractorCosts:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
 }
 
 const SidebarNavExtras = () => {
@@ -48,6 +50,7 @@ const SidebarNavExtras = () => {
   const canIndexingHelper = userHasFeature(user, 'nav:indexing-helper')
   const canInvoices = userHasFeature(user, 'nav:invoices')
   const canGoogleAds = userHasFeature(user, 'nav:google-ads')
+  const canContractorCosts = userHasFeature(user, 'nav:contractor-costs') || userHasFeature(user, 'contractors')
 
   // Watch for active nav link and apply highlight + keep icon visible
   useEffect(() => {
@@ -157,12 +160,23 @@ const SidebarNavExtras = () => {
       )
     }
 
+    if (canContractorCosts) {
+      injectLink(
+        '#nav-group-Finance .nav-group__content',
+        'contractor-costs',
+        '/admin/contractor-costs',
+        ICONS.contractorCosts,
+        'Contractor Costs',
+        'prepend',
+      )
+    }
+
     // Icons for collection/global nav links are now handled via CSS ::before in custom.scss
 
     return () => {
       clearInterval(hideInterval)
     }
-  }, [canIntegrations, canDeployments, canIndexingHelper, canInvoices, canGoogleAds])
+  }, [canIntegrations, canDeployments, canIndexingHelper, canInvoices, canGoogleAds, canContractorCosts])
 
   // Mobile: bounce-back zoom — allow pinch zoom but snap back to 1x when released
   useEffect(() => {

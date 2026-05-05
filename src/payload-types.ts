@@ -98,6 +98,9 @@ export interface Config {
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
+    contractors: Contractor;
+    'contractor-time-entries': ContractorTimeEntry;
+    'contractor-payments': ContractorPayment;
     users: User;
     'permission-profiles': PermissionProfile;
     'usage-reports': UsageReport;
@@ -158,6 +161,9 @@ export interface Config {
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
+    contractors: ContractorsSelect<false> | ContractorsSelect<true>;
+    'contractor-time-entries': ContractorTimeEntriesSelect<false> | ContractorTimeEntriesSelect<true>;
+    'contractor-payments': ContractorPaymentsSelect<false> | ContractorPaymentsSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     'permission-profiles': PermissionProfilesSelect<false> | PermissionProfilesSelect<true>;
     'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
@@ -3973,6 +3979,8 @@ export interface User {
         | 'cost-rules'
         | 'api-cost-rates'
         | 'nav:invoices'
+        | 'contractors'
+        | 'nav:contractor-costs'
         | 'nav:google-analytics'
         | 'nav:search-console'
         | 'nav:deployments'
@@ -4064,6 +4072,8 @@ export interface PermissionProfile {
         | 'cost-rules'
         | 'api-cost-rates'
         | 'nav:invoices'
+        | 'contractors'
+        | 'nav:contractor-costs'
         | 'nav:google-analytics'
         | 'nav:search-console'
         | 'nav:deployments'
@@ -4866,6 +4876,141 @@ export interface CostRule {
   createdAt: string;
 }
 /**
+ * Contractors and their rate cards. Each contractor gets a portal token they use to log hours.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contractors".
+ */
+export interface Contractor {
+  id: number;
+  name: string;
+  email?: string | null;
+  /**
+   * Rate per hour in the contractor's currency (default AUD).
+   */
+  hourlyRate: number;
+  currency: 'AUD' | 'USD' | 'GBP' | 'EUR';
+  /**
+   * Used to estimate next fortnight's cost on the overview page.
+   */
+  defaultWeeklyHours?: number | null;
+  /**
+   * Tool reimbursement bundled into each fortnightly payment. Set to 0 if none.
+   */
+  chatGptReimbursementPerFortnight?: number | null;
+  /**
+   * Default Wise transfer fee per fortnight. Override per payment if it differs.
+   */
+  transferFeeDefault?: number | null;
+  /**
+   * Template for the bank reference. {startShort}/{endShort} = DDMM. {startDate}/{endDate} = full date.
+   */
+  transferReferenceTemplate?: string | null;
+  /**
+   * Monday that anchors fortnight 1. Used to derive fortnight numbers for time entries.
+   */
+  fortnightAnchorDate?: string | null;
+  /**
+   * Inactive contractors are hidden from the costs overview.
+   */
+  isActive?: boolean | null;
+  /**
+   * Auto-generated. Share /contractor/[token] with the contractor to log hours.
+   */
+  portalToken?: string | null;
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Weekly hours logged by contractors. Approved entries flow into fortnightly payments.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contractor-time-entries".
+ */
+export interface ContractorTimeEntry {
+  id: number;
+  contractor: number | Contractor;
+  /**
+   * Monday of the week being logged.
+   */
+  weekCommencing: string;
+  hours: number;
+  status: 'draft' | 'submitted' | 'approved' | 'paid';
+  /**
+   * Rate at the time the entry was saved.
+   */
+  hourlyRateSnapshot?: number | null;
+  /**
+   * hours × hourlyRateSnapshot, computed automatically.
+   */
+  totalFee?: number | null;
+  /**
+   * Set when this entry rolls up into a fortnightly payment.
+   */
+  payment?: (number | null) | ContractorPayment;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  paidAt?: string | null;
+  /**
+   * Optional contractor or admin note.
+   */
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Fortnightly payments. Generated from approved time entries.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contractor-payments".
+ */
+export interface ContractorPayment {
+  id: number;
+  contractor: number | Contractor;
+  /**
+   * First Monday of the fortnight being paid.
+   */
+  fortnightStartDate: string;
+  /**
+   * Defaults to start + 13 days.
+   */
+  fortnightEndDate?: string | null;
+  /**
+   * Sum of hours across linked time entries.
+   */
+  totalHours?: number | null;
+  /**
+   * Sum of totalFee across linked time entries.
+   */
+  subtotal?: number | null;
+  /**
+   * Pulled from contractor default; override per fortnight if needed.
+   */
+  chatGptReimbursement?: number | null;
+  /**
+   * Wise transfer fee. Defaults to contractor.transferFeeDefault.
+   */
+  transferFee?: number | null;
+  /**
+   * subtotal + ChatGPT reimbursement + transfer fee.
+   */
+  transferAmount?: number | null;
+  /**
+   * Auto-filled from contractor template — copy/paste into Wise.
+   */
+  transferReference?: string | null;
+  status: 'scheduled' | 'sent';
+  /**
+   * Date you actually paid the contractor.
+   */
+  paymentDate?: string | null;
+  sentAt?: string | null;
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Monthly usage and estimated API cost reports from the growth tools
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -5413,6 +5558,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'cost-rules';
         value: number | CostRule;
+      } | null)
+    | ({
+        relationTo: 'contractors';
+        value: number | Contractor;
+      } | null)
+    | ({
+        relationTo: 'contractor-time-entries';
+        value: number | ContractorTimeEntry;
+      } | null)
+    | ({
+        relationTo: 'contractor-payments';
+        value: number | ContractorPayment;
       } | null)
     | ({
         relationTo: 'users';
@@ -6883,6 +7040,66 @@ export interface CostCategoriesSelect<T extends boolean = true> {
 export interface CostRulesSelect<T extends boolean = true> {
   pattern?: T;
   category?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contractors_select".
+ */
+export interface ContractorsSelect<T extends boolean = true> {
+  name?: T;
+  email?: T;
+  hourlyRate?: T;
+  currency?: T;
+  defaultWeeklyHours?: T;
+  chatGptReimbursementPerFortnight?: T;
+  transferFeeDefault?: T;
+  transferReferenceTemplate?: T;
+  fortnightAnchorDate?: T;
+  isActive?: T;
+  portalToken?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contractor-time-entries_select".
+ */
+export interface ContractorTimeEntriesSelect<T extends boolean = true> {
+  contractor?: T;
+  weekCommencing?: T;
+  hours?: T;
+  status?: T;
+  hourlyRateSnapshot?: T;
+  totalFee?: T;
+  payment?: T;
+  submittedAt?: T;
+  approvedAt?: T;
+  paidAt?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contractor-payments_select".
+ */
+export interface ContractorPaymentsSelect<T extends boolean = true> {
+  contractor?: T;
+  fortnightStartDate?: T;
+  fortnightEndDate?: T;
+  totalHours?: T;
+  subtotal?: T;
+  chatGptReimbursement?: T;
+  transferFee?: T;
+  transferAmount?: T;
+  transferReference?: T;
+  status?: T;
+  paymentDate?: T;
+  sentAt?: T;
+  notes?: T;
   updatedAt?: T;
   createdAt?: T;
 }

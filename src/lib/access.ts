@@ -74,6 +74,8 @@ export const FEATURE_KEYS = [
   { label: "Cost Rules", value: "cost-rules" },
   { label: "API Cost Rates (Global)", value: "api-cost-rates" },
   { label: "Invoices (Xero)", value: "nav:invoices" },
+  { label: "Contractors", value: "contractors" },
+  { label: "Contractor Costs (page)", value: "nav:contractor-costs" },
   // Performance
   { label: "Google Analytics", value: "nav:google-analytics" },
   { label: "Search Console", value: "nav:search-console" },
@@ -300,6 +302,24 @@ export function canAccessOrApiKey(
     if (hasValidApiKey(req)) return true;
     if (!req.user) return false;
     return hasFeature(req.user, slug);
+  };
+}
+
+/**
+ * Same as `canAccessAny` but with an API-key fallback. Lets internal services
+ * (Growth Tools, the Optimate agents) read docs without a logged-in user
+ * session by sending `x-api-key: AUDIT_API_KEY`.
+ */
+export function canAccessAnyOrApiKey(
+  hasValidApiKey: (req: any) => boolean,
+  ...slugs: FeatureSlug[]
+): Access {
+  return ({ req }) => {
+    if (hasValidApiKey(req)) return true;
+    if (!req.user) return false;
+    if (isAdmin(req.user)) return true;
+    const features = getEffectiveFeatures(req.user);
+    return slugs.some((s) => features.has(s));
   };
 }
 

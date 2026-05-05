@@ -2243,7 +2243,77 @@ export async function POST(request: NextRequest) {
   await run("waste_relevancy_cache_updated_at_idx", "CREATE INDEX IF NOT EXISTS `waste_relevancy_cache_updated_at_idx` ON `negative_keyword_monthly_waste_relevancy_cache` (`updated_at`)");
   await run("locked_docs_rels.negative_keyword_monthly_waste_relevancy_cache_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_keyword_monthly_waste_relevancy_cache_id` integer REFERENCES `negative_keyword_monthly_waste_relevancy_cache`(`id`) ON DELETE cascade");
 
-  return NextResponse.json({ ok: true, version: "2026-05-01", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── contractor invoicing tables (2026-05-05) ──
+  await run("contractors_table", `CREATE TABLE IF NOT EXISTS \`contractors\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`name\` text NOT NULL,
+    \`email\` text,
+    \`hourly_rate\` numeric DEFAULT 20.5 NOT NULL,
+    \`currency\` text DEFAULT 'AUD' NOT NULL,
+    \`default_weekly_hours\` numeric DEFAULT 16,
+    \`chat_gpt_reimbursement_per_fortnight\` numeric DEFAULT 31.83,
+    \`transfer_fee_default\` numeric DEFAULT 4,
+    \`transfer_reference_template\` text DEFAULT '{startShort}-{endShort} Optimise',
+    \`fortnight_anchor_date\` text,
+    \`is_active\` integer DEFAULT 1,
+    \`portal_token\` text,
+    \`notes\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("contractors_portal_token_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `contractors_portal_token_idx` ON `contractors` (`portal_token`)");
+  await run("contractors_is_active_idx", "CREATE INDEX IF NOT EXISTS `contractors_is_active_idx` ON `contractors` (`is_active`)");
+
+  await run("contractor_payments_table", `CREATE TABLE IF NOT EXISTS \`contractor_payments\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`contractor_id\` integer NOT NULL,
+    \`fortnight_start_date\` text NOT NULL,
+    \`fortnight_end_date\` text,
+    \`total_hours\` numeric,
+    \`subtotal\` numeric,
+    \`chat_gpt_reimbursement\` numeric,
+    \`transfer_fee\` numeric,
+    \`transfer_amount\` numeric,
+    \`transfer_reference\` text,
+    \`status\` text DEFAULT 'scheduled' NOT NULL,
+    \`payment_date\` text,
+    \`sent_at\` text,
+    \`notes\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`contractor_id\`) REFERENCES \`contractors\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("contractor_payments_contractor_idx", "CREATE INDEX IF NOT EXISTS `contractor_payments_contractor_idx` ON `contractor_payments` (`contractor_id`)");
+  await run("contractor_payments_fortnight_start_idx", "CREATE INDEX IF NOT EXISTS `contractor_payments_fortnight_start_idx` ON `contractor_payments` (`fortnight_start_date`)");
+
+  await run("contractor_time_entries_table", `CREATE TABLE IF NOT EXISTS \`contractor_time_entries\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`contractor_id\` integer NOT NULL,
+    \`week_commencing\` text NOT NULL,
+    \`hours\` numeric DEFAULT 0 NOT NULL,
+    \`status\` text DEFAULT 'draft' NOT NULL,
+    \`hourly_rate_snapshot\` numeric,
+    \`total_fee\` numeric,
+    \`payment_id\` integer,
+    \`submitted_at\` text,
+    \`approved_at\` text,
+    \`paid_at\` text,
+    \`notes\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`contractor_id\`) REFERENCES \`contractors\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    FOREIGN KEY (\`payment_id\`) REFERENCES \`contractor_payments\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("contractor_time_entries_contractor_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_contractor_idx` ON `contractor_time_entries` (`contractor_id`)");
+  await run("contractor_time_entries_week_commencing_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_week_commencing_idx` ON `contractor_time_entries` (`week_commencing`)");
+  await run("contractor_time_entries_status_idx", "CREATE INDEX IF NOT EXISTS `contractor_time_entries_status_idx` ON `contractor_time_entries` (`status`)");
+  await run("contractor_time_entries_unique_week", "CREATE UNIQUE INDEX IF NOT EXISTS `contractor_time_entries_unique_week` ON `contractor_time_entries` (`contractor_id`, `week_commencing`)");
+
+  await run("locked_docs_rels.contractors_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contractors_id` integer REFERENCES `contractors`(`id`) ON DELETE cascade");
+  await run("locked_docs_rels.contractor_payments_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contractor_payments_id` integer REFERENCES `contractor_payments`(`id`) ON DELETE cascade");
+  await run("locked_docs_rels.contractor_time_entries_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contractor_time_entries_id` integer REFERENCES `contractor_time_entries`(`id`) ON DELETE cascade");
+
+  return NextResponse.json({ ok: true, version: "2026-05-05", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
