@@ -159,29 +159,33 @@ export function StackedBarChart({
                       ry={3}
                     />
                   )}
-                  {/* Tooltip */}
-                  {hoveredBar === i && (
-                    <g>
-                      <rect
-                        x={i * (barSlotWidth + gap) + barSlotWidth / 2 - 40}
-                        y={barY - 28}
-                        width={80}
-                        height={20}
-                        rx={4}
-                        fill="#1e293b"
-                      />
-                      <text
-                        x={i * (barSlotWidth + gap) + barSlotWidth / 2}
-                        y={barY - 15}
-                        textAnchor="middle"
-                        fontSize={10}
-                        fill="white"
-                      >
-                        {formatDollarsShort(total)}
-                        {d.lineValue != null ? ` / ${d.lineValue} conv` : ""}
-                      </text>
-                    </g>
-                  )}
+                  {/* Tooltip — clamped so it never escapes the top of the SVG */}
+                  {hoveredBar === i && (() => {
+                    const tooltipRectY = Math.max(barY - 28, 2);
+                    const tooltipTextY = tooltipRectY + 13;
+                    return (
+                      <g>
+                        <rect
+                          x={i * (barSlotWidth + gap) + barSlotWidth / 2 - 40}
+                          y={tooltipRectY}
+                          width={80}
+                          height={20}
+                          rx={4}
+                          fill="#1e293b"
+                        />
+                        <text
+                          x={i * (barSlotWidth + gap) + barSlotWidth / 2}
+                          y={tooltipTextY}
+                          textAnchor="middle"
+                          fontSize={10}
+                          fill="white"
+                        >
+                          {formatDollarsShort(total)}
+                          {d.lineValue != null ? ` / ${d.lineValue} conv` : ""}
+                        </text>
+                      </g>
+                    );
+                  })()}
                   {/* Month label */}
                   <text
                     x={i * (barSlotWidth + gap) + barSlotWidth / 2}

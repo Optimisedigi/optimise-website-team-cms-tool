@@ -706,7 +706,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             // picks at the top of the dashboard — otherwise selecting
             // "This month" on the 1st collapses the chart to a single point.
             <ProgressTab
-              monthlyTrend={chartMonthlyTrend}
+              monthlyTrend={chart14Months}
               budgetWasters={data.budgetWasters}
               irrelevantTerms={data.irrelevantTerms}
               kpis={data.kpis}
