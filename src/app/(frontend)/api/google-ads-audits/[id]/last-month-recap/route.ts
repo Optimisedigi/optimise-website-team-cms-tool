@@ -24,6 +24,13 @@ interface SearchTermRow {
   clicks: number;
   cost: number;
   conversions: number;
+  conversionsByAction?: Record<string, number>;
+  conversionsByCategory?: Record<string, number>;
+}
+
+interface CategoryDef {
+  label: string;
+  color: string;
 }
 
 interface Insight {
@@ -172,6 +179,32 @@ export async function POST(
     .map((s: string) => s.trim())
     .filter(Boolean);
 
+  // Build the conversionActionCategories JSON the dashboard endpoint
+  // expects so the recap email can render per-category columns on the
+  // Top by Conversions table.
+  let categoriesArray: Array<{ label: string; color: string; actions: string[] }> = [];
+  const rawCategories = (linkedClient as any)?.conversionActionCategories;
+  if (Array.isArray(rawCategories) && rawCategories.length > 0) {
+    categoriesArray = rawCategories
+      .map((c: any) => ({
+        label: String(c?.label || "").trim(),
+        color: String(c?.color || "sky"),
+        actions: String(c?.actions || "")
+          .split(/[\r\n,]+/)
+          .map((s: string) => s.trim())
+          .filter(Boolean),
+      }))
+      .filter((c) => c.label && c.actions.length > 0);
+  } else {
+    const phone = String((linkedClient as any)?.phoneCallConversionActions || "")
+      .split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean);
+    const form = String((linkedClient as any)?.formSubmitConversionActions || "")
+      .split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean);
+    if (phone.length > 0) categoriesArray.push({ label: "Phone Calls", color: "sky", actions: phone });
+    if (form.length > 0) categoriesArray.push({ label: "Form Submits", color: "violet", actions: form });
+  }
+  const categoriesParam = categoriesArray.length > 0 ? JSON.stringify(categoriesArray) : "";
+
   const cleanCustomerId = String(customerId).replace(/-/g, "");
   const { label, year, month } = lastMonthLabel();
 
@@ -225,6 +258,9 @@ export async function POST(
     if (conversionActions.length > 0) {
       stUrl.searchParams.set("conversionActions", conversionActions.join(","));
     }
+    if (categoriesParam) {
+      stUrl.searchParams.set("conversionActionCategories", categoriesParam);
+    }
 
     const r = await fetch(stUrl.toString(), {
       headers: { "x-internal-key": INTERNAL_API_KEY },
@@ -239,6 +275,8 @@ export async function POST(
         clicks: Number(t.clicks ?? 0),
         cost: Number(t.cost ?? t.spend ?? 0),
         conversions: Number(t.conversions ?? 0),
+        conversionsByAction: t.conversionsByAction,
+        conversionsByCategory: t.conversionsByCategory,
       }));
     }
   } catch (e: any) {
@@ -327,5 +365,6 @@ export async function POST(
     topBySpend,
     insights,
     searchTermsAvailable: searchTerms.length > 0,
+    conversionCategories: categoriesArray.map(({ label, color }) => ({ label, color })),
   });
 }

@@ -20,8 +20,10 @@ function formatPct(n: number): string {
 const W_TERM = "w-[28%]";
 const W_METRIC = "w-[12%]";
 
-// Best Performers: all 7 metric columns
-const converterColumns: Column<GoogleAdsDashboardSearchTerm>[] = [
+// Best Performers: 7 fixed columns. Per-category columns are inserted
+// dynamically below in `useConverterColumns` after the Conv total when
+// any row in the data carries `conversionsByCategory`.
+const baseConverterColumns: Column<GoogleAdsDashboardSearchTerm>[] = [
   { key: "term", label: "Search Term", align: "left", width: W_TERM },
   { key: "spend", label: "Spend", align: "right", width: W_METRIC, format: (v) => formatDollars(v as number) },
   { key: "impressions", label: "Impr", align: "center", width: W_METRIC, format: (v) => (v as number).toLocaleString("en-US") },
@@ -30,6 +32,44 @@ const converterColumns: Column<GoogleAdsDashboardSearchTerm>[] = [
   { key: "ctr", label: "CTR", align: "right", width: W_METRIC, format: (v) => formatPct(v as number) },
   { key: "cpa", label: "CPA", align: "right", width: W_METRIC, format: (v) => formatDollars(v as number | null) },
 ];
+
+function buildConverterColumns(
+  rows: GoogleAdsDashboardSearchTerm[],
+): Column<GoogleAdsDashboardSearchTerm>[] {
+  // Discover up to 4 dominant category labels across the visible rows.
+  const totals = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.conversionsByCategory) continue;
+    for (const [label, n] of Object.entries(r.conversionsByCategory)) {
+      if (!Number.isFinite(n) || n <= 0) continue;
+      totals.set(label, (totals.get(label) || 0) + n);
+    }
+  }
+  const labels = Array.from(totals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([label]) => label);
+  if (labels.length === 0) return baseConverterColumns;
+
+  // Insert per-category columns after Conv (index 4).
+  const head = baseConverterColumns.slice(0, 5);
+  const tail = baseConverterColumns.slice(5);
+  const perCategory: Column<GoogleAdsDashboardSearchTerm>[] = labels.map(
+    (label) => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      key: (`__cat_${label}`) as any,
+      label: label.length > 14 ? label.slice(0, 12) + "…" : label,
+      align: "center",
+      // Lighter text — supporting metric next to the bolder Conv total.
+      format: (_: unknown, row: GoogleAdsDashboardSearchTerm) => {
+        const n = row.conversionsByCategory?.[label] ?? 0;
+        if (!n || n === 0) return "—";
+        return Math.round(n).toLocaleString("en-US");
+      },
+    }),
+  );
+  return [...head, ...perCategory, ...tail];
+}
 
 // Budget Wasters & Irrelevant: no Conv/CPA columns
 const reducedColumns: Column<GoogleAdsDashboardSearchTerm>[] = [
@@ -282,7 +322,7 @@ export function KeywordDeepDive({
           Search terms that led to conversions in the last 30 days
         </p>
         <DataTable
-          columns={converterColumns}
+          columns={buildConverterColumns(visibleConverters)}
           rows={visibleConverters}
           emptyMessage="No converting search terms yet"
         />

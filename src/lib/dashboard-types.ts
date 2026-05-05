@@ -101,6 +101,12 @@ export interface GoogleAdsDashboardSearchTerm {
   conversions: number;
   ctr: number;
   cpa: number | null;
+  /** Per-conversion-action breakdown of `conversions`. Only populated
+   *  when the dashboard fetch had a conversion-action filter active. */
+  conversionsByAction?: Record<string, number>;
+  /** Per-category roll-up using the client's editable categories. Only
+   *  populated when the client has at least one category configured. */
+  conversionsByCategory?: Record<string, number>;
 }
 
 export interface GoogleAdsDashboardCompetitor {

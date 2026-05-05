@@ -273,6 +273,7 @@ interface LastMonthRecap {
   topBySpend: Array<SearchTermRow>;
   insights: Array<{ severity: 'good' | 'warning' | 'critical'; title: string; body: string }>;
   searchTermsAvailable: boolean;
+  conversionCategories?: Array<{ label: string; color: string }>;
 }
 
 interface SearchTermRow {
@@ -282,24 +283,47 @@ interface SearchTermRow {
   clicks: number;
   cost: number;
   conversions: number;
+  conversionsByAction?: Record<string, number>;
+  conversionsByCategory?: Record<string, number>;
 }
 
 function searchTermRows(
   rows: SearchTermRow[],
-  metricKey: 'clicks' | 'conversions' | 'cost'
+  metricKey: 'clicks' | 'conversions' | 'cost',
+  categories?: Array<{ label: string; color: string }>,
 ): string {
+  // For the "By Conversions" table, show one extra column per configured
+  // category so each row breaks the conversion total down by Phone Calls /
+  // Form Submits / etc. Only render those columns when at least one row
+  // actually has per-category data — otherwise the columns would just be
+  // a row of em dashes.
+  const showCategoryCols =
+    metricKey === 'conversions' &&
+    Array.isArray(categories) &&
+    categories.length > 0 &&
+    rows.some((r) => r.conversionsByCategory && Object.keys(r.conversionsByCategory).length > 0);
+  const totalCols = 4 + (showCategoryCols ? categories!.length : 0);
+
   if (rows.length === 0) {
-    return `<tr><td colspan="4" style="padding:12px;font-size:12px;color:#94a3b8;text-align:center;border-bottom:1px solid #e5e7eb">No data available</td></tr>`;
+    return `<tr><td colspan="${totalCols}" style="padding:12px;font-size:12px;color:#94a3b8;text-align:center;border-bottom:1px solid #e5e7eb">No data available</td></tr>`;
   }
   return rows.map((r, i) => {
     const metricVal = metricKey === 'cost'
       ? `$${r.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
       : r[metricKey].toLocaleString();
+    const categoryCells = showCategoryCols
+      ? (categories || []).map((c) => {
+          const n = r.conversionsByCategory?.[c.label] ?? 0;
+          const display = n > 0 ? Math.round(n).toLocaleString() : '—';
+          return `<td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:right;color:#94a3b8">${display}</td>`;
+        }).join('')
+      : '';
     return `<tr>
       <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#64748b">${i + 1}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px">${r.searchTerm}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#64748b">${r.campaignName || '—'}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:right;font-weight:600">${metricVal}</td>
+      ${categoryCells}
     </tr>`;
   }).join('');
 }
@@ -463,8 +487,9 @@ function generateLastMonthEmailHtml(
         <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Search Term</th>
         <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Campaign</th>
         <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Conv.</th>
+        ${(recap.conversionCategories || []).map((c) => `<th style=\"padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:#94a3b8;border-bottom:2px solid #e5e7eb\">${c.label}</th>`).join('')}
       </tr>
-      ${searchTermRows(recap.topByConversions, 'conversions')}
+      ${searchTermRows(recap.topByConversions, 'conversions', recap.conversionCategories)}
     </table>
   </div>
 
