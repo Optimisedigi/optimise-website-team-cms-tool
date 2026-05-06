@@ -66,11 +66,12 @@ export function CategoryBreakdown({ campaigns }: CategoryBreakdownProps) {
                 {actionColumns.map((action) => (
                   <th
                     key={action}
-                    className="py-2 px-3 text-center font-medium normal-case tracking-normal"
+                    className="py-2 px-1.5 text-center font-medium normal-case tracking-normal align-bottom"
+                    style={{ maxWidth: 88, minWidth: 60, width: 72 }}
                     title={action}
                   >
-                    <span className="text-[10px] uppercase tracking-wider text-slate-400">
-                      {action.length > 22 ? action.slice(0, 20) + "…" : action}
+                    <span className="block text-[10px] uppercase tracking-wider text-slate-400 leading-tight" style={{ wordBreak: "break-word", whiteSpace: "normal" }}>
+                      {action}
                     </span>
                   </th>
                 ))}
@@ -94,7 +95,8 @@ export function CategoryBreakdown({ campaigns }: CategoryBreakdownProps) {
                     return (
                       <td
                         key={action}
-                        className="py-2.5 px-3 text-center text-slate-400"
+                        className="py-2.5 px-1.5 text-center text-slate-400"
+                        style={{ maxWidth: 88, minWidth: 60, width: 72 }}
                       >
                         {n > 0 ? Math.round(n).toLocaleString("en-US") : "—"}
                       </td>
