@@ -124,6 +124,24 @@ export const Clients: CollectionConfig = {
           req.payload.logger?.warn?.(`[Clients] waste-relevancy cache flush failed: ${err}`);
         }
       },
+      // Wipe the per-month waste/relevancy cache whenever the client's
+      // brand keywords change, so the Overview tab's brand/generic split
+      // re-derives from the new keyword set on the next dashboard load.
+      async ({ doc, previousDoc, operation, req }) => {
+        if (operation !== "update") return;
+        const prev = String(previousDoc?.brandKeywords || "").trim();
+        const next = String(doc?.brandKeywords || "").trim();
+        if (prev === next) return;
+        try {
+          await req.payload.delete({
+            collection: "negative-keyword-monthly-waste-relevancy-cache",
+            where: { client: { equals: doc.id } },
+            overrideAccess: true,
+          });
+        } catch (err) {
+          req.payload.logger?.warn?.(`[Clients] waste-relevancy brand cache flush failed: ${err}`);
+        }
+      },
     ],
     afterRead: [
       ({ doc }) => {

@@ -5421,6 +5421,10 @@ export interface NegativeKeywordMonthlyWasteRelevancyCache {
    */
   irrelevantSpend: number;
   /**
+   * Cost on search terms matching the client's brand keywords (substring match).
+   */
+  brandSpend?: number | null;
+  /**
    * True once the month is in the past — never refetched.
    */
   isFinal?: boolean | null;
@@ -7348,6 +7352,7 @@ export interface NegativeKeywordMonthlyWasteRelevancyCacheSelect<T extends boole
   totalSpend?: T;
   nonConvertingSpend?: T;
   irrelevantSpend?: T;
+  brandSpend?: T;
   isFinal?: T;
   fetchedAt?: T;
   updatedAt?: T;

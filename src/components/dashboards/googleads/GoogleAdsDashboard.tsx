@@ -479,11 +479,25 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   // ending at the current month, unaffected by the global date-range
   // selector. Pad with zeros so missing months still appear on the X-axis
   // and so May 2026 lines up with April 2025 across all tabs.
-  const chart14Months = padMonthlySeries(
+  const paddedTrend = padMonthlySeries(
     chartMonthlyTrend,
     DASHBOARD_MONTHLY_WINDOW,
     (month) => ({ month, spend: 0, conversions: 0, brandSpend: 0, genericSpend: 0 }),
   );
+
+  // Override the per-month brand/generic split using search-term ratios
+  // from the waste-relevancy fetch. The brand fraction is computed from
+  // the search-term data (cost on terms containing any brand keyword)
+  // and applied to the campaign-level total spend so non-search channels
+  // (Display / PMax / Video) roll into "generic" by default.
+  const chart14Months = paddedTrend.map((m) => {
+    const wr = monthlyWasteRelevancy?.find((w) => w.month === m.month);
+    if (!wr || !wr.totalSpend || !wr.brandSpend) return m;
+    const ratio = Math.max(0, Math.min(1, wr.brandSpend / wr.totalSpend));
+    const brandSpend = Math.round(m.spend * ratio * 100) / 100;
+    const genericSpend = Math.max(0, Math.round((m.spend - brandSpend) * 100) / 100);
+    return { ...m, brandSpend, genericSpend };
+  });
 
   return (
     <div className="od-dashboard-root min-h-screen bg-slate-50 text-slate-900">

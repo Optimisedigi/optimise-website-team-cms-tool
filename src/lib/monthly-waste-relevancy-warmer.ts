@@ -14,6 +14,7 @@ export interface WasteRelevancyCacheRow {
   totalSpend: number;
   nonConvertingSpend: number;
   irrelevantSpend: number;
+  brandSpend?: number;
   isFinal: boolean | number;
   fetchedAt: string;
 }
@@ -23,6 +24,7 @@ export interface MonthlyWasteRelevancyEntry {
   totalSpend: number;
   nonConvertingSpend: number;
   irrelevantSpend: number;
+  brandSpend: number;
 }
 
 export interface WarmMonthlyWasteRelevancyResult {
@@ -99,6 +101,23 @@ export async function warmMonthlyWasteRelevancyForClient(
   }
   const irrelevantTerms = Array.from(irrelevantSet);
 
+  // Pull the client's brand keywords so Growth Tools can compute the
+  // per-month brand/generic split from search-term data.
+  let brandKeywords: string[] = [];
+  try {
+    const clientDoc = await payload.findByID({
+      collection: "clients",
+      id: clientId,
+      depth: 0,
+      overrideAccess: true,
+    });
+    const raw = String((clientDoc as any)?.brandKeywords || "");
+    brandKeywords = raw
+      .split(/[\r\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } catch { /* fall through with empty list */ }
+
   // 3. Compute misses: any month not in cache, or current month older than 1h.
   const now = Date.now();
   const missingMonths: string[] = [];
@@ -156,6 +175,7 @@ export async function warmMonthlyWasteRelevancyForClient(
         body: JSON.stringify({
           customerId: cleanCustomerId,
           irrelevantTerms,
+          brandKeywords,
           monthsBack: effectiveMonthsBack,
           onlyMonths: missingMonths,
         }),
@@ -184,6 +204,7 @@ export async function warmMonthlyWasteRelevancyForClient(
       totalSpend?: number;
       nonConvertingSpend?: number;
       irrelevantSpend?: number;
+      brandSpend?: number;
     }> = Array.isArray(data?.monthly) ? data.monthly : [];
 
     const fetchedAt = new Date().toISOString();
@@ -196,6 +217,7 @@ export async function warmMonthlyWasteRelevancyForClient(
             totalSpend: number;
             nonConvertingSpend: number;
             irrelevantSpend: number;
+            brandSpend: number;
             isFinal: boolean;
             fetchedAt: string;
           };
@@ -208,6 +230,7 @@ export async function warmMonthlyWasteRelevancyForClient(
             totalSpend: number;
             nonConvertingSpend: number;
             irrelevantSpend: number;
+            brandSpend: number;
             isFinal: boolean;
             fetchedAt: string;
           };
@@ -225,6 +248,7 @@ export async function warmMonthlyWasteRelevancyForClient(
       const totalSpend = Number(entry.totalSpend) || 0;
       const nonConvertingSpend = Number(entry.nonConvertingSpend) || 0;
       const irrelevantSpend = Number(entry.irrelevantSpend) || 0;
+      const brandSpend = Number(entry.brandSpend) || 0;
       const isFinal = m < currentMonth;
 
       const existing = cache.get(m);
@@ -232,11 +256,12 @@ export async function warmMonthlyWasteRelevancyForClient(
         writes.push({
           kind: "update",
           id: existing.id,
-          data: { totalSpend, nonConvertingSpend, irrelevantSpend, isFinal, fetchedAt },
+          data: { totalSpend, nonConvertingSpend, irrelevantSpend, brandSpend, isFinal, fetchedAt },
         });
         existing.totalSpend = totalSpend;
         existing.nonConvertingSpend = nonConvertingSpend;
         existing.irrelevantSpend = irrelevantSpend;
+        existing.brandSpend = brandSpend;
         existing.isFinal = isFinal;
         existing.fetchedAt = fetchedAt;
       } else {
@@ -248,6 +273,7 @@ export async function warmMonthlyWasteRelevancyForClient(
             totalSpend,
             nonConvertingSpend,
             irrelevantSpend,
+            brandSpend,
             isFinal,
             fetchedAt,
           },
@@ -259,6 +285,7 @@ export async function warmMonthlyWasteRelevancyForClient(
           totalSpend,
           nonConvertingSpend,
           irrelevantSpend,
+          brandSpend,
           isFinal,
           fetchedAt,
         });
@@ -338,6 +365,7 @@ export function buildMonthlyWasteRelevancyResponse(
       totalSpend: row ? Number(row.totalSpend) || 0 : 0,
       nonConvertingSpend: row ? Number(row.nonConvertingSpend) || 0 : 0,
       irrelevantSpend: row ? Number(row.irrelevantSpend) || 0 : 0,
+      brandSpend: row ? Number(row.brandSpend) || 0 : 0,
     };
   });
 

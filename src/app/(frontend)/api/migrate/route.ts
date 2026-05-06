@@ -2344,6 +2344,9 @@ export async function POST(request: NextRequest) {
   await run("clients_conversion_action_categories_order_idx", "CREATE INDEX IF NOT EXISTS `clients_conversion_action_categories_order_idx` ON `clients_conversion_action_categories` (`_order`)");
   await run("clients_conversion_action_categories_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_conversion_action_categories_parent_idx` ON `clients_conversion_action_categories` (`_parent_id`)");
 
+  // ── Brand spend column on waste/relevancy cache (2026-05-06) ──
+  await run("waste_relevancy_cache.brand_spend", "ALTER TABLE `negative_keyword_monthly_waste_relevancy_cache` ADD `brand_spend` numeric DEFAULT 0");
+
   return NextResponse.json({ ok: true, version: "2026-05-05", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 

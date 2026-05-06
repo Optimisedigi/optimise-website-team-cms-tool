@@ -85,6 +85,14 @@ export const NegativeKeywordMonthlyWasteRelevancyCache: CollectionConfig = {
       },
     },
     {
+      name: "brandSpend",
+      type: "number",
+      defaultValue: 0,
+      admin: {
+        description: "Cost on search terms matching the client's brand keywords (substring match).",
+      },
+    },
+    {
       name: "isFinal",
       type: "checkbox",
       defaultValue: false,
