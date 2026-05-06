@@ -63,17 +63,13 @@ export function KpiRow({ kpis, compareMode }: KpiRowProps) {
         />
       </div>
       {breakdown.length > 0 && (
-        <div className="mt-2 flex justify-center">
-          <div className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 rounded-full bg-white border border-slate-200 px-4 py-1.5 shadow-sm text-xs">
+        <div className="relative mt-2 flex justify-center group">
+          <div className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 rounded-full bg-white border border-slate-200 px-4 py-1.5 shadow-sm text-xs cursor-default">
             <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-              By action
+              By action ({breakdown.length})
             </span>
             {breakdown.map(([action, count], idx) => (
-              <span
-                key={action}
-                className="flex items-baseline gap-1"
-                title={action}
-              >
+              <span key={action} className="flex items-baseline gap-1">
                 {idx > 0 && <span className="text-slate-200">·</span>}
                 <span className="text-slate-500 truncate max-w-[160px]">{action}</span>
                 <span className="font-semibold text-slate-700 tabular-nums">
@@ -81,6 +77,41 @@ export function KpiRow({ kpis, compareMode }: KpiRowProps) {
                 </span>
               </span>
             ))}
+            <span
+              className="text-[10px] text-slate-400 ml-1"
+              aria-hidden="true"
+              title="Hover for full action names"
+            >
+              ▾
+            </span>
+          </div>
+
+          {/* Hover popover — full action names without truncation */}
+          <div
+            role="tooltip"
+            className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-150 absolute top-full mt-2 z-30 bg-white border border-slate-200 rounded-lg shadow-lg p-3 min-w-[300px] max-w-[480px] pointer-events-none"
+          >
+            <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400 mb-2">
+              Conversions by action ({breakdown.length})
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {breakdown.map(([action, count]) => (
+                <div
+                  key={action}
+                  className="flex justify-between items-start gap-3 text-xs border-b border-slate-50 last:border-0 pb-1 last:pb-0"
+                >
+                  <span
+                    className="text-slate-600 break-words leading-snug"
+                    style={{ wordBreak: "break-word" }}
+                  >
+                    {action}
+                  </span>
+                  <span className="font-semibold text-slate-900 tabular-nums shrink-0">
+                    {Math.round(count).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
