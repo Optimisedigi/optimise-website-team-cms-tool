@@ -98,7 +98,7 @@ function Slide({
   const slideNumber = SLIDES.indexOf(id) + 1;
   const numberColor = dark ? "text-slate-500" : "text-slate-400 dark:text-slate-500";
   return (
-    <section id={id} className={`relative min-h-[800px] lg:min-h-[900px] flex flex-col ${bg}`}>
+    <section id={id} className={`relative min-h-[780px] lg:min-h-[880px] flex flex-col ${bg}`}>
       <div className="flex-1 flex flex-col justify-center px-6 py-12 max-w-5xl mx-auto w-full">
         {children}
       </div>
@@ -598,21 +598,6 @@ export default function TeamSessionMay2026() {
           </h1>
           <p className="mt-[140px] text-base md:text-lg font-semibold text-slate-200">Berendsen Fluid Power · Malcolm Thompson Pumps</p>
 
-          <div className="mt-6 flex justify-center" data-no-print="true">
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 transition-colors"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              Download PDF
-            </button>
-          </div>
-
           {/* Visual timeline */}
           <div className="mt-14 max-w-3xl mx-auto">
             <div className="relative">
@@ -637,6 +622,20 @@ export default function TeamSessionMay2026() {
             </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => window.print()}
+          data-no-print="true"
+          className="absolute bottom-9 right-4 inline-flex items-center gap-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 transition-colors z-10"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Download PDF
+        </button>
       </Slide>
 
       {/* ── Slide 2: Agenda ────────────────────────────────────────── */}

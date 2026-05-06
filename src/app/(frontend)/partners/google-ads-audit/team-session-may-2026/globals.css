@@ -1,24 +1,24 @@
 @import "tailwindcss";
 
-/* The (frontend) layout's styles.css applies aggressive element defaults
-   (h1 margins, body font-size 18px, html black background, body white text,
-   etc.). On routes that load Tailwind, those defaults beat utilities because
-   styles.css is imported by the layout *after* Tailwind. These unlayered
-   resets win the cascade on the team-session route only, so component
-   classes (text-4xl, my-0, bg-slate-900, etc.) behave normally. */
+/* The (frontend) layout's styles.css applies element defaults (h1 margins,
+   font sizes, etc.) inside @layer base. Tailwind v4 utilities live in
+   @layer utilities and beat @layer base, but the parent styles.css is
+   loaded *after* Tailwind so its base rules still cascade. These
+   unlayered margin resets win on the team-session route only, so deck
+   spacing is not blown out by the parent's h1 { margin: 40px 0 } etc. */
+h1, h2, h3, h4, h5, h6, p {
+  margin: 0;
+}
 
+/* The parent layout sets html { background: black } and body
+   { color: white; font-size: 18px; line-height: 32px; font-family: system-ui }.
+   Reset to a neutral baseline so deck Tailwind utilities (bg-white,
+   text-slate-*, text-base, etc.) render predictably on this route. */
 html, body {
   background: white;
-  color: rgb(15, 23, 42); /* slate-900 */
+  color: rgb(15, 23, 42);
   font-size: 16px;
   line-height: 1.5;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   -webkit-font-smoothing: antialiased;
-}
-
-h1, h2, h3, h4, h5, h6, p {
-  margin: 0;
-  font-size: inherit;
-  line-height: inherit;
-  font-weight: inherit;
 }
