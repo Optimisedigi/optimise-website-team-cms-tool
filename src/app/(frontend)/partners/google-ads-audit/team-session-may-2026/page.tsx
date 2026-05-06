@@ -98,7 +98,7 @@ function Slide({
   const slideNumber = SLIDES.indexOf(id) + 1;
   const numberColor = dark ? "text-slate-500" : "text-slate-400 dark:text-slate-500";
   return (
-    <section id={id} className={`relative min-h-[780px] lg:min-h-[880px] flex flex-col ${bg}`}>
+    <section id={id} className={`relative min-h-[680px] lg:min-h-[780px] flex flex-col ${bg}`}>
       <div className="flex-1 flex flex-col justify-center px-6 py-12 max-w-5xl mx-auto w-full">
         {children}
       </div>
@@ -119,7 +119,7 @@ function Slide({
 function SlideHeading({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
   return (
     <h2
-      className={`text-2xl md:text-3xl font-bold text-center mb-2 ${
+      className={`text-2xl md:text-3xl font-bold text-center mb-4 ${
         dark ? "text-white" : "text-slate-900 dark:text-white"
       }`}
     >
@@ -131,7 +131,7 @@ function SlideHeading({ children, dark = false }: { children: React.ReactNode; d
 function SlideSubtext({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
   return (
     <p
-      className={`text-center text-sm md:text-base mb-8 max-w-3xl mx-auto ${
+      className={`text-center text-sm md:text-base mb-12 max-w-3xl mx-auto ${
         dark ? "text-slate-300" : "text-slate-500 dark:text-slate-400"
       }`}
     >
