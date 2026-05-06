@@ -1817,7 +1817,8 @@ export const Clients: CollectionConfig = {
               name: "ga4PropertyId",
               type: "text",
               admin: {
-                description: "The GA4 property ID (numeric, e.g. 202886563). Set this before connecting OAuth.",
+                description:
+                  "Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Used by GA4 OAuth/query routes here and by Growth Tools (AI Visibility Tracker, future GA4-powered tools). Set before connecting OAuth.",
               },
             },
             {
@@ -1838,25 +1839,10 @@ export const Clients: CollectionConfig = {
               access: sensitiveFieldAccess("clients"),
               admin: { hidden: true },
             },
-            // ─ Shared analytics config (used by AI Visibility Tracker + future GA4-powered tools) ─
-            {
-              name: "analytics",
-              type: "group",
-              label: "Analytics (Shared)",
-              admin: {
-                description: "Shared analytics identifiers used by Growth Tools (tag audit, AI Visibility Tracker, etc).",
-              },
-              fields: [
-                {
-                  name: "ga4PropertyId",
-                  type: "text",
-                  admin: {
-                    description:
-                      "Numeric GA4 property ID (e.g. 308123456). Strip the 'properties/' prefix. Used by AI Visibility Tracker and other GA4-powered tools.",
-                  },
-                },
-              ],
-            },
+            // Note: the duplicate `analytics.ga4PropertyId` field was removed in May 2026.
+            // Growth Tools now reads the canonical `ga4PropertyId` field above directly.
+            // The DB column `analytics_ga4_property_id` is left in place to avoid data loss
+            // — it can be dropped in a future migration once we've confirmed no rows depend on it.
           ],
         },
         {
