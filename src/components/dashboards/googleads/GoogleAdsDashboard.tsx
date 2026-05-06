@@ -585,7 +585,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 </button>
 
                 {conversionDropdownOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
+                  <div className="absolute right-0 top-full mt-1 w-[420px] max-w-[92vw] bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
                     <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
                       <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Conversion Actions</span>
                       <div className="flex gap-2">
@@ -608,18 +608,24 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                         return (
                           <label
                             key={action}
-                            className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                            className="flex items-start gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer group/conv relative"
+                            title={action}
                           >
                             <input
                               type="checkbox"
                               checked={selectedConversions.includes(action)}
                               onChange={() => toggleConversion(action)}
-                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 mt-0.5 shrink-0"
                             />
-                            <span className="text-sm text-slate-700 truncate flex-1">{action}</span>
+                            <span
+                              className="text-sm text-slate-700 flex-1 leading-snug"
+                              style={{ wordBreak: "break-word" }}
+                            >
+                              {action}
+                            </span>
                             {isDefault && (
                               <span
-                                className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 flex-shrink-0"
+                                className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 flex-shrink-0 mt-0.5"
                                 title="Saved as a default for this client"
                               >
                                 Default
