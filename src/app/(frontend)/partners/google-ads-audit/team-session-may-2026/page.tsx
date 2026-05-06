@@ -23,7 +23,6 @@ const SLIDES = [
   "berendsen-conversion-mix",
   "berendsen-cash-validation",
   "berendsen-cash-table",
-  "berendsen-cash-bars",
   "optimisations-overview",
   "keyword-relevancy",
   "berendsen-lp-callout",
@@ -99,7 +98,7 @@ function Slide({
   const numberColor = dark ? "text-slate-500" : "text-slate-400 dark:text-slate-500";
   return (
     <section id={id} className={`relative min-h-[680px] lg:min-h-[780px] flex flex-col ${bg}`}>
-      <div className="flex-1 flex flex-col justify-center px-6 py-12 max-w-5xl mx-auto w-full">
+      <div className="flex-1 flex flex-col justify-center px-6 pt-20 pb-12 max-w-5xl mx-auto w-full">
         {children}
       </div>
       <div data-no-print="true">
@@ -796,7 +795,7 @@ export default function TeamSessionMay2026() {
           annotations={[{ atIndex: 7, label: "Aug 25 site event" }]}
           formatY={(v) => v.toLocaleString()}
         />
-        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300 text-center max-w-3xl mx-auto">
           Pre-August baseline averaged 3,500 to 4,000 sessions per month. April 2026 sits at 1,216, a doubling of March (608) but still well below where the site was in early 2025.
         </p>
       </Slide>
@@ -833,7 +832,7 @@ export default function TeamSessionMay2026() {
             { name: "VIC", color: "rgb(168,85,247)", values: [0,0,0,0,1,4,2,0,13,45,20,4,4,0,0,43] },
           ]}
         />
-        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300 text-center max-w-3xl mx-auto">
           April 2026 delivered 473 paid sessions across Australia (NSW 254, WA 110, QLD 53, VIC 43). 5.8x March. The 15 phrase-match keywords we added should compound this in May.
         </p>
       </Slide>
@@ -849,7 +848,7 @@ export default function TeamSessionMay2026() {
           ]}
           annotations={[{ atIndex: 7, label: "Aug 25 site event" }]}
         />
-        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300 text-center max-w-3xl mx-auto">
           NSW pre-August averaged ~1,700 sessions per month. Today it sits at 1,418. The recovery is real (climbing back from August) but not complete. Keep this curve in mind when we look at the cash-sales chart in a few slides time.
         </p>
       </Slide>
@@ -867,7 +866,7 @@ export default function TeamSessionMay2026() {
           ]}
           annotations={[{ atIndex: 7, label: "Aug 25 site event" }]}
         />
-        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300 text-center max-w-3xl mx-auto">
           Organic search collapsed from ~1,100/month pre-August to 302 in Aug, recovered partially to 779 by April. That&apos;s a sustained 25 to 30% organic shortfall. Paid search and Direct are healthy. Display is essentially off.
         </p>
       </Slide>
@@ -904,7 +903,7 @@ export default function TeamSessionMay2026() {
             [<b key="total">TOTAL</b>, "", <b key="cat">22 (11 form, 11 phone)</b>, <b key="t">22</b>],
           ]}
         />
-        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300 text-center max-w-3xl mx-auto">
           <span className="font-semibold">What this tells us:</span> Brand campaigns drive 68% of conversions (15 of 22). The form/phone split is even (11 each). Generic - Industry Verticals shows zero conversions, validating our decision to pull budget out of it.
         </p>
       </Slide>
@@ -975,31 +974,8 @@ export default function TeamSessionMay2026() {
             [<b key="t">Total</b>, "", "$208k", "$215k", <b key="dt">+3.5%</b>, "Net flat"],
           ]}
         />
-        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300 text-center max-w-3xl mx-auto">
           Sydney&apos;s $348 matches the client&apos;s email exactly. Three branches collapsed, six grew strongly, total revenue is essentially flat MoM. Branch-specific issue, not system-wide.
-        </p>
-      </Slide>
-
-      <Slide id="berendsen-cash-bars" light>
-        <SlideHeading>April 2026 cash sales by branch, change from March</SlideHeading>
-        <SlideSubtext>Three branches collapsed. Six grew strongly. Total revenue is essentially flat MoM. This is not a system-wide problem.</SlideSubtext>
-        <HorizontalBarChart
-          rows={[
-            { label: "Mackay (QLD)", value: 4700, color: "rgb(16,185,129)" },
-            { label: "Wollongong (NSW)", value: 30417, color: "rgb(16,185,129)" },
-            { label: "Adelaide (SA)", value: 22269, color: "rgb(16,185,129)" },
-            { label: "Melbourne (VIC)", value: 8531, color: "rgb(16,185,129)" },
-            { label: "Brisbane (QLD)", value: 6404, color: "rgb(16,185,129)" },
-            { label: "Perth (WA)", value: 3732, color: "rgb(16,185,129)" },
-            { label: "Bundaberg (QLD)", value: -2919, color: "rgb(245,158,11)" },
-            { label: "Clontarf (QLD)", value: -12906, color: "rgb(220,38,38)" },
-            { label: "Sydney (NSW)", value: -22943, color: "rgb(220,38,38)" },
-            { label: "Newcastle (NSW)", value: -29972, color: "rgb(220,38,38)" },
-          ]}
-          height={360}
-        />
-        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">
-          Sydney is the obvious one (Matt&apos;s email). But Newcastle dropped MORE in dollar terms ($30k), and Wollongong (also NSW) GREW $30k. Whatever happened in April was branch-specific, not state-wide.
         </p>
       </Slide>
 
@@ -1241,7 +1217,7 @@ export default function TeamSessionMay2026() {
             ["Emergency Repair / non-converting LPs", "—", "0", "—", "—", "Reduce spend until LP fixes ship; redeploy into performing campaigns"],
           ]}
         />
-        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mt-6 text-sm text-slate-600 dark:text-slate-300 text-center max-w-3xl mx-auto">
           <span className="font-semibold">Logic:</span> reallocate from campaigns with 0 conversions and broken landing pages into campaigns already converting at strong CPAs. Then revisit once we have more conversion data and the LP fixes are live.
         </p>
       </Slide>
