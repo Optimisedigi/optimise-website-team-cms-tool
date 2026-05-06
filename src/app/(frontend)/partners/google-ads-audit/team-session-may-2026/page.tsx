@@ -570,6 +570,10 @@ export default function TeamSessionMay2026() {
                 page-break-after: always;
                 break-after: page;
                 box-sizing: border-box;
+                /* Shrink each slide to ~85% in print so long slides fit on one
+                   landscape page. zoom (not transform: scale) recalculates
+                   layout so widths still work and there's no horizontal scroll. */
+                zoom: 0.85;
               }
               section[id]:last-of-type { page-break-after: auto; break-after: auto; }
               [data-no-print="true"] { display: none !important; }
