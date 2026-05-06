@@ -300,12 +300,18 @@ Mirrors Optimate-Google-Ads but for Meta. Weekly campaign analysis, creative fat
 
 ## Templates Master List
 
+> **Central location, single source of truth:**
+> All UI / page / deck templates live under `src/app/(frontend)/_templates/<slug>/` in the CMS app. The leading underscore is a Next.js convention that keeps the folder out of the route table, so templates never publish as live pages. Each template folder has at minimum: `page.tsx` (or the relevant React/TSX file), any per-template CSS (e.g. `globals.css`), and a `README.md` documenting structure, conventions, and how to clone for a new client instance. Agents that produce client-facing artifacts MUST resolve their template by reading from this directory rather than re-implementing the layout. The registry of available templates is at `src/app/(frontend)/_templates/INDEX.md` and is the canonical list agents should consult before generating output.
+>
+> Email/copy templates live alongside their generators (e.g. `server/google-ads-email-generator.ts`) until they get migrated into the same `_templates/` tree.
+
 ### Already built ✅
 
 - Proposal page (PIN-protected)
 - Audit report
 - Google Ads audit email
 - Client progress update email
+- Post-build-optimisation / QBR presentation deck — `(frontend)/_templates/post-build-optimisation-qbr/` (first live instance: `partners/google-ads-audit/team-session-may-2026/`)
 
 ### Need finishing 🟡
 
@@ -327,6 +333,15 @@ Mirrors Optimate-Google-Ads but for Meta. Weekly campaign analysis, creative fat
 - Meta Ads weekly review report
 - Creative fatigue alert
 - Audience performance report
+
+### Convention for new templates
+
+When adding a new template:
+
+1. Create the folder under `src/app/(frontend)/_templates/<kebab-case-slug>/`.
+2. Include `page.tsx` (for page/deck templates) or the relevant generator file, plus a `README.md` describing structure, sections, conventions, and how to clone for a new client instance.
+3. Add an entry to `src/app/(frontend)/_templates/INDEX.md` so agents can discover it.
+4. Append a row to the "Already built ✅" list above with the slug + path + first live instance.
 
 ---
 
