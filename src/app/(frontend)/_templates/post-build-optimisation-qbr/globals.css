@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* The (frontend) layout's styles.css applies element defaults (h1 margins,
+   font sizes, etc.) inside @layer base. Tailwind v4 utilities live in
+   @layer utilities and beat @layer base, but the parent styles.css is
+   loaded *after* Tailwind so its base rules still cascade. These
+   unlayered margin resets win on the team-session route only, so deck
+   spacing is not blown out by the parent's h1 { margin: 40px 0 } etc. */
+/* Use margin-block (top/bottom only), NOT the margin shorthand, so the
+   unlayered reset doesn't clobber Tailwind's mx-auto utility on h-tags
+   and p elements (mx-auto sets margin-inline: auto and is in @layer
+   utilities, which loses to anything unlayered). */
+h1, h2, h3, h4, h5, h6, p {
+  margin-block: 0;
+}
+
+/* The parent layout sets html { background: black } and body
+   { color: white; font-size: 18px; line-height: 32px; font-family: system-ui }.
+   Reset to a neutral baseline so deck Tailwind utilities (bg-white,
+   text-slate-*, text-base, etc.) render predictably on this route. */
+html, body {
+  background: white;
+  color: rgb(15, 23, 42);
+  font-size: 16px;
+  line-height: 1.5;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
