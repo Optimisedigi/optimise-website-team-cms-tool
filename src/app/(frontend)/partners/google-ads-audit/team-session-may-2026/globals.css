@@ -6,8 +6,12 @@
    loaded *after* Tailwind so its base rules still cascade. These
    unlayered margin resets win on the team-session route only, so deck
    spacing is not blown out by the parent's h1 { margin: 40px 0 } etc. */
+/* Use margin-block (top/bottom only), NOT the margin shorthand, so the
+   unlayered reset doesn't clobber Tailwind's mx-auto utility on h-tags
+   and p elements (mx-auto sets margin-inline: auto and is in @layer
+   utilities, which loses to anything unlayered). */
 h1, h2, h3, h4, h5, h6, p {
-  margin: 0;
+  margin-block: 0;
 }
 
 /* The parent layout sets html { background: black } and body
