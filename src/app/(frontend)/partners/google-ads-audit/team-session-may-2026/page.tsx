@@ -118,7 +118,7 @@ function Slide({
 function SlideHeading({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
   return (
     <h2
-      className={`text-2xl md:text-3xl font-bold text-center mb-4 ${
+      className={`text-2xl md:text-3xl font-bold text-center mb-4 max-w-3xl mx-auto ${
         dark ? "text-white" : "text-slate-900 dark:text-white"
       }`}
     >
