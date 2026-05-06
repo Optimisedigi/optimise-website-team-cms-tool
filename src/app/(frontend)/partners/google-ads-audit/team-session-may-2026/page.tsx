@@ -130,7 +130,7 @@ function SlideHeading({ children, dark = false }: { children: React.ReactNode; d
 function SlideSubtext({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
   return (
     <p
-      className={`text-center text-sm md:text-base mb-[30px] max-w-3xl mx-auto ${
+      className={`text-center text-sm md:text-base pb-[20px] max-w-3xl mx-auto ${
         dark ? "text-slate-300" : "text-slate-500 dark:text-slate-400"
       }`}
     >
