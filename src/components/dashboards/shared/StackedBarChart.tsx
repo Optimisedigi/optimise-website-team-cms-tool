@@ -147,42 +147,79 @@ export function StackedBarChart({
                   />
                   {/* Stacked bar segments */}
                   {renderedSegments}
-                  {/* Top rounded cap on the full bar */}
+                  {/* Top rounded cap — same colour as the top-most rendered
+                      segment (which is segments[0] since we reverse before
+                      stacking). Previously used the wrong segment, which
+                      visually placed the top-segment colour at the bottom
+                      of the bar's cap and made the layered colour look
+                      sandwiched. */}
                   {barH > 0 && (
                     <rect
                       x={barX}
                       y={barY}
                       width={barWidth}
                       height={Math.min(6, barH)}
-                      fill={d.segments[d.segments.length - 1]?.color || d.segments[0]?.color}
+                      fill={d.segments[0]?.color || d.segments[d.segments.length - 1]?.color}
                       rx={3}
                       ry={3}
                     />
                   )}
-                  {/* Tooltip — clamped so it never escapes the top of the SVG */}
+                  {/* Multi-line tooltip — month label, total, per-segment
+                      values, diff (when 2+ segments), conv. Clamped to
+                      stay inside the SVG. */}
                   {hoveredBar === i && (() => {
-                    const tooltipRectY = Math.max(barY - 28, 2);
-                    const tooltipTextY = tooltipRectY + 13;
+                    const segs = d.segments.filter((s) => s.value > 0);
+                    const showSplit = segs.length >= 2;
+                    const lines: Array<{ text: string; color?: string; weight?: number }> = [];
+                    lines.push({ text: d.label, color: "#cbd5e1" });
+                    lines.push({ text: `Total: ${formatDollarsShort(total)}`, weight: 600 });
+                    if (showSplit) {
+                      for (const seg of d.segments) {
+                        const labelText = seg.label.replace(/\s*\(\$\)\s*$/, "");
+                        lines.push({ text: `${labelText}: ${formatDollarsShort(seg.value)}`, color: seg.color });
+                      }
+                      // Difference between the two largest segments
+                      const sorted = [...d.segments].sort((a, b) => b.value - a.value);
+                      const diff = Math.abs(sorted[0].value - sorted[1].value);
+                      lines.push({ text: `Diff: ${formatDollarsShort(diff)}`, color: "#94a3b8" });
+                    }
+                    if (d.lineValue != null) {
+                      lines.push({ text: `${d.lineValue} ${lineLabel.toLowerCase()}`, color: "#94a3b8" });
+                    }
+                    const lineHeight = 13;
+                    const padTop = 8;
+                    const padBottom = 8;
+                    const tooltipHeight = padTop + padBottom + lines.length * lineHeight;
+                    const tooltipWidth = 140;
+                    const cx = i * (barSlotWidth + gap) + barSlotWidth / 2;
+                    let rectX = cx - tooltipWidth / 2;
+                    if (rectX < 2) rectX = 2;
+                    if (rectX + tooltipWidth > containerWidth - 2) rectX = containerWidth - tooltipWidth - 2;
+                    const tooltipRectY = Math.max(barY - tooltipHeight - 6, 2);
                     return (
-                      <g>
+                      <g pointerEvents="none">
                         <rect
-                          x={i * (barSlotWidth + gap) + barSlotWidth / 2 - 40}
+                          x={rectX}
                           y={tooltipRectY}
-                          width={80}
-                          height={20}
-                          rx={4}
-                          fill="#1e293b"
+                          width={tooltipWidth}
+                          height={tooltipHeight}
+                          rx={5}
+                          fill="#0f172a"
+                          opacity={0.96}
                         />
-                        <text
-                          x={i * (barSlotWidth + gap) + barSlotWidth / 2}
-                          y={tooltipTextY}
-                          textAnchor="middle"
-                          fontSize={10}
-                          fill="white"
-                        >
-                          {formatDollarsShort(total)}
-                          {d.lineValue != null ? ` / ${d.lineValue} conv` : ""}
-                        </text>
+                        {lines.map((ln, li) => (
+                          <text
+                            key={li}
+                            x={rectX + tooltipWidth / 2}
+                            y={tooltipRectY + padTop + (li + 1) * lineHeight - 3}
+                            textAnchor="middle"
+                            fontSize={10}
+                            fill={ln.color || "white"}
+                            fontWeight={ln.weight || 400}
+                          >
+                            {ln.text}
+                          </text>
+                        ))}
                       </g>
                     );
                   })()}
