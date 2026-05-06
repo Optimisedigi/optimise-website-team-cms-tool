@@ -80,7 +80,7 @@ const METRIC_CONFIG: Record<
     color: "#8b5cf6",
     format: (v) => `${v.toFixed(1)}%`,
     description:
-      "Share of each month's spend that did NOT go to search terms currently flagged as irrelevant. Higher is better. Tells the story 'how much budget would today's negative keyword list have saved each month if it had been in place then' \u2014 the line dips during months heavy with terms we now block, and rises in months where those terms barely spent.",
+      "Share of each month's NON-BRAND spend that did NOT go to search terms currently flagged as irrelevant. Brand searches are excluded from the denominator since they're always relevant by definition (you don't negate your own brand). Higher is better. Tells the story 'how much non-brand budget would today's negative keyword list have saved each month if it had been in place then' \u2014 the line dips during months heavy with terms we now block, and rises when those terms barely spent.",
   },
 };
 
@@ -630,16 +630,35 @@ export function ProgressTab({
   // budget-wasters total ÷ that month's spend; capped at 100%).
   const totalWaste = budgetWasters.reduce((s, t) => s + t.spend, 0);
 
-  // Keyword Relevancy: % of spend on terms that either converted or have not
+  // Keyword Relevancy: % of NON-BRAND spend that either converted or has not
   // been flagged as irrelevant by the team. Math:
-  //   relevancy = (totalSpend − sumSpendOf(irrelevantTerms)) / totalSpend
+  //   nonBrandSpend = totalSpend − brandSpend
+  //   relevancy = (nonBrandSpend − sumSpendOf(irrelevantTerms)) / nonBrandSpend
   // Innocent until proven irrelevant — a non-converting term is NOT counted
-  // against relevancy until someone reviews and flags it.
+  // against relevancy until someone reviews and flags it. Brand searches
+  // sit outside the metric entirely (you don't negate your own brand) so
+  // the rate reflects acquisition / generic spend quality only.
   const totalSpend = kpis.spend ?? 0;
   const irrelevantSpend = irrelevantTerms.reduce((s, t) => s + t.spend, 0);
+  // Approximate the period's brand share from the trend-window cached
+  // monthly data. Imperfect when the selected range differs heavily from
+  // the 14-month window, but matches how the chart line is computed.
+  const trendBrandTotal = (monthlyWasteRelevancy || []).reduce(
+    (s, m) => s + (m.brandSpend || 0),
+    0,
+  );
+  const trendTotalForBrand = (monthlyWasteRelevancy || []).reduce(
+    (s, m) => s + (m.totalSpend || 0),
+    0,
+  );
+  const brandRatio =
+    trendTotalForBrand > 0 ? Math.min(0.95, trendBrandTotal / trendTotalForBrand) : 0;
+  const periodBrandSpend = totalSpend * brandRatio;
+  const periodNonBrandSpend = Math.max(0, totalSpend - periodBrandSpend);
+  const relevancyDenominator = periodNonBrandSpend > 0 ? periodNonBrandSpend : totalSpend;
   const relevancyRate =
-    totalSpend > 0
-      ? Math.max(0, Math.min(100, ((totalSpend - irrelevantSpend) / totalSpend) * 100))
+    relevancyDenominator > 0
+      ? Math.max(0, Math.min(100, ((relevancyDenominator - irrelevantSpend) / relevancyDenominator) * 100))
       : null;
 
   // Fallback aggregates — used only when the per-month historical data
@@ -679,9 +698,19 @@ export function ProgressTab({
       let relevancy: number;
       if (historical && historical.totalSpend > 0) {
         wasteRate = Math.min((historical.nonConvertingSpend / historical.totalSpend) * 100, 100);
+        // Relevancy is calculated against NON-BRAND spend only — brand
+        // searches are always relevant by definition (you don't negate
+        // your own brand) so including them in the denominator inflates
+        // the rate and hides movement on the generic side. Falls back to
+        // total spend when brand data isn't yet populated for that month.
+        const nonBrandSpend = Math.max(
+          0,
+          historical.totalSpend - (historical.brandSpend || 0),
+        );
+        const relevancyDenominator = nonBrandSpend > 0 ? nonBrandSpend : historical.totalSpend;
         relevancy = Math.max(
           0,
-          Math.min(100, 100 - (historical.irrelevantSpend / historical.totalSpend) * 100),
+          Math.min(100, 100 - (historical.irrelevantSpend / relevancyDenominator) * 100),
         );
       } else if (historical) {
         // Month exists in the historical pull but had zero spend.
@@ -775,10 +804,10 @@ export function ProgressTab({
           change={null}
           hint={
             relevancyRate == null
-              ? "Share of ad spend on search terms that are either converting or haven't been flagged as irrelevant. We'll start tracking this once spend data is available."
+              ? "Share of NON-BRAND ad spend on search terms that are either converting or haven't been flagged as irrelevant. Brand searches are excluded from the denominator since they're always relevant by definition. We'll start tracking this once spend data is available."
               : irrelevantTerms.length === 0
-                ? "Share of ad spend on search terms that are either converting or haven't been flagged as irrelevant. No terms have been marked irrelevant yet \u2014 review the Keyword Deep Dive tab regularly to keep this rate honest."
-                : `Share of ad spend on search terms that are either converting or haven't been flagged as irrelevant. Currently $${Math.round(irrelevantSpend).toLocaleString()} across ${irrelevantTerms.length} term${irrelevantTerms.length !== 1 ? "s" : ""} is flagged irrelevant \u2014 ${(100 - relevancyRate).toFixed(0)}% of spend. To improve this: open the Keyword Deep Dive tab, flag irrelevant search terms for review, and the team will add them as negative keywords. Once excluded, those terms stop triggering ads and the rate rises in the next reporting period.`
+                ? `Share of NON-BRAND ad spend on search terms that are either converting or haven't been flagged as irrelevant. Brand searches are excluded from the denominator since they're always relevant by definition. ${brandRatio > 0 ? `Currently ~${Math.round(brandRatio * 100)}% of total spend is brand. ` : ""}No terms have been marked irrelevant yet \u2014 review the Keyword Deep Dive tab regularly to keep this rate honest.`
+                : `Share of NON-BRAND ad spend on search terms that are either converting or haven't been flagged as irrelevant. Brand searches are excluded from the denominator since they're always relevant by definition. ${brandRatio > 0 ? `~${Math.round(brandRatio * 100)}% of total spend is brand and isn't counted. ` : ""}Currently $${Math.round(irrelevantSpend).toLocaleString()} across ${irrelevantTerms.length} term${irrelevantTerms.length !== 1 ? "s" : ""} is flagged irrelevant \u2014 ${(100 - relevancyRate).toFixed(0)}% of non-brand spend. To improve this: open the Keyword Deep Dive tab, flag irrelevant search terms for review, and the team will add them as negative keywords. Once excluded, those terms stop triggering ads and the rate rises in the next reporting period.`
           }
         />
         <StatCard
