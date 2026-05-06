@@ -119,6 +119,12 @@ export async function warmMonthlyWasteRelevancyForClient(
   } catch { /* fall through with empty list */ }
 
   // 3. Compute misses: any month not in cache, or current month older than 1h.
+  // Self-healing backfill: when the client has brand keywords but a cached
+  // row predates the brand_spend column deploy (no brandSpend persisted),
+  // treat that month as a miss so the warmer refetches and stamps the
+  // brand split. Without this hook past months are isFinal=true and never
+  // refetched, so brand spend stays zero forever after upgrading.
+  const BRAND_SPEND_DEPLOY_TS = Date.parse("2026-05-06T11:00:00Z");
   const now = Date.now();
   const missingMonths: string[] = [];
   for (const m of months) {
@@ -130,6 +136,17 @@ export async function warmMonthlyWasteRelevancyForClient(
     if (m === currentMonth) {
       const fetchedAt = new Date(row.fetchedAt).getTime();
       if (Number.isNaN(fetchedAt) || now - fetchedAt > CURRENT_MONTH_TTL_MS) {
+        missingMonths.push(m);
+        continue;
+      }
+    }
+    // Brand-spend backfill: refetch any past row whose fetchedAt predates
+    // the brand_spend column deploy AND the client now has brand keywords
+    // configured. One-time per row — once refetched, fetchedAt advances
+    // past the threshold so the row is immutable again.
+    if (brandKeywords.length > 0) {
+      const fetchedAtMs = new Date(row.fetchedAt).getTime();
+      if (!Number.isNaN(fetchedAtMs) && fetchedAtMs < BRAND_SPEND_DEPLOY_TS) {
         missingMonths.push(m);
       }
     }
