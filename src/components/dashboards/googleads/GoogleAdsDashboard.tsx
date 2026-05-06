@@ -136,6 +136,11 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const [selectedConversions, setSelectedConversions] = useState<string[]>(defaultSelected);
   const [conversionDropdownOpen, setConversionDropdownOpen] = useState(false);
   const conversionDropdownRef = useRef<HTMLDivElement>(null);
+  // Custom range picker state for the global date dropdown
+  const [rangeDropdownOpen, setRangeDropdownOpen] = useState(false);
+  const rangeDropdownRef = useRef<HTMLDivElement>(null);
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const availableActions = data.availableConversionActions || defaultSelected;
 
   // Derive the active conversionActions param from selection.
@@ -155,6 +160,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
     function handleClick(e: MouseEvent) {
       if (conversionDropdownRef.current && !conversionDropdownRef.current.contains(e.target as Node)) {
         setConversionDropdownOpen(false);
+      }
+      if (rangeDropdownRef.current && !rangeDropdownRef.current.contains(e.target as Node)) {
+        setRangeDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -464,8 +472,10 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversions]);
 
-  const rangeLabel =
-    RANGE_OPTIONS.find((r) => r.value === range)?.label || "Last month";
+  const isCustomRange = range.startsWith("custom:");
+  const rangeLabel = isCustomRange
+    ? "Custom range"
+    : RANGE_OPTIONS.find((r) => r.value === range)?.label || "Last month";
   const deepDiveRangeLabel =
     DEEP_DIVE_RANGE_OPTIONS.find((r) => r.value === deepDiveRange)?.label || "Last 60 days";
   // On the Keyword Deep Dive tab show the deep-dive scope under the
@@ -548,18 +558,77 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 ))}
               </select>
             ) : (
-              <select
-                value={range}
-                onChange={(e) => changeRange(e.target.value)}
-                disabled={loading}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-              >
-                {RANGE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative" ref={rangeDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setRangeDropdownOpen((o) => !o)}
+                  disabled={loading}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 flex items-center gap-1.5 min-w-[140px] justify-between"
+                >
+                  <span>{rangeLabel}</span>
+                  <svg className={`w-3.5 h-3.5 text-slate-400 transition-transform ${rangeDropdownOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {rangeDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
+                    <div className="max-h-72 overflow-y-auto">
+                      {RANGE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setRangeDropdownOpen(false);
+                            changeRange(opt.value);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 ${
+                            range === opt.value ? "text-blue-600 font-medium bg-blue-50" : "text-slate-700"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="border-t border-slate-100 px-3 py-2">
+                      <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-2">
+                        Custom range
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <input
+                          type="date"
+                          value={customStartDate}
+                          onChange={(e) => setCustomStartDate(e.target.value)}
+                          className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Start"
+                        />
+                        <input
+                          type="date"
+                          value={customEndDate}
+                          onChange={(e) => setCustomEndDate(e.target.value)}
+                          className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="End"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={
+                          !customStartDate ||
+                          !customEndDate ||
+                          customEndDate < customStartDate
+                        }
+                        onClick={() => {
+                          setRangeDropdownOpen(false);
+                          changeRange(`custom:${customStartDate},${customEndDate}`);
+                        }}
+                        className="w-full rounded bg-blue-600 text-white text-xs font-medium px-2 py-1.5 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed"
+                      >
+                        Apply custom range
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Row 1, Col 2: Conversion action selector */}
