@@ -151,12 +151,12 @@ export default function AgentAuthPage() {
     await loadStatus();
   }
 
-  async function handleProbe() {
-    setProbeResult("Probing...");
+  async function handleProbe(model: string) {
+    setProbeResult(`Probing ${model}...`);
     const res = await fetch("/api/agent-auth/probe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "claude-haiku-4.5" }),
+      body: JSON.stringify({ model }),
     });
     const json = await res.json();
     if (json.ok) {
@@ -287,11 +287,22 @@ export default function AgentAuthPage() {
       <div style={cardStyle}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Probe</h2>
         <p style={{ marginTop: 0, fontSize: 13, color: "#666" }}>
-          Sends a 1-token "ok" prompt to claude-haiku-4.5 and reports the credential source that served it.
+          Sends a 1-token "ok" prompt to the chosen model and reports the credential source that served it.
         </p>
-        <button onClick={handleProbe} style={ghostButtonStyle}>
-          Run probe
-        </button>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <button onClick={() => handleProbe("claude-haiku-4.5")} style={ghostButtonStyle}>
+            Probe Claude Haiku (OAuth)
+          </button>
+          <button onClick={() => handleProbe("claude-sonnet-4.6")} style={ghostButtonStyle}>
+            Probe Sonnet 4.6 (OAuth)
+          </button>
+          <button onClick={() => handleProbe("kimi-k2.6")} style={ghostButtonStyle}>
+            Probe Kimi K2.6 (API key)
+          </button>
+          <button onClick={() => handleProbe("minimax-m2.7")} style={ghostButtonStyle}>
+            Probe MiniMax M2.7 (API key)
+          </button>
+        </div>
         {probeResult && (
           <pre
             style={{
