@@ -10,6 +10,7 @@ interface XeroInvoice {
   contact: { name: string }
   total: number
   amountDue: number
+  date: string
   dueDate: string
   status: string
   isOverdue: boolean
@@ -23,6 +24,7 @@ interface XeroInvoiceSummary {
   unpaidCount: number
   draftCount: number
   recentInvoices: XeroInvoice[]
+  recentPaidInvoices?: XeroInvoice[]
 }
 
 interface LineItem {
@@ -61,6 +63,10 @@ const MUTATING_TOOLS = new Set([
 
 function daysUntil(dateStr: string) {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+}
+
+function daysSince(dateStr: string) {
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24))
 }
 
 function formatCurrency(n: number) {
@@ -458,80 +464,155 @@ export default function XeroInvoicesPage() {
         </div>
       </div>
 
-      {/* Unpaid Invoices Table */}
-      <div style={card}>
-        <div style={cardHead}>
-          <span style={cardTitle}>Unpaid Invoices</span>
-          <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>
-            {invoices.recentInvoices.length} invoice{invoices.recentInvoices.length !== 1 ? 's' : ''}
-          </span>
-        </div>
+      {/* Invoices Table — unpaid (oldest sent first) followed by recent paid */}
+      {(() => {
+        const unpaidSorted = [...invoices.recentInvoices].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        )
+        const paidRecent = invoices.recentPaidInvoices ?? []
+        const totalRows = unpaidSorted.length + paidRecent.length
 
-        {invoices.recentInvoices.length > 0 ? (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Client</th>
-                  <th style={thStyle}>Invoice #</th>
-                  <th style={thStyle}>Description</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>Amount Due</th>
-                  <th style={thStyle}>Due Date</th>
-                  <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.recentInvoices.map((inv) => (
-                  <tr
-                    key={inv.invoiceNumber}
-                    style={{
-                      borderBottom: '1px solid var(--theme-elevation-50)',
-                      background: inv.isOverdue ? 'rgba(239, 68, 68, 0.04)' : undefined,
-                    }}
-                  >
-                    <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--theme-elevation-800)' }}>
-                      {inv.contact.name}
-                    </td>
-                    <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
-                      {inv.invoiceNumber}
-                    </td>
-                    <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
-                      {inv.reference || '—'}
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--theme-elevation-600)' }}>
-                      {formatCurrency(inv.total)}
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
-                      {formatCurrency(inv.amountDue)}
-                    </td>
-                    <td style={tdStyle}>
-                      {formatDate(inv.dueDate)}
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'center' }}>
-                      <span style={
-                        inv.isOverdue
-                          ? badge('#fef2f2', '#b91c1c')
-                          : inv.status === 'DRAFT'
-                          ? badge('#f3f4f6', '#6b7280')
-                          : badge('#f0fdf4', '#15803d')
-                      }>
-                        {inv.isOverdue ? 'Overdue' : inv.status === 'DRAFT' ? 'Draft' : 'Unpaid'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        return (
+          <div style={card}>
+            <div style={cardHead}>
+              <span style={cardTitle}>Invoices</span>
+              <span style={{ fontSize: 12, color: 'var(--theme-elevation-400)' }}>
+                {unpaidSorted.length} unpaid{paidRecent.length > 0 ? ` · ${paidRecent.length} recently paid` : ''}
+              </span>
+            </div>
+
+            {totalRows > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Client</th>
+                      <th style={thStyle}>Invoice #</th>
+                      <th style={thStyle}>Description</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>Amount Due</th>
+                      <th style={thStyle}>Due Date</th>
+                      <th style={thStyle}>Age</th>
+                      <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unpaidSorted.map((inv) => {
+                      const sinceDue = daysSince(inv.dueDate)
+                      const sinceSent = daysSince(inv.date)
+                      const pastDue = sinceDue > 0
+                      const ageLabel = pastDue
+                        ? `${sinceDue} day${sinceDue !== 1 ? 's' : ''} since due date`
+                        : `${sinceSent} day${sinceSent !== 1 ? 's' : ''} since invoice sent`
+                      return (
+                        <tr
+                          key={inv.invoiceNumber}
+                          style={{
+                            borderBottom: '1px solid var(--theme-elevation-50)',
+                            background: inv.isOverdue ? 'rgba(239, 68, 68, 0.04)' : undefined,
+                          }}
+                        >
+                          <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--theme-elevation-800)' }}>
+                            {inv.contact.name}
+                          </td>
+                          <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
+                            {inv.invoiceNumber}
+                          </td>
+                          <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
+                            {inv.reference || '—'}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--theme-elevation-600)' }}>
+                            {formatCurrency(inv.total)}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
+                            {formatCurrency(inv.amountDue)}
+                          </td>
+                          <td style={tdStyle}>
+                            {formatDate(inv.dueDate)}
+                          </td>
+                          <td style={{ ...tdStyle, color: pastDue ? '#b91c1c' : 'var(--theme-elevation-500)', fontWeight: pastDue ? 600 : 400 }}>
+                            {ageLabel}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'center' }}>
+                            <span style={
+                              inv.isOverdue
+                                ? badge('#fef2f2', '#b91c1c')
+                                : inv.status === 'DRAFT'
+                                ? badge('#f3f4f6', '#6b7280')
+                                : badge('#f0fdf4', '#15803d')
+                            }>
+                              {inv.isOverdue ? 'Overdue' : inv.status === 'DRAFT' ? 'Draft' : 'Unpaid'}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+
+                    {paidRecent.length > 0 && (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            color: 'var(--theme-elevation-500)',
+                            background: 'var(--theme-elevation-50)',
+                            borderTop: '1px solid var(--theme-elevation-100)',
+                            borderBottom: '1px solid var(--theme-elevation-100)',
+                          }}
+                        >
+                          Recently Paid
+                        </td>
+                      </tr>
+                    )}
+
+                    {paidRecent.map((inv) => (
+                      <tr
+                        key={inv.invoiceNumber}
+                        style={{ borderBottom: '1px solid var(--theme-elevation-50)' }}
+                      >
+                        <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--theme-elevation-800)' }}>
+                          {inv.contact.name}
+                        </td>
+                        <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
+                          {inv.invoiceNumber}
+                        </td>
+                        <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
+                          {inv.reference || '—'}
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--theme-elevation-600)' }}>
+                          {formatCurrency(inv.total)}
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--theme-elevation-400)' }}>
+                          —
+                        </td>
+                        <td style={tdStyle}>
+                          {formatDate(inv.dueDate)}
+                        </td>
+                        <td style={{ ...tdStyle, color: 'var(--theme-elevation-400)' }}>
+                          —
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>
+                          <span style={badge('#ecfdf5', '#047857')}>Paid</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+                <p style={{ color: 'var(--theme-elevation-400)', fontSize: 14, margin: 0 }}>
+                  No invoices to show 🎉
+                </p>
+              </div>
+            )}
           </div>
-        ) : (
-          <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-            <p style={{ color: 'var(--theme-elevation-400)', fontSize: 14, margin: 0 }}>
-              No unpaid invoices 🎉
-            </p>
-          </div>
-        )}
-      </div>
+        )
+      })()}
 
       {/* Drafts & Scheduled Sends */}
       <div style={card}>
