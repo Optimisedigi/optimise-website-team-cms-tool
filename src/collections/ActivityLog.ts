@@ -52,6 +52,12 @@ export const ActivityLog: CollectionConfig = {
         { label: "AI Visibility Snapshot Created", value: "ai_visibility_snapshot_created" },
         { label: "SERP Displacement Snapshot Created", value: "serp_displacement_snapshot_created" },
         { label: "SERP Displacement Alert Created", value: "serp_displacement_alert_created" },
+        // Optimate agent step types
+        { label: "Agent Tool Call", value: "agent_tool_call" },
+        { label: "Agent Reasoning", value: "agent_reasoning" },
+        { label: "Agent Final Output", value: "agent_final_output" },
+        { label: "Agent Error", value: "agent_error" },
+        { label: "Agent Auth Event", value: "agent_auth_event" },
       ],
     },
     {
@@ -78,6 +84,67 @@ export const ActivityLog: CollectionConfig = {
       admin: {
         description: "Related client",
       },
+    },
+    // Optimate agent step fields. All optional; populated only on agent-emitted rows.
+    {
+      name: "agentRunId",
+      type: "text",
+      index: true,
+      admin: { description: "Optimate agents: groups all step rows for one agent run." },
+    },
+    {
+      name: "agentName",
+      type: "text",
+      index: true,
+      admin: { description: "Optimate agents: which agent emitted this step, e.g. optimate-google-ads." },
+    },
+    {
+      name: "step",
+      type: "number",
+      admin: { description: "Optimate agents: turn number within the run." },
+    },
+    {
+      name: "toolName",
+      type: "text",
+      admin: { description: "Optimate agents: tool invoked on this step (when type=agent_tool_call)." },
+    },
+    {
+      name: "input",
+      type: "json",
+      admin: { description: "Optimate agents: tool input arguments." },
+    },
+    {
+      name: "output",
+      type: "json",
+      admin: { description: "Optimate agents: tool output, or final assistant message." },
+    },
+    {
+      name: "reasoning",
+      type: "textarea",
+      admin: {
+        description:
+          "Optimate agents: model reasoning between tool calls. Hidden by default in UI; never rendered to client surfaces.",
+      },
+    },
+    {
+      name: "model",
+      type: "text",
+      admin: { description: "Optimate agents: canonical model name that served this step." },
+    },
+    {
+      name: "source",
+      type: "select",
+      options: [
+        { label: "OAuth", value: "oauth" },
+        { label: "API key", value: "api-key" },
+        { label: "API key fallback", value: "api-key-fallback" },
+      ],
+      admin: { description: "Optimate agents: which credential path served the request." },
+    },
+    {
+      name: "durationMs",
+      type: "number",
+      admin: { description: "Optimate agents: wall-time of the step in milliseconds." },
     },
   ],
 };

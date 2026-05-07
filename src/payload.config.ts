@@ -55,6 +55,8 @@ import { EmailTemplates } from "./globals/EmailTemplates";
 import { CalendarAuth } from "./globals/CalendarAuth";
 import { MeetingSchedulers } from "./collections/MeetingSchedulers";
 import { PermissionProfiles } from "./collections/PermissionProfiles";
+import { AgentApprovalQueue } from "./collections/AgentApprovalQueue";
+import { AgentCredentials } from "./collections/AgentCredentials";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -107,8 +109,10 @@ export default buildConfig({
     Contractors, ContractorTimeEntries, ContractorPayments,
     // Admin
     Users, PermissionProfiles, UsageReports, ActivityLog,
+    // Optimate agents
+    AgentApprovalQueue,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache,
+    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials,
   ].map((c) => ({
     ...c,
     admin: {
