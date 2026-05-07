@@ -2347,7 +2347,72 @@ export async function POST(request: NextRequest) {
   // ── Brand spend column on waste/relevancy cache (2026-05-06) ──
   await run("waste_relevancy_cache.brand_spend", "ALTER TABLE `negative_keyword_monthly_waste_relevancy_cache` ADD `brand_spend` numeric DEFAULT 0");
 
-  return NextResponse.json({ ok: true, version: "2026-05-05", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── Optimate agents Phase 0 (2026-05-07) ──
+  // Two new collections + 9 new columns on activity_log so the agent loop can
+  // log per-step traces (tool calls, reasoning, model + auth source used).
+  // See src/lib/agents/_shared/ for the runtime that reads/writes these.
+
+  // Agent Approval Queue: drafts produced by agents, awaiting human review.
+  await run("agent_approval_queue", `CREATE TABLE IF NOT EXISTS \`agent_approval_queue\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`title\` text NOT NULL,
+    \`agent_name\` text NOT NULL,
+    \`client_id\` integer,
+    \`proposal_type\` text NOT NULL,
+    \`agent_run_id\` text NOT NULL,
+    \`proposal_payload\` text NOT NULL,
+    \`rendered_client_html\` text,
+    \`rendered_internal_markdown\` text,
+    \`status\` text DEFAULT 'pending' NOT NULL,
+    \`reviewed_by_id\` integer,
+    \`reviewed_at\` text,
+    \`applied_at\` text,
+    \`apply_error\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`reviewed_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("agent_approval_queue_agent_name_idx", "CREATE INDEX IF NOT EXISTS `agent_approval_queue_agent_name_idx` ON `agent_approval_queue` (`agent_name`)");
+  await run("agent_approval_queue_client_idx", "CREATE INDEX IF NOT EXISTS `agent_approval_queue_client_idx` ON `agent_approval_queue` (`client_id`)");
+  await run("agent_approval_queue_proposal_type_idx", "CREATE INDEX IF NOT EXISTS `agent_approval_queue_proposal_type_idx` ON `agent_approval_queue` (`proposal_type`)");
+  await run("agent_approval_queue_agent_run_id_idx", "CREATE INDEX IF NOT EXISTS `agent_approval_queue_agent_run_id_idx` ON `agent_approval_queue` (`agent_run_id`)");
+  await run("agent_approval_queue_status_idx", "CREATE INDEX IF NOT EXISTS `agent_approval_queue_status_idx` ON `agent_approval_queue` (`status`)");
+  await run("agent_approval_queue_created_at_idx", "CREATE INDEX IF NOT EXISTS `agent_approval_queue_created_at_idx` ON `agent_approval_queue` (`created_at`)");
+  await run("agent_approval_queue_updated_at_idx", "CREATE INDEX IF NOT EXISTS `agent_approval_queue_updated_at_idx` ON `agent_approval_queue` (`updated_at`)");
+  await run("locked_docs_rels.agent_approval_queue_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agent_approval_queue_id` integer REFERENCES `agent_approval_queue`(`id`) ON DELETE CASCADE");
+
+  // Agent Credentials: encrypted OAuth tokens + API key references per provider.
+  await run("agent_credentials", `CREATE TABLE IF NOT EXISTS \`agent_credentials\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`provider\` text NOT NULL UNIQUE,
+    \`kind\` text NOT NULL,
+    \`data\` text NOT NULL,
+    \`force_fallback\` integer DEFAULT 0,
+    \`last_refreshed_at\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("agent_credentials_provider_idx", "CREATE INDEX IF NOT EXISTS `agent_credentials_provider_idx` ON `agent_credentials` (`provider`)");
+  await run("locked_docs_rels.agent_credentials_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agent_credentials_id` integer REFERENCES `agent_credentials`(`id`) ON DELETE CASCADE");
+
+  // Activity Log extensions: agent step fields. All optional; populated only on
+  // agent-emitted rows. The matching enum values for activity_log.type are
+  // validated by Payload at write time, no schema change needed for those.
+  await run("activity_log.agent_run_id", "ALTER TABLE `activity_log` ADD `agent_run_id` text");
+  await run("activity_log.agent_name", "ALTER TABLE `activity_log` ADD `agent_name` text");
+  await run("activity_log.step", "ALTER TABLE `activity_log` ADD `step` numeric");
+  await run("activity_log.tool_name", "ALTER TABLE `activity_log` ADD `tool_name` text");
+  await run("activity_log.input", "ALTER TABLE `activity_log` ADD `input` text");
+  await run("activity_log.output", "ALTER TABLE `activity_log` ADD `output` text");
+  await run("activity_log.reasoning", "ALTER TABLE `activity_log` ADD `reasoning` text");
+  await run("activity_log.model", "ALTER TABLE `activity_log` ADD `model` text");
+  await run("activity_log.source", "ALTER TABLE `activity_log` ADD `source` text");
+  await run("activity_log.duration_ms", "ALTER TABLE `activity_log` ADD `duration_ms` numeric");
+  await run("activity_log_agent_run_id_idx", "CREATE INDEX IF NOT EXISTS `activity_log_agent_run_id_idx` ON `activity_log` (`agent_run_id`)");
+  await run("activity_log_agent_name_idx", "CREATE INDEX IF NOT EXISTS `activity_log_agent_name_idx` ON `activity_log` (`agent_name`)");
+
+  return NextResponse.json({ ok: true, version: "2026-05-07", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
