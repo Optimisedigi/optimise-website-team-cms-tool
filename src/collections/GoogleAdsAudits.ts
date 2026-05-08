@@ -1624,68 +1624,9 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 12: OptiMate History ──
-        // (was Tab 11 before Weekly Reports was added)
-        {
-          label: "OptiMate",
-          fields: [
-            {
-              name: "optimateHistory",
-              type: "array",
-              admin: {
-                readOnly: true,
-                description: "Autonomous monitoring run history (populated by OptiMate agent)",
-              },
-              fields: [
-                {
-                  type: "row",
-                  fields: [
-                    {
-                      name: "runDate",
-                      type: "text",
-                      required: true,
-                      admin: { readOnly: true, width: "30%" },
-                    },
-                    {
-                      name: "recommendationCount",
-                      type: "number",
-                      admin: { readOnly: true, width: "15%" },
-                    },
-                    {
-                      name: "criticalCount",
-                      type: "number",
-                      admin: { readOnly: true, width: "15%" },
-                    },
-                    {
-                      name: "warningCount",
-                      type: "number",
-                      admin: { readOnly: true, width: "15%" },
-                    },
-                  ],
-                },
-                {
-                  name: "checksRun",
-                  type: "json",
-                  admin: { readOnly: true, description: "Which checks ran" },
-                },
-                {
-                  name: "autoApplied",
-                  type: "json",
-                  admin: { readOnly: true, description: "Actions auto-applied this run" },
-                },
-                {
-                  name: "recommendations",
-                  type: "json",
-                  admin: { readOnly: true, description: "Full recommendation list" },
-                },
-              ],
-            },
-          ],
-        },
-
         // ── Tab 12: OptiMate Chat ──
         {
-          label: "Chat",
+          label: "OptiMate Chat",
           fields: [
             {
               name: "optimateChat",
@@ -1700,6 +1641,60 @@ export const GoogleAdsAudits: CollectionConfig = {
         },
 
 
+      ],
+    },
+
+    // ── OptiMate autonomous run history (persisted, hidden from admin UI) ──
+    {
+      name: "optimateHistory",
+      type: "array",
+      admin: {
+        hidden: true,
+        readOnly: true,
+        description: "Autonomous monitoring run history (populated by OptiMate agent)",
+      },
+      fields: [
+        {
+          type: "row",
+          fields: [
+            {
+              name: "runDate",
+              type: "text",
+              required: true,
+              admin: { readOnly: true, width: "30%" },
+            },
+            {
+              name: "recommendationCount",
+              type: "number",
+              admin: { readOnly: true, width: "15%" },
+            },
+            {
+              name: "criticalCount",
+              type: "number",
+              admin: { readOnly: true, width: "15%" },
+            },
+            {
+              name: "warningCount",
+              type: "number",
+              admin: { readOnly: true, width: "15%" },
+            },
+          ],
+        },
+        {
+          name: "checksRun",
+          type: "json",
+          admin: { readOnly: true, description: "Which checks ran" },
+        },
+        {
+          name: "autoApplied",
+          type: "json",
+          admin: { readOnly: true, description: "Actions auto-applied this run" },
+        },
+        {
+          name: "recommendations",
+          type: "json",
+          admin: { readOnly: true, description: "Full recommendation list" },
+        },
       ],
     },
 
