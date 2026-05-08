@@ -2,12 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { CHAT_PICKER_MODELS, DEFAULT_CHAT_MODEL } from '@/lib/agents/_shared/llm/registry'
+import OptiMateProposalCard, { type OptiMateProposal } from './OptiMateProposalCard'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   runId?: string
   modelUsed?: string
+  proposals?: OptiMateProposal[]
 }
 
 export interface OptiMateChatCoreProps {
@@ -87,6 +89,44 @@ function renderMarkdown(text: string) {
     }
   }
 
+  /**
+   * Inline formatter. Handles:
+   *   - **bold** and `inline code`
+   *   - bare URLs (https://…)
+   *   - in-app paths /agent-approvals/<id>
+   *
+   * Order matters: we run the bold/code regex first so URLs inside backticks
+   * are kept literal, then the URL/path regex on the remaining text spans.
+   */
+  const linkifyText = (text: string, keyPrefix: string): React.ReactNode[] => {
+    const parts: React.ReactNode[] = []
+    // Combined: full URL OR /agent-approvals/<id>
+    const regex = /(https?:\/\/[^\s)]+)|(\/agent-approvals\/\d+)/g
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+    let matchIdx = 0
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index))
+      }
+      const href = match[0]
+      parts.push(
+        <a
+          key={`${keyPrefix}-link-${matchIdx++}`}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}
+        >
+          {href}
+        </a>,
+      )
+      lastIndex = regex.lastIndex
+    }
+    if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+    return parts
+  }
+
   const formatInline = (line: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = []
     const regex = /\*\*(.+?)\*\*|`([^`]+)`/g
@@ -94,7 +134,8 @@ function renderMarkdown(text: string) {
     let match
     while ((match = regex.exec(line)) !== null) {
       if (match.index > lastIndex) {
-        parts.push(line.slice(lastIndex, match.index))
+        const span = line.slice(lastIndex, match.index)
+        parts.push(...linkifyText(span, `t-${match.index}`))
       }
       if (match[1]) {
         parts.push(<strong key={`b-${match.index}`}>{match[1]}</strong>)
@@ -117,7 +158,7 @@ function renderMarkdown(text: string) {
       lastIndex = regex.lastIndex
     }
     if (lastIndex < line.length) {
-      parts.push(line.slice(lastIndex))
+      parts.push(...linkifyText(line.slice(lastIndex), `t-end`))
     }
     return parts.length > 0 ? parts : [line]
   }
@@ -195,6 +236,50 @@ const OptiMateChatCore = ({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const sessionIdRef = useRef(crypto.randomUUID())
+  const [pendingForAudit, setPendingForAudit] = useState<OptiMateProposal[]>([])
+  const [pendingRefreshTick, setPendingRefreshTick] = useState(0)
+  const bumpPendingRefresh = useCallback(() => setPendingRefreshTick((n) => n + 1), [])
+
+  // Pending-strip fetch: query approvals for this audit and surface anything
+  // still pending. We over-fetch then client-filter on auditId because the
+  // proposalPayload field is JSON and Payload's REST query syntax doesn't
+  // index into JSON cleanly across both sqlite + postgres.
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch(
+          '/api/agent-approval-queue?where[agentName][equals]=optimate-google-ads&where[status][equals]=pending&depth=0&limit=20',
+          { credentials: 'include' },
+        )
+        if (!res.ok) return
+        const data = (await res.json()) as { docs?: Array<Record<string, unknown>> }
+        if (cancelled) return
+        const auditIdStr = String(auditId)
+        const items: OptiMateProposal[] = (data.docs ?? [])
+          .map((d) => {
+            const payload = d.proposalPayload as Record<string, unknown> | null
+            const payloadAuditId = payload?.auditId
+            return {
+              id: Number(d.id),
+              title: String(d.title ?? ''),
+              proposalType: String(d.proposalType ?? ''),
+              status: String(d.status ?? 'pending'),
+              _audit: payloadAuditId !== undefined && payloadAuditId !== null ? String(payloadAuditId) : '',
+            }
+          })
+          .filter((d) => d._audit === auditIdStr || d._audit === '')
+          .map(({ _audit: _drop, ...rest }) => rest)
+        setPendingForAudit(items)
+      } catch {
+        /* silent: strip is best-effort */
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [auditId, pendingRefreshTick])
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -262,13 +347,39 @@ const OptiMateChatCore = ({
       }
 
       const data = await res.json()
+      const proposals: OptiMateProposal[] = Array.isArray(data.proposals)
+        ? (data.proposals as Array<Record<string, unknown>>)
+            .map((p) => ({
+              id: Number(p.id),
+              title: String(p.title ?? ''),
+              proposalType: String(p.proposalType ?? ''),
+              status: String(p.status ?? 'pending'),
+            }))
+            .filter((p) => Number.isFinite(p.id))
+        : []
       const assistantMsg: ChatMessage = {
         role: 'assistant',
         content: data.reply || 'No response received.',
         runId: typeof data.runId === 'string' ? data.runId : undefined,
         modelUsed: typeof data.modelUsed === 'string' ? data.modelUsed : undefined,
+        proposals: proposals.length > 0 ? proposals : undefined,
       }
       setMessages((prev) => [...prev, assistantMsg])
+
+      // Refresh the pending strip and (when tab is hidden) fire a browser
+      // notification so the user notices the proposal landed.
+      if (proposals.length > 0) {
+        bumpPendingRefresh()
+        if (typeof document !== 'undefined' && document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          for (const p of proposals) {
+            try {
+              new Notification('OptiMate: proposal queued', { body: p.title, tag: `optimate-${p.id}` })
+            } catch {
+              /* notification API can throw on some platforms; silent */
+            }
+          }
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message')
     } finally {
@@ -404,6 +515,27 @@ const OptiMateChatCore = ({
           gap: 12,
         }}
       >
+        {pendingForAudit.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 6,
+              padding: '8px 4px',
+              borderBottom: '1px dashed #e5e7eb',
+              marginBottom: 4,
+              overflowX: 'auto',
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ fontSize: 10, color: '#6b7280', alignSelf: 'center', flexShrink: 0, marginRight: 4 }}>
+              Pending
+            </span>
+            {pendingForAudit.map((p) => (
+              <OptiMateProposalCard key={p.id} proposal={p} variant="strip" />
+            ))}
+          </div>
+        )}
+
         {messages.length === 0 && (
           <div style={{ textAlign: 'center', padding: '32px 8px' }}>
             <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
@@ -473,6 +605,13 @@ const OptiMateChatCore = ({
             >
               {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
             </div>
+            {msg.role === 'assistant' && msg.proposals && msg.proposals.length > 0 && (
+              <div style={{ width: '100%', maxWidth: '85%' }}>
+                {msg.proposals.map((p) => (
+                  <OptiMateProposalCard key={p.id} proposal={p} variant="inline" />
+                ))}
+              </div>
+            )}
             {msg.role === 'assistant' && msg.runId && (
               <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4, paddingLeft: 4 }}>
                 {msg.modelUsed ? <span style={{ marginRight: 8 }}>{msg.modelUsed}</span> : null}

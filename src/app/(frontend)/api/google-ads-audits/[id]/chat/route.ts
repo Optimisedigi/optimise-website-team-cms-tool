@@ -108,6 +108,7 @@ export async function POST(
       runId: result.runId,
       modelUsed: result.modelUsed,
       source: result.source,
+      proposals: result.proposals,
     });
   } catch (err) {
     console.error("[google-ads-chat] error:", err);

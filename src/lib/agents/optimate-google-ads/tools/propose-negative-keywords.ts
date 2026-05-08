@@ -7,7 +7,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
-import { queueForApproval } from "@/lib/agents/_shared/approval-queue";
+import { queueProposal } from "./_propose-helpers";
 
 type MatchType = "exact" | "phrase" | "broad";
 
@@ -95,7 +95,7 @@ export const proposeNegativeKeywords: CanonicalTool<ProposeNegativesArgs> = {
 
     let approvalId: number;
     try {
-      approvalId = await queueForApproval({
+      approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
         proposalType: "negative-keywords",

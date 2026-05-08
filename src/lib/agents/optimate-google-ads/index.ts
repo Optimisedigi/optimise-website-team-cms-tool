@@ -13,6 +13,16 @@ import { getAccountOverview } from "./tools/get-account-overview";
 import { getCampaignPerformance } from "./tools/get-campaign-performance";
 import { getSearchTerms } from "./tools/get-search-terms";
 import { proposeNegativeKeywords } from "./tools/propose-negative-keywords";
+import { proposeNklCreate } from "./tools/propose-nkl-create";
+import { proposeNklUpdate } from "./tools/propose-nkl-update";
+import { proposeNklPushLive } from "./tools/propose-nkl-push-live";
+import { proposeBudgetUpdate } from "./tools/propose-budget-update";
+import { proposeBudgetPushLive } from "./tools/propose-budget-push-live";
+import { proposeAdCopyGenerate } from "./tools/propose-ad-copy-generate";
+import { proposeAdCopyDeploy } from "./tools/propose-ad-copy-deploy";
+import { resetProposalCounter } from "./tools/_propose-helpers";
+import { getPayload } from "payload";
+import payloadConfig from "@/payload.config";
 
 export { AGENT_NAME, buildSystemPromptForAudit };
 
@@ -22,6 +32,13 @@ export function getTools(): CanonicalTool<unknown>[] {
     getCampaignPerformance as unknown as CanonicalTool<unknown>,
     getSearchTerms as unknown as CanonicalTool<unknown>,
     proposeNegativeKeywords as unknown as CanonicalTool<unknown>,
+    proposeNklCreate as unknown as CanonicalTool<unknown>,
+    proposeNklUpdate as unknown as CanonicalTool<unknown>,
+    proposeNklPushLive as unknown as CanonicalTool<unknown>,
+    proposeBudgetUpdate as unknown as CanonicalTool<unknown>,
+    proposeBudgetPushLive as unknown as CanonicalTool<unknown>,
+    proposeAdCopyGenerate as unknown as CanonicalTool<unknown>,
+    proposeAdCopyDeploy as unknown as CanonicalTool<unknown>,
   ];
 }
 
@@ -50,12 +67,20 @@ export interface RunChatTurnInput {
   modelOverride?: string;
 }
 
+export interface ProposalSummary {
+  id: number;
+  title: string;
+  proposalType: string;
+  status: string;
+}
+
 export interface RunChatTurnResult {
   reply: string;
   runId: string;
   modelUsed: string;
   source: CredentialSource;
   totalUsage: Usage;
+  proposals: ProposalSummary[];
 }
 
 const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
@@ -84,11 +109,23 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     },
   });
 
+  // Drain the per-turn proposal counter so a long-lived process doesn't leak
+  // entries. Safe even if the run threw — we always reach this point because
+  // runAgent surfaces errors via thrown exceptions, in which case we never
+  // get here. Successful turns clear their bucket.
+  resetProposalCounter(result.runId);
+
   const reply = result.finalMessage.content
     .filter((p): p is { type: "text"; text: string } => p.type === "text")
     .map((p) => p.text)
     .join("\n")
     .trim();
+
+  // Query the approval queue for rows produced during this run so the chat
+  // route can show inline proposal cards. We key off agentRunId rather than
+  // a timestamp window because runs can be slower than the wall-clock skew
+  // between Payload’s SQLite writes and our `new Date()` capture.
+  const proposals = await fetchProposalsForRun(result.runId);
 
   return {
     reply,
@@ -96,5 +133,28 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     modelUsed: result.modelUsed,
     source: result.source,
     totalUsage: result.totalUsage,
+    proposals,
   };
+}
+
+async function fetchProposalsForRun(agentRunId: string): Promise<ProposalSummary[]> {
+  try {
+    const cfg = await payloadConfig;
+    const payload = await getPayload({ config: cfg });
+    const result = await payload.find({
+      collection: "agent-approval-queue" as never,
+      where: { agentRunId: { equals: agentRunId } } as never,
+      limit: 20,
+      sort: "createdAt",
+      overrideAccess: true,
+    });
+    return (result.docs as unknown as Array<{ id: number; title: string; proposalType: string; status: string }>).map((d) => ({
+      id: d.id,
+      title: d.title,
+      proposalType: d.proposalType,
+      status: d.status,
+    }));
+  } catch {
+    return [];
+  }
 }

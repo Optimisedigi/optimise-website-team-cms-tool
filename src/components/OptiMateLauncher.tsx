@@ -35,6 +35,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   const [auditsError, setAuditsError] = useState<string | null>(null)
   const [selectedAudit, setSelectedAudit] = useState<AuditOption | null>(null)
   const [filter, setFilter] = useState('')
+  const [pendingCount, setPendingCount] = useState<number>(0)
 
   const loadAudits = useCallback(async () => {
     setAuditsLoading(true)
@@ -67,6 +68,35 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
       loadAudits()
     }
   }, [open, step, audits, auditsLoading, loadAudits])
+
+  // Poll pending approvals so the launcher pill shows a live count badge.
+  // Cheap query: limit=0 returns just totalDocs. Polled while the panel is
+  // closed (every 60s) and refetched once when opened.
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    const fetchCount = async () => {
+      try {
+        const res = await fetch(
+          '/api/agent-approval-queue?where[status][equals]=pending&limit=0&depth=0',
+          { credentials: 'include' },
+        )
+        if (!res.ok) return
+        const data = (await res.json()) as { totalDocs?: number }
+        if (!cancelled && typeof data.totalDocs === 'number') {
+          setPendingCount(data.totalDocs)
+        }
+      } catch {
+        /* silent */
+      }
+    }
+    fetchCount()
+    const interval = setInterval(fetchCount, 60_000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [user, open])
 
   // Reset to agent step when closing the panel.
   const close = () => {
@@ -105,7 +135,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          title="Open OptiMate"
+          title={pendingCount > 0 ? `Open OptiMate (${pendingCount} pending approval${pendingCount === 1 ? '' : 's'})` : 'Open OptiMate'}
           style={{
             position: 'fixed',
             bottom: PILL_BOTTOM,
@@ -133,6 +163,38 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             style={{ borderRadius: '50%', display: 'block' }}
           />
           OptiMate
+          {pendingCount > 0 && (
+            <span
+              role="link"
+              tabIndex={0}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                window.open('/agent-approvals?status=pending', '_blank', 'noopener,noreferrer')
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  window.open('/agent-approvals?status=pending', '_blank', 'noopener,noreferrer')
+                }
+              }}
+              title={`${pendingCount} pending — open queue`}
+              style={{
+                background: '#ef4444',
+                color: '#fff',
+                fontSize: 11,
+                fontWeight: 700,
+                lineHeight: 1,
+                padding: '3px 6px',
+                borderRadius: 999,
+                marginLeft: 2,
+                cursor: 'pointer',
+              }}
+            >
+              {pendingCount > 99 ? '99+' : pendingCount}
+            </span>
+          )}
         </button>
       )}
 
@@ -189,6 +251,27 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
                   · {selectedAudit.businessName ?? selectedAudit.customerId}
                 </span>
+              )}
+              {pendingCount > 0 && (
+                <a
+                  href="/agent-approvals?status=pending"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`${pendingCount} pending approval${pendingCount === 1 ? '' : 's'} — open queue`}
+                  style={{
+                    background: '#ef4444',
+                    color: '#fff',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                    borderRadius: 999,
+                    marginLeft: 8,
+                    textDecoration: 'none',
+                    verticalAlign: 'middle',
+                  }}
+                >
+                  {pendingCount > 99 ? '99+' : pendingCount} pending
+                </a>
               )}
             </div>
             {step === 'chat' && (
