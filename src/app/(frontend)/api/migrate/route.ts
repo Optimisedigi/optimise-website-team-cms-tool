@@ -1303,6 +1303,7 @@ export async function POST(request: NextRequest) {
     '20260327_120000_add_client_to_proposals',
     '20260410_120000_add_client_timeline_templates_and_client_timelines',
     '20260420_120000_add_ai_visibility_snapshots',
+    '20260508_120000_add_client_presentations',
   ];
   for (const migName of allMigrationNames) {
     await run(`mark_migration:${migName}`, `INSERT OR IGNORE INTO \`payload_migrations\` (\`name\`, \`batch\`, \`created_at\`, \`updated_at\`) VALUES ('${migName}', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`);
@@ -3008,6 +3009,22 @@ export async function GET(request: NextRequest) {
 
   // ── Hidden keyword categories JSON column on client_proposals (2026-04-15) ──
   await run("client_proposals.hidden_keyword_categories_get", "ALTER TABLE `client_proposals` ADD `hidden_keyword_categories` text");
+
+  // ── Client Presentations array table (2026-05-08) ──
+  await run("clients_presentations", `CREATE TABLE IF NOT EXISTS \`clients_presentations\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`title\` text NOT NULL,
+    \`deck_slug\` text NOT NULL,
+    \`presented_on\` text,
+    \`kind\` text DEFAULT 'deck',
+    \`is_public\` integer DEFAULT true,
+    \`notes\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_presentations_order_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_order_idx` ON `clients_presentations` (`_order`)");
+  await run("clients_presentations_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_parent_id_idx` ON `clients_presentations` (`_parent_id`)");
 
   let allTables: string[] = [];
   try {
