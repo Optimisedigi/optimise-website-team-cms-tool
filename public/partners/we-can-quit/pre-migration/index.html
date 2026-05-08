@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Before site migration</title>
+<style>
+  /* -------------------------------------------------------------------------
+     Brand tokens — pulled from we-can-quit-logo.png greens
+  ------------------------------------------------------------------------- */
+  :root {
+    --green: #1f8a3a;
+    --green-deep: #156628;
+    --green-soft: #e8f4ec;
+    --green-line: #c8e2cf;
+    --amber: #c98a1a;
+    --amber-soft: #fdf3e0;
+    --ink: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --muted: #6b7280;
+    --bg: #f7f7f5;
+    --card: #ffffff;
+    --rule: #e5e5e0;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Scroll-snap deck */
+  .deck {
+    scroll-snap-type: y mandatory;
+    overflow-y: auto;
+    height: 100vh;
+  }
+
+  .slide {
+    scroll-snap-align: start;
+    min-height: 100vh;
+    padding: 48px 64px 56px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .slide + .slide {
+    border-top: 1px solid var(--rule);
+  }
+
+  /* -------------------------------------------------------------------------
+     Header (logo │ title │ meta), title sits to the right of the logo
+  ------------------------------------------------------------------------- */
+  .slide-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    column-gap: 24px;
+    padding-bottom: 18px;
+    border-bottom: 2px solid var(--green);
+    margin-bottom: 28px;
+  }
+
+  .brand img {
+    height: 56px;
+    width: auto;
+    display: block;
+  }
+
+  .header-title .slide-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 2px;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  .header-title .slide-subtitle {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin: 0;
+    line-height: 1.45;
+    max-width: 700px;
+  }
+
+  .slide-meta {
+    text-align: right;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .slide-meta .num {
+    display: inline-block;
+    background: var(--green);
+    color: #fff;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+
+  /* -------------------------------------------------------------------------
+     Optimise Digital footer-mark (bottom-right of every slide)
+  ------------------------------------------------------------------------- */
+  .od-mark {
+    position: absolute;
+    right: 62px;
+    bottom: 18px;
+    user-select: none;
+  }
+
+  .od-mark a {
+    display: block;
+    line-height: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .od-mark a:hover {
+    opacity: 1;
+  }
+
+  .od-mark img {
+    height: 11px;
+    width: auto;
+    display: block;
+    opacity: 0.9;
+  }
+
+  .od-mark a:hover img {
+    opacity: 1;
+  }
+
+  /* -------------------------------------------------------------------------
+     Slide 1, two-column layout
+  ------------------------------------------------------------------------- */
+  .columns {
+    display: grid;
+    grid-template-columns: 5fr 7fr;
+    gap: 24px;
+    flex: 1;
+  }
+
+  .col-card {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 22px 24px 24px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .col-card.client {
+    border-top: 4px solid var(--green);
+  }
+
+  .col-card.optimise {
+    border-top: 4px solid #2563eb;
+  }
+
+  .col-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 4px;
+  }
+
+  .col-title {
+    color: var(--muted);
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 16px;
+    color: var(--ink);
+  }
+
+  .col-card ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .col-card li {
+    position: relative;
+    padding: 8px 0 8px 26px;
+    border-top: 1px solid var(--rule);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  .col-card li:first-child { border-top: 0; }
+
+  /* Status pills used on every list item */
+  .col-card li {
+    padding-left: 0;
+  }
+
+  .col-card li::before { content: none; }
+
+  .status {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-right: 8px;
+    vertical-align: 1px;
+    white-space: nowrap;
+  }
+
+  .status.done {
+    background: var(--green);
+    color: #fff;
+  }
+
+  .status.waiting {
+    background: #fff;
+    color: var(--amber);
+    border: 1.5px solid var(--amber);
+  }
+
+  .status.todo {
+    background: #fff;
+    color: var(--ink-soft);
+    border: 1.5px solid var(--rule);
+  }
+
+  .col-card li b {
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .col-card li .note {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .col-card li.highlight {
+    background: var(--green-soft);
+    margin: 6px -10px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    border-top: 0;
+  }
+
+  .col-card li.highlight + li { border-top: 0; }
+
+  /* -------------------------------------------------------------------------
+     Slide 1 — footer band
+  ------------------------------------------------------------------------- */
+  .footer-band {
+    margin-top: 24px;
+    background: linear-gradient(135deg, var(--green-deep), var(--green));
+    color: #fff;
+    border-radius: 12px;
+    padding: 22px 26px;
+  }
+
+  .footer-band h3 {
+    margin: 0 0 14px;
+    font-size: 16px;
+    letter-spacing: 0.02em;
+  }
+
+  .footer-band .three {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+
+  .footer-band .item {
+    border-left: 2px solid rgba(255,255,255,0.4);
+    padding-left: 14px;
+  }
+
+  .footer-band .item .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.85;
+    margin-bottom: 4px;
+  }
+
+  .footer-band .item .name {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .footer-band .item .desc {
+    font-size: 12.5px;
+    opacity: 0.92;
+    line-height: 1.45;
+  }
+
+  /* -------------------------------------------------------------------------
+     Slide 2 — flowchart
+  ------------------------------------------------------------------------- */
+  .flow-wrap {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .flow-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    flex: 1;
+  }
+
+  .flow-svg a { cursor: pointer; }
+  .flow-svg a:hover rect { filter: brightness(1.05); }
+
+  .legend {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .legend .item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.35;
+  }
+
+  .legend .swatch {
+    flex-shrink: 0;
+    width: 28px;
+    height: 14px;
+    border-radius: 3px;
+  }
+
+  .legend .swatch.solid { background: var(--green); }
+  .legend .swatch.dashed {
+    border: 2px dashed var(--amber);
+    background: var(--amber-soft);
+    height: 12px;
+  }
+
+  .legend .icon-badge {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    background: var(--green-soft);
+    border-radius: 4px;
+  }
+
+  /* -------------------------------------------------------------------------
+     Slide 3, growth recommendation
+  ------------------------------------------------------------------------- */
+  .growth-grid {
+    display: grid;
+    grid-template-columns: 5fr 7fr;
+    gap: 24px;
+    flex: 1;
+  }
+
+  .growth-hero {
+    background: linear-gradient(155deg, var(--green-deep), var(--green));
+    color: #fff;
+    border-radius: 12px;
+    padding: 28px 28px 26px;
+    align-self: start;
+  }
+
+  .growth-hero .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.85;
+    margin: 0 0 12px;
+  }
+
+  .growth-hero .stat {
+    font-size: 34px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    margin: 0 0 10px;
+  }
+
+  .growth-hero .stat-sub {
+    font-size: 13px;
+    line-height: 1.55;
+    opacity: 0.95;
+    margin: 0 0 18px;
+  }
+
+  .growth-hero .quote {
+    border-top: 1px solid rgba(255, 255, 255, 0.25);
+    padding-top: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+    font-style: italic;
+    opacity: 0.92;
+  }
+
+  .growth-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .growth-card {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 18px 22px 20px;
+  }
+
+  .growth-card.included {
+    border-left: 4px solid var(--green);
+  }
+
+  .growth-card.not-included {
+    border-left: 4px solid var(--amber);
+    background: #fff;
+  }
+
+  .growth-card h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .growth-card .pill {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+
+  .growth-card.included .pill {
+    background: var(--green);
+    color: #fff;
+  }
+
+  .growth-card.not-included .pill {
+    background: var(--amber-soft);
+    color: var(--amber);
+    border: 1px solid var(--amber);
+  }
+
+  .growth-card p.lead {
+    margin: 4px 0 12px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+
+  .growth-card .items {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 18px;
+  }
+
+  .growth-card .items div {
+    position: relative;
+    padding-left: 18px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+
+  .growth-card.included .items div::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    top: -1px;
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  .growth-card.not-included .items div::before {
+    content: '+';
+    position: absolute;
+    left: 0;
+    top: -1px;
+    color: var(--amber);
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .growth-bottom {
+    margin-top: 20px;
+    background: var(--green-soft);
+    border: 1px solid var(--green-line);
+    border-radius: 12px;
+    padding: 18px 24px;
+  }
+
+  .growth-bottom .copy {
+    font-size: 13.5px;
+    color: var(--ink);
+    line-height: 1.55;
+  }
+
+  .growth-bottom .copy strong {
+    color: var(--green-deep);
+  }
+
+  .growth-bottom .cta {
+    background: var(--green);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+
+  /* -------------------------------------------------------------------------
+     Print / page setup
+  ------------------------------------------------------------------------- */
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  @media print {
+    html, body { background: #fff; }
+    .deck { height: auto; overflow: visible; }
+    .slide {
+      min-height: auto;
+      height: 273mm;
+      padding: 0;
+      border-top: 0 !important;
+    }
+    .slide + .slide { page-break-before: always; }
+  }
+</style>
+</head>
+<body>
+
+<div class="deck">
+
+  <!-- ============================================================
+       SLIDE 1
+  ============================================================ -->
+  <section class="slide" id="slide-1">
+    <header class="slide-header">
+      <div class="brand">
+        <img src="logos/we-can-quit-logo.png" alt="Logo">
+      </div>
+      <div class="header-title">
+        <h1 class="slide-title">Before site migration</h1>
+        <p class="slide-subtitle">A quick view of what's needed from your side, what we're handling, and what goes live the moment we flip the switch.</p>
+      </div>
+      <div class="slide-meta">
+        <div class="num">1 / 3</div>
+        <div>Pre-migration briefing</div>
+      </div>
+    </header>
+
+    <div class="columns">
+
+      <!-- ---- Client column ---- -->
+      <div class="col-card client">
+        <h2 class="col-title">What we need from you</h2>
+        <ul>
+          <li>
+            <span class="status waiting">Waiting on you</span>
+            <b>Sinch MessageMedia account</b>
+            <span class="note">Sign up at hub.messagemedia.com so we can send SMS notifications to patients. Approval of the <code>WeCanQuit</code> sender ID takes 1 to 3 business days.</span>
+          </li>
+          <li>
+            <span class="status waiting">Waiting on you</span>
+            <b>Confirm the right mailbox to set up</b>
+            <span class="note">Just let us know which address you want as the main one: <code>support@wecanquit.com.au</code> or <code>noreply@wecanquit.com.au</code>. Once you confirm, we'll create it.</span>
+          </li>
+          <li>
+            <span class="status waiting">Waiting on you</span>
+            <b>Sign-off on privacy policy and terms</b>
+            <span class="note">Drafts have been generated and reviewed by an LLM and look right and ready. If you'd prefer your legal team to review them as well, that's an option. Otherwise we go with the current drafts.</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- ---- Optimise column ---- -->
+      <div class="col-card optimise">
+        <h2 class="col-title">What optimise digital handles</h2>
+        <ul>
+          <li>
+            <span class="status done">Done</span>
+            <b>Stripe connected and database seeded</b>
+            <span class="note">Live Stripe keys plugged in, webhook wired, ready to take $45 payments. Pharmacies and practitioner accounts loaded into the dashboard, and you can add more any time.</span>
+          </li>
+          <li>
+            <span class="status done">Done</span>
+            <b>Production build ready to deploy</b>
+            <span class="note">Code is built, tested, and waiting on the green light to ship.</span>
+          </li>
+          <li class="highlight">
+            <span class="status todo">Awaiting site migration</span>
+            <b>Website hosting and domain swap</b>
+            <span class="note">Point the domain at the new Vercel hosting. This is the moment we go live.</span>
+          </li>
+          <li class="highlight">
+            <span class="status todo">Awaiting site migration</span>
+            <b>SEO migration, 27 old WordPress URLs cleaned up</b>
+            <span class="note">Legitimate pages (home, FAQ, how it works, questionnaire, etc.) are 301-redirected to their new equivalents so Google rankings and inbound links carry across. Old cannabis pages and junk WooCommerce URLs are killed off so Google drops them from the index.</span>
+          </li>
+          <li class="highlight">
+            <span class="status todo">Awaiting site migration</span>
+            <b>Live test purchases</b>
+            <span class="note">Run real $45 transactions end-to-end on the live site to confirm payment, prescription email, and pharmacy notification all fire correctly.</span>
+          </li>
+          <li class="highlight">
+            <span class="status todo">Awaiting site migration</span>
+            <b>Import historical prescription data</b>
+            <span class="note">Load past prescription records into the new CRM so historical and new data sit side by side. Lets you track performance and trends from day one.</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ---- Footer band: what goes live ---- -->
+    <div class="footer-band">
+
+      <div class="three">
+        <div class="item">
+          <div class="label">1 · Public</div>
+          <div class="name">🌐 The website</div>
+          <div class="desc">
+            wecanquit.com.au, Google-searchable. Marketing pages plus the
+            online patient questionnaire.
+          </div>
+        </div>
+        <div class="item">
+          <div class="label">2 · Staff-only</div>
+          <div class="name">🔒 The CRM dashboard</div>
+          <div class="desc">
+            Private, login-protected. Where your team runs leads,
+            prescriptions, pharmacies, practitioners and analytics.
+          </div>
+        </div>
+        <div class="item">
+          <div class="label">3 · QR-only</div>
+          <div class="name">📱 The clinic forms</div>
+          <div class="desc">
+            Separate intake form for partner pharmacies. QR code only, not
+            linked from the public site, not indexed by Google.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Optimise Digital footer-mark -->
+    <div class="od-mark">
+      <a href="https://www.optimisedigital.online" target="_blank" rel="noopener" aria-label="Built by Optimise Digital">
+        <img src="logos/optimise-logo-animated.gif" alt="Optimise Digital">
+      </a>
+    </div>
+  </section>
+
+
+  <!-- ============================================================
+       SLIDE 2
+  ============================================================ -->
+  <section class="slide" id="slide-2">
+    <header class="slide-header">
+      <div class="brand">
+        <img src="logos/we-can-quit-logo.png" alt="Logo">
+      </div>
+      <div class="header-title">
+        <h1 class="slide-title">How the system works</h1>
+        <p class="slide-subtitle">Two independent ways patients reach you, one platform that runs the operation, and three external services it talks to.</p>
+      </div>
+      <div class="slide-meta">
+        <div class="num">2 / 3</div>
+        <div>System overview</div>
+      </div>
+    </header>
+
+    <div class="flow-wrap">
+      <svg class="flow-svg" viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="System flowchart">
+        <!-- Defs: arrowheads -->
+        <defs>
+          <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#1f8a3a"/>
+          </marker>
+          <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#c98a1a"/>
+          </marker>
+          <marker id="arrow-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#1a1a1a"/>
+          </marker>
+        </defs>
+
+        <!-- Lane backgrounds -->
+        <rect x="20"  y="20"  width="1160" height="170" rx="10" fill="#f0f7f2" stroke="#c8e2cf"/>
+        <rect x="20"  y="220" width="1160" height="170" rx="10" fill="#fefefe" stroke="#e5e5e0"/>
+        <rect x="20"  y="420" width="1160" height="280" rx="10" fill="#fafafa" stroke="#e5e5e0"/>
+
+        <!-- Lane labels -->
+        <text x="40" y="46" font-family="-apple-system, Segoe UI, Arial" font-size="11" font-weight="700" letter-spacing="1.5" fill="#156628">Lane 1 · Acquisition</text>
+        <text x="40" y="246" font-family="-apple-system, Segoe UI, Arial" font-size="11" font-weight="700" letter-spacing="1.5" fill="#374151">Lane 2 · Core platform</text>
+        <text x="40" y="446" font-family="-apple-system, Segoe UI, Arial" font-size="11" font-weight="700" letter-spacing="1.5" fill="#374151">Lane 3 · External integrations</text>
+
+        <!-- ============ LANE 1: Acquisition ============ -->
+
+        <!-- Public website box (clickable) -->
+        <a href="https://website-we-can-quit.vercel.app/" target="_blank" rel="noopener">
+          <rect x="80" y="70" width="440" height="100" rx="10" fill="#ffffff" stroke="#1f8a3a" stroke-width="2"/>
+          <text x="100" y="98" font-family="-apple-system, Segoe UI, Arial" font-size="20">🌐</text>
+          <text x="132" y="98" font-family="-apple-system, Segoe UI, Arial" font-size="15" font-weight="700" fill="#1a1a1a">Public website</text>
+          <text x="500" y="98" text-anchor="end" font-family="-apple-system, Segoe UI, Arial" font-size="10" font-weight="700" letter-spacing="0.5" fill="#1f8a3a">CLICK TO OPEN ↗</text>
+          <text x="100" y="122" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">Fully SEO optimised · Google-indexed</text>
+          <text x="100" y="140" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">Mobile-first · Home, How it works, FAQ, Blog, About …</text>
+          <text x="100" y="158" font-family="-apple-system, Segoe UI, Arial" font-size="12" font-weight="600" fill="#156628">→ Online questionnaire</text>
+        </a>
+
+        <!-- Clinic QR box (clickable) -->
+        <a href="https://website-we-can-quit.vercel.app/questionnaire/clinic" target="_blank" rel="noopener">
+          <rect x="680" y="70" width="440" height="100" rx="10" fill="#ffffff" stroke="#1f8a3a" stroke-width="2"/>
+          <text x="700" y="98" font-family="-apple-system, Segoe UI, Arial" font-size="20">📱</text>
+          <text x="732" y="98" font-family="-apple-system, Segoe UI, Arial" font-size="15" font-weight="700" fill="#1a1a1a">Clinic / pharmacy QR code</text>
+          <text x="1100" y="98" text-anchor="end" font-family="-apple-system, Segoe UI, Arial" font-size="10" font-weight="700" letter-spacing="0.5" fill="#1f8a3a">CLICK TO OPEN ↗</text>
+          <text x="700" y="122" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">Printed posters at partner pharmacies</text>
+          <text x="700" y="140" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">Mobile-first · Not linked publicly · Not Google-indexed</text>
+          <text x="700" y="158" font-family="-apple-system, Segoe UI, Arial" font-size="12" font-weight="600" fill="#156628">→ Clinic questionnaire</text>
+        </a>
+
+        <!-- Annotation between funnels -->
+        <g>
+          <rect x="540" y="95" width="120" height="50" rx="6" fill="#fff" stroke="#c8e2cf" stroke-dasharray="3 3"/>
+          <text x="600" y="115" text-anchor="middle" font-family="-apple-system, Segoe UI, Arial" font-size="10" font-weight="700" fill="#156628">Two independent</text>
+          <text x="600" y="128" text-anchor="middle" font-family="-apple-system, Segoe UI, Arial" font-size="10" font-weight="700" fill="#156628">funnels</text>
+          <text x="600" y="141" text-anchor="middle" font-family="-apple-system, Segoe UI, Arial" font-size="9" fill="#6b7280">both can grow</text>
+        </g>
+
+        <!-- ============ LANE 1 to LANE 2 arrows ============ -->
+        <line x1="300" y1="170" x2="500" y2="228" stroke="#1f8a3a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+        <line x1="900" y1="170" x2="700" y2="228" stroke="#1f8a3a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+
+        <!-- ============ LANE 2: Core platform (centred y=305, box 228–383) ============ -->
+        <a href="https://website-we-can-quit.vercel.app/dashboard" target="_blank" rel="noopener">
+          <rect x="280" y="228" width="640" height="155" rx="10" fill="#1f8a3a" stroke="#156628" stroke-width="2"/>
+          <text x="305" y="258" font-family="-apple-system, Segoe UI, Arial" font-size="20">🔒</text>
+          <text x="338" y="258" font-family="-apple-system, Segoe UI, Arial" font-size="17" font-weight="700" fill="#ffffff">CRM and database</text>
+          <text x="900" y="258" text-anchor="end" font-family="-apple-system, Segoe UI, Arial" font-size="10" font-weight="700" letter-spacing="0.5" fill="#ffffff">CLICK TO OPEN ↗</text>
+          <text x="338" y="276" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#e8f4ec">Magic-link sign-in · staff-only · no passwords to leak</text>
+          <text x="338" y="292" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#e8f4ec">Healthcare-grade: AES-256-GCM encrypted, Sydney-hosted, Privacy Act 1988 compliant</text>
+
+          <!-- bullet rows -->
+          <text x="305" y="318" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#ffffff">• Receives both questionnaires</text>
+          <text x="305" y="336" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#ffffff">• Notifies practitioners · 60 to 90 min SLA</text>
+          <text x="305" y="354" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#ffffff">• Audit log on every PHI access</text>
+
+          <text x="615" y="318" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#ffffff">• Manages leads, pharmacies, prescriptions</text>
+          <text x="615" y="336" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#ffffff">• Staff dashboard runs day-to-day work</text>
+          <text x="615" y="354" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#ffffff">• Role-based access (staff / admin)</text>
+          <text x="615" y="372" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#ffffff">• Automated email flows</text>
+        </a>
+
+        <!-- ============ LANE 2 to LANE 3 arrows (start at y=383, box bottom) ============ -->
+        <!-- Stripe -->
+        <line x1="430" y1="383" x2="220" y2="490" stroke="#1f8a3a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+        <!-- Pharmacy email -->
+        <line x1="600" y1="383" x2="600" y2="490" stroke="#1f8a3a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+        <!-- MediRecords (dashed amber) -->
+        <line x1="770" y1="383" x2="980" y2="490" stroke="#c98a1a" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arrow-amber)"/>
+
+        <!-- ============ LANE 3: External integrations ============ -->
+
+        <!-- Stripe -->
+        <g>
+          <rect x="80" y="500" width="320" height="160" rx="10" fill="#ffffff" stroke="#1f8a3a" stroke-width="2"/>
+          <rect x="80" y="500" width="320" height="32" rx="10" fill="#1f8a3a"/>
+          <rect x="80" y="520" width="320" height="12" fill="#1f8a3a"/>
+          <text x="100" y="522" font-family="-apple-system, Segoe UI, Arial" font-size="13" font-weight="700" fill="#ffffff">💳 Stripe, $45 payment</text>
+          <text x="370" y="522" text-anchor="end" font-family="-apple-system, Segoe UI, Arial" font-size="11" font-weight="700" fill="#ffffff">Connected ✓</text>
+          <text x="100" y="558" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#1a1a1a" font-weight="600">Both forms collect payment up front.</text>
+          <text x="100" y="580" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">Funds land in your nominated bank</text>
+          <text x="100" y="598" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">account. Webhook confirms each</text>
+          <text x="100" y="616" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">payment to the CRM.</text>
+          <text x="100" y="644" font-family="-apple-system, Segoe UI, Arial" font-size="11" fill="#6b7280" font-style="italic">~$1.09 fee per $45 transaction</text>
+        </g>
+
+        <!-- Pharmacy email -->
+        <g>
+          <rect x="440" y="500" width="320" height="160" rx="10" fill="#ffffff" stroke="#1f8a3a" stroke-width="2"/>
+          <rect x="440" y="500" width="320" height="32" rx="10" fill="#1f8a3a"/>
+          <rect x="440" y="520" width="320" height="12" fill="#1f8a3a"/>
+          <text x="460" y="522" font-family="-apple-system, Segoe UI, Arial" font-size="13" font-weight="700" fill="#ffffff">✉️ Pharmacy email</text>
+          <text x="730" y="522" text-anchor="end" font-family="-apple-system, Segoe UI, Arial" font-size="11" font-weight="700" fill="#ffffff">Connected ✓</text>
+          <text x="460" y="558" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#1a1a1a" font-weight="600">Prescription PDF sent automatically.</text>
+          <text x="460" y="580" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">Goes to the patient's chosen pharmacy.</text>
+          <text x="460" y="598" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">Default for website form patients</text>
+          <text x="460" y="616" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">and interstate orders, <tspan font-weight="700" fill="#156628">Purples</tspan>.</text>
+          <text x="460" y="644" font-family="-apple-system, Segoe UI, Arial" font-size="11" fill="#6b7280" font-style="italic">Patient collects on-site or via post</text>
+        </g>
+
+        <!-- MediRecords -->
+        <g>
+          <rect x="800" y="500" width="320" height="160" rx="10" fill="#fdf3e0" stroke="#c98a1a" stroke-width="2" stroke-dasharray="6 4"/>
+          <rect x="800" y="500" width="320" height="32" rx="10" fill="#c98a1a"/>
+          <rect x="800" y="520" width="320" height="12" fill="#c98a1a"/>
+          <text x="820" y="522" font-family="-apple-system, Segoe UI, Arial" font-size="13" font-weight="700" fill="#ffffff">🏥 MediRecords API</text>
+          <text x="1090" y="522" text-anchor="end" font-family="-apple-system, Segoe UI, Arial" font-size="11" font-weight="700" fill="#ffffff">Phase 2, not yet</text>
+          <text x="820" y="558" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#1a1a1a" font-weight="600">Will auto-push patient data once</text>
+          <text x="820" y="576" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#1a1a1a" font-weight="600">API access is provided.</text>
+          <text x="820" y="600" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">Demographics, allergies, conditions,</text>
+          <text x="820" y="618" font-family="-apple-system, Segoe UI, Arial" font-size="12" fill="#4a4a4a">no re-entry by your practitioners.</text>
+          <text x="820" y="644" font-family="-apple-system, Segoe UI, Arial" font-size="11" fill="#8a5e10" font-style="italic">Today: practitioner enters manually</text>
+        </g>
+      </svg>
+
+    </div>
+
+    <!-- Optimise Digital footer-mark -->
+    <div class="od-mark">
+      <a href="https://www.optimisedigital.online" target="_blank" rel="noopener" aria-label="Built by Optimise Digital">
+        <img src="logos/optimise-logo-animated.gif" alt="Optimise Digital">
+      </a>
+    </div>
+  </section>
+
+
+  <!-- ============================================================
+       SLIDE 3, long-term growth
+  ============================================================ -->
+  <section class="slide" id="slide-3">
+    <header class="slide-header">
+      <div class="brand">
+        <img src="logos/we-can-quit-logo.png" alt="Logo">
+      </div>
+      <div class="header-title">
+        <h1 class="slide-title">After launch, the real growth opportunity</h1>
+
+      </div>
+      <div class="slide-meta">
+        <div class="num">3 / 3</div>
+        <div>Growth recommendation</div>
+      </div>
+    </header>
+
+    <div class="growth-grid">
+
+      <!-- Hero stat / quote -->
+      <div class="growth-hero">
+        <div>
+          <p class="eyebrow">The opportunity</p>
+          <p class="stat">Tens of thousands of Australians are searching every month to quit smoking.</p>
+          <p class="stat-sub">"How to quit smoking," "nicotine vape prescription," "vape script Australia," "quit smoking near me" and dozens of related queries each month, nationwide.</p>
+        </div>
+        <p class="quote">With SEO and paid, you grow nation-wide and your clinic partners benefit too.</p>
+      </div>
+
+      <!-- Right stack -->
+      <div class="growth-stack">
+
+        <div class="growth-card included">
+          <h3><span class="pill">Covered in build</span> One-off site delivery</h3>
+          <p class="lead">What the website launches with on day one.</p>
+          <div class="items">
+            <div>Fully SEO-optimised pages</div>
+            <div>27 old URLs cleaned up via 301s</div>
+            <div>Schema markup and meta tags</div>
+            <div>Mobile-first, fast, indexable</div>
+          </div>
+        </div>
+
+        <div class="growth-card not-included">
+          <h3><span class="pill">Highly recommended</span> Ongoing SEO and paid growth</h3>
+          <p class="lead">Not included in the one-off cost. This is the work that captures the monthly search demand.</p>
+          <div class="items">
+            <div>Continuous content (blogs, guides, FAQs)</div>
+            <div>Google Ads on terms you're not ranking for</div>
+            <div>Monthly ranking and traffic monitoring</div>
+            <div>Conversion-rate optimisation on the funnel</div>
+            <div>Backlink building and digital PR</div>
+            <div>Quarterly strategy and reporting</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Bottom recommendation band -->
+    <div class="growth-bottom">
+      <div class="copy">
+        <strong>Without ongoing SEO and paid:</strong> the site works, but you only grow as fast as your clinic partners refer patients in person.<br>
+        <strong>With it:</strong> you capture nation-wide search demand month after month, scale beyond clinic walk-ins, and build a defensible position in the category.
+      </div>
+    </div>
+
+    <!-- Optimise Digital footer-mark -->
+    <div class="od-mark">
+      <a href="https://www.optimisedigital.online" target="_blank" rel="noopener" aria-label="Built by Optimise Digital">
+        <img src="logos/optimise-logo-animated.gif" alt="Optimise Digital">
+      </a>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

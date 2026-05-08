@@ -2027,6 +2027,95 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Presentations",
+          fields: [
+            {
+              name: "presentations",
+              type: "array",
+              admin: {
+                description:
+                  "Slide decks and presentations for this client. Files live at public/partners/<client-slug>/<deck-slug>/ — the live URL is computed from the slug below.",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "title",
+                      type: "text",
+                      required: true,
+                      admin: {
+                        width: "60%",
+                        description: "Display name (e.g. 'Pre-Migration Deck')",
+                      },
+                    },
+                    {
+                      name: "deckSlug",
+                      type: "text",
+                      required: true,
+                      admin: {
+                        width: "40%",
+                        description:
+                          "Folder slug under public/partners/<client-slug>/ (e.g. 'pre-migration'). Must be unique within this client.",
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "presentedOn",
+                      type: "date",
+                      admin: {
+                        width: "30%",
+                        description: "Date the deck was presented",
+                      },
+                    },
+                    {
+                      name: "kind",
+                      type: "select",
+                      defaultValue: "deck",
+                      admin: { width: "30%" },
+                      options: [
+                        { label: "Slide Deck (HTML)", value: "deck" },
+                        { label: "Status Update", value: "status" },
+                        { label: "Workshop", value: "workshop" },
+                        { label: "Migration / Launch", value: "migration" },
+                        { label: "Other", value: "other" },
+                      ],
+                    },
+                    {
+                      name: "isPublic",
+                      type: "checkbox",
+                      defaultValue: true,
+                      admin: {
+                        width: "40%",
+                        description:
+                          "Uncheck if the deck contains sensitive info that should not be linked publicly.",
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  admin: { description: "Internal notes (audience, outcomes, follow-ups)" },
+                },
+                {
+                  name: "linkPreview",
+                  type: "ui",
+                  admin: {
+                    components: {
+                      Field: "/components/ClientPresentationLink",
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        {
           label: "Search Console",
           fields: [
             {
