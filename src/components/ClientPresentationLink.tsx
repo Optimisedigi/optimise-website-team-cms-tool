@@ -41,8 +41,8 @@ const ClientPresentationLink = ({ path }: Props) => {
   }
 
   const relativeUrl = `/partners/${clientSlug}/${deckSlug}/`
-  const absoluteUrl =
-    typeof window !== 'undefined' ? `${window.location.origin}${relativeUrl}` : relativeUrl
+  const PUBLIC_HOST = 'https://cms.optimisedigital.online'
+  const absoluteUrl = `${PUBLIC_HOST}${relativeUrl}`
 
   const handleCopy = async () => {
     try {
@@ -57,7 +57,7 @@ const ClientPresentationLink = ({ path }: Props) => {
   return (
     <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
       <a
-        href={relativeUrl}
+        href={absoluteUrl}
         target="_blank"
         rel="noopener noreferrer"
         style={{
@@ -76,7 +76,7 @@ const ClientPresentationLink = ({ path }: Props) => {
           fontFamily: 'var(--font-mono, monospace)',
         }}
       >
-        {relativeUrl}
+        {absoluteUrl}
       </span>
       <button
         type="button"
