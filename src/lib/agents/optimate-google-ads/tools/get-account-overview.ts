@@ -1,17 +1,19 @@
 /**
  * Tool: get_account_overview
  *
- * Read-only summary of the account's last 30 days. Aggregates Growth Tools
- * `campaign-budgets/get-metrics` (LAST_30_DAYS) into totals + active campaign
- * count so the agent can answer "what's going on?" without three tool calls.
+ * Read-only summary for the account over a chosen window. Aggregates Growth
+ * Tools `campaign-budgets/get-metrics` into totals + active campaign count so
+ * the agent can answer "what's going on?" without three tool calls.
+ *
+ * Default range: LAST_30_DAYS. Pass `range` to widen/narrow.
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
+import { SUPPORTED_PRESETS, resolveRange } from "./_date-range";
 
 interface OverviewArgs {
-  // Empty schema; uses customerId from agent context.
-  _?: never;
+  range?: string;
 }
 
 interface CampaignMetricRaw {
@@ -32,19 +34,29 @@ interface MetricsEnvelope {
 export const getAccountOverview: CanonicalTool<OverviewArgs> = {
   name: "get_account_overview",
   description:
-    "Returns last-30-days totals for the linked Google Ads account: total spend, total conversions, average CPA, count of active campaigns, and the date range covered. Takes no arguments.",
+    "Account-level totals over a chosen window: total spend, total conversions, average CPA, count of active campaigns, and the date range covered. Args: range (optional preset, default LAST_30_DAYS). Common values: LAST_7_DAYS, LAST_30_DAYS, LAST_90_DAYS, THIS_MONTH, LAST_MONTH, YESTERDAY.",
   inputSchema: {
     type: "object",
-    properties: {},
+    properties: {
+      range: {
+        type: "string",
+        description:
+          "Date range preset. Default LAST_30_DAYS. Supported: " +
+          (SUPPORTED_PRESETS as readonly string[]).join(", ") +
+          ". Aliases like THIS_WEEK, LAST_WEEK, YEAR_TO_DATE are coerced to the nearest supported preset.",
+      },
+    },
     additionalProperties: false,
   },
   validate: (raw) => {
-    if (raw && typeof raw === "object" && Object.keys(raw).length > 0) {
-      // Tolerant: ignore extra keys rather than throwing.
+    const obj = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    const out: OverviewArgs = {};
+    if (obj.range !== undefined && obj.range !== null) {
+      out.range = String(obj.range);
     }
-    return {} as OverviewArgs;
+    return out;
   },
-  execute: async (_args, ctx) => {
+  execute: async (args, ctx) => {
     let customerId: string;
     try {
       customerId = ensureCustomerId(ctx.context.customerId);
@@ -52,9 +64,10 @@ export const getAccountOverview: CanonicalTool<OverviewArgs> = {
       return { ok: false, error: (err as Error).message };
     }
 
+    const resolved = resolveRange(args.range);
     const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
 
-    const qs = new URLSearchParams({ customerId, dateRange: "LAST_30_DAYS" });
+    const qs = new URLSearchParams({ customerId, dateRange: resolved.dateRange });
     if (conversionActions) qs.set("conversionActions", conversionActions);
 
     const res = await growthToolsGet<MetricsEnvelope>(
@@ -86,7 +99,9 @@ export const getAccountOverview: CanonicalTool<OverviewArgs> = {
     return {
       ok: true,
       data: {
-        dateRange: "LAST_30_DAYS",
+        dateRange: resolved.dateRange,
+        rangeLabel: resolved.label,
+        ...(resolved.coercedFrom ? { coercedFrom: resolved.coercedFrom, note: resolved.note } : {}),
         totalSpend: round2(totalSpend),
         totalConversions: round2(totalConversions),
         totalImpressions,

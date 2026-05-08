@@ -4,13 +4,16 @@
  * Wraps Growth Tools `/api/google-ads/search-terms`. Used by the agent to find
  * waste candidates (high spend, no conversions) before drafting negative
  * keywords via propose_negative_keywords.
+ *
+ * Default range: LAST_30_DAYS. Pass `range` to widen/narrow.
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
-import { daysToDateRange, ensureCustomerId, growthToolsGet } from "./_growth-tools";
+import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
+import { SUPPORTED_PRESETS, resolveRange } from "./_date-range";
 
 interface SearchTermArgs {
-  days?: number;
+  range?: string;
   minImpressions?: number;
   limit?: number;
 }
@@ -35,11 +38,17 @@ interface SearchTermsEnvelope {
 export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
   name: "get_search_terms",
   description:
-    "Search queries that triggered ads on the linked account, with metrics. Args: days (default 30, max 90), minImpressions (default 0), limit (default 200, max 1000). Use to find wasted spend before proposing negative keywords.",
+    "Search queries that triggered ads on the linked account, with metrics. Args: range (optional preset, default LAST_30_DAYS), minImpressions (default 0), limit (default 200, max 1000). Use to find wasted spend before proposing negative keywords.",
   inputSchema: {
     type: "object",
     properties: {
-      days: { type: "integer", minimum: 1, maximum: 90, description: "Lookback window in days. Default 30." },
+      range: {
+        type: "string",
+        description:
+          "Date range preset. Default LAST_30_DAYS. Supported: " +
+          (SUPPORTED_PRESETS as readonly string[]).join(", ") +
+          ".",
+      },
       minImpressions: {
         type: "integer",
         minimum: 0,
@@ -57,10 +66,8 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
   validate: (raw) => {
     const obj = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
     const out: SearchTermArgs = {};
-    if (obj.days !== undefined) {
-      const n = Number(obj.days);
-      if (!Number.isFinite(n) || n < 1) throw new Error("days must be a positive number");
-      out.days = Math.min(90, Math.floor(n));
+    if (obj.range !== undefined && obj.range !== null) {
+      out.range = String(obj.range);
     }
     if (obj.minImpressions !== undefined) {
       const n = Number(obj.minImpressions);
@@ -82,15 +89,14 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
       return { ok: false, error: (err as Error).message };
     }
 
-    const days = args.days ?? 30;
-    const dateRange = daysToDateRange(days);
+    const resolved = resolveRange(args.range);
     const limit = args.limit ?? 200;
     const minImpressions = args.minImpressions ?? 0;
     const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
 
     const qs = new URLSearchParams({
       customerId,
-      dateRange,
+      dateRange: resolved.dateRange,
       limit: String(limit),
     });
     if (conversionActions) qs.set("conversionActions", conversionActions);
@@ -125,8 +131,9 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
     return {
       ok: true,
       data: {
-        dateRange,
-        days,
+        dateRange: resolved.dateRange,
+        rangeLabel: resolved.label,
+        ...(resolved.coercedFrom ? { coercedFrom: resolved.coercedFrom, note: resolved.note } : {}),
         count: terms.length,
         terms: terms.slice(0, limit),
       },

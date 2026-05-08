@@ -4,13 +4,16 @@
  * Per-campaign metrics for a chosen window. Wraps Growth Tools
  * `campaign-budgets/get-metrics` and computes derived rates (CTR, CPA) so the
  * agent doesn't have to.
+ *
+ * Default range: LAST_7_DAYS. Pass `range` to widen/narrow.
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
-import { daysToDateRange, ensureCustomerId, growthToolsGet } from "./_growth-tools";
+import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
+import { SUPPORTED_PRESETS, resolveRange } from "./_date-range";
 
 interface CampaignPerfArgs {
-  days?: number;
+  range?: string;
 }
 
 interface MetricRaw {
@@ -31,29 +34,27 @@ interface MetricsEnvelope {
 export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
   name: "get_campaign_performance",
   description:
-    "Per-campaign metrics for the linked account. Args: days (default 7, max 90). Returns rows with campaignId, name, status, spend, clicks, impressions, conversions, ctr, cpa.",
+    "Per-campaign metrics for the linked account. Args: range (optional preset, default LAST_7_DAYS). Returns rows with campaignId, name, status, spend, clicks, impressions, conversions, ctr, cpa.",
   inputSchema: {
     type: "object",
     properties: {
-      days: {
-        type: "integer",
-        minimum: 1,
-        maximum: 90,
-        description: "Lookback window in days. Default 7, max 90.",
+      range: {
+        type: "string",
+        description:
+          "Date range preset. Default LAST_7_DAYS. Supported: " +
+          (SUPPORTED_PRESETS as readonly string[]).join(", ") +
+          ".",
       },
     },
     additionalProperties: false,
   },
   validate: (raw) => {
     const obj = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-    let days = 7;
-    if (obj.days !== undefined) {
-      const n = Number(obj.days);
-      if (!Number.isFinite(n)) throw new Error("days must be a number");
-      if (n < 1) throw new Error("days must be >= 1");
-      days = Math.min(90, Math.floor(n));
+    const out: CampaignPerfArgs = {};
+    if (obj.range !== undefined && obj.range !== null) {
+      out.range = String(obj.range);
     }
-    return { days };
+    return out;
   },
   execute: async (args, ctx) => {
     let customerId: string;
@@ -63,10 +64,11 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
       return { ok: false, error: (err as Error).message };
     }
 
-    const days = args.days ?? 7;
-    const dateRange = daysToDateRange(days);
+    // Different default than the others: 7 days is the operational sweet spot
+    // when triaging campaign performance.
+    const resolved = resolveRange(args.range ?? "LAST_7_DAYS");
     const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
-    const qs = new URLSearchParams({ customerId, dateRange });
+    const qs = new URLSearchParams({ customerId, dateRange: resolved.dateRange });
     if (conversionActions) qs.set("conversionActions", conversionActions);
 
     const res = await growthToolsGet<MetricsEnvelope>(
@@ -97,8 +99,9 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
     return {
       ok: true,
       data: {
-        dateRange,
-        days,
+        dateRange: resolved.dateRange,
+        rangeLabel: resolved.label,
+        ...(resolved.coercedFrom ? { coercedFrom: resolved.coercedFrom, note: resolved.note } : {}),
         campaigns: rows,
         count: rows.length,
       },
