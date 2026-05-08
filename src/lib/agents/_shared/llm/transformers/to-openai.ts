@@ -11,6 +11,14 @@ import type { CallLLMOptions } from "../types";
 interface OpenAIMessage {
   role: "system" | "user" | "assistant" | "tool";
   content?: string | null;
+  /**
+   * Kimi (Moonshot) thinking-mode contract: when an assistant message
+   * carries tool_calls, the API requires `reasoning_content` to be present
+   * — even as an empty string — on subsequent requests, otherwise it 400s
+   * with "thinking is enabled but reasoning_content is missing".
+   * Other OpenAI-compatible providers ignore this field harmlessly.
+   */
+  reasoning_content?: string;
   tool_calls?: Array<{
     id: string;
     type: "function";
@@ -71,7 +79,14 @@ export function toOpenAI(opts: CallLLMOptions, providerModel: string): OpenAIReq
         role: "assistant",
         content: textParts.length > 0 ? textParts.join("") : null,
       };
-      if (toolCalls.length > 0) message.tool_calls = toolCalls;
+      if (toolCalls.length > 0) {
+        message.tool_calls = toolCalls;
+        // Kimi thinking-mode contract: assistant tool_calls must carry
+        // reasoning_content. Use the captured value if we have one; fall
+        // back to "" so the field is always present. Other OpenAI-compatible
+        // providers ignore it.
+        message.reasoning_content = m.reasoningContent ?? "";
+      }
       messages.push(message);
       continue;
     }

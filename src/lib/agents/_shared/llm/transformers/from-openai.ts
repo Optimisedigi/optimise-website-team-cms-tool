@@ -10,6 +10,13 @@ interface OpenAIChoice {
   message: {
     role: "assistant";
     content: string | null;
+    /**
+     * Kimi (Moonshot) and a few other thinking-capable OpenAI-compatible
+     * providers emit the model's chain-of-thought here. We capture it on the
+     * canonical Message so it can be replayed on the next request — Kimi
+     * K2.5+ requires this when an assistant message has tool_calls.
+     */
+    reasoning_content?: string | null;
     tool_calls?: Array<{
       id: string;
       type: "function";
@@ -93,6 +100,11 @@ export function fromOpenAI(
     });
   }
   const message: Message = { role: "assistant", content };
+  // Preserve provider-emitted reasoning so the next turn's request can echo
+  // it back. Without this, Kimi thinking-mode 400s on the second tool turn.
+  if (typeof choice.message.reasoning_content === "string" && choice.message.reasoning_content.length > 0) {
+    message.reasoningContent = choice.message.reasoning_content;
+  }
   return {
     message,
     stopReason: mapFinishReason(choice.finish_reason),

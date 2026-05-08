@@ -17,6 +17,17 @@ export type ContentPart =
 export interface Message {
   role: Role;
   content: ContentPart[];
+  /**
+   * Provider-emitted reasoning text (Kimi/Moonshot `reasoning_content`).
+   * Captured on assistant messages when the provider runs in thinking mode
+   * and required to be replayed in the next request — Kimi K2.5+ throws
+   * 400 "thinking is enabled but reasoning_content is missing" if an
+   * assistant message with tool_calls is replayed without it.
+   *
+   * Anthropic uses a different mechanism (thinking blocks) so this stays
+   * provider-internal: only OpenAI-compatible adapters read/write it.
+   */
+  reasoningContent?: string;
 }
 
 export interface ToolDef {
