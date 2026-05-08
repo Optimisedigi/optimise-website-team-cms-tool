@@ -3,6 +3,7 @@
  */
 
 import type { LLMResponse, Message, StopReason, ContentPart, CredentialSource } from "../types";
+import { sanitizeToolUseId } from "./_tool-id";
 
 interface OpenAIChoice {
   index: number;
@@ -80,9 +81,13 @@ export function fromOpenAI(
     content.push({ type: "text", text: choice.message.content });
   }
   for (const tc of choice.message.tool_calls ?? []) {
+    // Sanitise upstream provider IDs at the boundary so the canonical history
+    // is always safe to ship to Anthropic on a later turn (model switch /
+    // fallback). Same id deterministically maps to the same sanitised form,
+    // so the matching tool_result still pairs correctly.
     content.push({
       type: "tool_use",
-      id: tc.id,
+      id: sanitizeToolUseId(tc.id),
       name: tc.function.name,
       input: safeParseJson(tc.function.arguments),
     });

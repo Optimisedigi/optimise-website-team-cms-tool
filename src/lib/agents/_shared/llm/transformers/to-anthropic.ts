@@ -8,6 +8,7 @@
  */
 
 import type { CallLLMOptions } from "../types";
+import { sanitizeToolUseId } from "./_tool-id";
 
 interface AnthropicMessage {
   role: "user" | "assistant";
@@ -54,7 +55,9 @@ export function toAnthropic(opts: CallLLMOptions, providerModel: string): Anthro
             const part = p as Extract<typeof p, { type: "tool_result" }>;
             return {
               type: "tool_result" as const,
-              tool_use_id: part.toolUseId,
+              // Defensive: persisted history may predate the from-openai
+              // sanitiser. Anthropic rejects ids outside [a-zA-Z0-9_-].
+              tool_use_id: sanitizeToolUseId(part.toolUseId),
               content: part.content,
               ...(part.isError ? { is_error: true } : {}),
             };
@@ -67,12 +70,12 @@ export function toAnthropic(opts: CallLLMOptions, providerModel: string): Anthro
       content: m.content.map((part) => {
         if (part.type === "text") return { type: "text", text: part.text };
         if (part.type === "tool_use") {
-          return { type: "tool_use", id: part.id, name: part.name, input: part.input };
+          return { type: "tool_use", id: sanitizeToolUseId(part.id), name: part.name, input: part.input };
         }
         // tool_result on non-tool message: treat as user content
         return {
           type: "tool_result",
-          tool_use_id: part.toolUseId,
+          tool_use_id: sanitizeToolUseId(part.toolUseId),
           content: part.content,
           ...(part.isError ? { is_error: true } : {}),
         };
