@@ -24,6 +24,9 @@ import { getGa4Overview } from "./tools/get-ga4-overview";
 import { getGscOverview } from "./tools/get-gsc-overview";
 import { getGscBrandedSplit } from "./tools/get-gsc-branded-split";
 import { getGscIndexingStatus } from "./tools/get-gsc-indexing-status";
+import { proposeCampaignRestructure } from "./tools/propose-campaign-restructure";
+import { proposeCampaignBuild } from "./tools/propose-campaign-build";
+import { getCampaignProposalStatus } from "./tools/get-campaign-proposal-status";
 import { resetProposalCounter } from "./tools/_propose-helpers";
 import { readClientConnectionFlags } from "./tools/_client-tokens";
 import { getPayload } from "payload";
@@ -48,6 +51,9 @@ export function getTools(): CanonicalTool<unknown>[] {
     getGscOverview as unknown as CanonicalTool<unknown>,
     getGscBrandedSplit as unknown as CanonicalTool<unknown>,
     getGscIndexingStatus as unknown as CanonicalTool<unknown>,
+    proposeCampaignRestructure as unknown as CanonicalTool<unknown>,
+    proposeCampaignBuild as unknown as CanonicalTool<unknown>,
+    getCampaignProposalStatus as unknown as CanonicalTool<unknown>,
   ];
 }
 

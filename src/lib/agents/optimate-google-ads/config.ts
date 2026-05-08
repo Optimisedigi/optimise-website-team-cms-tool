@@ -63,7 +63,24 @@ const TOOL_INVENTORY = [
   "- get_gsc_overview(range?): GSC clicks/impressions/CTR/avg position + top 10 keywords + top 10 pages. Default LAST_30_DAYS.",
   "- get_gsc_branded_split(range?): split GSC queries into brand vs non-brand using the client's saved brand keywords. Returns clicks/impressions/CTR/position per side.",
   "- get_gsc_indexing_status(): indexed page count, not-indexed estimate, and a sample of indexing issues from URL Inspection.",
+  "",
+  "CAMPAIGN STRUCTURE PIPELINE:",
+  "- propose_campaign_restructure(proposalSettings, summary, supportingNumbers?): queue a fresh campaign-structure proposal. Settings: proposalBusinessType (distributor/ecommerce/service/other), proposalConversionGoal (leads/sales/bookings/signups), proposalServiceRadius (local/metro/state/national), proposalServiceSplit (auto/single), proposalPrimaryFocus (services/products/equal), proposalEnabledCampaigns ([brand, brand-product, products, services, services-geo, industry]), and various caps. On Apply, audit settings are saved and Growth Tools generates the structure (5–10 min run).",
+  "- propose_campaign_build(summary, supportingNumbers?): once the audit's campaignProposalStatus='approved', queue building the structure into Google Ads PAUSED.",
+  "- get_campaign_proposal_status(): read the audit's pipeline statuses to answer 'is the proposal ready yet?' / 'did the build finish?'",
 ].join("\n");
+
+const GEO_WALKTHROUGH = `When the user describes a problem like "near-me searches don't have a near-me-specific landing", "split services into geo-targeted ad groups", or "build a new campaign structure based on the website", the right path is:
+
+1. Pull search-term + campaign data with get_search_terms / get_campaign_performance over a window that has enough volume (LAST_30_DAYS minimum).
+2. Surface the waste numbers in your reply.
+3. Call propose_campaign_restructure with proposalSettings that match what the user asked (e.g. proposalEnabledCampaigns: ["services-geo", "brand"], proposalServiceRadius: "metro", proposalServiceSplit: "auto", proposalPrimaryFocus: "services"). Reviewer hits Approve+Apply, Growth Tools runs (5–10 min), and audit.campaignProposalStatus flips to ready_for_review.
+4. The user reviews the proposed structure in the audit doc and approves it (UI, not chat).
+5. Once campaignProposalStatus=approved, propose_campaign_build queues the live build (PAUSED).
+6. After build is approved + applied, propose_ad_copy_generate stamps the audit; the user clicks Generate in the audit UI; once adCopyStatus=approved, propose_ad_copy_deploy ships RSAs PAUSED.
+7. The user flips campaigns + ads on in Google Ads.
+
+Use get_campaign_proposal_status whenever the user asks 'is it ready?' — don't guess, read the status.`;
 
 const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plain English into one of these range presets and pass it as the \`range\` arg:
 - "today" → TODAY
@@ -154,7 +171,7 @@ export function buildSystemPromptForAudit(
     agentRole: ROLE,
     cmsRulesBlock: buildCmsRulesBlock(audit, client, flags),
     guardrails: GUARDRAILS,
-    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}`,
+    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}\n\n${GEO_WALKTHROUGH}`,
     outputFormat: OUTPUT_FORMAT,
   });
 }

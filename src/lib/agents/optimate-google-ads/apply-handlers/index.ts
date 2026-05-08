@@ -22,6 +22,8 @@ import { applyBudgetUpdate } from "./budget-update";
 import { applyBudgetPushLive } from "./budget-push-live";
 import { applyAdCopyGenerate } from "./ad-copy-generate";
 import { applyAdCopyDeploy } from "./ad-copy-deploy";
+import { applyCampaignRestructure } from "./campaign-restructure";
+import { applyCampaignBuild } from "./campaign-build";
 
 let registered = false;
 
@@ -41,6 +43,8 @@ export function registerOptimateApplyHandlers(): void {
   registerApplyHandler("budget-push-live", applyBudgetPushLive);
   registerApplyHandler("ad-copy-generate", applyAdCopyGenerate);
   registerApplyHandler("ad-copy-deploy", applyAdCopyDeploy);
+  registerApplyHandler("campaign-restructure", applyCampaignRestructure);
+  registerApplyHandler("campaign-build", applyCampaignBuild);
 }
 
 /**
