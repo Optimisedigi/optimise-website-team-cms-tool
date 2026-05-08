@@ -2,10 +2,13 @@
 
 import { useDocumentInfo, useAllFormFields } from '@payloadcms/ui'
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { CHAT_PICKER_MODELS, DEFAULT_CHAT_MODEL } from '@/lib/agents/_shared/llm/registry'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  runId?: string
+  modelUsed?: string
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -167,6 +170,7 @@ const GoogleAdsChat = () => {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_CHAT_MODEL)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const sessionIdRef = useRef(crypto.randomUUID())
@@ -209,7 +213,8 @@ const GoogleAdsChat = () => {
         body: JSON.stringify({
           message: text.trim(),
           sessionId: sessionIdRef.current,
-          history: messages.slice(-20),
+          history: messages.slice(-20).map(({ role, content }) => ({ role, content })),
+          model: selectedModel,
         }),
       })
 
@@ -222,6 +227,8 @@ const GoogleAdsChat = () => {
       const assistantMsg: ChatMessage = {
         role: 'assistant',
         content: data.reply || 'No response received.',
+        runId: typeof data.runId === 'string' ? data.runId : undefined,
+        modelUsed: typeof data.modelUsed === 'string' ? data.modelUsed : undefined,
       }
       setMessages((prev) => [...prev, assistantMsg])
     } catch (err) {
@@ -271,12 +278,33 @@ const GoogleAdsChat = () => {
         >
           O
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>OptiMate</div>
           <div style={{ fontSize: 11, color: '#6b7280' }}>
             Google Ads specialist{businessName ? ` for ${businessName}` : ''} ({customerId})
           </div>
         </div>
+        <select
+          value={selectedModel}
+          onChange={(e) => setSelectedModel(e.target.value)}
+          disabled={loading}
+          title="Model used for the next message"
+          style={{
+            fontSize: 11,
+            padding: '4px 8px',
+            border: '1px solid var(--theme-border-color, #e5e7eb)',
+            borderRadius: 6,
+            background: 'var(--theme-input-bg, #fff)',
+            color: 'var(--theme-text, #1f2937)',
+            cursor: loading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {CHAT_PICKER_MODELS.map((m) => (
+            <option key={m.canonical} value={m.canonical}>
+              {m.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Messages area */}
@@ -345,7 +373,8 @@ const GoogleAdsChat = () => {
             key={i}
             style={{
               display: 'flex',
-              justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              flexDirection: 'column',
+              alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
             }}
           >
             <div
@@ -362,6 +391,19 @@ const GoogleAdsChat = () => {
             >
               {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
             </div>
+            {msg.role === 'assistant' && msg.runId && (
+              <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4, paddingLeft: 4 }}>
+                {msg.modelUsed ? <span style={{ marginRight: 8 }}>{msg.modelUsed}</span> : null}
+                <a
+                  href={`/agent-runs/${msg.runId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#2563eb', textDecoration: 'none' }}
+                >
+                  View run details →
+                </a>
+              </div>
+            )}
           </div>
         ))}
 

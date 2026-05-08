@@ -41,6 +41,10 @@ const ICONS = {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>',
   contractorCosts:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  agentApprovals:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>',
+  agentAuth:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
 }
 
 const SidebarNavExtras = () => {
@@ -176,6 +180,26 @@ const SidebarNavExtras = () => {
         'prepend',
       )
     }
+
+    // Agent fleet — surfaced under Settings for any logged-in user. The
+    // approvals queue and auth setup pages live outside /admin and do their
+    // own auth checks.
+    injectLink(
+      '#nav-group-Settings .nav-group__content',
+      'agent-approvals',
+      '/agent-approvals',
+      ICONS.agentApprovals,
+      'Agent Approvals',
+      'append',
+    )
+    injectLink(
+      '#nav-group-Settings .nav-group__content',
+      'agent-auth',
+      '/agent-auth',
+      ICONS.agentAuth,
+      'Agent Auth',
+      'append',
+    )
 
     // Icons for collection/global nav links are now handled via CSS ::before in custom.scss
 

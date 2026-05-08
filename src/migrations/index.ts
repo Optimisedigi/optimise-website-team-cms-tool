@@ -40,6 +40,7 @@ import * as migration_20260505_160000_add_client_conversion_split_actions from '
 import * as migration_20260505_180000_add_client_conversion_action_categories from './20260505_180000_add_client_conversion_action_categories';
 import * as migration_20260506_120000_add_brand_spend_to_waste_relevancy_cache from './20260506_120000_add_brand_spend_to_waste_relevancy_cache';
 import * as migration_20260508_120000_add_client_presentations from './20260508_120000_add_client_presentations';
+import * as migration_20260508_180000_add_agent_collections from './20260508_180000_add_agent_collections';
 
 export const migrations = [
   {
@@ -251,5 +252,10 @@ export const migrations = [
     up: migration_20260508_120000_add_client_presentations.up,
     down: migration_20260508_120000_add_client_presentations.down,
     name: '20260508_120000_add_client_presentations'
+  },
+  {
+    up: migration_20260508_180000_add_agent_collections.up,
+    down: migration_20260508_180000_add_agent_collections.down,
+    name: '20260508_180000_add_agent_collections'
   },
 ];
