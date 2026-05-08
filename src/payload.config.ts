@@ -57,6 +57,7 @@ import { MeetingSchedulers } from "./collections/MeetingSchedulers";
 import { PermissionProfiles } from "./collections/PermissionProfiles";
 import { AgentApprovalQueue } from "./collections/AgentApprovalQueue";
 import { AgentCredentials } from "./collections/AgentCredentials";
+import { ScheduledAgentTasks } from "./collections/ScheduledAgentTasks";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -110,7 +111,7 @@ export default buildConfig({
     // Admin
     Users, PermissionProfiles, UsageReports, ActivityLog,
     // Optimate agents
-    AgentApprovalQueue,
+    AgentApprovalQueue, ScheduledAgentTasks,
     // Hidden (no group impact)
     GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials,
   ].map((c) => ({

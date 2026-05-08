@@ -27,6 +27,9 @@ import { getGscIndexingStatus } from "./tools/get-gsc-indexing-status";
 import { proposeCampaignRestructure } from "./tools/propose-campaign-restructure";
 import { proposeCampaignBuild } from "./tools/propose-campaign-build";
 import { getCampaignProposalStatus } from "./tools/get-campaign-proposal-status";
+import { proposeScheduledTask } from "./tools/propose-scheduled-task";
+import { listScheduledTasks } from "./tools/list-scheduled-tasks";
+import { proposeScheduledTaskUpdate } from "./tools/propose-scheduled-task-update";
 import { resetProposalCounter } from "./tools/_propose-helpers";
 import { readClientConnectionFlags } from "./tools/_client-tokens";
 import { getPayload } from "payload";
@@ -54,6 +57,9 @@ export function getTools(): CanonicalTool<unknown>[] {
     proposeCampaignRestructure as unknown as CanonicalTool<unknown>,
     proposeCampaignBuild as unknown as CanonicalTool<unknown>,
     getCampaignProposalStatus as unknown as CanonicalTool<unknown>,
+    proposeScheduledTask as unknown as CanonicalTool<unknown>,
+    listScheduledTasks as unknown as CanonicalTool<unknown>,
+    proposeScheduledTaskUpdate as unknown as CanonicalTool<unknown>,
   ];
 }
 
@@ -80,6 +86,13 @@ export interface RunChatTurnInput {
   messages: Message[];
   /** Canonical model name; falls back to DEFAULT_CHAT_MODEL when omitted. */
   modelOverride?: string;
+  /**
+   * Logged-in CMS user id. Threaded into the agent context so tools that
+   * scope to ownership (e.g. list_scheduled_tasks, propose_scheduled_task)
+   * can read the right rows and apply-handlers can stamp `createdBy`.
+   * Required for scheduled-task tools; optional for everything else.
+   */
+  userId?: number;
 }
 
 export interface ProposalSummary {
@@ -101,7 +114,7 @@ export interface RunChatTurnResult {
 const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
 
 export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnResult> {
-  const { audit, client, messages, modelOverride } = input;
+  const { audit, client, messages, modelOverride, userId } = input;
   if (!audit.customerId || !String(audit.customerId).trim()) {
     throw new Error("Audit has no Customer ID; cannot run agent.");
   }
@@ -122,6 +135,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
       clientId: client?.id,
       auditId: audit.id,
       conversionActions,
+      ...(userId !== undefined ? { userId } : {}),
     },
   });
 

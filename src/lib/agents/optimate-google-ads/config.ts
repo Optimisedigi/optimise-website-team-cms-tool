@@ -68,6 +68,11 @@ const TOOL_INVENTORY = [
   "- propose_campaign_restructure(proposalSettings, summary, supportingNumbers?): queue a fresh campaign-structure proposal. Settings: proposalBusinessType (distributor/ecommerce/service/other), proposalConversionGoal (leads/sales/bookings/signups), proposalServiceRadius (local/metro/state/national), proposalServiceSplit (auto/single), proposalPrimaryFocus (services/products/equal), proposalEnabledCampaigns ([brand, brand-product, products, services, services-geo, industry]), and various caps. On Apply, audit settings are saved and Growth Tools generates the structure (5–10 min run).",
   "- propose_campaign_build(summary, supportingNumbers?): once the audit's campaignProposalStatus='approved', queue building the structure into Google Ads PAUSED.",
   "- get_campaign_proposal_status(): read the audit's pipeline statuses to answer 'is the proposal ready yet?' / 'did the build finish?'",
+  "",
+  "SCHEDULED TASKS (recurring agent runs delivered to Gmail Drafts):",
+  "- propose_scheduled_task(title, prompt, schedule, timezone?, recipientEmail?, summary): queue creation of a recurring agent task. `schedule` is a 5-field cron expression evaluated in `timezone` (default Australia/Brisbane). On every firing the agent re-runs the saved `prompt` against THIS audit and drops the reply in the proposing user's Gmail Drafts.",
+  "- list_scheduled_tasks(includeInactive?): read-only. Lists the calling user's scheduled tasks (paused tasks omitted unless includeInactive=true).",
+  "- propose_scheduled_task_update(taskId, isActive?, prompt?, schedule?, timezone?, delete?, summary): queue an approval to pause/resume/edit/delete an existing schedule. Use list_scheduled_tasks first to learn the right taskId.",
 ].join("\n");
 
 const GEO_WALKTHROUGH = `When the user describes a problem like "near-me searches don't have a near-me-specific landing", "split services into geo-targeted ad groups", or "build a new campaign structure based on the website", the right path is:
@@ -81,6 +86,20 @@ const GEO_WALKTHROUGH = `When the user describes a problem like "near-me searche
 7. The user flips campaigns + ads on in Google Ads.
 
 Use get_campaign_proposal_status whenever the user asks 'is it ready?' — don't guess, read the status.`;
+
+const SCHEDULED_TASKS_GUIDE = `When the user asks for a recurring report (e.g. "send me a weekly summary every Monday at 9am", "every fortnight email me the search-term waste"):
+
+1. Translate plain English into a 5-field cron expression. Examples:
+   - "every Monday at 9am" → "0 9 * * 1"
+   - "every weekday at 8am" → "0 8 * * 1-5"
+   - "first day of every month at 7am" → "0 7 1 * *"
+   - "every 2 hours" → "0 */2 * * *"
+2. Decide what the recurring prompt should be — it must be self-contained because the agent runs it with NO chat history. Spell out the audit context: range, what to include, what to omit. A good prompt: "Pull last week's account overview and search-term waste. Surface the top 5 wasted spend terms (no conversions, >$30 each). Keep it under 200 words. Do not propose negatives — just report.".
+3. Call propose_scheduled_task with title, prompt, schedule, and a 1–3-sentence \`summary\`. Default timezone is Australia/Brisbane; only override if the user explicitly asks.
+4. The user MUST have Gmail connected (via /api/gmail/connect from the admin Account page) for drafts to land. If they haven't, the next tick will record \`lastRunError\` and they can see it via list_scheduled_tasks. Tell them this in your reply.
+5. When the user asks "what reports am I getting?" or "pause the Acme weekly", call list_scheduled_tasks first to learn the taskId, then propose_scheduled_task_update.
+
+Never fabricate cron expressions you're unsure of — the schedule field is validated against cron-parser and an invalid expression will reject the proposal.`;
 
 const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plain English into one of these range presets and pass it as the \`range\` arg:
 - "today" → TODAY
@@ -171,7 +190,7 @@ export function buildSystemPromptForAudit(
     agentRole: ROLE,
     cmsRulesBlock: buildCmsRulesBlock(audit, client, flags),
     guardrails: GUARDRAILS,
-    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}\n\n${GEO_WALKTHROUGH}`,
+    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}\n\n${GEO_WALKTHROUGH}\n\n${SCHEDULED_TASKS_GUIDE}`,
     outputFormat: OUTPUT_FORMAT,
   });
 }

@@ -103,5 +103,82 @@ export const Users: CollectionConfig = {
           user?.role === "admin",
       },
     },
+    // Gmail OAuth fields (per-user) — used by scheduled-agent-tasks to drop
+    // recurring agent reports into the user's own Gmail Drafts folder.
+    {
+      name: "gmailConnected",
+      type: "checkbox",
+      defaultValue: false,
+      admin: {
+        position: "sidebar",
+        description:
+          "Whether this user has connected their Gmail account for scheduled-task drafts.",
+        readOnly: true,
+      },
+      access: {
+        update: adminOnlyField,
+      },
+    },
+    {
+      name: "gmailEmail",
+      type: "text",
+      admin: {
+        position: "sidebar",
+        description: "The Gmail address associated with the connection.",
+        readOnly: true,
+      },
+      access: {
+        update: adminOnlyField,
+      },
+    },
+    {
+      name: "gmailAccessToken",
+      type: "text",
+      admin: {
+        hidden: true,
+      },
+      access: {
+        // Only the owner or an admin can read/write Gmail tokens.
+        read: ({ req, doc }) => {
+          if (!req.user) return false;
+          if (req.user.role === "admin") return true;
+          return doc?.id === req.user.id;
+        },
+        update: adminOnlyField,
+        create: adminOnlyField,
+      },
+    },
+    {
+      name: "gmailRefreshToken",
+      type: "text",
+      admin: {
+        hidden: true,
+      },
+      access: {
+        read: ({ req, doc }) => {
+          if (!req.user) return false;
+          if (req.user.role === "admin") return true;
+          return doc?.id === req.user.id;
+        },
+        update: adminOnlyField,
+        create: adminOnlyField,
+      },
+    },
+    {
+      name: "gmailTokenExpiry",
+      type: "date",
+      admin: {
+        hidden: true,
+      },
+      access: {
+        read: ({ req, doc }) => {
+          if (!req.user) return false;
+          if (req.user.role === "admin") return true;
+          return doc?.id === req.user.id;
+        },
+        update: adminOnlyField,
+        create: adminOnlyField,
+      },
+    },
   ],
 };

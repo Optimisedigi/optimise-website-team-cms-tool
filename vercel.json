@@ -7,6 +7,10 @@
     {
       "path": "/api/dashboard/prewarm",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/scheduled-tasks/tick",
+      "schedule": "*/15 * * * *"
     }
   ],
   "functions": {
@@ -44,6 +48,9 @@
       "maxDuration": 300
     },
     "src/app/(frontend)/api/dashboard/prewarm/run/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/(frontend)/api/scheduled-tasks/tick/route.ts": {
       "maxDuration": 300
     }
   }

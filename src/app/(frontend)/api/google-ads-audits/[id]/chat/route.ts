@@ -101,6 +101,7 @@ export async function POST(
       client: linkedClient,
       messages,
       modelOverride,
+      userId: typeof user.id === "number" ? user.id : Number(user.id),
     });
 
     return NextResponse.json({

@@ -24,6 +24,8 @@ import { applyAdCopyGenerate } from "./ad-copy-generate";
 import { applyAdCopyDeploy } from "./ad-copy-deploy";
 import { applyCampaignRestructure } from "./campaign-restructure";
 import { applyCampaignBuild } from "./campaign-build";
+import { applyScheduledTaskCreate } from "./scheduled-task-create";
+import { applyScheduledTaskUpdate } from "./scheduled-task-update";
 
 let registered = false;
 
@@ -45,6 +47,8 @@ export function registerOptimateApplyHandlers(): void {
   registerApplyHandler("ad-copy-deploy", applyAdCopyDeploy);
   registerApplyHandler("campaign-restructure", applyCampaignRestructure);
   registerApplyHandler("campaign-build", applyCampaignBuild);
+  registerApplyHandler("scheduled-task-create", applyScheduledTaskCreate);
+  registerApplyHandler("scheduled-task-update", applyScheduledTaskUpdate);
 }
 
 /**
