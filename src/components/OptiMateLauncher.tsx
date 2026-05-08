@@ -2,9 +2,22 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@payloadcms/ui'
-import OptiMateChatCore from './OptiMateChatCore'
+import OptiMateMultiChat, { type OptiMateChatTarget } from './OptiMateMultiChat'
 
 type AgentKey = 'google-ads'
+
+interface AgentDef {
+  key: AgentKey
+  label: string
+  /** Public path to the agent's icon. Falls back to the OptiMate mark if missing. */
+  icon: string
+  enabled: boolean
+}
+
+const AGENTS: AgentDef[] = [
+  { key: 'google-ads', label: 'Google Ads', icon: '/optimate-icon.png', enabled: true },
+  // Add more agents here as they ship — just append a row; the grid auto-fills.
+]
 
 interface AuditOption {
   id: string | number
@@ -33,7 +46,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   const [audits, setAudits] = useState<AuditOption[] | null>(null)
   const [auditsLoading, setAuditsLoading] = useState(false)
   const [auditsError, setAuditsError] = useState<string | null>(null)
-  const [selectedAudit, setSelectedAudit] = useState<AuditOption | null>(null)
+  const [selectedAudits, setSelectedAudits] = useState<AuditOption[]>([])
   const [filter, setFilter] = useState('')
   const [pendingCount, setPendingCount] = useState<number>(0)
 
@@ -105,15 +118,20 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
   if (!user) return <>{children}</>
 
-  const handleAgentSelect = (val: string) => {
-    if (val === 'google-ads') {
-      setAgent('google-ads')
-      setStep('audit')
-    }
+  const handleAgentSelect = (key: AgentKey) => {
+    setAgent(key)
+    setStep('audit')
   }
 
-  const handleAuditPick = (opt: AuditOption) => {
-    setSelectedAudit(opt)
+  const toggleAudit = (opt: AuditOption) => {
+    setSelectedAudits((prev) => {
+      const exists = prev.some((a) => String(a.id) === String(opt.id))
+      return exists ? prev.filter((a) => String(a.id) !== String(opt.id)) : [...prev, opt]
+    })
+  }
+
+  const goToChat = () => {
+    if (selectedAudits.length === 0) return
     setStep('chat')
   }
 
@@ -244,12 +262,14 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               OptiMate
               {step === 'audit' && (
                 <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · Pick an audit
+                  · Pick Google Ads accounts
                 </span>
               )}
-              {step === 'chat' && selectedAudit && (
+              {step === 'chat' && selectedAudits.length > 0 && (
                 <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · {selectedAudit.businessName ?? selectedAudit.customerId}
+                  · {selectedAudits.length === 1
+                    ? (selectedAudits[0].businessName ?? selectedAudits[0].customerId)
+                    : `${selectedAudits.length} accounts`}
                 </span>
               )}
               {pendingCount > 0 && (
@@ -277,11 +297,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             {step === 'chat' && (
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedAudit(null)
-                  setStep('audit')
-                }}
-                title="Switch audit"
+                onClick={() => setStep('audit')}
+                title="Switch accounts"
                 style={{
                   background: 'transparent',
                   color: '#fff',
@@ -292,7 +309,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   cursor: 'pointer',
                 }}
               >
-                ← Switch
+                ← Accounts
               </button>
             )}
             <button
@@ -313,8 +330,19 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             </button>
           </div>
 
-          {/* Panel body */}
-          <div style={{ flex: 1, padding: 14, overflowY: 'auto' }}>
+          {/* Panel body. Note: chat step uses flex layout (no scroll on the
+              wrapper) so OptiMateMultiChat can manage its own scrolling and
+              keep the shared input glued to the bottom. */}
+          <div
+            style={{
+              flex: 1,
+              padding: 14,
+              overflowY: step === 'chat' ? 'hidden' : 'auto',
+              display: step === 'chat' ? 'flex' : 'block',
+              flexDirection: 'column',
+              minHeight: 0,
+            }}
+          >
             {step === 'agent' && (
               <div>
                 <label
@@ -322,29 +350,74 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     display: 'block',
                     fontSize: 12,
                     fontWeight: 600,
-                    marginBottom: 6,
+                    marginBottom: 10,
                     color: '#374151',
                   }}
                 >
                   Choose an agent
                 </label>
-                <select
-                  value={agent}
-                  onChange={(e) => handleAgentSelect(e.target.value)}
+                <div
                   style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    border: '1px solid var(--theme-border-color, #e5e7eb)',
-                    borderRadius: 6,
-                    background: 'var(--theme-input-bg, #fff)',
-                    color: 'var(--theme-text, #1f2937)',
-                    fontSize: 13,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                    gap: 10,
                   }}
                 >
-                  <option value="">Select an agent…</option>
-                  <option value="google-ads">Google Ads</option>
-                </select>
-                <p style={{ fontSize: 11, color: '#6b7280', marginTop: 10 }}>
+                  {AGENTS.map((a) => (
+                    <button
+                      key={a.key}
+                      type="button"
+                      onClick={() => a.enabled && handleAgentSelect(a.key)}
+                      disabled={!a.enabled}
+                      title={a.enabled ? a.label : `${a.label} (coming soon)`}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '14px 8px',
+                        border: '1px solid var(--theme-border-color, #e5e7eb)',
+                        borderRadius: 10,
+                        background: 'var(--theme-input-bg, #fff)',
+                        cursor: a.enabled ? 'pointer' : 'not-allowed',
+                        opacity: a.enabled ? 1 : 0.5,
+                        transition: 'background 0.15s, transform 0.1s',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!a.enabled) return
+                        e.currentTarget.style.background = '#f9fafb'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!a.enabled) return
+                        e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
+                      }}
+                    >
+                      <img
+                        src={a.icon}
+                        alt=""
+                        width={36}
+                        height={36}
+                        style={{ borderRadius: '50%', display: 'block' }}
+                        onError={(e) => {
+                          const t = e.currentTarget
+                          if (t.src.endsWith('/optimate-icon.png')) return
+                          t.src = '/optimate-icon.png'
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: 'var(--theme-text, #1f2937)',
+                          textAlign: 'center',
+                        }}
+                      >
+                        {a.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: 11, color: '#6b7280', marginTop: 12 }}>
                   More agents coming soon.
                 </p>
               </div>
@@ -361,7 +434,10 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     color: '#374151',
                   }}
                 >
-                  Pick a Google Ads audit
+                  Pick Google Ads accounts
+                  <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>
+                    (select one or more)
+                  </span>
                 </label>
                 <input
                   type="text"
@@ -380,73 +456,126 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   }}
                 />
                 {auditsLoading && (
-                  <p style={{ fontSize: 12, color: '#6b7280' }}>Loading audits…</p>
+                  <p style={{ fontSize: 12, color: '#6b7280' }}>Loading accounts…</p>
                 )}
                 {auditsError && (
                   <p style={{ fontSize: 12, color: '#dc2626' }}>{auditsError}</p>
                 )}
                 {!auditsLoading && !auditsError && filteredAudits.length === 0 && (
                   <p style={{ fontSize: 12, color: '#6b7280' }}>
-                    No audits with a Customer ID found.
+                    No accounts with a Customer ID found.
                   </p>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {filteredAudits.map((opt) => (
-                    <button
-                      key={String(opt.id)}
-                      type="button"
-                      onClick={() => handleAuditPick(opt)}
-                      style={{
-                        textAlign: 'left',
-                        padding: '8px 10px',
-                        border: '1px solid var(--theme-border-color, #e5e7eb)',
-                        borderRadius: 6,
-                        background: 'var(--theme-input-bg, #fff)',
-                        color: 'var(--theme-text, #1f2937)',
-                        fontSize: 13,
-                        cursor: 'pointer',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#f3f4f6'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
-                      }}
-                    >
-                      <div style={{ fontWeight: 600 }}>
-                        {opt.businessName || 'Untitled audit'}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#6b7280' }}>{opt.customerId}</div>
-                    </button>
-                  ))}
+                  {filteredAudits.map((opt) => {
+                    const checked = selectedAudits.some((a) => String(a.id) === String(opt.id))
+                    return (
+                      <button
+                        key={String(opt.id)}
+                        type="button"
+                        onClick={() => toggleAudit(opt)}
+                        aria-pressed={checked}
+                        style={{
+                          textAlign: 'left',
+                          padding: '8px 10px',
+                          border: `1px solid ${checked ? '#2563eb' : 'var(--theme-border-color, #e5e7eb)'}`,
+                          borderRadius: 6,
+                          background: checked ? '#eff6ff' : 'var(--theme-input-bg, #fff)',
+                          color: 'var(--theme-text, #1f2937)',
+                          fontSize: 13,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (checked) return
+                          e.currentTarget.style.background = '#f3f4f6'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (checked) return
+                          e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          readOnly
+                          tabIndex={-1}
+                          style={{ margin: 0, pointerEvents: 'none' }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {opt.businessName || 'Untitled audit'}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#6b7280' }}>{opt.customerId}</div>
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAgent('')
-                    setStep('agent')
-                  }}
+
+                {/* Sticky-ish action row at the bottom of the picker. */}
+                <div
                   style={{
-                    marginTop: 12,
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#2563eb',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    padding: 0,
+                    marginTop: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    justifyContent: 'space-between',
                   }}
                 >
-                  ← Change agent
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAgent('')
+                      setSelectedAudits([])
+                      setStep('agent')
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#2563eb',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    ← Change agent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goToChat}
+                    disabled={selectedAudits.length === 0}
+                    style={{
+                      padding: '8px 14px',
+                      background: selectedAudits.length === 0 ? '#9ca3af' : '#2563eb',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontWeight: 600,
+                      fontSize: 13,
+                      cursor: selectedAudits.length === 0 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {selectedAudits.length === 0
+                      ? 'Select accounts'
+                      : selectedAudits.length === 1
+                        ? 'Continue'
+                        : `Continue with ${selectedAudits.length}`}
+                  </button>
+                </div>
               </div>
             )}
 
-            {step === 'chat' && selectedAudit && (
-              <OptiMateChatCore
-                key={String(selectedAudit.id)}
-                auditId={selectedAudit.id}
-                customerId={selectedAudit.customerId}
-                businessName={selectedAudit.businessName}
+            {step === 'chat' && selectedAudits.length > 0 && (
+              <OptiMateMultiChat
+                key={selectedAudits.map((a) => String(a.id)).join('|')}
+                targets={selectedAudits.map((a): OptiMateChatTarget => ({
+                  id: a.id,
+                  customerId: a.customerId,
+                  businessName: a.businessName,
+                }))}
                 compact
               />
             )}

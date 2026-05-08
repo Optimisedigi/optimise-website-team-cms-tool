@@ -1,8 +1,19 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { CHAT_PICKER_MODELS, DEFAULT_CHAT_MODEL } from '@/lib/agents/_shared/llm/registry'
 import OptiMateProposalCard, { type OptiMateProposal } from './OptiMateProposalCard'
+
+/**
+ * Imperative handle exposed via ref so a multi-account wrapper can broadcast
+ * a single user-typed message to many `OptiMateChatCore` instances at once.
+ * `sendMessage` resolves when the turn completes; the wrapper awaits all to
+ * coordinate the shared input's loading state.
+ */
+export interface OptiMateChatCoreHandle {
+  sendMessage: (text: string) => Promise<void>
+  isBusy: () => boolean
+}
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -18,6 +29,8 @@ export interface OptiMateChatCoreProps {
   businessName?: string
   /** Compact mode = launcher panel; default = full tab */
   compact?: boolean
+  /** Hide the per-tab input row (the multi-chat wrapper supplies a shared one). */
+  hideInput?: boolean
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -218,12 +231,10 @@ function renderMarkdown(text: string) {
   return elements
 }
 
-const OptiMateChatCore = ({
-  auditId,
-  customerId,
-  businessName,
-  compact = false,
-}: OptiMateChatCoreProps) => {
+const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProps>(function OptiMateChatCore(
+  { auditId, customerId, businessName, compact = false, hideInput = false },
+  ref,
+) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -395,6 +406,16 @@ const OptiMateChatCore = ({
       sendMessage(input)
     }
   }
+
+  // Expose a tiny imperative API so a multi-chat wrapper can broadcast.
+  // We deliberately re-use sendMessage so behaviour stays in sync (proposals,
+  // notifications, history-trimming) instead of forking a second code path.
+  useImperativeHandle(ref, () => ({
+    sendMessage: async (text: string) => {
+      await sendMessage(text)
+    },
+    isBusy: () => loading,
+  }), [loading, sendMessage])
 
   // Sizing
   const messagesMinHeight = compact ? 240 : 300
@@ -657,65 +678,67 @@ const OptiMateChatCore = ({
         <p style={{ marginTop: 8, fontSize: 12, color: '#dc2626' }}>{error}</p>
       )}
 
-      {/* Input */}
-      <div
-        style={{
-          marginTop: 10,
-          display: 'flex',
-          gap: 8,
-        }}
-      >
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask about budget, keywords, campaigns..."
-          disabled={loading}
+      {/* Input — hidden when a multi-chat wrapper is supplying a shared one. */}
+      {!hideInput && (
+        <div
           style={{
-            flex: 1,
-            minWidth: 0,
-            padding: '10px 14px',
-            border: '1px solid var(--theme-border-color, #e5e7eb)',
-            borderRadius: 8,
-            fontSize: 13,
-            background: 'var(--theme-input-bg, #fff)',
-            color: 'var(--theme-text, #1f2937)',
-            outline: 'none',
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = '#2563eb'
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = 'var(--theme-border-color, #e5e7eb)'
-          }}
-        />
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            sendMessage(input)
-          }}
-          disabled={loading || !input.trim()}
-          style={{
-            padding: '10px 18px',
-            background: loading || !input.trim() ? '#9ca3af' : '#2563eb',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            fontWeight: 600,
-            fontSize: 13,
-            cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-            transition: 'background 0.15s',
+            marginTop: 10,
+            display: 'flex',
+            gap: 8,
           }}
         >
-          Send
-        </button>
-      </div>
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about budget, keywords, campaigns..."
+            disabled={loading}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              padding: '10px 14px',
+              border: '1px solid var(--theme-border-color, #e5e7eb)',
+              borderRadius: 8,
+              fontSize: 13,
+              background: 'var(--theme-input-bg, #fff)',
+              color: 'var(--theme-text, #1f2937)',
+              outline: 'none',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = '#2563eb'
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = 'var(--theme-border-color, #e5e7eb)'
+            }}
+          />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              sendMessage(input)
+            }}
+            disabled={loading || !input.trim()}
+            style={{
+              padding: '10px 18px',
+              background: loading || !input.trim() ? '#9ca3af' : '#2563eb',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+              transition: 'background 0.15s',
+            }}
+          >
+            Send
+          </button>
+        </div>
+      )}
     </div>
   )
-}
+})
 
 export default OptiMateChatCore
