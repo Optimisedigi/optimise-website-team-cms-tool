@@ -2413,7 +2413,23 @@ export async function POST(request: NextRequest) {
   await run("activity_log_agent_run_id_idx", "CREATE INDEX IF NOT EXISTS `activity_log_agent_run_id_idx` ON `activity_log` (`agent_run_id`)");
   await run("activity_log_agent_name_idx", "CREATE INDEX IF NOT EXISTS `activity_log_agent_name_idx` ON `activity_log` (`agent_name`)");
 
-  return NextResponse.json({ ok: true, version: "2026-05-07", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── Client Presentations array table (2026-05-08) ──
+  await run("clients_presentations", `CREATE TABLE IF NOT EXISTS \`clients_presentations\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`title\` text NOT NULL,
+    \`deck_slug\` text NOT NULL,
+    \`presented_on\` text,
+    \`kind\` text DEFAULT 'deck',
+    \`is_public\` integer DEFAULT true,
+    \`notes\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_presentations_order_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_order_idx` ON `clients_presentations` (`_order`)");
+  await run("clients_presentations_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_parent_id_idx` ON `clients_presentations` (`_parent_id`)");
+
+  return NextResponse.json({ ok: true, version: "2026-05-08", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
