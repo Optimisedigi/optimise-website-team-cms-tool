@@ -57,6 +57,12 @@ const TOOL_INVENTORY = [
   "- propose_budget_push_live(campaigns, summary, supportingNumbers?): push daily budgets to Google Ads. Each campaign: campaignId, campaignName, dailyBudget, optional bidStrategy.",
   "- propose_ad_copy_generate(brandHeadlines?, summary, supportingNumbers?): prepare an audit for ad-copy generation (saves brand headlines, stamps adCopyStatus=draft). Operator clicks Generate in the audit UI to start the Kimi run.",
   "- propose_ad_copy_deploy(adLabel?, adStatus?, summary, supportingNumbers?): deploy approved RSAs to Google Ads. Defaults to PAUSED. Audit must have adCopyStatus='approved' first.",
+  "",
+  "GA4 + GSC TOOLS (require linked client to have OAuth connected; check the CMS rules block for connection state):",
+  "- get_ga4_overview(range?): GA4 site traffic + engagement totals (users, sessions, pageviews, bounce rate, conversions) plus top channels and top pages. Default LAST_30_DAYS.",
+  "- get_gsc_overview(range?): GSC clicks/impressions/CTR/avg position + top 10 keywords + top 10 pages. Default LAST_30_DAYS.",
+  "- get_gsc_branded_split(range?): split GSC queries into brand vs non-brand using the client's saved brand keywords. Returns clicks/impressions/CTR/position per side.",
+  "- get_gsc_indexing_status(): indexed page count, not-indexed estimate, and a sample of indexing issues from URL Inspection.",
 ].join("\n");
 
 const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plain English into one of these range presets and pass it as the \`range\` arg:
@@ -76,7 +82,18 @@ If the user asks for something not in this list (e.g. "Q1", "year to date", a sp
 
 const OUTPUT_FORMAT = `Plain markdown. Short paragraphs and tight bullet lists. When you cite a number, name the tool you got it from in parentheses, e.g. "$1,240 spent over 7 days (get_campaign_performance)". When you queue a proposal, end the message with "Queued approval #<id> — review at /agent-approvals/<id>".`;
 
-function buildCmsRulesBlock(audit: AuditDocLike, client: ClientDocLike | null): string {
+export interface ClientConnectionFlags {
+  ga4Connected: boolean;
+  ga4PropertyId: string | null;
+  gscConnected: boolean;
+  gscPropertyUrl: string | null;
+}
+
+function buildCmsRulesBlock(
+  audit: AuditDocLike,
+  client: ClientDocLike | null,
+  flags?: ClientConnectionFlags,
+): string {
   const lines: string[] = [];
   lines.push(`Audit ID: ${audit.id}`);
   if (audit.businessName) lines.push(`Business: ${audit.businessName}`);
@@ -93,6 +110,15 @@ function buildCmsRulesBlock(audit: AuditDocLike, client: ClientDocLike | null): 
   const conversionActions = collectConversionActions(client);
   if (conversionActions.length > 0) {
     lines.push(`Conversion actions in scope: ${conversionActions.join(", ")}`);
+  }
+
+  if (flags) {
+    lines.push(
+      `GA4: ${flags.ga4Connected ? `connected (property ${flags.ga4PropertyId ?? "?"})` : "NOT connected — GA4 tools will return an error."}`,
+    );
+    lines.push(
+      `GSC: ${flags.gscConnected ? `connected (site ${flags.gscPropertyUrl ?? "?"})` : "NOT connected — GSC tools will return an error."}`,
+    );
   }
 
   return lines.join("\n");
@@ -122,10 +148,11 @@ function collectConversionActions(client: ClientDocLike | null): string[] {
 export function buildSystemPromptForAudit(
   audit: AuditDocLike,
   client: ClientDocLike | null,
+  flags?: ClientConnectionFlags,
 ): string {
   return buildSystemPrompt({
     agentRole: ROLE,
-    cmsRulesBlock: buildCmsRulesBlock(audit, client),
+    cmsRulesBlock: buildCmsRulesBlock(audit, client, flags),
     guardrails: GUARDRAILS,
     toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}`,
     outputFormat: OUTPUT_FORMAT,

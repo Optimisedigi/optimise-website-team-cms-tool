@@ -20,7 +20,12 @@ import { proposeBudgetUpdate } from "./tools/propose-budget-update";
 import { proposeBudgetPushLive } from "./tools/propose-budget-push-live";
 import { proposeAdCopyGenerate } from "./tools/propose-ad-copy-generate";
 import { proposeAdCopyDeploy } from "./tools/propose-ad-copy-deploy";
+import { getGa4Overview } from "./tools/get-ga4-overview";
+import { getGscOverview } from "./tools/get-gsc-overview";
+import { getGscBrandedSplit } from "./tools/get-gsc-branded-split";
+import { getGscIndexingStatus } from "./tools/get-gsc-indexing-status";
 import { resetProposalCounter } from "./tools/_propose-helpers";
+import { readClientConnectionFlags } from "./tools/_client-tokens";
 import { getPayload } from "payload";
 import payloadConfig from "@/payload.config";
 
@@ -39,6 +44,10 @@ export function getTools(): CanonicalTool<unknown>[] {
     proposeBudgetPushLive as unknown as CanonicalTool<unknown>,
     proposeAdCopyGenerate as unknown as CanonicalTool<unknown>,
     proposeAdCopyDeploy as unknown as CanonicalTool<unknown>,
+    getGa4Overview as unknown as CanonicalTool<unknown>,
+    getGscOverview as unknown as CanonicalTool<unknown>,
+    getGscBrandedSplit as unknown as CanonicalTool<unknown>,
+    getGscIndexingStatus as unknown as CanonicalTool<unknown>,
   ];
 }
 
@@ -91,7 +100,8 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     throw new Error("Audit has no Customer ID; cannot run agent.");
   }
 
-  const systemPrompt = buildSystemPromptForAudit(audit, client);
+  const connectionFlags = await readClientConnectionFlags(client?.id ?? null);
+  const systemPrompt = buildSystemPromptForAudit(audit, client, connectionFlags);
   const conversionActions = conversionActionsForClient(client);
 
   const result = await runAgent({
