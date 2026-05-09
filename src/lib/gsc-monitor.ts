@@ -11,6 +11,7 @@ import {
   compareSnapshots,
   type AlertData,
 } from "./gsc-service";
+import { parseBrandTerms } from "./brand-terms";
 
 export interface MonitorResult {
   clientId: string;
@@ -137,11 +138,8 @@ async function monitorClient(
   // Once backfilled (3+ calendar snapshots), only syncs 2 recent months.
   const monthsToSync = needsBackfill ? getMonthsBack(16) : getMonthsBack(2);
 
-  // Parse brand keywords from client
-  const brandTerms = (client.brandKeywords || "")
-    .split(/[,\n]/)
-    .map((t: string) => t.trim())
-    .filter(Boolean);
+  // Parse brand keywords from client (canonical: clients.brandKeywords)
+  const brandTerms = parseBrandTerms(client.brandKeywords);
 
   let latestSnapshotId = "";
   let allAlerts: AlertData[] = [];

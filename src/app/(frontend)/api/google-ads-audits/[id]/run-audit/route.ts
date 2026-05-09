@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { resolveBrandTerms } from "@/lib/brand-terms";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -99,10 +100,28 @@ export async function POST(
     try {
       await updateProgress("Pulling data from Google Ads API", 10);
 
-      // Build manual inputs from CMS fields
-      const brandTerms = typeof audit.brandTerms === "string"
-        ? audit.brandTerms.split("\n").map((t: string) => t.trim()).filter(Boolean)
-        : (audit.brandTerms as any[] | undefined)?.map((bt: any) => bt.term).filter(Boolean);
+      // Build manual inputs from CMS fields.
+      // Brand terms: per-audit override (audit.brandTerms) takes priority,
+      // otherwise fall back to the canonical client field (clients.brandKeywords).
+      let clientBrandKeywords: string | undefined;
+      const clientRef = (audit as any).client;
+      const clientId = typeof clientRef === "object" && clientRef ? clientRef.id : clientRef;
+      if (clientId) {
+        try {
+          const clientDoc = await payload.findByID({
+            collection: "clients",
+            id: clientId,
+            depth: 0,
+            overrideAccess: true,
+          });
+          clientBrandKeywords = (clientDoc as any)?.brandKeywords;
+        } catch { /* fall through with empty fallback */ }
+      }
+      // Legacy support: brandTerms may historically have been an array of {term} objects
+      const brandTermsRaw = typeof audit.brandTerms === "string"
+        ? audit.brandTerms
+        : (audit.brandTerms as any[] | undefined)?.map((bt: any) => bt.term).filter(Boolean).join("\n");
+      const brandTerms = resolveBrandTerms(clientBrandKeywords, brandTermsRaw);
       const conversionObjectives = typeof audit.conversionObjectives === "string"
         ? audit.conversionObjectives.split("\n").map((t: string) => t.trim()).filter(Boolean)
         : (audit.conversionObjectives as any[] | undefined)?.map((co: any) => co.objective).filter(Boolean);

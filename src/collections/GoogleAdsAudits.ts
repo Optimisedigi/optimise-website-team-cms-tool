@@ -288,7 +288,7 @@ export const GoogleAdsAudits: CollectionConfig = {
               name: "brandTerms",
               type: "textarea",
               admin: {
-                description: "Brand terms for brand/generic classification (one per line). Used by the audit, campaign proposal, negative list builder, and email generation to identify and exclude brand search terms.",
+                description: "Per-audit override (leave empty to inherit clients.brandKeywords). One per line, comma-, or semicolon-separated. Used by the audit, campaign proposal, negative list builder, and email generation to identify and exclude brand search terms.",
               },
             },
             {

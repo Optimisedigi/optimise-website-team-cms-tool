@@ -1,5 +1,6 @@
 import type { Payload } from "payload";
 import { buildMonthList, currentYearMonth } from "@/lib/avoided-spend-warmer";
+import { parseBrandTerms } from "@/lib/brand-terms";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
@@ -111,11 +112,7 @@ export async function warmMonthlyWasteRelevancyForClient(
       depth: 0,
       overrideAccess: true,
     });
-    const raw = String((clientDoc as any)?.brandKeywords || "");
-    brandKeywords = raw
-      .split(/[\r\n,]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+    brandKeywords = parseBrandTerms((clientDoc as any)?.brandKeywords);
   } catch { /* fall through with empty list */ }
 
   // 3. Compute misses: any month not in cache, or current month older than 1h.

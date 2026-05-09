@@ -7,6 +7,7 @@ import type {
   GoogleAdsDashboardTopAd,
 } from "@/lib/dashboard-types";
 import { DASHBOARD_MONTHLY_WINDOW, buildMonthAnchorList } from "@/lib/dashboard-types";
+import { parseBrandTerms } from "@/lib/brand-terms";
 
 interface QualityScoreTabProps {
   data: GoogleAdsDashboardQualityData;
@@ -680,14 +681,11 @@ export function QualityScoreTab({ data, brandKeywords }: QualityScoreTabProps) {
   const [chartMetric, setChartMetric] = useState<ChartMetric>("qualityScore");
   const [keywordFilter, setKeywordFilter] = useState<KeywordFilter>("all");
 
-  // Parse brand terms from brandKeywords (one per line)
-  const brandTerms = useMemo(() => {
-    if (!brandKeywords) return [];
-    return brandKeywords
-      .split("\n")
-      .map((t) => t.trim().toLowerCase())
-      .filter(Boolean);
-  }, [brandKeywords]);
+  // Parse brand terms (newline/comma/semicolon-separated, dedupe, ≥3 chars)
+  const brandTerms = useMemo(
+    () => parseBrandTerms(brandKeywords).map((t) => t.toLowerCase()),
+    [brandKeywords],
+  );
 
   const isBrandKeyword = (keywordText: string): boolean => {
     if (brandTerms.length === 0) return false;

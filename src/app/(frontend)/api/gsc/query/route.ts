@@ -7,6 +7,7 @@ import {
   refreshAccessToken,
 } from "@/lib/gsc-service";
 import { google } from "googleapis";
+import { parseBrandTerms } from "@/lib/brand-terms";
 
 /**
  * POST /api/gsc/query
@@ -42,10 +43,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
-  const brandTerms = ((client as any).brandKeywords || "")
-    .split(/[,\n]/)
-    .map((t: string) => t.trim())
-    .filter(Boolean);
+  const brandTerms = parseBrandTerms((client as any).brandKeywords);
 
   // If GSC is live-connected, use real API (with stored data hybrid)
   if (

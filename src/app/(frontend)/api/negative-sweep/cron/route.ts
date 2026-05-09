@@ -8,6 +8,7 @@ import {
   readSheetLists,
 } from "@/lib/sheets-service";
 import { logActivity } from "@/lib/activity-log";
+import { parseBrandTerms } from "@/lib/brand-terms";
 
 const KIMI_BASE_URL = process.env.KIMI_BASE_URL || "https://api.moonshot.ai/v1";
 const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2-0905-preview";
@@ -209,13 +210,12 @@ async function processClient(
   }
 
   // 3. Additional filtering: exclude brand keywords and manual exclude terms
-  const excludeTermsRaw = client.gadsAuto?.negativeSweepExcludeTerms || "";
-  const brandKeywordsRaw = client.brandKeywords || "";
-
+  // (both fields accept newline/comma/semicolon-separated values via parseBrandTerms)
   const excludeSet = new Set(
-    [...excludeTermsRaw.split("\n"), ...brandKeywordsRaw.split("\n")]
-      .map((t: string) => t.trim().toLowerCase())
-      .filter(Boolean)
+    [
+      ...parseBrandTerms(client.gadsAuto?.negativeSweepExcludeTerms),
+      ...parseBrandTerms(client.brandKeywords),
+    ].map((t) => t.toLowerCase()),
   );
 
   const filtered = candidates.filter((c) => {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { resolveBrandTerms } from "@/lib/brand-terms";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -61,10 +62,26 @@ export async function POST(
       );
     }
 
-    // Parse brand terms (stored as textarea, one per line)
-    const parsedBrandTerms = typeof brandTerms === "string"
-      ? brandTerms.split("\n").map((t: string) => t.trim()).filter(Boolean)
-      : [];
+    // Parse brand terms: per-audit override (audit.brandTerms) takes priority,
+    // otherwise fall back to the canonical client field (clients.brandKeywords).
+    let clientBrandKeywords: string | undefined;
+    const clientRef = (audit as any).client;
+    const clientId = typeof clientRef === "object" && clientRef ? clientRef.id : clientRef;
+    if (clientId) {
+      try {
+        const clientDoc = await payload.findByID({
+          collection: "clients",
+          id: clientId,
+          depth: 0,
+          overrideAccess: true,
+        });
+        clientBrandKeywords = (clientDoc as any)?.brandKeywords;
+      } catch { /* fall through with empty fallback */ }
+    }
+    const parsedBrandTerms = resolveBrandTerms(
+      clientBrandKeywords,
+      typeof brandTerms === "string" ? brandTerms : undefined,
+    );
 
     // Mark proposal as pending (direct DB update to avoid Payload re-validating
     // unset select fields like proposalBusinessType which store "" in SQLite)
