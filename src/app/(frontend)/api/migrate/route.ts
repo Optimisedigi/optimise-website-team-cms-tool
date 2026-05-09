@@ -2429,7 +2429,50 @@ export async function POST(request: NextRequest) {
   await run("clients_presentations_order_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_order_idx` ON `clients_presentations` (`_order`)");
   await run("clients_presentations_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_parent_id_idx` ON `clients_presentations` (`_parent_id`)");
 
-  return NextResponse.json({ ok: true, version: "2026-05-08", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  // ── Scheduled Agent Tasks (2026-05-09) ──
+  // Recurring agent runs created from chat. The cron tick endpoint loads
+  // isActive=true rows whose nextRunAt has elapsed, runs the prompt through
+  // the named agent against the linked audit, drops the result into the
+  // owner's Gmail Drafts folder, and advances nextRunAt.
+  await run("scheduled_agent_tasks", `CREATE TABLE IF NOT EXISTS \`scheduled_agent_tasks\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`title\` text NOT NULL,
+    \`agent_name\` text DEFAULT 'optimate-google-ads' NOT NULL,
+    \`prompt\` text NOT NULL,
+    \`audit_id\` integer NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`created_by_id\` integer NOT NULL,
+    \`recipient_email\` text NOT NULL,
+    \`schedule\` text NOT NULL,
+    \`timezone\` text DEFAULT 'Australia/Brisbane' NOT NULL,
+    \`next_run_at\` text NOT NULL,
+    \`last_run_at\` text,
+    \`last_run_status\` text,
+    \`last_run_error\` text,
+    \`last_draft_id\` text,
+    \`is_active\` integer DEFAULT 1 NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`audit_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    FOREIGN KEY (\`created_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("scheduled_agent_tasks_audit_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_audit_idx` ON `scheduled_agent_tasks` (`audit_id`)");
+  await run("scheduled_agent_tasks_client_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_client_idx` ON `scheduled_agent_tasks` (`client_id`)");
+  await run("scheduled_agent_tasks_created_by_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_created_by_idx` ON `scheduled_agent_tasks` (`created_by_id`)");
+  await run("scheduled_agent_tasks_next_run_at_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_next_run_at_idx` ON `scheduled_agent_tasks` (`next_run_at`)");
+  await run("scheduled_agent_tasks_is_active_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_is_active_idx` ON `scheduled_agent_tasks` (`is_active`)");
+  await run("locked_docs_rels.scheduled_agent_tasks_id", "ALTER TABLE `payload_locked_documents_rels` ADD `scheduled_agent_tasks_id` integer REFERENCES `scheduled_agent_tasks`(`id`) ON DELETE CASCADE");
+
+  // Per-user Gmail OAuth fields used by scheduled-agent-tasks to drop
+  // recurring agent reports into the user's own Gmail Drafts folder.
+  await run("users.gmail_connected", "ALTER TABLE `users` ADD `gmail_connected` integer DEFAULT 0");
+  await run("users.gmail_email", "ALTER TABLE `users` ADD `gmail_email` text");
+  await run("users.gmail_access_token", "ALTER TABLE `users` ADD `gmail_access_token` text");
+  await run("users.gmail_refresh_token", "ALTER TABLE `users` ADD `gmail_refresh_token` text");
+  await run("users.gmail_token_expiry", "ALTER TABLE `users` ADD `gmail_token_expiry` text");
+
+  return NextResponse.json({ ok: true, version: "2026-05-09", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
 }
 
 /**
