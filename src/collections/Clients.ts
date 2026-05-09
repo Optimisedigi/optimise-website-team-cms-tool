@@ -1898,7 +1898,7 @@ export const Clients: CollectionConfig = {
               type: "group",
               admin: {
                 description:
-                  "Daily SERP tracking — detects AI Overview appearance and paid-displacement risk.",
+                  "Daily SERP tracking. Detects AI Overview appearance and paid-displacement risk. Domain is inherited from the Business tab's Website URL by default. See the Notes tab for full setup instructions.",
               },
               fields: [
                 {
@@ -1911,7 +1911,7 @@ export const Clients: CollectionConfig = {
                   type: "text",
                   admin: {
                     description:
-                      "Root domain to track in SERPs (e.g. 'optimisedigital.online'). Defaults to the client's main website.",
+                      "Optional override. Leave empty to inherit the client's Website URL from the Business tab (recommended). Only set this when the SERP target differs from the main site (e.g. tracking a subdomain like 'shop.example.com').",
                   },
                 },
                 {
@@ -1977,6 +1977,10 @@ export const Clients: CollectionConfig = {
                 {
                   name: "alertRecipientEmails",
                   type: "array",
+                  admin: {
+                    description:
+                      "Recipients of the daily SERP alert digest. Add one row per email. Leave empty to skip email delivery (snapshots still recorded). Alerts only fire when one of the keywords breaches the thresholds below.",
+                  },
                   fields: [{ name: "email", type: "email", required: true }],
                 },
                 {
@@ -2167,7 +2171,7 @@ export const Clients: CollectionConfig = {
               type: "textarea",
               admin: {
                 description:
-                  "Brand terms to filter out from generic query analysis (one per line). Used by GSC monitoring, Google Ads dashboard, and quality score analysis to separate brand vs. generic traffic.",
+                  "Brand terms (one per line OR comma-separated). Single source of truth used by GSC monitoring, Google Ads dashboard, AI Visibility, AI Search Erosion Detector, negative-sweep, and quality score analysis. Per-audit overrides live on each Google Ads audit's brandTerms field. Entries shorter than 3 chars are ignored.",
               },
             },
             {
