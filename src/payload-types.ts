@@ -105,12 +105,15 @@ export interface Config {
     'permission-profiles': PermissionProfile;
     'usage-reports': UsageReport;
     'activity-log': ActivityLog;
+    'agent-approval-queue': AgentApprovalQueue;
+    'scheduled-agent-tasks': ScheduledAgentTask;
     'gsc-snapshots': GscSnapshot;
     'gsc-daily': GscDaily;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudget;
     'google-ads-ad-extensions': GoogleAdsAdExtension;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCache;
     'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCache;
+    'agent-credentials': AgentCredential;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -168,12 +171,15 @@ export interface Config {
     'permission-profiles': PermissionProfilesSelect<false> | PermissionProfilesSelect<true>;
     'usage-reports': UsageReportsSelect<false> | UsageReportsSelect<true>;
     'activity-log': ActivityLogSelect<false> | ActivityLogSelect<true>;
+    'agent-approval-queue': AgentApprovalQueueSelect<false> | AgentApprovalQueueSelect<true>;
+    'scheduled-agent-tasks': ScheduledAgentTasksSelect<false> | ScheduledAgentTasksSelect<true>;
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudgetsSelect<false> | GoogleAdsCampaignBudgetsSelect<true>;
     'google-ads-ad-extensions': GoogleAdsAdExtensionsSelect<false> | GoogleAdsAdExtensionsSelect<true>;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCacheSelect<false> | NegativeKeywordAvoidedSpendCacheSelect<true>;
     'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCacheSelect<false> | NegativeKeywordMonthlyWasteRelevancyCacheSelect<true>;
+    'agent-credentials': AgentCredentialsSelect<false> | AgentCredentialsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -849,21 +855,12 @@ export interface Client {
    */
   ga4Connected?: boolean | null;
   /**
-   * The GA4 property ID (numeric, e.g. 202886563). Set this before connecting OAuth.
+   * Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Used by GA4 OAuth/query routes here and by Growth Tools (AI Visibility Tracker, future GA4-powered tools). Set before connecting OAuth.
    */
   ga4PropertyId?: string | null;
   ga4AccessToken?: string | null;
   ga4RefreshToken?: string | null;
   ga4TokenExpiry?: string | null;
-  /**
-   * Shared analytics identifiers used by Growth Tools (tag audit, AI Visibility Tracker, etc).
-   */
-  analytics?: {
-    /**
-     * Numeric GA4 property ID (e.g. 308123456). Strip the 'properties/' prefix. Used by AI Visibility Tracker and other GA4-powered tools.
-     */
-    ga4PropertyId?: string | null;
-  };
   /**
    * Configure weekly AI Visibility snapshots — traffic from ChatGPT, Gemini, Perplexity, Claude, etc. — and buyer-question probes run across those assistants.
    */
@@ -964,6 +961,35 @@ export interface Client {
     totalDocs?: number;
   };
   /**
+   * Slide decks and presentations for this client. Files live at public/partners/<client-slug>/<deck-slug>/ — the live URL is computed from the slug below.
+   */
+  presentations?:
+    | {
+        /**
+         * Display name (e.g. 'Pre-Migration Deck')
+         */
+        title: string;
+        /**
+         * Folder slug under public/partners/<client-slug>/ (e.g. 'pre-migration'). Must be unique within this client.
+         */
+        deckSlug: string;
+        /**
+         * Date the deck was presented
+         */
+        presentedOn?: string | null;
+        kind?: ('deck' | 'status' | 'workshop' | 'migration' | 'other') | null;
+        /**
+         * Uncheck if the deck contains sensitive info that should not be linked publicly.
+         */
+        isPublic?: boolean | null;
+        /**
+         * Internal notes (audience, outcomes, follow-ups)
+         */
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Whether Google Search Console is connected
    */
   gscConnected?: boolean | null;
@@ -975,7 +1001,7 @@ export interface Client {
   gscRefreshToken?: string | null;
   gscTokenExpiry?: string | null;
   /**
-   * Brand terms to filter out from generic query analysis (one per line). Used by GSC monitoring, Google Ads dashboard, and quality score analysis to separate brand vs. generic traffic.
+   * Brand terms (one per line OR comma-separated). Single source of truth used by GSC monitoring, Google Ads dashboard, AI Visibility, AI Search Erosion Detector, negative-sweep, and quality score analysis. Per-audit overrides live on each Google Ads audit's brandTerms field. Entries shorter than 3 chars are ignored.
    */
   brandKeywords?: string | null;
   /**
@@ -2240,7 +2266,7 @@ export interface GoogleAdsAudit {
    */
   conversionObjectives?: string | null;
   /**
-   * Brand terms for brand/generic classification (one per line). Used by the audit, campaign proposal, negative list builder, and email generation to identify and exclude brand search terms.
+   * Per-audit override (leave empty to inherit clients.brandKeywords). One per line, comma-, or semicolon-separated. Used by the audit, campaign proposal, negative list builder, and email generation to identify and exclude brand search terms.
    */
   brandTerms?: string | null;
   /**
@@ -4013,6 +4039,17 @@ export interface User {
    * Whether this user has completed their first-login setup
    */
   setupCompleted?: boolean | null;
+  /**
+   * Whether this user has connected their Gmail account for scheduled-task drafts.
+   */
+  gmailConnected?: boolean | null;
+  /**
+   * The Gmail address associated with the connection.
+   */
+  gmailEmail?: string | null;
+  gmailAccessToken?: string | null;
+  gmailRefreshToken?: string | null;
+  gmailTokenExpiry?: string | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -5115,7 +5152,12 @@ export interface ActivityLog {
     | 'process_started'
     | 'ai_visibility_snapshot_created'
     | 'serp_displacement_snapshot_created'
-    | 'serp_displacement_alert_created';
+    | 'serp_displacement_alert_created'
+    | 'agent_tool_call'
+    | 'agent_reasoning'
+    | 'agent_final_output'
+    | 'agent_error'
+    | 'agent_auth_event';
   title: string;
   description?: string | null;
   /**
@@ -5126,6 +5168,182 @@ export interface ActivityLog {
    * Related client
    */
   client?: (number | null) | Client;
+  /**
+   * Optimate agents: groups all step rows for one agent run.
+   */
+  agentRunId?: string | null;
+  /**
+   * Optimate agents: which agent emitted this step, e.g. optimate-google-ads.
+   */
+  agentName?: string | null;
+  /**
+   * Optimate agents: turn number within the run.
+   */
+  step?: number | null;
+  /**
+   * Optimate agents: tool invoked on this step (when type=agent_tool_call).
+   */
+  toolName?: string | null;
+  /**
+   * Optimate agents: tool input arguments.
+   */
+  input?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Optimate agents: tool output, or final assistant message.
+   */
+  output?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Optimate agents: model reasoning between tool calls. Hidden by default in UI; never rendered to client surfaces.
+   */
+  reasoning?: string | null;
+  /**
+   * Optimate agents: canonical model name that served this step.
+   */
+  model?: string | null;
+  /**
+   * Optimate agents: which credential path served the request.
+   */
+  source?: ('oauth' | 'api-key' | 'api-key-fallback') | null;
+  /**
+   * Optimate agents: wall-time of the step in milliseconds.
+   */
+  durationMs?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Drafts and proposed actions from the Optimate agents awaiting human review.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-approval-queue".
+ */
+export interface AgentApprovalQueue {
+  id: number;
+  /**
+   * One-line summary the human sees in the queue list.
+   */
+  title: string;
+  /**
+   * Which agent produced this draft, e.g. optimate-google-ads.
+   */
+  agentName: string;
+  client?: (number | null) | Client;
+  /**
+   * What kind of action the draft proposes, e.g. phrase-match-additions, budget-reallocation, diagnostic-report.
+   */
+  proposalType: string;
+  /**
+   * Run ID this proposal was produced by; matches activity-log entries.
+   */
+  agentRunId: string;
+  /**
+   * Structured payload the apply-side tool will read on approval.
+   */
+  proposalPayload:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Pre-rendered presentation of the proposal for human review.
+   */
+  rendered?: {
+    /**
+     * Brand-toned client-facing HTML.
+     */
+    clientHtml?: string | null;
+    /**
+     * Terse internal-team review markdown.
+     */
+    internalMarkdown?: string | null;
+  };
+  status: 'pending' | 'approved' | 'rejected' | 'applied' | 'failed';
+  reviewedBy?: (number | null) | User;
+  reviewedAt?: string | null;
+  appliedAt?: string | null;
+  /**
+   * If status=failed, the error from the apply-side tool.
+   */
+  applyError?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Recurring agent runs scheduled by users in chat. Output is delivered to the owner's Gmail Drafts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "scheduled-agent-tasks".
+ */
+export interface ScheduledAgentTask {
+  id: number;
+  /**
+   * Plain-English label, e.g. 'Weekly Acme Ads summary'.
+   */
+  title: string;
+  /**
+   * Which agent runs this task each tick.
+   */
+  agentName: string;
+  /**
+   * The user message replayed to the agent on each run.
+   */
+  prompt: string;
+  audit: number | GoogleAdsAudit;
+  /**
+   * Denormalised from audit.client for fast admin filtering.
+   */
+  client: number | Client;
+  /**
+   * Owner. Only this user (or an admin) can edit/pause.
+   */
+  createdBy: number | User;
+  /**
+   * Where the Gmail draft is created (defaults to owner's email).
+   */
+  recipientEmail: string;
+  /**
+   * Cron expression, e.g. '0 9 * * 1' for Mondays at 9am.
+   */
+  schedule: string;
+  /**
+   * IANA timezone used to evaluate the cron expression.
+   */
+  timezone: string;
+  /**
+   * Computed from schedule + timezone. Tick endpoint picks rows where this <= now.
+   */
+  nextRunAt: string;
+  lastRunAt?: string | null;
+  lastRunStatus?: ('success' | 'failed') | null;
+  lastRunError?: string | null;
+  /**
+   * Gmail draft ID for the last successful run.
+   */
+  lastDraftId?: string | null;
+  /**
+   * Pause this schedule without deleting it.
+   */
+  isActive?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -5437,6 +5655,32 @@ export interface NegativeKeywordMonthlyWasteRelevancyCache {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-credentials".
+ */
+export interface AgentCredential {
+  id: number;
+  /**
+   * Provider key, e.g. anthropic, moonshot, minimax.
+   */
+  provider: string;
+  kind: 'oauth' | 'api-key';
+  /**
+   * Encrypted credential blob. AES-256-GCM via CRED_ENCRYPTION_KEY (32 hex bytes).
+   */
+  data: string;
+  /**
+   * When true, the resolver skips OAuth even if a stored OAuth credential exists, and uses the API key instead. Emergency switch.
+   */
+  forceFallback?: boolean | null;
+  /**
+   * Last successful OAuth refresh, if applicable.
+   */
+  lastRefreshedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -5612,6 +5856,14 @@ export interface PayloadLockedDocument {
         value: number | ActivityLog;
       } | null)
     | ({
+        relationTo: 'agent-approval-queue';
+        value: number | AgentApprovalQueue;
+      } | null)
+    | ({
+        relationTo: 'scheduled-agent-tasks';
+        value: number | ScheduledAgentTask;
+      } | null)
+    | ({
         relationTo: 'gsc-snapshots';
         value: number | GscSnapshot;
       } | null)
@@ -5634,6 +5886,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'negative-keyword-monthly-waste-relevancy-cache';
         value: number | NegativeKeywordMonthlyWasteRelevancyCache;
+      } | null)
+    | ({
+        relationTo: 'agent-credentials';
+        value: number | AgentCredential;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -5888,11 +6144,6 @@ export interface ClientsSelect<T extends boolean = true> {
   ga4AccessToken?: T;
   ga4RefreshToken?: T;
   ga4TokenExpiry?: T;
-  analytics?:
-    | T
-    | {
-        ga4PropertyId?: T;
-      };
   aiVisibility?:
     | T
     | {
@@ -5937,6 +6188,17 @@ export interface ClientsSelect<T extends boolean = true> {
             };
       };
   clientProposals?: T;
+  presentations?:
+    | T
+    | {
+        title?: T;
+        deckSlug?: T;
+        presentedOn?: T;
+        kind?: T;
+        isPublic?: T;
+        notes?: T;
+        id?: T;
+      };
   gscConnected?: T;
   gscPropertyUrl?: T;
   gscAccessToken?: T;
@@ -7147,6 +7409,11 @@ export interface UsersSelect<T extends boolean = true> {
   permissionProfiles?: T;
   featureAccess?: T;
   setupCompleted?: T;
+  gmailConnected?: T;
+  gmailEmail?: T;
+  gmailAccessToken?: T;
+  gmailRefreshToken?: T;
+  gmailTokenExpiry?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -7203,6 +7470,64 @@ export interface ActivityLogSelect<T extends boolean = true> {
   description?: T;
   user?: T;
   client?: T;
+  agentRunId?: T;
+  agentName?: T;
+  step?: T;
+  toolName?: T;
+  input?: T;
+  output?: T;
+  reasoning?: T;
+  model?: T;
+  source?: T;
+  durationMs?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-approval-queue_select".
+ */
+export interface AgentApprovalQueueSelect<T extends boolean = true> {
+  title?: T;
+  agentName?: T;
+  client?: T;
+  proposalType?: T;
+  agentRunId?: T;
+  proposalPayload?: T;
+  rendered?:
+    | T
+    | {
+        clientHtml?: T;
+        internalMarkdown?: T;
+      };
+  status?: T;
+  reviewedBy?: T;
+  reviewedAt?: T;
+  appliedAt?: T;
+  applyError?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "scheduled-agent-tasks_select".
+ */
+export interface ScheduledAgentTasksSelect<T extends boolean = true> {
+  title?: T;
+  agentName?: T;
+  prompt?: T;
+  audit?: T;
+  client?: T;
+  createdBy?: T;
+  recipientEmail?: T;
+  schedule?: T;
+  timezone?: T;
+  nextRunAt?: T;
+  lastRunAt?: T;
+  lastRunStatus?: T;
+  lastRunError?: T;
+  lastDraftId?: T;
+  isActive?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -7355,6 +7680,19 @@ export interface NegativeKeywordMonthlyWasteRelevancyCacheSelect<T extends boole
   brandSpend?: T;
   isFinal?: T;
   fetchedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-credentials_select".
+ */
+export interface AgentCredentialsSelect<T extends boolean = true> {
+  provider?: T;
+  kind?: T;
+  data?: T;
+  forceFallback?: T;
+  lastRefreshedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
