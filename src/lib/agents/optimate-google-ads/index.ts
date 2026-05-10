@@ -105,6 +105,10 @@ export interface ProposalSummary {
 export interface RunChatTurnResult {
   reply: string;
   runId: string;
+  /** Model the user asked for (or our default). */
+  modelRequested: string;
+  /** Model that actually served the reply. Differs from modelRequested
+   *  whenever the fallback chain kicked in (e.g. Anthropic 429 → Kimi). */
   modelUsed: string;
   source: CredentialSource;
   totalUsage: Usage;
@@ -123,12 +127,14 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   const systemPrompt = buildSystemPromptForAudit(audit, client, connectionFlags);
   const conversionActions = conversionActionsForClient(client);
 
+  const modelRequested = modelOverride ?? DEFAULT_CHAT_MODEL;
+
   const result = await runAgent({
     agentName: AGENT_NAME,
     systemPrompt,
     tools: getTools(),
     initialMessages: messages,
-    model: modelOverride ?? DEFAULT_CHAT_MODEL,
+    model: modelRequested,
     fallbackModels: DEFAULT_FALLBACKS,
     context: {
       customerId: String(audit.customerId).replace(/-/g, ""),
@@ -160,6 +166,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   return {
     reply,
     runId: result.runId,
+    modelRequested,
     modelUsed: result.modelUsed,
     source: result.source,
     totalUsage: result.totalUsage,

@@ -21,6 +21,9 @@ interface ChatMessage {
   content: string
   runId?: string
   modelUsed?: string
+  /** Set when the agent fell back to a different model than requested
+   *  (e.g. Anthropic 429 → Kimi). Drives the amber failover pill. */
+  modelRequested?: string
   proposals?: OptiMateProposal[]
 }
 
@@ -255,6 +258,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   const [pickerOpen, setPickerOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  /** Per-message draft state: 'saving' → 'saved' → (1.5s later) cleared,
+   *  or 'error' on failure. Keyed by message index. */
+  const [draftState, setDraftState] = useState<
+    Record<number, { status: 'saving' | 'saved' | 'error'; url?: string; error?: string }>
+  >({})
 
   const copyToClipboard = useCallback(async (text: string, idx: number) => {
     try {
@@ -276,6 +284,53 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [expanded])
+
+  /**
+   * Save a chat reply into the user's Gmail Drafts. We POST the raw markdown
+   * — the server converts it to lightweight HTML so paragraphs and bullets
+   * survive in Gmail's compose pane. On success the response includes a
+   * deep-link to the draft in Gmail; we expose it via 'Open in Gmail ↗'.
+   */
+  const saveAsDraft = useCallback(
+    async (text: string, idx: number) => {
+      setDraftState((prev) => ({ ...prev, [idx]: { status: 'saving' } }))
+      try {
+        const res = await fetch('/api/gmail/draft', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subject: `OptiMate · ${businessName ?? customerId}`,
+            body: text,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          const msg =
+            data?.error === 'gmail-not-connected'
+              ? 'Connect Gmail first.'
+              : data?.error === 'scope-insufficient'
+                ? 'Reconnect Gmail to grant compose access.'
+                : data?.error || `Failed (${res.status})`
+          setDraftState((prev) => ({ ...prev, [idx]: { status: 'error', error: msg } }))
+          return
+        }
+        setDraftState((prev) => ({
+          ...prev,
+          [idx]: { status: 'saved', url: data.gmailUrl },
+        }))
+      } catch (err) {
+        setDraftState((prev) => ({
+          ...prev,
+          [idx]: {
+            status: 'error',
+            error: err instanceof Error ? err.message : 'Network error',
+          },
+        }))
+      }
+    },
+    [businessName, customerId],
+  )
 
   // Pending-strip fetch: query approvals for this audit and surface anything
   // still pending. We over-fetch then client-filter on auditId because the
@@ -407,6 +462,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         content: data.reply || 'No response received.',
         runId: typeof data.runId === 'string' ? data.runId : undefined,
         modelUsed: typeof data.modelUsed === 'string' ? data.modelUsed : undefined,
+        modelRequested: typeof data.modelRequested === 'string' ? data.modelRequested : undefined,
         proposals: proposals.length > 0 ? proposals : undefined,
       }
       setMessages((prev) => [...prev, assistantMsg])
@@ -723,10 +779,34 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   paddingLeft: 4,
                   display: 'flex',
                   alignItems: 'center',
+                  flexWrap: 'wrap',
                   gap: 8,
                 }}
               >
-                {msg.modelUsed ? <span>{msg.modelUsed}</span> : null}
+                {/* Failover badge: amber pill when the agent had to walk
+                    the fallback chain (typically Anthropic 429 → Kimi). */}
+                {msg.modelRequested && msg.modelUsed && msg.modelRequested !== msg.modelUsed ? (
+                  <span
+                    title={`Requested ${msg.modelRequested}; primary model rate-limited or unavailable, served by ${msg.modelUsed}.`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '2px 6px',
+                      background: '#fffbeb',
+                      color: '#92400e',
+                      border: '1px solid #fde68a',
+                      borderRadius: 10,
+                      fontWeight: 600,
+                      fontSize: 10,
+                    }}
+                  >
+                    ⚠️ {msg.modelRequested.split('-')[0]} fell back → {msg.modelUsed}
+                  </span>
+                ) : msg.modelUsed ? (
+                  <span>{msg.modelUsed}</span>
+                ) : null}
+
                 <button
                   type="button"
                   onClick={(e) => {
@@ -748,6 +828,73 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 >
                   {copiedIdx === i ? '✓ Copied' : '📋 Copy'}
                 </button>
+
+                {/* Save-as-Gmail-draft. Three render states: idle, saving,
+                    saved (with deep-link), error (with reason on hover). */}
+                {(() => {
+                  const ds = draftState[i]
+                  if (ds?.status === 'saved' && ds.url) {
+                    return (
+                      <a
+                        href={ds.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#10b981', textDecoration: 'none', fontWeight: 500 }}
+                      >
+                        ✓ Saved — open in Gmail ↗
+                      </a>
+                    )
+                  }
+                  if (ds?.status === 'error') {
+                    return (
+                      <button
+                        type="button"
+                        title={ds.error}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          saveAsDraft(msg.content, i)
+                        }}
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          color: '#dc2626',
+                          cursor: 'pointer',
+                          padding: 0,
+                          fontSize: 10,
+                          fontWeight: 500,
+                        }}
+                      >
+                        ⚠ Draft failed — retry
+                      </button>
+                    )
+                  }
+                  return (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        saveAsDraft(msg.content, i)
+                      }}
+                      disabled={ds?.status === 'saving'}
+                      title="Save this reply as a Gmail draft"
+                      aria-label="Save as Gmail draft"
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#6b7280',
+                        cursor: ds?.status === 'saving' ? 'wait' : 'pointer',
+                        padding: 0,
+                        fontSize: 10,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {ds?.status === 'saving' ? 'Saving…' : '✉ Save as draft'}
+                    </button>
+                  )
+                })()}
+
                 {msg.runId && (
                   <a
                     href={`/agent-runs/${msg.runId}`}

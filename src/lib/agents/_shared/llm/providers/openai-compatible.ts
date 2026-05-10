@@ -30,7 +30,7 @@ export async function callOpenAICompatible(
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      throw new HttpError(res.status, await res.text());
+      throw new HttpError(res.status, await res.text(), { headers: res.headers });
     }
     return res.json();
   });

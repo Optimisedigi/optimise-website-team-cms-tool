@@ -155,6 +155,7 @@ export async function POST(
     return NextResponse.json({
       reply: result.reply,
       runId: result.runId,
+      modelRequested: result.modelRequested,
       modelUsed: result.modelUsed,
       source: result.source,
       proposals: result.proposals,

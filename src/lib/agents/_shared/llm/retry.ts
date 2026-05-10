@@ -17,14 +17,48 @@ export type ErrorClass =
   | "unknown";
 
 export class HttpError extends Error {
+  /**
+   * Parsed retry-after delay in milliseconds, if the server sent one. We
+   * honour this in `withRetry` so 429s sleep for the duration the provider
+   * actually asked for instead of our small exponential backoff. Anthropic
+   * commonly returns 8s–60s here during peak-hour Pro/Max plan throttling.
+   */
+  public readonly retryAfterMs: number | null;
+
   constructor(
     public readonly status: number,
     public readonly bodyText: string,
-    message?: string,
+    options?: { headers?: Headers; message?: string },
   ) {
-    super(message ?? `HTTP ${status}: ${bodyText.slice(0, 200)}`);
+    super(options?.message ?? `HTTP ${status}: ${bodyText.slice(0, 200)}`);
     this.name = "HttpError";
+    this.retryAfterMs = parseRetryAfter(options?.headers);
   }
+}
+
+/**
+ * Parse RFC 7231 `Retry-After` header. Spec allows either a delta-seconds
+ * integer (e.g. "30") or an HTTP-date (e.g. "Wed, 21 Oct 2026 07:28:00 GMT").
+ * Returns null when the header is missing or unparseable; clamped to a
+ * sensible 60s ceiling so a misbehaving provider can't stall the user for
+ * minutes.
+ */
+function parseRetryAfter(headers?: Headers): number | null {
+  if (!headers) return null;
+  const raw = headers.get("retry-after");
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  // delta-seconds (most common case for Anthropic / OpenAI)
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = parseInt(trimmed, 10);
+    return Math.min(seconds, 60) * 1000;
+  }
+  // HTTP-date
+  const ts = Date.parse(trimmed);
+  if (Number.isNaN(ts)) return null;
+  const delta = ts - Date.now();
+  if (delta <= 0) return 0;
+  return Math.min(delta, 60_000);
 }
 
 export function classifyError(err: unknown): ErrorClass {
@@ -82,8 +116,13 @@ export async function withRetry<T>(
       lastErr = err;
       const cls = classifyError(err);
       if (!isRetryable(cls) || attempt === maxAttempts) throw err;
-      const jitter = Math.random() * 250;
-      const delay = baseDelayMs * Math.pow(2, attempt - 1) + jitter;
+      // Honour the provider's Retry-After if they sent one; otherwise fall
+      // back to exponential backoff. Take whichever is *longer* — the
+      // provider's hint is usually the tighter constraint, but our floor
+      // prevents a cooperative provider from pinning us to 0s.
+      const exp = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 250;
+      const hinted = err instanceof HttpError ? err.retryAfterMs : null;
+      const delay = hinted !== null ? Math.max(hinted, exp) : exp;
       await sleep(delay, opts?.signal);
     }
   }
