@@ -293,8 +293,24 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               height={24}
               style={{ borderRadius: '50%', display: 'block' }}
             />
-            <div style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>
-              {step === 'pomodoro' ? 'Pomodoro' : 'OptiMate'}
+            <div style={{ fontWeight: 600, fontSize: 13, flex: 1, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span>{step === 'pomodoro' ? 'Pomodoro' : 'OptiMate'}</span>
+              {pomo.pillLabel && (
+                <span
+                  title={pomo.tracking ? `Tracking: ${pomo.taskName}` : 'Pomodoro running'}
+                  style={{
+                    fontFamily: '"Press Start 2P", "Courier New", monospace',
+                    fontSize: 9,
+                    letterSpacing: 0.5,
+                    background: 'rgba(34,197,94,0.18)',
+                    color: '#22c55e',
+                    padding: '3px 6px',
+                    borderRadius: 6,
+                  }}
+                >
+                  ⏱ {pomo.pillLabel}
+                </span>
+              )}
               {step === 'audit' && (
                 <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
                   · Pick Google Ads accounts
