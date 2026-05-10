@@ -31,6 +31,7 @@ Still actively expanding — core audit/proposal/content/GSC features are built,
 | **Growth Tools** | `GROWTH_TOOLS_URL` | SEO/CRO/keyword/competitor/content audits, cost categorization AI |
 | **Scrapling** | `SCRAPLING_SERVICE_URL` | Screenshots, social links extraction, Meta Ads detection |
 | **Google Search Console** | `GOOGLE_CLIENT_ID/SECRET` | OAuth-based GSC data (clicks, impressions, rankings, alerts) |
+| **Gmail (per-user OAuth)** | `GOOGLE_CLIENT_ID/SECRET`, `GMAIL_REDIRECT_URI` | Per-user OAuth. Scopes: `gmail.compose` (scheduled-task drafts) + `gmail.readonly` (OptiMate inbox search & attach). Re-consent required after Phase 6 deploy. |
 | **Google Ads** | Via Growth Tools | Google Ads audit data (requires MCC access grant from client) |
 | **Google Gemini** | `GOOGLE_GENERATIVE_AI_API_KEY` | Blog prompt generation, blog cover image generation |
 | **PageSpeed Insights** | `GOOGLE_PAGESPEED_API_KEY` | Screenshot fallback |

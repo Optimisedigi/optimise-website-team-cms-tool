@@ -5,6 +5,8 @@ import { headers as nextHeaders } from "next/headers";
 import { runChatTurn } from "@/lib/agents/optimate-google-ads";
 import type { Message } from "@/lib/agents/_shared/llm/types";
 import { isCanonicalModel } from "@/lib/agents/_shared/llm/registry";
+import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
+import { fetchMessageBody } from "@/lib/gmail-search";
 
 interface IncomingHistoryEntry {
   role: "user" | "assistant";
@@ -42,6 +44,7 @@ export async function POST(
       message?: unknown;
       history?: unknown;
       model?: unknown;
+      attachedEmail?: unknown;
     };
     const message = typeof body.message === "string" ? body.message.trim() : "";
     if (!message) {
@@ -66,6 +69,51 @@ export async function POST(
         );
       }
       modelOverride = body.model;
+    }
+
+    // Optional attached-email context. Client only forwards metadata; we
+    // fetch the body fresh from Gmail using the user's tokens so nothing
+    // gets stored in the CMS.
+    let decoratedMessage = message;
+    const attached = body.attachedEmail;
+    if (attached && typeof attached === "object") {
+      const a = attached as { messageId?: unknown };
+      const messageId = typeof a.messageId === "string" ? a.messageId : "";
+      if (messageId) {
+        const tokenResult = await getValidGmailToken(
+          typeof user.id === "number" ? user.id : Number(user.id),
+        );
+        if (!tokenResult.ok) {
+          return NextResponse.json(
+            {
+              error: `Could not fetch attached email: ${tokenResult.reason}`,
+            },
+            { status: 502 },
+          );
+        }
+        try {
+          const email = await fetchMessageBody(
+            tokenResult.accessToken,
+            messageId,
+          );
+          decoratedMessage =
+            `--- Attached email ---\n` +
+            `From: ${email.from}\n` +
+            `Date: ${email.date}\n` +
+            `Subject: ${email.subject}\n\n` +
+            `${email.body}\n` +
+            `--- End attached email ---\n\n` +
+            message;
+        } catch (err) {
+          const e = err as { code?: number; status?: number; message?: string };
+          return NextResponse.json(
+            {
+              error: `Could not fetch attached email: ${e.message ?? "Gmail fetch failed"}`,
+            },
+            { status: 502 },
+          );
+        }
+      }
     }
 
     const audit = await payload.findByID({
@@ -93,7 +141,7 @@ export async function POST(
         role: h.role,
         content: [{ type: "text", text: h.content }],
       })),
-      { role: "user", content: [{ type: "text", text: message }] },
+      { role: "user", content: [{ type: "text", text: decoratedMessage }] },
     ];
 
     const result = await runChatTurn({

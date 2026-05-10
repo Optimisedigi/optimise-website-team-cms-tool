@@ -116,6 +116,8 @@ const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plai
 
 If the user asks for something not in this list (e.g. "Q1", "year to date", a specific date span), pass the closest preset and tell the user in your reply which window you actually used. The tool result will include a \`coercedFrom\` and \`note\` field whenever a fallback was applied — surface that in your reply rather than pretending you ran the exact range requested.`;
 
+const ATTACHED_EMAIL_GUIDE = `If the user's message starts with "--- Attached email ---", that block is real email content the user attached from their Gmail inbox — not something they wrote. Treat it as additional context for the question that follows the "--- End attached email ---" marker. Quote specific sentences from the email inline (use blockquotes or short "..." excerpts) when you reference it. Never paraphrase numbers or claims from the email as if you've verified them — if the user wants you to act on figures from the email (spend, impressions, conversions), pull the corresponding tool first (e.g. get_campaign_performance, get_search_terms) and reconcile what the email says against what the account shows.`;
+
 const OUTPUT_FORMAT = `Plain markdown. Short paragraphs and tight bullet lists. When you cite a number, name the tool you got it from in parentheses, e.g. "$1,240 spent over 7 days (get_campaign_performance)". When you queue a proposal, end the message with "Queued approval #<id> — review at /agent-approvals/<id>".`;
 
 export interface ClientConnectionFlags {
@@ -190,7 +192,7 @@ export function buildSystemPromptForAudit(
     agentRole: ROLE,
     cmsRulesBlock: buildCmsRulesBlock(audit, client, flags),
     guardrails: GUARDRAILS,
-    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}\n\n${GEO_WALKTHROUGH}\n\n${SCHEDULED_TASKS_GUIDE}`,
+    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}\n\n${GEO_WALKTHROUGH}\n\n${SCHEDULED_TASKS_GUIDE}\n\n${ATTACHED_EMAIL_GUIDE}`,
     outputFormat: OUTPUT_FORMAT,
   });
 }

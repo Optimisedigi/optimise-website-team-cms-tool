@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { CHAT_PICKER_MODELS, DEFAULT_CHAT_MODEL } from '@/lib/agents/_shared/llm/registry'
 import OptiMateProposalCard, { type OptiMateProposal } from './OptiMateProposalCard'
+import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
 
 /**
  * Imperative handle exposed via ref so a multi-account wrapper can broadcast
@@ -250,6 +251,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   const [pendingForAudit, setPendingForAudit] = useState<OptiMateProposal[]>([])
   const [pendingRefreshTick, setPendingRefreshTick] = useState(0)
   const bumpPendingRefresh = useCallback(() => setPendingRefreshTick((n) => n + 1), [])
+  const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // Pending-strip fetch: query approvals for this audit and surface anything
   // still pending. We over-fetch then client-filter on auditId because the
@@ -349,6 +352,14 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           sessionId: sessionIdRef.current,
           history: messages.slice(-20).map(({ role, content }) => ({ role, content })),
           model: selectedModel,
+          attachedEmail: attachedEmail
+            ? {
+                messageId: attachedEmail.messageId,
+                subject: attachedEmail.subject,
+                from: attachedEmail.from,
+                date: attachedEmail.date,
+              }
+            : undefined,
         }),
       })
 
@@ -376,6 +387,10 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         proposals: proposals.length > 0 ? proposals : undefined,
       }
       setMessages((prev) => [...prev, assistantMsg])
+
+      // Email attachment is per-turn context only — clear after a successful
+      // send so the next unrelated question doesn't accidentally reuse it.
+      setAttachedEmail(null)
 
       // Refresh the pending strip and (when tab is hidden) fire a browser
       // notification so the user notices the proposal landed.
@@ -680,61 +695,139 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
 
       {/* Input — hidden when a multi-chat wrapper is supplying a shared one. */}
       {!hideInput && (
-        <div
-          style={{
-            marginTop: 10,
-            display: 'flex',
-            gap: 8,
-          }}
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about budget, keywords, campaigns..."
-            disabled={loading}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              padding: '10px 14px',
-              border: '1px solid var(--theme-border-color, #e5e7eb)',
-              borderRadius: 8,
-              fontSize: 13,
-              background: 'var(--theme-input-bg, #fff)',
-              color: 'var(--theme-text, #1f2937)',
-              outline: 'none',
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = '#2563eb'
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = 'var(--theme-border-color, #e5e7eb)'
+        <div style={{ position: 'relative', marginTop: 10 }}>
+          {attachedEmail && (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 8px',
+                marginBottom: 8,
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: 12,
+                fontSize: 11,
+                color: '#1e40af',
+                maxWidth: '100%',
+              }}
+              title={`From ${attachedEmail.from} · ${attachedEmail.date}`}
+            >
+              <span style={{ flexShrink: 0 }}>📎</span>
+              <span
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: 360,
+                }}
+              >
+                {attachedEmail.subject || '(no subject)'} — {attachedEmail.from}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  setAttachedEmail(null)
+                }}
+                aria-label="Remove attached email"
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  color: '#1e40af',
+                  padding: 0,
+                  lineHeight: 1,
+                  fontSize: 12,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          <EmailAttachPicker
+            open={pickerOpen}
+            onClose={() => setPickerOpen(false)}
+            onSelect={(meta) => {
+              setAttachedEmail(meta)
+              setPickerOpen(false)
             }}
           />
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              sendMessage(input)
-            }}
-            disabled={loading || !input.trim()}
-            style={{
-              padding: '10px 18px',
-              background: loading || !input.trim() ? '#9ca3af' : '#2563eb',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-              transition: 'background 0.15s',
-            }}
-          >
-            Send
-          </button>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setPickerOpen((v) => !v)
+              }}
+              disabled={loading}
+              title="Attach an email from your Gmail inbox"
+              style={{
+                padding: '10px 12px',
+                background: pickerOpen ? '#e0e7ff' : '#f3f4f6',
+                color: '#374151',
+                border: '1px solid var(--theme-border-color, #e5e7eb)',
+                borderRadius: 8,
+                fontSize: 14,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                flexShrink: 0,
+              }}
+              aria-label="Attach email"
+            >
+              📎
+            </button>
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask about budget, keywords, campaigns..."
+              disabled={loading}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                padding: '10px 14px',
+                border: '1px solid var(--theme-border-color, #e5e7eb)',
+                borderRadius: 8,
+                fontSize: 13,
+                background: 'var(--theme-input-bg, #fff)',
+                color: 'var(--theme-text, #1f2937)',
+                outline: 'none',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = '#2563eb'
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'var(--theme-border-color, #e5e7eb)'
+              }}
+            />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                sendMessage(input)
+              }}
+              disabled={loading || !input.trim()}
+              style={{
+                padding: '10px 18px',
+                background: loading || !input.trim() ? '#9ca3af' : '#2563eb',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+                transition: 'background 0.15s',
+              }}
+            >
+              Send
+            </button>
+          </div>
         </div>
       )}
     </div>

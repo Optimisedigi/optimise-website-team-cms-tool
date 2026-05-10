@@ -1,17 +1,24 @@
 import { google } from "googleapis";
 
 /**
- * Per-user Gmail OAuth + Drafts service.
+ * Per-user Gmail OAuth + Drafts/Read service.
  *
- * Mirrors the GSC pattern (gsc-service.ts) but scoped to gmail.compose so
- * scheduled-agent-tasks can drop reports into the user's own Drafts folder
- * without ever sending mail on their behalf.
+ * Mirrors the GSC pattern (gsc-service.ts). Scopes:
+ *  - gmail.compose  → scheduled-agent-tasks drop reports into user Drafts.
+ *  - gmail.readonly → OptiMate launcher search & attach inbox emails as
+ *                     per-turn chat context. We never send mail on the
+ *                     user's behalf.
+ *
+ * Note: gmail.readonly was added in Phase 6. Existing users connected under
+ * the previous (compose-only) scope must reconnect once via /api/gmail/connect
+ * — refresh tokens issued under the old scope set will not yield readonly
+ * access, and Gmail returns 403 insufficientPermissions on search calls.
  */
 
-// Least-privilege scope: lets us create/read/update drafts but NOT send.
 // Includes openid + email so we can resolve the connecting user's address.
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.compose",
+  "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/userinfo.email",
   "openid",
 ];
