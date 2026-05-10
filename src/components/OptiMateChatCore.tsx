@@ -437,10 +437,22 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   const messagesMaxHeight = compact ? 360 : 500
   const wrapperMaxWidth = compact ? '100%' : 700
 
+  // Block ALL form-submit / keypress / click events from bubbling up to the
+  // surrounding Payload edit form. Without this, hitting Enter or clicking
+  // Send triggers a parent-form validation pass and surfaces unrelated
+  // "field is invalid" errors (e.g. required fields on the audit doc).
+  // Original fix: 8bac83f — lost during the OptiMateMultiChat refactor.
+  const stopFormBubble = (e: React.SyntheticEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
   return (
     <div
       style={{ maxWidth: wrapperMaxWidth, marginBottom: compact ? 0 : 20, width: '100%' }}
       onKeyDown={(e) => e.stopPropagation()}
+      onSubmit={stopFormBubble}
+      onKeyPress={stopFormBubble}
     >
       {/* Header */}
       <div
