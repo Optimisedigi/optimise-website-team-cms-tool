@@ -2167,6 +2167,14 @@ export const Clients: CollectionConfig = {
               },
             },
             {
+              name: "gscSiteUrl",
+              type: "text",
+              admin: {
+                description:
+                  "Google Search Console property URL. Use the exact GSC format — e.g. `sc-domain:example.com.au` for a domain property, or `https://www.example.com/` for a URL-prefix property (trailing slash required). Read by the AI Search Erosion Detector. Leave empty to fall back to the Business tab's Website URL.",
+              },
+            },
+            {
               name: "brandKeywords",
               type: "textarea",
               admin: {
