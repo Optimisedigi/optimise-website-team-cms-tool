@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@payloadcms/ui'
 import OptiMateMultiChat, { type OptiMateChatTarget } from './OptiMateMultiChat'
+import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 
 type AgentKey = 'google-ads'
 
@@ -25,9 +26,9 @@ interface AuditOption {
   customerId: string
 }
 
-type Step = 'agent' | 'audit' | 'chat'
+type Step = 'agent' | 'audit' | 'chat' | 'pomodoro'
 
-const PILL_RIGHT = 160 // pixels — left of Pomodoro (which sits at right:20)
+const PILL_RIGHT = 20 // pixels — pomodoro pill is gone, sit bottom-right alone
 const PILL_BOTTOM = 20
 
 const PANEL_WIDTH = 420
@@ -40,8 +41,12 @@ const PANEL_HEIGHT = 600
  */
 const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth()
+  // Pomodoro state lives at launcher level so timer/tracker survive panel
+  // close + step navigation. Hook owns ALL pomodoro/tracker state.
+  const pomo = usePomodoro()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('agent')
+  const previousStepRef = useRef<Step>('agent')
   const [agent, setAgent] = useState<AgentKey | ''>('')
   const [audits, setAudits] = useState<AuditOption[] | null>(null)
   const [auditsLoading, setAuditsLoading] = useState(false)
@@ -118,6 +123,17 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
   if (!user) return <>{children}</>
 
+  // Toggle between pomodoro and the previously-active step.
+  const togglePomodoro = () => {
+    setStep((current) => {
+      if (current === 'pomodoro') {
+        return previousStepRef.current
+      }
+      previousStepRef.current = current
+      return 'pomodoro'
+    })
+  }
+
   const handleAgentSelect = (key: AgentKey) => {
     setAgent(key)
     setStep('audit')
@@ -152,7 +168,10 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
       {!open && (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setOpen(true)
+            pomo.requestNotificationPermission()
+          }}
           title={pendingCount > 0 ? `Open OptiMate (${pendingCount} pending approval${pendingCount === 1 ? '' : 's'})` : 'Open OptiMate'}
           style={{
             position: 'fixed',
@@ -181,6 +200,22 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             style={{ borderRadius: '50%', display: 'block' }}
           />
           OptiMate
+          {pomo.pillLabel && (
+            <span
+              style={{
+                fontFamily: '"Press Start 2P", "Courier New", monospace',
+                fontSize: 10,
+                letterSpacing: 0.5,
+                background: 'rgba(255,255,255,0.12)',
+                padding: '3px 6px',
+                borderRadius: 6,
+                marginLeft: 2,
+              }}
+              title={pomo.tracking ? `Tracking: ${pomo.taskName}` : 'Pomodoro running'}
+            >
+              ⏱ {pomo.pillLabel}
+            </span>
+          )}
           {pendingCount > 0 && (
             <span
               role="link"
@@ -259,7 +294,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               style={{ borderRadius: '50%', display: 'block' }}
             />
             <div style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>
-              OptiMate
+              {step === 'pomodoro' ? 'Pomodoro' : 'OptiMate'}
               {step === 'audit' && (
                 <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
                   · Pick Google Ads accounts
@@ -314,6 +349,28 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             )}
             <button
               type="button"
+              onClick={togglePomodoro}
+              title={step === 'pomodoro' ? 'Back to OptiMate' : 'Open Pomodoro / Tracker'}
+              style={{
+                background: step === 'pomodoro' ? 'rgba(255,255,255,0.18)' : 'transparent',
+                color: pomo.running || pomo.tracking ? '#22c55e' : '#fff',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 6,
+                padding: '4px 6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                lineHeight: 1,
+                animation: pomo.running || pomo.tracking ? 'optimate-pulse 1.6s ease-in-out infinite' : undefined,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </button>
+            <button
+              type="button"
               onClick={close}
               title="Close"
               style={{
@@ -336,13 +393,15 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
           <div
             style={{
               flex: 1,
-              padding: 14,
+              padding: step === 'pomodoro' ? 0 : 14,
               overflowY: step === 'chat' ? 'hidden' : 'auto',
               display: step === 'chat' ? 'flex' : 'block',
               flexDirection: 'column',
               minHeight: 0,
             }}
           >
+            {step === 'pomodoro' && <PomodoroBody pomo={pomo} />}
+
             {step === 'agent' && (
               <div>
                 <label
@@ -582,6 +641,12 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
           </div>
         </div>
       )}
+
+      {/* PiP portal lives outside the panel so it survives panel close. */}
+      {pomo.pipPortal}
+
+      {/* Pulse keyframe for the pomodoro icon when timer/tracker is active. */}
+      <style>{`@keyframes optimate-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.55 } }`}</style>
     </>
   )
 }

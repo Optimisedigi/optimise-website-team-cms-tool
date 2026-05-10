@@ -71,7 +71,6 @@ function playReminderBeep() {
       osc.connect(gain)
       gain.connect(ctx.destination)
       osc.type = 'square'
-      // Sweep from high to low for the laser effect
       osc.frequency.setValueAtTime(1800, startTime)
       osc.frequency.exponentialRampToValueAtTime(200, startTime + 0.15)
       gain.gain.setValueAtTime(0.25, startTime)
@@ -106,7 +105,6 @@ type BreathPhase = 'inhale' | 'hold' | 'exhale'
 
 function getBreathPhase(timeLeft: number, total: number): { phase: BreathPhase; secondsInPhase: number } {
   const elapsed = total - timeLeft
-  // 4s inhale, 4s hold, 4s exhale = 12s cycle
   const cyclePos = elapsed % 12
   if (cyclePos < 4) return { phase: 'inhale', secondsInPhase: 4 - cyclePos }
   if (cyclePos < 8) return { phase: 'hold', secondsInPhase: 8 - cyclePos }
@@ -125,11 +123,15 @@ const BREATH_LABELS: Record<BreathPhase, string> = {
   exhale: 'Breathe Out',
 }
 
-const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
+/* ──────────────────────────────────────────────────────────────────────────
+ * usePomodoro — owns ALL pomodoro + tracker state, effects, persistence.
+ * Mount once at OptiMateLauncher level so state survives panel close /
+ * step navigation.
+ * ────────────────────────────────────────────────────────────────────────── */
+export function usePomodoro() {
   const { user } = useAuth()
 
-  /* ── Widget state ── */
-  const [open, setOpen] = useState(false)
+  /* ── Tab state ── */
   const [tab, setTab] = useState<Tab>('pomodoro')
 
   /* ── Pomodoro state ── */
@@ -153,10 +155,10 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
 
   /* ── Admin time-edit state ── */
   const isAdmin = (user as Record<string, unknown> | null)?.role === 'admin'
-  const [customStartTime, setCustomStartTime] = useState('') // HH:MM format
-  const [pendingSave, setPendingSave] = useState(false) // stopped but not yet saved
-  const [editEndTime, setEditEndTime] = useState('') // HH:MM format for end time editing
-  const pendingElapsedRef = useRef<number>(0) // final elapsed when stopped
+  const [customStartTime, setCustomStartTime] = useState('')
+  const [pendingSave, setPendingSave] = useState(false)
+  const [editEndTime, setEditEndTime] = useState('')
+  const pendingElapsedRef = useRef<number>(0)
 
   /* ── Client @mention state ── */
   const [clients, setClients] = useState<ClientOption[]>([])
@@ -169,15 +171,14 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
   const [pipWindow, setPipWindow] = useState<Window | null>(null)
   const pipSupported = typeof window !== 'undefined' && 'documentPictureInPicture' in window
 
-  const openPip = async () => {
+  const openPip = useCallback(async () => {
     if (!pipSupported) return
     try {
-      const pip = await (window as any).documentPictureInPicture.requestWindow({ width: 300, height: 190 })
+      const pip = await (window as unknown as { documentPictureInPicture: { requestWindow: (opts: { width: number; height: number }) => Promise<Window> } })
+        .documentPictureInPicture.requestWindow({ width: 300, height: 190 })
 
-      // Dark background
       pip.document.body.style.cssText = 'margin:0;padding:0;background:#111;color:#fff;overflow:hidden;'
 
-      // Clone all loaded stylesheets from the parent (includes Press Start 2P @font-face)
       ;[...document.styleSheets].forEach((sheet) => {
         try {
           const cssText = [...sheet.cssRules].map((r) => r.cssText).join('\n')
@@ -197,9 +198,9 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
       pip.addEventListener('pagehide', () => setPipWindow(null))
       setPipWindow(pip)
     } catch {
-      // User dismissed or API unavailable
+      /* user dismissed */
     }
-  }
+  }, [pipSupported])
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -269,13 +270,12 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
       setSelectedClient({ id: saved.clientId, name: saved.clientName })
     }
 
-    // Mark already-passed reminder thresholds so we don't fire them
     for (const t of REMINDER_THRESHOLDS) {
       if (elapsedSec >= t.at) remindedRef.current.add(t.at)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Tracker tick — uses real startedAt for accuracy across refreshes ── */
+  /* ── Tracker tick ── */
   useEffect(() => {
     if (!tracking || trackerPaused) {
       clearTracker()
@@ -288,7 +288,6 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
       const sec = Math.floor((now - startedAtRef.current) / 1000)
       setElapsed(sec)
 
-      // Check reminder thresholds
       for (const t of REMINDER_THRESHOLDS) {
         if (sec >= t.at && !remindedRef.current.has(t.at)) {
           remindedRef.current.add(t.at)
@@ -308,11 +307,12 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
 
   /* ── Fetch active clients for @mention ── */
   useEffect(() => {
+    if (!user) return
     fetch('/api/clients/list')
       .then((res) => (res.ok ? res.json() : []))
       .then((data: ClientOption[]) => setClients(data))
       .catch(() => {})
-  }, [])
+  }, [user])
 
   /* ── Mention helpers ── */
   const filteredClients = mentionQuery
@@ -321,8 +321,6 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
 
   const handleTaskInput = (value: string) => {
     setTaskName(value)
-
-    // Detect @mention trigger
     const atMatch = value.match(/@(\w*)$/)
     if (atMatch) {
       setMentionQuery(atMatch[1])
@@ -334,7 +332,6 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
   }
 
   const insertMention = (client: ClientOption) => {
-    // Replace the @query with @ClientName
     const newName = taskName.replace(/@\w*$/, `@${client.name} `)
     setTaskName(newName)
     setSelectedClient(client)
@@ -388,13 +385,11 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
 
     let now = Date.now()
 
-    // Admin: apply custom start time if set
     if (isAdmin && customStartTime) {
       const [hh, mm] = customStartTime.split(':').map(Number)
       if (!isNaN(hh) && !isNaN(mm)) {
         const d = new Date()
         d.setHours(hh, mm, 0, 0)
-        // If the custom time is in the future, ignore it
         if (d.getTime() <= Date.now()) {
           now = d.getTime()
         }
@@ -422,7 +417,6 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
 
   const resumeTracker = () => {
     if (pausedAtRef.current && startedAtRef.current) {
-      // Shift startedAt forward by the time we spent paused
       const pauseDuration = Date.now() - pausedAtRef.current
       startedAtRef.current += pauseDuration
     }
@@ -430,34 +424,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
     setTrackerPaused(false)
   }
 
-  const stopTracking = () => {
-    setTracking(false)
-    setTrackerPaused(false)
-    pausedAtRef.current = null
-    clearTrackerStorage()
-
-    // Calculate final elapsed from startedAt for accuracy
-    const finalElapsed = startedAtRef.current
-      ? Math.floor((Date.now() - startedAtRef.current) / 1000)
-      : elapsed
-    startedAtRef.current = null
-
-    if (finalElapsed < 1) return
-
-    // Admin: show end-time edit before saving
-    if (isAdmin) {
-      pendingElapsedRef.current = finalElapsed
-      setElapsed(finalElapsed)
-      const now = new Date()
-      setEditEndTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
-      setPendingSave(true)
-      return
-    }
-
-    doSave(finalElapsed)
-  }
-
-  const doSave = async (durationSeconds: number) => {
+  const doSave = useCallback(async (durationSeconds: number) => {
     if (durationSeconds < 1) return
 
     setSaving(true)
@@ -472,7 +439,7 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
         }),
       })
     } catch {
-      // silent fail — activity log is non-critical
+      /* silent */
     } finally {
       setSaving(false)
       setPendingSave(false)
@@ -482,17 +449,40 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
       setElapsed(0)
       remindedRef.current = new Set()
     }
+  }, [taskName, selectedClient])
+
+  const stopTracking = () => {
+    setTracking(false)
+    setTrackerPaused(false)
+    pausedAtRef.current = null
+    clearTrackerStorage()
+
+    const finalElapsed = startedAtRef.current
+      ? Math.floor((Date.now() - startedAtRef.current) / 1000)
+      : elapsed
+    startedAtRef.current = null
+
+    if (finalElapsed < 1) return
+
+    if (isAdmin) {
+      pendingElapsedRef.current = finalElapsed
+      setElapsed(finalElapsed)
+      const now = new Date()
+      setEditEndTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
+      setPendingSave(true)
+      return
+    }
+
+    doSave(finalElapsed)
   }
 
   const confirmSave = () => {
-    // Recalculate duration if admin changed end time
     let finalDuration = pendingElapsedRef.current
     if (editEndTime && startedAtRef.current === null) {
       const [hh, mm] = editEndTime.split(':').map(Number)
       if (!isNaN(hh) && !isNaN(mm)) {
         const endDate = new Date()
         endDate.setHours(hh, mm, 0, 0)
-        // We stored the original startedAt in the elapsed calculation, reconstruct it
         const originalStart = new Date(Date.now() - pendingElapsedRef.current * 1000)
         const diff = Math.floor((endDate.getTime() - originalStart.getTime()) / 1000)
         if (diff > 0) {
@@ -513,663 +503,21 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
     remindedRef.current = new Set()
   }
 
-  if (!user) return <>{children}</>
-
-  /* ── Pill label ── */
+  /* ── Pill label (used by host launcher) ── */
   const pillLabel = tracking
     ? formatElapsed(elapsed)
     : running
       ? formatTime(timeLeft)
-      : 'Pomodoro'
+      : null
 
-  const pillColor = '#111'
-
-  /* ── Breath phase (for breathwork mode) ── */
+  /* ── Breath phase ── */
   const breathPhase = mode === 'breathwork' && running
     ? getBreathPhase(timeLeft, DURATIONS.breathwork)
     : null
 
-  return (
-    <>
-      {children}
-
-      {/* Collapsed pill */}
-      {!open && (
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(true)
-            requestNotificationPermission()
-          }}
-          style={{
-            position: 'fixed',
-            bottom: 20,
-            right: 20,
-            zIndex: 99999,
-            background: pillColor,
-            color: '#fff',
-            border: 'none',
-            borderRadius: 24,
-            padding: '10px 18px',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-            fontFamily: running || tracking
-              ? '"Press Start 2P", "Courier New", monospace'
-              : 'inherit',
-            letterSpacing: running || tracking ? '0.5px' : undefined,
-            opacity: 0.8,
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          {pillLabel}
-        </button>
-      )}
-
-      {/* Expanded panel */}
-      {open && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 20,
-            right: 20,
-            zIndex: 99999,
-            background: '#111',
-            color: '#fff',
-            borderRadius: 16,
-            width: 320,
-            boxShadow: '0 8px 40px rgba(0,0,0,0.4)',
-            overflow: 'hidden',
-            opacity: 0.8,
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 18px 10px',
-            }}
-          >
-            <span style={{ fontWeight: 700, fontSize: 14 }}>
-              {tab === 'pomodoro' ? 'Pomodoro Timer' : 'Time Tracker'}
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {pipSupported && !pipWindow && (
-                <button
-                  type="button"
-                  onClick={openPip}
-                  title="Pop out to floating window"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'rgba(255,255,255,0.5)',
-                    cursor: 'pointer',
-                    padding: 0,
-                    lineHeight: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                  </svg>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'rgba(255,255,255,0.5)',
-                  cursor: 'pointer',
-                  fontSize: 18,
-                  padding: 0,
-                  lineHeight: 1,
-                }}
-              >
-                &times;
-              </button>
-            </div>
-          </div>
-
-          {/* Tab switcher */}
-          <div
-            style={{
-              display: 'flex',
-              gap: 4,
-              padding: '0 18px 12px',
-            }}
-          >
-            {([
-              { key: 'pomodoro' as Tab, label: 'Pomodoro' },
-              { key: 'tracker' as Tab, label: 'Tracker' },
-            ]).map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                style={{
-                  flex: 1,
-                  padding: '7px 0',
-                  borderRadius: 8,
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  background: tab === key ? '#fff' : 'rgba(255,255,255,0.08)',
-                  color: tab === key ? '#111' : 'rgba(255,255,255,0.5)',
-                  transition: 'all 150ms',
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* ── POMODORO TAB ── */}
-          {tab === 'pomodoro' && (
-            <>
-              {/* Mode tabs */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 3,
-                  padding: '0 18px 14px',
-                }}
-              >
-                {(['focus', 'breathwork', 'break'] as Mode[]).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => switchMode(m)}
-                    style={{
-                      flex: 1,
-                      padding: '6px 0',
-                      borderRadius: 6,
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: mode === m ? '#fff' : 'rgba(255,255,255,0.1)',
-                      color: mode === m ? '#111' : 'rgba(255,255,255,0.6)',
-                      transition: 'all 150ms',
-                    }}
-                  >
-                    {MODE_LABELS[m]}
-                  </button>
-                ))}
-              </div>
-
-              {/* Breathwork indicator */}
-              {mode === 'breathwork' && running && breathPhase && (
-                <div
-                  style={{
-                    textAlign: 'center',
-                    padding: '0 18px 8px',
-                  }}
-                >
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '4px 14px',
-                      borderRadius: 20,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      background: BREATH_COLORS[breathPhase.phase],
-                      color: '#fff',
-                      transition: 'background 300ms',
-                    }}
-                  >
-                    {BREATH_LABELS[breathPhase.phase]}
-                  </span>
-                </div>
-              )}
-
-              {/* Countdown */}
-              <div
-                style={{
-                  textAlign: 'center',
-                  padding: '10px 18px 20px',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: '"Press Start 2P", "Courier New", monospace',
-                    fontSize: 40,
-                    fontWeight: 700,
-                    letterSpacing: 2,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {formatTime(timeLeft)}
-                </div>
-              </div>
-
-              {/* Controls */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  padding: '0 18px 18px',
-                  justifyContent: 'center',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setRunning(!running)}
-                  style={{
-                    padding: '8px 24px',
-                    borderRadius: 8,
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    background: running ? '#ef4444' : '#22c55e',
-                    color: '#fff',
-                    transition: 'background 150ms',
-                  }}
-                >
-                  {running ? 'Pause' : timeLeft === 0 ? 'Start' : timeLeft < DURATIONS[mode] ? 'Resume' : 'Start'}
-                </button>
-                <button
-                  type="button"
-                  onClick={reset}
-                  style={{
-                    padding: '8px 14px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    fontSize: 13,
-                    background: 'transparent',
-                    color: 'rgba(255,255,255,0.7)',
-                  }}
-                >
-                  Reset
-                </button>
-                <button
-                  type="button"
-                  onClick={extend}
-                  style={{
-                    padding: '8px 14px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    fontSize: 13,
-                    background: 'transparent',
-                    color: 'rgba(255,255,255,0.7)',
-                  }}
-                >
-                  +5m
-                </button>
-              </div>
-
-              {/* Settings footer */}
-              <div
-                style={{
-                  padding: '10px 18px',
-                  borderTop: '1px solid rgba(255,255,255,0.1)',
-                  fontSize: 11,
-                  color: 'rgba(255,255,255,0.35)',
-                  textAlign: 'center',
-                }}
-              >
-                Focus {DURATIONS.focus / 60}m &middot; Breathe {DURATIONS.breathwork / 60}m &middot; Break {DURATIONS.break / 60}m
-              </div>
-            </>
-          )}
-
-          {/* ── TRACKER TAB ── */}
-          {tab === 'tracker' && (
-            <>
-              {/* Task input with @mention */}
-              <div style={{ padding: '0 18px 14px', position: 'relative' }}>
-                {/* Selected client tag */}
-                {selectedClient && !tracking && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    marginBottom: 8,
-                  }}>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '3px 8px',
-                      borderRadius: 4,
-                      background: 'rgba(59,130,246,0.2)',
-                      color: '#3b82f6',
-                      fontSize: 11,
-                      fontWeight: 600,
-                    }}>
-                      @{selectedClient.name}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedClient(null)
-                          setTaskName(taskName.replace(new RegExp(`@${selectedClient.name}\\s?`), ''))
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#3b82f6',
-                          cursor: 'pointer',
-                          padding: 0,
-                          fontSize: 13,
-                          lineHeight: 1,
-                        }}
-                      >
-                        &times;
-                      </button>
-                    </span>
-                  </div>
-                )}
-                <input
-                  ref={inputRef}
-                  type="text"
-                  placeholder="What are you working on? Use @ for client"
-                  value={taskName}
-                  onChange={(e) => handleTaskInput(e.target.value)}
-                  disabled={tracking || pendingSave}
-                  onKeyDown={(e) => {
-                    if (showMentions) {
-                      handleMentionKeyDown(e)
-                      return
-                    }
-                    if (e.key === 'Enter' && !tracking) startTracking()
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    background: 'rgba(255,255,255,0.06)',
-                    color: '#fff',
-                    fontSize: 13,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-
-                {/* @mention dropdown */}
-                {showMentions && filteredClients.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    left: 18,
-                    right: 18,
-                    bottom: '100%',
-                    marginBottom: 4,
-                    background: '#1a1a1a',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: 8,
-                    maxHeight: 160,
-                    overflowY: 'auto',
-                    zIndex: 10,
-                  }}>
-                    {filteredClients.slice(0, 8).map((client, i) => (
-                      <button
-                        key={client.id}
-                        type="button"
-                        onClick={() => insertMention(client)}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          padding: '8px 12px',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: 12,
-                          fontWeight: 500,
-                          textAlign: 'left',
-                          background: i === mentionIndex ? 'rgba(59,130,246,0.2)' : 'transparent',
-                          color: i === mentionIndex ? '#3b82f6' : 'rgba(255,255,255,0.7)',
-                          transition: 'background 100ms',
-                        }}
-                      >
-                        @{client.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Elapsed time */}
-              <div
-                style={{
-                  textAlign: 'center',
-                  padding: '10px 18px 20px',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: '"Press Start 2P", "Courier New", monospace',
-                    fontSize: 40,
-                    fontWeight: 700,
-                    letterSpacing: 2,
-                    lineHeight: 1.2,
-                    color: trackerPaused ? 'rgba(255,255,255,0.4)' : '#fff',
-                  }}
-                >
-                  {formatElapsed(elapsed)}
-                </div>
-              </div>
-
-              {/* Admin: custom start time */}
-              {isAdmin && !tracking && !pendingSave && (
-                <div style={{ padding: '0 18px 10px' }}>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontSize: 11,
-                    color: 'rgba(255,255,255,0.5)',
-                  }}>
-                    Start time:
-                    <input
-                      type="time"
-                      value={customStartTime}
-                      onChange={(e) => setCustomStartTime(e.target.value)}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: 6,
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        background: 'rgba(255,255,255,0.06)',
-                        color: '#fff',
-                        fontSize: 12,
-                        outline: 'none',
-                        colorScheme: 'dark',
-                      }}
-                    />
-                    {customStartTime && (
-                      <button
-                        type="button"
-                        onClick={() => setCustomStartTime('')}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'rgba(255,255,255,0.4)',
-                          cursor: 'pointer',
-                          fontSize: 13,
-                          padding: 0,
-                          lineHeight: 1,
-                        }}
-                      >
-                        &times;
-                      </button>
-                    )}
-                  </label>
-                </div>
-              )}
-
-              {/* Admin: edit end time before saving */}
-              {pendingSave && (
-                <div style={{ padding: '0 18px 10px' }}>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontSize: 11,
-                    color: 'rgba(255,255,255,0.5)',
-                  }}>
-                    End time:
-                    <input
-                      type="time"
-                      value={editEndTime}
-                      onChange={(e) => setEditEndTime(e.target.value)}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: 6,
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        background: 'rgba(255,255,255,0.06)',
-                        color: '#fff',
-                        fontSize: 12,
-                        outline: 'none',
-                        colorScheme: 'dark',
-                      }}
-                    />
-                  </label>
-                </div>
-              )}
-
-              {/* Controls */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  padding: '0 18px 18px',
-                  justifyContent: 'center',
-                }}
-              >
-                {pendingSave ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={confirmSave}
-                      disabled={saving}
-                      style={{
-                        padding: '8px 24px',
-                        borderRadius: 8,
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontWeight: 700,
-                        fontSize: 13,
-                        background: '#22c55e',
-                        color: '#fff',
-                        transition: 'background 150ms',
-                      }}
-                    >
-                      {saving ? 'Saving...' : 'Save'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={cancelSave}
-                      style={{
-                        padding: '8px 14px',
-                        borderRadius: 8,
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        cursor: 'pointer',
-                        fontWeight: 600,
-                        fontSize: 13,
-                        background: 'transparent',
-                        color: 'rgba(255,255,255,0.7)',
-                      }}
-                    >
-                      Discard
-                    </button>
-                  </>
-                ) : !tracking ? (
-                  <button
-                    type="button"
-                    onClick={startTracking}
-                    disabled={!taskName.trim()}
-                    style={{
-                      padding: '8px 32px',
-                      borderRadius: 8,
-                      border: 'none',
-                      cursor: taskName.trim() ? 'pointer' : 'not-allowed',
-                      fontWeight: 700,
-                      fontSize: 13,
-                      background: taskName.trim() ? '#22c55e' : 'rgba(255,255,255,0.15)',
-                      color: taskName.trim() ? '#fff' : 'rgba(255,255,255,0.3)',
-                      transition: 'background 150ms',
-                    }}
-                  >
-                    Start
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={trackerPaused ? resumeTracker : pauseTracker}
-                      style={{
-                        padding: '8px 18px',
-                        borderRadius: 8,
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        cursor: 'pointer',
-                        fontWeight: 700,
-                        fontSize: 13,
-                        background: trackerPaused ? '#22c55e' : 'transparent',
-                        color: trackerPaused ? '#fff' : 'rgba(255,255,255,0.7)',
-                        transition: 'all 150ms',
-                      }}
-                    >
-                      {trackerPaused ? 'Resume' : 'Pause'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={stopTracking}
-                      disabled={saving}
-                      style={{
-                        padding: '8px 18px',
-                        borderRadius: 8,
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontWeight: 700,
-                        fontSize: 13,
-                        background: '#ef4444',
-                        color: '#fff',
-                        transition: 'background 150ms',
-                      }}
-                    >
-                      {saving ? 'Saving...' : 'Finish'}
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div
-                style={{
-                  padding: '10px 18px',
-                  borderTop: '1px solid rgba(255,255,255,0.1)',
-                  fontSize: 11,
-                  color: 'rgba(255,255,255,0.35)',
-                  textAlign: 'center',
-                }}
-              >
-                {pendingSave
-                  ? 'Adjust end time and save'
-                  : tracking
-                    ? `Tracking: ${taskName}`
-                    : 'Enter a task and press Start'}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-      {/* Picture-in-Picture portal */}
-      {pipWindow && createPortal(
+  /* ── Pre-rendered PiP portal ── */
+  const pipPortal: React.ReactNode = pipWindow
+    ? createPortal(
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -1182,7 +530,6 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
           position: 'relative',
           opacity: 0.8,
         }}>
-          {/* Close PiP */}
           <button
             type="button"
             onClick={() => pipWindow.close()}
@@ -1202,7 +549,6 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
             &times;
           </button>
 
-          {/* Label */}
           <div style={{
             fontSize: 11,
             color: 'rgba(255,255,255,0.45)',
@@ -1220,7 +566,6 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
               : MODE_LABELS[mode]}
           </div>
 
-          {/* Clock */}
           <div style={{
             fontFamily: '"Press Start 2P", "Courier New", monospace',
             fontSize: 38,
@@ -1232,7 +577,6 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
             {tab === 'tracker' ? formatElapsed(elapsed) : formatTime(timeLeft)}
           </div>
 
-          {/* Action button */}
           <div style={{ display: 'flex', gap: 8 }}>
             {tab === 'pomodoro' ? (
               <>
@@ -1312,9 +656,631 @@ const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
           </div>
         </div>,
         pipWindow.document.body,
+      )
+    : null
+
+  return {
+    user,
+    // tab
+    tab, setTab,
+    // pomodoro
+    mode, timeLeft, running, breathPhase,
+    switchMode, reset, extend, setRunning,
+    // tracker
+    taskName, setTaskName,
+    selectedClient, setSelectedClient,
+    tracking, trackerPaused, elapsed, saving,
+    pendingSave, editEndTime, setEditEndTime,
+    customStartTime, setCustomStartTime,
+    startTracking, pauseTracker, resumeTracker, stopTracking,
+    confirmSave, cancelSave,
+    // mentions
+    clients, showMentions, mentionQuery, mentionIndex,
+    filteredClients, inputRef,
+    handleTaskInput, insertMention, handleMentionKeyDown,
+    // admin
+    isAdmin,
+    // pip
+    pipSupported, pipWindow, openPip, pipPortal,
+    // computed
+    pillLabel,
+    // formatters / constants exposed for body
+    formatTime, formatElapsed,
+    DURATIONS, MODE_LABELS, BREATH_COLORS, BREATH_LABELS,
+    // notif
+    requestNotificationPermission,
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * PomodoroBody — presentational. Renders tab switcher + pomodoro/tracker
+ * panels. No outer fixed wrapper, no close button. Designed to be embedded
+ * in OptiMate's panel.
+ * ────────────────────────────────────────────────────────────────────────── */
+export function PomodoroBody({ pomo }: { pomo: ReturnType<typeof usePomodoro> }) {
+  const {
+    tab, setTab,
+    mode, timeLeft, running, breathPhase,
+    switchMode, reset, extend, setRunning,
+    taskName,
+    selectedClient, setSelectedClient, setTaskName,
+    tracking, trackerPaused, elapsed, saving,
+    pendingSave, editEndTime, setEditEndTime,
+    customStartTime, setCustomStartTime,
+    startTracking, pauseTracker, resumeTracker, stopTracking,
+    confirmSave, cancelSave,
+    showMentions, mentionIndex,
+    filteredClients, inputRef,
+    handleTaskInput, insertMention, handleMentionKeyDown,
+    isAdmin,
+    pipSupported, pipWindow, openPip,
+  } = pomo
+
+  return (
+    <div
+      style={{
+        background: '#111',
+        color: '#fff',
+        borderRadius: 12,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Tab switcher with optional PiP icon */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 4,
+          padding: '12px 14px 12px',
+          alignItems: 'center',
+        }}
+      >
+        {([
+          { key: 'pomodoro' as Tab, label: 'Pomodoro' },
+          { key: 'tracker' as Tab, label: 'Tracker' },
+        ]).map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            style={{
+              flex: 1,
+              padding: '7px 0',
+              borderRadius: 8,
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 700,
+              background: tab === key ? '#fff' : 'rgba(255,255,255,0.08)',
+              color: tab === key ? '#111' : 'rgba(255,255,255,0.5)',
+              transition: 'all 150ms',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+        {pipSupported && !pipWindow && (
+          <button
+            type="button"
+            onClick={openPip}
+            title="Pop out to floating window"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255,255,255,0.5)',
+              cursor: 'pointer',
+              padding: 4,
+              lineHeight: 1,
+              display: 'flex',
+              alignItems: 'center',
+              marginLeft: 2,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* ── POMODORO TAB ── */}
+      {tab === 'pomodoro' && (
+        <>
+          {/* Mode tabs */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 3,
+              padding: '0 14px 14px',
+            }}
+          >
+            {(['focus', 'breathwork', 'break'] as Mode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => switchMode(m)}
+                style={{
+                  flex: 1,
+                  padding: '6px 0',
+                  borderRadius: 6,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: mode === m ? '#fff' : 'rgba(255,255,255,0.1)',
+                  color: mode === m ? '#111' : 'rgba(255,255,255,0.6)',
+                  transition: 'all 150ms',
+                }}
+              >
+                {MODE_LABELS[m]}
+              </button>
+            ))}
+          </div>
+
+          {/* Breathwork indicator */}
+          {mode === 'breathwork' && running && breathPhase && (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '0 14px 8px',
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  padding: '4px 14px',
+                  borderRadius: 20,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  background: BREATH_COLORS[breathPhase.phase],
+                  color: '#fff',
+                  transition: 'background 300ms',
+                }}
+              >
+                {BREATH_LABELS[breathPhase.phase]}
+              </span>
+            </div>
+          )}
+
+          {/* Countdown */}
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '10px 14px 20px',
+            }}
+          >
+            <div
+              style={{
+                fontFamily: '"Press Start 2P", "Courier New", monospace',
+                fontSize: 40,
+                fontWeight: 700,
+                letterSpacing: 2,
+                lineHeight: 1.2,
+              }}
+            >
+              {formatTime(timeLeft)}
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              padding: '0 14px 18px',
+              justifyContent: 'center',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setRunning(!running)}
+              style={{
+                padding: '8px 24px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: 13,
+                background: running ? '#ef4444' : '#22c55e',
+                color: '#fff',
+                transition: 'background 150ms',
+              }}
+            >
+              {running ? 'Pause' : timeLeft === 0 ? 'Start' : timeLeft < DURATIONS[mode] ? 'Resume' : 'Start'}
+            </button>
+            <button
+              type="button"
+              onClick={reset}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.2)',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: 13,
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.7)',
+              }}
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={extend}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.2)',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: 13,
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.7)',
+              }}
+            >
+              +5m
+            </button>
+          </div>
+
+          {/* Settings footer */}
+          <div
+            style={{
+              padding: '10px 14px',
+              borderTop: '1px solid rgba(255,255,255,0.1)',
+              fontSize: 11,
+              color: 'rgba(255,255,255,0.35)',
+              textAlign: 'center',
+            }}
+          >
+            Focus {DURATIONS.focus / 60}m &middot; Breathe {DURATIONS.breathwork / 60}m &middot; Break {DURATIONS.break / 60}m
+          </div>
+        </>
       )}
-    </>
+
+      {/* ── TRACKER TAB ── */}
+      {tab === 'tracker' && (
+        <>
+          {/* Task input with @mention */}
+          <div style={{ padding: '0 14px 14px', position: 'relative' }}>
+            {selectedClient && !tracking && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 8,
+              }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '3px 8px',
+                  borderRadius: 4,
+                  background: 'rgba(59,130,246,0.2)',
+                  color: '#3b82f6',
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}>
+                  @{selectedClient.name}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedClient(null)
+                      setTaskName(taskName.replace(new RegExp(`@${selectedClient.name}\\s?`), ''))
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#3b82f6',
+                      cursor: 'pointer',
+                      padding: 0,
+                      fontSize: 13,
+                      lineHeight: 1,
+                    }}
+                  >
+                    &times;
+                  </button>
+                </span>
+              </div>
+            )}
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="What are you working on? Use @ for client"
+              value={taskName}
+              onChange={(e) => handleTaskInput(e.target.value)}
+              disabled={tracking || pendingSave}
+              onKeyDown={(e) => {
+                if (showMentions) {
+                  handleMentionKeyDown(e)
+                  return
+                }
+                if (e.key === 'Enter' && !tracking) startTracking()
+              }}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: 'rgba(255,255,255,0.06)',
+                color: '#fff',
+                fontSize: 13,
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+
+            {showMentions && filteredClients.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                left: 14,
+                right: 14,
+                bottom: '100%',
+                marginBottom: 4,
+                background: '#1a1a1a',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 8,
+                maxHeight: 160,
+                overflowY: 'auto',
+                zIndex: 10,
+              }}>
+                {filteredClients.slice(0, 8).map((client, i) => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => insertMention(client)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      textAlign: 'left',
+                      background: i === mentionIndex ? 'rgba(59,130,246,0.2)' : 'transparent',
+                      color: i === mentionIndex ? '#3b82f6' : 'rgba(255,255,255,0.7)',
+                      transition: 'background 100ms',
+                    }}
+                  >
+                    @{client.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Elapsed */}
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '10px 14px 20px',
+            }}
+          >
+            <div
+              style={{
+                fontFamily: '"Press Start 2P", "Courier New", monospace',
+                fontSize: 40,
+                fontWeight: 700,
+                letterSpacing: 2,
+                lineHeight: 1.2,
+                color: trackerPaused ? 'rgba(255,255,255,0.4)' : '#fff',
+              }}
+            >
+              {formatElapsed(elapsed)}
+            </div>
+          </div>
+
+          {/* Admin: custom start time */}
+          {isAdmin && !tracking && !pendingSave && (
+            <div style={{ padding: '0 14px 10px' }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 11,
+                color: 'rgba(255,255,255,0.5)',
+              }}>
+                Start time:
+                <input
+                  type="time"
+                  value={customStartTime}
+                  onChange={(e) => setCustomStartTime(e.target.value)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: 'rgba(255,255,255,0.06)',
+                    color: '#fff',
+                    fontSize: 12,
+                    outline: 'none',
+                    colorScheme: 'dark',
+                  }}
+                />
+                {customStartTime && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomStartTime('')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'rgba(255,255,255,0.4)',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      padding: 0,
+                      lineHeight: 1,
+                    }}
+                  >
+                    &times;
+                  </button>
+                )}
+              </label>
+            </div>
+          )}
+
+          {/* Admin: edit end time before saving */}
+          {pendingSave && (
+            <div style={{ padding: '0 14px 10px' }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 11,
+                color: 'rgba(255,255,255,0.5)',
+              }}>
+                End time:
+                <input
+                  type="time"
+                  value={editEndTime}
+                  onChange={(e) => setEditEndTime(e.target.value)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: 'rgba(255,255,255,0.06)',
+                    color: '#fff',
+                    fontSize: 12,
+                    outline: 'none',
+                    colorScheme: 'dark',
+                  }}
+                />
+              </label>
+            </div>
+          )}
+
+          {/* Controls */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              padding: '0 14px 18px',
+              justifyContent: 'center',
+            }}
+          >
+            {pendingSave ? (
+              <>
+                <button
+                  type="button"
+                  onClick={confirmSave}
+                  disabled={saving}
+                  style={{
+                    padding: '8px 24px',
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    background: '#22c55e',
+                    color: '#fff',
+                    transition: 'background 150ms',
+                  }}
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelSave}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    background: 'transparent',
+                    color: 'rgba(255,255,255,0.7)',
+                  }}
+                >
+                  Discard
+                </button>
+              </>
+            ) : !tracking ? (
+              <button
+                type="button"
+                onClick={startTracking}
+                disabled={!taskName.trim()}
+                style={{
+                  padding: '8px 32px',
+                  borderRadius: 8,
+                  border: 'none',
+                  cursor: taskName.trim() ? 'pointer' : 'not-allowed',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  background: taskName.trim() ? '#22c55e' : 'rgba(255,255,255,0.15)',
+                  color: taskName.trim() ? '#fff' : 'rgba(255,255,255,0.3)',
+                  transition: 'background 150ms',
+                }}
+              >
+                Start
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={trackerPaused ? resumeTracker : pauseTracker}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    background: trackerPaused ? '#22c55e' : 'transparent',
+                    color: trackerPaused ? '#fff' : 'rgba(255,255,255,0.7)',
+                    transition: 'all 150ms',
+                  }}
+                >
+                  {trackerPaused ? 'Resume' : 'Pause'}
+                </button>
+                <button
+                  type="button"
+                  onClick={stopTracking}
+                  disabled={saving}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    background: '#ef4444',
+                    color: '#fff',
+                    transition: 'background 150ms',
+                  }}
+                >
+                  {saving ? 'Saving...' : 'Finish'}
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '10px 14px',
+              borderTop: '1px solid rgba(255,255,255,0.1)',
+              fontSize: 11,
+              color: 'rgba(255,255,255,0.35)',
+              textAlign: 'center',
+            }}
+          >
+            {pendingSave
+              ? 'Adjust end time and save'
+              : tracking
+                ? `Tracking: ${taskName}`
+                : 'Enter a task and press Start'}
+          </div>
+        </>
+      )}
+    </div>
   )
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * PomodoroTimer (default export) — kept for back-compat with importMap.js.
+ * No longer mounted by payload.config.ts; OptiMateLauncher hosts the
+ * pomodoro inline. This just renders children passthrough.
+ * ────────────────────────────────────────────────────────────────────────── */
+const PomodoroTimer = ({ children }: { children: React.ReactNode }) => {
+  return <>{children}</>
 }
 
 export default PomodoroTimer

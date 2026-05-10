@@ -90,7 +90,7 @@ export default buildConfig({
       actions: ["./components/UserDisplayName"],
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
-      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PomodoroTimer", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass"],
+      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass"],
       beforeDashboard: ["./components/Dashboard"],
     },
   },
