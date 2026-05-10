@@ -42,6 +42,7 @@ import * as migration_20260506_120000_add_brand_spend_to_waste_relevancy_cache f
 import * as migration_20260508_120000_add_client_presentations from './20260508_120000_add_client_presentations';
 import * as migration_20260508_180000_add_agent_collections from './20260508_180000_add_agent_collections';
 import * as migration_20260509_120000_add_scheduled_agent_tasks from './20260509_120000_add_scheduled_agent_tasks';
+import * as migration_20260511_120000_add_gsc_site_url_to_clients from './20260511_120000_add_gsc_site_url_to_clients';
 
 export const migrations = [
   {
@@ -263,5 +264,10 @@ export const migrations = [
     up: migration_20260509_120000_add_scheduled_agent_tasks.up,
     down: migration_20260509_120000_add_scheduled_agent_tasks.down,
     name: '20260509_120000_add_scheduled_agent_tasks'
+  },
+  {
+    up: migration_20260511_120000_add_gsc_site_url_to_clients.up,
+    down: migration_20260511_120000_add_gsc_site_url_to_clients.down,
+    name: '20260511_120000_add_gsc_site_url_to_clients'
   },
 ];
