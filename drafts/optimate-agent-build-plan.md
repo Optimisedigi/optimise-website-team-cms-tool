@@ -368,11 +368,30 @@ When adding a new template:
 5. Build shared helpers: `tone-of-voice.md`, `system-prompt-builder.ts`, `approval-queue.ts`, `activity-log.ts`
 6. Add `agent-approval-queue` collection (shared across all agents)
 7. Add `agent-credentials` collection (or use Vercel KV) for storing OAuth tokens encrypted at rest
-8. Smoke tests:
+8. **Add `hasValidApiKey` fallback to the four budget management endpoints** so the agent can read and write through them with `x-api-key: AUDIT_API_KEY`. Required by the Budget Re-allocation tool (see deep dive at the end of this document for full context). Concrete change is one auth-check replacement at the top of each route:
+   - `src/app/(frontend)/api/google-ads-budgets/[id]/list/route.ts`
+   - `src/app/(frontend)/api/google-ads-budgets/[id]/update/route.ts`
+   - `src/app/(frontend)/api/google-ads-budgets/[id]/push/route.ts`
+   - `src/app/(frontend)/api/google-ads-budgets/[id]/refresh-metrics/route.ts`
+
+   Replace the existing `if (!user) return 401` block with:
+
+   ```ts
+   import { hasValidApiKey } from '@/collections/api-key-access'
+
+   const { user } = await payload.auth({ headers: req.headers });
+   if (!user && !hasValidApiKey(req)) {
+     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+   }
+   ```
+
+   Matches the existing access pattern on the `GoogleAdsCampaignBudgets` collection itself.
+9. Smoke tests:
    - Confirm the Anthropic OAuth flow completes end-to-end (browser → consent → token stored → next agent call uses OAuth header)
    - Force-revoke the OAuth token in the store, confirm the next call falls back to `ANTHROPIC_API_KEY` transparently and logs `source: 'api-key-fallback'`
    - Confirm Kimi and MiniMax adapters work via API key alone
    - Confirm provider failover (kill one provider's keys, agent walks down its `fallbackModels` chain)
+   - Confirm the four budget endpoints accept `x-api-key: AUDIT_API_KEY` after the fallback change
 
 ### Phase 1: Unblock Optimate-Proposal
 
@@ -1060,6 +1079,153 @@ Output: either a short "all clear" log entry, or a draft client email/slack mess
 
 The campaign-proposal flow we already have in `server/campaign-proposal-service.ts`, but with the lessons learned from Berendsen and MTP baked in (see "Pre-flight checks" below).
 
+---
+
+## Exploratory Mode (Secondary — Phase 3.5, Build After Standard Mode Is Stable)
+
+> **Status: secondary feature. Do not build until standard chat + autonomous modes have been in production for at least 3–4 weeks and the standard tool surface has stabilised.** This section is captured upfront so that standard-mode tools are designed to compose cleanly into exploratory mode later. It is not part of the initial Phase 3 build.
+
+### Why this exists
+
+Standard mode (chat + autonomous) covers the recurring, productised work: weekly reviews, the diagnostic playbook for "leads dropped", restructure proposals, negative keyword sweeps. Shape known, tools bounded, output schemas fixed.
+
+There is a separate class of work where the shape isn't known upfront: deep-dive investigations, ad-hoc "something looks off in March, find why" questions, custom presentations that don't fit any existing template. Today this work happens in Claude Code on the agency owner's laptop. That works but doesn't scale to a team and doesn't produce artefacts that land in the CMS for review/approval/sharing.
+
+Exploratory mode is the answer: **same agent, same data access, different posture and a wider tool surface**, unlocked on request via an explicit toggle. It does not replace Claude Code for codebase work, building agents themselves, or general one-off scripting; it replaces Claude Code only for the specific niche of *freeform Google Ads / GA4 investigation that should produce a CMS-resident artefact a teammate can review.*
+
+### Core principle: one agent, two gears
+
+```
+Optimate-Google-Ads (one agent file, one system prompt skeleton, one credential layer)
+├── Standard mode (default — Phase 3)
+│   └── Tools: get_*, propose_*, apply_*, draft_* (the inventory in the section below)
+│   └── System prompt nudge: "Produce the structured deliverable. Stay within the framework.
+│       If you find something unusual outside the framework, flag it and recommend an exploratory follow-up."
+│
+└── Exploratory mode (Phase 3.5 — opt-in via /explore or toggle)
+    └── All standard tools PLUS the freeform tool surface below
+    └── System prompt nudge: "Investigate freely. Form a hypothesis, test it with data,
+        share findings as you go. Don't commit to a final structure until you've explored
+        enough to know what the deliverable should be."
+```
+
+Mode is a parameter passed into `runOptimateGoogleAds()`. Standard mode is the default; exploratory unlocks additional tools and swaps in an exploratory-mode addendum to the system prompt. Everything else (credential layer, approval queue, activity log, multi-provider fallback chain, prompt caching, hardcoded guardrails) is identical.
+
+### The freeform tool surface (added on top of standard tools)
+
+| Tool name | Purpose |
+|---|---|
+| `run_gaql_query` | Execute an arbitrary GAQL query against the client's Google Ads account. Returns raw rows + column metadata. The agent decides what to query and how to reason over the results. |
+| `run_ga4_query` | Execute an arbitrary GA4 Data API `runReport` call (metrics, dimensions, filters, dateRange). Returns raw rows. |
+| `compare_dimensions` | Quick crosstab helper — `dimensionA × dimensionB` by `metric` over `dateRange`. Wraps a common GAQL/GA4 pattern so the agent doesn't burn turns reconstructing it from primitives every time. |
+| `draft_freeform_section` | Render a single section of an eventual deliverable in the agency's house style. Returns an HTML fragment. The agent calls this multiple times as it builds up an artefact. |
+| `save_analysis_artefact` | Assemble HTML fragments into a final artefact, write to Vercel Blob, create a record in the new `analysis-artefacts` collection. Returns the URL plus the artefact ID. |
+| `revise_analysis_artefact` | Re-read an existing artefact from Blob, apply a scoped revision (e.g. "rewrite section 3 with the new finding"), write a new version. Versioned, never destructive. |
+
+The split between standard and exploratory tools is deliberate: standard mode hands the agent **finished workflows** (`generate_weekly_review`, `propose_phrase_match_additions`); exploratory mode hands it **primitives** (`run_gaql_query`, `draft_freeform_section`, `save_analysis_artefact`). The model decides the shape of the deliverable in exploratory mode.
+
+### How users invoke it
+
+Inside CMS chat, on the Optimate-Google-Ads admin page (already client-context-aware via Phase 1 chat surface), two ways to trigger:
+
+- **Explicit prefix:** `/explore Acme Q1 — CPA jumped 40% in March, find why`. The chat handler detects the prefix, sets `mode: 'exploratory'` on the `runAgent()` call.
+- **UI toggle:** a Standard / Exploratory toggle in the chat input area. Sticky for the session, resets on new conversation.
+
+Intent detection (running a tiny classifier to auto-switch on natural language like "dig into this") is **deliberately not built**. It's fancy and usually wrong in ways that erode trust. Explicit invocation only.
+
+### Conversation shape (illustrative)
+
+```
+User: /explore Acme Q1 — CPA jumped 40% in March, find why
+
+Agent: Switching to exploratory mode. I'll start by pulling Q1 campaign
+       performance segmented by month.
+       [tool: run_gaql_query]
+       The CPA jump concentrates in Search-Brand and Performance Max.
+       Investigating search terms and Pmax asset groups next.
+       [tool: run_gaql_query]
+       Found it — Performance Max picked up 3 new asset groups on March 8th.
+       Their CPA is 3x the account average. Cross-checking GA4 to rule out
+       a tracking artefact.
+       [tool: run_ga4_query]
+       Conversion quality is normal in GA4, so this is a Pmax targeting/asset
+       issue, not attribution.
+
+       Want me to:
+       (a) draft a client-facing presentation section on this finding, or
+       (b) keep digging — I haven't checked Shopping or Display yet?
+
+User: keep digging, then draft
+
+Agent: [tool: run_gaql_query]  ...Shopping clean.
+       [tool: run_gaql_query]  ...Display clean.
+       [tool: draft_freeform_section]  Section 1: headline finding
+       [tool: draft_freeform_section]  Section 2: the Pmax asset groups in detail
+       [tool: draft_freeform_section]  Section 3: recommended actions
+       [tool: save_analysis_artefact]
+       Done. Draft saved: "Acme Q1 Deep Dive" — 3 sections, 2 charts.
+       Open in CMS to review, edit, and approve before sending.
+```
+
+Key UX points (all reuse Phase 1 chat surface infrastructure, no new components):
+
+- **Streaming reasoning panel** (per Build Decision 4) — tool calls and intermediate findings stream in as they happen.
+- **Mid-run interruption** — user can interject ("focus on Pmax, skip Shopping") and the agent reroutes on the next turn.
+- **Approval still applies** — final artefact lands in `agent-approval-queue`, never auto-published.
+- **Same chat thread, mid-session mode flip** — user can run a standard weekly review, see something odd, `/explore` it as a follow-up against the same client context, then return to standard mode.
+
+### System prompt difference
+
+Standard mode addendum (already in the main system prompt):
+
+> Produce the structured deliverable for the active task type. Sections, schema, and tone are fixed by the framework. If you find something unusual that's outside the framework, flag it in your output but don't pursue it — recommend an exploratory follow-up session.
+
+Exploratory mode addendum (swapped in when `mode: 'exploratory'`):
+
+> Investigate freely. Form a hypothesis, test it with data, and share findings as you go. Don't produce a finished deliverable until you've explored enough to know what the deliverable should be. Ask the user before committing to a final structure. Show your reasoning.
+
+Same model, same data access, same hardcoded guardrails (the seven pre-flight checks and the no-destructive-action rule still apply — exploratory mode does not unlock `apply_*` tools without approval). The only difference is the posture and the additional freeform tools.
+
+### Why one agent, not two
+
+- **One codebase, one credential layer, one approval queue, one activity log.** Maintenance is linear, not 2x.
+- **Mode mixing in one session** — start with the weekly review, see something odd, `/explore` it, come back. With two agents, this is a context switch between two threads.
+- **Tools are additive, not duplicated.** Standard tools like `generate_weekly_review` can themselves call `run_gaql_query` under the hood. No code duplication.
+- **Discovery becomes signal.** Every `/explore` session is a candidate future productised tool. After a quarter of usage, look at the top 5 patterns asked of exploratory mode and promote them to standard tools (e.g. `pmax_asset_group_breakdown`, `monthly_cpa_decomposition`). Exploratory mode is the tool-discovery mechanism for the productised side.
+
+### Why not build a separate freeform agent
+
+Considered and rejected. A separate "Optimate-Investigator" agent would duplicate the credential layer, the approval queue routing, the activity log integration, the system prompt skeleton, and the data-fetch tools — all to deliver a different *posture* on the same data access. The cost-benefit doesn't justify it. One agent with a mode flag is the right shape.
+
+Claude Code (on the agency owner's laptop) remains the right tool for: building the agents themselves, codebase exploration, one-off scripts, scraping competitors, anything where the next step is genuinely unknown and might involve filesystem or shell access. Exploratory mode does not try to replace that.
+
+### Phase 3.5 build checklist
+
+Deferred until standard mode is stable. Do not start until **all** of these are true:
+
+- [ ] Phase 3 standard mode (chat + autonomous + weekly review) has been in production use for ≥3–4 weeks
+- [ ] Standard mode tool surface is no longer churning week-to-week
+- [ ] At least one specific recurring use case (e.g. "deep dive on a specific client's Q[N]") has been logged ≥3 times as something Claude Code is currently doing that the team wants to bring into the CMS
+
+Then build:
+
+1. Add `mode: 'standard' | 'exploratory'` parameter to `runOptimateGoogleAds()` and the chat API route at `src/app/(frontend)/api/agents/google-ads/chat/route.ts`.
+2. Build the six freeform tools listed above as `CanonicalTool` definitions. `run_gaql_query` and `run_ga4_query` are thin wrappers around the existing service methods with relaxed input schemas (the agent supplies the query directly).
+3. Add the exploratory-mode system prompt addendum to `system-prompt-builder.ts`.
+4. Add `analysis-artefacts` collection to the CMS (fields: `clientId`, `agentRun`, `title`, `htmlSections`, `blobUrl`, `version`, `status: draft | approved | sent`, `createdAt`, `createdBy: agent`, `versionHistory`).
+5. Add the `/explore` prefix handler to the chat API route + the Standard / Exploratory toggle to `AgentChat.tsx`.
+6. Smoke test on a recent real investigation (a Berendsen or MTP follow-up question is the natural choice) — does the exploratory run produce something equivalent to what Claude Code produced for the same prompt? Calibration period before the mode is opened to the team.
+
+No new external integrations, no new providers, no new credential paths. Everything compounds on the Phase 0–3 foundation.
+
+### What standard-mode design must preserve so this is buildable later
+
+The one design decision to make in Phase 3 that affects exploratory mode: **standard mode's `get_*` tools should be designed as thin wrappers over the underlying service methods, not as bundled "playbook" tools.** If `get_google_ads_keyword_performance` is a thin wrapper, exploratory mode can compose it freely. If it's bundled inside a higher-level `run_diagnostic_playbook` macro, exploratory mode would have to re-implement the primitive.
+
+This is already the direction in the tool inventory below — `get_*` tools are atomic, composite operations sit one layer above as `compare_*` and `detect_*` tools, playbooks sit one layer above that as `draft_*` workflows. As long as that layering is preserved through Phase 3, exploratory mode in Phase 3.5 is a small additive build, not a refactor.
+
+---
+
 ## Recommendation: Where the Rules Live (Hybrid)
 
 The user asked: should we improve the CMS-stored campaign proposal rules and have the agent call them, or build the rules directly into the agent?
@@ -1630,11 +1796,16 @@ The agent runs all of these on every diagnostic run. It surfaces only the ones t
 
 ### Category D: Budget and Spend Allocation Patterns
 
-#### D1. Budget-constrained converting campaign (the no-brainer)
+#### D1. Budget-constrained converting campaign (the gain side of a re-allocation)
 
-- **Detect:** campaigns with conversions over a threshold AND `search_budget_lost_impression_share` over 10% AND the campaign isn't already at the client's budget ceiling.
+- **Detect:** campaigns where ALL of the following are true:
+  - `metrics.conversions > minConvThreshold` (default 5 in window)
+  - `search_budget_lost_impression_share > minBudgetLostPct` (default 0.10)
+  - `search_rank_lost_impression_share < maxRankLostPct` (default 0.20), to exclude rank-bound disguised as budget-bound
+  - Campaign age > 30 days, to exclude immature campaigns where conversion data isn't trustworthy
+  - Campaign is enabled in CMS budget management (not paused or excluded)
 - **Example:** Berendsen `Generic_Products_Hydraulic-Components` ($27/day budget, $20 CPA, 18 conversions in 25 days, 79.2% impression share lost to budget).
-- **Recommendation:** propose specific budget uplift sized to capture the lost impression share (suggested daily = current * (1 + budget_lost_share)). Include projected conversion uplift at current CPA.
+- **Recommendation:** D1 is **not** a standalone "uplift this campaign" recommendation. It's the **gain side** of a re-allocation. The agent pairs every D1 hit with one or more loss candidates from B5 (campaigns spending heavily with zero conversions) and proposes a zero-sum re-allocation within the client's CMS-stored monthly budget cap. The gain campaign's allocation percentage goes up, the loss campaign(s) come down, the total stays inside the cap. See "Agent Tool Deep Dive: Budget Re-allocation" below for the full sizing logic, guardrails, and CMS integration.
 
 #### D2. Spend spike with no proportionate conversion lift
 
@@ -1645,6 +1816,17 @@ The agent runs all of these on every diagnostic run. It surfaces only the ones t
 
 - **Detect:** campaign spending under 50% of its daily budget AND impression share under 80% AND has historic conversion data.
 - **Recommendation:** check bid strategy. Often this is "Maximise Conversions" undersaturated against a low conversion volume, and needs either bid uplift or strategy change.
+
+#### D4. Mid-month overspend pace (the silent budget killer)
+
+- **Detect:** at any point during the month, MTD spend exceeds expected pace by more than `paceOverThresholdPct` (default 20%). Expected pace = `daysElapsed / daysInMonth × monthlyCap`. If actual MTD > expected × 1.20, the account will overshoot the monthly cap unless daily budgets are recalibrated.
+- **Example:** Berendsen / MTP, May 2026: $5,000 monthly cap, 5 days elapsed → expected pace $806 → actual MTD $2,437 (3x over). Even after pushing the standard `monthlyCap × pct / 30.4` daily budgets, end-of-month would have overshot by $108. The CMS budget-management UI does correctly compute `(monthlyCap - mtdSpend) × pct / daysRemaining` via its `calculateSmartDailyBudget` helper, but only if a human opens the UI and clicks Push to Google Ads. Without that, daily budgets in Google Ads stay at whatever was last pushed and continue overspending.
+- **Recommendation:** the agent owns this entirely. Three actions:
+  1. **Daily check** during the month. When MTD pace exceeds the threshold, compute the corrected daily budgets per `(monthlyCap - mtdSpend) × pct / daysRemaining` and route to approval queue (or auto-apply if the client has opted in).
+  2. **Month-boundary push on the 1st of every month**. Recalculate daily budgets from a fresh full-month view, push to Google Ads. No human needs to remember.
+  3. **Mid-month cap change handler.** When a human changes the monthly cap mid-month, the agent recomputes the right remaining-days daily budgets and pushes immediately.
+
+This is paired with a separate hardcoded guardrail: the agent's Push tool ALWAYS uses the smart-sizing formula (`remainingBudget / daysRemaining`), never the naive `monthlyCap / 30.4`. So even when triggered manually mid-month, the push respects MTD spend automatically.
 
 ### Category E: Conversion Tracking Health Patterns
 
@@ -1844,4 +2026,464 @@ Three reasons:
 
 - Add to the existing scheduler in `server/index.ts` (or the CMS-side scheduler) as a monthly cron per active Google Ads client.
 - Output routes to the `agent-approval-queue` collection. Approved recommendations either trigger ad changes (typo'd URL pauses) automatically, or get rendered as a client email draft awaiting your sign-off.
+
+---
+
+## Templatisation Path: From Scripts to Repeatable Diagnostic Tool
+
+After running the Optimisation Patterns Library manually for two clients (Berendsen and MTP, May 2026), the work has produced ~15 client-specific scripts with roughly 90% identical logic and 10% client-specific values. This section defines the path from that script-pile to a single client-parameterised diagnostic tool that can be run on any new client, then promoted into the agent once stable.
+
+The order matters: templatise first, validate on a third client, iterate, then promote. Skipping straight from manual scripts to a fully autonomous agent skips the iteration round that catches edge cases.
+
+### Three layers to separate
+
+The current scripts mix three concerns that must be separated before the template is useful:
+
+1. **Client-specific config** (customer IDs, GA4 property, vertical keywords, brand terms, branch list). Varies per client.
+2. **Diagnostic logic** (the 24 patterns from the library, the LP audit flow, the keyword gap detection, the matched-window comparisons). Same for every client.
+3. **Presentation** (HTML email, internal markdown report). Same renderers, different data fed in.
+
+The templatisation work is to pull these apart so the only thing that changes per client is the config object.
+
+### Recommended file structure
+
+The template lives in the existing `website-growth-tools` repo until it's ready to promote to the agent (which sits inside `content-cms`):
+
+```
+website-growth-tools/
+  scripts/diagnostic/
+    run-client-diagnostic.ts          # entry point: tsx run-client-diagnostic.ts --client=<slug>
+    clients/
+      clients.ts                      # registry, exports an array of ClientConfig
+      berendsen.ts                    # one ClientConfig per client
+      mtp.ts
+      <new-client>.ts                 # added per new client
+    patterns/                         # one file per pattern from the library
+      a1-high-spend-no-conversion.ts
+      a2-lp-intent-mismatch.ts
+      a3-geo-modified-on-non-geo.ts
+      a4-adjacent-vocab-leakage.ts
+      a5-underutilised-high-cvr.ts
+      a6-branded-on-non-brand-page.ts
+      b1-country-targeted-near-me.ts
+      ... (one per Category A through F pattern)
+    data/                             # data-fetch helpers
+      google-ads-data.ts              # all enabled-only Google Ads queries
+      ga4-data.ts                     # all GA4 queries
+      page-fetch.ts                   # WebFetch wrapper with consistent prompt
+    cross-reference/
+      lp-audit-cross-ref.ts           # the deterministic cross-reference logic for the LP audit tool
+    types.ts                          # ClientConfig, DiagnosticResult, Finding shapes
+    renderers/
+      client-email.ts                 # HTML renderer (Verdana, blue-headed tables, no en/em dashes)
+      internal-review.ts              # Markdown renderer (terse, internal use)
+```
+
+When the template is promoted to the agent, the same shape moves into `src/lib/agents/optimate-google-ads/`, the pattern files become CanonicalTool definitions, and the renderers stay as renderers.
+
+### The ClientConfig schema (the only thing that varies per client)
+
+A locked-down shape so adding a new client is filling out one object:
+
+```ts
+interface ClientConfig {
+  // Identity
+  slug: string                          // "berendsen", "mtp"
+  businessName: string                  // "Berendsen Fluid Power"
+  websiteUrl: string                    // "https://berendsen.com.au"
+
+  // Account IDs
+  googleAdsCustomerId: string           // dashless
+  ga4PropertyId: string
+
+  // Brand identity (for brand defence patterns: A6, B3, C1)
+  ownBrandTerms: string[]               // ["berendsen", "berendsen fluid power"]
+  competitorBrands: string[]            // ["pirtek", "enzed", "hare and forbes"]
+
+  // Vertical keyword universe (for the keyword gap filter and pattern A2)
+  verticalKeywordRoots: string[]        // hydraulic-relevant for Berendsen, pump-relevant for MTP, etc.
+  excludedNonVerticalRoots: string[]    // ["fabrication", "machine shop", "welding"]
+
+  // Geography (for B1, B2, A3)
+  serviceCountries: string[]            // ["Australia"]
+  branchCities: string[]                // ["Sydney", "Wetherill Park", "Melbourne", ...]
+  branchStates: string[]                // ["NSW", "VIC", "QLD", "WA", "SA"]
+  geoModifierTerms: string[]            // ["near me", "nearby", "local"]
+
+  // Restructure context (for matched-window comparisons)
+  restructureDate: string | null        // "2026-04-10" or null if no restructure
+  conversionTrackingEnabledFrom: string
+
+  // Threshold overrides (optional; scale with account size)
+  thresholds?: {
+    lpSpendNoConvDollars?: number       // default 200
+    keywordGapMinPreClicks?: number     // default 2
+    impressionShareLossBudgetPct?: number  // default 0.10
+    impressionShareLossRankPct?: number    // default 0.20
+    attributionGapWarnPct?: number      // default 0.30
+  }
+
+  notes?: string                        // free-text context the agent should know
+}
+```
+
+Each existing client config is one file in `clients/`. New clients are a single new file. Eventually the config moves into the CMS Clients collection (per the existing `gadsAuto` group), but for the template-test phase a TypeScript file is fine.
+
+### The orchestrator
+
+`run-client-diagnostic.ts` stays short, all heavy lifting in the patterns:
+
+```ts
+const args = parseArgs()
+const client = await loadClient(args.client)              // from clients/<slug>.ts
+const window = resolveAnalysisWindow(client, args.window) // default: last 25 days
+
+// Fetch data once, share across all patterns
+const data = await Promise.all([
+  fetchGoogleAdsData(client, window),
+  fetchGA4Data(client, window),
+  fetchTopLandingPages(client, window),
+])
+
+// Run every pattern against the shared data
+const findings = await Promise.all([
+  detectA1HighSpendNoConv(client, data),
+  detectA2LpIntentMismatch(client, data),
+  detectA3GeoModifiedOnNonGeo(client, data),
+  // ... all 24 patterns
+])
+
+// Rank findings by spend at risk or conversion uplift
+const rankedFindings = rankFindings(findings.flat())
+
+// Persist the structured result
+const result: DiagnosticResult = { client, window, data, findings: rankedFindings }
+writeJson(`output/${client.slug}-${window.endDate}.json`, result)
+
+// Render
+if (args.render === 'client') renderClientEmail(result, `output/${client.slug}-${window.endDate}.html`)
+if (args.render === 'internal') renderInternalReview(result, `output/${client.slug}-${window.endDate}.md`)
+```
+
+Adding a new pattern is one new file in `patterns/`. The orchestrator imports and calls it. No other plumbing changes.
+
+### How to test the template on a third client
+
+The template is only valuable once it has been validated against a client different from the two it was extracted from. Candidates from existing agency-level access:
+
+| Client | GA4 property | Vertical | Why it's useful as a third test |
+|---|---|---|---|
+| Profiterole Patisserie | 422453341 | Food / retail / B2C | Different vertical entirely; tests vertical-keyword config flexibility; lower spend so smaller numbers tune thresholds |
+| Pickleball Studio | 530839425 | E-commerce / retail | Tests product-feed-style accounts where landing pages are PDPs |
+| Trover Tax | 343554729 | Professional services | No physical branches, no geo modifiers in the same sense, tests how geo patterns behave when they shouldn't fire |
+
+**Recommended first test: Profiterole.** Reasons:
+1. Agency-level access already in place
+2. Different vertical from Berendsen/MTP, so it stresses the vertical-keyword config rather than just re-running similar logic
+3. Still has retail / B2C foot-traffic intent, so geo patterns are relevant in a different way
+4. Lower stakes: if the template produces noise on a Profiterole run, no client deliverable depends on it yet
+
+Run it. Compare the JSON output and the rendered email to what you would have produced manually. The gaps tell you what's still hard-coded that should be config, and what's missing as a pattern.
+
+### The iteration loop
+
+Three explicit stages, each with a feedback path back to the patterns library:
+
+1. **Run the template on a new client.** Read the JSON output. Diff it against what a human would produce manually for the same account.
+2. **Capture every "the template missed this" or "the template flagged something irrelevant" as a feedback item.** Each becomes either a new entry in the patterns library OR a tightening of an existing pattern's threshold or detection rule. Never silent removal.
+3. **Promote stable patterns into the agent** once they've fired correctly across three or more clients without manual correction. Below that threshold, keep iterating manually inside the template.
+
+The patterns library in this document is the source of truth for what patterns exist. Every iteration round either (a) adds a new pattern, (b) tightens an existing one's detection rule, or (c) moves a pattern's status from "experimental" to "stable, agent-ready".
+
+After roughly five client runs, the template should produce around 80% of the recommendations a human would, with under 10% noise. That's the threshold to start moving the orchestrator into the agent proper. Below that, the template is still in calibration and should not be exposed as an automated agent run.
+
+### Concrete first slice (week 1 of templatisation)
+
+Ranked by leverage, lowest-risk-first:
+
+1. **Build `scripts/diagnostic/clients/clients.ts` and add the Berendsen + MTP configs as data only**, no logic. This is reversible and demonstrates the config shape.
+2. **Refactor `berendsen-add-phrase-keywords.ts` and `mtp-add-phrase-keywords.ts` into a single `apply-phrase-match-keywords.ts`** that takes `--client=<slug>` and reads the keyword plan from a JSON input file. This is the lowest-risk piece (we already know it works on two clients) and proves the templatisation pattern end to end.
+3. **Refactor the LP-enrichment diagnostic** (top landing pages with ad copy and search terms, the audit we ran on Berendsen) into a parameterised pattern in `patterns/a1-high-spend-no-conversion.ts` plus the underlying data fetchers. Run it against both Berendsen and MTP, confirm the output matches what was manually produced.
+4. **Add Profiterole as the third client.** Run the same pattern. Compare to what would be written manually. Capture deltas as feedback items. Iterate.
+
+This first slice is a 2 to 3 day exercise and produces a working template that can be run on any client by adding one config file.
+
+### What stays manual until the agent is built
+
+Until Phase 0 of the agent build is complete (provider router, agent loop, approval queue collection), the template is invoked from the CLI by a human. The diagnostic JSON is generated, the rendered email is reviewed by a human, and any actions (keyword additions, ad pauses) are still applied via individual `apply-*` scripts approved by a human.
+
+Once the agent infrastructure exists, the orchestrator in `run-client-diagnostic.ts` becomes the body of the agent's monthly cron handler, the JSON output gets persisted to the `agent-approval-queue` collection, and the renderers run as part of the rendering layer per Build Decision 5. Almost no rewriting because the structure already matches.
+
+---
+
+## Patterns Library Changelog
+
+A running record of every pattern added, tightened, retired, or threshold-tuned. Update this every time the patterns library changes, regardless of whether the change came from a client diagnostic, a false-flag review, or a code change in `patterns/*.ts`.
+
+Purpose:
+- Audit trail of *why* the diagnostic logic looks the way it does
+- Onboarding context for whoever picks this up later
+- Catches duplicate work (if the same pattern was tightened twice in different directions, the changelog surfaces it)
+
+Not loaded into agent runtime context. Design-time documentation only.
+
+### How to log an entry
+
+Add a row to the table below for each change. Keep entries terse, one line each. Date is the day the change ships (or the day the decision is made if implementation lags). For the "Source" column use the client slug if a specific client run surfaced the need; use "design review" if it came from a planning conversation; use "false flag" if it came from a logged false flag.
+
+| Date | Pattern ID | Change type | What changed | Why | Source |
+|---|---|---|---|---|---|
+| 2026-05-04 | C1 (Brand-defence list contains misspellings only) | Pattern added | New pattern surfaced when Berendsen brand-defence list was found to contain only misspellings without the correct-spelling brand term | 142 brand clicks per month leaking into non-brand ad groups despite the list looking complete on the surface | berendsen |
+| 2026-05-04 | C3 (Competitor brand leakage) | Pattern added | New pattern surfaced when "hare and forbes" competitor terms were found firing in the manufacturing ad group | 8 clicks at ~$37 leaking on competitor brand search terms in 25 days | berendsen |
+| 2026-05-04 | A2 (LP-to-search-intent semantic mismatch) | Pattern added | Vocabulary mismatch detection added to the LP audit (e.g. "re-chroming" search terms hitting a "hard chrome plating" page) | LP copy uses one set of terms, customers search with another; without explicit detection this gap is invisible in standard reporting | berendsen |
+| 2026-05-04 | LP audit tool | Guardrail tightened | Added `metrics.impressions > 0` filter on top of the triple-ENABLED status filter | 3 legacy EXPANDED_TEXT_AD ads in Bosch-Rexroth ad group showed as ENABLED but had 0 impressions over 25 days; would have surfaced as a false positive | berendsen / false flag |
+| 2026-05-05 | B5 (Heavy spend, zero conversions) | Pattern strengthened | Added `severity: 'high' \| 'medium'` field. High severity when rank-lost share ≥ 30% AND zero conversions; eligible for deeper per-cycle reduction (default 70% vs standard 50%) | High rank-lost + zero conv = bid/QS-bound, more budget will not fix it; surface as priority loss | mtp |
+| 2026-05-05 | Re-allocation tool | Logic added | Fallback redistribution: when no D1 strict gain candidate qualifies, freed budget from loss campaigns is redistributed to non-loss campaigns weighted by recent CvR (or proportional fallback). Configurable per client via `fallbackRedistribution: 'cvr' \| 'proportional' \| 'none'` | Without this, accounts with no clear D1 winner held onto wasteful spend even when the loss signal was strong. Now re-allocations are always actionable when there's clear waste | mtp |
+| 2026-05-05 | D4 (Mid-month overspend pace) | Pattern added | New pattern: detect MTD pace > 20% over expected and propose / auto-apply corrected daily budgets sized for remaining days only. Plus hardcoded guardrail that the agent's Push tool ALWAYS uses smart sizing (never naive monthlyCap/30.4) | MTP was at 49% spend on day 5 of a 30-day month due to push silently failing for two weeks (CMS schema bug). Daily budgets in Google Ads stayed at over-pace values. Need agent-side daily check + month-boundary push to prevent recurrence | mtp |
+
+### Status taxonomy (for pattern lifecycle)
+
+Each pattern in the library has one of three lifecycle statuses, recorded in the pattern file itself:
+
+- **`experimental`**: pattern recently added, observed on fewer than three clients. Findings reviewed manually, not auto-actioned.
+- **`stable`**: pattern fired correctly on three or more clients without manual correction. Eligible for auto-action via the approval queue.
+- **`retired`**: pattern superseded or disproved. Kept in the codebase as an archived file with a note pointing to its replacement, removed from the active orchestrator run.
+
+When a status changes, log a changelog entry of type "Status changed".
+
+---
+
+## False Flags Log
+
+A running record of every time the diagnostic surfaced a finding that turned out to be wrong, irrelevant, or already-paused-and-not-serving. The log is the input to the next round of guardrail tightening.
+
+Purpose:
+- Surface repeated false positives so the same wrong finding doesn't recur three times before being caught
+- Generate the next set of `ENABLED_AND_SERVING_FILTER`-style guardrails
+- Honest record of what the diagnostic gets wrong, not just what it gets right
+
+Not loaded into agent runtime context. Reviewed during iteration rounds, the takeaways feed pattern code changes that the agent then picks up.
+
+### How to log an entry
+
+Each false flag gets one row. Keep the description short. The "Rule that should have caught it" column is what you and I discuss after logging, it becomes the next changelog entry.
+
+| Date | Client | Finding the diagnostic produced | Why it was wrong | Rule that should have caught it | Status |
+|---|---|---|---|---|---|
+| 2026-05-04 | berendsen | "Three legacy EXPANDED_TEXT_AD ads in Bosch-Rexroth ad group have typo'd final URL (rexorth instead of rexroth)" | Ads were marked ENABLED at the criterion level but had 0 impressions, 0 clicks, 0 cost over the 25-day window. Google's auction had effectively phased them out behind the newer RSA in the same ad group. Not actually reaching customers, so not a real client-facing issue. | Filter every ad-level finding to `ENABLED at all three levels AND metrics.impressions > 0 in the analysis window`. ENABLED status is necessary but not sufficient. | Fixed (LP audit guardrail tightened, see changelog 2026-05-04) |
+| 2026-05-05 | mtp | "No re-allocation actioned this cycle" returned despite Generic - Industry Verticals being a clear loss candidate ($488 spent, 0 conv, 49% rank-lost) | The script held the loss reduction because no D1 strict gain candidate paired with it. But the loss signal was strong on its own — pouring more budget into a rank-bound non-converting campaign is never useful regardless of whether a D1 winner exists. | When loss candidates exist but no D1 gain pair qualifies, redistribute the freed budget to non-loss campaigns weighted by recent CvR (fallback to proportional if zero CvR everywhere). Don't hold actionable waste reductions waiting for a perfect pair. | Fixed (re-allocation tool fallback added, see changelog 2026-05-05) |
+| 2026-05-05 | mtp | MTP was at 49% MTD spend on day 5 (3x over pace) despite the CMS having `calculateSmartDailyBudget` helper that does correct remaining-days sizing | Smart sizing only takes effect when a human opens the CMS UI and clicks Push to Google Ads. The push had been failing silently for an unknown number of weeks due to a Payload schema bug (`negative_sweep_candidates_id` column missing from `payload_locked_documents_rels`), so daily budgets in Google Ads stayed at the over-pace values. | (1) The agent's daily check should detect MTD pace > 20% over expected and propose corrected daily budgets; (2) the agent's Push tool always uses smart sizing, never naive `monthlyCap/30.4`; (3) month-boundary auto-push on the 1st of every month so this can never silently drift again. | Fixed (D4 pattern added, see changelog 2026-05-05; CMS migration applied 2026-05-05) |
+
+### Status values
+
+- **Open**: false flag logged, no fix yet
+- **In design**: a fix is being scoped (changelog entry pending)
+- **Fixed**: a guardrail or pattern change has shipped (referenced changelog entry should exist)
+- **Won't fix**: surfaced false flag was a one-off and not worth a guardrail (rare, but valid; document the reasoning)
+
+### What gets logged here vs the changelog
+
+A false flag goes here first. The fix that resolves it goes in the changelog. Two separate records of the same incident, deliberately, because the false-flag log is for "what the diagnostic got wrong" and the changelog is for "what we changed in response". Reading the false-flags log alone tells you the failure modes; reading the changelog alone tells you the trajectory of improvement.
+
+---
+
+## Agent Tool Deep Dive: Budget Re-allocation
+
+The second concrete agent tool, derived from the Berendsen optimisation work in May 2026 and the discovery that the CMS already holds the per-campaign budget allocation as a percentage split against a monthly cap. This tool's job is to optimise that allocation continuously, moving spend from underperforming campaigns into budget-constrained converting ones, all within the existing monthly cap. Zero-sum within the envelope the client has already approved.
+
+### Why it's the second tool to build
+
+1. **High-leverage and low-blast-radius.** The maximum the tool can do is re-allocate within the client's pre-approved monthly cap. There's no scenario where it accidentally over-spends.
+2. **It uses two of the agent's most reliable patterns at once.** D1 (budget-constrained converting) and B5 (heavy spend, zero conversions) become two halves of one action.
+3. **The CMS infrastructure already exists.** The `GoogleAdsCampaignBudgets` collection, the `audit.monthlyBudget` field, and the four `/api/google-ads-budgets/[auditId]/...` endpoints are already built and in production use through the CMS UI. The agent reuses them all.
+4. **Verifiable.** Every re-allocation has a measurable outcome 25 days later. The tool's predictions get compared to actuals, the tool learns, the sizing gets tuned.
+
+### When it runs
+
+- **Monthly cadence** per active client, immediately after the Landing Page Relevance Audit run so the agent has fresh metrics.
+- **On-demand** via chat mode when an internal user asks "should we re-balance the budget for [client]?"
+- **Triggered by a B5 alert** if a campaign crosses the "high spend, zero conversion" threshold mid-cycle. Doesn't auto-action, just flags for review.
+
+### What the tool does, end to end
+
+1. **Read the current state** from the CMS:
+   - Monthly cap from `GoogleAdsAudits.monthlyBudget`
+   - Per-campaign allocation from `GoogleAdsCampaignBudgets` rows linked to that audit
+   - 30-day metrics already attached to those rows (refreshed by the existing `refresh-metrics` flow)
+   Single API call: `GET /api/google-ads-budgets/[auditId]/list` returns all of the above.
+2. **Run the gain-candidate detector** (D1) and the **loss-candidate detector** (B5) against the metrics.
+3. **Compute a proposed re-allocation** as a zero-sum operation:
+   - Sum of new percentages must equal sum of old percentages (i.e. 100%, give or take rounding)
+   - Each campaign's individual percentage change capped at +/-50% per cycle
+   - Per-campaign minimums respected (e.g. brand-defence campaigns can't drop below a CMS-stored floor)
+   - Per-campaign maximums respected (e.g. no single campaign over X% of the cap, default 40%)
+4. **Render the proposal** with side-by-side before/after, projected conversion deltas per campaign, and explicit rationale per change.
+5. **Route to the approval queue** unless the client has CMS-configured `autoApplyBudgetReallocation: true` and the proposed change falls within the auto-apply ceiling.
+6. **On approval**:
+   - `POST /api/google-ads-budgets/[auditId]/update` with the new percentages (writes to the CMS collection)
+   - `POST /api/google-ads-budgets/[auditId]/push` (pushes calculated daily budgets to Google Ads)
+7. **Schedule a verification check** 25 days later. The check pulls fresh metrics, compares actual conversion deltas against the projection, logs the result. Predictions consistently off by more than 30% trigger a sizing-formula review.
+
+### CMS data contract (the read/write interface)
+
+The tool reads and writes only through the CMS endpoints. It never writes directly to the Payload collection.
+
+**Read:**
+- `GET /api/google-ads-budgets/[auditId]/list`
+  - Returns `{ monthlyBudget: number, campaigns: [{ campaignId, campaignName, enabled, budgetPercentage, calculatedDailyBudget, actualDailyBudget, lastPushedAt, bidStrategy, impressions, clicks, avgCpc, conversions, ... }] }`
+  - Combines saved CMS allocation with live Google Ads metrics
+
+**Write (after approval):**
+- `POST /api/google-ads-budgets/[auditId]/update` with body `{ _saveCampaigns: true, campaigns: [{ campaignId, budgetPercentage }] }` to persist new allocation
+- `POST /api/google-ads-budgets/[auditId]/push` with body `{ campaigns: [{ campaignId, dailyBudget }] }` to push to Google Ads
+
+**Auth:**
+- `x-api-key: <AUDIT_API_KEY>` header (pending Phase 0 prerequisite — see below)
+
+### Tool definition
+
+```ts
+const reAllocateBudget: CanonicalTool = {
+  name: 'reallocate_campaign_budget',
+  description: 'Reads the current monthly cap and per-campaign allocation from CMS, identifies gain candidates (D1) and loss candidates (B5), proposes a zero-sum re-allocation within the cap, routes to approval queue. On approval, updates the CMS allocation and pushes new daily budgets to Google Ads. Always paired with a verification check scheduled 25 days later.',
+  parameters: z.object({
+    customerId: z.string(),
+    auditId: z.number(),                // for the CMS endpoints
+    startDate: z.string(),              // analysis window
+    endDate: z.string(),
+    autoApply: z.boolean().default(false), // overridden by CMS config; surfaced here for explicit calls
+  }),
+  execute: async (args, ctx) => {
+    const current = await readCmsBudgetState(args.auditId)
+    const gainCandidates = detectD1(current, args.startDate, args.endDate)
+    const lossCandidates = detectB5(current, args.startDate, args.endDate)
+    const proposal = computeZeroSumReallocation(current, gainCandidates, lossCandidates, args)
+    if (!proposal.changes.length) return { status: 'no-changes', reason: 'No qualifying gain/loss candidates' }
+    if (proposal.requiresApproval) {
+      await queueForApproval(proposal)
+      return { status: 'queued', proposalId: proposal.id }
+    }
+    await applyProposal(args.auditId, proposal)
+    await scheduleVerification(args.auditId, proposal, 25)
+    return { status: 'applied', proposal }
+  },
+}
+```
+
+### Sizing logic, the layered formula
+
+For each gain candidate:
+
+```ts
+const proposedPctIncrease = Math.min(
+  (currentPct * budgetLostShare * 0.7),                 // 70% of theoretical capture (diminishing returns)
+  (currentPct * 0.5),                                   // hard cap at +50% per cycle
+  (maxPctPerCampaign - currentPct),                     // CMS-stored per-campaign maximum
+)
+const newPct = currentPct + proposedPctIncrease
+```
+
+For each loss candidate, mirror logic in reverse: how much percentage to remove, capped at -50% per cycle and the CMS-stored per-campaign minimum.
+
+The total percentage points removed from loss candidates must equal the total added to gain candidates. If gain side wants more than loss side can supply, the tool only takes what's available and surfaces "additional gain capacity blocked by no available loss candidates" in the proposal notes.
+
+### Output schema
+
+```ts
+interface ReallocationProposal {
+  auditId: number
+  customerId: string
+  monthlyCap: number
+  beforeState: Array<{ campaignId: string; campaignName: string; pct: number; dailyBudget: number; conv30d: number; cpa: number | null }>
+  changes: Array<{
+    campaignId: string
+    campaignName: string
+    oldPct: number
+    newPct: number
+    oldDaily: number
+    newDaily: number
+    role: 'gain' | 'loss' | 'hold'
+    rationale: string                  // human-readable, e.g. "18 conv at $20 CPA, 79% IS lost to budget; scaling"
+    projectedConvDelta30d: number      // positive for gains, negative tolerable for losses
+  }>
+  totalPctRemoved: number              // must equal totalPctAdded
+  totalPctAdded: number
+  withinCap: boolean
+  requiresApproval: boolean
+  guardrailFlags: string[]             // e.g. ["max single bump capped at +50% on Generic_Products_Hydraulic-Components"]
+  predictionAccuracyTarget: number     // default 0.7 — agent expects actuals within 70% of projection
+}
+```
+
+### Hardcoded guardrails
+
+1. **Zero-sum by construction.** Sum of percentages must remain at the value it was before re-allocation (rounded to 0.5%). The compute step refuses to return a non-zero-sum result.
+2. **Per-campaign change cap of +/-50% per cycle.** Forces staged re-allocations on big imbalances.
+3. **Per-campaign minimum and maximum from CMS.** The agent reads minimums (e.g. brand-defence floor) and maximums (e.g. concentration cap) from `GoogleAdsCampaignBudgets` config or a dedicated min/max field set, and respects both.
+4. **Cooldown of 14 days per campaign.** No campaign's percentage can change twice within 14 days. Prevents recursive re-balancing.
+5. **Conversion threshold of 5 in window** to qualify as a gain candidate. Below that, conversions could be noise.
+6. **Maturity threshold of 30 days** for gain candidates. New campaigns don't have enough data.
+7. **Rank-lost exclusion.** If `search_rank_lost_impression_share > 20%`, the campaign is excluded as a gain candidate — bid/QS issue, not budget issue. Adding budget won't help.
+8. **Verification mandatory.** Every applied re-allocation schedules a 25-day verification. Agent cannot skip this step.
+
+### CMS-configurable per client
+
+Stored as additional fields on the existing `Clients > gadsAuto` group or per-campaign on `GoogleAdsCampaignBudgets`:
+
+- `autoApplyBudgetReallocation` (default `false`)
+- `autoApplyMaxSingleChangePct` (default `0.20`)
+- `bumpCooldownDays` (default `14`)
+- `minMaturityDays` (default `30`)
+- `minConvThresholdInWindow` (default `5`)
+- `perCampaignMinPct` (per-row on GoogleAdsCampaignBudgets, default 0)
+- `perCampaignMaxPct` (per-row, default 40)
+
+For the first 6 months of any client running this tool, recommend `autoApplyBudgetReallocation: false`. Every proposal goes to approval queue. After 10+ verifications come back with high accuracy on that client, flip the flag.
+
+### Pre-flight, what the tool will not do
+
+- **Will not propose increasing the monthly cap.** That's a separate client conversation, not an agent action. If gain candidates can't be funded by available loss candidates within the cap, the proposal note flags the blocked opportunity but stops there.
+- **Will not write to the Payload collection directly.** All writes go through CMS HTTP endpoints, so the CMS UI sees changes consistently with the agent's changes.
+- **Will not bypass approval queue routing** for changes outside the client's auto-apply ceiling, regardless of confidence.
+- **Will not act on a campaign in cooldown.** Even if it qualifies as a gain or loss candidate again, the agent skips and notes "in cooldown until [date]".
+- **Will not act if the audit's `monthlyBudget` is not set.** Surfaces a "monthly budget cap not configured for this client, agent cannot run re-allocation" flag and stops.
+
+### Phase 0 prerequisite
+
+Before this tool can run, one code change must ship in the CMS:
+
+**Add `hasValidApiKey` fallback to the four budget endpoints**, matching the pattern already used in `GoogleAdsCampaignBudgets.access`:
+
+- `/api/google-ads-budgets/[id]/list/route.ts`
+- `/api/google-ads-budgets/[id]/update/route.ts`
+- `/api/google-ads-budgets/[id]/push/route.ts`
+- `/api/google-ads-budgets/[id]/refresh-metrics/route.ts`
+
+Pattern (one-line replacement of the existing auth check at the top of each route):
+
+```ts
+import { hasValidApiKey } from '@/collections/api-key-access'
+
+const { user } = await payload.auth({ headers: req.headers });
+if (!user && !hasValidApiKey(req)) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+```
+
+The agent then calls these endpoints with `x-api-key: <AUDIT_API_KEY>`, the same auth pattern Growth Tools already uses for every other CMS interaction.
+
+### What gets built specifically
+
+- `src/lib/agents/optimate-google-ads/tools/reallocate-campaign-budget.ts` (the CanonicalTool)
+- `src/lib/agents/optimate-google-ads/lib/cms-budget-client.ts` (typed wrapper around the four CMS endpoints)
+- `src/lib/agents/optimate-google-ads/lib/zero-sum-optimisation.ts` (the deterministic re-allocation logic)
+- `src/lib/agents/optimate-google-ads/lib/verification-scheduler.ts` (schedules the 25-day verification check)
+- Two renderers: `templates/budget-reallocation-client.html` (verbose, brand-toned) and `templates/budget-reallocation-internal.md` (terse)
+- CMS migration: add `autoApplyBudgetReallocation`, `autoApplyMaxSingleChangePct`, `bumpCooldownDays`, `minMaturityDays`, `minConvThresholdInWindow` to `Clients > gadsAuto`. Add `perCampaignMinPct` and `perCampaignMaxPct` to `GoogleAdsCampaignBudgets`.
+
+### Cadence integration
+
+- Add to the existing scheduler in `server/index.ts` (or the CMS-side scheduler) as a monthly cron per active Google Ads client, immediately after the Landing Page Relevance Audit cron.
+- 25-day verification scheduled per applied proposal (one-shot delayed task, not recurring).
+- Verification results route to the agent's `activity-log` collection plus the False Flags Log if a verification falls outside the 70% prediction accuracy target.
 

@@ -118,6 +118,14 @@ export const GoogleAdsCampaignBudgets: CollectionConfig = {
         description: "When budget was last pushed to Google Ads",
       },
     },
+    {
+      name: "lastPushedSource",
+      type: "text",
+      admin: {
+        readOnly: true,
+        description: "What triggered the last push (e.g. 'manual', 'cron-monthly-reset', 'cron-mid-month', 'agent'). Used by the Optimate agent to deduplicate work.",
+      },
+    },
     // Bid strategy
     {
       name: "bidStrategy",
