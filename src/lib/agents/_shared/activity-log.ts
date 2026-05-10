@@ -35,6 +35,29 @@ export interface LogStepInput {
   clientId?: string | number;
 }
 
+/**
+ * Coerce arbitrary values into something Payload's `json` field will accept.
+ * Payload runs `JSON.parse` on string inputs to a json-typed field; plain
+ * prose (e.g. an assistant's final reply, or a tool's error string)
+ * therefore fails validation with "The following field is invalid: Output".
+ *
+ * Strategy:
+ *  - undefined/null → leave alone (field is optional)
+ *  - parseable JSON string → keep as-is
+ *  - non-parseable string → wrap as { text: "…" }
+ *  - anything else (object/array/number/etc.) → keep as-is, Payload stores it
+ */
+function toJsonField(value: unknown): unknown {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== "string") return value;
+  try {
+    JSON.parse(value);
+    return value;
+  } catch {
+    return { text: value };
+  }
+}
+
 export async function logAgentStep(entry: LogStepInput): Promise<void> {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
@@ -48,8 +71,8 @@ export async function logAgentStep(entry: LogStepInput): Promise<void> {
       agentName: entry.agentName,
       step: entry.step,
       toolName: entry.toolName,
-      input: entry.input,
-      output: entry.output,
+      input: toJsonField(entry.input),
+      output: toJsonField(entry.output),
       reasoning: entry.reasoning,
       model: entry.model,
       source: entry.source,
