@@ -253,6 +253,29 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   const bumpPendingRefresh = useCallback(() => setPendingRefreshTick((n) => n + 1), [])
   const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+
+  const copyToClipboard = useCallback(async (text: string, idx: number) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedIdx(idx)
+      setTimeout(() => setCopiedIdx((cur) => (cur === idx ? null : cur)), 1500)
+    } catch {
+      // Clipboard API can fail on insecure contexts or when permissions denied.
+      // Silent: the user will see no feedback and can try again.
+    }
+  }, [])
+
+  // Esc closes fullscreen view. Bound globally only while expanded.
+  useEffect(() => {
+    if (!expanded) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [expanded])
 
   // Pending-strip fetch: query approvals for this audit and surface anything
   // still pending. We over-fetch then client-filter on auditId because the
@@ -433,26 +456,34 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   }), [loading, sendMessage])
 
   // Sizing
-  const messagesMinHeight = compact ? 240 : 300
-  const messagesMaxHeight = compact ? 360 : 500
+  const messagesMinHeight = expanded ? 'calc(100vh - 220px)' : compact ? 240 : 300
+  const messagesMaxHeight = expanded ? 'calc(100vh - 220px)' : compact ? 360 : 500
   const wrapperMaxWidth = compact ? '100%' : 700
 
-  // Block ALL form-submit / keypress / click events from bubbling up to the
-  // surrounding Payload edit form. Without this, hitting Enter or clicking
-  // Send triggers a parent-form validation pass and surfaces unrelated
-  // "field is invalid" errors (e.g. required fields on the audit doc).
-  // Original fix: 8bac83f — lost during the OptiMateMultiChat refactor.
-  const stopFormBubble = (e: React.SyntheticEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }
+  // Stop keydown bubbling so our Enter handler in the input doesn't trigger
+  // Payload's parent-form save shortcuts. We deliberately do NOT block
+  // onKeyPress with preventDefault — that swallows the character itself and
+  // breaks typing in any nested input (e.g. the email-attach search box).
+  const wrapperStyle: React.CSSProperties = expanded
+    ? {
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: 'var(--theme-bg, #fff)',
+        padding: 24,
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        maxWidth: '100%',
+        marginBottom: 0,
+        overflowY: 'auto',
+      }
+    : { maxWidth: wrapperMaxWidth, marginBottom: compact ? 0 : 20, width: '100%' }
 
   return (
     <div
-      style={{ maxWidth: wrapperMaxWidth, marginBottom: compact ? 0 : 20, width: '100%' }}
+      style={wrapperStyle}
       onKeyDown={(e) => e.stopPropagation()}
-      onSubmit={stopFormBubble}
-      onKeyPress={stopFormBubble}
     >
       {/* Header */}
       <div
@@ -546,6 +577,29 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setExpanded((v) => !v)
+          }}
+          title={expanded ? 'Exit fullscreen (Esc)' : 'Open in fullscreen'}
+          aria-label={expanded ? 'Exit fullscreen' : 'Open in fullscreen'}
+          style={{
+            padding: '4px 8px',
+            fontSize: 12,
+            lineHeight: 1,
+            background: '#f3f4f6',
+            border: '1px solid #e5e7eb',
+            borderRadius: 6,
+            cursor: 'pointer',
+            color: '#374151',
+            flexShrink: 0,
+          }}
+        >
+          {expanded ? '✕' : '⛶'}
+        </button>
       </div>
 
       {/* Messages area */}
@@ -660,17 +714,50 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 ))}
               </div>
             )}
-            {msg.role === 'assistant' && msg.runId && (
-              <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4, paddingLeft: 4 }}>
-                {msg.modelUsed ? <span style={{ marginRight: 8 }}>{msg.modelUsed}</span> : null}
-                <a
-                  href={`/agent-runs/${msg.runId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: '#2563eb', textDecoration: 'none' }}
+            {msg.role === 'assistant' && (
+              <div
+                style={{
+                  fontSize: 10,
+                  color: '#6b7280',
+                  marginTop: 4,
+                  paddingLeft: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                {msg.modelUsed ? <span>{msg.modelUsed}</span> : null}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    copyToClipboard(msg.content, i)
+                  }}
+                  title="Copy reply to clipboard"
+                  aria-label="Copy reply to clipboard"
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: copiedIdx === i ? '#10b981' : '#6b7280',
+                    cursor: 'pointer',
+                    padding: 0,
+                    fontSize: 10,
+                    fontWeight: 500,
+                  }}
                 >
-                  View run details →
-                </a>
+                  {copiedIdx === i ? '✓ Copied' : '📋 Copy'}
+                </button>
+                {msg.runId && (
+                  <a
+                    href={`/agent-runs/${msg.runId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#2563eb', textDecoration: 'none' }}
+                  >
+                    View run details →
+                  </a>
+                )}
               </div>
             )}
           </div>

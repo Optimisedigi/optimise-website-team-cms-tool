@@ -75,13 +75,7 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
     }
   }
 
-  // Same parent-form-bubble guard as OptiMateChatCore. Without this, hitting
-  // Enter or clicking Send inside the launcher panel can bubble submit/keypress
-  // events to whatever Payload edit form happens to be on the page.
-  const stopFormBubble = (e: React.SyntheticEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }
+
 
   if (targets.length === 0) {
     return (
@@ -108,11 +102,7 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
   }
 
   return (
-    <div
-      style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}
-      onSubmit={stopFormBubble}
-      onKeyPress={stopFormBubble}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* Tab strip — one per selected account. */}
       <div
         style={{
