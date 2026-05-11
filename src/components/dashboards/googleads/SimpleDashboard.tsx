@@ -413,6 +413,15 @@ export function SimpleDashboard({
             <span className="text-slate-400 font-normal" style={{ fontSize: "18px" }}>
               Performance Overview
             </span>
+            {detailedHref && (
+              <a
+                href={detailedHref}
+                className="text-[10px] text-slate-400 hover:text-slate-600"
+                title="Open the full Google Ads dashboard"
+              >
+                Detailed view →
+              </a>
+            )}
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
@@ -559,14 +568,6 @@ export function SimpleDashboard({
               </button>
             </div>
 
-            {detailedHref && (
-              <a
-                href={detailedHref}
-                className="text-xs font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2"
-              >
-                Detailed view →
-              </a>
-            )}
           </div>
         </div>
 
