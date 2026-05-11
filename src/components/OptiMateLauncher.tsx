@@ -123,6 +123,16 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
   if (!user) return <>{children}</>
 
+  // Don't render the floating launcher on the standalone popout window
+  // (otherwise we'd get a recursive pill-in-window UI). The popout page
+  // renders the chat directly, no launcher needed.
+  if (
+    typeof window !== 'undefined' &&
+    window.location.pathname.startsWith('/admin/optimate-popout')
+  ) {
+    return <>{children}</>
+  }
+
   // Toggle between pomodoro and the previously-active step.
   const togglePomodoro = () => {
     setStep((current) => {
@@ -361,6 +371,48 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 }}
               >
                 ← Accounts
+              </button>
+            )}
+            {step === 'chat' && selectedAudits.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Open the chat in a separate browser window so the user
+                  // can park it next to their work without keeping the CMS
+                  // panel open. The popout page reads ?audits=... and
+                  // re-mounts the multi-chat full-window. Close the launcher
+                  // panel as soon as we hand off so we don't have two
+                  // copies of the same conversation.
+                  const ids = selectedAudits.map((a) => String(a.id)).join(',')
+                  const url = `/admin/optimate-popout?audits=${encodeURIComponent(ids)}`
+                  const features = [
+                    'popup=yes',
+                    'width=520',
+                    'height=720',
+                    'menubar=no',
+                    'toolbar=no',
+                    'location=no',
+                    'status=no',
+                  ].join(',')
+                  window.open(url, `optimate-popout-${ids}`, features)
+                  setOpen(false)
+                }}
+                title="Pop out to a separate window"
+                style={{
+                  background: 'transparent',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: 6,
+                  padding: '4px 6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  lineHeight: 1,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
               </button>
             )}
             <button

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import OptiMateChatCore, { type OptiMateChatCoreHandle } from './OptiMateChatCore'
 
 export interface OptiMateChatTarget {
@@ -34,6 +34,17 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const refs = useRef<Map<string, OptiMateChatCoreHandle | null>>(new Map())
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  /* Auto-grow the shared textarea as the user types. Caps at 8 lines so
+   * the panel doesn't get crowded; past that it scrolls. */
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const maxPx = 8 * 20
+    el.style.height = Math.min(el.scrollHeight, maxPx) + 'px'
+  }, [input])
 
   const setRef = useCallback((id: string) => (handle: OptiMateChatCoreHandle | null) => {
     refs.current.set(id, handle)
@@ -203,15 +214,16 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
             </span>
           )}
         </label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            type="text"
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <textarea
+            ref={inputRef}
+            rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder={broadcast
-              ? `Ask all ${targets.length} accounts...`
-              : `Ask ${activeTarget?.businessName ?? activeTarget?.customerId ?? 'this account'}...`
+              ? `Ask all ${targets.length} accounts... (Shift+Enter for newline)`
+              : `Ask ${activeTarget?.businessName ?? activeTarget?.customerId ?? 'this account'}... (Shift+Enter for newline)`
             }
             disabled={busy}
             style={{
@@ -221,9 +233,13 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
               border: '1px solid var(--theme-border-color, #e5e7eb)',
               borderRadius: 8,
               fontSize: 13,
+              lineHeight: '20px',
               background: 'var(--theme-input-bg, #fff)',
               color: 'var(--theme-text, #1f2937)',
               outline: 'none',
+              resize: 'none',
+              fontFamily: 'inherit',
+              overflowY: 'auto',
             }}
             onFocus={(e) => { e.currentTarget.style.borderColor = '#2563eb' }}
             onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--theme-border-color, #e5e7eb)' }}

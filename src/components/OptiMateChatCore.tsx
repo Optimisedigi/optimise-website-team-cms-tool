@@ -249,7 +249,17 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     label: 'Checking…',
   })
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  /* Auto-grow the textarea as the user types. Caps at 8 lines so the
+   * chat panel never gets crowded; past that the textarea scrolls. */
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const maxPx = 8 * 20 // ~8 rows at 20px line-height
+    el.style.height = Math.min(el.scrollHeight, maxPx) + 'px'
+  }, [input])
   const sessionIdRef = useRef(crypto.randomUUID())
   const [pendingForAudit, setPendingForAudit] = useState<OptiMateProposal[]>([])
   const [pendingRefreshTick, setPendingRefreshTick] = useState(0)
@@ -1001,7 +1011,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             }}
           />
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <button
               type="button"
               onClick={(e) => {
@@ -1025,13 +1035,13 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             >
               📎
             </button>
-            <input
+            <textarea
               ref={inputRef}
-              type="text"
+              rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about budget, keywords, campaigns..."
+              placeholder="Ask about budget, keywords, campaigns... (Shift+Enter for newline)"
               disabled={loading}
               style={{
                 flex: 1,
@@ -1040,9 +1050,13 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 border: '1px solid var(--theme-border-color, #e5e7eb)',
                 borderRadius: 8,
                 fontSize: 13,
+                lineHeight: '20px',
                 background: 'var(--theme-input-bg, #fff)',
                 color: 'var(--theme-text, #1f2937)',
                 outline: 'none',
+                resize: 'none',
+                fontFamily: 'inherit',
+                overflowY: 'auto',
               }}
               onFocus={(e) => {
                 e.currentTarget.style.borderColor = '#2563eb'
