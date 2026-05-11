@@ -529,6 +529,15 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             <span className="text-slate-400 font-normal" style={{ fontSize: '18px' }}>
               Google Ads Dashboard
             </span>
+            {data.slug && (
+              <a
+                href={`/google-dashboard/${data.slug}/simple`}
+                className="text-xs font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2"
+                title="Open the stakeholder one-page summary"
+              >
+                Simple view →
+              </a>
+            )}
           </div>
           {/* Right side: 2-row grid so all controls share one top row and all
               labels share one bottom row, regardless of individual heights.
