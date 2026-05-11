@@ -107,6 +107,8 @@ export interface Config {
     'activity-log': ActivityLog;
     'agent-approval-queue': AgentApprovalQueue;
     'scheduled-agent-tasks': ScheduledAgentTask;
+    'agent-memory': AgentMemory;
+    'agent-soul': AgentSoul;
     'gsc-snapshots': GscSnapshot;
     'gsc-daily': GscDaily;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudget;
@@ -173,6 +175,8 @@ export interface Config {
     'activity-log': ActivityLogSelect<false> | ActivityLogSelect<true>;
     'agent-approval-queue': AgentApprovalQueueSelect<false> | AgentApprovalQueueSelect<true>;
     'scheduled-agent-tasks': ScheduledAgentTasksSelect<false> | ScheduledAgentTasksSelect<true>;
+    'agent-memory': AgentMemorySelect<false> | AgentMemorySelect<true>;
+    'agent-soul': AgentSoulSelect<false> | AgentSoulSelect<true>;
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudgetsSelect<false> | GoogleAdsCampaignBudgetsSelect<true>;
@@ -889,12 +893,12 @@ export interface Client {
       | null;
   };
   /**
-   * Daily SERP tracking — detects AI Overview appearance and paid-displacement risk.
+   * Daily SERP tracking. Detects AI Overview appearance and paid-displacement risk. Domain is inherited from the Business tab's Website URL by default. See the Notes tab for full setup instructions.
    */
   serpMonitor?: {
     enabled?: boolean | null;
     /**
-     * Root domain to track in SERPs (e.g. 'optimisedigital.online'). Defaults to the client's main website.
+     * Optional override. Leave empty to inherit the client's Website URL from the Business tab (recommended). Only set this when the SERP target differs from the main site (e.g. tracking a subdomain like 'shop.example.com').
      */
     domain?: string | null;
     keywords?:
@@ -935,6 +939,9 @@ export interface Client {
           id?: string | null;
         }[]
       | null;
+    /**
+     * Recipients of the daily SERP alert digest. Add one row per email. Leave empty to skip email delivery (snapshots still recorded). Alerts only fire when one of the keywords breaches the thresholds below.
+     */
     alertRecipientEmails?:
       | {
           email: string;
@@ -1000,6 +1007,10 @@ export interface Client {
   gscAccessToken?: string | null;
   gscRefreshToken?: string | null;
   gscTokenExpiry?: string | null;
+  /**
+   * Google Search Console property URL. Use the exact GSC format — e.g. `sc-domain:example.com.au` for a domain property, or `https://www.example.com/` for a URL-prefix property (trailing slash required). Read by the AI Search Erosion Detector. Leave empty to fall back to the Business tab's Website URL.
+   */
+  gscSiteUrl?: string | null;
   /**
    * Brand terms (one per line OR comma-separated). Single source of truth used by GSC monitoring, Google Ads dashboard, AI Visibility, AI Search Erosion Detector, negative-sweep, and quality score analysis. Per-audit overrides live on each Google Ads audit's brandTerms field. Entries shorter than 3 chars are ignored.
    */
@@ -5348,6 +5359,72 @@ export interface ScheduledAgentTask {
   createdAt: string;
 }
 /**
+ * Facts the agent has learned, scoped per-client or globally. The agent searches these via memory_search; only importance ≥ 80 rows auto-load into the prompt.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-memory".
+ */
+export interface AgentMemory {
+  id: number;
+  /**
+   * Client = applies to one client account only. Global = applies in every chat.
+   */
+  scope: 'client' | 'global';
+  /**
+   * Required when scope = client.
+   */
+  client?: (number | null) | Client;
+  /**
+   * Free-form bucket. Examples: preference, history, constraint, policy, decision.
+   */
+  category: string;
+  /**
+   * Short label, 3–5 words. Acts as a de-dupe key within (scope, client). Example: 'PMax stance', 'approved Sept negatives'.
+   */
+  subject: string;
+  /**
+   * The fact itself, 1–3 sentences. Past tense for events, present tense for preferences.
+   */
+  content: string;
+  /**
+   * 0–100. Pinned facts (≥ 80) auto-load into the system prompt for the active client. Most stay at 50 = search-only.
+   */
+  importance?: number | null;
+  /**
+   * Stamped by memory_search every time this row is returned. Lets us prune stale rows.
+   */
+  lastAccessedAt?: string | null;
+  /**
+   * Who or which run created this fact.
+   */
+  createdBy?: (number | null) | User;
+  /**
+   * Run id when the agent created this fact via remember.
+   */
+  agentRunId?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * How the agent should communicate with the agency team. Always loaded into every prompt — keep it tight (≤ 20 rows).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-soul".
+ */
+export interface AgentSoul {
+  id: number;
+  /**
+   * Stable key, lowercase-kebab. Examples: tone, formatting, pacing-style, brand-voice. Upserted by the agent's soul_set tool.
+   */
+  aspect: string;
+  /**
+   * The lesson, 1–3 sentences. Imperative mood. Example: 'Be direct. No apologetic language. State the answer first, then the reasoning.'
+   */
+  content: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Daily Google Search Console metrics for historical archival
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -5864,6 +5941,14 @@ export interface PayloadLockedDocument {
         value: number | ScheduledAgentTask;
       } | null)
     | ({
+        relationTo: 'agent-memory';
+        value: number | AgentMemory;
+      } | null)
+    | ({
+        relationTo: 'agent-soul';
+        value: number | AgentSoul;
+      } | null)
+    | ({
         relationTo: 'gsc-snapshots';
         value: number | GscSnapshot;
       } | null)
@@ -6204,6 +6289,7 @@ export interface ClientsSelect<T extends boolean = true> {
   gscAccessToken?: T;
   gscRefreshToken?: T;
   gscTokenExpiry?: T;
+  gscSiteUrl?: T;
   brandKeywords?: T;
   gscLastSync?: T;
   latestGscSnapshot?: T;
@@ -7528,6 +7614,33 @@ export interface ScheduledAgentTasksSelect<T extends boolean = true> {
   lastRunError?: T;
   lastDraftId?: T;
   isActive?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-memory_select".
+ */
+export interface AgentMemorySelect<T extends boolean = true> {
+  scope?: T;
+  client?: T;
+  category?: T;
+  subject?: T;
+  content?: T;
+  importance?: T;
+  lastAccessedAt?: T;
+  createdBy?: T;
+  agentRunId?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-soul_select".
+ */
+export interface AgentSoulSelect<T extends boolean = true> {
+  aspect?: T;
+  content?: T;
   updatedAt?: T;
   createdAt?: T;
 }

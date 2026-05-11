@@ -30,8 +30,12 @@ import { getCampaignProposalStatus } from "./tools/get-campaign-proposal-status"
 import { proposeScheduledTask } from "./tools/propose-scheduled-task";
 import { listScheduledTasks } from "./tools/list-scheduled-tasks";
 import { proposeScheduledTaskUpdate } from "./tools/propose-scheduled-task-update";
+import { remember } from "./tools/remember";
+import { memorySearch } from "./tools/memory-search";
+import { soulSet } from "./tools/soul-set";
 import { resetProposalCounter } from "./tools/_propose-helpers";
 import { readClientConnectionFlags } from "./tools/_client-tokens";
+import { loadPinnedMemoryBlock } from "./memory-loader";
 import { getPayload } from "payload";
 import payloadConfig from "@/payload.config";
 
@@ -60,6 +64,9 @@ export function getTools(): CanonicalTool<unknown>[] {
     proposeScheduledTask as unknown as CanonicalTool<unknown>,
     listScheduledTasks as unknown as CanonicalTool<unknown>,
     proposeScheduledTaskUpdate as unknown as CanonicalTool<unknown>,
+    remember as unknown as CanonicalTool<unknown>,
+    memorySearch as unknown as CanonicalTool<unknown>,
+    soulSet as unknown as CanonicalTool<unknown>,
   ];
 }
 
@@ -124,7 +131,13 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   }
 
   const connectionFlags = await readClientConnectionFlags(client?.id ?? null);
-  const systemPrompt = buildSystemPromptForAudit(audit, client, connectionFlags);
+  // Lazy-loaded memory: only pinned (importance ≥ 80) facts for this client
+  // plus all soul aspects. Everything else stays in the DB and surfaces via
+  // the memory_search tool when the agent asks for it.
+  const pinnedMemory = await loadPinnedMemoryBlock(
+    client?.id !== undefined && client?.id !== null ? [client.id] : [],
+  );
+  const systemPrompt = buildSystemPromptForAudit(audit, client, connectionFlags, pinnedMemory.text);
   const conversionActions = conversionActionsForClient(client);
 
   const modelRequested = modelOverride ?? DEFAULT_CHAT_MODEL;

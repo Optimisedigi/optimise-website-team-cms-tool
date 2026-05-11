@@ -57,6 +57,8 @@ import { MeetingSchedulers } from "./collections/MeetingSchedulers";
 import { PermissionProfiles } from "./collections/PermissionProfiles";
 import { AgentApprovalQueue } from "./collections/AgentApprovalQueue";
 import { AgentCredentials } from "./collections/AgentCredentials";
+import { AgentMemory } from "./collections/AgentMemory";
+import { AgentSoul } from "./collections/AgentSoul";
 import { ScheduledAgentTasks } from "./collections/ScheduledAgentTasks";
 
 
@@ -111,7 +113,7 @@ export default buildConfig({
     // Admin
     Users, PermissionProfiles, UsageReports, ActivityLog,
     // Optimate agents
-    AgentApprovalQueue, ScheduledAgentTasks,
+    AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul,
     // Hidden (no group impact)
     GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials,
   ].map((c) => ({

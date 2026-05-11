@@ -73,6 +73,11 @@ const TOOL_INVENTORY = [
   "- propose_scheduled_task(title, prompt, schedule, timezone?, recipientEmail?, summary): queue creation of a recurring agent task. `schedule` is a 5-field cron expression evaluated in `timezone` (default Australia/Brisbane). On every firing the agent re-runs the saved `prompt` against THIS audit and drops the reply in the proposing user's Gmail Drafts.",
   "- list_scheduled_tasks(includeInactive?): read-only. Lists the calling user's scheduled tasks (paused tasks omitted unless includeInactive=true).",
   "- propose_scheduled_task_update(taskId, isActive?, prompt?, schedule?, timezone?, delete?, summary): queue an approval to pause/resume/edit/delete an existing schedule. Use list_scheduled_tasks first to learn the right taskId.",
+  "",
+  "MEMORY + SOUL TOOLS (lazy-loaded, do NOT spam these):",
+  "- remember(scope, clientId?, category, subject, content, importance?): save a durable fact about a client account or the agency globally. Upserts by subject. Use when the user shares a preference, decision, constraint, or piece of history worth keeping. NEVER save one-off questions or momentary context. importance defaults to 50 (search-only); use ≥ 80 only for facts that should auto-load into every chat for this client.",
+  "- memory_search(scope?, clientId?, query?, limit?): look up saved facts before asking a question you might already know the answer to. Returns top 10 by importance. In a client-scoped chat the active clientId is used automatically.",
+  "- soul_set(aspect, content): record a lesson about HOW to communicate with the team (tone, formatting, pacing). Upserts by aspect. Use ONLY when the user corrects your communication style — not for facts about clients.",
 ].join("\n");
 
 const GEO_WALKTHROUGH = `When the user describes a problem like "near-me searches don't have a near-me-specific landing", "split services into geo-targeted ad groups", or "build a new campaign structure based on the website", the right path is:
@@ -115,6 +120,30 @@ const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plai
 - "last week" (calendar Sun–Sat) → LAST_WEEK_SUN_SAT
 
 If the user asks for something not in this list (e.g. "Q1", "year to date", a specific date span), pass the closest preset and tell the user in your reply which window you actually used. The tool result will include a \`coercedFrom\` and \`note\` field whenever a fallback was applied — surface that in your reply rather than pretending you ran the exact range requested.`;
+
+const MEMORY_GUIDE = `Memory and soul are designed to keep this prompt small. Pinned facts (importance ≥ 80) for the active client and ALL soul aspects are already loaded above (see "Known about this account" / "Working with this team" sections, if present). Everything else stays in the database and is available via memory_search.
+
+When to call \`remember\`:
+- The user shares a durable preference ("client X hates PMax", "always copy GM on budget changes").
+- A decision has been made ("approved aggressive negatives Sept 2026").
+- A constraint surfaces ("never propose budget cuts without 30 days of data first").
+
+When NOT to call \`remember\`:
+- The user is asking a question. Save the ANSWER you discover, not the question.
+- Momentary context ("I'm running this report for Tuesday's meeting").
+- Anything you can derive from the audit doc itself — no point storing the customer ID or business name.
+
+When to call \`memory_search\`:
+- Before asking the user a question that history might already answer ("what was their stance on PMax last time?").
+- When you spot a pattern that might be a known constraint and want to check.
+- DON'T pre-emptively call it on every turn — the pinned facts above already cover the always-relevant items.
+
+When to call \`soul_set\`:
+- The user corrects your tone ("be more direct", "stop apologising").
+- The user corrects your format ("always show the customer ID first", "no emoji").
+- A clear long-term preference about communication emerges. Use a stable lowercase-kebab aspect key.
+
+NEVER call soul_set for facts about clients — those go to remember.`;
 
 const ATTACHED_EMAIL_GUIDE = `If the user's message starts with "--- Attached email ---", that block is real email content the user attached from their Gmail inbox — not something they wrote. Treat it as additional context for the question that follows the "--- End attached email ---" marker. Quote specific sentences from the email inline (use blockquotes or short "..." excerpts) when you reference it. Never paraphrase numbers or claims from the email as if you've verified them — if the user wants you to act on figures from the email (spend, impressions, conversions), pull the corresponding tool first (e.g. get_campaign_performance, get_search_terms) and reconcile what the email says against what the account shows.`;
 
@@ -187,12 +216,26 @@ export function buildSystemPromptForAudit(
   audit: AuditDocLike,
   client: ClientDocLike | null,
   flags?: ClientConnectionFlags,
+  /**
+   * Pre-fetched pinned-memory + soul block from memory-loader.ts. Kept as a
+   * raw string so this module stays sync — the async DB lookup happens
+   * once per turn in runChatTurn, not inside the prompt builder.
+   */
+  pinnedMemoryBlock?: string,
 ): string {
+  const cmsRules = buildCmsRulesBlock(audit, client, flags);
+  // Append the pinned-memory block to the CMS rules section so it sits
+  // before guardrails and tool inventory — the agent reads it as part of
+  // the per-account context.
+  const cmsRulesWithMemory =
+    pinnedMemoryBlock && pinnedMemoryBlock.trim().length > 0
+      ? `${cmsRules}\n\n${pinnedMemoryBlock}`
+      : cmsRules;
   return buildSystemPrompt({
     agentRole: ROLE,
-    cmsRulesBlock: buildCmsRulesBlock(audit, client, flags),
+    cmsRulesBlock: cmsRulesWithMemory,
     guardrails: GUARDRAILS,
-    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}\n\n${GEO_WALKTHROUGH}\n\n${SCHEDULED_TASKS_GUIDE}\n\n${ATTACHED_EMAIL_GUIDE}`,
+    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}\n\n${GEO_WALKTHROUGH}\n\n${SCHEDULED_TASKS_GUIDE}\n\n${ATTACHED_EMAIL_GUIDE}\n\n${MEMORY_GUIDE}`,
     outputFormat: OUTPUT_FORMAT,
   });
 }
