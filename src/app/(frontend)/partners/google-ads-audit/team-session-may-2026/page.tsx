@@ -562,18 +562,37 @@ export default function TeamSessionMay2026() {
           __html: `
             @media print {
               @page { size: A4 landscape; margin: 0; }
-              html, body { background: white !important; }
+              html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: transparent !important;
+              }
               * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              main { display: block !important; }
+              /* Each slide fills exactly one A4 landscape page (297mm wide,
+                 210mm tall) and the section's own background paints all the
+                 way to the page edge. mm units, not vh, because vh is the
+                 browser viewport and not the print page geometry. */
               section[id] {
-                min-height: 0 !important;
-                height: 100vh !important;
+                width: 297mm !important;
+                height: 210mm !important;
+                min-height: 210mm !important;
+                max-height: 210mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-sizing: border-box;
                 page-break-after: always;
                 break-after: page;
-                box-sizing: border-box;
-                /* Shrink each slide to ~85% in print so long slides fit on one
-                   landscape page. zoom (not transform: scale) recalculates
-                   layout so widths still work and there's no horizontal scroll. */
-                zoom: 0.85;
+                page-break-inside: avoid;
+                break-inside: avoid;
+                overflow: hidden;
+                display: flex !important;
+                flex-direction: column !important;
+              }
+              section[id] > div:first-child {
+                flex: 1 1 auto !important;
+                padding-top: 28px !important;
+                padding-bottom: 28px !important;
               }
               section[id]:last-of-type { page-break-after: auto; break-after: auto; }
               [data-no-print="true"] { display: none !important; }
