@@ -124,6 +124,10 @@ export default async function SimpleDashboardPage({ params }: Props) {
       isAuthenticated={isAuthenticated}
       initialData={initialData}
       initialError={fetchError}
+      brandKeywords={client.brandKeywords || ""}
+      defaultConversionActions={client.dashboardConversionActions || ""}
+      phoneCallActions={(client as any).phoneCallConversionActions || ""}
+      formSubmitActions={(client as any).formSubmitConversionActions || ""}
       conversionActionCategories={(() => {
         const arr = (client as any).conversionActionCategories;
         if (Array.isArray(arr) && arr.length > 0) {

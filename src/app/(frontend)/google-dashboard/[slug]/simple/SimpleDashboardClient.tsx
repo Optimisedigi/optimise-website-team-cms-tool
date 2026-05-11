@@ -12,6 +12,11 @@ interface SimpleDashboardClientProps {
   isAuthenticated: boolean;
   initialData: GoogleAdsDashboardData | null;
   initialError: string | null;
+  brandKeywords?: string;
+  /** Newline-separated CMS field: the client's default conversion actions. */
+  defaultConversionActions?: string;
+  phoneCallActions?: string;
+  formSubmitActions?: string;
   conversionActionCategories?: string;
 }
 
@@ -22,6 +27,10 @@ export function SimpleDashboardClient({
   isAuthenticated,
   initialData,
   initialError,
+  brandKeywords,
+  defaultConversionActions,
+  phoneCallActions,
+  formSubmitActions,
   conversionActionCategories,
 }: SimpleDashboardClientProps) {
   const [authed, setAuthed] = useState(isAuthenticated);
@@ -85,6 +94,10 @@ export function SimpleDashboardClient({
     return (
       <SimpleDashboard
         data={data}
+        brandKeywords={brandKeywords}
+        defaultConversionActions={defaultConversionActions}
+        phoneCallActions={phoneCallActions}
+        formSubmitActions={formSubmitActions}
         conversionActionCategories={conversionActionCategories}
         clientId={clientId}
         detailedHref={`/google-dashboard/${slug}`}

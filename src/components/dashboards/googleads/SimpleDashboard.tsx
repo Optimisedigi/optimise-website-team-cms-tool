@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type {
   GoogleAdsDashboardData,
   GoogleAdsDashboardMonthly,
@@ -22,6 +22,11 @@ import { KpiCard } from "@/components/dashboards/shared/KpiCard";
 
 interface SimpleDashboardProps {
   data: GoogleAdsDashboardData;
+  brandKeywords?: string;
+  /** Newline-separated CMS field. Same source as the full dashboard. */
+  defaultConversionActions?: string;
+  phoneCallActions?: string;
+  formSubmitActions?: string;
   conversionActionCategories?: string;
   clientId?: string;
   /** Where the "Detailed view" link points. */
@@ -115,6 +120,10 @@ interface Ga4Channel {
 
 export function SimpleDashboard({
   data: initialData,
+  brandKeywords,
+  defaultConversionActions,
+  phoneCallActions,
+  formSubmitActions,
   conversionActionCategories,
   clientId,
   detailedHref,
@@ -126,18 +135,83 @@ export function SimpleDashboard({
   const [ga4Channels, setGa4Channels] = useState<Ga4Channel[] | null>(null);
   const [ga4Loading, setGa4Loading] = useState(false);
 
-  /* ── Reload Google Ads data on range change ── */
-  const changeRange = useCallback(
-    (next: string) => {
-      if (next === range) return;
-      setRange(next);
-      setLoading(true);
-      const params = new URLSearchParams({ slug: data.slug || "", range: next });
+  /* ── Conversion-action filter ──
+   * Mirrors the full dashboard's selector exactly so a stakeholder is
+   * never staring at a different number than the team. `defaultSelected`
+   * is the client's saved default (CMS Clients > Google Ads > Default
+   * Conversion Actions); the user can override ad-hoc and the saved set
+   * stays badged so it's clear what's persistent vs session. */
+  const defaultSelected = defaultConversionActions
+    ? defaultConversionActions.split("\n").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const defaultSelectedSet = new Set(defaultSelected);
+  const [selectedConversions, setSelectedConversions] = useState<string[]>(defaultSelected);
+  const [conversionDropdownOpen, setConversionDropdownOpen] = useState(false);
+  const conversionDropdownRef = useRef<HTMLDivElement>(null);
+  const availableActions = data.availableConversionActions || defaultSelected;
+
+  /* Close dropdown on outside click. */
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (
+        conversionDropdownRef.current &&
+        !conversionDropdownRef.current.contains(e.target as Node)
+      ) {
+        setConversionDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  /* Shared param builder for the dashboard data fetch. Keeps every
+   * refetch (range change OR conversion change) sending the same
+   * conversion-action / category / brand context so the response is
+   * always self-consistent. */
+  const buildDashboardParams = useCallback(
+    (nextRange: string, nextSelections: string[]): URLSearchParams => {
+      const params = new URLSearchParams({
+        slug: data.slug || "",
+        range: nextRange,
+      });
       if (data.customerId) params.set("customerId", data.customerId);
       if (data.clientName) params.set("clientName", data.clientName);
+      if (brandKeywords) params.set("brandKeywords", brandKeywords);
+      const newActions =
+        nextSelections.length > 0
+          ? nextSelections.join(",")
+          : availableActions.length > 0
+            ? availableActions.join(",")
+            : defaultSelected.join(",");
+      if (newActions) params.set("conversionActions", newActions);
+      if (phoneCallActions) params.set("phoneCallActions", phoneCallActions);
+      if (formSubmitActions) params.set("formSubmitActions", formSubmitActions);
       if (conversionActionCategories) {
         params.set("conversionActionCategories", conversionActionCategories);
       }
+      return params;
+    },
+    // defaultSelected is derived from defaultConversionActions; depend on the
+    // source string so stable identity for the array doesn't matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      data.slug,
+      data.customerId,
+      data.clientName,
+      brandKeywords,
+      defaultConversionActions,
+      phoneCallActions,
+      formSubmitActions,
+      conversionActionCategories,
+      availableActions,
+    ],
+  );
+
+  const refetchDashboard = useCallback(
+    (nextRange: string, nextSelections: string[]) => {
+      if (!data.slug) return;
+      setLoading(true);
+      const params = buildDashboardParams(nextRange, nextSelections);
       fetch(`/api/dashboard/data?${params}`, { credentials: "include", cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
         .then((next) => {
@@ -154,8 +228,51 @@ export function SimpleDashboard({
         .catch(() => {})
         .finally(() => setLoading(false));
     },
-    [range, data.slug, data.customerId, data.clientName, conversionActionCategories],
+    [data.slug, buildDashboardParams],
   );
+
+  /* ── Reload Google Ads data on range change ── */
+  const changeRange = useCallback(
+    (next: string) => {
+      if (next === range) return;
+      setRange(next);
+      refetchDashboard(next, selectedConversions);
+    },
+    [range, refetchDashboard, selectedConversions],
+  );
+
+  /* Conversion selection handlers. Mirrors the full dashboard. */
+  const toggleConversion = useCallback((action: string) => {
+    setSelectedConversions((prev) =>
+      prev.includes(action) ? prev.filter((a) => a !== action) : [...prev, action],
+    );
+  }, []);
+
+  const selectAllConversions = useCallback(() => {
+    setSelectedConversions(availableActions);
+  }, [availableActions]);
+
+  const selectDefaultConversions = useCallback(() => {
+    const availableSet = new Set(availableActions);
+    const defaults = defaultSelected.filter((a) => availableSet.has(a));
+    setSelectedConversions(defaults.length > 0 ? defaults : defaultSelected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableActions, defaultConversionActions]);
+
+  const clearAllConversions = useCallback(() => {
+    setSelectedConversions([]);
+  }, []);
+
+  /* Refetch when the selection changes (skip first render). */
+  const conversionsInitial = useRef(true);
+  useEffect(() => {
+    if (conversionsInitial.current) {
+      conversionsInitial.current = false;
+      return;
+    }
+    refetchDashboard(range, selectedConversions);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversions]);
 
   /* ── Load GA4 channel conversions once on mount.
    *    Independent of the Ads range (GA4 has its own period mapping). */
@@ -301,6 +418,109 @@ export function SimpleDashboard({
                 </option>
               ))}
             </select>
+
+            {/* Conversion-action selector. Same UI + behaviour as the full
+                dashboard — lifted near-verbatim so a stakeholder is never
+                staring at a different conversion-count than the team. Only
+                renders when the account exposes more than one action. */}
+            {availableActions.length > 1 && (
+              <div className="relative" ref={conversionDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setConversionDropdownOpen((o) => !o)}
+                  disabled={loading}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  </svg>
+                  Conversions
+                  {selectedConversions.length > 0 &&
+                    selectedConversions.length < availableActions.length && (
+                      <span className="bg-blue-100 text-blue-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                        {selectedConversions.length}
+                      </span>
+                    )}
+                  <svg
+                    className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                      conversionDropdownOpen ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {conversionDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-[420px] max-w-[92vw] bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
+                    <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Conversion Actions
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={selectAllConversions}
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          All
+                        </button>
+                        {defaultSelected.length > 0 && (
+                          <button
+                            onClick={selectDefaultConversions}
+                            className="text-xs text-blue-600 hover:text-blue-800"
+                            title="Restore the client's CMS-saved default conversion actions"
+                          >
+                            Default
+                          </button>
+                        )}
+                        <button
+                          onClick={clearAllConversions}
+                          className="text-xs text-slate-400 hover:text-slate-600"
+                        >
+                          None
+                        </button>
+                      </div>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {availableActions.map((action) => {
+                        const isDefault = defaultSelectedSet.has(action);
+                        return (
+                          <label
+                            key={action}
+                            className="flex items-start gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer relative"
+                            title={action}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedConversions.includes(action)}
+                              onChange={() => toggleConversion(action)}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 mt-0.5 shrink-0"
+                            />
+                            <span
+                              className="text-sm text-slate-700 flex-1 leading-snug"
+                              style={{ wordBreak: "break-word" }}
+                            >
+                              {action}
+                            </span>
+                            {isDefault && (
+                              <span
+                                className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 flex-shrink-0 mt-0.5"
+                                title="Saved as a default for this client"
+                              >
+                                Default
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Comparison mode */}
             <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">

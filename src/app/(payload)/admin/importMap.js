@@ -119,8 +119,7 @@ import { default as default_f79b4ca75381164e95f118cd1e894463 } from '../../../co
 import { default as default_74b6b86d3385b0ec4a17d6136dd3b989 } from '../../../components/DashboardGate'
 import { default as default_30b462c31bfed4dfe63e7ef34d180475 } from '../../../components/NavigationRecovery'
 import { default as default_47cb45239198beef21a512f6c005e728 } from '../../../components/MiniSidebar'
-import { default as default_optimate_launcher } from '../../../components/OptiMateLauncher'
-import { default as default_02b1efea3bcfc49be1b8b522d8ca967d } from '../../../components/PomodoroTimer'
+import { default as default_2e2d792095b9faaa93311c4bd3638e8e } from '../../../components/OptiMateLauncher'
 import { default as default_8c91d6ed757c0622a0f1976e63b1d36b } from '../../../components/PayloadShiftSelect'
 import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
 import { default as default_54545d17487007f83f65ecb3f857577d } from '../../../components/RoleBodyClass'
@@ -249,8 +248,7 @@ export const importMap = {
   "./components/DashboardGate#default": default_74b6b86d3385b0ec4a17d6136dd3b989,
   "./components/NavigationRecovery#default": default_30b462c31bfed4dfe63e7ef34d180475,
   "./components/MiniSidebar#default": default_47cb45239198beef21a512f6c005e728,
-  "./components/OptiMateLauncher#default": default_optimate_launcher,
-  "./components/PomodoroTimer#default": default_02b1efea3bcfc49be1b8b522d8ca967d,
+  "./components/OptiMateLauncher#default": default_2e2d792095b9faaa93311c4bd3638e8e,
   "./components/PayloadShiftSelect#default": default_8c91d6ed757c0622a0f1976e63b1d36b,
   "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
   "./components/RoleBodyClass#default": default_54545d17487007f83f65ecb3f857577d,
