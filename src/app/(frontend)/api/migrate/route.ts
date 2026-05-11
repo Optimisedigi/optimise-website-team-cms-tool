@@ -3085,6 +3085,41 @@ export async function GET(request: NextRequest) {
   await run("clients_presentations_order_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_order_idx` ON `clients_presentations` (`_order`)");
   await run("clients_presentations_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_parent_id_idx` ON `clients_presentations` (`_parent_id`)");
 
+  // ── Agent Memory + Soul (2026-05-12, lazy-loaded memory inspired by Pocket Agent) ──
+  await run("agent_memory", `CREATE TABLE IF NOT EXISTS \`agent_memory\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`scope\` text NOT NULL DEFAULT 'client',
+    \`client_id\` integer,
+    \`category\` text NOT NULL,
+    \`subject\` text NOT NULL,
+    \`content\` text NOT NULL,
+    \`importance\` integer DEFAULT 50,
+    \`last_accessed_at\` text,
+    \`created_by_id\` integer,
+    \`agent_run_id\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    FOREIGN KEY (\`created_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("agent_memory_scope_idx", "CREATE INDEX IF NOT EXISTS `agent_memory_scope_idx` ON `agent_memory` (`scope`)");
+  await run("agent_memory_client_idx", "CREATE INDEX IF NOT EXISTS `agent_memory_client_idx` ON `agent_memory` (`client_id`)");
+  await run("agent_memory_subject_idx", "CREATE INDEX IF NOT EXISTS `agent_memory_subject_idx` ON `agent_memory` (`subject`)");
+  await run("agent_memory_dedupe_idx", "CREATE INDEX IF NOT EXISTS `agent_memory_dedupe_idx` ON `agent_memory` (`scope`, `client_id`, `subject`)");
+  await run("agent_memory_importance_idx", "CREATE INDEX IF NOT EXISTS `agent_memory_importance_idx` ON `agent_memory` (`importance`)");
+
+  await run("agent_soul", `CREATE TABLE IF NOT EXISTS \`agent_soul\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`aspect\` text NOT NULL,
+    \`content\` text NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("agent_soul_aspect_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `agent_soul_aspect_idx` ON `agent_soul` (`aspect`)");
+
+  await run("locked_docs_rels.agent_memory_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agent_memory_id` integer REFERENCES `agent_memory`(`id`) ON DELETE cascade");
+  await run("locked_docs_rels.agent_soul_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agent_soul_id` integer REFERENCES `agent_soul`(`id`) ON DELETE cascade");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
