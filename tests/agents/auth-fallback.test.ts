@@ -83,7 +83,10 @@ describe("resolveCredential, Option B semantics", () => {
     const auth = await resolveCredential("anthropic");
     expect(auth.source).toBe("oauth");
     expect(auth.authHeader.Authorization).toBe("Bearer fresh-token");
-    expect(auth.authHeader["anthropic-beta"]).toContain("oauth-2025-04-20");
+    // anthropic-version is the resolver's responsibility; anthropic-beta
+    // and Claude Code identity headers (user-agent, x-app) are composed by
+    // the adapter so they can adapt to the model + features in flight.
+    expect(auth.authHeader["anthropic-version"]).toBe("2023-06-01");
   });
 
   it("THROWS OAuthFailedError when OAuth was connected but refresh fails (does NOT silently fall to API key)", async () => {

@@ -32,7 +32,7 @@ import {
   setRefreshLock,
   getRefreshLock,
 } from "./store";
-import { isExpiringSoon, refreshAnthropicCredential, toAuthHeader as toAnthropicAuthHeader } from "./oauth/anthropic";
+import { isExpiringSoon, refreshAnthropicCredential } from "./oauth/anthropic";
 import { NoCredentialError, type ResolvedAuth, type OAuthCredential } from "./types";
 import { recordAuthEvent } from "./events";
 
@@ -106,11 +106,11 @@ export async function resolveCredential(provider: ProviderName): Promise<Resolve
       try {
         const refreshed = await refreshIfNeeded(stored);
         if (provider === "anthropic") {
-          const { Authorization, betaFlags } = toAnthropicAuthHeader(refreshed);
+          // The adapter composes the rest (anthropic-beta, user-agent, x-app).
+          // We only return the auth identity here.
           const authHeader: Record<string, string> = {
-            Authorization,
+            Authorization: `Bearer ${refreshed.accessToken}`,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta": betaFlags.join(","),
           };
           // Record success quietly; only failures get a notification.
           await recordAuthEvent({

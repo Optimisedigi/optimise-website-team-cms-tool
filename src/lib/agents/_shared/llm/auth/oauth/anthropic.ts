@@ -148,9 +148,11 @@ export async function refreshAnthropicCredential(cred: OAuthCredential): Promise
   };
 }
 
-/** True if the credential is within REFRESH_MARGIN_MS of expiry (or already expired). */
+/** True if the credential is at or past `expiresAt`. Note: `expiresAt` is
+ *  already stored with REFRESH_MARGIN_MS subtracted (see exchange/refresh),
+ *  so the margin is implicit — don't subtract it a second time. */
 export function isExpiringSoon(cred: OAuthCredential): boolean {
-  return Date.now() >= cred.expiresAt - REFRESH_MARGIN_MS;
+  return Date.now() >= cred.expiresAt;
 }
 
 /** Beta headers Anthropic expects when authenticating via OAuth. The native

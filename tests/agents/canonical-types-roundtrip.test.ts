@@ -88,6 +88,33 @@ describe("Anthropic transformer", () => {
     });
   });
 
+  it("OAuth: prepends Claude Code identity prefix as a separate UNCACHED system block", () => {
+    // Anthropic's OAuth anti-abuse gate 429s requests that don't carry the
+    // Claude Code identity prefix as its own block. Verified against gg-ai's
+    // reference adapter. Identity prefix MUST NOT have cache_control — that
+    // would burn a cache breakpoint slot on a 12-word string.
+    const body = toAnthropic(baseOpts, "claude-sonnet-4-6", true);
+    expect(body.system).toEqual([
+      { type: "text", text: "You are Claude Code, Anthropic's official CLI for Claude." },
+      { type: "text", text: "You are a test agent.", cache_control: { type: "ephemeral" } },
+    ]);
+  });
+
+  it("OAuth without user system: identity prefix only", () => {
+    const opts: CallLLMOptions = { ...baseOpts, system: undefined };
+    const body = toAnthropic(opts, "claude-sonnet-4-6", true);
+    expect(body.system).toEqual([
+      { type: "text", text: "You are Claude Code, Anthropic's official CLI for Claude." },
+    ]);
+  });
+
+  it("non-OAuth (API key): no identity prefix, single cached system block", () => {
+    const body = toAnthropic(baseOpts, "claude-sonnet-4-6", false);
+    expect(body.system).toEqual([
+      { type: "text", text: "You are a test agent.", cache_control: { type: "ephemeral" } },
+    ]);
+  });
+
   it("converts Anthropic response to canonical LLMResponse", () => {
     const fakeResponse = {
       id: "msg_01",
