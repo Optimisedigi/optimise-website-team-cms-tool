@@ -532,7 +532,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             {data.slug && (
               <a
                 href={`/google-dashboard/${data.slug}/simple`}
-                className="text-xs font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2"
+                className="text-[10px] text-slate-400 hover:text-slate-600"
                 title="Open the stakeholder one-page summary"
               >
                 Simple view →

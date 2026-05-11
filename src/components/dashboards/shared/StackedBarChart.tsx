@@ -19,6 +19,22 @@ interface StackedBarChartProps {
   lineLabel?: string;
   lineColor?: string;
   height?: number;
+  /** How to format bar segment values in the tooltip + the optional
+   *  bar-top label. Defaults to 'currency' so existing call sites keep
+   *  their $-prefixed labels (the chart's original use case). Pass
+   *  'number' for non-currency metrics like conversions or clicks. */
+  valueFormat?: "currency" | "number";
+  /** Word used as the prefix on the tooltip's first total line. Defaults
+   *  to 'Total' so existing screens read 'Total: $1.2k'. Pass
+   *  'Total conversions' (or similar) to override. */
+  totalLabel?: string;
+  /** Whether to draw a 'Diff: X' line on the tooltip when 2+ segments
+   *  are present. The Progress tab uses this to surface brand-vs-generic
+   *  spend gap; the simplified stakeholder view turns it off. Default true. */
+  showDiff?: boolean;
+  /** When true, draw the bar's total on top of each bar. Used by the
+   *  simplified view's 'Conversions by Type' chart. */
+  showBarTotal?: boolean;
 }
 
 function formatDollarsShort(n: number): string {
@@ -26,12 +42,22 @@ function formatDollarsShort(n: number): string {
   return `$${Math.round(n)}`;
 }
 
+function formatNumberShort(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return `${Math.round(n).toLocaleString()}`;
+}
+
 export function StackedBarChart({
   data,
   lineLabel = "Conversions",
   lineColor = "#3b82f6",
   height = 220,
+  valueFormat = "currency",
+  totalLabel = "Total",
+  showDiff = true,
+  showBarTotal = false,
 }: StackedBarChartProps) {
+  const formatValue = valueFormat === "number" ? formatNumberShort : formatDollarsShort;
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
@@ -165,23 +191,31 @@ export function StackedBarChart({
                     />
                   )}
                   {/* Multi-line tooltip — month label, total, per-segment
-                      values, diff (when 2+ segments), conv. Clamped to
-                      stay inside the SVG. */}
+                      values, optional diff line, and (when present)
+                      the line-overlay value. Clamped to stay inside the
+                      SVG. */}
                   {hoveredBar === i && (() => {
                     const segs = d.segments.filter((s) => s.value > 0);
                     const showSplit = segs.length >= 2;
                     const lines: Array<{ text: string; color?: string; weight?: number }> = [];
                     lines.push({ text: d.label, color: "#cbd5e1" });
-                    lines.push({ text: `Total: ${formatDollarsShort(total)}`, weight: 600 });
+                    lines.push({ text: `${totalLabel}: ${formatValue(total)}`, weight: 600 });
                     if (showSplit) {
                       for (const seg of d.segments) {
-                        const labelText = seg.label.replace(/\s*\(\$\)\s*$/, "");
-                        lines.push({ text: `${labelText}: ${formatDollarsShort(seg.value)}`, color: seg.color });
+                        // Strip the legacy '(...)' currency / unit hint from
+                        // segment labels in the tooltip so we don't get
+                        // 'Brand spend ($): $1.2k' duplicated style markers.
+                        const labelText = seg.label.replace(/\s*\([^)]*\)\s*$/, "");
+                        lines.push({ text: `${labelText}: ${formatValue(seg.value)}`, color: seg.color });
                       }
-                      // Difference between the two largest segments
-                      const sorted = [...d.segments].sort((a, b) => b.value - a.value);
-                      const diff = Math.abs(sorted[0].value - sorted[1].value);
-                      lines.push({ text: `Diff: ${formatDollarsShort(diff)}`, color: "#94a3b8" });
+                      if (showDiff) {
+                        // Difference between the two largest segments. Only
+                        // surfaces when the caller opted in (Progress tab uses
+                        // it; the simplified stakeholder view doesn't).
+                        const sorted = [...d.segments].sort((a, b) => b.value - a.value);
+                        const diff = Math.abs(sorted[0].value - sorted[1].value);
+                        lines.push({ text: `Diff: ${formatValue(diff)}`, color: "#94a3b8" });
+                      }
                     }
                     if (d.lineValue != null) {
                       lines.push({ text: `${d.lineValue} ${lineLabel.toLowerCase()}`, color: "#94a3b8" });
@@ -223,6 +257,22 @@ export function StackedBarChart({
                       </g>
                     );
                   })()}
+                  {/* Bar total label — drawn just above the bar when the
+                      caller opted in. Used by the simplified stakeholder
+                      view so each month's total conversions is legible
+                      without hovering. */}
+                  {showBarTotal && barH > 0 && total > 0 && (
+                    <text
+                      x={barX + barWidth / 2}
+                      y={barY - 4}
+                      textAnchor="middle"
+                      fontSize={10}
+                      fontWeight={600}
+                      fill="#0f172a"
+                    >
+                      {formatValue(total)}
+                    </text>
+                  )}
                   {/* Month label */}
                   <text
                     x={i * (barSlotWidth + gap) + barSlotWidth / 2}

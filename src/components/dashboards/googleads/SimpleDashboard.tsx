@@ -362,15 +362,26 @@ export function SimpleDashboard({
     });
   }, [data.monthlyTrend, categories]);
 
-  /* ── Top 10 keywords by conversion + by spend ── */
+  /* ── Top 10 keywords by conversion + by spend.
+   *
+   * Growth Tools currently returns a single capped `topKeywords` list
+   * (pre-sorted by spend, max 10 rows). We can re-sort by conversions
+   * for the left table, but if we don't filter we'd pad with
+   * zero-conversion rows that visually duplicate the spend table.
+   * Dropping non-converting terms from the conversion table makes the
+   * two lists tell a different story even when the source pool is
+   * small — the left table shows what's actually driving conversions,
+   * the right shows where the budget is going. */
   const topByConversion = useMemo<GoogleAdsDashboardKeyword[]>(() => {
     return [...(data.topKeywords ?? [])]
+      .filter((k) => (k.conversions ?? 0) > 0)
       .sort((a, b) => (b.conversions ?? 0) - (a.conversions ?? 0))
       .slice(0, 10);
   }, [data.topKeywords]);
 
   const topBySpend = useMemo<GoogleAdsDashboardKeyword[]>(() => {
     return [...(data.topKeywords ?? [])]
+      .filter((k) => (k.spend ?? 0) > 0)
       .sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0))
       .slice(0, 10);
   }, [data.topKeywords]);
@@ -618,7 +629,15 @@ export function SimpleDashboard({
               </span>
             )}
           </div>
-          <StackedBarChart data={conversionBars} lineColor="#0f172a" height={240} />
+          <StackedBarChart
+            data={conversionBars}
+            lineColor="#0f172a"
+            height={240}
+            valueFormat="number"
+            totalLabel="Total conversions"
+            showDiff={false}
+            showBarTotal
+          />
         </div>
 
         {/* Top 10 keywords — two-column grid */}
