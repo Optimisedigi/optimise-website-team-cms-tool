@@ -109,6 +109,7 @@ export interface Config {
     'scheduled-agent-tasks': ScheduledAgentTask;
     'agent-memory': AgentMemory;
     'agent-soul': AgentSoul;
+    'optimate-chat-turns': OptimateChatTurn;
     'gsc-snapshots': GscSnapshot;
     'gsc-daily': GscDaily;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudget;
@@ -177,6 +178,7 @@ export interface Config {
     'scheduled-agent-tasks': ScheduledAgentTasksSelect<false> | ScheduledAgentTasksSelect<true>;
     'agent-memory': AgentMemorySelect<false> | AgentMemorySelect<true>;
     'agent-soul': AgentSoulSelect<false> | AgentSoulSelect<true>;
+    'optimate-chat-turns': OptimateChatTurnsSelect<false> | OptimateChatTurnsSelect<true>;
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudgetsSelect<false> | GoogleAdsCampaignBudgetsSelect<true>;
@@ -1622,6 +1624,26 @@ export interface ClientProposal {
       )[]
     | null;
   /**
+   * Up to 4 mission priorities shown on the v2 'Where to focus our energy' slide (slide 13). Each becomes one card. Leave empty to hide the slide.
+   */
+  missionPriorities?:
+    | {
+        /**
+         * Eyebrow tag shown above the title (e.g. 'PRIORITY 01 · BUILD' or 'DELIBERATELY LATER').
+         */
+        tag: string;
+        /**
+         * Bold headline for the card.
+         */
+        title: string;
+        /**
+         * Body copy for the card (~2-3 sentences).
+         */
+        description: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Editable flight plan content shown on the report. Supports bold, italic, underline, font size formatting. Falls back to suggestions if empty.
    */
   flightPlan?: {
@@ -1776,6 +1798,118 @@ export interface ClientProposal {
     | string
     | number
     | boolean
+    | null;
+  /**
+   * Pick a template to seed default roadmap cells. Switch to 'Custom' to fully control via the array below.
+   */
+  roadmapTemplate?: ('build-launch' | 'growth-retainer' | 'audit-strategy' | 'custom') | null;
+  /**
+   * Top-right meta text for the Roadmap slide (e.g. '~10-12 weeks total').
+   */
+  roadmapMeta?: string | null;
+  /**
+   * Each row becomes one cell in the roadmap grid. 5 cells fits cleanest; the grid auto-adjusts for 3-6.
+   */
+  roadmapCells?:
+    | {
+        /**
+         * Eyebrow (e.g. 'WEEK 01' or 'PHASE 02').
+         */
+        week: string;
+        /**
+         * Card title.
+         */
+        step: string;
+        /**
+         * 1-2 sentence body. Keep generic — no client-specific terms unless overriding.
+         */
+        desc: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Small note shown under the roadmap grid.
+   */
+  roadmapNote?: string | null;
+  /**
+   * Top-right meta text on the Commercial slide.
+   */
+  commercialMeta?: string | null;
+  /**
+   * Each row becomes one pricing card. The current design is 2 cards; 3-4 cards auto-shrink to fit.
+   */
+  commercialPhases?:
+    | {
+        /**
+         * Eyebrow (e.g. 'PHASE 01').
+         */
+        tier: string;
+        /**
+         * Card name (e.g. 'Build & Launch').
+         */
+        name: string;
+        /**
+         * Price amount (e.g. 'TBC', '$12,500', '$2,500').
+         */
+        amount: string;
+        /**
+         * Suffix (e.g. 'one-time', '/ month').
+         */
+        amountSub?: string | null;
+        /**
+         * Apply the dark/feature card style.
+         */
+        featured?: boolean | null;
+        /**
+         * Bullet list of inclusions (3-5 ideal).
+         */
+        features?:
+          | {
+              item: string;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Small centred note below the cards.
+   */
+  commercialNote?: string | null;
+  /**
+   * Top-right meta text on the Next Steps slide.
+   */
+  launchMeta?: string | null;
+  /**
+   * Three step cards shown at the top of the Next Steps slide.
+   */
+  launchSteps?:
+    | {
+        /**
+         * Eyebrow (e.g. 'STEP 01').
+         */
+        stepLabel: string;
+        title: string;
+        body: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Larger 'During Build' / 'Post Launch' blocks at the bottom of the slide.
+   */
+  launchBlocks?:
+    | {
+        /**
+         * Eyebrow (e.g. 'DURING BUILD').
+         */
+        tag: string;
+        /**
+         * Headline (single line).
+         */
+        title: string;
+        body: string;
+        id?: string | null;
+      }[]
     | null;
   /**
    * Contracts linked to this proposal
@@ -5425,6 +5559,56 @@ export interface AgentSoul {
   createdAt: string;
 }
 /**
+ * Persistent OptiMate chat history. One row per user or assistant message.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "optimate-chat-turns".
+ */
+export interface OptimateChatTurn {
+  id: number;
+  /**
+   * Stable UUID identifying the chat thread. Matches `sessionIdRef.current` in OptiMateChatCore.
+   */
+  sessionId: string;
+  audit: number | GoogleAdsAudit;
+  /**
+   * The human team-member who owns this thread.
+   */
+  user: number | User;
+  /**
+   * Snapshot of audit.linkedClient at write time. Lets us filter by client without joining through audits.
+   */
+  client?: (number | null) | Client;
+  role: 'user' | 'assistant';
+  content: string;
+  /**
+   * First 80 chars of content. Used as the admin title.
+   */
+  preview?: string | null;
+  /**
+   * Assistant-only. Ties back to activity-log.agentRunId.
+   */
+  runId?: string | null;
+  /**
+   * Assistant-only.
+   */
+  modelUsed?: string | null;
+  /**
+   * Assistant-only. Array of agent-approval-queue ids queued this turn.
+   */
+  proposalIds?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Daily Google Search Console metrics for historical archival
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -5949,6 +6133,10 @@ export interface PayloadLockedDocument {
         value: number | AgentSoul;
       } | null)
     | ({
+        relationTo: 'optimate-chat-turns';
+        value: number | OptimateChatTurn;
+      } | null)
+    | ({
         relationTo: 'gsc-snapshots';
         value: number | GscSnapshot;
       } | null)
@@ -6377,6 +6565,14 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   contentResearch?: T;
   googleAdsAudit?: T;
   visibleSlides?: T;
+  missionPriorities?:
+    | T
+    | {
+        tag?: T;
+        title?: T;
+        description?: T;
+        id?: T;
+      };
   flightPlan?: T;
   flightPlanImages?:
     | T
@@ -6409,6 +6605,52 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   excludedKeywords?: T;
   excludedContentQuestions?: T;
   slideNotes?: T;
+  roadmapTemplate?: T;
+  roadmapMeta?: T;
+  roadmapCells?:
+    | T
+    | {
+        week?: T;
+        step?: T;
+        desc?: T;
+        id?: T;
+      };
+  roadmapNote?: T;
+  commercialMeta?: T;
+  commercialPhases?:
+    | T
+    | {
+        tier?: T;
+        name?: T;
+        amount?: T;
+        amountSub?: T;
+        featured?: T;
+        features?:
+          | T
+          | {
+              item?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  commercialNote?: T;
+  launchMeta?: T;
+  launchSteps?:
+    | T
+    | {
+        stepLabel?: T;
+        title?: T;
+        body?: T;
+        id?: T;
+      };
+  launchBlocks?:
+    | T
+    | {
+        tag?: T;
+        title?: T;
+        body?: T;
+        id?: T;
+      };
   contracts?: T;
   proposalStatus?: T;
   convertToClient?: T;
@@ -7641,6 +7883,24 @@ export interface AgentMemorySelect<T extends boolean = true> {
 export interface AgentSoulSelect<T extends boolean = true> {
   aspect?: T;
   content?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "optimate-chat-turns_select".
+ */
+export interface OptimateChatTurnsSelect<T extends boolean = true> {
+  sessionId?: T;
+  audit?: T;
+  user?: T;
+  client?: T;
+  role?: T;
+  content?: T;
+  preview?: T;
+  runId?: T;
+  modelUsed?: T;
+  proposalIds?: T;
   updatedAt?: T;
   createdAt?: T;
 }

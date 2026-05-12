@@ -60,6 +60,7 @@ import { AgentCredentials } from "./collections/AgentCredentials";
 import { AgentMemory } from "./collections/AgentMemory";
 import { AgentSoul } from "./collections/AgentSoul";
 import { ScheduledAgentTasks } from "./collections/ScheduledAgentTasks";
+import { OptimateChatTurns } from "./collections/OptimateChatTurns";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -113,7 +114,7 @@ export default buildConfig({
     // Admin
     Users, PermissionProfiles, UsageReports, ActivityLog,
     // Optimate agents
-    AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul,
+    AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, OptimateChatTurns,
     // Hidden (no group impact)
     GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials,
   ].map((c) => ({

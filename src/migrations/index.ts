@@ -44,6 +44,9 @@ import * as migration_20260508_180000_add_agent_collections from './20260508_180
 import * as migration_20260509_120000_add_scheduled_agent_tasks from './20260509_120000_add_scheduled_agent_tasks';
 import * as migration_20260511_120000_add_gsc_site_url_to_clients from './20260511_120000_add_gsc_site_url_to_clients';
 import * as migration_20260512_120000_add_agent_memory_and_soul from './20260512_120000_add_agent_memory_and_soul';
+import * as migration_20260513_120000_add_mission_priorities from './20260513_120000_add_mission_priorities';
+import * as migration_20260514_120000_add_roadmap_and_commercial_and_launch from './20260514_120000_add_roadmap_and_commercial_and_launch';
+import * as migration_20260512_140000_add_optimate_chat_turns from './20260512_140000_add_optimate_chat_turns';
 
 export const migrations = [
   {
@@ -275,5 +278,20 @@ export const migrations = [
     up: migration_20260512_120000_add_agent_memory_and_soul.up,
     down: migration_20260512_120000_add_agent_memory_and_soul.down,
     name: '20260512_120000_add_agent_memory_and_soul'
+  },
+  {
+    up: migration_20260513_120000_add_mission_priorities.up,
+    down: migration_20260513_120000_add_mission_priorities.down,
+    name: '20260513_120000_add_mission_priorities'
+  },
+  {
+    up: migration_20260514_120000_add_roadmap_and_commercial_and_launch.up,
+    down: migration_20260514_120000_add_roadmap_and_commercial_and_launch.down,
+    name: '20260514_120000_add_roadmap_and_commercial_and_launch'
+  },
+  {
+    up: migration_20260512_140000_add_optimate_chat_turns.up,
+    down: migration_20260512_140000_add_optimate_chat_turns.down,
+    name: '20260512_140000_add_optimate_chat_turns'
   },
 ];

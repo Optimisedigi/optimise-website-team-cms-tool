@@ -45,7 +45,14 @@ export async function POST(
       history?: unknown;
       model?: unknown;
       attachedEmail?: unknown;
+      sessionId?: unknown;
     };
+    // Stable thread id. If the client didn't send one, mint a fresh UUID so
+    // this turn at least lands in its own thread row instead of being lost.
+    const sessionId =
+      typeof body.sessionId === "string" && body.sessionId.trim().length > 0
+        ? body.sessionId.trim()
+        : crypto.randomUUID();
     const message = typeof body.message === "string" ? body.message.trim() : "";
     if (!message) {
       return NextResponse.json({ error: "message is required" }, { status: 400 });
@@ -136,6 +143,28 @@ export async function POST(
     // through the audit's proposal. Either way, this is best-effort context.
     const linkedClient = await resolveLinkedClient(payload, audit);
 
+    // Persist the user's prompt before the agent runs. Best-effort — if the
+    // write fails (e.g. table missing on a freshly-deployed env), the chat
+    // turn still proceeds. We store the user's actual prompt, not the
+    // attached-email-decorated version, since the email body is fetched
+    // fresh from Gmail per the existing comment above.
+    payload
+      .create({
+        collection: "optimate-chat-turns" as any,
+        data: {
+          sessionId,
+          audit: id,
+          user: user.id,
+          client: linkedClient?.id ?? undefined,
+          role: "user",
+          content: message,
+        },
+        overrideAccess: true,
+      })
+      .catch((err) => {
+        console.error("[chat-persist] user row failed:", err);
+      });
+
     const messages: Message[] = [
       ...history.map<Message>((h) => ({
         role: h.role,
@@ -152,6 +181,32 @@ export async function POST(
       userId: typeof user.id === "number" ? user.id : Number(user.id),
     });
 
+    // Persist the assistant turn. Same best-effort treatment as the user row.
+    const proposalIds = Array.isArray(result.proposals)
+      ? result.proposals
+          .map((p) => (p && typeof p === "object" ? (p as { id?: unknown }).id : undefined))
+          .filter((v): v is number | string => typeof v === "number" || typeof v === "string")
+      : [];
+    payload
+      .create({
+        collection: "optimate-chat-turns" as any,
+        data: {
+          sessionId,
+          audit: id,
+          user: user.id,
+          client: linkedClient?.id ?? undefined,
+          role: "assistant",
+          content: result.reply ?? "",
+          runId: result.runId,
+          modelUsed: result.modelUsed,
+          proposalIds: proposalIds.length > 0 ? proposalIds : undefined,
+        },
+        overrideAccess: true,
+      })
+      .catch((err) => {
+        console.error("[chat-persist] assistant row failed:", err);
+      });
+
     return NextResponse.json({
       reply: result.reply,
       runId: result.runId,
@@ -159,6 +214,7 @@ export async function POST(
       modelUsed: result.modelUsed,
       source: result.source,
       proposals: result.proposals,
+      sessionId,
     });
   } catch (err) {
     console.error("[google-ads-chat] error:", err);

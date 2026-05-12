@@ -321,6 +321,16 @@ export async function POST(request: NextRequest) {
   await run("keyword_categories_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_keyword_categories_order_idx` ON `client_proposals_keyword_categories` (`_order`)");
   await run("keyword_categories_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_keyword_categories_parent_id_idx` ON `client_proposals_keyword_categories` (`_parent_id`)");
 
+  // --- Mission Priorities array table (v2 deck slide 13) ---
+  await run("client_proposals_mission_priorities", `CREATE TABLE IF NOT EXISTS \`client_proposals_mission_priorities\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`tag\` text NOT NULL, \`title\` text NOT NULL, \`description\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("mission_priorities_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_mission_priorities_order_idx` ON `client_proposals_mission_priorities` (`_order`)");
+  await run("mission_priorities_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_mission_priorities_parent_id_idx` ON `client_proposals_mission_priorities` (`_parent_id`)");
+
   // --- Mission Resources images array table ---
   await run("client_proposals_mission_resources_images", `CREATE TABLE IF NOT EXISTS \`client_proposals_mission_resources_images\` (
     \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
@@ -370,6 +380,64 @@ export async function POST(request: NextRequest) {
   await run("client_proposals.override_monthly_visits", "ALTER TABLE `client_proposals` ADD `override_monthly_visits` numeric");
   await run("client_proposals.override_avg_position", "ALTER TABLE `client_proposals` ADD `override_avg_position` numeric");
   await run("client_proposals.override_keywords_found", "ALTER TABLE `client_proposals` ADD `override_keywords_found` numeric");
+
+  // --- Roadmap / Commercial / Launch scalar columns (v2 deck slides 21, 23, 25) ---
+  await run("client_proposals.roadmap_template", "ALTER TABLE `client_proposals` ADD `roadmap_template` text DEFAULT 'build-launch'");
+  await run("client_proposals.roadmap_meta", "ALTER TABLE `client_proposals` ADD `roadmap_meta` text");
+  await run("client_proposals.roadmap_note", "ALTER TABLE `client_proposals` ADD `roadmap_note` text");
+  await run("client_proposals.commercial_meta", "ALTER TABLE `client_proposals` ADD `commercial_meta` text");
+  await run("client_proposals.commercial_note", "ALTER TABLE `client_proposals` ADD `commercial_note` text");
+  await run("client_proposals.launch_meta", "ALTER TABLE `client_proposals` ADD `launch_meta` text");
+
+  // --- Roadmap cells array table (v2 deck slide 21) ---
+  await run("client_proposals_roadmap_cells", `CREATE TABLE IF NOT EXISTS \`client_proposals_roadmap_cells\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`week\` text NOT NULL, \`step\` text NOT NULL, \`desc\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("roadmap_cells_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_roadmap_cells_order_idx` ON `client_proposals_roadmap_cells` (`_order`)");
+  await run("roadmap_cells_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_roadmap_cells_parent_id_idx` ON `client_proposals_roadmap_cells` (`_parent_id`)");
+
+  // --- Commercial phases array table (v2 deck slide 23) ---
+  await run("client_proposals_commercial_phases", `CREATE TABLE IF NOT EXISTS \`client_proposals_commercial_phases\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`tier\` text NOT NULL, \`name\` text NOT NULL, \`amount\` text NOT NULL,
+    \`amount_sub\` text, \`featured\` integer DEFAULT 0,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("commercial_phases_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_commercial_phases_order_idx` ON `client_proposals_commercial_phases` (`_order`)");
+  await run("commercial_phases_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_commercial_phases_parent_id_idx` ON `client_proposals_commercial_phases` (`_parent_id`)");
+
+  // --- Commercial phases features nested sub-table ---
+  await run("client_proposals_commercial_phases_features", `CREATE TABLE IF NOT EXISTS \`client_proposals_commercial_phases_features\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` text NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL, \`item\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals_commercial_phases\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("commercial_features_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_commercial_phases_features_order_idx` ON `client_proposals_commercial_phases_features` (`_order`)");
+  await run("commercial_features_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_commercial_phases_features_parent_id_idx` ON `client_proposals_commercial_phases_features` (`_parent_id`)");
+
+  // --- Launch steps array table (v2 deck slide 25) ---
+  await run("client_proposals_launch_steps", `CREATE TABLE IF NOT EXISTS \`client_proposals_launch_steps\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`step_label\` text NOT NULL, \`title\` text NOT NULL, \`body\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("launch_steps_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_launch_steps_order_idx` ON `client_proposals_launch_steps` (`_order`)");
+  await run("launch_steps_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_launch_steps_parent_id_idx` ON `client_proposals_launch_steps` (`_parent_id`)");
+
+  // --- Launch blocks array table (v2 deck slide 25) ---
+  await run("client_proposals_launch_blocks", `CREATE TABLE IF NOT EXISTS \`client_proposals_launch_blocks\` (
+    \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`tag\` text NOT NULL, \`title\` text NOT NULL, \`body\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("launch_blocks_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_launch_blocks_order_idx` ON `client_proposals_launch_blocks` (`_order`)");
+  await run("launch_blocks_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_launch_blocks_parent_id_idx` ON `client_proposals_launch_blocks` (`_parent_id`)");
 
   // --- Flight Plan Images sub-table ---
   await run("client_proposals_flight_plan_images", `CREATE TABLE IF NOT EXISTS \`client_proposals_flight_plan_images\` (
@@ -3119,6 +3187,33 @@ export async function GET(request: NextRequest) {
 
   await run("locked_docs_rels.agent_memory_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agent_memory_id` integer REFERENCES `agent_memory`(`id`) ON DELETE cascade");
   await run("locked_docs_rels.agent_soul_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agent_soul_id` integer REFERENCES `agent_soul`(`id`) ON DELETE cascade");
+
+  // ── Optimate chat turns (2026-05-12, persistent chat history per audit + user) ──
+  await run("optimate_chat_turns", `CREATE TABLE IF NOT EXISTS \`optimate_chat_turns\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`session_id\` text NOT NULL,
+    \`audit_id\` integer NOT NULL,
+    \`user_id\` integer NOT NULL,
+    \`client_id\` integer,
+    \`role\` text NOT NULL,
+    \`content\` text NOT NULL,
+    \`preview\` text,
+    \`run_id\` text,
+    \`model_used\` text,
+    \`proposal_ids\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`audit_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("optimate_chat_turns_session_id_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_session_id_idx` ON `optimate_chat_turns` (`session_id`)");
+  await run("optimate_chat_turns_audit_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_audit_idx` ON `optimate_chat_turns` (`audit_id`)");
+  await run("optimate_chat_turns_user_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_user_idx` ON `optimate_chat_turns` (`user_id`)");
+  await run("optimate_chat_turns_client_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_client_idx` ON `optimate_chat_turns` (`client_id`)");
+  await run("optimate_chat_turns_created_at_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_created_at_idx` ON `optimate_chat_turns` (`created_at`)");
+  await run("optimate_chat_turns_session_created_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_session_created_idx` ON `optimate_chat_turns` (`session_id`, `created_at`)");
+  await run("locked_docs_rels.optimate_chat_turns_id", "ALTER TABLE `payload_locked_documents_rels` ADD `optimate_chat_turns_id` integer REFERENCES `optimate_chat_turns`(`id`) ON DELETE cascade");
 
   let allTables: string[] = [];
   try {

@@ -45,8 +45,8 @@ const GUARDRAILS = [
 const TOOL_INVENTORY = [
   "READ TOOLS:",
   "- get_account_overview(range?): total spend, conversions, avg CPA, active campaign count, and the date range it covers. Call once at the start of any diagnostic conversation. Default range LAST_30_DAYS.",
-  "- get_campaign_performance(range?): per-campaign spend / clicks / impressions / conversions / CTR / CPA. Default range LAST_7_DAYS.",
-  "- get_search_terms(range?, minImpressions?, limit?): user search queries that triggered ads, with metrics. Default range LAST_30_DAYS. Use to find waste before proposing negatives.",
+  "- get_campaign_performance(range?, segment?): per-campaign spend / clicks / impressions / conversions / CTR / CPA. Default range LAST_7_DAYS. Pass segment='month'|'week'|'day' for a per-period breakdown (one row per campaign per segment). See SEGMENTATION_GUIDE.",
+  "- get_search_terms(range?, minImpressions?, limit?, segment?): user search queries that triggered ads, with metrics. Default range LAST_30_DAYS. Pass segment='month'|'week'|'day' for a per-period breakdown. Use to find waste before proposing negatives. See SEGMENTATION_GUIDE.",
   "",
   "PROPOSE TOOLS (queue for approval; never apply directly):",
   "- propose_negative_keywords(candidates, summary): legacy quick-propose. Each candidate needs term, matchType, and a one-line reason. Prefer propose_nkl_create for new lists.",
@@ -73,6 +73,9 @@ const TOOL_INVENTORY = [
   "- propose_scheduled_task(title, prompt, schedule, timezone?, recipientEmail?, summary): queue creation of a recurring agent task. `schedule` is a 5-field cron expression evaluated in `timezone` (default Australia/Brisbane). On every firing the agent re-runs the saved `prompt` against THIS audit and drops the reply in the proposing user's Gmail Drafts.",
   "- list_scheduled_tasks(includeInactive?): read-only. Lists the calling user's scheduled tasks (paused tasks omitted unless includeInactive=true).",
   "- propose_scheduled_task_update(taskId, isActive?, prompt?, schedule?, timezone?, delete?, summary): queue an approval to pause/resume/edit/delete an existing schedule. Use list_scheduled_tasks first to learn the right taskId.",
+  "",
+  "STAKEHOLDER DECK:",
+  "- propose_stakeholder_deck(clientName, shortName, slug, launchDate, reviewDate, shippedDid[], shippedProduced[], formsLeads, phonesLeads, leadsCopy, keywordsSubtitle, keywordStats[], keywordRows[], nextItems[6], summary, supportingNumbers?): queue a 5-slide client recap deck (cover, shipped, leads, keywords, next). See DECK_GUIDE below. On Apply, writes page.tsx + globals.css to /partners/google-ads-audit/<slug>/. NEVER call this without first pulling get_search_terms + get_campaign_performance for the launch-to-today window.",
   "",
   "MEMORY + SOUL TOOLS (lazy-loaded, do NOT spam these):",
   "- remember(scope, clientId?, category, subject, content, importance?): save a durable fact about a client account or the agency globally. Upserts by subject. Use when the user shares a preference, decision, constraint, or piece of history worth keeping. NEVER save one-off questions or momentary context. importance defaults to 50 (search-only); use ≥ 80 only for facts that should auto-load into every chat for this client.",
@@ -106,20 +109,74 @@ const SCHEDULED_TASKS_GUIDE = `When the user asks for a recurring report (e.g. "
 
 Never fabricate cron expressions you're unsure of — the schedule field is validated against cron-parser and an invalid expression will reject the proposal.`;
 
-const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plain English into one of these range presets and pass it as the \`range\` arg:
+const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plain English into one of these range inputs and pass it as the \`range\` arg:
+
+Presets:
 - "today" → TODAY
 - "yesterday" → YESTERDAY
 - "last week" / "past 7 days" → LAST_7_DAYS
 - "last 14 days" / "fortnight" → LAST_14_DAYS
 - "last 30 days" / "last month-ish" → LAST_30_DAYS (default)
 - "last 60 days" → LAST_60_DAYS
-- "last 90 days" / "last quarter" → LAST_90_DAYS
+- "last 90 days" → LAST_90_DAYS
 - "this month" / "month-to-date" / "MTD" → THIS_MONTH
 - "last month" (calendar) → LAST_MONTH
 - "this week" → THIS_WEEK_MON_TODAY
 - "last week" (calendar Sun–Sat) → LAST_WEEK_SUN_SAT
 
-If the user asks for something not in this list (e.g. "Q1", "year to date", a specific date span), pass the closest preset and tell the user in your reply which window you actually used. The tool result will include a \`coercedFrom\` and \`note\` field whenever a fallback was applied — surface that in your reply rather than pretending you ran the exact range requested.`;
+Quarter / year (resolved to explicit ISO span server-side, no longer coerced to LAST_90_DAYS):
+- "this quarter" → THIS_QUARTER
+- "last quarter" → LAST_QUARTER
+- "quarter to date" / "QTD" → QTD
+- "year to date" / "YTD" → YTD
+- "Q1 2026" / "Q4 2025" → pass the literal verbatim, e.g. range="Q1 2026"
+
+Custom ISO span:
+- "January through March" / "between Jan 1 and Mar 31" → range="2026-01-01..2026-03-31"
+- Any explicit date pair the user gives → "YYYY-MM-DD..YYYY-MM-DD"
+
+The tool result echoes back \`rangeLabel\` and (when CUSTOM) \`startDate\`/\`endDate\` so you can confirm to the user which window you actually queried. If the response has a \`coercedFrom\` and \`note\`, the input wasn't recognised — surface that rather than pretending you ran the exact range requested.`;
+
+const SEGMENTATION_GUIDE = `When the user asks for a per-month, per-week, or per-day breakdown — including phrases like "month by month", "each month", "January, February, March separately", "this quarter broken down", "by week", "weekly trend" — you MUST pass \`segment="month"\` (or "week" / "day") AND pass an explicit \`range\` wide enough to cover what they asked for.
+
+Without \`segment\`, every tool returns a single aggregated total for the whole window. With \`segment="month"\` over Q1, you get one row per (entity, month) pair so you can show three numbers per term/campaign instead of one.
+
+Examples of the right call:
+- "Show me top terms for Jan, Feb, March" → get_search_terms({ range: "Q1 2026", segment: "month" })
+- "Each campaign's performance week by week last quarter" → get_campaign_performance({ range: "LAST_QUARTER", segment: "week" })
+- "Daily spend over the last 14 days" → get_campaign_performance({ range: "LAST_14_DAYS", segment: "day" })
+
+If the response includes \`segmentationUnavailable: true\`, the upstream Growth Tools service hasn't been upgraded yet — tell the user plainly that totals are all you can return today, don't fabricate a per-month breakdown from the aggregate.`;
+
+const DECK_GUIDE = `When the user asks for a "deck", "presentation", "slide", "client recap", "stakeholder review", "owner update", "what we shipped review" or similar, propose a stakeholder deck via propose_stakeholder_deck.
+
+Before calling the tool you MUST have:
+- Pulled get_search_terms for the launch-to-today window so you have the keyword table data (term, clicks, spend, leads for the top 10-12 rows).
+- Pulled get_campaign_performance for the same window so you have total leads, spend, and account cost per lead.
+- Asked the user (if not yet known): launch date of the new structure, today's review date, and three things they want emphasised in the shipped section.
+
+Stylistically:
+- No em-dashes or en-dashes anywhere. Commas, periods, hyphens. The validator rejects payloads with em/en dashes.
+- No emoji.
+- Plain English ("cost per lead" not "CPA" in body copy; column headers and tile labels can stay "CPA").
+- shippedProduced items can use **bold** markdown. The apply step turns it into <strong>. Lead with a bold number on most items.
+- nextItems is exactly 6 entries, each { headline, what, why }.
+- The leads-slide CPL and keywords-slide "Account CPA" tile must reconcile (same date window). The validator rejects payloads where they diverge by more than $1.
+
+Reference examples lifted from existing decks:
+
+Shipped/produced (MTP):
+  did: "Audited every top landing page and the search intent feeding it", "Rebuilt the campaign structure end to end (Brand and Generic split)", "Rebuilt lead tracking, phone calls and form submissions, verified"
+  produced: "**29 leads** since 10 April (14 form, 15 phone)", "**Account level cost per lead, $81 in April 2026**", "**Lead tracking firing correctly**, the first trustworthy baseline the account has had"
+
+Next items (MTP):
+  ["Landing page fixes", "Fixing the top problem pages, missing forms, generic vocabulary, weak emergency intent.", "We are paying for clicks that land on pages that struggle to convert. Biggest single lift available."]
+  ["Budget reallocation", "Shift spend from zero converting campaigns into the campaigns producing leads.", "Brand campaigns drove 68 percent of MTP leads in April. There is headroom to do more there."]
+
+Keyword stats tiles (MTP, 5 tiles):
+  { value: "760", label: "Distinct searches" }, { value: "$3,172", label: "Spend (April)" }, { value: "449", label: "Clicks" }, { value: "39", label: "Leads (April)" }, { value: "$81", label: "Account CPA" }
+
+Slug convention: lowercase kebab-case, include the month/year and the short name, e.g. "may-2026-mtp-recap", "may-2026-berendsen-recap".`;
 
 const MEMORY_GUIDE = `Memory and soul are designed to keep this prompt small. Pinned facts (importance ≥ 80) for the active client and ALL soul aspects are already loaded above (see "Known about this account" / "Working with this team" sections, if present). Everything else stays in the database and is available via memory_search.
 
@@ -147,7 +204,7 @@ NEVER call soul_set for facts about clients — those go to remember.`;
 
 const ATTACHED_EMAIL_GUIDE = `If the user's message starts with "--- Attached email ---", that block is real email content the user attached from their Gmail inbox — not something they wrote. Treat it as additional context for the question that follows the "--- End attached email ---" marker. Quote specific sentences from the email inline (use blockquotes or short "..." excerpts) when you reference it. Never paraphrase numbers or claims from the email as if you've verified them — if the user wants you to act on figures from the email (spend, impressions, conversions), pull the corresponding tool first (e.g. get_campaign_performance, get_search_terms) and reconcile what the email says against what the account shows.`;
 
-const OUTPUT_FORMAT = `Plain markdown. Short paragraphs and tight bullet lists. When you cite a number, name the tool you got it from in parentheses, e.g. "$1,240 spent over 7 days (get_campaign_performance)". When you queue a proposal, end the message with "Queued approval #<id> — review at /agent-approvals/<id>".`;
+const OUTPUT_FORMAT = `Plain markdown. Short paragraphs and tight bullet lists. When you cite a number, name the tool you got it from in parentheses, e.g. "$1,240 spent over 7 days (get_campaign_performance)". When you queue a proposal, end the message with "Queued approval #<id> — review at /agent-approvals/<id>". When returning structured metric data with more than 2 rows, use a GFM markdown table (pipe syntax with a \`|---|\` separator row). Bulleted lists are for unordered items, not metrics.`;
 
 export interface ClientConnectionFlags {
   ga4Connected: boolean;
@@ -235,7 +292,7 @@ export function buildSystemPromptForAudit(
     agentRole: ROLE,
     cmsRulesBlock: cmsRulesWithMemory,
     guardrails: GUARDRAILS,
-    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}\n\n${GEO_WALKTHROUGH}\n\n${SCHEDULED_TASKS_GUIDE}\n\n${ATTACHED_EMAIL_GUIDE}\n\n${MEMORY_GUIDE}`,
+    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}\n\n${SEGMENTATION_GUIDE}\n\n${GEO_WALKTHROUGH}\n\n${SCHEDULED_TASKS_GUIDE}\n\n${DECK_GUIDE}\n\n${ATTACHED_EMAIL_GUIDE}\n\n${MEMORY_GUIDE}`,
     outputFormat: OUTPUT_FORMAT,
   });
 }

@@ -35,6 +35,19 @@ export interface OptiMateChatCoreProps {
   compact?: boolean
   /** Hide the per-tab input row (the multi-chat wrapper supplies a shared one). */
   hideInput?: boolean
+  /**
+   * Resume an existing chat thread on mount. When set, the component fetches
+   * the thread's turns from /api/optimate-chat-history and seeds `messages`.
+   * Leave unset to start a fresh thread.
+   */
+  initialSessionId?: string
+}
+
+interface ChatSession {
+  sessionId: string
+  firstMessage: string
+  lastMessageAt: string
+  turnCount: number
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -61,12 +74,21 @@ const TONE_COLORS: Record<AuthBadgeStatus['tone'], string> = {
  * Lightweight markdown renderer for chat messages.
  * Handles: **bold**, bullet lists (- item), numbered lists, paragraphs, fenced code.
  */
-function renderMarkdown(text: string) {
+export function renderMarkdown(text: string) {
   const lines = text.split('\n')
   const elements: React.ReactNode[] = []
   let listItems: React.ReactNode[] = []
   let listType: 'ul' | 'ol' | null = null
   let codeBlock: string[] | null = null
+
+  /** Split a pipe-delimited row into trimmed cells, stripping leading/trailing `|`. */
+  const splitRow = (row: string): string[] => {
+    const trimmed = row.trim().replace(/^\|/, '').replace(/\|$/, '')
+    return trimmed.split('|').map((c) => c.trim())
+  }
+
+  /** Right-align numeric / currency cells (matches the leading char). */
+  const isNumericCell = (cell: string): boolean => /^-?[$£€]?\s*\d/.test(cell.trim())
 
   const flushList = () => {
     if (listItems.length > 0 && listType) {
@@ -183,6 +205,90 @@ function renderMarkdown(text: string) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
 
+    /* GFM table detection: pipe row followed by a separator row like
+     * `| --- | :---: |`. We look ahead one line; if it matches, consume
+     * header + separator + all subsequent pipe rows until a blank/non-pipe
+     * line. Cells still pass through `formatInline` so bold/code/links work. */
+    const nextLine = lines[i + 1]
+    const isPipeRow = (s: string | undefined) => typeof s === 'string' && s.includes('|') && s.trim().length > 0
+    const isSeparator = (s: string | undefined) =>
+      typeof s === 'string' && /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(s)
+    if (codeBlock === null && isPipeRow(line) && isSeparator(nextLine)) {
+      flushList()
+      const header = splitRow(line)
+      const colCount = header.length
+      const bodyRows: string[][] = []
+      let j = i + 2
+      while (j < lines.length && isPipeRow(lines[j]) && lines[j].trim() !== '') {
+        bodyRows.push(splitRow(lines[j]))
+        j++
+      }
+
+      // Determine numeric columns by inspecting the first body row.
+      const numericCols = new Set<number>()
+      if (bodyRows.length > 0) {
+        bodyRows[0].forEach((cell, idx) => {
+          if (isNumericCell(cell)) numericCols.add(idx)
+        })
+      }
+
+      const tableKey = `table-${elements.length}`
+      elements.push(
+        <div key={tableKey} style={{ overflowX: 'auto', margin: '8px 0' }}>
+          <table
+            style={{
+              borderCollapse: 'collapse',
+              fontSize: 12,
+              width: '100%',
+              maxWidth: '100%',
+            }}
+          >
+            <thead>
+              <tr>
+                {header.map((cell, idx) => (
+                  <th
+                    key={`th-${idx}`}
+                    style={{
+                      background: '#f3f4f6',
+                      padding: '6px 8px',
+                      textAlign: numericCols.has(idx) ? 'right' : 'left',
+                      border: '1px solid #e5e7eb',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {formatInline(cell)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {bodyRows.map((row, rIdx) => (
+                <tr key={`tr-${rIdx}`}>
+                  {Array.from({ length: colCount }).map((_, cIdx) => {
+                    const cell = row[cIdx] ?? ''
+                    return (
+                      <td
+                        key={`td-${rIdx}-${cIdx}`}
+                        style={{
+                          padding: '6px 8px',
+                          border: '1px solid #e5e7eb',
+                          textAlign: numericCols.has(cIdx) ? 'right' : 'left',
+                        }}
+                      >
+                        {formatInline(cell)}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      )
+      i = j - 1
+      continue
+    }
+
     if (line.trimStart().startsWith('```')) {
       if (codeBlock === null) {
         flushList()
@@ -236,7 +342,7 @@ function renderMarkdown(text: string) {
 }
 
 const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProps>(function OptiMateChatCore(
-  { auditId, customerId, businessName, compact = false, hideInput = false },
+  { auditId, customerId, businessName, compact = false, hideInput = false, initialSessionId },
   ref,
 ) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -260,7 +366,10 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     const maxPx = 8 * 20 // ~8 rows at 20px line-height
     el.style.height = Math.min(el.scrollHeight, maxPx) + 'px'
   }, [input])
-  const sessionIdRef = useRef(crypto.randomUUID())
+  const sessionIdRef = useRef(initialSessionId ?? crypto.randomUUID())
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
   const [pendingForAudit, setPendingForAudit] = useState<OptiMateProposal[]>([])
   const [pendingRefreshTick, setPendingRefreshTick] = useState(0)
   const bumpPendingRefresh = useCallback(() => setPendingRefreshTick((n) => n + 1), [])
@@ -390,6 +499,99 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   useEffect(() => {
     scrollToBottom()
   }, [messages, scrollToBottom])
+
+  /* Resume an existing thread if `initialSessionId` was passed. Best-effort:
+   * if the fetch fails or returns no turns we just start with an empty chat,
+   * keeping the supplied sessionId so future writes still land on the same
+   * thread. */
+  useEffect(() => {
+    if (!initialSessionId) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch(
+          `/api/optimate-chat-history?sessionId=${encodeURIComponent(initialSessionId)}`,
+          { credentials: 'include' },
+        )
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          turns?: Array<Record<string, unknown>>
+        }
+        if (cancelled || !Array.isArray(data.turns)) return
+        const loaded: ChatMessage[] = data.turns
+          .filter((t) => t.role === 'user' || t.role === 'assistant')
+          .map((t) => ({
+            role: t.role as 'user' | 'assistant',
+            content: typeof t.content === 'string' ? t.content : '',
+            runId: typeof t.runId === 'string' ? t.runId : undefined,
+            modelUsed: typeof t.modelUsed === 'string' ? t.modelUsed : undefined,
+          }))
+        setMessages(loaded)
+      } catch {
+        /* silent: resuming is best-effort */
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [initialSessionId])
+
+  /* Load the session list when the user opens the History popover. We refetch
+   * every time the popover opens so newly-created threads show up without a
+   * page reload. */
+  const openHistory = useCallback(async () => {
+    setHistoryOpen(true)
+    setSessionsLoading(true)
+    try {
+      const res = await fetch(
+        `/api/optimate-chat-history?auditId=${encodeURIComponent(String(auditId))}`,
+        { credentials: 'include' },
+      )
+      if (!res.ok) {
+        setSessions([])
+        return
+      }
+      const data = (await res.json()) as { sessions?: ChatSession[] }
+      setSessions(Array.isArray(data.sessions) ? data.sessions : [])
+    } catch {
+      setSessions([])
+    } finally {
+      setSessionsLoading(false)
+    }
+  }, [auditId])
+
+  const loadSession = useCallback(async (sid: string) => {
+    setHistoryOpen(false)
+    try {
+      const res = await fetch(
+        `/api/optimate-chat-history?sessionId=${encodeURIComponent(sid)}`,
+        { credentials: 'include' },
+      )
+      if (!res.ok) return
+      const data = (await res.json()) as { turns?: Array<Record<string, unknown>> }
+      const loaded: ChatMessage[] = (data.turns ?? [])
+        .filter((t) => t.role === 'user' || t.role === 'assistant')
+        .map((t) => ({
+          role: t.role as 'user' | 'assistant',
+          content: typeof t.content === 'string' ? t.content : '',
+          runId: typeof t.runId === 'string' ? t.runId : undefined,
+          modelUsed: typeof t.modelUsed === 'string' ? t.modelUsed : undefined,
+        }))
+      sessionIdRef.current = sid
+      setMessages(loaded)
+      setError(null)
+    } catch {
+      /* silent */
+    }
+  }, [])
+
+  const startNewChat = useCallback(() => {
+    sessionIdRef.current = crypto.randomUUID()
+    setMessages([])
+    setError(null)
+    setHistoryOpen(false)
+  }, [])
 
   // Fetch OAuth status once on mount.
   useEffect(() => {
@@ -643,6 +845,115 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             </option>
           ))}
         </select>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (historyOpen) {
+                setHistoryOpen(false)
+              } else {
+                openHistory()
+              }
+            }}
+            title="Show previous chats for this audit"
+            aria-label="Chat history"
+            style={{
+              padding: '4px 8px',
+              fontSize: 11,
+              lineHeight: 1.2,
+              background: historyOpen ? '#e0e7ff' : '#f3f4f6',
+              border: '1px solid #e5e7eb',
+              borderRadius: 6,
+              cursor: 'pointer',
+              color: '#374151',
+            }}
+          >
+            History
+          </button>
+          {historyOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 4px)',
+                right: 0,
+                width: 280,
+                maxHeight: 320,
+                overflowY: 'auto',
+                background: '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                zIndex: 50,
+                padding: 6,
+              }}
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  startNewChat()
+                }}
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  fontSize: 12,
+                  textAlign: 'left',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: '1px solid #f3f4f6',
+                  cursor: 'pointer',
+                  color: '#2563eb',
+                  fontWeight: 600,
+                }}
+              >
+                + New chat
+              </button>
+              {sessionsLoading && (
+                <div style={{ padding: '8px', fontSize: 11, color: '#6b7280' }}>
+                  Loading…
+                </div>
+              )}
+              {!sessionsLoading && sessions.length === 0 && (
+                <div style={{ padding: '8px', fontSize: 11, color: '#6b7280' }}>
+                  No previous chats.
+                </div>
+              )}
+              {!sessionsLoading &&
+                sessions.map((s) => (
+                  <button
+                    key={s.sessionId}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      loadSession(s.sessionId)
+                    }}
+                    title={`${s.turnCount} message${s.turnCount === 1 ? '' : 's'} · ${new Date(s.lastMessageAt).toLocaleString()}`}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '6px 8px',
+                      fontSize: 11,
+                      textAlign: 'left',
+                      background: sessionIdRef.current === s.sessionId ? '#eff6ff' : 'transparent',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      color: '#1f2937',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {s.firstMessage || '(empty)'}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={(e) => {
