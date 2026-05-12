@@ -1835,7 +1835,7 @@ export interface ClientProposal {
         /**
          * 1-2 sentence body. Keep generic — no client-specific terms unless overriding.
          */
-        desc: string;
+        body: string;
         id?: string | null;
       }[]
     | null;
@@ -6627,7 +6627,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
     | {
         week?: T;
         step?: T;
-        desc?: T;
+        body?: T;
         id?: T;
       };
   roadmapNote?: T;

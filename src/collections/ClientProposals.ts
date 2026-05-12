@@ -10,22 +10,22 @@ import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 const ROADMAP_DEFAULTS = {
   buildLaunch: [
-    { week: "WEEK 01", step: "Proposal & sign-off", desc: "Agreement signed, project timeline confirmed, kickoff scheduled." },
-    { week: "WEEK 02-03", step: "Discovery & strategy", desc: "Site, competitor & market review. Map the conversion workflow. Finalise architecture & messaging framework." },
-    { week: "WEEK 04", step: "Strategy approval", desc: "Sitemap, core page structure & content plan presented. Sign-off before build begins." },
-    { week: "WEEK 05-10", step: "Site build", desc: "Conversion-first build. CMS & secure forms. Optimised content. Technical SEO + analytics." },
-    { week: "WEEK 11-12+", step: "Review, launch & optimise", desc: "Staging review, SEO-safe migration, Search Console, 30-day monitoring, authority content rollout." },
+    { week: "WEEK 01", step: "Proposal & sign-off", body: "Agreement signed, project timeline confirmed, kickoff scheduled." },
+    { week: "WEEK 02-03", step: "Discovery & strategy", body: "Site, competitor & market review. Map the conversion workflow. Finalise architecture & messaging framework." },
+    { week: "WEEK 04", step: "Strategy approval", body: "Sitemap, core page structure & content plan presented. Sign-off before build begins." },
+    { week: "WEEK 05-10", step: "Site build", body: "Conversion-first build. CMS & secure forms. Optimised content. Technical SEO + analytics." },
+    { week: "WEEK 11-12+", step: "Review, launch & optimise", body: "Staging review, SEO-safe migration, Search Console, 30-day monitoring, authority content rollout." },
   ],
   growthRetainer: [
-    { week: "MONTH 01", step: "Baseline & quick wins", desc: "Establish performance baseline. Action quick-win optimisations across organic, paid and CRO." },
-    { week: "MONTH 02", step: "Content & authority", desc: "Authority content rollout per priority category. Technical SEO improvements applied iteratively." },
-    { week: "MONTH 03", step: "Paid scaling", desc: "Paid media scaling with tightened audience targeting. Conversion tracking validated and refined." },
-    { week: "ONGOING", step: "Optimise & report", desc: "Monthly performance reviews. CRO testing & iteration. Quarterly strategic re-planning." },
+    { week: "MONTH 01", step: "Baseline & quick wins", body: "Establish performance baseline. Action quick-win optimisations across organic, paid and CRO." },
+    { week: "MONTH 02", step: "Content & authority", body: "Authority content rollout per priority category. Technical SEO improvements applied iteratively." },
+    { week: "MONTH 03", step: "Paid scaling", body: "Paid media scaling with tightened audience targeting. Conversion tracking validated and refined." },
+    { week: "ONGOING", step: "Optimise & report", body: "Monthly performance reviews. CRO testing & iteration. Quarterly strategic re-planning." },
   ],
   auditStrategy: [
-    { week: "WEEK 01-02", step: "Discovery & audit", desc: "Deep-dive into site, competitors, channels and current performance. Mapping the full conversion workflow." },
-    { week: "WEEK 03-04", step: "Strategy build", desc: "Channel-by-channel strategy with prioritised recommendations. Forecast modelling tied to commercial targets." },
-    { week: "WEEK 05-06", step: "Roadmap & handover", desc: "Final strategy presented with sequenced delivery roadmap. Hand-off to internal team or follow-on engagement." },
+    { week: "WEEK 01-02", step: "Discovery & audit", body: "Deep-dive into site, competitors, channels and current performance. Mapping the full conversion workflow." },
+    { week: "WEEK 03-04", step: "Strategy build", body: "Channel-by-channel strategy with prioritised recommendations. Forecast modelling tied to commercial targets." },
+    { week: "WEEK 05-06", step: "Roadmap & handover", body: "Final strategy presented with sequenced delivery roadmap. Hand-off to internal team or follow-on engagement." },
   ],
 } as const
 
@@ -1291,7 +1291,7 @@ export const ClientProposals: CollectionConfig = {
               fields: [
                 { name: "week", type: "text", required: true, admin: { description: "Eyebrow (e.g. 'WEEK 01' or 'PHASE 02')." } },
                 { name: "step", type: "text", required: true, admin: { description: "Card title." } },
-                { name: "desc", type: "textarea", required: true, admin: { description: "1-2 sentence body. Keep generic — no client-specific terms unless overriding." } },
+                { name: "body", type: "textarea", required: true, admin: { description: "1-2 sentence body. Keep generic — no client-specific terms unless overriding." } },
               ],
             },
             {

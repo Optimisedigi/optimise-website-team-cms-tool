@@ -445,6 +445,10 @@ export async function POST(request: NextRequest) {
   await run("launch_blocks_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_launch_blocks_order_idx` ON `client_proposals_launch_blocks` (`_order`)");
   await run("launch_blocks_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_launch_blocks_parent_id_idx` ON `client_proposals_launch_blocks` (`_parent_id`)");
 
+  // Rename `desc` -> `body` on roadmap_cells: `desc` is a SQL reserved word
+  // that caused 400 errors when Payload queried the client_proposals collection.
+  await run("roadmap_cells.rename_desc_to_body", "ALTER TABLE `client_proposals_roadmap_cells` RENAME COLUMN `desc` TO `body`");
+
   // --- Flight Plan Images sub-table ---
   await run("client_proposals_flight_plan_images", `CREATE TABLE IF NOT EXISTS \`client_proposals_flight_plan_images\` (
     \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,

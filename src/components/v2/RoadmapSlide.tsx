@@ -11,7 +11,7 @@ import type { ReactElement } from 'react'
 export type RoadmapCell = {
   week?: string | null
   step?: string | null
-  desc?: string | null
+  body?: string | null
 }
 
 export function RoadmapSlide({
@@ -23,7 +23,7 @@ export function RoadmapSlide({
   meta: string | null
   note: string | null
 }): ReactElement | null {
-  const filled = (cells ?? []).filter((c) => c?.week && c?.step && c?.desc)
+  const filled = (cells ?? []).filter((c) => c?.week && c?.step && c?.body)
   if (filled.length === 0) return null
 
   return (
@@ -47,7 +47,7 @@ export function RoadmapSlide({
           <div className="road-cell" key={`${c.week}-${i}`}>
             <div className="week">{c.week}</div>
             <div className="step">{c.step}</div>
-            <div className="desc">{c.desc}</div>
+            <div className="desc">{c.body}</div>
           </div>
         ))}
       </div>

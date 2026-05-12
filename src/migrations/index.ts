@@ -46,6 +46,7 @@ import * as migration_20260511_120000_add_gsc_site_url_to_clients from './202605
 import * as migration_20260512_120000_add_agent_memory_and_soul from './20260512_120000_add_agent_memory_and_soul';
 import * as migration_20260513_120000_add_mission_priorities from './20260513_120000_add_mission_priorities';
 import * as migration_20260514_120000_add_roadmap_and_commercial_and_launch from './20260514_120000_add_roadmap_and_commercial_and_launch';
+import * as migration_20260515_120000_rename_roadmap_cells_desc_to_body from './20260515_120000_rename_roadmap_cells_desc_to_body';
 import * as migration_20260512_140000_add_optimate_chat_turns from './20260512_140000_add_optimate_chat_turns';
 
 export const migrations = [
@@ -288,6 +289,11 @@ export const migrations = [
     up: migration_20260514_120000_add_roadmap_and_commercial_and_launch.up,
     down: migration_20260514_120000_add_roadmap_and_commercial_and_launch.down,
     name: '20260514_120000_add_roadmap_and_commercial_and_launch'
+  },
+  {
+    up: migration_20260515_120000_rename_roadmap_cells_desc_to_body.up,
+    down: migration_20260515_120000_rename_roadmap_cells_desc_to_body.down,
+    name: '20260515_120000_rename_roadmap_cells_desc_to_body'
   },
   {
     up: migration_20260512_140000_add_optimate_chat_turns.up,
