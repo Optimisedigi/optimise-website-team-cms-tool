@@ -1,12 +1,14 @@
 /**
  * Slide 9 — Competitor analysis (Pre-flight Check). Dynamic.
  *
- * Renders the top competitors from competitor-analyses, sorted by monthly
- * traffic descending, plus the "you" row built from the proposal's own
- * profile. Google Ads / Meta Ads columns show plain Yes/No (no count).
+ * Renders competitors sorted by monthly traffic descending (automated from
+ * competitor-analyses), then appends any manually-entered proposal competitors
+ * that aren't already in the automated list. Plus a "you" row at the top from
+ * the proposal's own profile. Google Ads / Meta Ads columns show plain Yes/No.
  */
 
 import type { ReactElement } from 'react'
+import { normaliseDomain } from './competitorAdOverrides'
 
 type TrafficData = {
   monthlyVisits?: number | string | null
@@ -34,6 +36,13 @@ type CompetitorAnalysisLike = {
   yourProfile?: CompetitorProfile | null
   competitors?: CompetitorProfile[] | null
 } | null
+
+type ProposalCompetitor = {
+  name?: string | null
+  websiteUrl?: string | null
+  hasGoogleAds?: boolean | null
+  hasMetaAds?: boolean | null
+}
 
 function normaliseVisits(raw: number | string | null | undefined): number {
   if (raw == null) return 0
@@ -66,18 +75,52 @@ function domainFromUrl(url: string | null | undefined): string {
 export function CompetitorAnalysisSlide({
   proposalWebsiteUrl,
   competitorAnalysis,
+  proposalCompetitors,
 }: {
   proposalWebsiteUrl: string | null
   competitorAnalysis: CompetitorAnalysisLike
+  proposalCompetitors: ProposalCompetitor[] | null
 }): ReactElement {
   const yourProfile = competitorAnalysis?.yourProfile ?? null
   const competitors = competitorAnalysis?.competitors ?? []
 
-  // Sort competitors by monthly visits descending and take top 5.
-  const sortedCompetitors = [...competitors]
+  // Sort automated competitors by monthly visits descending.
+  const sortedAutomated = [...competitors]
     .map((c) => ({ ...c, _visits: normaliseVisits(c?.traffic?.monthlyVisits ?? null) }))
     .sort((a, b) => b._visits - a._visits)
-    .slice(0, 5)
+
+  // Track which domains are already shown (automated) so we don't duplicate
+  // when appending the manually-entered CMS competitors below.
+  const seenDomains = new Set<string>()
+  for (const c of sortedAutomated) {
+    const d = normaliseDomain(c.domain)
+    if (d) seenDomains.add(d)
+  }
+
+  // Append manual proposal competitors that aren't already in the automated
+  // list. Build them as CompetitorProfile-shaped rows so they render through
+  // the same table cell logic. Manual rows have no traffic/keywords data so
+  // those columns render empty.
+  const manualOnly = (proposalCompetitors ?? [])
+    .map((m): (CompetitorProfile & { _visits: number }) | null => {
+      const key = normaliseDomain(m.websiteUrl) || normaliseDomain(m.name)
+      if (!key || seenDomains.has(key)) return null
+      seenDomains.add(key)
+      return {
+        domain: key,
+        avgPosition: null,
+        averagePosition: null,
+        keywordsFound: null,
+        traffic: null,
+        googleAds: m.hasGoogleAds ? { isRunningAds: true } : null,
+        metaAds: m.hasMetaAds ? { isRunningAds: true } : null,
+        websiteScreenshot: null,
+        _visits: 0,
+      }
+    })
+    .filter((c): c is CompetitorProfile & { _visits: number } => c !== null)
+
+  const allCompetitors = [...sortedAutomated, ...manualOnly]
 
   const yourDomain = yourProfile?.domain || domainFromUrl(proposalWebsiteUrl)
   const yourVisits = normaliseVisits(yourProfile?.traffic?.monthlyVisits ?? null)
@@ -154,7 +197,7 @@ export function CompetitorAnalysisSlide({
               </td>
             </tr>
           )}
-          {sortedCompetitors.map((c, i) => {
+          {allCompetitors.map((c, i) => {
             const pos = c.avgPosition ?? c.averagePosition ?? null
             const shotSrc = screenshotSrc(c.websiteScreenshot)
             return (

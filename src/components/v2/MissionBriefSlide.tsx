@@ -33,6 +33,10 @@ type CompetitorAnalysisLike = {
   competitors?: CompetitorLike[] | null
 } | null
 
+type KeywordCategoryLike = {
+  categoryName?: string | null
+} | null
+
 // Map proposal businessType select-value to a human label.
 const BUSINESS_TYPE_LABEL: Record<string, string> = {
   trades: 'Trades & Home Services',
@@ -171,6 +175,7 @@ export function MissionBriefSlide({
   croAudit,
   keywordSnapshot,
   competitorAnalysis,
+  keywordCategories,
 }: {
   businessName: string
   websiteUrl: string | null
@@ -181,7 +186,12 @@ export function MissionBriefSlide({
   croAudit: AuditLike
   keywordSnapshot: KeywordSnapshotLike
   competitorAnalysis: CompetitorAnalysisLike
+  keywordCategories: KeywordCategoryLike[] | null
 }): ReactElement {
+  // -- Category names ---------------------------------------------------------
+  const categoryNames = (keywordCategories ?? [])
+    .map((c) => c?.categoryName?.trim())
+    .filter((n): n is string => Boolean(n && n.length > 0))
   // -- Type / Categories / Conversion -----------------------------------------
   const typeLabel = businessType ? BUSINESS_TYPE_LABEL[businessType] ?? businessType : ''
   const conversionLabel = conversionGoal ? CONVERSION_LABEL[conversionGoal] ?? conversionGoal : ''
@@ -252,6 +262,7 @@ export function MissionBriefSlide({
               gridTemplateColumns: '1fr 1fr 1fr',
               gap: 12,
               marginTop: 46,
+              alignItems: 'stretch',
             }}
           >
             <div
@@ -261,6 +272,7 @@ export function MissionBriefSlide({
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 8,
+                height: '100%',
               }}
             >
               <div className="num-tag" style={{ fontSize: 24 }}>
@@ -281,14 +293,38 @@ export function MissionBriefSlide({
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 8,
+                height: '100%',
               }}
             >
               <div className="num-tag" style={{ fontSize: 24 }}>
                 CATEGORIES
               </div>
-              <div className="b" style={{ fontSize: 22, lineHeight: 1.35 }}>
-                See keyword snapshot for the full category list.
-              </div>
+              {categoryNames.length > 0 ? (
+                <ul
+                  style={{
+                    listStyle: 'none',
+                    margin: 0,
+                    padding: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  {categoryNames.map((name, i) => (
+                    <li
+                      key={`${name}-${i}`}
+                      className="h"
+                      style={{ fontSize: 22, lineHeight: 1.25 }}
+                    >
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="b" style={{ fontSize: 22, lineHeight: 1.35 }}>
+                  See keyword snapshot for the full category list.
+                </div>
+              )}
             </div>
 
             <div
@@ -298,6 +334,7 @@ export function MissionBriefSlide({
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 8,
+                height: '100%',
               }}
             >
               <div className="num-tag" style={{ fontSize: 24 }}>
@@ -322,16 +359,14 @@ export function MissionBriefSlide({
               gap: 14,
             }}
           >
-            <div className="stat-tile" style={{ padding: '24px 28px', gap: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-                <div className="val purple" style={{ fontSize: 64, lineHeight: 1 }}>
-                  {totalSearchVolume > 0 ? formatBigNumber(totalSearchVolume) : ''}
-                </div>
-                <div className="lbl" style={{ fontSize: 18, lineHeight: 1.2 }}>
-                  monthly<br />searches
-                </div>
+            <div className="stat-tile" style={{ padding: '24px 28px', gap: 10 }}>
+              <div className="lbl" style={{ fontSize: 24 }}>
+                Monthly searches
               </div>
-              <div className="desc" style={{ fontSize: 22 }}>
+              <div className="val purple" style={{ fontSize: 64, lineHeight: 1 }}>
+                {totalSearchVolume > 0 ? formatBigNumber(totalSearchVolume) : ''}
+              </div>
+              <div className="desc" style={{ fontSize: 24 }}>
                 Across your tracked keywords
               </div>
             </div>

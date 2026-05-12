@@ -415,6 +415,7 @@ export default async function ProposalReportV2Page({
           croAudit={croAuditDoc}
           keywordSnapshot={keywordSnapshotDoc}
           competitorAnalysis={competitorAnalysisDoc}
+          keywordCategories={p.keywordCategories ?? null}
         />
 
         {/* Slide 08 (Section Divider 03) — static. */}
@@ -428,6 +429,7 @@ export default async function ProposalReportV2Page({
         <CompetitorAnalysisSlide
           proposalWebsiteUrl={p.websiteUrl ?? null}
           competitorAnalysis={competitorAnalysisDoc}
+          proposalCompetitors={p.competitors ?? null}
         />
 
         {/* Static slides between competitor analysis and keyword landscape

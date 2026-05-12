@@ -39,7 +39,12 @@ export function MissionPrioritiesSlide({
 
       <div
         className="cards"
-        style={{ gridTemplateColumns: '1fr 1fr', display: 'grid', gap: 24 }}
+        style={{
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          display: 'grid',
+          gap: 20,
+          alignItems: 'stretch',
+        }}
       >
         {filled.map((p, i) => (
           <div className="card" key={`${p.tag}-${i}`}>
