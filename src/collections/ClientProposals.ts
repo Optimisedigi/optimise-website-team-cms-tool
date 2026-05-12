@@ -1216,6 +1216,8 @@ export const ClientProposals: CollectionConfig = {
               name: "excludedCompetitorDomains",
               type: "json",
               admin: {
+                description:
+                  "Hides selected competitors from every slide they appear on: Competitor Analysis, Paid Burn, and Return Modelling.",
                 components: {
                   Field: "./components/CompetitorExcluder",
                 },
@@ -1225,6 +1227,8 @@ export const ClientProposals: CollectionConfig = {
               name: "hiddenKeywordCategories",
               type: "json",
               admin: {
+                description:
+                  "Hides selected keyword categories from every slide that lists them: Mission Brief (categories card), Keyword Landscape, and Organic Propulsion.",
                 components: {
                   Field: "./components/KeywordCategoryExcluder",
                 },

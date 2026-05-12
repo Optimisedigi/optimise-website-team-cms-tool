@@ -78,10 +78,10 @@ const KeywordCategoryExcluder = () => {
           color: 'var(--theme-elevation-800)',
         }}
       >
-        Hide Keyword Categories from Mission Brief
+        Hide Keyword Categories from the Report
       </label>
       <p style={{ marginBottom: 8, fontSize: 12, color: 'var(--theme-elevation-500)' }}>
-        Checked categories will be hidden from the Mission Brief overview slide. They will still appear in the Keyword Analysis slide.
+        Checked categories will be hidden from every slide that lists keyword categories: Mission Brief (categories card), Keyword Landscape, and Organic Propulsion.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {categories.map((name) => (

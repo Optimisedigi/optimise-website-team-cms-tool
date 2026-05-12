@@ -24,7 +24,10 @@ import { ClosingSlide } from '@/components/v2/ClosingSlide'
 import { CommercialModelSlide } from '@/components/v2/CommercialModelSlide'
 import { CroHealthSlide } from '@/components/v2/CroHealthSlide'
 import { SeoHealthSlide } from '@/components/v2/SeoHealthSlide'
-import { applyOverridesToCompetitorAnalysis } from '@/components/v2/competitorAdOverrides'
+import {
+  applyOverridesToCompetitorAnalysis,
+  normaliseDomain,
+} from '@/components/v2/competitorAdOverrides'
 import { CompetitorAnalysisSlide } from '@/components/v2/CompetitorAnalysisSlide'
 import { DeckPrintStyles } from '@/components/v2/DeckPrintStyles'
 import { DeckStage } from '@/components/v2/DeckStage'
@@ -247,19 +250,94 @@ export default async function ProposalReportV2Page({
   const p = proposal as any
   const seoAuditDoc = p.seoAudit && typeof p.seoAudit === 'object' ? p.seoAudit : null
   const croAuditDoc = p.croAudit && typeof p.croAudit === 'object' ? p.croAudit : null
-  const keywordSnapshotDoc =
+  const rawKeywordSnapshotDoc =
     p.keywordSnapshot && typeof p.keywordSnapshot === 'object' ? p.keywordSnapshot : null
   const rawCompetitorAnalysisDoc =
     p.competitorAnalysis && typeof p.competitorAnalysis === 'object'
       ? p.competitorAnalysis
       : null
+
+  // ----- CMS exclusions (Post-report-input tab) -----
+  // Each field is stored as `json` so it can come back as either an array,
+  // a JSON-encoded string, or null. Normalise to a plain string[] up front
+  // and mirror the excluder components' tolerance for either shape.
+  const excludedCompetitorDomains = normaliseStringList(p.excludedCompetitorDomains)
+  const hiddenKeywordCategories = normaliseStringList(p.hiddenKeywordCategories)
+  const excludedKeywords = normaliseStringList(p.excludedKeywords)
+  const excludedContentQuestions = normaliseStringList(p.excludedContentQuestions)
+
+  // Pre-compute lookup sets. Domains and keywords are case-insensitive; the
+  // excluder UI stores domains pre-normalised (www stripped, lower-cased), so
+  // we run them through `normaliseDomain` again to be defensive.
+  const excludedDomainSet = new Set(
+    excludedCompetitorDomains.map((d) => normaliseDomain(d)).filter(Boolean),
+  )
+  const hiddenCategorySet = new Set(hiddenKeywordCategories)
+  const excludedKeywordSet = new Set(excludedKeywords.map((k) => k.toLowerCase()))
+  const excludedQuestionSet = new Set(excludedContentQuestions)
+
   // Merge per-competitor manual ad overrides (set on the proposal's own
   // competitors[] rows) onto the audit doc. Lets the team flag a competitor
   // as running Google/Meta Ads last-minute when the SERP scraper missed them.
-  const competitorAnalysisDoc = applyOverridesToCompetitorAnalysis(
+  // IMPORTANT: overrides must apply *before* exclusions so derived calcs
+  // (e.g. Paid Burn ad counts) honour the manual flags on rows that survive.
+  const overriddenCompetitorAnalysisDoc = applyOverridesToCompetitorAnalysis(
     rawCompetitorAnalysisDoc,
     p.competitors ?? null,
   )
+
+  // Drop excluded competitor rows from the audit doc. `competitors[]` items
+  // identify by `domain`; fall back to `websiteUrl` if domain is missing.
+  const competitorAnalysisDoc =
+    overriddenCompetitorAnalysisDoc && excludedDomainSet.size > 0
+      ? {
+          ...overriddenCompetitorAnalysisDoc,
+          competitors: (overriddenCompetitorAnalysisDoc.competitors ?? []).filter(
+            (c: { domain?: string | null; websiteUrl?: string | null }) => {
+              const key =
+                normaliseDomain(c.domain) || normaliseDomain(c.websiteUrl)
+              return !key || !excludedDomainSet.has(key)
+            },
+          ),
+        }
+      : overriddenCompetitorAnalysisDoc
+
+  // Same filter applied to manual proposal-side competitors so the Competitor
+  // Analysis slide, PaidBurn and Return Modelling see a consistent set.
+  const filteredProposalCompetitors =
+    Array.isArray(p.competitors) && excludedDomainSet.size > 0
+      ? (p.competitors as Array<{ websiteUrl?: string | null; name?: string | null }>).filter(
+          (c) => {
+            const key =
+              normaliseDomain(c.websiteUrl) || normaliseDomain(c.name)
+            return !key || !excludedDomainSet.has(key)
+          },
+        )
+      : (p.competitors ?? null)
+
+  // Drop hidden keyword categories before they reach Mission Brief, Keyword
+  // Landscape, and Organic Propulsion.
+  const filteredKeywordCategories =
+    Array.isArray(p.keywordCategories) && hiddenCategorySet.size > 0
+      ? (p.keywordCategories as Array<{ categoryName?: string | null }>).filter(
+          (c) => !c.categoryName || !hiddenCategorySet.has(c.categoryName),
+        )
+      : (p.keywordCategories ?? null)
+
+  // Drop excluded individual keywords from the snapshot so total-volume tiles,
+  // Keyword Landscape and Return Modelling all reflect the exclusion.
+  const keywordSnapshotDoc =
+    rawKeywordSnapshotDoc &&
+    Array.isArray(rawKeywordSnapshotDoc.keywords) &&
+    excludedKeywordSet.size > 0
+      ? {
+          ...rawKeywordSnapshotDoc,
+          keywords: (rawKeywordSnapshotDoc.keywords as Array<{ keyword?: string | null }>).filter(
+            (k) =>
+              !k.keyword || !excludedKeywordSet.has(k.keyword.toLowerCase()),
+          ),
+        }
+      : rawKeywordSnapshotDoc
 
   // Numeric IDs from Payload; proposal.id is a number. The `clusters` column
   // is stored as JSON, so it comes back loosely typed — cast at the boundary
@@ -277,7 +355,24 @@ export default async function ProposalReportV2Page({
     }> | null
   }
   const rawContentResearchDocs = await findContentResearches(proposal.id as number)
-  const contentResearchDocs = rawContentResearchDocs as unknown as ContentResearchForSlide[]
+  const contentResearchDocsAll = rawContentResearchDocs as unknown as ContentResearchForSlide[]
+
+  // Drop excluded content questions from every cluster on every research doc.
+  // Empty clusters are kept — the slide already handles them gracefully and we
+  // don't want to silently lose context when every question on a cluster is
+  // hidden.
+  const contentResearchDocs: ContentResearchForSlide[] =
+    excludedQuestionSet.size > 0
+      ? contentResearchDocsAll.map((doc) => ({
+          ...doc,
+          clusters: (doc.clusters ?? []).map((cluster) => ({
+            ...cluster,
+            questions: (cluster?.questions ?? []).filter(
+              (q) => !q.question || !excludedQuestionSet.has(q.question),
+            ),
+          })),
+        }))
+      : contentResearchDocsAll
 
   const reportContent = (
     <RocketScroll>
@@ -415,7 +510,7 @@ export default async function ProposalReportV2Page({
           croAudit={croAuditDoc}
           keywordSnapshot={keywordSnapshotDoc}
           competitorAnalysis={competitorAnalysisDoc}
-          keywordCategories={p.keywordCategories ?? null}
+          keywordCategories={filteredKeywordCategories}
         />
 
         {/* Slide 08 (Section Divider 03) — static. */}
@@ -429,7 +524,7 @@ export default async function ProposalReportV2Page({
         <CompetitorAnalysisSlide
           proposalWebsiteUrl={p.websiteUrl ?? null}
           competitorAnalysis={competitorAnalysisDoc}
-          proposalCompetitors={p.competitors ?? null}
+          proposalCompetitors={filteredProposalCompetitors}
         />
 
         {/* Static slides between competitor analysis and keyword landscape
@@ -443,7 +538,7 @@ export default async function ProposalReportV2Page({
         {/* Slide 10 — Keyword landscape (dynamic, one or more slides depending
             on the number of keyword categories defined on the proposal). */}
         <KeywordLandscapeSlides
-          keywordCategories={p.keywordCategories ?? null}
+          keywordCategories={filteredKeywordCategories}
           keywordSnapshot={keywordSnapshotDoc}
           location={p.targetLocation ?? null}
         />
@@ -478,7 +573,7 @@ export default async function ProposalReportV2Page({
         {/* Organic propulsion (dynamic). */}
         <OrganicPropulsionSlide
           contentResearches={contentResearchDocs}
-          keywordCategories={p.keywordCategories ?? null}
+          keywordCategories={filteredKeywordCategories}
           location={p.targetLocation ?? null}
         />
 
@@ -598,6 +693,29 @@ export default async function ProposalReportV2Page({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Coerce a Payload `json` field into a string[]. The excluder components
+ * write arrays directly via setValue(), but older proposals may still hold
+ * the JSON-encoded form. Anything else (null, malformed JSON, non-string
+ * entries) collapses to an empty list.
+ */
+function normaliseStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((v): v is string => typeof v === 'string')
+  }
+  if (typeof value === 'string' && value.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(value) as unknown
+      if (Array.isArray(parsed)) {
+        return parsed.filter((v): v is string => typeof v === 'string')
+      }
+    } catch {
+      // fall through
+    }
+  }
+  return []
+}
 
 function formatMonthYear(date: string | Date | null | undefined): string {
   if (!date) return ''

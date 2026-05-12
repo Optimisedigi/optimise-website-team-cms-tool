@@ -118,7 +118,7 @@ const CompetitorExcluder = () => {
         Exclude Competitors from Report
       </label>
       <p style={{ marginBottom: 8, fontSize: 12, color: 'var(--theme-elevation-500)' }}>
-        Checked competitors will be hidden from the proposal report.
+        Checked competitors will be hidden from every slide they appear on: Competitor Analysis, Paid Burn, and Return Modelling.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {domains.map((domain) => (
