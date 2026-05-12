@@ -1,0 +1,1453 @@
+/* === PROPOSAL V2 — Pitch Deck (NEW design) ===
+   Scoped under .proposal-v2 so it never leaks outside the v2 route. */
+
+/* Each .slide paints its own left/right side bands via a wide horizontal
+   box-shadow (see .deck-stage-wrap .slide), but the underlying html/body
+   colour is still visible at the very top/bottom of the page (overscroll) and
+   anywhere the slide stack doesn't reach. Most slides are white, so make the
+   base white; the dark cover (visual bottom) and closing (visual top) paint
+   their own dark bands. */
+html:has(.proposal-v2) {
+  background: var(--bg-night, #07091a);
+}
+body:has(.proposal-v2) {
+  background: var(--bg-night, #07091a);
+}
+
+
+
+
+.proposal-v2 {
+  /* Spacing scale (1920x1080 deck) */
+  --pad-x: 110px;
+  --pad-top: 100px;
+  --pad-bot: 90px;
+  --title-gap: 52px;
+  --item-gap: 28px;
+
+  /* Type scale — artifact originals (calibrated for the 1920×1080 canvas).
+     DeckStage scales the whole canvas to fit the viewport so text appears at
+     the correct visual size in any window. */
+  --t-display: 124px;
+  --t-title: 64px;
+  --t-subtitle: 44px;
+  --t-body: 32px;
+  --t-small: 26px;
+  --t-eyebrow: 24px;
+  --t-tiny: 24px;
+
+  /* Color — deep cosmic */
+  --bg-night: #07091a;
+  --bg-night-2: #0b1226;
+  --bg-night-3: #11162e;
+  --bg-paper: #ffffff;
+  --bg-paper-2: #f5f4f0;
+  --ink: #0a0c1c;
+  --ink-2: #2b2d44;
+  --ink-mute: #6b6e85;
+  --line: #e4e1d8;
+
+  /* Accents */
+  --purple: #4d94ff;
+  --purple-deep: #0066FF;
+  --purple-soft: #99c0ff;
+  --gold: #f0b35a;
+  --green: #22c55e;
+  --red: #ef4444;
+  --star: rgba(255,255,255,0.85);
+}
+
+/* Everything below is nested inside .proposal-v2 via native CSS nesting,
+   so none of these bare selectors (.cover, .dark, deck-stage, etc.) leak
+   into the rest of the app. */
+.proposal-v2 {
+
+/* Dark base fill — matches the cover and closing slides so no gap is
+   visible at the boundaries of dark slides. White slides paint their own
+   white side-bands via a wide box-shadow. */
+background: var(--bg-night);
+min-height: 100vh;
+
+* { box-sizing: border-box; }
+
+/* === 1920×1080 SCALED CANVAS ===========================================
+   The artifact was authored for a fixed 1920×1080 canvas. We render each
+   slide as a 1920×1080 box and scale it down with transform so it fits
+   the user's viewport, preserving the artwork pixel-for-pixel.
+
+   --deck-scale is set on .deck-stage-wrap by a small client effect that
+   watches window width. Slides stack vertically (scrollable report style),
+   which is how the OLD deck behaves and keeps the rocket-scroll working. */
+.deck-stage-wrap {
+  /* Fallback scale; the runtime overrides this per viewport size (fits
+     both width and height). */
+  --deck-scale: 1;
+  width: calc(1920px * var(--deck-scale));
+  margin: 0 auto;
+  /* Render slides in REVERSE order: Slide 01 (Cover) sits visually at the
+     bottom, Slide 27 (Closing) at the top. <RocketScroll> jumps the page
+     to the bottom on mount, landing the user on Slide 01, and progress=0
+     means "at the cover". Matches the OLD deck behaviour. */
+  display: flex;
+  flex-direction: column-reverse;
+  /* Dark background — matches cover + closing. White slides paint their own
+     white side-bands and gap-fills via box-shadow. */
+  background: var(--bg-night);
+}
+
+/* NOTE: descendant selector (no `>`) is intentional. The static slides
+   (slides-static.html) are injected via dangerouslySetInnerHTML into a
+   wrapper with display:contents — which makes them visual children of
+   .deck-stage-wrap but DOM grandchildren. A child selector would miss them. */
+.deck-stage-wrap .slide {
+  width: 1920px;
+  height: 1080px;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-right: calc(var(--pad-x) + 20px);
+  transform: scale(var(--deck-scale));
+  transform-origin: top left;
+  margin-bottom: calc(1080px * (var(--deck-scale) - 1));
+  margin-right: calc(1920px * (var(--deck-scale) - 1));
+  /* Extend the slide's own background outwards using a large box-shadow so the
+     viewport's left/right bands (when the window is wider than the scaled deck)
+     and the tiny sub-pixel gaps above/below each slide pick up the slide's own
+     colour instead of the deck-stage-wrap's background. Each shadow spread of
+     5000px covers any realistic viewport size. White is the default; dark
+     slides override below. */
+  box-shadow:
+    0 -4px 0 var(--bg-paper),
+    0  4px 0 var(--bg-paper),
+    -5000px 0 0 var(--bg-paper),
+     5000px 0 0 var(--bg-paper);
+}
+
+.deck-stage-wrap .slide.dark,
+.deck-stage-wrap .slide.cover {
+  box-shadow:
+    0 -4px 0 var(--bg-night),
+    0  4px 0 var(--bg-night),
+    -5000px 0 0 var(--bg-night),
+     5000px 0 0 var(--bg-night);
+}
+
+/* White-to-dark transition strip sitting between the last white slide and
+   the dark closing slide. The PNG is a gradient that fades from dark (top)
+   into white (bottom). We render it as a background-image on a <div> so we
+   can layer a top-fade gradient over a dark fallback colour without the
+   image's transparent edges revealing the page underneath. The strip spans
+   the full viewport width so side bands inherit the same gradient. */
+.deck-stage-wrap .v2-space-transition {
+  display: block;
+  /* Absolute inside Commercial slide — positioned by inline styles.
+     width/transform/margin overrides come from the inline style prop. */
+  aspect-ratio: 2112 / 429;
+  height: auto;
+  padding: 0;
+  line-height: 0;
+  background-image: url('/slides/space-earth-atmosphere.webp');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 100% 100%;
+  background-color: transparent;
+  /* Fade the top edge so the image dissolves into the white slide above it.
+     No bottom fade — the image's natural white bottom blends into the
+     slide padding / closing slide below. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 35%,
+    #000 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 35%,
+    #000 100%
+  );
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Base slide box — authored at 1920×1080. */
+.slide {
+  background: var(--bg-paper);
+  color: var(--ink);
+  padding: var(--pad-top) var(--pad-x) var(--pad-bot);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: var(--t-body);
+  line-height: 1.45;
+  position: relative;
+  overflow: hidden;
+}
+
+/* === DARK SLIDES (cover, section dividers) === */
+.dark {
+  background: var(--bg-night) !important;
+  color: #f4f4f5;
+}
+.dark .starfield { position: absolute; inset: 0; pointer-events: none; }
+
+/* === TYPOGRAPHY === */
+.display, .title, .subtitle, .eyebrow {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  letter-spacing: -0.02em;
+}
+.display { font-size: var(--t-display); line-height: 0.95; font-weight: 600; }
+.title { font-size: var(--t-title); line-height: 1.05; font-weight: 600; margin: 0; }
+.subtitle { font-size: var(--t-subtitle); line-height: 1.15; font-weight: 500; margin: 0; color: var(--ink-2); }
+.dark .subtitle { color: rgba(255,255,255,0.72); }
+
+.eyebrow {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin: 0;
+}
+.dark .eyebrow { color: var(--purple-soft); }
+
+.body { font-size: var(--t-body); line-height: 1.5; color: var(--ink-2); margin: 0; }
+.dark .body { color: rgba(255,255,255,0.78); }
+.small { font-size: var(--t-small); line-height: 1.45; color: var(--ink-mute); margin: 0; }
+
+/* === SLIDE HEADER (consistent on content slides) === */
+.slide-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 32px;
+  margin-bottom: 56px;
+  /* Consistent gap from slide top to the slide-head across all content
+     slides (matches Slide 2's 35+37=72px effective top spacing). */
+  margin-top: 35px;
+  padding-top: 37px;
+}
+.slide-head .h-left { display: flex; flex-direction: column; gap: 14px; }
+.slide-head .h-eyebrow {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: var(--t-eyebrow);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--purple-deep);
+}
+.slide-head .h-title { font-family: 'Space Grotesk', sans-serif; font-size: var(--t-title); font-weight: 600; line-height: 1; letter-spacing: -0.02em; margin: 0; }
+.slide-head .h-meta { font-size: var(--t-small); color: var(--ink-mute); font-family: 'JetBrains Mono', monospace; }
+
+/* === SECTION DIVIDER (light) === */
+.section-divider {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  /* Keep horizontal padding from the artifact, but split into left/right
+     properties (not the shorthand) so the wrap-level top padding buffer
+     applied via .deck-stage-wrap > .slide isn't wiped out. */
+  /* Horizontal padding only — vertical padding (80 top / 70 bot) comes from
+     the global .deck-stage-wrap > .slide rule so every slide matches. */
+  padding-left: var(--pad-x) !important;
+  padding-right: calc(var(--pad-x) + 20px) !important;
+}
+/* Chapter dividers — artifact-original sizes (the height-aware DeckStage
+   scale now fits every slide fully so we don't need the previous shrink). */
+.section-divider .num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 240px;
+  font-weight: 500;
+  line-height: 0.85;
+  letter-spacing: -0.05em;
+  color: #002a6b;
+  margin-right: 64px;
+  user-select: none;
+}
+.section-divider .meta { display: flex; flex-direction: column; gap: 20px; max-width: 1100px; }
+.section-divider .meta .label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: var(--t-eyebrow);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--purple-deep);
+}
+.section-divider .meta .name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 88px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+}
+.section-divider .meta .sub {
+  font-size: var(--t-subtitle);
+  color: var(--ink-2);
+  max-width: 600px;
+  line-height: 1.25;
+  font-weight: 400;
+  margin-top: 4px;
+}
+.section-divider .starfield { display: none; }
+
+/* === COVER === */
+/* Cover: keep horizontal padding from the artifact. Cover gets an extra
+   40px pull-up on top of the global 50px shift (total 90px) — done by
+   making the bottom buffer band 190px so justify-content:space-between
+   pushes the whole cover stack higher. */
+.cover {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  /* Zero vertical padding (matches global). Horizontal padding kept. */
+  padding-left: var(--pad-x) !important;
+  padding-right: calc(var(--pad-x) + 20px) !important;
+}
+.cover .top { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 90px; }
+.cover .brand-mark { display: flex; align-items: center; gap: 16px; color: rgba(255,255,255,0.8); font-family: 'Space Grotesk', sans-serif; font-size: var(--t-small); font-weight: 500; letter-spacing: 0.05em; }
+.cover .brand-mark .dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--purple);
+  box-shadow: 0 0 24px var(--purple);
+  animation: cover-dot-pulse 1.2s ease-in-out infinite;
+}
+@keyframes cover-dot-pulse {
+  0%, 100% {
+    transform: scale(0.7);
+    opacity: 0.25;
+    background: #4d94ff;
+    box-shadow: 0 0 4px #4d94ff;
+  }
+  50% {
+    transform: scale(2.4);
+    opacity: 1;
+    background: #4d94ff;
+    box-shadow:
+      0 0 12px #4d94ff,
+      0 0 28px #4d94ff,
+      0 0 56px rgba(77,148,255,0.8),
+      0 0 80px rgba(77,148,255,0.4);
+  }
+}
+.cover .meta-tag { font-family: 'JetBrains Mono', monospace; font-size: 26px; color: rgba(255,255,255,0.55); letter-spacing: 0.05em; }
+.cover .center { display: flex; flex-direction: column; gap: 36px; max-width: 1500px; margin-top: -224px; }
+.cover .eyebrow-line { display: flex; align-items: center; gap: 24px; }
+.cover .eyebrow-line .pill { white-space: nowrap; padding: 10px 22px; border: 1px solid rgba(77,148,255,0.5); border-radius: 999px; font-family: 'Space Grotesk', sans-serif; font-size: var(--t-small); color: var(--purple-soft); letter-spacing: 0.15em; text-transform: uppercase; font-weight: 500; }
+.cover .h1 { font-family: 'Space Grotesk', sans-serif; font-size: 156px; font-weight: 600; line-height: 0.92; letter-spacing: -0.035em; color: #fff; }
+.cover .h1 em { font-style: normal; color: var(--purple); }
+.cover .deck-for { font-size: var(--t-subtitle); color: rgba(255,255,255,0.7); font-weight: 400; }
+.cover .deck-for strong { color: #fff; font-weight: 500; }
+.cover .bottom { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 40px; border-top: 1px solid rgba(255,255,255,0.12); }
+.cover .bottom .col { display: flex; flex-direction: column; gap: 10px; }
+.cover .bottom .lbl { font-family: 'Space Grotesk', sans-serif; font-size: 26px !important; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.45); font-weight: 600; }
+.cover .bottom .val { font-size: var(--t-body); color: #fff; font-weight: 500; }
+
+/* === STARFIELD === */
+.star { position: absolute; background: var(--star); border-radius: 50%; }
+
+/* === ROCKET RAIL === */
+.rocket-rail {
+  position: absolute;
+  left: 56px;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  z-index: 5;
+  pointer-events: none;
+}
+.rocket-rail .track {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 80px;
+  bottom: 80px;
+  width: 2px;
+  background: repeating-linear-gradient(to bottom, rgba(77,148,255,0.4) 0 6px, transparent 6px 14px);
+}
+.rocket-rail .rocket-pos {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  /* top set inline per slide via --rocket-top */
+  top: var(--rocket-top, 90%);
+  transition: top 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  width: 60px;
+}
+.dark .rocket-rail .track { background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.18) 0 6px, transparent 6px 14px); }
+
+/* On dark slides, rocket sits on right side too — actually keep it left consistent */
+
+/* === CONTENT BLOCKS === */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; }
+.two-col-3-2 { display: grid; grid-template-columns: 3fr 2fr; gap: 64px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 36px; }
+
+/* Stat tiles */
+.stat-grid { display: grid; gap: 24px; }
+.stat-tile {
+  background: var(--bg-paper-2);
+  border-radius: 18px;
+  padding: 44px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid var(--line);
+}
+.stat-tile.dark-tile { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
+.stat-tile .lbl {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: var(--t-small);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  font-weight: 600;
+}
+.dark-tile .lbl { color: rgba(255,255,255,0.55); }
+.stat-tile .val {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 88px;
+  line-height: 0.95;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+}
+.dark-tile .val { color: #fff; }
+.stat-tile .val.purple { color: var(--purple-deep); }
+.dark-tile .val.purple { color: var(--purple); }
+.stat-tile .val.green { color: var(--green); }
+.stat-tile .desc {
+  font-size: var(--t-small);
+  color: var(--ink-mute);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.dark-tile .desc { color: rgba(255,255,255,0.6); }
+
+/* Tables */
+.t {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-small);
+  font-family: 'Inter', sans-serif;
+}
+.t thead th { white-space: nowrap; }
+.t thead th {
+  text-align: left;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--purple-deep);
+  padding: 16px 18px;
+  border: none;
+}
+.t thead th:first-child { border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+.t thead th:last-child { border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
+.t tbody td {
+  padding: 22px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+.t tbody tr:first-child td { padding-top: 26px; }
+.t tbody tr.you { background: rgba(77,148,255,0.08); }
+.t tbody tr.you td { color: var(--ink); font-weight: 600; }
+.t .num { font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', monospace; }
+.t.compact tbody td { padding: 14px 18px; }
+.t.compact thead th { padding: 12px 18px; }
+.t .you-tag { display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--purple-deep); color: #fff; font-size: 24px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-left: 12px; }
+.t .ok { color: var(--green); font-weight: 600; }
+.t .no { color: var(--ink-mute); }
+
+/* Score gauge */
+.gauge-wrap { display: flex; align-items: center; gap: 56px; }
+.gauge {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  flex-shrink: 0;
+}
+.gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.gauge-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.gauge-label .v {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 86px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: -0.03em;
+}
+.gauge-label .max { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 500; color: var(--ink-mute); }
+.gauge-label .grade {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-top: 8px;
+}
+
+/* Score bars */
+.bars { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 48px; }
+.bar-row { display: flex; flex-direction: column; gap: 8px; }
+.bar-row .meta { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--t-small); }
+.bar-row .meta .name { font-weight: 500; color: var(--ink); }
+.bar-row .meta .num-cell { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--ink); }
+.bar { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.bar > span { display: block; height: 100%; border-radius: 999px; background: var(--purple); }
+.bar.r > span { background: var(--red); }
+.bar.a > span { background: var(--gold); }
+.bar.g > span { background: var(--green); }
+
+/* Cards / list items */
+.cards { display: grid; gap: 24px; }
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 36px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dark .card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.1); color: #f4f4f5; }
+.card .num-tag {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: var(--t-small);
+  font-weight: 700;
+  color: var(--purple-deep);
+  letter-spacing: 0.05em;
+}
+.card .h {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink);
+  margin: 0;
+}
+.dark .card .h { color: #fff; }
+.card .b {
+  font-size: var(--t-small);
+  color: var(--ink-mute);
+  line-height: 1.5;
+  margin: 0;
+}
+.dark .card .b { color: rgba(255,255,255,0.7); }
+
+/* Stage stack (for launch stages / fueling / etc) */
+.stages { display: flex; flex-direction: column; gap: 18px; }
+.stage {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  background: var(--bg-paper-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 28px 36px;
+}
+.stage .stage-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 64px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--purple-deep);
+  letter-spacing: -0.03em;
+  flex-shrink: 0;
+  width: 100px;
+}
+.stage .stage-body { display: flex; flex-direction: column; gap: 6px; }
+.stage .stage-title { font-family: 'Space Grotesk', sans-serif; font-size: var(--t-small); font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.stage .stage-sub { font-size: var(--t-tiny); color: var(--ink-mute); line-height: 1.4; }
+
+/* Inline question-mark tooltip used on the Organic Propulsion stage titles.
+   The tip itself is rendered via the `data-tip` attribute on a ::after
+   pseudo-element — pure CSS, no extra JS, works for hover and keyboard focus. */
+.stage-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  color: var(--ink-mute);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.stage-tooltip:hover,
+.stage-tooltip:focus-visible {
+  background: var(--purple-deep);
+  border-color: var(--purple-deep);
+  color: #fff;
+  outline: none;
+}
+.stage-tooltip::after {
+  content: attr(data-tip);
+  position: absolute;
+  /* Sits above the icon, centred horizontally, with a small arrow caret. */
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  width: max-content;
+  max-width: 360px;
+  padding: 14px 16px;
+  background: var(--ink, #0a0c1c);
+  color: #fff;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-align: left;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(7, 9, 26, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms;
+  white-space: normal;
+  z-index: 50;
+}
+.stage-tooltip::before {
+  /* Caret pointing down to the icon. */
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border: 6px solid transparent;
+  border-top-color: var(--ink, #0a0c1c);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms;
+  z-index: 50;
+}
+.stage-tooltip:hover::after,
+.stage-tooltip:hover::before,
+.stage-tooltip:focus-visible::after,
+.stage-tooltip:focus-visible::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  visibility: visible;
+}
+
+/* Roadmap horizontal */
+.roadmap { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+.road-cell {
+  background: var(--bg-paper-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 28px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 360px;
+}
+.road-cell .week { font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--purple-deep); font-weight: 600; letter-spacing: 0.05em; }
+.road-cell .step { font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 600; line-height: 1.15; color: var(--ink); }
+.road-cell .desc { font-size: 24px; color: var(--ink-mute); line-height: 1.4; }
+
+/* Bullet list */
+.bullets { display: flex; flex-direction: column; gap: 24px; max-width: 1300px; }
+.bullets li {
+  list-style: none;
+  display: flex;
+  gap: 22px;
+  font-size: var(--t-body);
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+.bullets li::before {
+  content: '';
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--purple);
+  margin-top: 18px;
+}
+.dark .bullets li { color: rgba(255,255,255,0.78); }
+
+/* Quote / pull */
+.pull {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 76px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  max-width: 1500px;
+}
+.dark .pull { color: #fff; }
+.pull em { color: var(--purple-deep); font-style: normal; }
+.dark .pull em { color: var(--purple); }
+
+/* Big-number layout */
+.big-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 280px;
+  font-weight: 600;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  color: var(--purple-deep);
+}
+.dark .big-num { color: var(--purple); }
+
+/* Pricing */
+.price-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+.price-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 56px 52px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.price-card.feature {
+  background: var(--bg-night);
+  color: #f4f4f5;
+  border-color: var(--purple-deep);
+  position: relative;
+  overflow: hidden;
+}
+.price-card.feature::after {
+  content: 'Recommended';
+  position: absolute; top: 28px; right: 28px;
+  background: var(--purple);
+  color: #07091a;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+.price-card .tier { font-family: 'Space Grotesk', sans-serif; font-size: var(--t-eyebrow); font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--purple-deep); }
+.price-card.feature .tier { color: var(--purple); }
+.price-card .name { font-family: 'Space Grotesk', sans-serif; font-size: 56px; font-weight: 600; line-height: 1; color: var(--ink); }
+.price-card.feature .name { color: #fff; }
+.price-card .amt { font-family: 'Space Grotesk', sans-serif; font-size: 96px; font-weight: 600; line-height: 1; letter-spacing: -0.03em; color: var(--ink); }
+.price-card.feature .amt { color: #fff; }
+.price-card .amt small { font-size: 28px; font-weight: 500; color: var(--ink-mute); letter-spacing: 0; }
+.price-card.feature .amt small { color: rgba(255,255,255,0.55); }
+.price-card .features { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.price-card .features li { list-style: none; font-size: 24px; color: var(--ink-2); display: flex; gap: 14px; align-items: flex-start; line-height: 1.4; }
+.price-card .features li::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--purple); margin-top: 12px; flex-shrink: 0; }
+.price-card.feature .features li { color: rgba(255,255,255,0.85); }
+
+/* Closing slide spaceship-y */
+.closing {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  height: 100%;
+  gap: 48px;
+  /* Horizontal padding only — vertical padding (80 top / 70 bot) comes from
+     the global .deck-stage-wrap > .slide rule so every slide matches. */
+  padding-left: var(--pad-x) !important;
+  padding-right: calc(var(--pad-x) + 20px) !important;
+}
+.closing .h1 { font-family: 'Space Grotesk', sans-serif; font-size: 140px; font-weight: 600; line-height: 0.95; letter-spacing: -0.035em; color: #fff; max-width: 1600px; position: relative; z-index: 2; }
+
+/* Optimise Digital logo on the closing slide — absolute top-left,
+   mirrors the cover's brand-mark position. */
+.closing .closing-od-logo {
+  position: absolute;
+  top: 252px;
+  left: var(--pad-x);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.85;
+  transition: opacity 140ms ease;
+}
+.closing .closing-od-logo:hover { opacity: 1; }
+.closing .closing-od-logo img { display: block; }
+.closing .h1 em { color: var(--purple); font-style: normal; }
+.closing .who { display: flex; gap: 80px; padding-top: 40px; border-top: 1px solid rgba(255,255,255,0.15); width: 100%; position: relative; z-index: 2; align-items: flex-end; }
+.closing .who .col .lbl { font-family: 'Space Grotesk', sans-serif; font-size: 24px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 12px; font-weight: 600; }
+.closing .who .col .val { font-size: 28px; color: #fff; font-weight: 500; }
+
+/* Space station hero on the closing slide — mirrors the OLD .slide-18-station
+   recipe. Sits top-right, behind the H1/who row (z-index 1). */
+.closing .closing-station {
+  position: absolute;
+  top: 170px;
+  right: 10px;
+  width: 28%;
+  z-index: 1;
+  pointer-events: none;
+}
+.closing .closing-station img { width: 100%; height: auto; display: block; }
+
+/* Toc */
+.toc { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 80px; }
+.toc-row {
+  display: flex;
+  align-items: baseline;
+  gap: 32px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.toc-row .n {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--purple-deep);
+  letter-spacing: -0.02em;
+  width: 70px;
+}
+.toc-row .label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--ink);
+  flex: 1;
+}
+.toc-row .sub {
+  font-size: var(--t-small);
+  color: var(--ink-mute);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Slide page number — grey, bottom-right of each slide. NOTE: this lives
+   INSIDE the .proposal-v2 { } CSS-nesting block (see top of file), so the
+   selector is a bare .slide-foot — prefixing with .proposal-v2 would
+   double up and never match. */
+.slide-foot {
+  position: absolute !important;
+  bottom: 54px !important;
+  right: 80px !important;
+  left: auto !important;
+  top: auto !important;
+  /* Section dividers use display:flex; align-self stops flex centering
+     from interfering with the absolute positioning. */
+  align-self: flex-end;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #8a8d9d;
+  white-space: nowrap;
+  opacity: 1;
+  z-index: 4;
+}
+.dark .slide-foot { color: rgba(255,255,255,0.45); }
+
+/* Logo lockup top right on content slides — hidden, h-eyebrow in slide-head shows chapter */
+.brand-tag { display: none !important; }
+
+/* === NEW-02 — "What This Covers" / TOC ====================================
+   Per-slide override: shrink everything ~50% so all 10 rows fit comfortably
+   within the 1080px slide. Roughly “−3 sizes” on the type scale. Kept as a
+   safety override; the height-aware DeckStage scale + 40px buffer mean the
+   slide now fits the viewport so we no longer zero out top padding. */
+/* Slide 2 content scaled +15% on top of previous +35% (total ~1.55x vs the
+   original artifact shrink). Whole block pushed down via margin-top on the
+   slide-head (so it shifts down and pushes the TOC with it). */
+[data-label="02 What This Covers"] .slide-head { margin-top: 35px; margin-bottom: 51px; padding-bottom: 25px; padding-top: 37px; }
+[data-label="02 What This Covers"] .slide-head .h-title { font-size: 69px; }
+[data-label="02 What This Covers"] .slide-head .h-eyebrow { font-size: 28px; }
+[data-label="02 What This Covers"] .slide-head .h-meta { font-size: 28px; }
+
+[data-label="02 What This Covers"] .toc { gap: 22px 80px; }
+[data-label="02 What This Covers"] .toc-row { padding: 16px 0; gap: 35px; }
+[data-label="02 What This Covers"] .toc-row .n { font-size: 37px; width: 78px; }
+[data-label="02 What This Covers"] .toc-row .label { font-size: 35px; }
+
+/* Slide 02 — nudge the right-hand TOC column 110px left. Rows alternate L/R
+   in DOM order (01,06,02,07,03,08,04,09,05,10) so every even row is the
+   right column. */
+[data-label="02 What This Covers"] .toc > .toc-row:nth-child(even) {
+  transform: translateX(-110px);
+}
+/* Force every TOC row onto a single line — the artifact's inline
+   `flex-wrap:wrap` was bumping longer pairs like
+   "Pre-flight Check  Competitors + keywords" to a second line. */
+[data-label="02 What This Covers"] .toc-row .label {
+  flex-wrap: nowrap !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The smaller description span in each .label uses an inline 24px — the rule
+   below targets it via the trailing span. */
+[data-label="02 What This Covers"] .toc-row .label span + span { font-size: 25px !important; }
+
+/* All chapter section dividers — move the centred chapter content up 60px
+   so every divider sits in the same visual position. */
+.section-divider .num,
+.section-divider .meta {
+  transform: translateY(-60px);
+}
+
+/* === NEW-04 — "04 Philosophy" font overrides ==============================
+   The artifact's authored sizes (.pull 76, inline <em> 71, .sub-line 44)
+   were too large for the available space alongside the rocket illustration.
+   Reduce ~50% ("−4 sizes" on the type scale) and force the inline 71px <em>
+   override on "spaceship" via !important. */
+/* Slide 5 — pull the whole slide content up 40px by negating slide-head spacing. */
+[data-label="04b Order of Operations"] .slide-head { margin-top: -5px; }
+
+[data-label="04 Philosophy"] .pull { font-size: 40px; line-height: 1.15; }
+[data-label="04 Philosophy"] .pull em { font-size: 38px !important; padding: 0 !important; }
+
+/* Slide 04 — numbered approach cards (Fix the fundamentals / Optimise
+   conversion / Launch paid traffic / Scale with confidence style). Each
+   card is a rounded outlined block with number, title, and arrow on top
+   row, plus small body text underneath. The .active card is filled. */
+[data-label="04 Philosophy"] .approach-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: #fff;
+  border: 1.5px solid #e6e7ec;
+  border-radius: 14px;
+  padding: 12px 26px 14px;
+}
+[data-label="04 Philosophy"] .approach-card .ac-head {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+[data-label="04 Philosophy"] .approach-card .ac-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px;
+  font-weight: 500;
+  color: #9ea1b1;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  /* Fixed width so body padding-left can match exactly. */
+  width: 44px;
+}
+[data-label="04 Philosophy"] .approach-card .ac-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  flex: 1;
+}
+[data-label="04 Philosophy"] .approach-card .ac-arrow {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--purple-deep);
+  flex-shrink: 0;
+  line-height: 1;
+}
+[data-label="04 Philosophy"] .approach-card .ac-body {
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--ink-mute);
+  /* width(44px) + gap(22px) = 66px — aligns body copy left-edge with title. */
+  padding-left: 66px;
+}
+[data-label="04 Philosophy"] .approach-card {
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+[data-label="04 Philosophy"] .approach-card .ac-num,
+[data-label="04 Philosophy"] .approach-card .ac-title,
+[data-label="04 Philosophy"] .approach-card .ac-arrow,
+[data-label="04 Philosophy"] .approach-card .ac-body {
+  transition: color 160ms ease;
+}
+[data-label="04 Philosophy"] .approach-card.active,
+[data-label="04 Philosophy"] .approach-card:hover {
+  background: var(--purple-deep);
+  border-color: var(--purple-deep);
+}
+[data-label="04 Philosophy"] .approach-card.active .ac-num,
+[data-label="04 Philosophy"] .approach-card:hover .ac-num {
+  color: rgba(255,255,255,0.55);
+}
+[data-label="04 Philosophy"] .approach-card.active .ac-title,
+[data-label="04 Philosophy"] .approach-card.active .ac-arrow,
+[data-label="04 Philosophy"] .approach-card:hover .ac-title,
+[data-label="04 Philosophy"] .approach-card:hover .ac-arrow {
+  color: #fff;
+}
+[data-label="04 Philosophy"] .approach-card.active .ac-body,
+[data-label="04 Philosophy"] .approach-card:hover .ac-body {
+  color: rgba(255,255,255,0.85);
+}
+
+/* Slide 9 — Competitor analysis hover thumbnail. The .v2-comp-domain wrapper
+   on each row's domain cell holds an absolutely-positioned <img> popover
+   that becomes visible on hover. Matches the OLD route's screenshot-hover
+   pattern but inlined in the table instead of a separate thumbnail column. */
+[data-label="09 Competitor Analysis"] .v2-comp-domain {
+  position: relative;
+  display: inline-block;
+  cursor: default;
+}
+[data-label="09 Competitor Analysis"] .v2-comp-thumb {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 0;
+  width: 380px;
+  max-width: 50vw;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.08);
+  overflow: hidden;
+  background: #fff;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px) scale(0.95);
+  transform-origin: bottom left;
+  transition: opacity 160ms ease, transform 160ms ease, visibility 160ms;
+  pointer-events: none;
+  z-index: 100;
+}
+[data-label="09 Competitor Analysis"] .v2-comp-thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Show only the top of the page — above-the-fold preview. */
+  max-height: 240px;
+  object-fit: cover;
+  object-position: top;
+}
+[data-label="09 Competitor Analysis"] .v2-comp-domain:hover .v2-comp-thumb {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+/* Closing-slide "Download PDF" button. Sits bottom-right on the closing
+   slide. Matches the pattern used by other decks in the codebase. */
+.proposal-v2 .closing .deck-download-pdf {
+  /* Compact Apple-style pill — tight height, clean border, sits inline
+     at the right end of the .who row. */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.92);
+  color: var(--ink);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 999px;
+  height: 36px;
+  padding: 0 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  opacity: 0.5;
+  box-shadow: 0 2px 12px rgba(7,9,26,0.2);
+  transition: opacity 160ms ease, box-shadow 160ms ease, background 120ms ease;
+  flex-shrink: 0;
+  margin-left: auto;
+  line-height: 1;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.proposal-v2 .closing .deck-download-pdf:hover {
+  opacity: 1;
+  background: #fff;
+  box-shadow: 0 8px 40px rgba(7,9,26,0.28);
+}
+[data-label="04 Philosophy"] .sub-line { font-size: 22px; line-height: 1.4; }
+
+/* Orbit decorative on dark — ping outward like the OptiMate rings.
+   Three rings staggered 1s apart over a 3s cycle, fading to invisible. */
+.orbit-deco {
+  position: absolute;
+  border: 1px dashed rgba(77,148,255,0.18);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: orbit-ping 3s ease-out infinite;
+  transform-origin: center center;
+}
+.orbit-deco:nth-child(2) {
+  animation-delay: 1s;
+}
+/* A third virtual ring — use a ::after pseudo on the first orbit to add
+   a third wave staggered at 2s without adding DOM nodes. */
+.orbit-deco:first-of-type::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 1px dashed rgba(77,148,255,0.18);
+  border-radius: 50%;
+  animation: orbit-ping 3s ease-out 2s infinite;
+}
+@keyframes orbit-ping {
+  0%   { opacity: 0.7; transform: scale(0.9); }
+  80%  { opacity: 0; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+
+/* Util */
+.flex { display: flex; }
+.col { flex-direction: column; }
+.gap-sm { gap: 16px; }
+.gap-md { gap: 32px; }
+.gap-lg { gap: 56px; }
+.fit { flex: 1; }
+.center-y { display: flex; flex-direction: column; justify-content: center; height: 100%; }
+.full-h { height: 100%; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.purple { color: var(--purple-deep); }
+.green { color: var(--green); }
+.muted { color: var(--ink-mute); }
+.dark .muted { color: rgba(255,255,255,0.55); }
+
+/* Big-takeaway slide */
+.big-take { display: flex; flex-direction: column; justify-content: center; height: 100%; max-width: 1700px; gap: 40px; }
+.big-take .eyebrow { color: var(--purple-deep); }
+.big-take .stmt {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 96px;
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+}
+.big-take .stmt em { font-style: normal; color: var(--purple-deep); }
+.big-take .sub-line { font-size: var(--t-subtitle); color: var(--ink-mute); max-width: 1400px; line-height: 1.3; }
+
+/* Sunburst placeholder text */
+.kw-cluster { display: grid; grid-template-columns: repeat(3,1fr); gap: 36px; margin-top: 24px; }
+.kw-card {
+  background: var(--bg-paper-2);
+  border-radius: 18px;
+  padding: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border: 1px solid var(--line);
+}
+.kw-card .h { font-family: 'Space Grotesk', sans-serif; font-size: 36px; font-weight: 600; color: var(--ink); }
+.kw-card .v { font-family: 'Space Grotesk', sans-serif; font-size: 56px; font-weight: 600; color: var(--purple-deep); letter-spacing: -0.02em; line-height: 1; }
+.kw-card .lbl { font-family: 'Space Grotesk', sans-serif; font-size: 24px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-mute); font-weight: 600; }
+.kw-card ul { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.kw-card ul li { display: flex; justify-content: space-between; font-size: 24px; color: var(--ink-2); padding: 8px 0; border-bottom: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; }
+.kw-card ul li span:last-child { color: var(--ink-mute); }
+
+/* ---------------------------------------------------------------------------
+   Organic Propulsion — category cards on the right side. Each card is a
+   collapsed header that expands on hover/focus to reveal that category's
+   real customer questions. CSS-only so the slide stays a server component.
+   --------------------------------------------------------------------------- */
+.op-cat-stack { display: flex; flex-direction: column; gap: 14px; position: relative; }
+.op-cat {
+  background: var(--bg-paper-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  position: relative;
+}
+.op-cat:hover,
+.op-cat:focus-within {
+  border-color: var(--purple-deep);
+  background: #fff;
+  box-shadow: 0 18px 36px -28px rgba(0, 102, 255, 0.45);
+  /* Lift hovered card above its siblings so the absolutely-positioned
+     panel overlaps neighbours cleanly. */
+  z-index: 5;
+}
+.op-cat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 26px;
+  cursor: default;
+  position: relative;
+  z-index: 1;
+  background: inherit;
+  border-radius: inherit;
+}
+.op-cat-head-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.op-cat-eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.op-cat-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.op-cat-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  color: var(--purple-deep);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.op-cat-meta .count { font-size: 20px; }
+.op-cat-meta .caret {
+  display: inline-block;
+  transition: transform 200ms ease;
+  color: var(--ink-mute);
+  font-size: 18px;
+}
+.op-cat:hover .op-cat-meta .caret,
+.op-cat:focus-within .op-cat-meta .caret { transform: rotate(90deg); color: var(--purple-deep); }
+
+/* The expanded panel is absolutely positioned so it doesn't push siblings
+   around and so we can flip its direction (open upward) on the bottom
+   cards to avoid being clipped by the slide boundary. */
+.op-cat-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: -1px;
+  background: #fff;
+  border: 1px solid var(--purple-deep);
+  border-top-color: var(--line);
+  border-radius: 0 0 16px 16px;
+  padding: 0 26px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: max-height 280ms ease, opacity 200ms ease, padding 200ms ease;
+  box-shadow: 0 20px 36px -22px rgba(0, 102, 255, 0.35);
+}
+.op-cat[data-open="up"] .op-cat-panel {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: -1px;
+  border-radius: 16px 16px 0 0;
+  border-top-color: var(--purple-deep);
+  border-bottom-color: var(--line);
+  box-shadow: 0 -20px 36px -22px rgba(0, 102, 255, 0.35);
+}
+.op-cat:hover .op-cat-panel,
+.op-cat:focus-within .op-cat-panel {
+  max-height: 540px;
+  opacity: 1;
+  padding: 16px 26px 22px;
+  pointer-events: auto;
+}
+.op-cat:hover[data-open="up"] .op-cat-head,
+.op-cat:focus-within[data-open="up"] .op-cat-head {
+  border-radius: 0 0 16px 16px;
+}
+.op-cat:hover:not([data-open="up"]) .op-cat-head,
+.op-cat:focus-within:not([data-open="up"]) .op-cat-head {
+  border-radius: 16px 16px 0 0;
+}
+.op-cat-q-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  color: var(--ink-2);
+  line-height: 1.4;
+}
+.op-cat-q-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 18px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.op-cat-q-list li:last-child { border-bottom: none; }
+.op-cat-q-list .q { flex: 1; min-width: 0; word-break: break-word; }
+.op-cat-q-list .vol { color: var(--ink-mute); white-space: nowrap; font-size: 16px; }
+.op-cat-q-empty {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  color: var(--ink-mute);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+} /* end .proposal-v2 */
+
+/* ===========================================================================
+   ROCKET ANIMATION — lifted verbatim from the OLD report.css so v2 has the
+   same right-side scroll-following rocket as the existing proposal route.
+   Lives OUTSIDE .proposal-v2 because <RocketScroll> renders the rocket as a
+   sibling of the wrapper, not a child.
+   =========================================================================== */
+
+.rocket-fixed {
+  position: fixed;
+  right: 3px;
+  bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70%), calc(65% - 25px));
+  z-index: 2147483647;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: bottom 0.05s linear, transform 0.05s linear, opacity 0.05s linear;
+  cursor: pointer;
+  /* --scroll-from-end is the pixel distance from the visual top of the deck
+     (set by RocketScroll). The rocket holds full size + opacity until the
+     user is within range of the end:
+       • Scale: 1 until 300px from the end, then linearly shrinks to a 20 %
+         floor at the very top.
+       • Opacity: 100 % until 200px from the end, then fades to 5 % at the top.
+     Dividing by the threshold (300 / 200) is what creates the linear ramp. */
+  transform: scale(clamp(0.2, calc(var(--scroll-from-end, 9999) / 300), 1));
+  transform-origin: center bottom;
+  opacity: clamp(0.05, calc(var(--scroll-from-end, 9999) / 200), 1);
+}
+
+.rocket-img {
+  /* 15% smaller than OLD (56 → 48). */
+  width: 48px;
+  height: auto;
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.3));
+  position: relative;
+  z-index: 2;
+}
+
+.rocket-flame {
+  /* 15% smaller than OLD (21 → 18). margin-top scaled accordingly (-24 → -20). */
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 165, 0, 0.7) 0%, rgba(255, 69, 0, 0.3) 50%, transparent 70%);
+  margin-top: -20px;
+  animation: flame-flicker 0.15s ease-in-out infinite alternate;
+}
+
+@keyframes flame-flicker {
+  0% { opacity: 0.6; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1.05); }
+}
+
+.flame-trail {
+  position: fixed;
+  /* Centered under the (now smaller) rocket: rocket-right:3px + 48/2 = 27,
+     trail width 4px so its right edge sits at 25px to center on 27. */
+  right: 25px;
+  bottom: 0;
+  width: 4px;
+  height: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 18px), calc(65% - 25px + 18px));
+  background: linear-gradient(to top, transparent, rgba(255, 165, 0, 0.15) 20%, rgba(255, 165, 0, 0.4) 60%, rgba(255, 100, 0, 0.6));
+  z-index: 2147483646;
+  pointer-events: none;
+  transition: height 0.05s linear, opacity 0.05s linear;
+  border-radius: 2px;
+  /* Fade trail from 100 % → 0 % as the rocket crosses from the 2nd-last
+     slide into the closing slide. --last-slide-height is the rendered pixel
+     height of the closing slide (set by RocketScroll on mount + resize).
+     When scroll-from-end drops below that height the trail is entering the
+     last slide and we fade to invisible over that exact slide length. */
+  opacity: clamp(0, calc(var(--scroll-from-end, 9999) / max(1, var(--last-slide-height, 900))), 1);
+}
+
+/* Invisible click-zone overlaying the flame-trail column. Same vertical span
+   as the visible trail, but ~40px wide so the user can click anywhere along
+   the trail to advance to the next slide. Sits just below the rocket's
+   z-index so the rocket's own click handler still wins inside the rocket. */
+.flame-trail-hit {
+  position: fixed;
+  /* Trail is centred at right: 27px; hit area is 40px wide, so right = 7px
+     puts the centre of the hit zone on the same x as the trail. */
+  right: 7px;
+  bottom: 0;
+  width: 40px;
+  height: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 18px), calc(65% - 25px + 18px));
+  background: transparent;
+  z-index: 2147483645;
+  cursor: pointer;
+  /* Fade in sync with the trail so clicks are disabled as it disappears. */
+  opacity: clamp(0, calc(var(--scroll-from-end, 9999) / max(1, var(--last-slide-height, 900))), 1);
+  pointer-events: auto;
+}
+.flame-trail-hit:focus-visible {
+  /* Subtle focus ring for keyboard users since the element is invisible. */
+  outline: 2px solid rgba(255, 165, 0, 0.5);
+  outline-offset: -2px;
+  border-radius: 2px;
+}
+
+.rocket-hint {
+  position: fixed;
+  /* Pushed left to clear the smaller 48px rocket (was 68 for 56px). */
+  right: 60px;
+  bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 30px), calc(65% - 25px + 30px));
+  z-index: 2147483647;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  animation: rocket-hint-bounce 1s ease-in-out infinite, rocket-hint-fade 2.5s ease-in-out infinite;
+  transition: bottom 0.05s linear;
+}
+.rocket-hint-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c0625a;
+}
+
+
+.rocket-hint-arrow {
+  font-size: 20px;
+  font-weight: 700;
+  color: #c0625a;
+  display: inline-block;
+}
+@keyframes rocket-hint-bounce { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(5px); } }
+@keyframes rocket-hint-fade { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+@media (max-width: 900px) {
+  .rocket-hint { display: none; }
+  .rocket-fixed {
+    right: 10px;
+    z-index: 5;
+    bottom: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70%), calc(65% - 70px));
+    transform: scale(clamp(0.1, 0.45 * (1 - (var(--scroll-progress, 0) - 0.98) * 40), 0.45));
+    pointer-events: none;
+  }
+  .rocket-img { width: 32px; opacity: 0.7; }
+  .rocket-flame { width: 12px; height: 12px; margin-top: -14px; opacity: 0.6; }
+  .flame-trail {
+    right: 24px;
+    width: 2px;
+    opacity: 0.4;
+    z-index: 5;
+    height: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 21px), calc(65% - 70px + 21px));
+  }
+}
+

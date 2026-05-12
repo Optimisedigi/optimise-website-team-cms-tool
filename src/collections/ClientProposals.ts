@@ -8,6 +8,75 @@ import { proposalEditor } from "@/lib/proposalEditor";
 import { logActivity } from "../lib/activity-log";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
+const ROADMAP_DEFAULTS = {
+  buildLaunch: [
+    { week: "WEEK 01", step: "Proposal & sign-off", desc: "Agreement signed, project timeline confirmed, kickoff scheduled." },
+    { week: "WEEK 02-03", step: "Discovery & strategy", desc: "Site, competitor & market review. Map the conversion workflow. Finalise architecture & messaging framework." },
+    { week: "WEEK 04", step: "Strategy approval", desc: "Sitemap, core page structure & content plan presented. Sign-off before build begins." },
+    { week: "WEEK 05-10", step: "Site build", desc: "Conversion-first build. CMS & secure forms. Optimised content. Technical SEO + analytics." },
+    { week: "WEEK 11-12+", step: "Review, launch & optimise", desc: "Staging review, SEO-safe migration, Search Console, 30-day monitoring, authority content rollout." },
+  ],
+  growthRetainer: [
+    { week: "MONTH 01", step: "Baseline & quick wins", desc: "Establish performance baseline. Action quick-win optimisations across organic, paid and CRO." },
+    { week: "MONTH 02", step: "Content & authority", desc: "Authority content rollout per priority category. Technical SEO improvements applied iteratively." },
+    { week: "MONTH 03", step: "Paid scaling", desc: "Paid media scaling with tightened audience targeting. Conversion tracking validated and refined." },
+    { week: "ONGOING", step: "Optimise & report", desc: "Monthly performance reviews. CRO testing & iteration. Quarterly strategic re-planning." },
+  ],
+  auditStrategy: [
+    { week: "WEEK 01-02", step: "Discovery & audit", desc: "Deep-dive into site, competitors, channels and current performance. Mapping the full conversion workflow." },
+    { week: "WEEK 03-04", step: "Strategy build", desc: "Channel-by-channel strategy with prioritised recommendations. Forecast modelling tied to commercial targets." },
+    { week: "WEEK 05-06", step: "Roadmap & handover", desc: "Final strategy presented with sequenced delivery roadmap. Hand-off to internal team or follow-on engagement." },
+  ],
+} as const
+
+const COMMERCIAL_DEFAULTS = [
+  {
+    tier: "PHASE 01",
+    name: "Build & Launch",
+    amount: "TBC",
+    amountSub: "one-time",
+    featured: false,
+    features: [
+      { item: "Discovery & strategy" },
+      { item: "Site architecture & content strategy" },
+      { item: "Mobile-first build, CMS, secure forms" },
+      { item: "Technical SEO & analytics setup" },
+    ],
+  },
+  {
+    tier: "PHASE 02",
+    name: "Growth Retainer",
+    amount: "TBC",
+    amountSub: "/ month",
+    featured: true,
+    features: [
+      { item: "Authority content rollout per category" },
+      { item: "Ongoing CRO testing & iteration" },
+      { item: "Paid media management (when unlocked)" },
+      { item: "Monthly performance reporting" },
+    ],
+  },
+]
+
+const LAUNCH_STEPS_DEFAULTS = [
+  { stepLabel: "STEP 01", title: "Confirm proposal", body: "Agreement signed and project timeline confirmed. Internal stakeholders identified." },
+  { stepLabel: "STEP 02", title: "Discovery kickoff", body: "Two-week deep-dive into site, competitors and market positioning. Conversion workflow mapped end-to-end." },
+  { stepLabel: "STEP 03", title: "Strategy approval", body: "Top-line sitemap, page structure and content plan presented. One round of revisions, then build begins." },
+]
+
+const LAUNCH_BLOCKS_DEFAULTS = [
+  {
+    tag: "DURING BUILD",
+    title: "Conversion-first build · CMS & secure forms · Optimised content · Technical SEO & analytics",
+    body: "Approx. 4-6 weeks development. Staging review and final approval before any traffic moves to the new site.",
+  },
+  {
+    tag: "POST LAUNCH",
+    title: "30-day performance monitoring · Search Console & indexation tracking · Authority content rollout",
+    body: "SEO-safe migration with domain protection. Conversion tracking validated before any growth marketing begins.",
+  },
+]
+
 const DEFAULT_FLIGHT_PLAN_RECS = [
   { enabled: false, title: "New Website Build", description: "A modern, mobile-first website built for conversions. Fast-loading, professional design that builds trust and drives enquiries.", benefit: "Higher conversion rates" },
   { enabled: false, title: "Conversion Rate Optimisation (CRO)", description: "Optimise the website journey to convert more visitors into leads. Clear CTAs, trust signals, and streamlined forms.", benefit: "More leads from existing traffic" },
@@ -29,6 +98,43 @@ const DEFAULT_FLIGHT_PLAN_RECS = [
 const seedFlightPlanRecs: CollectionAfterReadHook = async ({ doc }) => {
   if (!doc.flightPlanRecommendations || doc.flightPlanRecommendations.length === 0) {
     doc.flightPlanRecommendations = DEFAULT_FLIGHT_PLAN_RECS;
+  }
+  return doc;
+};
+
+/** Seed roadmap cells from the selected template when missing. */
+const seedRoadmap: CollectionAfterReadHook = async ({ doc }) => {
+  if (!doc.roadmapCells || doc.roadmapCells.length === 0) {
+    const template = (doc.roadmapTemplate as string | undefined) ?? "build-launch";
+    const key: keyof typeof ROADMAP_DEFAULTS =
+      template === "growth-retainer"
+        ? "growthRetainer"
+        : template === "audit-strategy"
+        ? "auditStrategy"
+        : "buildLaunch";
+    doc.roadmapCells = ROADMAP_DEFAULTS[key].map((c) => ({ ...c }));
+  }
+  return doc;
+};
+
+/** Seed commercial phases with defaults when missing. */
+const seedCommercial: CollectionAfterReadHook = async ({ doc }) => {
+  if (!doc.commercialPhases || doc.commercialPhases.length === 0) {
+    doc.commercialPhases = COMMERCIAL_DEFAULTS.map((p) => ({
+      ...p,
+      features: p.features.map((f) => ({ ...f })),
+    }));
+  }
+  return doc;
+};
+
+/** Seed launch steps + blocks with defaults when missing. */
+const seedLaunch: CollectionAfterReadHook = async ({ doc }) => {
+  if (!doc.launchSteps || doc.launchSteps.length === 0) {
+    doc.launchSteps = LAUNCH_STEPS_DEFAULTS.map((s) => ({ ...s }));
+  }
+  if (!doc.launchBlocks || doc.launchBlocks.length === 0) {
+    doc.launchBlocks = LAUNCH_BLOCKS_DEFAULTS.map((b) => ({ ...b }));
   }
   return doc;
 };
@@ -701,11 +807,37 @@ export const ClientProposals: CollectionConfig = {
                   },
                 },
                 {
+                  name: "hasGoogleAds",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Manual override: mark this competitor as running Google Ads (used by the v2 deck's Competitor Analysis + Paid Burn slides when the audit data is wrong or missing).",
+                  },
+                },
+                {
+                  name: "googleAdCountOverride",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "Optional override for the Google Ads count shown on the Paid Burn slide. Leave blank to use audit data.",
+                    condition: (_, sibling) => Boolean(sibling?.hasGoogleAds),
+                  },
+                },
+                {
                   name: "hasMetaAds",
                   type: "checkbox",
                   defaultValue: false,
                   admin: {
-                    description: "Override: mark this competitor as running Meta Ads",
+                    description: "Manual override: mark this competitor as running Meta Ads (used by the v2 deck's Competitor Analysis + Paid Burn slides when the audit data is wrong or missing).",
+                  },
+                },
+                {
+                  name: "metaAdCountOverride",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "Optional override for the Meta Ads count shown on the Paid Burn slide. Leave blank to use audit data.",
+                    condition: (_, sibling) => Boolean(sibling?.hasMetaAds),
                   },
                 },
                 {
@@ -921,6 +1053,43 @@ export const ClientProposals: CollectionConfig = {
           label: "Post report input",
           fields: [
             {
+              name: "missionPriorities",
+              type: "array",
+              maxRows: 4,
+              admin: {
+                description:
+                  "Up to 4 mission priorities shown on the v2 'Where to focus our energy' slide (slide 13). Each becomes one card. Leave empty to hide the slide.",
+                initCollapsed: true,
+              },
+              fields: [
+                {
+                  name: "tag",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description:
+                      "Eyebrow tag shown above the title (e.g. 'PRIORITY 01 \u00b7 BUILD' or 'DELIBERATELY LATER').",
+                  },
+                },
+                {
+                  name: "title",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description: "Bold headline for the card.",
+                  },
+                },
+                {
+                  name: "description",
+                  type: "textarea",
+                  required: true,
+                  admin: {
+                    description: "Body copy for the card (~2-3 sentences).",
+                  },
+                },
+              ],
+            },
+            {
               name: "flightPlan",
               type: "richText",
               editor: proposalEditor,
@@ -1085,6 +1254,132 @@ export const ClientProposals: CollectionConfig = {
                   "Internal notes per slide (visible only in edit view). JSON object keyed by slide number.",
               },
             },
+            {
+              name: "roadmapTemplate",
+              type: "select",
+              defaultValue: "build-launch",
+              options: [
+                { label: "Build & Launch (5-stage, 10-12 weeks)", value: "build-launch" },
+                { label: "Growth Retainer (4-stage, ongoing)", value: "growth-retainer" },
+                { label: "Audit & Strategy (3-stage, 4-6 weeks)", value: "audit-strategy" },
+                { label: "Custom", value: "custom" },
+              ],
+              admin: {
+                description:
+                  "Pick a template to seed default roadmap cells. Switch to 'Custom' to fully control via the array below.",
+              },
+            },
+            {
+              name: "roadmapMeta",
+              type: "text",
+              defaultValue: "~10-12 weeks total",
+              admin: {
+                description:
+                  "Top-right meta text for the Roadmap slide (e.g. '~10-12 weeks total').",
+              },
+            },
+            {
+              name: "roadmapCells",
+              type: "array",
+              maxRows: 6,
+              admin: {
+                description:
+                  "Each row becomes one cell in the roadmap grid. 5 cells fits cleanest; the grid auto-adjusts for 3-6.",
+                initCollapsed: true,
+              },
+              defaultValue: ROADMAP_DEFAULTS.buildLaunch.map((c) => ({ ...c })),
+              fields: [
+                { name: "week", type: "text", required: true, admin: { description: "Eyebrow (e.g. 'WEEK 01' or 'PHASE 02')." } },
+                { name: "step", type: "text", required: true, admin: { description: "Card title." } },
+                { name: "desc", type: "textarea", required: true, admin: { description: "1-2 sentence body. Keep generic — no client-specific terms unless overriding." } },
+              ],
+            },
+            {
+              name: "roadmapNote",
+              type: "textarea",
+              defaultValue:
+                "The build phase is the longest stage, and the most important. Everything downstream (organic, paid, content) compounds against the foundation laid here.",
+              admin: {
+                description: "Small note shown under the roadmap grid.",
+              },
+            },
+            {
+              name: "commercialMeta",
+              type: "text",
+              defaultValue: "Subject to discovery",
+              admin: {
+                description: "Top-right meta text on the Commercial slide.",
+              },
+            },
+            {
+              name: "commercialPhases",
+              type: "array",
+              maxRows: 4,
+              admin: {
+                description:
+                  "Each row becomes one pricing card. The current design is 2 cards; 3-4 cards auto-shrink to fit.",
+                initCollapsed: true,
+              },
+              defaultValue: COMMERCIAL_DEFAULTS.map((p) => ({
+                ...p,
+                features: p.features.map((f) => ({ ...f })),
+              })),
+              fields: [
+                { name: "tier", type: "text", required: true, admin: { description: "Eyebrow (e.g. 'PHASE 01')." } },
+                { name: "name", type: "text", required: true, admin: { description: "Card name (e.g. 'Build & Launch')." } },
+                { name: "amount", type: "text", required: true, admin: { description: "Price amount (e.g. 'TBC', '$12,500', '$2,500')." } },
+                { name: "amountSub", type: "text", admin: { description: "Suffix (e.g. 'one-time', '/ month')." } },
+                { name: "featured", type: "checkbox", defaultValue: false, admin: { description: "Apply the dark/feature card style." } },
+                {
+                  name: "features",
+                  type: "array",
+                  admin: { description: "Bullet list of inclusions (3-5 ideal)." },
+                  fields: [{ name: "item", type: "text", required: true }],
+                },
+              ],
+            },
+            {
+              name: "commercialNote",
+              type: "textarea",
+              defaultValue: "Final pricing confirmed after discovery.",
+              admin: { description: "Small centred note below the cards." },
+            },
+            {
+              name: "launchMeta",
+              type: "text",
+              defaultValue: "From proposal to wheels-up",
+              admin: { description: "Top-right meta text on the Next Steps slide." },
+            },
+            {
+              name: "launchSteps",
+              type: "array",
+              maxRows: 3,
+              admin: {
+                description: "Three step cards shown at the top of the Next Steps slide.",
+                initCollapsed: true,
+              },
+              defaultValue: LAUNCH_STEPS_DEFAULTS.map((s) => ({ ...s })),
+              fields: [
+                { name: "stepLabel", type: "text", required: true, admin: { description: "Eyebrow (e.g. 'STEP 01')." } },
+                { name: "title", type: "text", required: true },
+                { name: "body", type: "textarea", required: true },
+              ],
+            },
+            {
+              name: "launchBlocks",
+              type: "array",
+              maxRows: 4,
+              admin: {
+                description: "Larger 'During Build' / 'Post Launch' blocks at the bottom of the slide.",
+                initCollapsed: true,
+              },
+              defaultValue: LAUNCH_BLOCKS_DEFAULTS.map((b) => ({ ...b })),
+              fields: [
+                { name: "tag", type: "text", required: true, admin: { description: "Eyebrow (e.g. 'DURING BUILD')." } },
+                { name: "title", type: "text", required: true, admin: { description: "Headline (single line)." } },
+                { name: "body", type: "textarea", required: true },
+              ],
+            },
           ],
         },
         {
@@ -1237,6 +1532,6 @@ export const ClientProposals: CollectionConfig = {
       },
     ],
     beforeChange: [generateUniqueSlug],
-    afterRead: [seedFlightPlanRecs],
+    afterRead: [seedFlightPlanRecs, seedRoadmap, seedCommercial, seedLaunch],
   },
 };

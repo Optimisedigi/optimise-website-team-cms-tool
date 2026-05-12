@@ -366,6 +366,12 @@ export async function POST(request: NextRequest) {
 
   // --- has_meta_ads column on competitors table ---
   await run("client_proposals_competitors.has_meta_ads", "ALTER TABLE `client_proposals_competitors` ADD `has_meta_ads` integer DEFAULT false");
+  // Last-minute manual overrides for the Paid Burn / Competitor Analysis slides.
+  // Lets the team flip a competitor's Google/Meta ads status + count without
+  // re-running an audit (e.g. when the SERP scraper missed live ads).
+  await run("client_proposals_competitors.has_google_ads", "ALTER TABLE `client_proposals_competitors` ADD `has_google_ads` integer DEFAULT false");
+  await run("client_proposals_competitors.google_ad_count_override", "ALTER TABLE `client_proposals_competitors` ADD `google_ad_count_override` integer");
+  await run("client_proposals_competitors.meta_ad_count_override", "ALTER TABLE `client_proposals_competitors` ADD `meta_ad_count_override` integer");
 
   // --- Missing columns on client_proposals ---
   await run("client_proposals.convert_to_client", "ALTER TABLE `client_proposals` ADD `convert_to_client` integer DEFAULT false");

@@ -1,0 +1,394 @@
+/**
+ * Slide 7 — Mission Brief (Business & market). Dynamic.
+ *
+ * Pulls live data from the proposal + linked SEO/CRO/keyword/competitor audits.
+ * Renders a server-side React tree (no client interactivity needed) — the
+ * page.tsx server component imports and renders this directly.
+ */
+
+import type { ReactElement } from 'react'
+
+// Looser types because the linked audits come back as Payload relationships
+// which can be either an ID string or a fully-populated object depending on
+// depth. We treat anything we don't have as null/0 and let the layout cope.
+type Lighthouse = {
+  performance?: number
+  accessibility?: number
+  bestPractices?: number
+  seo?: number
+}
+
+type AuditLike = {
+  overallScore?: number | null
+  lighthouseScores?: Lighthouse | null
+} | null
+
+type KeywordLike = { searchVolume?: number | null } | null
+type CompetitorLike = {
+  traffic?: { monthlyVisits?: number | string | null } | null
+} | null
+
+type KeywordSnapshotLike = { keywords?: KeywordLike[] | null } | null
+type CompetitorAnalysisLike = {
+  competitors?: CompetitorLike[] | null
+} | null
+
+// Map proposal businessType select-value to a human label.
+const BUSINESS_TYPE_LABEL: Record<string, string> = {
+  trades: 'Trades & Home Services',
+  services: 'Professional Services',
+  ecommerce: 'E-commerce / Retail',
+  healthcare: 'Healthcare',
+  hospitality: 'Hospitality & Food',
+  realestate: 'Real Estate',
+  education: 'Education & Training',
+  saas: 'SaaS / Technology',
+  other: 'Other',
+}
+
+// Map conversionGoal select-value to a human label.
+const CONVERSION_LABEL: Record<string, string> = {
+  'lead generation': 'Lead Generation',
+  'phone calls': 'Phone Calls',
+  'form submissions': 'Form Submissions',
+  'e-commerce': 'E-commerce Sales',
+  bookings: 'Bookings / Appointments',
+  'quote requests': 'Quote Requests',
+  'email sign-ups': 'Email Sign-ups',
+  'free trial': 'Free Trial Sign-ups',
+  'content downloads': 'Content Downloads',
+  'brand awareness': 'Brand Awareness',
+}
+
+function formatBigNumber(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`
+  return value.toLocaleString()
+}
+
+// Normalise a competitor's monthlyVisits — can be number or string like "500K".
+function normaliseVisits(raw: number | string | null | undefined): number {
+  if (raw == null) return 0
+  if (typeof raw === 'number') return raw
+  const s = String(raw).trim().toUpperCase()
+  const num = parseFloat(s)
+  if (!Number.isFinite(num)) return 0
+  if (s.endsWith('M')) return num * 1_000_000
+  if (s.endsWith('K')) return num * 1_000
+  return num
+}
+
+// Convert a 0-10 score to a 0-100 score for display in the gauges.
+function to100(score: number | null | undefined): number {
+  if (score == null) return 0
+  return score <= 10 ? Math.round(score * 10) : Math.round(score)
+}
+
+function scoreColor(score: number): string {
+  if (score >= 80) return '#22c55e' // green
+  if (score >= 60) return '#f0b35a' // gold
+  return '#ef4444' // red
+}
+
+type Gauge = {
+  label: string
+  value: number
+}
+
+function renderGauge(g: Gauge, i: number): ReactElement {
+  const colour = scoreColor(g.value)
+  const dashoffset = 314 - (314 * g.value) / 100
+  return (
+    <div
+      key={`${g.label}-${i}`}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 8,
+      }}
+    >
+      <div style={{ position: 'relative', width: 88, height: 88 }}>
+        <svg
+          viewBox="0 0 120 120"
+          style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}
+        >
+          <circle cx="60" cy="60" r="50" stroke="var(--line)" strokeWidth="9" fill="none" />
+          <circle
+            cx="60"
+            cy="60"
+            r="50"
+            stroke={colour}
+            strokeWidth="9"
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray="314"
+            strokeDashoffset={String(dashoffset)}
+          />
+        </svg>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: "'Space Grotesk',sans-serif",
+            /* +15 % from 32 → 37, then +20 % → 44 for more presence. */
+            fontSize: 44,
+            fontWeight: 600,
+            color: colour,
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {g.value || ''}
+        </div>
+      </div>
+      <div
+        style={{
+          fontFamily: "'Space Grotesk',sans-serif",
+          fontSize: 24,
+          fontWeight: 500,
+          color: 'var(--ink)',
+          textAlign: 'center',
+          lineHeight: 1.2,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {g.label}
+      </div>
+    </div>
+  )
+}
+
+export function MissionBriefSlide({
+  businessName,
+  websiteUrl,
+  businessType,
+  conversionGoal,
+  businessGoals,
+  seoAudit,
+  croAudit,
+  keywordSnapshot,
+  competitorAnalysis,
+}: {
+  businessName: string
+  websiteUrl: string | null
+  businessType: string | null
+  conversionGoal: string | null
+  businessGoals: string | null
+  seoAudit: AuditLike
+  croAudit: AuditLike
+  keywordSnapshot: KeywordSnapshotLike
+  competitorAnalysis: CompetitorAnalysisLike
+}): ReactElement {
+  // -- Type / Categories / Conversion -----------------------------------------
+  const typeLabel = businessType ? BUSINESS_TYPE_LABEL[businessType] ?? businessType : ''
+  const conversionLabel = conversionGoal ? CONVERSION_LABEL[conversionGoal] ?? conversionGoal : ''
+
+  // -- Audit score gauges -----------------------------------------------------
+  // CRO from croAudit.overallScore (0-10), SEO + Performance/Accessibility/Best Practices
+  // from seoAudit.lighthouseScores (each 0-100), SEO score from seoAudit.overallScore.
+  const lh = seoAudit?.lighthouseScores ?? null
+  const gauges: Gauge[] = [
+    { label: 'CRO', value: to100(croAudit?.overallScore) },
+    { label: 'SEO', value: to100(seoAudit?.overallScore) },
+    { label: 'Performance', value: to100(lh?.performance) },
+    { label: 'Accessibility', value: to100(lh?.accessibility) },
+    { label: 'Best Practices', value: to100(lh?.bestPractices) },
+  ]
+
+  // -- Market opportunity stats ----------------------------------------------
+  const totalSearchVolume = (keywordSnapshot?.keywords ?? []).reduce(
+    (sum, k) => sum + (k?.searchVolume ?? 0),
+    0,
+  )
+  const competitorTraffic = (competitorAnalysis?.competitors ?? []).reduce(
+    (sum, c) => sum + normaliseVisits(c?.traffic?.monthlyVisits ?? null),
+    0,
+  )
+
+  // Strip protocol for nicer display of the website URL.
+  const cleanUrl = websiteUrl
+    ? websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+    : ''
+
+  return (
+    <section className="slide" data-label="06 Mission Brief">
+      <div className="brand-tag">
+        <span className="dot"></span> 02 · Mission Brief
+      </div>
+      <div className="slide-head">
+        <div className="h-left">
+          <div className="h-eyebrow">02 · Mission Brief</div>
+          <h1 className="h-title">Business &amp; market</h1>
+        </div>
+        <div className="h-meta">{cleanUrl}</div>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '0.82fr 1.18fr',
+          gap: 48,
+          alignItems: 'start',
+        }}
+      >
+        {/* LEFT: business goal + 3 tiles */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="eyebrow" style={{ color: 'var(--purple-deep)' }}>
+            The business
+          </div>
+          <p
+            className="pull"
+            style={{ fontSize: 36, lineHeight: 1.18, margin: 0 }}
+          >
+            {businessGoals ?? `Grow ${businessName} sustainably.`}
+          </p>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 12,
+              marginTop: 46,
+            }}
+          >
+            <div
+              className="card"
+              style={{
+                padding: '18px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div className="num-tag" style={{ fontSize: 24 }}>
+                TYPE
+              </div>
+              <div className="h" style={{ fontSize: 24, lineHeight: 1.2 }}>
+                {typeLabel}
+              </div>
+              <div className="b" style={{ fontSize: 22, lineHeight: 1.35 }}>
+                {businessName}
+              </div>
+            </div>
+
+            <div
+              className="card"
+              style={{
+                padding: '18px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div className="num-tag" style={{ fontSize: 24 }}>
+                CATEGORIES
+              </div>
+              <div className="b" style={{ fontSize: 22, lineHeight: 1.35 }}>
+                See keyword snapshot for the full category list.
+              </div>
+            </div>
+
+            <div
+              className="card"
+              style={{
+                padding: '18px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div className="num-tag" style={{ fontSize: 24 }}>
+                CONVERSION
+              </div>
+              <div className="h" style={{ fontSize: 24, lineHeight: 1.2 }}>
+                {conversionLabel}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: market opportunity + audit gauges */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="eyebrow" style={{ color: 'var(--purple-deep)' }}>
+            The market opportunity
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 14,
+            }}
+          >
+            <div className="stat-tile" style={{ padding: '24px 28px', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                <div className="val purple" style={{ fontSize: 64, lineHeight: 1 }}>
+                  {totalSearchVolume > 0 ? formatBigNumber(totalSearchVolume) : ''}
+                </div>
+                <div className="lbl" style={{ fontSize: 18, lineHeight: 1.2 }}>
+                  monthly<br />searches
+                </div>
+              </div>
+              <div className="desc" style={{ fontSize: 22 }}>
+                Across your tracked keywords
+              </div>
+            </div>
+            <div className="stat-tile" style={{ padding: '24px 28px', gap: 10 }}>
+              <div className="lbl" style={{ fontSize: 24 }}>
+                Competitor traffic
+              </div>
+              <div className="val purple" style={{ fontSize: 64 }}>
+                {competitorTraffic > 0 ? formatBigNumber(competitorTraffic) : ''}
+                {competitorTraffic > 0 && (
+                  <span
+                    style={{
+                      fontSize: 24,
+                      color: 'var(--ink-mute)',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {' '}
+                    /mo
+                  </span>
+                )}
+              </div>
+              <div className="desc" style={{ fontSize: 24 }}>
+                The ceiling, not the floor
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="eyebrow"
+            style={{ color: 'var(--purple-deep)', marginTop: 48 }}
+          >
+            Your website audit score
+          </div>
+          <div
+            style={{
+              background: 'var(--bg-paper-2, #f6f4ef)',
+              border: '1px solid var(--line)',
+              borderRadius: 16,
+              padding: '40px 28px',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(5,1fr)',
+                gap: 10,
+                alignItems: 'start',
+              }}
+            >
+              {gauges.map((g, i) => renderGauge(g, i))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="slide-foot"></div>
+    </section>
+  )
+}

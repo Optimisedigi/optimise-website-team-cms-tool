@@ -3150,6 +3150,29 @@ html.scroll-ready .report-presentation {
   opacity: clamp(0, 1 - (var(--scroll-progress, 0) - 0.98) * 50, 1);
 }
 
+/* Invisible click-zone along the flame-trail column — lets the user click
+   anywhere on the trail line to advance to the next slide, not just the
+   rocket itself. Sits just below the rocket's z-index so the rocket's own
+   click handler still wins inside the rocket's bounds. */
+.flame-trail-hit {
+  position: fixed;
+  /* Trail centred at right: 31px; 40px-wide hit zone → right: 11px. */
+  right: 11px;
+  bottom: 0;
+  width: 40px;
+  height: min(calc(5.5% - 26px + var(--scroll-progress, 0) * 70% + 21px), calc(65% - 25px + 21px));
+  background: transparent;
+  z-index: 2147483645;
+  cursor: pointer;
+  opacity: clamp(0, 1 - (var(--scroll-progress, 0) - 0.98) * 50, 1);
+  pointer-events: auto;
+}
+.flame-trail-hit:focus-visible {
+  outline: 2px solid rgba(255, 165, 0, 0.5);
+  outline-offset: -2px;
+  border-radius: 2px;
+}
+
 /* ── Rocket scroll hint — to the left of the rocket, first slide only ── */
 .rocket-hint {
   position: fixed;

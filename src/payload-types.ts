@@ -1529,9 +1529,21 @@ export interface ClientProposal {
          */
         gbpRespondsToReviews?: boolean | null;
         /**
-         * Override: mark this competitor as running Meta Ads
+         * Manual override: mark this competitor as running Google Ads (used by the v2 deck's Competitor Analysis + Paid Burn slides when the audit data is wrong or missing).
+         */
+        hasGoogleAds?: boolean | null;
+        /**
+         * Optional override for the Google Ads count shown on the Paid Burn slide. Leave blank to use audit data.
+         */
+        googleAdCountOverride?: number | null;
+        /**
+         * Manual override: mark this competitor as running Meta Ads (used by the v2 deck's Competitor Analysis + Paid Burn slides when the audit data is wrong or missing).
          */
         hasMetaAds?: boolean | null;
+        /**
+         * Optional override for the Meta Ads count shown on the Paid Burn slide. Leave blank to use audit data.
+         */
+        metaAdCountOverride?: number | null;
         /**
          * Manual Google Ads screenshots (up to 4). Overrides growth tools data.
          */
@@ -6538,7 +6550,10 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         gbpRating?: T;
         gbpReviewCount?: T;
         gbpRespondsToReviews?: T;
+        hasGoogleAds?: T;
+        googleAdCountOverride?: T;
         hasMetaAds?: T;
+        metaAdCountOverride?: T;
         googleAdScreenshots?:
           | T
           | {
