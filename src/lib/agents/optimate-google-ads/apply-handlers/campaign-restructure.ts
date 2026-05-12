@@ -9,7 +9,7 @@
  */
 
 import type { ApplyHandler, ApplyHandlerResult } from "@/lib/agents/_shared/apply-dispatcher";
-import { resolveCustomerId, postGrowthTools } from "./_helpers";
+import { resolveCustomerId, postGrowthToolsFireAndForget } from "./_helpers";
 
 const VALID_BUSINESS_TYPES = ["distributor", "ecommerce", "service", "other"];
 const VALID_CONVERSION_GOALS = ["leads", "sales", "bookings", "signups"];
@@ -138,7 +138,9 @@ export const applyCampaignRestructure: ApplyHandler = async (payload, ctx): Prom
       }))
     : undefined;
 
-  const res = await postGrowthTools("/api/google-ads/campaign-proposal/cms", {
+  // Fire-and-forget — proposal takes 5-10 min; awaiting would exceed Vercel timeout.
+  // Growth Tools pushes results back to CMS via PATCH when done.
+  postGrowthToolsFireAndForget("/api/google-ads/campaign-proposal/cms", {
     auditDocId: auditIdNum,
     websiteUrl: audit.websiteUrl,
     businessName: audit.businessName,
@@ -159,18 +161,6 @@ export const applyCampaignRestructure: ApplyHandler = async (payload, ctx): Prom
     primaryFocus: audit.proposalPrimaryFocus,
     extraGenericBrandWords: [],
   });
-
-  if (!res.ok) {
-    if (dbClient) {
-      try {
-        await dbClient.execute({
-          sql: "UPDATE google_ads_audits SET campaign_proposal_status = ? WHERE id = ?",
-          args: ["failed", auditIdNum],
-        });
-      } catch { /* best effort */ }
-    }
-    throw new Error(`Growth Tools campaign-proposal failed: ${res.error}`);
-  }
 
   return {
     message: `Campaign proposal kicked off for audit #${auditIdNum}. Growth Tools is generating the structure (typically 5\u201310 minutes). Check back with get_campaign_proposal_status.`,

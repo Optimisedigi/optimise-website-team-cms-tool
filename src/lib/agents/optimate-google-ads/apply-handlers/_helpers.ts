@@ -12,6 +12,8 @@ import type { Payload } from "payload";
 
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || "";
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL || "";
+// Direct Railway URL — bypasses Vercel proxy 60s timeout for long-running calls.
+const GROWTH_TOOLS_DIRECT_URL = process.env.GROWTH_TOOLS_DIRECT_URL || GROWTH_TOOLS_URL;
 
 export type MatchType = "exact" | "phrase" | "broad";
 
@@ -113,6 +115,29 @@ export async function resolveClientId(
  * deploy-ad-copy) so apply-handlers behave the same way as a human clicking
  * the equivalent admin button.
  */
+/**
+ * Fire-and-forget POST to Growth Tools — used for long-running calls like
+ * campaign-proposal that exceed Vercel's function timeout. Calls the direct
+ * Railway URL (bypassing the Vercel proxy) and does NOT await the response.
+ */
+export function postGrowthToolsFireAndForget(
+  pathFromRoot: string,
+  body: Record<string, unknown>,
+): void {
+  if (!INTERNAL_API_KEY || !GROWTH_TOOLS_DIRECT_URL) return;
+  const url = `${GROWTH_TOOLS_DIRECT_URL}${pathFromRoot}`;
+  fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-internal-key": INTERNAL_API_KEY,
+    },
+    body: JSON.stringify(body),
+  }).catch((err) => {
+    console.error(`[postGrowthToolsFireAndForget] ${pathFromRoot}:`, (err as Error).message);
+  });
+}
+
 export async function postGrowthTools(
   pathFromRoot: string,
   body: Record<string, unknown>,

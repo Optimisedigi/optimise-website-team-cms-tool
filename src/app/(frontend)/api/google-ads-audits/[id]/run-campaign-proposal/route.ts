@@ -6,6 +6,9 @@ import { resolveBrandTerms } from "@/lib/brand-terms";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+// Direct Railway URL bypasses the Vercel proxy (60s timeout) for long-running proposal calls.
+// Falls back to GROWTH_TOOLS_URL if not set.
+const GROWTH_TOOLS_DIRECT_URL = process.env.GROWTH_TOOLS_DIRECT_URL || GROWTH_TOOLS_URL;
 
 export async function POST(
   req: NextRequest,
@@ -117,7 +120,7 @@ export async function POST(
         // back to CMS via PATCH. Do NOT await — Vercel kills after() within seconds.
         // GT also handles marking status as "failed" on error via its own PATCH.
         fetch(
-          `${GROWTH_TOOLS_URL}/api/google-ads/campaign-proposal/cms`,
+          `${GROWTH_TOOLS_DIRECT_URL}/api/google-ads/campaign-proposal/cms`,
           {
             method: "POST",
             headers: {
