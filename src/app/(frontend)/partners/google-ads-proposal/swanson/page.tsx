@@ -169,22 +169,22 @@ export default function SwansonProposal() {
               <div className="h-eyebrow">04 · Google Ads Budget</div>
               <h1 className="h-title">Monthly Budget Recommendations</h1>
             </div>
-            <div className="h-meta">NSW + Queensland · Exact match</div>
+            <div className="h-meta">NSW + QLD · Phase 01-02 · Nationwide from Phase 03</div>
           </div>
           <p className="pull" style={{ fontSize: 28, lineHeight: 1.25, maxWidth: 1700, marginBottom: 24 }}>
             <strong style={{ color: 'var(--ink)' }}>The goal:</strong> Own laser cladding in NSW + QLD. Zero competition. Scale from core terms to full coverage as the pilot validates.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 24 }}>
             {[
-              { phase: 'PHASE 01', name: 'Validation', budget: '$2,500-3,500', period: '/ month', duration: 'Weeks 1-6', goal: 'Target 60-80% impression share on core keywords. Confirm CPA < $300. Validate click quality and enquiry conversion before scaling spend.', targets: ['"laser cladding" (40-80)', '"hydraulic cylinder laser cladding" (10-30)', '"laser cladding Sydney" (10-30)', '"laser cladding Brisbane" (10-20)', '"laser cladding Newcastle" (10-20)'], color: '#f0b35a' },
-              { phase: 'PHASE 02', name: 'Dominance', budget: '$5,000-7,500', period: '/ month', duration: 'Weeks 5-12', goal: '100% impression share on core keywords. Add application keywords (chrome replacement, shaft cladding). Scale confirmed performers. Expand to all regional terms.', targets: ['+ "laser metal cladding" (10-30)', '+ "chrome replacement laser" (10-20)', '+ "laser coating service" (10-30)', '+ "component repair laser coating" (10-20)', '+ "laser cladding Queensland" (10-25)'], color: '#4d94ff' },
-              { phase: 'PHASE 03', name: 'Extended Reach', budget: '$8,000-12,000', period: '/ month', duration: 'TBC', goal: 'Targeting opens to nation-wide coverage. Scope to include Victoria, South Australia, Western Australia and New Zealand if enquiry volume from NSW + QLD confirms strong unit economics.', targets: ['"industrial laser cladding" (10-25)', '"bearing journal laser repair" (10-20)', '"hydraulic rod laser cladding" (10-20)', 'Nation-wide coverage if unit economics confirmed', 'Remarketing + Display brand awareness'], color: '#22c55e' },
+              { phase: 'PHASE 01', name: 'Validation · NSW + QLD', budget: '$2,500-3,500', duration: 'Weeks 1-6', goal: 'Target 60-80% impression share on core keywords in NSW + QLD. Confirm CPA < $300. Validate click quality and enquiry conversion before scaling spend.', targets: ['"laser cladding" (40-80)', '"hydraulic cylinder laser cladding" (10-30)', '"laser cladding Sydney" (10-30)', '"laser cladding Brisbane" (10-20)', '"laser cladding Newcastle" (10-20)'], color: '#f0b35a' },
+              { phase: 'PHASE 02', name: 'Dominance · NSW + QLD', budget: '$5,000-7,500', duration: 'Weeks 5-12', goal: '100% impression share on core keywords. Add application keywords (chrome replacement, shaft cladding). Scale confirmed performers. Begin opening to national coverage if unit economics confirm.', targets: ['+ "laser metal cladding" (10-30)', '+ "chrome replacement laser" (10-20)', '+ "laser coating service" (10-30)', '+ "component repair laser coating" (10-20)', '+ "laser cladding Queensland" (10-25)', '+ National expansion based on Phase 01 results'], color: '#4d94ff' },
+              { phase: 'PHASE 03', name: 'Extended Reach · Nationwide', budget: '$8,000-12,000', duration: 'TBC', goal: 'Full nation-wide coverage. Victoria, South Australia, Western Australia, and national terms. Remarketing and display brand awareness. Scale spend only if CPA remains under $300.', targets: ['"industrial laser cladding" (10-25)', '"bearing journal laser repair" (10-20)', '"hydraulic rod laser cladding" (10-20)', 'Nation-wide coverage confirmed', 'Remarketing + Display brand awareness'], color: '#22c55e' },
             ].map((tier, i) => (
               <div key={i} className="card" style={{ padding: '24px 28px', gap: 10, borderTop: `4px solid ${tier.color}` }}>
                 <div className="num-tag" style={{ color: tier.color }}>{tier.phase}</div>
                 <div className="h" style={{ fontSize: 28, lineHeight: 1.2 }}>{tier.name}</div>
                 <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 36, fontWeight: 700, color: tier.color, lineHeight: 1 }}>{tier.budget}</div>
-                <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, color: 'var(--ink-mute)' }}>{tier.period} · {tier.duration}</div>
+                <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, color: 'var(--ink-mute)' }}>{tier.duration}</div>
                 <div className="b" style={{ fontSize: 21, marginTop: 6 }}>{tier.goal}</div>
                 <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {tier.targets.map((kw, j) => (
