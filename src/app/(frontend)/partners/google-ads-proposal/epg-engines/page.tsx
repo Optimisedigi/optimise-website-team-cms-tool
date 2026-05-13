@@ -160,7 +160,7 @@ export default function EpgProposal() {
               </div>
             </div>
             <p className="small" style={{ marginTop: 16 }}>
-              Rehlko is a newly established brand (formerly Kohler Energy, announced September 2024). Search volume is currently low but will grow as awareness builds. Capturing Kohler-branded traffic now is critical - competitors are likely eyeing this market segment.
+              Rehlko is a newly established brand (formerly Kohler Energy, announced September 2024). Search volume is currently low but will grow as awareness builds. Capturing Kohler-branded traffic now is critical - we need to make sure people searching for the old name find the new name.
             </p>
             <div className="slide-foot" />
           </section>
@@ -283,11 +283,11 @@ export default function EpgProposal() {
             </div>
             <div className="roadmap" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
               {[
-                { week: 'WEEK 01', step: 'Create Account + Onboard', body: 'Optimise Digital sends agreement. EPG signs and grants WordPress admin access. Onboard: collect WordPress login, map existing sales process, identify top enquiry types (dealers, manufacturers, maintenance), and confirm Rehlko product range details. Create new Google Ads account under EPG management.' },
-                { week: 'WEEK 02', step: 'CRO Audit + WordPress Setup', body: 'WordPress admin access granted. CRO audit of engine and generator landing pages with recommendations. Install and configure Google Ads conversion tracking via WordPress - enquiry forms, dealer locator usage, and phone calls. Create Google Ads conversion events and confirm tracking is firing correctly.' },
-                { week: 'WEEK 03', step: 'Proposal + Strategy', body: 'Present full campaign proposal, ad group structure, and keyword strategy for EPG sign-off. Finalise negative keyword list. Confirm budget split between Search and Display. Refine ad copy themes: transition urgency + new brand energy.' },
-                { week: 'WEEK 04', step: 'Campaign Build + Go Live', body: 'Targeting go live: 1 June 2026. Build 3 search ad groups (Kohler Branded, Rehlko Branded, Non-Branded). Write 3 ad copy variants per group. Configure location targeting: NSW, VIC, QLD, WA. Launch display remarketing. Budget: $4,000/month.' },
-                { week: 'WEEK 05+', step: 'Optimise + Scale', body: 'Optimise landing pages, ad copy, and keyword targeting based on first 4 weeks of data. Scale spend to $8,000+/month if CPA < $80. Report monthly on branded capture rate vs. competitors.' },
+                { week: 'WEEK 01', step: 'Agreement + Onboard', body: 'Agreement signed. WordPress admin access granted. Create Google Ads account under EPG management.' },
+                { week: 'WEEK 02', step: 'CRO Audit + Tracking', body: 'CRO audit of landing pages. Install Google Ads conversion tracking via WordPress - confirm events firing correctly.' },
+                { week: 'WEEK 03', step: 'Proposal + Strategy', body: 'Present campaign proposal, keyword strategy, and ad copy themes for sign-off. Finalise negative keyword list.' },
+                { week: 'WEEK 04', step: 'Campaign Build + Go Live', body: 'Build 3 search ad groups (Kohler, Rehlko, Non-Branded). Go live 1 June. Budget: $4,000/month.' },
+                { week: 'WEEK 05+', step: 'Optimise + Scale', body: 'Optimise based on first 4 weeks of data. Scale to $8,000/mo if CPA under $80.' },
               ].map((cell, i) => (
                 <div key={i} className="road-cell">
                   <div className="week">{cell.week}</div>
