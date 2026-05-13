@@ -1757,6 +1757,9 @@ export interface ClientProposal {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * Hides selected competitors from every slide they appear on: Competitor Analysis, Paid Burn, and Return Modelling.
+   */
   excludedCompetitorDomains?:
     | {
         [k: string]: unknown;
@@ -1766,6 +1769,9 @@ export interface ClientProposal {
     | number
     | boolean
     | null;
+  /**
+   * Hides selected keyword categories from every slide that lists them: Mission Brief (categories card), Keyword Landscape, and Organic Propulsion.
+   */
   hiddenKeywordCategories?:
     | {
         [k: string]: unknown;
@@ -1931,6 +1937,35 @@ export interface ClientProposal {
     hasNextPage?: boolean;
     totalDocs?: number;
   };
+  /**
+   * Slide decks and presentations for this proposal (e.g. Google Ads audit deck, pitch deck). Files live at public/partners/<proposal-slug>/<deck-slug>/ — the live URL is computed from the slug below.
+   */
+  presentations?:
+    | {
+        /**
+         * Display name (e.g. 'Google Ads Audit Deck')
+         */
+        title: string;
+        /**
+         * Folder slug under public/partners/<proposal-slug>/ (e.g. 'google-ads-audit'). Must be unique within this proposal.
+         */
+        deckSlug: string;
+        /**
+         * Date the deck was presented
+         */
+        presentedOn?: string | null;
+        kind?: ('deck' | 'google_ads_audit' | 'pitch' | 'workshop' | 'other') | null;
+        /**
+         * Uncheck if the deck contains sensitive info that should not be linked publicly.
+         */
+        isPublic?: boolean | null;
+        /**
+         * Internal notes (audience, outcomes, follow-ups)
+         */
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Current stage of this proposal
    */
@@ -6667,6 +6702,17 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         id?: T;
       };
   contracts?: T;
+  presentations?:
+    | T
+    | {
+        title?: T;
+        deckSlug?: T;
+        presentedOn?: T;
+        kind?: T;
+        isPublic?: T;
+        notes?: T;
+        id?: T;
+      };
   proposalStatus?: T;
   convertToClient?: T;
   client?: T;

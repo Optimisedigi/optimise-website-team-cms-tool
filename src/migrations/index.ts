@@ -48,6 +48,7 @@ import * as migration_20260513_120000_add_mission_priorities from './20260513_12
 import * as migration_20260514_120000_add_roadmap_and_commercial_and_launch from './20260514_120000_add_roadmap_and_commercial_and_launch';
 import * as migration_20260515_120000_rename_roadmap_cells_desc_to_body from './20260515_120000_rename_roadmap_cells_desc_to_body';
 import * as migration_20260512_140000_add_optimate_chat_turns from './20260512_140000_add_optimate_chat_turns';
+import * as migration_20260513_130000_add_client_proposal_presentations from './20260513_130000_add_client_proposal_presentations';
 
 export const migrations = [
   {
@@ -299,5 +300,10 @@ export const migrations = [
     up: migration_20260512_140000_add_optimate_chat_turns.up,
     down: migration_20260512_140000_add_optimate_chat_turns.down,
     name: '20260512_140000_add_optimate_chat_turns'
+  },
+  {
+    up: migration_20260513_130000_add_client_proposal_presentations.up,
+    down: migration_20260513_130000_add_client_proposal_presentations.down,
+    name: '20260513_130000_add_client_proposal_presentations'
   },
 ];

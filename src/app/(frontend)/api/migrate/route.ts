@@ -2507,6 +2507,22 @@ export async function POST(request: NextRequest) {
   await run("clients_presentations_order_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_order_idx` ON `clients_presentations` (`_order`)");
   await run("clients_presentations_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_parent_id_idx` ON `clients_presentations` (`_parent_id`)");
 
+  // ── Client Proposal Presentations array table (2026-05-13) ──
+  await run("client_proposals_presentations", `CREATE TABLE IF NOT EXISTS \`client_proposals_presentations\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`title\` text NOT NULL,
+    \`deck_slug\` text NOT NULL,
+    \`presented_on\` text,
+    \`kind\` text DEFAULT 'deck',
+    \`is_public\` integer DEFAULT true,
+    \`notes\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("client_proposals_presentations_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_presentations_order_idx` ON `client_proposals_presentations` (`_order`)");
+  await run("client_proposals_presentations_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_presentations_parent_id_idx` ON `client_proposals_presentations` (`_parent_id`)");
+
   // ── Scheduled Agent Tasks (2026-05-09) ──
   // Recurring agent runs created from chat. The cron tick endpoint loads
   // isActive=true rows whose nextRunAt has elapsed, runs the prompt through
@@ -3162,6 +3178,22 @@ export async function GET(request: NextRequest) {
   )`);
   await run("clients_presentations_order_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_order_idx` ON `clients_presentations` (`_order`)");
   await run("clients_presentations_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_parent_id_idx` ON `clients_presentations` (`_parent_id`)");
+
+  // ── Client Proposal Presentations array table (2026-05-13) ──
+  await run("client_proposals_presentations_get", `CREATE TABLE IF NOT EXISTS \`client_proposals_presentations\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`title\` text NOT NULL,
+    \`deck_slug\` text NOT NULL,
+    \`presented_on\` text,
+    \`kind\` text DEFAULT 'deck',
+    \`is_public\` integer DEFAULT true,
+    \`notes\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("client_proposals_presentations_order_idx_get", "CREATE INDEX IF NOT EXISTS `client_proposals_presentations_order_idx` ON `client_proposals_presentations` (`_order`)");
+  await run("client_proposals_presentations_parent_id_idx_get", "CREATE INDEX IF NOT EXISTS `client_proposals_presentations_parent_id_idx` ON `client_proposals_presentations` (`_parent_id`)");
 
   // ── Agent Memory + Soul (2026-05-12, lazy-loaded memory inspired by Pocket Agent) ──
   await run("agent_memory", `CREATE TABLE IF NOT EXISTS \`agent_memory\` (

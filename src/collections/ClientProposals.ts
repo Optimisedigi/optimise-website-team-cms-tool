@@ -1410,6 +1410,95 @@ export const ClientProposals: CollectionConfig = {
             },
           ],
         },
+        {
+          label: "Presentations",
+          fields: [
+            {
+              name: "presentations",
+              type: "array",
+              admin: {
+                description:
+                  "Slide decks and presentations for this proposal (e.g. Google Ads audit deck, pitch deck). Files live at public/partners/<proposal-slug>/<deck-slug>/ — the live URL is computed from the slug below.",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "title",
+                      type: "text",
+                      required: true,
+                      admin: {
+                        width: "60%",
+                        description: "Display name (e.g. 'Google Ads Audit Deck')",
+                      },
+                    },
+                    {
+                      name: "deckSlug",
+                      type: "text",
+                      required: true,
+                      admin: {
+                        width: "40%",
+                        description:
+                          "Folder slug under public/partners/<proposal-slug>/ (e.g. 'google-ads-audit'). Must be unique within this proposal.",
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "presentedOn",
+                      type: "date",
+                      admin: {
+                        width: "30%",
+                        description: "Date the deck was presented",
+                      },
+                    },
+                    {
+                      name: "kind",
+                      type: "select",
+                      defaultValue: "deck",
+                      admin: { width: "30%" },
+                      options: [
+                        { label: "Slide Deck (HTML)", value: "deck" },
+                        { label: "Google Ads Audit", value: "google_ads_audit" },
+                        { label: "Pitch / Proposal", value: "pitch" },
+                        { label: "Workshop", value: "workshop" },
+                        { label: "Other", value: "other" },
+                      ],
+                    },
+                    {
+                      name: "isPublic",
+                      type: "checkbox",
+                      defaultValue: true,
+                      admin: {
+                        width: "40%",
+                        description:
+                          "Uncheck if the deck contains sensitive info that should not be linked publicly.",
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  admin: { description: "Internal notes (audience, outcomes, follow-ups)" },
+                },
+                {
+                  name: "linkPreview",
+                  type: "ui",
+                  admin: {
+                    components: {
+                      Field: "/components/ClientProposalPresentationLink",
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
       ],
     },
     {
