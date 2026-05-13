@@ -1290,7 +1290,7 @@ export default function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-white"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-20 pb-12 max-w-5xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-3 max-w-4xl mx-auto text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-3 mx-auto text-slate-900 md:whitespace-nowrap">
               Big CPL wins available by fixing the highest-spending landing pages
             </h2>
             <p className="text-center text-sm md:text-base pb-[20px] max-w-3xl mx-auto text-slate-500">
