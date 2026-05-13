@@ -71,9 +71,9 @@ export default function EpgProposal() {
             <div style={{ display: 'grid', gridTemplateColumns: '0.7fr 1.5fr', gap: 48, alignItems: 'start' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <div className="stat-tile" style={{ padding: '24px 28px', gap: 10 }}>
-                  <div className="lbl" style={{ fontSize: 24 }}>Branded search volume</div>
-                  <div className="val purple" style={{ fontSize: 64, lineHeight: 1 }}>~900</div>
-                  <div className="desc" style={{ fontSize: 24 }}>Kohler + Rehlko combined/mo</div>
+                  <div className="lbl" style={{ fontSize: 24 }}>Total addressable search volume</div>
+                  <div className="val purple" style={{ fontSize: 64, lineHeight: 1 }}>~1,100</div>
+                  <div className="desc" style={{ fontSize: 24 }}>Branded + generic engine terms/mo</div>
                 </div>
                 <div className="stat-tile" style={{ padding: '24px 28px', gap: 10 }}>
                   <div className="lbl" style={{ fontSize: 22 }}>Avg. CPC</div>
@@ -86,9 +86,9 @@ export default function EpgProposal() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div className="eyebrow" style={{ color: 'var(--purple-deep)', marginBottom: 6 }}>Volume by category</div>
                 {[
-                  { cat: 'Kohler branded terms', sub: '"kohler engines", "kohler engine parts", "kohler diesel engine"', vol: '~600-900', nat: '~2,500', share: '58%', color: '#f97316' },
-                  { cat: 'Rehlko branded terms (growing)', sub: '"rehlko engines", "rehlko Australia", "rehlko diesel engine"', vol: '~50-150', nat: '~200', share: '22%', color: '#ea580c' },
-                  { cat: 'Non-branded engine terms', sub: '"diesel engine distributor", "industrial engine supplier", "petrol engine wholesale"', vol: '~200-400', nat: '~1,800', share: '20%', color: '#fb923c' },
+                  { cat: 'Kohler branded terms', sub: '"kohler engines", "kohler engine parts", "kohler diesel engine"', vol: '~600-900', nat: '~2,500', share: '65%', color: '#f97316' },
+                  { cat: 'Rehlko branded terms (growing)', sub: '"rehlko engines", "rehlko Australia", "rehlko diesel engine"', vol: '~50-150', nat: '~200', share: '9%', color: '#ea580c' },
+                  { cat: 'Generic engine terms', sub: '"diesel engine distributor", "industrial engine supplier", "horizontal shaft engine"', vol: '~200-400', nat: '~1,800', share: '26%', color: '#fb923c' },
                 ].map((row, i) => (
                   <div key={i} className="card" style={{ padding: '18px 24px', gap: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -183,7 +183,7 @@ export default function EpgProposal() {
                 {
                   phase: 'PHASE 01',
                   name: 'Search Campaign',
-                  budget: '$3,200',
+                  budget: '$3,500',
                   duration: 'June 2026 onwards',
                   goal: 'Capture high-intent branded traffic — both Kohler (transition) and Rehlko (new brand). Target dealers, equipment manufacturers, and maintenance businesses actively searching for engine suppliers.',
                   targets: [
@@ -198,15 +198,15 @@ export default function EpgProposal() {
                 {
                   phase: 'PHASE 02',
                   name: 'Display Campaign',
-                  budget: '$800',
-                  duration: 'June 2026 onwards',
-                  goal: 'Brand awareness and remarketing. Reach decision-makers who have visited the site or interacted with EPG content. Support the search campaign through display retargeting.',
+                  budget: '$500',
+                  duration: 'August 2026 onwards',
+                  goal: 'Remarketing and brand awareness. Launch in August once Search has built a remarketing audience from site visitors. Reach decision-makers who have visited the site or interacted with EPG content.',
                   targets: [
                     'Remarketing · 50% of budget',
                     'Brand Awareness · 50% of budget',
+                    'Remarketing audience built from Search traffic (Weeks 1-8)',
                     'Trade, agriculture & industrial audiences',
                     'Targeting NSW, VIC, QLD, WA',
-                    '1M+ impressions/month',
                   ],
                   color: '#7c3aed',
                 },
