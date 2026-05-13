@@ -178,13 +178,13 @@ export default function EpgProposal() {
             <p className="pull" style={{ fontSize: 28, lineHeight: 1.25, maxWidth: 1700, marginBottom: 24 }}>
               <strong style={{ color: 'var(--ink)' }}>The goal:</strong> Capture every Kohler-branded search mid-purchase. Build Rehlko brand awareness simultaneously so EPG is top-of-mind as the transition completes.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, marginBottom: 16 }}>
               {[
                 {
                   phase: 'PHASE 01',
                   name: 'Search Campaign',
                   budget: '$3,500',
-                  duration: 'June 2026 onwards',
+                  duration: 'May 2026 onwards',
                   goal: 'Capture high-intent branded traffic — both Kohler (transition) and Rehlko (new brand). Target dealers, equipment manufacturers, and maintenance businesses actively searching for engine suppliers.',
                   targets: [
                     'Kohler Branded · 45% of budget',
@@ -204,26 +204,11 @@ export default function EpgProposal() {
                   targets: [
                     'Remarketing · 50% of budget',
                     'Brand Awareness · 50% of budget',
-                    'Remarketing audience built from Search traffic (Weeks 1-8)',
+                    'Remarketing audience built from Search (Weeks 1-8)',
                     'Trade, agriculture & industrial audiences',
                     'Targeting NSW, VIC, QLD, WA',
                   ],
                   color: '#7c3aed',
-                },
-                {
-                  phase: 'PHASE 03',
-                  name: 'Scale + Pivot',
-                  budget: '$8,000+',
-                  duration: 'Month 3+',
-                  goal: 'Scale to $8,000+/month if Phase 01 CPA < $80. By Month 06, pivot budget from Kohler Branded to Rehlko Branded as Rehlko volume grows and Kohler volume fades.',
-                  targets: [
-                    'Rehlko Branded expansion',
-                    'Kohler Branded wind-down',
-                    'Remarketing audience growth',
-                    'National coverage',
-                    'Performance max trial',
-                  ],
-                  color: '#22c55e',
                 },
               ].map((tier, i) => (
                 <div key={i} className="card" style={{ padding: '24px 28px', gap: 10, borderTop: `4px solid ${tier.color}` }}>
@@ -240,64 +225,63 @@ export default function EpgProposal() {
                 </div>
               ))}
             </div>
-            {/* Budget Ceiling Analysis — mirrors Swanson's disclaimer note position */}
-            <div style={{ marginTop: 8 }}>
-              <div className="eyebrow" style={{ color: 'var(--purple-deep)', marginBottom: 14 }}>
+            {/* Budget Ceiling Analysis */}
+            <div style={{ marginTop: 12 }}>
+              <div className="eyebrow" style={{ color: 'var(--purple-deep)', marginBottom: 10 }}>
                 Budget Ceiling Analysis
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 16 }}>
                 {/* Left: segment ceilings */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {[
-                    { label: 'Kohler Branded Terms', vol: '~2,000/mo', cpc: '$8.50 avg', ceiling: '$17,000', color: '#f97316', share: '53%' },
-                    { label: 'Rehlko Branded Terms', vol: '~250/mo', cpc: '$6.00 avg', ceiling: '$1,500', color: '#ea580c', share: '5%' },
-                    { label: 'Non-Branded Engine Terms', vol: '~1,400/mo', cpc: '$8.50 avg', ceiling: '$11,900', color: '#fb923c', share: '37%' },
-                    { label: 'Display Remarketing', vol: 'Impressions-based', cpc: '$0.40 CPM', ceiling: '$1,500', color: '#7c3aed', share: '5%' },
+                    { label: 'Kohler Branded Terms', vol: '~2,000/mo · CPC $8.50', ceiling: '$17,000', color: '#f97316', share: '53%' },
+                    { label: 'Rehlko Branded Terms', vol: '~250/mo · CPC $6.00', ceiling: '$1,500', color: '#ea580c', share: '5%' },
+                    { label: 'Non-Branded Engine Terms', vol: '~1,400/mo · CPC $8.50', ceiling: '$11,900', color: '#fb923c', share: '37%' },
+                    { label: 'Display Remarketing', vol: 'Impressions-based · CPM $0.40', ceiling: '$1,500', color: '#7c3aed', share: '5%' },
                   ].map((row, i) => (
-                    <div key={i} className="card" style={{ padding: '14px 20px', gap: 6 }}>
+                    <div key={i} className="card" style={{ padding: '12px 18px', gap: 6 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, fontWeight: 600, color: 'var(--ink)' }}>{row.label}</div>
-                          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, color: 'var(--ink-mute)', marginTop: 2 }}>{row.vol} · CPC {row.cpc}</div>
+                          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 19, fontWeight: 600, color: 'var(--ink)' }}>{row.label}</div>
                         </div>
-                        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, fontWeight: 700, color: row.color, flexShrink: 0 }}>{row.ceiling}</div>
+                        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, fontWeight: 700, color: row.color, flexShrink: 0 }}>{row.ceiling}</div>
                       </div>
-                      <div style={{ height: 6, background: 'var(--line)', borderRadius: 3, overflow: 'hidden', marginTop: 6 }}>
+                      <div style={{ height: 5, background: 'var(--line)', borderRadius: 3, overflow: 'hidden' }}>
                         <div style={{ width: row.share, height: '100%', background: row.color, borderRadius: 3 }} />
                       </div>
                     </div>
                   ))}
                 </div>
                 {/* Right: ceiling summary + scale roadmap */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div className="card" style={{ padding: '22px 24px', gap: 8, textAlign: 'center', background: 'rgba(249,115,22,0.05)', border: '1px solid rgba(249,115,22,0.15)' }}>
-                    <div className="num-tag" style={{ fontSize: 20, color: 'var(--ink-mute)' }}>Total Monthly Budget Ceiling</div>
-                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 52, fontWeight: 700, color: '#f97316', lineHeight: 1 }}>$31,900</div>
-                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, color: 'var(--ink-mute)' }}>Full keyword capture — all segments</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div className="card" style={{ padding: '18px 20px', gap: 6, textAlign: 'center', background: 'rgba(249,115,22,0.05)', border: '1px solid rgba(249,115,22,0.15)' }}>
+                    <div className="num-tag" style={{ fontSize: 18, color: 'var(--ink-mute)' }}>Total Monthly Budget Ceiling</div>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 48, fontWeight: 700, color: '#f97316', lineHeight: 1 }}>$31,900</div>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 16, color: 'var(--ink-mute)' }}>Full keyword capture — all segments</div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div className="num-tag" style={{ fontSize: 18, color: 'var(--ink-mute)', marginBottom: 2 }}>Scale roadmap</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div className="num-tag" style={{ fontSize: 17, color: 'var(--ink-mute)', marginBottom: 2 }}>Scale roadmap</div>
                     {[
                       { phase: 'Phase 01 · Now', budget: '$4,000/mo', color: '#f97316' },
                       { phase: 'Phase 02 · Month 3+', budget: '$8,000/mo', color: '#ea580c' },
                       { phase: 'Phase 03 · Month 6+', budget: '$16,000/mo', color: '#22c55e' },
                       { phase: 'Phase 04 · Full ceiling', budget: '$31,900/mo', color: '#7c3aed' },
                     ].map((s, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < 3 ? '1px solid var(--line)' : 'none' }}>
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: i < 3 ? '1px solid var(--line)' : 'none' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                          <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, color: 'var(--ink)' }}>{s.phase}</span>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                          <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, color: 'var(--ink)' }}>{s.phase}</span>
                         </div>
-                        <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 700, color: s.color }}>{s.budget}</span>
+                        <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, fontWeight: 700, color: s.color }}>{s.budget}</span>
                       </div>
                     ))}
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 16, color: 'var(--ink-mute)' }}>$4k proposed</span>
-                    <div style={{ flex: 1, height: 12, background: 'var(--line)', borderRadius: 4, overflow: 'hidden' }}>
+                    <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, color: 'var(--ink-mute)' }}>$4k proposed</span>
+                    <div style={{ flex: 1, height: 10, background: 'var(--line)', borderRadius: 4, overflow: 'hidden' }}>
                       <div style={{ width: '12.5%', height: '100%', background: '#7c3aed', borderRadius: 4 }} />
                     </div>
-                    <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 16, color: 'var(--ink-mute)' }}>$31.9k ceiling</span>
+                    <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, color: 'var(--ink-mute)' }}>$31.9k ceiling</span>
                   </div>
                 </div>
               </div>
