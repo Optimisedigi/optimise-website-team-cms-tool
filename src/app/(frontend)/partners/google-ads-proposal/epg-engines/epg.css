@@ -1,28 +1,19 @@
-/**
- * EPG Engines proposal — orange accent overrides.
- * Inherits all base styles from report-v2.css.
- * Only overrides brand-specific tokens.
- */
+/* EPG Engines Proposal — orange accent overrides */
+/* Overrides base report-v2.css tokens to orange (Swanson is blue) */
 
 .proposal-v2.epg {
-  /* Orange accent — replaces blue/purple brand tokens */
-  --purple-deep:     #c2410c;
-  --purple-mid:       #ea580c;
-  --purple-light:     #fb923c;
-  --purple-ghost:     rgba(249, 115, 22, 0.07);
+  /* These tokens drive: .num-tag, .road-cell .week, .val.purple, .eyebrow, pill border */
+  --purple-deep:  #c2410c;  /* was #0066FF — orange */
+  --purple:       #f97316;  /* was #4d94ff — orange */
+  --purple-soft:  #fed7aa;  /* was #99c0ff — light orange for dark bg */
+  --gold:         #d97706;  /* CPC values — amber */
 
-  /* Stat tile accent */
-  --val-purple:       #f97316;
-  --val-purple-light: rgba(249, 115, 22, 0.12);
+  /* Slide cover accent */
+  --accent:       #f97316;
+}
 
-  /* Card top-border accent colour */
-  --accent:           #f97316;
-  --accent-mid:       #ea580c;
-  --accent-ghost:     rgba(249, 115, 22, 0.07);
-
-  /* Gold accent for CPC values */
-  --gold:             #d97706;
-
-  /* Roadmap phase bar */
-  --road-bar:         #f97316;
+/* Orange dot for brand-tag */
+.proposal-v2.epg .dot {
+  background: #f97316;
+  box-shadow: 0 0 16px #f97316;
 }
