@@ -79,6 +79,39 @@ export async function POST(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
+  // Client-presentation decks: slug is `<clientSlug>/<deckSlug>` (e.g.
+  // `away-digital/google-ads-audit`). Resolve to the client record, verify
+  // the deck is listed in `presentations[]`, and compare against the
+  // client's `clientPin`. This is the canonical path for new partner decks.
+  if (slug.includes("/")) {
+    const [clientSlug, deckSlug] = slug.split("/", 2);
+    if (clientSlug && deckSlug) {
+      const clientResult = await payload.find({
+        collection: "clients",
+        where: { slug: { equals: clientSlug } },
+        limit: 1,
+        overrideAccess: true,
+        select: { clientPin: true, presentations: true },
+      });
+      const clientRow = clientResult.docs[0] as
+        | {
+            clientPin?: string | null;
+            presentations?: { deckSlug?: string | null }[] | null;
+          }
+        | undefined;
+      if (clientRow) {
+        const hasDeck = (clientRow.presentations ?? []).some(
+          (p) => p?.deckSlug === deckSlug,
+        );
+        const pin = clientRow.clientPin;
+        if (hasDeck && pin && constantTimeCompare(password, pin)) {
+          return NextResponse.json({ ok: true });
+        }
+      }
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+  }
+
   // Try seo-audits first (legacy audit reports)
   const auditResult = await payload.find({
     collection: "seo-audits",
