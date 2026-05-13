@@ -190,7 +190,6 @@ export default function EpgProposal() {
                     'Kohler Branded · 45% of budget',
                     'Rehlko Branded · 25% of budget',
                     'Non-Branded Engine Terms · 30% of budget',
-                    'Exact + phrase match keywords',
                     'NSW, VIC, QLD, WA primary targeting',
                   ],
                   color: '#f97316',
@@ -212,10 +211,14 @@ export default function EpgProposal() {
                 },
               ].map((tier, i) => (
                 <div key={i} className="card" style={{ padding: '24px 28px', gap: 10, borderTop: `4px solid ${tier.color}` }}>
-                  <div className="num-tag" style={{ color: tier.color }}>{tier.phase}</div>
-                  <div className="h" style={{ fontSize: 28, lineHeight: 1.2 }}>{tier.name}</div>
-                  <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 36, fontWeight: 700, color: tier.color, lineHeight: 1 }}>{tier.budget}</div>
-                  <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, color: 'var(--ink-mute)' }}>{tier.duration}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div className="num-tag" style={{ color: tier.color }}>{tier.phase}</div>
+                      <div className="h" style={{ fontSize: 28, lineHeight: 1.2 }}>{tier.name}</div>
+                      <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, color: 'var(--ink-mute)', marginTop: 4 }}>{tier.duration}</div>
+                    </div>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 40, fontWeight: 700, color: tier.color, lineHeight: 1, textAlign: 'right', flexShrink: 0 }}>{tier.budget}</div>
+                  </div>
                   <div className="b" style={{ fontSize: 21, marginTop: 6 }}>{tier.goal}</div>
                   <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {tier.targets.map((kw, j) => (
