@@ -7,6 +7,7 @@
  */
 
 import type { ReactElement } from 'react'
+import { stripDashes } from './_text'
 
 export type MissionPriority = {
   tag?: string | null
@@ -48,9 +49,9 @@ export function MissionPrioritiesSlide({
       >
         {filled.map((p, i) => (
           <div className="card" key={`${p.tag}-${i}`}>
-            <div className="num-tag">{p.tag}</div>
-            <div className="h">{p.title}</div>
-            <div className="b">{p.description}</div>
+            <div className="num-tag">{stripDashes(p.tag)}</div>
+            <div className="h">{stripDashes(p.title)}</div>
+            <div className="b">{stripDashes(p.description)}</div>
           </div>
         ))}
       </div>

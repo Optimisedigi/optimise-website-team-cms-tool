@@ -751,9 +751,11 @@ min-height: 100vh;
    across cards regardless of how long the name text is. Using `2em` makes
    the rule scale with whatever font-size the slide assigns inline via the
    `scaleFor(count)` helper — 56px (1–2 cards) / 44px (3 cards) / 36px (4
-   cards). align-items: flex-end keeps a short single-line name sitting at
-   the same baseline as a longer two-line neighbour. */
-.price-card .name { font-family: 'Space Grotesk', sans-serif; font-size: 56px; font-weight: 600; line-height: 1; color: var(--ink); min-height: 2em; display: flex; align-items: flex-end; }
+   cards). align-items: flex-start keeps every name's first line on the
+   same baseline so titles like "Build & Launch" sit level with the first
+   line of two-line names like "Growth Retainer: SEO + Google Ads". The
+   reserved 2em still keeps the amount row below aligned across cards. */
+.price-card .name { font-family: 'Space Grotesk', sans-serif; font-size: 56px; font-weight: 600; line-height: 1; color: var(--ink); min-height: 2em; display: flex; align-items: flex-start; }
 .price-card.feature .name { color: #fff; }
 .price-card .amt { font-family: 'Space Grotesk', sans-serif; font-size: 96px; font-weight: 600; line-height: 1; letter-spacing: -0.03em; color: var(--ink); }
 .price-card.feature .amt { color: #fff; }

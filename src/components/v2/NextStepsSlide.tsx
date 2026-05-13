@@ -10,6 +10,7 @@
  */
 
 import type { ReactElement } from 'react'
+import { stripDashes } from './_text'
 
 export type LaunchStep = {
   stepLabel?: string | null
@@ -83,9 +84,9 @@ export function NextStepsSlide({
                 key={`${s.stepLabel}-${i}`}
                 style={{ padding: '24px 28px', gap: 10 }}
               >
-                <div className="num-tag">{s.stepLabel}</div>
-                <div className="h" style={{ fontSize: 26 }}>{s.title}</div>
-                <div className="b" style={{ fontSize: 22 }}>{s.body}</div>
+                <div className="num-tag">{stripDashes(s.stepLabel)}</div>
+                <div className="h" style={{ fontSize: 26 }}>{stripDashes(s.title)}</div>
+                <div className="b" style={{ fontSize: 22 }}>{stripDashes(s.body)}</div>
               </div>
             ))}
           </div>
@@ -101,9 +102,9 @@ export function NextStepsSlide({
               gap: 8,
             }}
           >
-            <div className="num-tag">{b.tag}</div>
-            <div className="h" style={{ fontSize: 26 }}>{b.title}</div>
-            <div className="b" style={{ fontSize: 22 }}>{b.body}</div>
+            <div className="num-tag">{stripDashes(b.tag)}</div>
+            <div className="h" style={{ fontSize: 26 }}>{stripDashes(b.title)}</div>
+            <div className="b" style={{ fontSize: 22 }}>{stripDashes(b.body)}</div>
           </div>
         ))}
       </div>

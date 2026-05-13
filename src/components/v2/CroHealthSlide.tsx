@@ -13,6 +13,7 @@
  */
 
 import type { ReactElement } from 'react'
+import { stripDashes } from './_text'
 
 type CroFinding = {
   status?: string | null
@@ -70,28 +71,20 @@ function subText(score: number): string {
 }
 
 /**
- * Normalise auto-generated CRO findings before they hit the slide:
- *   1. Strip em / en dashes (and the spaces around them). Auto-generated
- *      messages frequently use " — " as a clause separator; we replace it
- *      with ". " so the sentence still parses.
- *   2. Strip the trailing "(no action verb)" parenthetical that the audit
- *      engine appends to CTA findings. It reads as internal QA noise on the
- *      slide and the surrounding sentence already conveys the point.
- *   3. Collapse stray double spaces / leading punctuation introduced by 1–2.
+ * Normalise auto-generated CRO findings before they hit the slide. Two
+ * concerns:
+ *   1. The QA parenthetical "(no action verb)" that the audit engine appends
+ *      to CTA findings reads as internal noise on a client-facing slide.
+ *   2. Em/en dashes need to be stripped to match the deck-wide rule.
+ *
+ * Step 1 is CRO-specific so it lives here; step 2 delegates to the shared
+ * stripDashes helper used across the deck.
  */
 function sanitiseFinding(message: string): string {
   let s = message
   // Drop the QA parenthetical — with or without leading space.
   s = s.replace(/\s*\(no action verb\)/gi, '')
-  // Replace " — " / " – " (or any variant with surrounding spaces) with ". ".
-  s = s.replace(/\s*[—–]\s*/g, '. ')
-  // Any remaining bare em/en dash becomes a hyphen so we never render one.
-  s = s.replace(/[—–]/g, '-')
-  // Tidy whitespace.
-  s = s.replace(/\s{2,}/g, ' ').trim()
-  // Avoid "foo.. bar" if the original already ended a clause with a period.
-  s = s.replace(/\.\s*\.\s*/g, '. ')
-  return s
+  return stripDashes(s)
 }
 
 function Gauge({ score, colour }: { score: number; colour: string }): ReactElement {

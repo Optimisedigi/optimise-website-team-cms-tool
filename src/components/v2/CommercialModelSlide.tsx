@@ -9,6 +9,7 @@
  */
 
 import type { CSSProperties, ReactElement } from 'react'
+import { stripDashes } from './_text'
 
 export type CommercialFeature = {
   item?: string | null
@@ -119,19 +120,19 @@ export function CommercialModelSlide({
               className={p.featured ? 'price-card feature' : 'price-card'}
               style={cardStyleBase}
             >
-              <div className="tier">{p.tier}</div>
-              <div className="name" style={nameStyle}>{p.name}</div>
+              <div className="tier">{stripDashes(p.tier)}</div>
+              <div className="name" style={nameStyle}>{stripDashes(p.name)}</div>
               <div className="amt" style={amtStyle}>
-                {p.amount}
+                {stripDashes(p.amount)}
                 {p.amountSub && (
-                  <small style={smallStyle}>&nbsp;{p.amountSub}</small>
+                  <small style={smallStyle}>&nbsp;{stripDashes(p.amountSub)}</small>
                 )}
               </div>
               {features.length > 0 && (
                 <ul className="features">
                   {features.map((f, j) => (
                     <li key={`${f.item}-${j}`} style={featureStyle}>
-                      {f.item}
+                      {stripDashes(f.item)}
                     </li>
                   ))}
                 </ul>
@@ -154,7 +155,7 @@ export function CommercialModelSlide({
             whiteSpace: 'nowrap',
           }}
         >
-          {note}
+          {stripDashes(note)}
         </p>
       )}
 

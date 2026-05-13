@@ -7,6 +7,7 @@
  */
 
 import type { ReactElement } from 'react'
+import { stripDashes } from './_text'
 
 // Looser types because the linked audits come back as Payload relationships
 // which can be either an ID string or a fully-populated object depending on
@@ -242,7 +243,7 @@ export function MissionBriefSlide({
             className="pull"
             style={{ fontSize: 36, lineHeight: 1.18, margin: 0 }}
           >
-            {businessGoals ?? `Grow ${businessName} sustainably.`}
+            {stripDashes(businessGoals) || `Grow ${businessName} sustainably.`}
           </p>
 
           {/* TYPE card removed by request — the businessName + business-type

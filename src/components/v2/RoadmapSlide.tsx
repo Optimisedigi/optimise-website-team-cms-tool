@@ -7,6 +7,7 @@
  */
 
 import type { ReactElement } from 'react'
+import { stripDashes } from './_text'
 
 export type RoadmapCell = {
   week?: string | null
@@ -45,16 +46,16 @@ export function RoadmapSlide({
       >
         {filled.map((c, i) => (
           <div className="road-cell" key={`${c.week}-${i}`}>
-            <div className="week">{c.week}</div>
-            <div className="step">{c.step}</div>
-            <div className="desc">{c.body}</div>
+            <div className="week">{stripDashes(c.week)}</div>
+            <div className="step">{stripDashes(c.step)}</div>
+            <div className="desc">{stripDashes(c.body)}</div>
           </div>
         ))}
       </div>
 
       {note && (
         <p className="small" style={{ marginTop: 48 }}>
-          {note}
+          {stripDashes(note)}
         </p>
       )}
 

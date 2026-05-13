@@ -11,6 +11,7 @@
 
 import Image from 'next/image'
 import type { ReactElement } from 'react'
+import { stripDashes } from './_text'
 
 const OD_URL =
   'https://optimisedigital.online?utm_source=direct&utm_medium=proposal-preso'
@@ -28,6 +29,7 @@ export function ClosingSlide({
       : `https://${websiteUrl}`
     : null
 
+  const cleanName = stripDashes(businessName) || businessName
   const forNode = clientHref ? (
     <a
       href={clientHref}
@@ -35,10 +37,10 @@ export function ClosingSlide({
       rel="noopener noreferrer"
       style={{ color: 'inherit', textDecoration: 'none' }}
     >
-      {businessName}
+      {cleanName}
     </a>
   ) : (
-    <>{businessName}</>
+    <>{cleanName}</>
   )
 
   return (
@@ -94,7 +96,7 @@ export function ClosingSlide({
         </div>
         <div className="col">
           <div className="lbl">Presented by</div>
-          <div className="val">Adam Telhiwac and Peter Tu</div>
+          <div className="val">Adam Telhiwec and Peter Tu</div>
         </div>
         <div className="col">
           <div className="lbl">Next</div>
