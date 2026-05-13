@@ -148,31 +148,14 @@ export default buildConfig({
     },
     push: false,
   }),
-  // Auto-heal schema on every cold start. Mirrors `POST /api/migrate` so a
-  // deploy that adds tables/columns doesn't leave production with the previous
-  // schema (the failure mode that blanks out /proposals/[slug] with a generic
-  // "Application error"). Best-effort: never throws — a failure here would
-  // prevent Payload from starting, which is strictly worse than the status quo.
-  onInit: async (payload) => {
-    try {
-      const { runMigrations } = await import("./lib/run-migrations");
-      const results = await runMigrations(payload);
-      const errors = results.filter((r) => r.status === "error");
-      if (errors.length > 0) {
-        payload.logger.warn(
-          { errors, total: results.length },
-          "[schema-sync] migrations completed with errors",
-        );
-      } else {
-        payload.logger.info(
-          { total: results.length },
-          "[schema-sync] schema synced",
-        );
-      }
-    } catch (err) {
-      payload.logger.error({ err }, "[schema-sync] failed");
-    }
-  },
+  // NOTE: `onInit` auto-heal was tried and reverted — the ~2500-statement
+  // sweep against Turso runs serially over the network and pushed cold-start
+  // past Vercel's serverless timeout (504 GATEWAY_TIMEOUT on first request to
+  // any /proposals/[slug]). Use the manual `POST /api/migrate` endpoint after
+  // each deploy that adds collections/columns. The route-level error boundary
+  // at /proposals/[slug]/error.tsx now surfaces the exact missing table/column
+  // when drift happens, so it's diagnosable without `payload generate:types`
+  // round-trips.
   sharp,
   plugins: [
     ...(process.env.BLOB_READ_WRITE_TOKEN
