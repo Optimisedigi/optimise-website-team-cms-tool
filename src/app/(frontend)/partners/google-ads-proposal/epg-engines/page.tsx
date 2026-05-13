@@ -184,7 +184,7 @@ export default function EpgProposal() {
                   phase: 'PHASE 01',
                   name: 'Search Campaign',
                   budget: '$3,500',
-                  duration: 'May 2026 onwards',
+                  duration: 'June 2026 onwards',
                   goal: 'Capture high-intent branded traffic — both Kohler (transition) and Rehlko (new brand). Target dealers, equipment manufacturers, and maintenance businesses actively searching for engine suppliers.',
                   targets: [
                     'Kohler Branded · 45% of budget',
@@ -198,8 +198,8 @@ export default function EpgProposal() {
                   phase: 'PHASE 02',
                   name: 'Display Campaign',
                   budget: '$500',
-                  duration: 'August 2026 onwards',
-                  goal: 'Remarketing and brand awareness. Launch in August once Search has built a remarketing audience from site visitors. Reach decision-makers who have visited the site or interacted with EPG content.',
+                  duration: 'September 2026 onwards',
+                  goal: 'Remarketing and brand awareness. Launch in September once Search has built a remarketing audience from site visitors. Reach decision-makers who have visited the site or interacted with EPG content.',
                   targets: [
                     'Remarketing · 50% of budget',
                     'Brand Awareness · 50% of budget',
@@ -255,36 +255,15 @@ export default function EpgProposal() {
                     </div>
                   ))}
                 </div>
-                {/* Right: ceiling summary + scale roadmap */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div className="card" style={{ padding: '18px 20px', gap: 6, textAlign: 'center', background: 'rgba(249,115,22,0.05)', border: '1px solid rgba(249,115,22,0.15)' }}>
-                    <div className="num-tag" style={{ fontSize: 18, color: 'var(--ink-mute)' }}>Total Monthly Budget Ceiling</div>
-                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 48, fontWeight: 700, color: '#f97316', lineHeight: 1 }}>$31,900</div>
-                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 16, color: 'var(--ink-mute)' }}>Full keyword capture — all segments</div>
+                {/* Right: ceiling summary — secondary note */}
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
+                  <div className="card" style={{ padding: '18px 20px', gap: 6, textAlign: 'center' }}>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, color: 'var(--ink-mute)' }}>Monthly budget</div>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 36, fontWeight: 700, color: '#f97316', lineHeight: 1 }}>$4,000</div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div className="num-tag" style={{ fontSize: 17, color: 'var(--ink-mute)', marginBottom: 2 }}>Scale roadmap</div>
-                    {[
-                      { phase: 'Phase 01 · Now', budget: '$4,000/mo', color: '#f97316' },
-                      { phase: 'Phase 02 · Month 3+', budget: '$8,000/mo', color: '#ea580c' },
-                      { phase: 'Phase 03 · Month 6+', budget: '$16,000/mo', color: '#22c55e' },
-                      { phase: 'Phase 04 · Full ceiling', budget: '$31,900/mo', color: '#7c3aed' },
-                    ].map((s, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: i < 3 ? '1px solid var(--line)' : 'none' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                          <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, color: 'var(--ink)' }}>{s.phase}</span>
-                        </div>
-                        <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, fontWeight: 700, color: s.color }}>{s.budget}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, color: 'var(--ink-mute)' }}>$4k proposed</span>
-                    <div style={{ flex: 1, height: 10, background: 'var(--line)', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ width: '12.5%', height: '100%', background: '#7c3aed', borderRadius: 4 }} />
-                    </div>
-                    <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, color: 'var(--ink-mute)' }}>$31.9k ceiling</span>
+                  <div className="card" style={{ padding: '16px 20px', gap: 4, textAlign: 'center', background: 'rgba(249,115,22,0.04)', border: '1px solid rgba(249,115,22,0.1)' }}>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, color: 'var(--ink-mute)' }}>Potential to spend — full keyword capture</div>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, fontWeight: 700, color: '#ea580c', lineHeight: 1 }}>$31,900/mo</div>
                   </div>
                 </div>
               </div>
