@@ -928,7 +928,7 @@ export default function AwayDigitalAuditPage() {
           className="relative min-h-screen flex flex-col bg-slate-50"
         >
           <div className="flex-1 flex flex-col justify-center px-6 pt-20 pb-12 max-w-5xl mx-auto w-full">
-            <h2 className="text-xl md:text-2xl font-bold text-center mb-2 max-w-4xl mx-auto text-slate-900">
+            <h2 className="text-xl md:text-2xl font-bold text-center mb-2 mx-auto text-slate-900 md:whitespace-nowrap">
               Which campaign category is pulling its weight and which one isn&rsquo;t
             </h2>
             <p className="text-center text-sm text-slate-500 mb-4 max-w-3xl mx-auto">
