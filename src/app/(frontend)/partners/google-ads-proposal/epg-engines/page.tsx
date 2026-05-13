@@ -248,6 +248,112 @@ export default function EpgProposal() {
                 </div>
               ))}
             </div>
+            {/* ── BUDGET CEILING ANALYSIS ── */}
+            <div style={{ marginTop: 32 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <div className="eyebrow" style={{ color: 'var(--purple-deep)', marginBottom: 0 }}>Budget Ceiling Analysis</div>
+                <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 16, color: 'var(--ink-mute)', fontStyle: 'italic' }}>Full keyword capture — upper-bound monthly spend</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {/* Left: ceiling breakdown */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    {
+                      label: 'Kohler Branded Terms',
+                      vol: '~2,000/mo',
+                      avgCpc: '$8.50',
+                      ceiling: '$17,000',
+                      desc: 'Full capture of all Kohler engine searches',
+                      color: '#f97316',
+                      pct: 58,
+                    },
+                    {
+                      label: 'Rehlko Branded Terms',
+                      vol: '~250/mo',
+                      avgCpc: '$6.00',
+                      ceiling: '$1,500',
+                      desc: 'Full capture as Rehlko brand awareness builds',
+                      color: '#ea580c',
+                      pct: 5,
+                    },
+                    {
+                      label: 'Non-Branded Engine Terms',
+                      vol: '~1,400/mo',
+                      avgCpc: '$8.50',
+                      ceiling: '$11,900',
+                      desc: 'Dealers, distributors, industrial engine buyers',
+                      color: '#fb923c',
+                      pct: 41,
+                    },
+                    {
+                      label: 'Display Remarketing',
+                      vol: 'Impressions-based',
+                      avgCpc: '$0.40 CPM',
+                      ceiling: '$1,500',
+                      desc: '1M impressions/month targeting trade & industrial',
+                      color: '#7c3aed',
+                      pct: 5,
+                    },
+                  ].map((row, i) => (
+                    <div key={i} className="card" style={{ padding: '14px 20px', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, fontWeight: 600, color: 'var(--ink)' }}>{row.label}</div>
+                          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, color: 'var(--ink-mute)', marginTop: 2 }}>{row.desc}</div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, fontWeight: 700, color: row.color }}>{row.ceiling}</div>
+                          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 16, color: 'var(--ink-mute)' }}>{row.vol} · CPC {row.avgCpc}</div>
+                        </div>
+                      </div>
+                      <div style={{ height: 6, background: 'var(--line)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ width: `${row.pct}%`, height: '100%', background: row.color, borderRadius: 3 }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Right: ceiling summary */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div className="card" style={{ padding: '24px 28px', gap: 8, textAlign: 'center', background: 'rgba(249,115,22,0.05)', border: '1px solid rgba(249,115,22,0.15)' }}>
+                    <div className="num-tag" style={{ fontSize: 22, color: 'var(--ink-mute)' }}>Total Monthly Budget Ceiling</div>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 60, fontWeight: 700, color: '#f97316', lineHeight: 1 }}>$31,900</div>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, color: 'var(--ink-mute)' }}>Full keyword capture — all segments</div>
+                  </div>
+                  <div className="card" style={{ padding: '20px 28px', gap: 10, background: 'rgba(139,92,246,0.04)', border: '1px solid rgba(139,92,246,0.12)' }}>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, fontWeight: 600, color: 'var(--ink)' }}>Proposed budget vs. ceiling</div>
+                    <div style={{ height: 20, background: 'var(--line)', borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
+                      <div style={{ width: '12.5%', height: '100%', background: '#7c3aed', borderRadius: 4, display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+                        <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 13, fontWeight: 700, color: '#fff' }}>$4k</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, color: '#7c3aed', fontWeight: 600 }}>$4,000 proposed</span>
+                      <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 17, color: 'var(--ink-mute)' }}>$31,900 ceiling</span>
+                    </div>
+                  </div>
+                  <div className="card" style={{ padding: '20px 28px', gap: 8 }}>
+                    <div className="num-tag" style={{ fontSize: 20, color: 'var(--ink-mute)', marginBottom: 6 }}>Scale roadmap</div>
+                    {[
+                      { phase: 'Phase 01 · Now', budget: '$4,000/mo', note: 'Focus on Kohler Branded — highest volume, lowest competition', color: '#f97316' },
+                      { phase: 'Phase 02 · Month 3+', budget: '$8,000/mo', note: 'Add non-branded terms + expand Rehlko as volume grows', color: '#ea580c' },
+                      { phase: 'Phase 03 · Month 6+', budget: '$16,000/mo', note: 'Dominate all segments. 100% branded capture + non-branded scale', color: '#22c55e' },
+                      { phase: 'Phase 04 · Full ceiling', budget: '$31,900/mo', note: 'Full keyword capture across all categories when unit economics confirmed', color: '#7c3aed' },
+                    ].map((s, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: i < 3 ? '1px solid var(--line)' : 'none' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                          <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, color: 'var(--ink)' }}>{s.phase}</span>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 700, color: s.color }}>{s.budget}</div>
+                          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, color: 'var(--ink-mute)' }}>{s.note}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="slide-foot" />
           </section>
 
