@@ -160,7 +160,7 @@ export default function EpgProposal() {
               </div>
             </div>
             <p className="small" style={{ marginTop: 16 }}>
-              Rehlko is a newly established brand (formerly Kohler Energy, announced September 2024). Search volume is currently low but will grow as awareness builds. Capturing Kohler-branded traffic now is critical — competitors are likely eyeing this market segment.
+              Rehlko is a newly established brand (formerly Kohler Energy, announced September 2024). Search volume is currently low but will grow as awareness builds. Capturing Kohler-branded traffic now is critical - competitors are likely eyeing this market segment.
             </p>
             <div className="slide-foot" />
           </section>
@@ -255,14 +255,14 @@ export default function EpgProposal() {
                     </div>
                   ))}
                 </div>
-                {/* Right: ceiling summary — secondary note */}
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
+                {/* Right: ceiling summary secondary note */}
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', gap: 10 }}>
                   <div className="card" style={{ padding: '18px 20px', gap: 6, textAlign: 'center' }}>
                     <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, color: 'var(--ink-mute)' }}>Monthly budget</div>
                     <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 36, fontWeight: 700, color: '#f97316', lineHeight: 1 }}>$4,000</div>
                   </div>
                   <div className="card" style={{ padding: '16px 20px', gap: 4, textAlign: 'center', background: 'rgba(249,115,22,0.04)', border: '1px solid rgba(249,115,22,0.1)' }}>
-                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, color: 'var(--ink-mute)' }}>Potential to spend — full keyword capture</div>
+                    <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15, color: 'var(--ink-mute)' }}>Potential to spend - full keyword capture</div>
                     <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, fontWeight: 700, color: '#ea580c', lineHeight: 1 }}>$31,900/mo</div>
                   </div>
                 </div>
@@ -284,7 +284,7 @@ export default function EpgProposal() {
             <div className="roadmap" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
               {[
                 { week: 'WEEK 01', step: 'Create Account + Onboard', body: 'Optimise Digital sends agreement. EPG signs and grants WordPress admin access. Onboard: collect WordPress login, map existing sales process, identify top enquiry types (dealers, manufacturers, maintenance), and confirm Rehlko product range details. Create new Google Ads account under EPG management.' },
-                { week: 'WEEK 02', step: 'CRO Audit + WordPress Setup', body: 'WordPress admin access granted. CRO audit of engine and generator landing pages with recommendations. Install and configure Google Ads conversion tracking via WordPress — enquiry forms, dealer locator usage, and phone calls. Create Google Ads conversion events and confirm tracking is firing correctly.' },
+                { week: 'WEEK 02', step: 'CRO Audit + WordPress Setup', body: 'WordPress admin access granted. CRO audit of engine and generator landing pages with recommendations. Install and configure Google Ads conversion tracking via WordPress - enquiry forms, dealer locator usage, and phone calls. Create Google Ads conversion events and confirm tracking is firing correctly.' },
                 { week: 'WEEK 03', step: 'Proposal + Strategy', body: 'Present full campaign proposal, ad group structure, and keyword strategy for EPG sign-off. Finalise negative keyword list. Confirm budget split between Search and Display. Refine ad copy themes: transition urgency + new brand energy.' },
                 { week: 'WEEK 04', step: 'Campaign Build + Go Live', body: 'Targeting go live: 1 June 2026. Build 3 search ad groups (Kohler Branded, Rehlko Branded, Non-Branded). Write 3 ad copy variants per group. Configure location targeting: NSW, VIC, QLD, WA. Launch display remarketing. Budget: $4,000/month.' },
                 { week: 'WEEK 05+', step: 'Optimise + Scale', body: 'Optimise landing pages, ad copy, and keyword targeting based on first 4 weeks of data. Scale spend to $8,000+/month if CPA < $80. Report monthly on branded capture rate vs. competitors.' },
@@ -297,7 +297,7 @@ export default function EpgProposal() {
               ))}
             </div>
             <p className="small" style={{ marginTop: 48 }}>
-              The rebrand window is finite. As Rehlko awareness grows, Kohler-branded search volume will decline. Capturing Kohler traffic now — before competitors notice the transition — is the single biggest opportunity in this campaign.
+              The rebrand window is finite. As Rehlko awareness grows, Kohler-branded search volume will decline. Capturing Kohler traffic now - before competitors notice the transition - is the single biggest opportunity in this campaign.
             </p>
             <div className="slide-foot" />
           </section>
