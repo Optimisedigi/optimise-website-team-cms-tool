@@ -747,13 +747,19 @@ min-height: 100vh;
 }
 .price-card .tier { font-family: 'Space Grotesk', sans-serif; font-size: var(--t-eyebrow); font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--purple-deep); }
 .price-card.feature .tier { color: var(--purple); }
-.price-card .name { font-family: 'Space Grotesk', sans-serif; font-size: 56px; font-weight: 600; line-height: 1; color: var(--ink); }
+/* Pin the name block to two lines’ worth of height so the price row aligns
+   across cards regardless of how long the name text is. Using `2em` makes
+   the rule scale with whatever font-size the slide assigns inline via the
+   `scaleFor(count)` helper — 56px (1–2 cards) / 44px (3 cards) / 36px (4
+   cards). align-items: flex-end keeps a short single-line name sitting at
+   the same baseline as a longer two-line neighbour. */
+.price-card .name { font-family: 'Space Grotesk', sans-serif; font-size: 56px; font-weight: 600; line-height: 1; color: var(--ink); min-height: 2em; display: flex; align-items: flex-end; }
 .price-card.feature .name { color: #fff; }
 .price-card .amt { font-family: 'Space Grotesk', sans-serif; font-size: 96px; font-weight: 600; line-height: 1; letter-spacing: -0.03em; color: var(--ink); }
 .price-card.feature .amt { color: #fff; }
 .price-card .amt small { font-size: 28px; font-weight: 500; color: var(--ink-mute); letter-spacing: 0; }
 .price-card.feature .amt small { color: rgba(255,255,255,0.55); }
-.price-card .features { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.price-card .features { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; padding-left: 18px; }
 .price-card .features li { list-style: none; font-size: 24px; color: var(--ink-2); display: flex; gap: 14px; align-items: flex-start; line-height: 1.4; }
 .price-card .features li::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--purple); margin-top: 12px; flex-shrink: 0; }
 .price-card.feature .features li { color: rgba(255,255,255,0.85); }
@@ -996,16 +1002,109 @@ min-height: 100vh;
   color: rgba(255,255,255,0.85);
 }
 
+/* Slide 14 — SEO Health category name tooltip. Each category label is
+   hoverable / focusable; the definition appears as a small popover above
+   the row. Mirrors the .stage-tooltip pattern already used on the Organic
+   Propulsion slide so the deck feels consistent. */
+[data-label="14 SEO Health"] .seo-cat-name {
+  position: relative;
+  cursor: help;
+  /* Subtle dotted underline so the affordance is discoverable without
+     adding an extra info icon. */
+  text-decoration: underline dotted var(--ink-mute);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+[data-label="14 SEO Health"] .seo-cat-name:focus-visible {
+  outline: 2px solid var(--purple-deep);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+[data-label="14 SEO Health"] .seo-cat-name::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: max-content;
+  max-width: 380px;
+  padding: 14px 16px;
+  background: var(--ink, #0a0c1c);
+  color: #fff;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-align: left;
+  text-decoration: none;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(7, 9, 26, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms;
+  white-space: normal;
+  z-index: 50;
+}
+[data-label="14 SEO Health"] .seo-cat-name::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 18px;
+  border: 6px solid transparent;
+  border-top-color: var(--ink, #0a0c1c);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms;
+  z-index: 50;
+}
+[data-label="14 SEO Health"] .seo-cat-name:hover::after,
+[data-label="14 SEO Health"] .seo-cat-name:hover::before,
+[data-label="14 SEO Health"] .seo-cat-name:focus-visible::after,
+[data-label="14 SEO Health"] .seo-cat-name:focus-visible::before {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+/* Slide 15 — CRO Health, Key Findings card. Plain bullet list, no icons or
+   coloured status markers. Generous line-height so each bullet reads cleanly
+   as a single human-written sentence. */
+[data-label="15 CRO Health"] .cro-findings-list {
+  list-style: disc;
+  padding-left: 28px;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+[data-label="15 CRO Health"] .cro-findings-list li {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 24px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+[data-label="15 CRO Health"] .cro-findings-list li::marker {
+  color: var(--ink-mute);
+}
+
 /* Slide 9 — Competitor analysis hover thumbnail. The .v2-comp-domain wrapper
    on each row's domain cell holds an absolutely-positioned <img> popover
    that becomes visible on hover. Matches the OLD route's screenshot-hover
-   pattern but inlined in the table instead of a separate thumbnail column. */
-[data-label="09 Competitor Analysis"] .v2-comp-domain {
+   pattern but inlined in the table instead of a separate thumbnail column.
+   Slide 18 — Paid activation reuses the same wrapper for its competitor ad
+   rows; both selectors share the rules below. */
+[data-label="09 Competitor Analysis"] .v2-comp-domain,
+[data-label="18 Paid Activation"] .v2-comp-domain {
   position: relative;
   display: inline-block;
   cursor: default;
 }
-[data-label="09 Competitor Analysis"] .v2-comp-thumb {
+[data-label="09 Competitor Analysis"] .v2-comp-thumb,
+[data-label="18 Paid Activation"] .v2-comp-thumb {
   position: absolute;
   bottom: calc(100% + 12px);
   left: 0;
@@ -1023,7 +1122,8 @@ min-height: 100vh;
   pointer-events: none;
   z-index: 100;
 }
-[data-label="09 Competitor Analysis"] .v2-comp-thumb img {
+[data-label="09 Competitor Analysis"] .v2-comp-thumb img,
+[data-label="18 Paid Activation"] .v2-comp-thumb img {
   display: block;
   width: 100%;
   height: auto;
@@ -1032,7 +1132,8 @@ min-height: 100vh;
   object-fit: cover;
   object-position: top;
 }
-[data-label="09 Competitor Analysis"] .v2-comp-domain:hover .v2-comp-thumb {
+[data-label="09 Competitor Analysis"] .v2-comp-domain:hover .v2-comp-thumb,
+[data-label="18 Paid Activation"] .v2-comp-domain:hover .v2-comp-thumb {
   opacity: 1;
   visibility: visible;
   transform: translateY(0) scale(1);
@@ -1155,6 +1256,31 @@ min-height: 100vh;
    collapsed header that expands on hover/focus to reveal that category's
    real customer questions. CSS-only so the slide stays a server component.
    --------------------------------------------------------------------------- */
+
+/* The four-stage explainer on the left needs more horizontal room than the
+   default .two-col 1fr 1fr split allows — stage titles like "Supporting
+   articles per service" would otherwise wrap into the right column or be
+   clipped. Bias the grid toward the left column on this slide only. */
+[data-label="17 Organic Propulsion"] .two-col {
+  grid-template-columns: 1.25fr 1fr;
+}
+
+/* Compact the four stage cards on this slide so stage 04 stays above the
+   1080px fold. The shared .stages rule uses gap 18px + padding 28x36; here
+   we tighten both. Scoped via data-label so other decks that reuse .stages
+   are unaffected. */
+[data-label="17 Organic Propulsion"] .stages {
+  gap: 12px;
+}
+[data-label="17 Organic Propulsion"] .stage {
+  padding: 18px 28px;
+  gap: 22px;
+}
+[data-label="17 Organic Propulsion"] .stage .stage-num {
+  font-size: 52px;
+  width: 80px;
+}
+
 .op-cat-stack { display: flex; flex-direction: column; gap: 14px; position: relative; }
 .op-cat {
   background: var(--bg-paper-2);

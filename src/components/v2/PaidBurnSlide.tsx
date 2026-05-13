@@ -1,11 +1,19 @@
 /**
- * Slide 17 — Paid burn (Fueling the Ship · Stage 2). Dynamic.
+ * Slide 17 — Paid activation (Fueling the Ship · Stage 2). Dynamic.
  *
  * Lists competitors currently running Google Ads / Meta Ads, pulled from
- * the proposal's linked competitor-analysis doc. Each card shows the
- * advertiser's domain and the live ad count detected by the scrapling
- * service. When no competitors are running ads we collapse the card with
- * an explanatory state rather than rendering an empty list.
+ * the proposal's linked competitor-analysis doc. Each row shows the
+ * advertiser's domain and a hover thumbnail — mirroring the Competitor
+ * Analysis slide (slide 9) interaction. Screenshot source order:
+ *
+ *   1. Manual uploads on the proposal's `competitors[].googleAdScreenshots`
+ *      (carried through by `applyOverridesToCompetitorAnalysis`).
+ *   2. Curated fallback images in `/public/v2/paid-activation/` — picked
+ *      deterministically per-domain so the same competitor always gets the
+ *      same fallback.
+ *
+ * (Renamed from "Paid burn" — the file path stays for git history continuity
+ * and to avoid touching every importer.)
  */
 
 import type { ReactElement } from 'react'
@@ -20,13 +28,43 @@ type CompetitorProfile = {
   domain?: string | null
   googleAds?: AdsInfo
   metaAds?: AdsInfo
+  manualGoogleAdScreenshotUrls?: string[]
+  manualMetaAdScreenshotUrls?: string[]
 }
 
 type CompetitorAnalysisLike = {
   competitors?: CompetitorProfile[] | null
 } | null
 
-type AdRow = { domain: string; count: number }
+type AdRow = {
+  domain: string
+  count: number
+  screenshotUrl: string | null
+}
+
+// Curated category fallback screenshots living in /public/v2/paid-activation/.
+// File names are stable so the team can swap the source images without code
+// changes. Add more files and add their filenames here to expand the rotation.
+const FALLBACK_GOOGLE = [
+  '/v2/paid-activation/google-1.png',
+  '/v2/paid-activation/google-2.png',
+  '/v2/paid-activation/google-3.png',
+]
+const FALLBACK_META = [
+  '/v2/paid-activation/meta-1.png',
+  '/v2/paid-activation/meta-2.png',
+  '/v2/paid-activation/meta-3.png',
+]
+
+/** Stable hash so the same domain always picks the same fallback image. */
+function hashIndex(input: string, modulo: number): number {
+  if (modulo <= 0) return 0
+  let h = 0
+  for (let i = 0; i < input.length; i++) {
+    h = (h * 31 + input.charCodeAt(i)) | 0
+  }
+  return Math.abs(h) % modulo
+}
 
 function adCount(ads: AdsInfo, key: 'google' | 'meta'): number {
   if (!ads || !ads.isRunningAds) return 0
@@ -34,17 +72,43 @@ function adCount(ads: AdsInfo, key: 'google' | 'meta'): number {
   return typeof raw === 'number' && raw > 0 ? raw : 0
 }
 
+function pickScreenshot(
+  c: CompetitorProfile,
+  domain: string,
+  kind: 'google' | 'meta',
+): string | null {
+  // 1. Manual upload wins — first image only (matches competitor-analysis
+  //    slide's single-thumbnail pattern).
+  const manual =
+    kind === 'google'
+      ? c.manualGoogleAdScreenshotUrls
+      : c.manualMetaAdScreenshotUrls
+  if (manual && manual.length > 0) return manual[0]
+
+  // 2. Curated fallback, deterministic per-domain.
+  const pool = kind === 'google' ? FALLBACK_GOOGLE : FALLBACK_META
+  if (pool.length === 0) return null
+  return pool[hashIndex(`${kind}:${domain}`, pool.length)]
+}
+
 function collectAdRows(
   competitors: CompetitorProfile[],
-  key: 'google' | 'meta',
+  kind: 'google' | 'meta',
 ): AdRow[] {
   const rows: AdRow[] = []
   for (const c of competitors) {
-    const ads = key === 'google' ? c.googleAds : c.metaAds
+    const ads = kind === 'google' ? c.googleAds : c.metaAds
     if (!ads?.isRunningAds) continue
-    const domain = (c.domain ?? '').replace(/^https?:\/\//, '').replace(/^www\./, '').trim()
+    const domain = (c.domain ?? '')
+      .replace(/^https?:\/\//, '')
+      .replace(/^www\./, '')
+      .trim()
     if (!domain) continue
-    rows.push({ domain, count: adCount(ads, key) })
+    rows.push({
+      domain,
+      count: adCount(ads, kind),
+      screenshotUrl: pickScreenshot(c, domain, kind),
+    })
   }
   // Sort: highest count first, then alpha by domain for stability.
   rows.sort((a, b) => b.count - a.count || a.domain.localeCompare(b.domain))
@@ -103,7 +167,15 @@ function AdCard({
                 borderBottom: '1px solid var(--line)',
               }}
             >
-              <span>{row.domain}</span>
+              <span className="v2-comp-domain">
+                {row.domain}
+                {row.screenshotUrl && (
+                  <span className="v2-comp-thumb" aria-hidden="true">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={row.screenshotUrl} alt="" />
+                  </span>
+                )}
+              </span>
               <span className="green" style={{ fontWeight: 600 }}>
                 {formatCount(row.count, kind)}
               </span>
@@ -123,17 +195,16 @@ export function PaidBurnSlide({
   const competitors = competitorAnalysis?.competitors ?? []
   const googleRows = collectAdRows(competitors, 'google')
   const metaRows = collectAdRows(competitors, 'meta')
-  const totalRunning = googleRows.length + metaRows.length
 
   return (
-    <section className="slide" data-label="18 Paid Burn">
+    <section className="slide" data-label="18 Paid Activation">
       <div className="brand-tag">
         <span className="dot"></span> 06 · Fueling the Ship
       </div>
       <div className="slide-head">
         <div className="h-left">
           <div className="h-eyebrow">06 · Fueling the Ship · Stage 2</div>
-          <h1 className="h-title">Paid burn</h1>
+          <h1 className="h-title">Paid activation</h1>
         </div>
         <div className="h-meta">Once fundamentals are solid</div>
       </div>
@@ -147,19 +218,9 @@ export function PaidBurnSlide({
           marginBottom: 48,
         }}
       >
-        {totalRunning > 0 ? (
-          <>
-            Your competitors are paying for traffic. <em>You can too</em>, but
-            only once the site converts well enough that paid spend earns its
-            return.
-          </>
-        ) : (
-          <>
-            No competitors are actively running paid ads right now. That&apos;s
-            a window, but only worth stepping through once the site converts
-            well enough that paid spend earns its return.
-          </>
-        )}
+        Paid activity exists in the category, but there is still an opportunity
+        to compete with <em>sharper positioning</em>, better landing pages and
+        stronger conversion foundations.
       </p>
 
       <div className="two-col">

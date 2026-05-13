@@ -3,6 +3,13 @@
  *
  * Reads croAudit.overallScore (0-10) and the 6 named category scores plus
  * croAudit.findings (JSON array) for the Key Findings card.
+ *
+ * Key Findings rendering rules (clean bullet list):
+ *   - If the proposal has a non-empty `croKeyFindings` override array, render
+ *     those bullets verbatim. This is the team's hand-written copy and wins.
+ *   - Otherwise fall back to the auto-generated `croAudit.findings`, sorted
+ *     critical → warning → good, truncated to 5. Either way the markup is
+ *     a plain <ul> with no icons, no colour, and no separator dots.
  */
 
 import type { ReactElement } from 'react'
@@ -62,16 +69,29 @@ function subText(score: number): string {
   return 'Significant conversion gaps. Fixing these will compound every other traffic investment.'
 }
 
-function statusIcon(status: string | null | undefined): string {
-  if (status === 'good') return '✓'
-  if (status === 'warning') return '⚠'
-  return '✗'
-}
-
-function statusColour(status: string | null | undefined): string {
-  if (status === 'good') return 'var(--green)'
-  if (status === 'warning') return 'var(--gold)'
-  return 'var(--red)'
+/**
+ * Normalise auto-generated CRO findings before they hit the slide:
+ *   1. Strip em / en dashes (and the spaces around them). Auto-generated
+ *      messages frequently use " — " as a clause separator; we replace it
+ *      with ". " so the sentence still parses.
+ *   2. Strip the trailing "(no action verb)" parenthetical that the audit
+ *      engine appends to CTA findings. It reads as internal QA noise on the
+ *      slide and the surrounding sentence already conveys the point.
+ *   3. Collapse stray double spaces / leading punctuation introduced by 1–2.
+ */
+function sanitiseFinding(message: string): string {
+  let s = message
+  // Drop the QA parenthetical — with or without leading space.
+  s = s.replace(/\s*\(no action verb\)/gi, '')
+  // Replace " — " / " – " (or any variant with surrounding spaces) with ". ".
+  s = s.replace(/\s*[—–]\s*/g, '. ')
+  // Any remaining bare em/en dash becomes a hyphen so we never render one.
+  s = s.replace(/[—–]/g, '-')
+  // Tidy whitespace.
+  s = s.replace(/\s{2,}/g, ' ').trim()
+  // Avoid "foo.. bar" if the original already ended a clause with a period.
+  s = s.replace(/\.\s*\.\s*/g, '. ')
+  return s
 }
 
 function Gauge({ score, colour }: { score: number; colour: string }): ReactElement {
@@ -98,17 +118,48 @@ function Gauge({ score, colour }: { score: number; colour: string }): ReactEleme
   )
 }
 
-export function CroHealthSlide({ croAudit }: { croAudit: CroAuditLike }): ReactElement {
+export type CroKeyFindingOverride = { bullet?: string | null } | null
+
+export function CroHealthSlide({
+  croAudit,
+  keyFindingsOverride,
+}: {
+  croAudit: CroAuditLike
+  keyFindingsOverride?: CroKeyFindingOverride[] | null
+}): ReactElement {
   const raw = croAudit?.overallScore ?? null
   const overall = raw != null ? Math.round(raw * 10) : null
   const colour = overall != null ? gradeColour(overall) : '#e4e1d8'
 
-  const findings = (croAudit?.findings ?? []) as CroFinding[]
-  // Take up to 5 findings, preferring critical/warning first.
-  const sortedFindings = [...findings].sort((a, b) => {
-    const order: Record<string, number> = { critical: 0, warning: 1, good: 2 }
-    return (order[a.status ?? ''] ?? 3) - (order[b.status ?? ''] ?? 3)
-  }).slice(0, 5)
+  // Override wins when at least one non-empty bullet is present. Sanitise
+  // hand-written bullets too so the no-dashes rule applies deck-wide.
+  const overrideBullets: string[] = (keyFindingsOverride ?? [])
+    .map((f) => f?.bullet?.trim())
+    .filter((b): b is string => Boolean(b && b.length > 0))
+    .map((b) => sanitiseFinding(b))
+    .filter((b) => b.length > 0)
+
+  const autoBullets: string[] = overrideBullets.length > 0
+    ? []
+    : (
+        [...((croAudit?.findings ?? []) as CroFinding[])]
+          .sort((a, b) => {
+            const order: Record<string, number> = {
+              critical: 0,
+              warning: 1,
+              good: 2,
+            }
+            return (order[a.status ?? ''] ?? 3) - (order[b.status ?? ''] ?? 3)
+          })
+          .map((f) => f.message?.trim())
+          .filter((m): m is string => Boolean(m && m.length > 0))
+          .map((m) => sanitiseFinding(m))
+          .filter((m) => m.length > 0)
+          .slice(0, 5)
+      )
+
+  const bullets =
+    overrideBullets.length > 0 ? overrideBullets : autoBullets
 
   return (
     <section className="slide" data-label="15 CRO Health">
@@ -133,7 +184,7 @@ export function CroHealthSlide({ croAudit }: { croAudit: CroAuditLike }): ReactE
                 <circle cx="100" cy="100" r="85" stroke="#e4e1d8" strokeWidth="14" fill="none" />
               </svg>
               <div className="gauge-label">
-                <div className="v" style={{ color: 'var(--ink-mute)' }}>—</div>
+                <div className="v" style={{ color: 'var(--ink-mute)' }}>n/a</div>
                 <div className="max">/ 100</div>
                 <div className="grade">Pending</div>
               </div>
@@ -155,7 +206,7 @@ export function CroHealthSlide({ croAudit }: { croAudit: CroAuditLike }): ReactE
                 <div className="bar-row" key={String(key)}>
                   <div className="meta">
                     <span className="name">{label}</span>
-                    <span className="num-cell">{score != null ? `${score}/10` : '—'}</span>
+                    <span className="num-cell">{score != null ? `${score}/10` : ''}</span>
                   </div>
                   <div className={`bar${pct != null ? ' ' + barClass(score!) : ''}`}>
                     <span style={{ width: pct != null ? `${pct}%` : '0%' }} />
@@ -165,22 +216,14 @@ export function CroHealthSlide({ croAudit }: { croAudit: CroAuditLike }): ReactE
             })}
           </div>
 
-          {sortedFindings.length > 0 && (
+          {bullets.length > 0 && (
             <div className="card" style={{ padding: '28px 32px' }}>
               <div className="num-tag">KEY FINDINGS</div>
-              <div className="b" style={{ fontSize: 26, lineHeight: 1.5 }}>
-                {sortedFindings.map((f, i) => (
-                  <span key={i}>
-                    <strong style={{ color: statusColour(f.status) }}>
-                      {statusIcon(f.status)}
-                    </strong>
-                    {' '}{f.message}
-                    {i < sortedFindings.length - 1 && (
-                      <span style={{ color: 'var(--line)', margin: '0 12px' }}>·</span>
-                    )}
-                  </span>
+              <ul className="cro-findings-list">
+                {bullets.map((b, i) => (
+                  <li key={i}>{b}</li>
                 ))}
-              </div>
+              </ul>
             </div>
           )}
         </div>

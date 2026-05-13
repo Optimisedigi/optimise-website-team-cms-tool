@@ -15,24 +15,111 @@ type SeoAuditLike = {
   categoryScores?: CategoryScores | null
 } | null
 
-// Display order matches the static slide. Keys map to audit JSON property names.
-const SEO_CATEGORIES: Array<{ key: string; label: string }> = [
-  { key: 'siteHealth',           label: 'Site Health' },
-  { key: 'indexability',         label: 'Indexability' },
-  { key: 'coreWebVitals',        label: 'Core Web Vitals' },
-  { key: 'securityPerformance',  label: 'Security & Performance' },
-  { key: 'structuredData',       label: 'Structured Data' },
-  { key: 'sitemapRobots',        label: 'Sitemap / Robots' },
-  { key: 'navigationUx',         label: 'Navigation & UX' },
-  { key: 'headingStructure',     label: 'Heading Structure' },
-  { key: 'imageOptimization',    label: 'Image Optimisation' },
-  { key: 'contentStructure',     label: 'Content Structure' },
-  { key: 'eeat',                 label: 'E-E-A-T' },
-  { key: 'faqImplementation',    label: 'FAQ Implementation' },
-  { key: 'urlStructure',         label: 'URL Structure' },
-  { key: 'metaData',             label: 'Meta Data' },
-  { key: 'internalLinking',      label: 'Internal Linking' },
-  { key: 'serviceCoverage',      label: 'Service Coverage' },
+// Display order matches the static slide. Keys map to audit JSON property
+// names. The `definition` field powers the definitions slide that follows
+// the score slide — each row gets a short, plain-English explanation of
+// what we're actually measuring.
+const SEO_CATEGORIES: Array<{
+  key: string
+  label: string
+  definition: string
+}> = [
+  {
+    key: 'siteHealth',
+    label: 'Site Health',
+    definition:
+      'Overall technical condition: broken links, server errors, redirect chains, and anything blocking crawlers from cleanly indexing the site.',
+  },
+  {
+    key: 'indexability',
+    label: 'Indexability',
+    definition:
+      'Whether Google can actually see and index your pages. Covers noindex tags, canonicals, robots directives, and accidental blocks.',
+  },
+  {
+    key: 'coreWebVitals',
+    label: 'Core Web Vitals',
+    definition:
+      'Google’s page-experience metrics: load speed (LCP), responsiveness (INP) and visual stability (CLS). A direct ranking factor.',
+  },
+  {
+    key: 'securityPerformance',
+    label: 'Security & Performance',
+    definition:
+      'HTTPS configuration, mixed-content issues, security headers, server response times and caching. The basics search engines and users expect.',
+  },
+  {
+    key: 'structuredData',
+    label: 'Structured Data',
+    definition:
+      'Schema.org markup that helps Google understand the page (business info, services, reviews, FAQs) and unlocks rich results in the SERP.',
+  },
+  {
+    key: 'sitemapRobots',
+    label: 'Sitemap / Robots',
+    definition:
+      'XML sitemap completeness and robots.txt accuracy. These tell Google what to crawl and what to ignore. Errors here cost coverage.',
+  },
+  {
+    key: 'navigationUx',
+    label: 'Navigation & UX',
+    definition:
+      'How easily a user (and Googlebot) gets from the homepage to any important page. Menu structure, depth, and the logical paths through the site.',
+  },
+  {
+    key: 'headingStructure',
+    label: 'Heading Structure',
+    definition:
+      'Proper use of H1 through H6 tags so each page has a clear hierarchy. Helps both accessibility and topical relevance.',
+  },
+  {
+    key: 'imageOptimization',
+    label: 'Image Optimisation',
+    definition:
+      'Compressed, modern-format images with descriptive alt text. Drives page speed, accessibility and image-search visibility.',
+  },
+  {
+    key: 'contentStructure',
+    label: 'Content Structure',
+    definition:
+      'How content is organised on each page: paragraph length, scannability, formatting, and whether the page actually answers the search intent.',
+  },
+  {
+    key: 'eeat',
+    label: 'E-E-A-T',
+    definition:
+      'Experience, Expertise, Authoritativeness, Trustworthiness. Author bios, credentials, real-world experience signals and third-party trust markers.',
+  },
+  {
+    key: 'faqImplementation',
+    label: 'FAQ Implementation',
+    definition:
+      'Answering the questions users actually ask, marked up with FAQ schema where appropriate. Captures long-tail and voice-search traffic.',
+  },
+  {
+    key: 'urlStructure',
+    label: 'URL Structure',
+    definition:
+      'Short, descriptive, lowercase URLs without parameters or session IDs. A small but consistent ranking signal.',
+  },
+  {
+    key: 'metaData',
+    label: 'Meta Data',
+    definition:
+      'Title tags and meta descriptions on every page. Unique, the right length, written to win the click from the search results.',
+  },
+  {
+    key: 'internalLinking',
+    label: 'Internal Linking',
+    definition:
+      'How pages link to one another. Distributes authority across the site and helps Google understand which pages matter most.',
+  },
+  {
+    key: 'serviceCoverage',
+    label: 'Service Coverage',
+    definition:
+      'Whether every service you offer has its own dedicated, optimised page, not just a single “services” list. Each one is a potential search entry point.',
+  },
 ]
 
 function barClass(score: number): string {
@@ -117,7 +204,7 @@ export function SeoHealthSlide({ seoAudit }: { seoAudit: SeoAuditLike }): ReactE
                 <circle cx="100" cy="100" r="85" stroke="#e4e1d8" strokeWidth="14" fill="none" />
               </svg>
               <div className="gauge-label">
-                <div className="v" style={{ color: 'var(--ink-mute)' }}>—</div>
+                <div className="v" style={{ color: 'var(--ink-mute)' }}>n/a</div>
                 <div className="max">/ 100</div>
                 <div className="grade">Pending</div>
               </div>
@@ -130,14 +217,25 @@ export function SeoHealthSlide({ seoAudit }: { seoAudit: SeoAuditLike }): ReactE
 
         <div style={{ flex: 1 }}>
           <div className="bars">
-            {SEO_CATEGORIES.map(({ key, label }) => {
+            {SEO_CATEGORIES.map(({ key, label, definition }) => {
               const s = scores[key] ?? null
               const pct = s != null ? Math.round(s * 10) : null
               return (
                 <div className="bar-row" key={key}>
                   <div className="meta">
-                    <span className="name">{label}</span>
-                    <span className="num-cell">{s != null ? `${s}/10` : '—'}</span>
+                    {/* Hover/focus the name to surface the category
+                        definition as a tooltip. Keyboard-accessible via
+                        tabIndex + :focus-visible in the CSS. */}
+                    <span
+                      className="name seo-cat-name"
+                      tabIndex={0}
+                      data-tip={definition}
+                      role="button"
+                      aria-label={`${label}: ${definition}`}
+                    >
+                      {label}
+                    </span>
+                    <span className="num-cell">{s != null ? `${s}/10` : ''}</span>
                   </div>
                   <div className={`bar${pct != null ? ' ' + barClass(s!) : ''}`}>
                     <span style={{ width: pct != null ? `${pct}%` : '0%' }} />

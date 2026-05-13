@@ -37,19 +37,6 @@ type KeywordCategoryLike = {
   categoryName?: string | null
 } | null
 
-// Map proposal businessType select-value to a human label.
-const BUSINESS_TYPE_LABEL: Record<string, string> = {
-  trades: 'Trades & Home Services',
-  services: 'Professional Services',
-  ecommerce: 'E-commerce / Retail',
-  healthcare: 'Healthcare',
-  hospitality: 'Hospitality & Food',
-  realestate: 'Real Estate',
-  education: 'Education & Training',
-  saas: 'SaaS / Technology',
-  other: 'Other',
-}
-
 // Map conversionGoal select-value to a human label.
 const CONVERSION_LABEL: Record<string, string> = {
   'lead generation': 'Lead Generation',
@@ -168,7 +155,7 @@ function renderGauge(g: Gauge, i: number): ReactElement {
 export function MissionBriefSlide({
   businessName,
   websiteUrl,
-  businessType,
+  businessType: _businessType,
   conversionGoal,
   businessGoals,
   seoAudit,
@@ -179,6 +166,8 @@ export function MissionBriefSlide({
 }: {
   businessName: string
   websiteUrl: string | null
+  /** Accepted for caller compatibility; no longer rendered now that the
+   *  TYPE card has been removed from the slide. */
   businessType: string | null
   conversionGoal: string | null
   businessGoals: string | null
@@ -192,8 +181,8 @@ export function MissionBriefSlide({
   const categoryNames = (keywordCategories ?? [])
     .map((c) => c?.categoryName?.trim())
     .filter((n): n is string => Boolean(n && n.length > 0))
-  // -- Type / Categories / Conversion -----------------------------------------
-  const typeLabel = businessType ? BUSINESS_TYPE_LABEL[businessType] ?? businessType : ''
+  // -- Categories / Conversion -----------------------------------------------
+  // (Type card removed by request — see grid below.)
   const conversionLabel = conversionGoal ? CONVERSION_LABEL[conversionGoal] ?? conversionGoal : ''
 
   // -- Audit score gauges -----------------------------------------------------
@@ -256,36 +245,18 @@ export function MissionBriefSlide({
             {businessGoals ?? `Grow ${businessName} sustainably.`}
           </p>
 
+          {/* TYPE card removed by request — the businessName + business-type
+              label duplicated info already shown elsewhere on the deck. The
+              remaining two cards (CATEGORIES, CONVERSION) split 50/50. */}
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
+              gridTemplateColumns: '1fr 1fr',
               gap: 12,
               marginTop: 46,
               alignItems: 'stretch',
             }}
           >
-            <div
-              className="card"
-              style={{
-                padding: '18px 18px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-                height: '100%',
-              }}
-            >
-              <div className="num-tag" style={{ fontSize: 24 }}>
-                TYPE
-              </div>
-              <div className="h" style={{ fontSize: 24, lineHeight: 1.2 }}>
-                {typeLabel}
-              </div>
-              <div className="b" style={{ fontSize: 22, lineHeight: 1.35 }}>
-                {businessName}
-              </div>
-            </div>
-
             <div
               className="card"
               style={{
@@ -367,7 +338,7 @@ export function MissionBriefSlide({
                 {totalSearchVolume > 0 ? formatBigNumber(totalSearchVolume) : ''}
               </div>
               <div className="desc" style={{ fontSize: 24 }}>
-                Across your tracked keywords
+                Based on the selected keywords
               </div>
             </div>
             <div className="stat-tile" style={{ padding: '24px 28px', gap: 10 }}>
@@ -390,10 +361,26 @@ export function MissionBriefSlide({
                 )}
               </div>
               <div className="desc" style={{ fontSize: 24 }}>
-                The ceiling, not the floor
+                Potential traffic from competitors
               </div>
             </div>
           </div>
+
+          {competitorTraffic > 0 && (
+            <div
+              className="desc"
+              style={{
+                fontSize: 18,
+                color: 'var(--ink-mute)',
+                lineHeight: 1.45,
+                marginTop: 4,
+              }}
+            >
+              Broader market context, not a direct traffic forecast. The
+              selected national and local competitors making up this number are
+              shown on the following page.
+            </div>
+          )}
 
           <div
             className="eyebrow"

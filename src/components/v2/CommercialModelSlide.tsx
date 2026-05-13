@@ -144,7 +144,15 @@ export function CommercialModelSlide({
       {note && (
         <p
           className="small"
-          style={{ marginTop: 24, padding: '0 200px', textAlign: 'center' }}
+          style={{
+            marginTop: 24,
+            textAlign: 'center',
+            fontStyle: 'italic',
+            // No horizontal padding + nowrap so the disclaimer sits on a
+            // single line across the slide. The deck is a fixed 1920px stage
+            // so we don't need to worry about narrow viewports.
+            whiteSpace: 'nowrap',
+          }}
         >
           {note}
         </p>

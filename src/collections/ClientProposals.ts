@@ -1090,6 +1090,27 @@ export const ClientProposals: CollectionConfig = {
               ],
             },
             {
+              name: "croKeyFindings",
+              type: "array",
+              maxRows: 6,
+              admin: {
+                description:
+                  "Override the auto-generated CRO key findings on slide 15 with up to 6 hand-written bullets. Leave empty to keep the auto-generated findings (rendered in the same clean bullet format).",
+                initCollapsed: true,
+              },
+              fields: [
+                {
+                  name: "bullet",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description:
+                      "One bullet, one sentence. Plain prose — no em-dashes, no icons.",
+                  },
+                },
+              ],
+            },
+            {
               name: "flightPlan",
               type: "richText",
               editor: proposalEditor,

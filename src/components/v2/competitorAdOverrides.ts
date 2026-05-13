@@ -27,8 +27,14 @@ export type CompetitorLike = {
   websiteUrl?: string | null
   googleAds?: AdsLike
   metaAds?: AdsLike
+  /** Manual ad screenshot URLs, merged in from proposal-side overrides. */
+  manualGoogleAdScreenshotUrls?: string[]
+  manualMetaAdScreenshotUrls?: string[]
   [key: string]: unknown
 }
+
+type MediaRef = { url?: string | null } | number | null | undefined
+type ScreenshotRow = { image?: MediaRef } | null | undefined
 
 export type ProposalCompetitorOverride = {
   name?: string | null
@@ -37,6 +43,21 @@ export type ProposalCompetitorOverride = {
   googleAdCountOverride?: number | null
   hasMetaAds?: boolean | null
   metaAdCountOverride?: number | null
+  googleAdScreenshots?: ScreenshotRow[] | null
+  metaAdScreenshots?: ScreenshotRow[] | null
+}
+
+/** Pull populated media URLs out of an array of `{ image: Media }` rows. */
+function extractScreenshotUrls(rows: ScreenshotRow[] | null | undefined): string[] {
+  if (!rows || rows.length === 0) return []
+  const out: string[] = []
+  for (const row of rows) {
+    const img = row?.image
+    if (img && typeof img === 'object' && typeof img.url === 'string' && img.url) {
+      out.push(img.url)
+    }
+  }
+  return out
 }
 
 /** Normalise a domain or URL to a comparable lower-cased hostname. */
@@ -99,6 +120,14 @@ export function applyAdOverrides<T extends CompetitorLike>(
       }
       ;(next as CompetitorLike).metaAds = baseMeta
     }
+
+    // Manual ad screenshot uploads — populated via depth:2 fetch in page.tsx.
+    // Stored on each competitor row so the Paid Activation slide (slide 17)
+    // can show real screenshots without re-querying the proposal.
+    const googleShots = extractScreenshotUrls(override.googleAdScreenshots)
+    if (googleShots.length > 0) next.manualGoogleAdScreenshotUrls = googleShots
+    const metaShots = extractScreenshotUrls(override.metaAdScreenshots)
+    if (metaShots.length > 0) next.manualMetaAdScreenshotUrls = metaShots
 
     return next
   })

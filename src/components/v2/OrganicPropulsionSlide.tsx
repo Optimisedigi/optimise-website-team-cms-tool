@@ -100,90 +100,107 @@ const PLATFORM_TERMS = [
 // These are never genuine questions.
 const ALPHA_MODIFIER_PREFIX = 'alpha:'
 
-// All country/city names keyed by location-code prefix.
-// When the proposal's location starts with a given prefix, every OTHER
-// entry's terms become foreign and are excluded from question results.
-const LOCATION_TERMS: Record<string, string[]> = {
-  au: [
-    'australia', 'australian', 'sydney', 'melbourne', 'brisbane', 'perth',
-    'adelaide', 'canberra', 'hobart', 'darwin', 'gold coast', 'sunshine coast',
-    'newcastle', 'wollongong', 'geelong', 'townsville', 'cairns', 'toowoomba',
-    'nsw', 'victoria', 'queensland', 'south australia', 'western australia',
-    'tasmania', 'act', 'northern territory',
-  ],
-  nz: [
-    'new zealand', 'auckland', 'wellington', 'christchurch', 'hamilton',
-    'tauranga', 'dunedin', 'palmerston north', 'napier', 'rotorua',
-  ],
-  us: [
-    'united states', 'usa', 'america', 'american', 'new york', 'los angeles',
-    'chicago', 'houston', 'miami', 'atlanta', 'seattle', 'denver', 'phoenix',
-    'philadelphia', 'san antonio', 'san diego', 'dallas', 'san jose',
-    'austin', 'jacksonville', 'fort worth', 'columbus', 'charlotte',
-    'california', 'texas', 'florida', 'illinois', 'pennsylvania', 'ohio',
-    'georgia', 'michigan', 'new jersey', 'virginia', 'washington state',
-  ],
-  ca: [
-    'canada', 'canadian', 'toronto', 'vancouver', 'montreal', 'calgary',
-    'ottawa', 'edmonton', 'winnipeg', 'quebec city', 'hamilton', 'kitchener',
-    'ontario', 'british columbia', 'quebec', 'alberta', 'nova scotia',
-    'manitoba', 'saskatchewan',
-  ],
-  gb: [
-    'united kingdom', 'britain', 'british', 'england', 'london',
-    'manchester', 'birmingham', 'glasgow', 'edinburgh', 'liverpool',
-    'bristol', 'leeds', 'sheffield', 'newcastle', 'nottingham', 'leicester',
-    'wales', 'scotland', 'northern ireland', 'cardiff', 'belfast',
-  ],
-  sg: ['singapore', 'singaporean'],
-  in: [
-    'india', 'indian', 'mumbai', 'delhi', 'new delhi', 'bangalore', 'bengaluru',
-    'hyderabad', 'chennai', 'kolkata', 'pune', 'ahmedabad', 'jaipur', 'surat',
-    'lucknow', 'kanpur', 'nagpur', 'indore', 'thane', 'bhopal',
-  ],
-  // Additional major regions always excluded (no proposal location maps to these)
-  // but their terms should never appear in any client’s content questions.
-  _global: [
-    'china', 'chinese', 'beijing', 'shanghai', 'hong kong',
-    'japan', 'japanese', 'tokyo', 'osaka',
-    'south korea', 'korean', 'seoul',
-    'germany', 'german', 'berlin', 'munich', 'frankfurt',
-    'france', 'french', 'paris', 'lyon', 'marseille',
-    'spain', 'spanish', 'madrid', 'barcelona',
-    'italy', 'italian', 'rome', 'milan',
-    'netherlands', 'amsterdam',
-    'sweden', 'stockholm', 'norway', 'oslo', 'denmark', 'copenhagen',
-    'switzerland', 'zurich', 'geneva',
-    'russia', 'moscow', 'brazil', 'sao paulo', 'rio de janeiro',
-    'mexico', 'mexico city', 'argentina', 'buenos aires',
-    'south africa', 'johannesburg', 'cape town',
-    'nigeria', 'kenya', 'nairobi',
-    'saudi arabia', 'riyadh', 'dubai', 'uae', 'abu dhabi',
-    'pakistan', 'karachi', 'lahore', 'islamabad',
-    'bangladesh', 'dhaka',
-    'philippines', 'manila', 'indonesia', 'jakarta',
-    'malaysia', 'kuala lumpur', 'thailand', 'bangkok',
-    'vietnam', 'hanoi', 'ho chi minh',
-  ],
-}
+// Every country / state / city name we want to strip from the customer-
+// questions panel on this slide. Unlike the rest of the deck, the Organic
+// Propulsion slide is about content strategy, not local SEO — so geo-tagged
+// queries ("tax accountant Sydney", "tax accountant Staten Island") add
+// noise rather than insight. Location keywords live on their own keyword
+// category (e.g. "Local Intent") and surface on the Keyword Landscape slide.
+//
+// Applied unconditionally: own-country city names are excluded too. Add new
+// terms here as the team spots leaks.
+const LOCATION_TERMS: string[] = [
+  // Australia
+  'australia', 'australian', 'sydney', 'melbourne', 'brisbane', 'perth',
+  'adelaide', 'canberra', 'hobart', 'darwin', 'gold coast', 'sunshine coast',
+  'newcastle', 'wollongong', 'geelong', 'townsville', 'cairns', 'toowoomba',
+  'nsw', 'victoria', 'queensland', 'south australia', 'western australia',
+  'tasmania', 'act', 'northern territory', 'surry hills', 'parramatta',
+  'bondi', 'manly', 'chatswood', 'north sydney',
 
-/**
- * Given a location code like "au", "au:sydney", "us", return the set of
- * foreign location terms that should be excluded from questions.
- * Own-country terms are allowed (so "tax accountant sydney" isn't excluded
- * when location is au:sydney, but "tax accountant canada" is).
- * The _global bucket is always excluded regardless of own location.
- */
-function buildForeignLocationTerms(location: string | null | undefined): Set<string> {
-  const ownPrefix = location ? location.split(':')[0]!.toLowerCase() : null
-  const foreign = new Set<string>()
-  for (const [prefix, terms] of Object.entries(LOCATION_TERMS)) {
-    if (prefix === '_global' || prefix !== ownPrefix) {
-      for (const t of terms) foreign.add(t.toLowerCase())
-    }
-  }
-  return foreign
-}
+  // New Zealand
+  'new zealand', 'auckland', 'wellington', 'christchurch', 'hamilton',
+  'tauranga', 'dunedin', 'palmerston north', 'napier', 'rotorua',
+
+  // United States — full state list to catch leaks like "Rhode Island".
+  'united states', 'usa', 'america', 'american',
+  // Major US cities
+  'new york', 'new york city', 'nyc', 'manhattan', 'brooklyn', 'queens',
+  'staten island', 'bronx', 'los angeles', 'chicago', 'houston', 'miami',
+  'atlanta', 'seattle', 'denver', 'phoenix', 'philadelphia', 'san antonio',
+  'san diego', 'dallas', 'san jose', 'austin', 'jacksonville', 'fort worth',
+  'columbus', 'charlotte', 'boston', 'detroit', 'memphis', 'portland',
+  'las vegas', 'nashville', 'baltimore', 'milwaukee', 'albuquerque',
+  'tucson', 'fresno', 'sacramento', 'kansas city', 'long beach',
+  'mesa', 'omaha', 'oakland', 'minneapolis', 'tulsa', 'arlington',
+  'tampa', 'new orleans', 'wichita', 'cleveland', 'bakersfield', 'aurora',
+  'anaheim', 'honolulu', 'st louis', 'pittsburgh', 'cincinnati', 'st paul',
+  'orlando', 'irvine', 'newark', 'durham', 'chula vista', 'toledo',
+  'fort wayne', 'st petersburg', 'laredo', 'jersey city', 'chandler',
+  'madison', 'lubbock', 'scottsdale', 'reno', 'buffalo', 'gilbert',
+  'glendale', 'north las vegas', 'winston-salem', 'chesapeake', 'norfolk',
+  'fremont', 'garland', 'irving', 'hialeah', 'richmond', 'boise',
+  'spokane', 'baton rouge',
+  // All 50 US states
+  'alabama', 'alaska', 'arizona', 'arkansas', 'california', 'colorado',
+  'connecticut', 'delaware', 'florida', 'georgia', 'hawaii', 'idaho',
+  'illinois', 'indiana', 'iowa', 'kansas', 'kentucky', 'louisiana',
+  'maine', 'maryland', 'massachusetts', 'michigan', 'minnesota',
+  'mississippi', 'missouri', 'montana', 'nebraska', 'nevada',
+  'new hampshire', 'new jersey', 'new mexico', 'north carolina',
+  'north dakota', 'ohio', 'oklahoma', 'oregon', 'pennsylvania',
+  'rhode island', 'south carolina', 'south dakota', 'tennessee', 'texas',
+  'utah', 'vermont', 'virginia', 'washington state', 'west virginia',
+  'wisconsin', 'wyoming', 'washington dc', 'd.c.',
+
+  // Canada
+  'canada', 'canadian', 'toronto', 'vancouver', 'montreal', 'calgary',
+  'ottawa', 'edmonton', 'winnipeg', 'quebec city', 'kitchener',
+  'ontario', 'british columbia', 'quebec', 'alberta', 'nova scotia',
+  'manitoba', 'saskatchewan',
+
+  // United Kingdom
+  'united kingdom', 'britain', 'british', 'england', 'london',
+  'manchester', 'birmingham', 'glasgow', 'edinburgh', 'liverpool',
+  'bristol', 'leeds', 'sheffield', 'nottingham', 'leicester',
+  'wales', 'scotland', 'northern ireland', 'cardiff', 'belfast',
+
+  // Singapore
+  'singapore', 'singaporean',
+
+  // India
+  'india', 'indian', 'mumbai', 'delhi', 'new delhi', 'bangalore', 'bengaluru',
+  'hyderabad', 'chennai', 'kolkata', 'pune', 'ahmedabad', 'jaipur', 'surat',
+  'lucknow', 'kanpur', 'nagpur', 'indore', 'thane', 'bhopal',
+
+  // Rest of the world
+  'china', 'chinese', 'beijing', 'shanghai', 'hong kong',
+  'japan', 'japanese', 'tokyo', 'osaka',
+  'south korea', 'korean', 'seoul',
+  'germany', 'german', 'berlin', 'munich', 'frankfurt',
+  'france', 'french', 'paris', 'lyon', 'marseille',
+  'spain', 'spanish', 'madrid', 'barcelona',
+  'italy', 'italian', 'rome', 'milan',
+  'netherlands', 'amsterdam',
+  'sweden', 'stockholm', 'norway', 'oslo', 'denmark', 'copenhagen',
+  'switzerland', 'zurich', 'geneva',
+  'russia', 'moscow', 'brazil', 'sao paulo', 'rio de janeiro',
+  'mexico', 'mexico city', 'argentina', 'buenos aires',
+  'south africa', 'johannesburg', 'cape town',
+  'nigeria', 'kenya', 'nairobi',
+  'saudi arabia', 'riyadh', 'dubai', 'uae', 'abu dhabi',
+  'pakistan', 'karachi', 'lahore', 'islamabad',
+  'bangladesh', 'dhaka',
+  'philippines', 'manila', 'indonesia', 'jakarta',
+  'malaysia', 'kuala lumpur', 'thailand', 'bangkok',
+  'vietnam', 'hanoi', 'ho chi minh',
+]
+
+/** Lower-cased lookup set built once. Includes every location term — own
+ *  country and foreign — because this slide never wants geo-tagged questions. */
+const LOCATION_TERMS_SET: Set<string> = new Set(
+  LOCATION_TERMS.map((t) => t.toLowerCase()),
+)
 
 function isQuestionModifier(modifier: string | null | undefined): boolean {
   if (!modifier) return false
@@ -201,7 +218,6 @@ function isQuestionText(text: string): boolean {
 function shouldExclude(
   text: string,
   modifier: string | null | undefined,
-  foreignTerms: Set<string>,
 ): boolean {
   const lower = text.toLowerCase()
   const words = lower.split(/\s+/)
@@ -231,8 +247,10 @@ function shouldExclude(
     if (lower.includes(t)) return true
   }
 
-  // Foreign location mentions.
-  for (const term of foreignTerms) {
+  // Any location mention — own country and foreign. Multi-word terms are
+  // matched as substrings ("new south wales"), single-word ones are matched
+  // as whole words to avoid false positives (e.g. "china" inside "machine").
+  for (const term of LOCATION_TERMS_SET) {
     if (term.includes(' ')) {
       if (lower.includes(term)) return true
     } else {
@@ -265,9 +283,7 @@ function formatVolume(n: number): string {
 function buildBuckets(
   categories: KeywordCategory[],
   researches: ContentResearchLike[],
-  location: string | null | undefined,
 ): CategoryBucket[] {
-  const foreignTerms = buildForeignLocationTerms(location)
   // Index researches by keyword for O(1) lookup.
   const byKeyword = new Map<string, ContentResearchLike[]>()
   for (const cr of researches) {
@@ -295,7 +311,7 @@ function buildBuckets(
             const dedupeKey = text.toLowerCase()
             if (seen.has(dedupeKey)) continue
             seen.add(dedupeKey)
-            if (shouldExclude(text, q?.modifier, foreignTerms)) continue
+            if (shouldExclude(text, q?.modifier)) continue
             const isQuestion = isQuestionModifier(q?.modifier) || isQuestionText(text)
             flat.push({ question: text, volume: q?.searchVolume ?? 0, isQuestion })
           }
@@ -391,15 +407,16 @@ function CategoryCard({
 export function OrganicPropulsionSlide({
   contentResearches,
   keywordCategories,
-  location,
 }: {
   contentResearches: ContentResearchLike[] | null
   keywordCategories: KeywordCategory[] | null
-  location: string | null
+  /** Accepted for backwards compatibility — unused now that location-tagged
+   *  questions are excluded unconditionally on this slide. */
+  location?: string | null
 }): ReactElement {
   const categories = keywordCategories ?? []
   const researches = contentResearches ?? []
-  const buckets = buildBuckets(categories, researches, location)
+  const buckets = buildBuckets(categories, researches)
 
   // List of category names used in the Pillar pages explainer. We surface the
   // proposal's own categories so the copy reads like a real plan ("creating
@@ -426,20 +443,20 @@ export function OrganicPropulsionSlide({
       </div>
 
       <div className="two-col">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 760 }}>
-            <p className="body" style={{ fontSize: 24, margin: 0, lineHeight: 1.4 }}>
-              SEO is the only channel where the investment compounds.
-              Paid stops when the budget does. <strong style={{ color: 'var(--ink)' }}>Organic keeps arriving for years</strong> and
-              lowers your cost-per-lead across every other channel.
-            </p>
-            <p className="body" style={{ fontSize: 24, margin: 0, lineHeight: 1.4 }}>
-              The businesses with the highest marketing ROI started building authority early.
-              We also manage your <strong style={{ color: 'var(--ink)' }}>Google Business Profile and reviews</strong> as part of the organic strategy, building local authority and trust signals that compound alongside your content.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Intro: kept tight so all four stages plus the intro fit above
+              the fold. Earlier longer drafts pushed stage 04 off-screen. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p className="body" style={{ fontSize: 21, margin: 0, lineHeight: 1.3 }}>
+              SEO is the only channel where the investment compounds. Paid
+              stops when the budget does. <strong style={{ color: 'var(--ink)' }}>Organic keeps arriving for years</strong>,
+              lowering your cost-per-lead. We also manage your
+              <strong style={{ color: 'var(--ink)' }}> Google Business Profile and reviews</strong> alongside the content,
+              building local authority that compounds in parallel.
             </p>
           </div>
 
-          <div className="stages" style={{ marginTop: 18 }}>
+          <div className="stages" style={{ marginTop: 4 }}>
             <div className="stage">
               <div className="stage-num">01</div>
               <div className="stage-body">
@@ -491,7 +508,7 @@ export function OrganicPropulsionSlide({
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div
             className="eyebrow"
             style={{ color: 'var(--ink-mute)', fontSize: 18 }}
@@ -500,6 +517,26 @@ export function OrganicPropulsionSlide({
               ? 'Customer questions by category · hover to expand'
               : 'Customer questions by category'}
           </div>
+          {/* Clarify what these questions are (and aren't) so the slide isn't
+              confused with the Google Ads keyword list. SEO content questions
+              build topic authority; Google Ads bidding focuses on commercial
+              intent keywords like "accountant near me". */}
+          <p
+            className="small"
+            style={{
+              margin: 0,
+              fontStyle: 'italic',
+              color: 'var(--ink-mute)',
+              fontSize: 17,
+              lineHeight: 1.4,
+              maxWidth: 680,
+            }}
+          >
+            These are content questions for building topic authority across
+            SEO, not the commercial keywords we bid on in Google Ads. Paid
+            bidding focuses on high-intent searches like &ldquo;accountant in
+            Surry Hills&rdquo;.
+          </p>
 
           {buckets.length > 0 ? (
             <div className="op-cat-stack">

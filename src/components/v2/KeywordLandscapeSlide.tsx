@@ -150,6 +150,13 @@ export function KeywordLandscapeSlides({
           <div className="kw-cluster">
             {slideBuckets.map((b, i) => {
               const overallIdx = slideIdx * 3 + i
+              // Local-intent / zero-volume categories: hide the volume tile
+              // and per-keyword volume cells, and surface an explanatory note
+              // instead. Search volume tools don't report on hyper-local geo
+              // modifiers like "accounting firm Surry Hills" — the traffic is
+              // real, it just isn't measurable as a clean monthly total.
+              const isLocalIntent =
+                b.totalVolume === 0 && b.topKeywords.length > 0
               return (
                 <div className="kw-card" key={`${b.categoryName}-${i}`}>
                   <div>
@@ -158,15 +165,32 @@ export function KeywordLandscapeSlides({
                     </div>
                     <div className="h">{b.categoryName}</div>
                   </div>
-                  <div>
-                    <div className="v">{formatTotal(b.totalVolume)}</div>
-                    <div
-                      className="lbl"
-                      style={{ marginTop: 6, color: 'var(--ink-mute)' }}
-                    >
-                      Monthly searches
+                  {isLocalIntent ? (
+                    <div>
+                      <div
+                        className="lbl"
+                        style={{
+                          color: 'var(--ink-mute)',
+                          letterSpacing: '0.04em',
+                          textTransform: 'none',
+                        }}
+                      >
+                        We will target these. Search volume is low at this
+                        local level, and Google Ads doesn&apos;t expose a
+                        clean monthly total. We capture the demand directly.
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div>
+                      <div className="v">{formatTotal(b.totalVolume)}</div>
+                      <div
+                        className="lbl"
+                        style={{ marginTop: 6, color: 'var(--ink-mute)' }}
+                      >
+                        Monthly searches
+                      </div>
+                    </div>
+                  )}
                   <ul>
                     {b.topKeywords.length === 0 ? (
                       <li>
@@ -179,7 +203,9 @@ export function KeywordLandscapeSlides({
                       b.topKeywords.map((kw, j) => (
                         <li key={`${kw.keyword}-${j}`}>
                           <span>{kw.keyword}</span>
-                          <span>{formatVolume(kw.volume)}</span>
+                          {!isLocalIntent && (
+                            <span>{formatVolume(kw.volume)}</span>
+                          )}
                         </li>
                       ))
                     )}

@@ -1656,6 +1656,18 @@ export interface ClientProposal {
       }[]
     | null;
   /**
+   * Override the auto-generated CRO key findings on slide 15 with up to 6 hand-written bullets. Leave empty to keep the auto-generated findings (rendered in the same clean bullet format).
+   */
+  croKeyFindings?:
+    | {
+        /**
+         * One bullet, one sentence. Plain prose — no em-dashes, no icons.
+         */
+        bullet: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Editable flight plan content shown on the report. Supports bold, italic, underline, font size formatting. Falls back to suggestions if empty.
    */
   flightPlan?: {
@@ -6621,6 +6633,12 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         tag?: T;
         title?: T;
         description?: T;
+        id?: T;
+      };
+  croKeyFindings?:
+    | T
+    | {
+        bullet?: T;
         id?: T;
       };
   flightPlan?: T;

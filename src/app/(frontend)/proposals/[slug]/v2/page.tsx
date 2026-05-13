@@ -560,8 +560,12 @@ export default async function ProposalReportV2Page({
           dangerouslySetInnerHTML={{ __html: staticBetweenSeoAndCro }}
         />
 
-        {/* CRO Health score (dynamic). */}
-        <CroHealthSlide croAudit={croAuditDoc} />
+        {/* CRO Health score (dynamic). The override array, when populated,
+            replaces the auto-generated findings on the Key Findings card. */}
+        <CroHealthSlide
+          croAudit={croAuditDoc}
+          keyFindingsOverride={p.croKeyFindings ?? null}
+        />
 
         {/* Fueling-the-Ship divider — static. */}
         <div

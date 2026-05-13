@@ -93,6 +93,10 @@ export function ClosingSlide({
           <div className="val">{forNode}</div>
         </div>
         <div className="col">
+          <div className="lbl">Presented by</div>
+          <div className="val">Adam Telhiwac and Peter Tu</div>
+        </div>
+        <div className="col">
           <div className="lbl">Next</div>
           <div className="val" style={{ color: 'var(--purple)' }}>
             Reply to confirm proposal →
