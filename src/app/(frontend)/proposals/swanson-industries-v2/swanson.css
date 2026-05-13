@@ -1,0 +1,19 @@
+/* Swanson Industries Proposal — custom overrides */
+
+/* Move eyebrow-line down 60px on the cover slide */
+.proposal-v2 .slide.cover .center {
+  margin-top: -114px;
+}
+
+/* Ensure slide-foot page numbers show on all swanson slides */
+.proposal-v2 .slide[data-label="19 Next Steps"] {
+  gap: 0;
+}
+
+.proposal-v2 .slide[data-label="17 Return Modelling"] .road-cell .week {
+  color: var(--purple-deep);
+}
+
+.proposal-v2 .stat-tile .val.purple {
+  color: var(--purple-deep);
+}
