@@ -46,13 +46,13 @@ export default function EpgProposal() {
               <div className="eyebrow-line">
                 <span className="pill" style={{ color: '#f97316', borderColor: '#f97316', fontSize: 26 }}>Google Ads Proposal</span>
                 <span className="meta-tag" style={{ color: 'rgba(255,255,255,0.45)' }}>Rebrand Campaign · Australia · v1.0</span>
-                <span className="meta-tag" style={{ color: 'rgba(255,255,255,0.45)' }}>June 2026</span>
+                <span className="meta-tag" style={{ color: 'rgba(255,255,255,0.45)' }}>May 2026</span>
               </div>
               <div className="h1" style={{ fontSize: 121 }}>
                 Capturing the transition<br />from <em style={{ color: '#f97316' }}>Kohler</em> to<br /><em style={{ color: '#f97316' }}>Rehlko.</em>
               </div>
               <div className="deck-for" style={{ fontSize: 35 }}>
-                Rebrand transition: own the Kohler-to-Rehlko migration.<br />Grow qualified leads for engines nationwide. Launch 1 June 2026.
+                Rebrand transition: own the Kohler-to-Rehlko migration.<br />Grow qualified leads for engines nationwide. Launch 1 May 2026.
               </div>
             </div>
             <div />
