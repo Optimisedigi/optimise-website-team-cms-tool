@@ -148,6 +148,31 @@ export default buildConfig({
     },
     push: false,
   }),
+  // Auto-heal schema on every cold start. Mirrors `POST /api/migrate` so a
+  // deploy that adds tables/columns doesn't leave production with the previous
+  // schema (the failure mode that blanks out /proposals/[slug] with a generic
+  // "Application error"). Best-effort: never throws — a failure here would
+  // prevent Payload from starting, which is strictly worse than the status quo.
+  onInit: async (payload) => {
+    try {
+      const { runMigrations } = await import("./lib/run-migrations");
+      const results = await runMigrations(payload);
+      const errors = results.filter((r) => r.status === "error");
+      if (errors.length > 0) {
+        payload.logger.warn(
+          { errors, total: results.length },
+          "[schema-sync] migrations completed with errors",
+        );
+      } else {
+        payload.logger.info(
+          { total: results.length },
+          "[schema-sync] schema synced",
+        );
+      }
+    } catch (err) {
+      payload.logger.error({ err }, "[schema-sync] failed");
+    }
+  },
   sharp,
   plugins: [
     ...(process.env.BLOB_READ_WRITE_TOKEN

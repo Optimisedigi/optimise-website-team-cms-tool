@@ -60,11 +60,23 @@ async function getAllCollections() {
 
 describe("dbName ↔ migration sync", () => {
   it("every dbName override must have a matching CREATE TABLE in the migration", async () => {
-    const migrationPath = path.resolve(
+    // Migration SQL now lives in two files: the shared `runMigrations` helper
+    // (called from both `POST /api/migrate` and Payload's `onInit`), plus the
+    // legacy GET handler in the route file which still has its own statement
+    // list. Concatenate both so dbName lookups find their CREATE TABLE in
+    // either place.
+    const routePath = path.resolve(
       __dirname,
       "../../src/app/(frontend)/api/migrate/route.ts",
     );
-    const migrationSql = fs.readFileSync(migrationPath, "utf-8");
+    const runMigrationsPath = path.resolve(
+      __dirname,
+      "../../src/lib/run-migrations.ts",
+    );
+    const migrationSql =
+      fs.readFileSync(routePath, "utf-8") +
+      "\n" +
+      fs.readFileSync(runMigrationsPath, "utf-8");
 
     const collections = await getAllCollections();
     const allDbNames = collections.flatMap((c) => findDbNames(c.fields, c.slug));
