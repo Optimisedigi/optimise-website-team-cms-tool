@@ -2591,6 +2591,13 @@ export async function runMigrations(
     await run("clients_presentations.deck_url", "ALTER TABLE `clients_presentations` ADD `deck_url` text");
     await run("client_proposals_presentations.deck_url", "ALTER TABLE `client_proposals_presentations` ADD `deck_url` text");
 
+    // ── Template support on clients_presentations (Payload schema requires these for the
+    // templateSlug + deckPayload fields in the presentations array — see src/collections/Clients.ts).
+    // Missing these blanks out the entire /admin/collections/clients list view.
+    await run("clients_presentations.template_slug_id", "ALTER TABLE `clients_presentations` ADD `template_slug_id` integer REFERENCES `deck_templates`(`id`) ON DELETE set null");
+    await run("clients_presentations.deck_payload", "ALTER TABLE `clients_presentations` ADD `deck_payload` text");
+    await run("clients_presentations_template_slug_idx", "CREATE INDEX IF NOT EXISTS `clients_presentations_template_slug_idx` ON `clients_presentations` (`template_slug_id`)");
+
     // ── deck_templates (2026-05-17) ──
     // preview_image is a Payload upload field → stored as preview_image_id integer FK to media.
     // Note: the formal migration in src/migrations/ originally wrote `preview_image integer` (no _id, no FK).

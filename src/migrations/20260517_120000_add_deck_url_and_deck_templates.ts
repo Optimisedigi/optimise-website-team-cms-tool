@@ -15,6 +15,25 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
     ))
   } catch { /* column may already exist */ }
 
+  // ── 2b. clients_presentations ── add template_slug_id + deck_payload ─────
+  // Payload's `presentations` array on clients gained `templateSlug` (relationship to
+  // deck-templates) and `deckPayload` (json). Missing these blanks out the admin clients list.
+  try {
+    await db.run(sql.raw(
+      `ALTER TABLE \`clients_presentations\` ADD COLUMN \`template_slug_id\` integer REFERENCES \`deck_templates\`(\`id\`) ON DELETE set null;`
+    ))
+  } catch { /* column may already exist */ }
+  try {
+    await db.run(sql.raw(
+      `ALTER TABLE \`clients_presentations\` ADD COLUMN \`deck_payload\` text;`
+    ))
+  } catch { /* column may already exist */ }
+  try {
+    await db.run(sql.raw(
+      `CREATE INDEX IF NOT EXISTS \`clients_presentations_template_slug_idx\` ON \`clients_presentations\` (\`template_slug_id\`);`
+    ))
+  } catch { /* index may already exist */ }
+
   // ── 3. deck_templates ──────────────────────────────────────────────────────
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS \`deck_templates\` (
