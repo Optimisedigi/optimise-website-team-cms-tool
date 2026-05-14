@@ -2505,6 +2505,117 @@ export async function runMigrations(
     await run("users.gmail_access_token", "ALTER TABLE `users` ADD `gmail_access_token` text");
     await run("users.gmail_refresh_token", "ALTER TABLE `users` ADD `gmail_refresh_token` text");
     await run("users.gmail_token_expiry", "ALTER TABLE `users` ADD `gmail_token_expiry` text");
+
+    // ── gsc_site_url on clients (2026-05-11) ──
+    await run("clients.gsc_site_url", "ALTER TABLE `clients` ADD `gsc_site_url` text");
+
+    // ── agent_memory + agent_soul (2026-05-12, lazy-loaded memory inspired by Pocket Agent) ──
+    await run("agent_memory", `CREATE TABLE IF NOT EXISTS \`agent_memory\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`scope\` text NOT NULL DEFAULT 'client',
+      \`client_id\` integer,
+      \`category\` text NOT NULL,
+      \`subject\` text NOT NULL,
+      \`content\` text NOT NULL,
+      \`importance\` integer DEFAULT 50,
+      \`last_accessed_at\` text,
+      \`created_by_id\` integer,
+      \`agent_run_id\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`created_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("agent_memory_scope_idx", "CREATE INDEX IF NOT EXISTS `agent_memory_scope_idx` ON `agent_memory` (`scope`)");
+    await run("agent_memory_client_idx", "CREATE INDEX IF NOT EXISTS `agent_memory_client_idx` ON `agent_memory` (`client_id`)");
+    await run("agent_memory_subject_idx", "CREATE INDEX IF NOT EXISTS `agent_memory_subject_idx` ON `agent_memory` (`subject`)");
+    await run("agent_memory_dedupe_idx", "CREATE INDEX IF NOT EXISTS `agent_memory_dedupe_idx` ON `agent_memory` (`scope`, `client_id`, `subject`)");
+    await run("agent_memory_importance_idx", "CREATE INDEX IF NOT EXISTS `agent_memory_importance_idx` ON `agent_memory` (`importance`)");
+
+    await run("agent_soul", `CREATE TABLE IF NOT EXISTS \`agent_soul\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`aspect\` text NOT NULL,
+      \`content\` text NOT NULL,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+    )`);
+    await run("agent_soul_aspect_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `agent_soul_aspect_idx` ON `agent_soul` (`aspect`)");
+    await run("locked_docs_rels.agent_memory_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agent_memory_id` integer REFERENCES `agent_memory`(`id`) ON DELETE CASCADE");
+    await run("locked_docs_rels.agent_soul_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agent_soul_id` integer REFERENCES `agent_soul`(`id`) ON DELETE CASCADE");
+
+    // ── optimate_chat_turns (2026-05-12, persistent chat history per audit + user) ──
+    await run("optimate_chat_turns", `CREATE TABLE IF NOT EXISTS \`optimate_chat_turns\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`session_id\` text NOT NULL,
+      \`audit_id\` integer NOT NULL,
+      \`user_id\` integer NOT NULL,
+      \`client_id\` integer,
+      \`role\` text NOT NULL,
+      \`content\` text NOT NULL,
+      \`preview\` text,
+      \`run_id\` text,
+      \`model_used\` text,
+      \`proposal_ids\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`audit_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("optimate_chat_turns_session_id_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_session_id_idx` ON `optimate_chat_turns` (`session_id`)");
+    await run("optimate_chat_turns_audit_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_audit_idx` ON `optimate_chat_turns` (`audit_id`)");
+    await run("optimate_chat_turns_user_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_user_idx` ON `optimate_chat_turns` (`user_id`)");
+    await run("optimate_chat_turns_client_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_client_idx` ON `optimate_chat_turns` (`client_id`)");
+    await run("optimate_chat_turns_created_at_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_created_at_idx` ON `optimate_chat_turns` (`created_at`)");
+    await run("optimate_chat_turns_session_created_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_session_created_idx` ON `optimate_chat_turns` (`session_id`, `created_at`)");
+    await run("locked_docs_rels.optimate_chat_turns_id", "ALTER TABLE `payload_locked_documents_rels` ADD `optimate_chat_turns_id` integer REFERENCES `optimate_chat_turns`(`id`) ON DELETE CASCADE");
+
+    // ── client_proposals_cro_key_findings (2026-05-13) ──
+    await run("client_proposals_cro_key_findings", `CREATE TABLE IF NOT EXISTS \`client_proposals_cro_key_findings\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`bullet\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("cro_key_findings_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_cro_key_findings_order_idx` ON `client_proposals_cro_key_findings` (`_order`)");
+    await run("cro_key_findings_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_cro_key_findings_parent_id_idx` ON `client_proposals_cro_key_findings` (`_parent_id`)");
+
+    // ── google_ads_campaign_budgets standalone fields (2026-05-16) ──
+    await run("gacb.standalone", "ALTER TABLE `google_ads_campaign_budgets` ADD `standalone` integer DEFAULT 0");
+    await run("gacb.standalone_budget", "ALTER TABLE `google_ads_campaign_budgets` ADD `standalone_budget` numeric");
+    await run("gacb.standalone_start_date", "ALTER TABLE `google_ads_campaign_budgets` ADD `standalone_start_date` text");
+    await run("gacb.standalone_end_date", "ALTER TABLE `google_ads_campaign_budgets` ADD `standalone_end_date` text");
+
+    // ── deck_url on presentations (2026-05-17) ──
+    await run("clients_presentations.deck_url", "ALTER TABLE `clients_presentations` ADD `deck_url` text");
+    await run("client_proposals_presentations.deck_url", "ALTER TABLE `client_proposals_presentations` ADD `deck_url` text");
+
+    // ── deck_templates (2026-05-17) ──
+    // preview_image is a Payload upload field → stored as preview_image_id integer FK to media.
+    // Note: the formal migration in src/migrations/ originally wrote `preview_image integer` (no _id, no FK).
+    // We use the correct shape here; if a prior run created the wrong column, the repair ALTER below adds
+    // the correct one (the bad column is ignored by Payload).
+    await run("deck_templates", `CREATE TABLE IF NOT EXISTS \`deck_templates\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`template_slug\` text NOT NULL,
+      \`name\` text NOT NULL,
+      \`description\` text,
+      \`category\` text NOT NULL,
+      \`preview_image_id\` integer REFERENCES \`media\`(\`id\`) ON DELETE set null,
+      \`is_active\` integer DEFAULT 1,
+      \`is_default\` integer DEFAULT 0,
+      \`notes\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+    )`);
+    await run("deck_templates.preview_image_id_repair", "ALTER TABLE `deck_templates` ADD `preview_image_id` integer REFERENCES `media`(`id`) ON DELETE set null");
+    await run("deck_templates_template_slug_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `deck_templates_template_slug_idx` ON `deck_templates` (`template_slug`)");
+    await run("deck_templates_category_idx", "CREATE INDEX IF NOT EXISTS `deck_templates_category_idx` ON `deck_templates` (`category`)");
+    await run("deck_templates_created_at_idx", "CREATE INDEX IF NOT EXISTS `deck_templates_created_at_idx` ON `deck_templates` (`created_at`)");
+    await run("deck_templates_updated_at_idx", "CREATE INDEX IF NOT EXISTS `deck_templates_updated_at_idx` ON `deck_templates` (`updated_at`)");
+    await run("deck_templates_preview_image_idx", "CREATE INDEX IF NOT EXISTS `deck_templates_preview_image_idx` ON `deck_templates` (`preview_image_id`)");
+    await run("locked_docs_rels.deck_templates_id", "ALTER TABLE `payload_locked_documents_rels` ADD `deck_templates_id` integer REFERENCES `deck_templates`(`id`) ON DELETE CASCADE");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

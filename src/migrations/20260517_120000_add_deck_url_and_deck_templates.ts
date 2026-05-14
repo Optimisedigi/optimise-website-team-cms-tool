@@ -23,7 +23,7 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
       \`name\` text NOT NULL,
       \`description\` text,
       \`category\` text NOT NULL,
-      \`preview_image\` integer,
+      \`preview_image_id\` integer REFERENCES \`media\`(\`id\`) ON DELETE set null,
       \`is_active\` integer DEFAULT true,
       \`is_default\` integer DEFAULT false,
       \`notes\` text,
@@ -35,6 +35,7 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX IF NOT EXISTS \`deck_templates_created_at_idx\` ON \`deck_templates\` (\`created_at\`);`)
   await db.run(sql`CREATE INDEX IF NOT EXISTS \`deck_templates_updated_at_idx\` ON \`deck_templates\` (\`updated_at\`);`)
   await db.run(sql`CREATE INDEX IF NOT EXISTS \`deck_templates_category_idx\` ON \`deck_templates\` (\`category\`);`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS \`deck_templates_preview_image_idx\` ON \`deck_templates\` (\`preview_image_id\`);`)
 
   // ── 4. payload_locked_documents_rels FK column for deck_templates ─────────
   try {
