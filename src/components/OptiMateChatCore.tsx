@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHand
 import { CHAT_PICKER_MODELS, DEFAULT_CHAT_MODEL } from '@/lib/agents/_shared/llm/registry'
 import OptiMateProposalCard, { type OptiMateProposal } from './OptiMateProposalCard'
 import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
+import OptiMateToolsHelp from './OptiMateToolsHelp'
 
 /**
  * Imperative handle exposed via ref so a multi-account wrapper can broadcast
@@ -845,6 +846,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             </option>
           ))}
         </select>
+        <OptiMateToolsHelp compact={compact} />
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <button
             type="button"
