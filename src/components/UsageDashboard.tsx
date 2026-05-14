@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import InfrastructureTable from './InfrastructureTable'
 
 interface ApiCostItem {
   count: number
@@ -174,6 +175,9 @@ function UsageDashboard() {
             </div>
             <WeeklyBarChart weeks={data.weeklyHistory} />
           </div>
+
+          {/* Infrastructure & Services inventory */}
+          <InfrastructureTable />
 
           {/* Subscription Legend */}
           {data.subscriptions.length > 0 && (
