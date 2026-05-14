@@ -85,6 +85,10 @@ export async function POST(
           calculatedDailyBudget: d.calculatedDailyBudget ?? 0,
           actualDailyBudget: d.actualDailyBudget ?? 0,
           enabled: d.enabled !== undefined ? d.enabled : (d.budgetPercentage > 0),
+          standalone: d.standalone ?? false,
+          standaloneBudget: d.standaloneBudget ?? 0,
+          standaloneStartDate: d.standaloneStartDate ?? null,
+          standaloneEndDate: d.standaloneEndDate ?? null,
           bidStrategy: d.bidStrategy,
           impressions: d.impressions ?? 0,
           clicks: d.clicks ?? 0,
@@ -126,6 +130,11 @@ export async function POST(
           bidStrategy: campaign.bidStrategy,
           enabled: campaign.enabled !== undefined ? campaign.enabled : (campaign.budgetPercentage > 0),
         };
+
+        if (campaign.standalone !== undefined) cmsData.standalone = campaign.standalone;
+        if (campaign.standaloneBudget !== undefined) cmsData.standaloneBudget = campaign.standaloneBudget;
+        if (campaign.standaloneStartDate !== undefined) cmsData.standaloneStartDate = campaign.standaloneStartDate;
+        if (campaign.standaloneEndDate !== undefined) cmsData.standaloneEndDate = campaign.standaloneEndDate;
 
         if (existing.totalDocs > 0) {
           await payload.update({

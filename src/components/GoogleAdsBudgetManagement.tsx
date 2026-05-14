@@ -23,6 +23,10 @@ interface BudgetCampaign {
   locationNames?: string[];
   enabled: boolean; // Whether this campaign is included in budget allocation
   campaignStatus?: string;
+  standalone?: boolean;
+  standaloneBudget?: number;
+  standaloneStartDate?: string | null;
+  standaloneEndDate?: string | null;
 }
 
 type CampaignFilter = 'enabled' | 'paused' | 'all';
@@ -59,8 +63,32 @@ function getMonthInfo() {
 }
 
 // Get actual MTD spend from campaign data (from Google Ads THIS_MONTH query)
+// Standalone campaigns have their own budget pool and are excluded by default.
 function getTotalMtdSpend(campaigns: BudgetCampaign[]): number {
-  return campaigns.reduce((sum, c) => sum + (c.mtdSpend || 0), 0);
+  return campaigns.reduce((sum, c) => (c.standalone ? sum : sum + (c.mtdSpend || 0)), 0);
+}
+
+// Daily budget for a standalone campaign:
+// (standaloneTotalBudget - mtdSpend) / daysRemainingInRange
+function calculateStandaloneDailyBudget(c: BudgetCampaign): number {
+  if (!c.standalone || !c.standaloneBudget || !c.standaloneStartDate || !c.standaloneEndDate) return 0;
+  const today = new Date();
+  const start = new Date(c.standaloneStartDate);
+  const end = new Date(c.standaloneEndDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  const effStart = today > start ? today : start;
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const daysRemaining = Math.max(1, Math.ceil((end.getTime() - effStart.getTime()) / msPerDay) + 1);
+  const remaining = Math.max(0, c.standaloneBudget - (c.mtdSpend || 0));
+  return remaining / daysRemaining;
+}
+
+// Format Cost / Conversion: $X.XX (<100) or $X (>=100); em dash when no conversions.
+function formatCostPerConv(mtdSpend: number, conversions: number): string {
+  if (!conversions || conversions <= 0) return '\u2014';
+  const cpc = mtdSpend / conversions;
+  if (!Number.isFinite(cpc) || cpc <= 0) return '\u2014';
+  return cpc < 100 ? `$${cpc.toFixed(2)}` : `$${Math.round(cpc)}`;
 }
 
 // Calculate smart daily budget for a campaign based on remaining budget and days
@@ -113,21 +141,25 @@ function generateEmailHtml(
   const statusBg = percentUsed <= 90 ? '#f0fdf4' : percentUsed <= 100 ? '#fffbeb' : '#fef2f2';
   const isUnderBudget = percentUsed < onTrackPercent;
   const statusText = percentUsed > 100 ? 'Over Budget' : percentUsed > 90 ? 'On Track' : isUnderBudget ? 'Under Budget' : 'On Track';
+  // Show enabled campaigns that either have a non-zero % split OR are standalone
+  // (standalone always have % = 0 but still need to appear in the report).
   const enabledCampaigns = campaigns
-    .filter(c => c.enabled && c.budgetPercentage > 0)
+    .filter(c => c.enabled && (c.standalone || c.budgetPercentage > 0))
     .sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
 
   const campaignRows = enabledCampaigns.map(c => {
     const mtd = c.mtdSpend || 0;
+    const splitCell = c.standalone ? 'Standalone' : `${c.budgetPercentage}%`;
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px">${c.campaignName}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.budgetPercentage}%</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${splitCell}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${c.calculatedDailyBudget.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:600">$${mtd.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.impressions || 0).toLocaleString()}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${(c.clicks || 0).toLocaleString()}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">$${(c.avgCpc || 0).toFixed(2)}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${c.conversions || 0}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right">${formatCostPerConv(mtd, c.conversions || 0)}</td>
     </tr>`;
   }).join('');
 
@@ -235,6 +267,7 @@ function generateEmailHtml(
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Clicks</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Avg CPC</th>
       <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Conv.</th>
+      <th style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e5e7eb">Cost / Conv</th>
     </tr>
     ${campaignRows}
   </table>
@@ -565,17 +598,23 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       .catch(() => {});
   }, [id]);
 
-  // Recalculate daily budgets: (monthly - MTD spend) × campaign % / days remaining
+  // Recalculate daily budgets: (monthly - MTD spend) × campaign % / days remaining.
+  // Standalone campaigns are computed independently from their own budget pool.
   const recalculateBudgets = useCallback((budgetCampaigns: BudgetCampaign[], budget: number): BudgetCampaign[] => {
     const { daysRemaining } = getMonthInfo();
     const totalMtd = getTotalMtdSpend(budgetCampaigns);
 
-    return budgetCampaigns.map(c => ({
-      ...c,
-      calculatedDailyBudget: budget > 0
-        ? calculateSmartDailyBudget(budget, c.budgetPercentage, totalMtd, daysRemaining)
-        : 0,
-    }));
+    return budgetCampaigns.map(c => {
+      if (c.standalone) {
+        return { ...c, calculatedDailyBudget: calculateStandaloneDailyBudget(c) };
+      }
+      return {
+        ...c,
+        calculatedDailyBudget: budget > 0
+          ? calculateSmartDailyBudget(budget, c.budgetPercentage, totalMtd, daysRemaining)
+          : 0,
+      };
+    });
   }, []);
 
   const handleMonthlyTotalChange = useCallback((newTotal: number) => {
@@ -627,6 +666,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             conversions: c.conversions ?? 0,
             mtdSpend: c.mtdSpend ?? 0,
             enabled: c.enabled !== undefined ? c.enabled : true,
+            standalone: c.standalone ?? false,
+            standaloneBudget: c.standaloneBudget ?? 0,
+            standaloneStartDate: c.standaloneStartDate ?? null,
+            standaloneEndDate: c.standaloneEndDate ?? null,
           }));
           setCampaigns(recalculateBudgets(loaded, budget));
           return true;
@@ -714,10 +757,11 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   const handlePushToGoogleAds = useCallback(async () => {
     if (!id || campaigns.length === 0) return;
 
-    // Only validate enabled campaigns
-    const enabledCampaigns = campaigns.filter(c => c.enabled);
+    // Only validate enabled, non-standalone campaigns. Standalone campaigns push
+    // their own derived daily budget independently of the % split.
+    const enabledCampaigns = campaigns.filter(c => c.enabled && !c.standalone);
     const enabledPercentage = enabledCampaigns.reduce((sum, c) => sum + c.budgetPercentage, 0);
-    if (Math.abs(enabledPercentage - 100) > 0.5) {
+    if (enabledCampaigns.length > 0 && Math.abs(enabledPercentage - 100) > 0.5) {
       setError(`Enabled campaigns sum to ${enabledPercentage.toFixed(1)}%, not 100%. Please adjust before pushing.`);
       return;
     }
@@ -738,7 +782,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         credentials: 'include',
         body: JSON.stringify({
           campaigns: campaigns
-            .filter(c => c.budgetPercentage > 0 && c.calculatedDailyBudget > 0)
+            // Push enabled campaigns with a positive daily budget. Standalone
+            // campaigns are included even though their % is 0 — they push their
+            // standalone-derived daily budget.
+            .filter(c => c.enabled && c.calculatedDailyBudget > 0 && (c.standalone || c.budgetPercentage > 0))
             .map(c => ({
               campaignId: c.campaignId,
               dailyBudget: Math.round(c.calculatedDailyBudget * 100) / 100,
@@ -833,6 +880,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
           calculatedDailyBudget: campaign.calculatedDailyBudget,
           bidStrategy: campaign.bidStrategy,
           enabled: campaign.enabled,
+          standalone: campaign.standalone ?? false,
+          standaloneBudget: campaign.standaloneBudget ?? 0,
+          standaloneStartDate: campaign.standaloneStartDate ?? null,
+          standaloneEndDate: campaign.standaloneEndDate ?? null,
         }],
       }),
     }).catch(() => {});
@@ -866,25 +917,34 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   }, [campaigns, monthlyTotal, recalculateBudgets, saveCampaignToCMS]);
 
   const handleAutoBalance = useCallback(() => {
-    if (campaigns.length === 0) return;
-    const equalPercentage = Math.round(10000 / campaigns.length) / 100;
-    const remainder = 100 - (equalPercentage * campaigns.length);
+    // Only balance enabled, non-standalone campaigns. Standalone keep % at 0.
+    const targets = campaigns.filter(c => c.enabled && !c.standalone);
+    if (targets.length === 0) return;
+    const equalPercentage = Math.round(10000 / targets.length) / 100;
+    const remainder = 100 - (equalPercentage * targets.length);
 
-    const balanced = campaigns.map((c, i) => ({
-      ...c,
-      budgetPercentage: i === 0 ? equalPercentage + remainder : equalPercentage,
-    }));
+    let firstAssigned = false;
+    const balanced = campaigns.map(c => {
+      if (!c.enabled || c.standalone) {
+        return { ...c, budgetPercentage: c.standalone ? 0 : c.budgetPercentage };
+      }
+      const pct = !firstAssigned ? equalPercentage + remainder : equalPercentage;
+      firstAssigned = true;
+      return { ...c, budgetPercentage: pct };
+    });
 
     setCampaigns(recalculateBudgets(balanced, monthlyTotal));
   }, [campaigns, monthlyTotal, recalculateBudgets]);
 
-  // Toggle campaign enabled/paused — pausing sets % to 0, auto-saves to CMS
+  // Toggle campaign enabled/paused — pausing sets % to 0, auto-saves to CMS.
+  // Standalone campaigns can still be enabled/disabled; their % stays 0 either way.
   const handleToggleCampaign = useCallback((campaignId: string) => {
     setCampaigns(prev => {
       const updated = prev.map(c => {
         if (c.campaignId !== campaignId) return c;
         const nowEnabled = !c.enabled;
-        return { ...c, enabled: nowEnabled, budgetPercentage: nowEnabled ? c.budgetPercentage : 0 };
+        const nextPct = c.standalone ? 0 : (nowEnabled ? c.budgetPercentage : 0);
+        return { ...c, enabled: nowEnabled, budgetPercentage: nextPct };
       });
       const recalculated = recalculateBudgets(updated, monthlyTotal);
       const campaign = recalculated.find(c => c.campaignId === campaignId);
@@ -915,6 +975,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             calculatedDailyBudget: c.calculatedDailyBudget,
             bidStrategy: c.bidStrategy,
             enabled: c.enabled,
+            standalone: c.standalone ?? false,
+            standaloneBudget: c.standaloneBudget ?? 0,
+            standaloneStartDate: c.standaloneStartDate ?? null,
+            standaloneEndDate: c.standaloneEndDate ?? null,
           })),
         }),
       });
@@ -1063,9 +1127,36 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   }, [id]);
 
   const totalPercentage = useMemo(() =>
-    campaigns.filter(c => c.enabled).reduce((sum, c) => sum + c.budgetPercentage, 0),
+    campaigns.filter(c => c.enabled && !c.standalone).reduce((sum, c) => sum + c.budgetPercentage, 0),
     [campaigns]
   );
+
+  // Standalone campaigns sit in a separate budget pool. Surface a small subheading
+  // under the Monthly Budget Total when any exist so the team understands the
+  // monthly figure is the *non-standalone* pool.
+  const standaloneCampaigns = useMemo(
+    () => campaigns.filter(c => c.standalone),
+    [campaigns]
+  );
+  const standaloneTotalBudget = useMemo(
+    () => standaloneCampaigns.reduce((sum, c) => sum + (c.standaloneBudget || 0), 0),
+    [standaloneCampaigns]
+  );
+
+  // Push allowed when:
+  // - non-standalone enabled % sums to 100, OR
+  // - there are no non-standalone enabled campaigns (i.e. only standalone to push)
+  const enabledNonStandaloneCount = useMemo(
+    () => campaigns.filter(c => c.enabled && !c.standalone).length,
+    [campaigns]
+  );
+  const canPush = useMemo(() => {
+    if (enabledNonStandaloneCount === 0) {
+      // Only standalone (or none enabled); allow push if any enabled campaign exists with a daily budget.
+      return campaigns.some(c => c.enabled && c.calculatedDailyBudget > 0);
+    }
+    return Math.abs(totalPercentage - 100) <= 0.5;
+  }, [campaigns, enabledNonStandaloneCount, totalPercentage]);
   
   const totalDailyBudget = useMemo(() =>
     campaigns.reduce((sum, c) => sum + c.calculatedDailyBudget, 0),
@@ -1204,6 +1295,11 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                 = ${monthlyTotal > 0 ? (monthlyTotal / DAYS_IN_MONTH).toFixed(2) : '0.00'}/day
               </span>
             </div>
+            {standaloneCampaigns.length > 0 && (
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+                Excludes {standaloneCampaigns.length} standalone campaign{standaloneCampaigns.length === 1 ? '' : 's'} — ${standaloneTotalBudget.toLocaleString()} total separate budget
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
@@ -1231,16 +1327,16 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
               <button
                 onClick={handlePushToGoogleAds}
-                disabled={pushing || campaigns.length === 0 || monthlyTotal <= 0 || Math.abs(totalPercentage - 100) > 0.5}
+                disabled={pushing || campaigns.length === 0 || monthlyTotal <= 0 || !canPush}
                 style={{
                   padding: '10px 20px',
                   fontSize: 14,
                   fontWeight: 600,
-                  background: pushing ? '#6366f1' : Math.abs(totalPercentage - 100) <= 0.5 ? '#059669' : '#9ca3af',
+                  background: pushing ? '#6366f1' : canPush ? '#059669' : '#9ca3af',
                   color: '#fff',
                   border: 'none',
                   borderRadius: 8,
-                  cursor: pushing || campaigns.length === 0 || Math.abs(totalPercentage - 100) > 0.5 ? 'not-allowed' : 'pointer',
+                  cursor: pushing || campaigns.length === 0 || !canPush ? 'not-allowed' : 'pointer',
                 }}
               >
                 {pushing ? 'Pushing...' : 'Push to Google Ads'}
@@ -1509,7 +1605,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
           {/* Table Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '36px 2.5fr 0.8fr 0.8fr 0.8fr 0.7fr 0.7fr', gap: 8, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '36px 2.2fr 0.7fr 0.8fr 0.8fr 0.7fr 0.6fr 0.8fr', gap: 8, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
             <div></div>
             <div>Campaign</div>
             <div style={{ textAlign: 'right' }}>% Split</div>
@@ -1517,6 +1613,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             <div style={{ textAlign: 'right' }}>New Daily</div>
             <div style={{ textAlign: 'right' }}>Avg CPC</div>
             <div style={{ textAlign: 'right' }}>Conv.</div>
+            <div style={{ textAlign: 'right' }}>Cost / Conv</div>
           </div>
 
           {(() => {
@@ -1558,7 +1655,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               return (
                 <div key={campaign.campaignId} style={{ borderBottom: index < filtered.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                   <div
-                    style={{ display: 'grid', gridTemplateColumns: '36px 2.5fr 0.8fr 0.8fr 0.8fr 0.7fr 0.7fr', gap: 8, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
+                    style={{ display: 'grid', gridTemplateColumns: '36px 2.2fr 0.7fr 0.8fr 0.8fr 0.7fr 0.6fr 0.8fr', gap: 8, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
                     onClick={() => setExpandedCampaign(isExpanded ? null : campaign.campaignId)}
                   >
                     {/* Toggle */}
@@ -1592,7 +1689,14 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
                     {/* % Split */}
                     <div style={{ textAlign: 'right' }}>
-                      {isEditing ? (
+                      {campaign.standalone ? (
+                        <span
+                          style={{ display: 'inline-block', padding: '3px 8px', fontSize: 11, fontWeight: 600, color: '#7c3aed', background: '#f3e8ff', borderRadius: 10, border: '1px solid #e9d5ff' }}
+                          title="This campaign uses a standalone budget. Click the row to edit."
+                        >
+                          Standalone
+                        </span>
+                      ) : isEditing ? (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
                           <input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} onClick={(e) => e.stopPropagation()} onBlur={() => handleBlurSave(campaign.campaignId, 'percentage', editValue)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} style={{ width: 60, padding: '4px 8px', fontSize: 13, border: '1px solid #2563eb', borderRadius: 4, textAlign: 'right' }} autoFocus min={0} max={100} step={0.5} />
                           <span style={{ fontSize: 12, color: '#64748b' }}>%</span>
@@ -1623,14 +1727,49 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: 13, fontWeight: 500, color: '#6366f1' }}>{(campaign.conversions || 0).toLocaleString()}</span>
                     </div>
+
+                    {/* Cost / Conversion */}
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 13, color: '#64748b' }}>{formatCostPerConv(campaign.mtdSpend || 0, campaign.conversions || 0)}</span>
+                    </div>
                   </div>
 
                   {isExpanded && (
                     <div style={{ padding: '12px 16px 16px 38px', background: '#fafafa', borderTop: '1px solid #e2e8f0' }}>
+                      {/* Standalone toggle */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={!!campaign.standalone}
+                            onChange={(e) => {
+                              const nextStandalone = e.target.checked;
+                              setCampaigns(prev => {
+                                const updated = prev.map(c => {
+                                  if (c.campaignId !== campaign.campaignId) return c;
+                                  return {
+                                    ...c,
+                                    standalone: nextStandalone,
+                                    // When turning standalone ON, reset % to 0 so it stops drawing from the % pool.
+                                    budgetPercentage: nextStandalone ? 0 : c.budgetPercentage,
+                                  };
+                                });
+                                const recalculated = recalculateBudgets(updated, monthlyTotal);
+                                const saved = recalculated.find(c => c.campaignId === campaign.campaignId);
+                                if (saved) saveCampaignToCMS(saved);
+                                return recalculated;
+                              });
+                            }}
+                          />
+                          <span style={{ fontWeight: 500 }}>Standalone budget</span>
+                          <span style={{ color: '#94a3b8' }}>— separate from the monthly % split</span>
+                        </label>
+                      </div>
+
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 16, marginBottom: 12 }}>
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>Monthly Share</div>
-                          <div style={{ fontWeight: 600, color: '#1e293b' }}>${(monthlyTotal * campaign.budgetPercentage / 100).toFixed(0)}</div>
+                          <div style={{ fontWeight: 600, color: '#1e293b' }}>{campaign.standalone ? '\u2014' : `$${(monthlyTotal * campaign.budgetPercentage / 100).toFixed(0)}`}</div>
                         </div>
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>MTD Spend</div>
@@ -1639,6 +1778,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>Adj. Daily Budget</div>
                           <div style={{ fontWeight: 600, color: '#2563eb' }}>${campaign.calculatedDailyBudget.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>Cost / Conv</div>
+                          <div style={{ fontWeight: 600, color: '#64748b' }}>{formatCostPerConv(campaign.mtdSpend || 0, campaign.conversions || 0)}</div>
                         </div>
                         <div>
                           <div style={{ fontSize: 11, color: '#64748b' }}>Impressions</div>
@@ -1666,6 +1809,78 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                         </div>
                       </div>
 
+                      {campaign.standalone && (
+                        <div style={{ padding: 12, background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 8, marginTop: 4 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#6b21a8', marginBottom: 8 }}>Standalone Budget</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Total Budget ($)</div>
+                              <input
+                                type="number"
+                                defaultValue={campaign.standaloneBudget || ''}
+                                placeholder="0"
+                                onClick={(e) => e.stopPropagation()}
+                                onBlur={(e) => {
+                                  const value = parseFloat(e.target.value) || 0;
+                                  if (value === (campaign.standaloneBudget || 0)) return;
+                                  setCampaigns(prev => {
+                                    const updated = prev.map(c => c.campaignId === campaign.campaignId ? { ...c, standaloneBudget: value } : c);
+                                    const recalculated = recalculateBudgets(updated, monthlyTotal);
+                                    const saved = recalculated.find(c => c.campaignId === campaign.campaignId);
+                                    if (saved) saveCampaignToCMS(saved);
+                                    return recalculated;
+                                  });
+                                }}
+                                style={{ width: '100%', padding: '6px 8px', fontSize: 13, border: '1px solid #d8b4fe', borderRadius: 4 }}
+                              />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Start Date</div>
+                              <input
+                                type="date"
+                                defaultValue={campaign.standaloneStartDate ? campaign.standaloneStartDate.slice(0, 10) : ''}
+                                onClick={(e) => e.stopPropagation()}
+                                onBlur={(e) => {
+                                  const value = e.target.value || null;
+                                  if (value === (campaign.standaloneStartDate || null)) return;
+                                  setCampaigns(prev => {
+                                    const updated = prev.map(c => c.campaignId === campaign.campaignId ? { ...c, standaloneStartDate: value } : c);
+                                    const recalculated = recalculateBudgets(updated, monthlyTotal);
+                                    const saved = recalculated.find(c => c.campaignId === campaign.campaignId);
+                                    if (saved) saveCampaignToCMS(saved);
+                                    return recalculated;
+                                  });
+                                }}
+                                style={{ width: '100%', padding: '6px 8px', fontSize: 13, border: '1px solid #d8b4fe', borderRadius: 4 }}
+                              />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>End Date</div>
+                              <input
+                                type="date"
+                                defaultValue={campaign.standaloneEndDate ? campaign.standaloneEndDate.slice(0, 10) : ''}
+                                onClick={(e) => e.stopPropagation()}
+                                onBlur={(e) => {
+                                  const value = e.target.value || null;
+                                  if (value === (campaign.standaloneEndDate || null)) return;
+                                  setCampaigns(prev => {
+                                    const updated = prev.map(c => c.campaignId === campaign.campaignId ? { ...c, standaloneEndDate: value } : c);
+                                    const recalculated = recalculateBudgets(updated, monthlyTotal);
+                                    const saved = recalculated.find(c => c.campaignId === campaign.campaignId);
+                                    if (saved) saveCampaignToCMS(saved);
+                                    return recalculated;
+                                  });
+                                }}
+                                style={{ width: '100%', padding: '6px 8px', fontSize: 13, border: '1px solid #d8b4fe', borderRadius: 4 }}
+                              />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Daily Budget</div>
+                              <div style={{ padding: '6px 8px', fontSize: 14, fontWeight: 700, color: '#059669' }}>${campaign.calculatedDailyBudget.toFixed(2)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

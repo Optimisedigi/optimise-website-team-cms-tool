@@ -82,6 +82,41 @@ export const GoogleAdsCampaignBudgets: CollectionConfig = {
       },
     },
     {
+      name: "standalone",
+      type: "checkbox",
+      defaultValue: false,
+      admin: {
+        description: "Has its own dedicated budget. Excluded from % split allocation and from the main monthly budget total.",
+      },
+    },
+    {
+      name: "standaloneBudget",
+      type: "number",
+      admin: {
+        description: "Total budget for the standalone period (AUD)",
+        condition: (_data, siblingData) => siblingData?.standalone === true,
+        step: 1,
+      },
+    },
+    {
+      name: "standaloneStartDate",
+      type: "date",
+      admin: {
+        description: "Start of the standalone budget period",
+        condition: (_data, siblingData) => siblingData?.standalone === true,
+        date: { pickerAppearance: "dayOnly", displayFormat: "yyyy-MM-dd" },
+      },
+    },
+    {
+      name: "standaloneEndDate",
+      type: "date",
+      admin: {
+        description: "End of the standalone budget period (inclusive)",
+        condition: (_data, siblingData) => siblingData?.standalone === true,
+        date: { pickerAppearance: "dayOnly", displayFormat: "yyyy-MM-dd" },
+      },
+    },
+    {
       name: "budgetPercentage",
       type: "number",
       required: true,

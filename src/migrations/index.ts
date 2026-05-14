@@ -50,6 +50,7 @@ import * as migration_20260515_120000_rename_roadmap_cells_desc_to_body from './
 import * as migration_20260512_140000_add_optimate_chat_turns from './20260512_140000_add_optimate_chat_turns';
 import * as migration_20260513_130000_add_client_proposal_presentations from './20260513_130000_add_client_proposal_presentations';
 import * as migration_20260513_160000_add_cro_key_findings from './20260513_160000_add_cro_key_findings';
+import * as migration_20260516_120000_add_standalone_to_campaign_budgets from './20260516_120000_add_standalone_to_campaign_budgets';
 
 export const migrations = [
   {
@@ -311,5 +312,10 @@ export const migrations = [
     up: migration_20260513_160000_add_cro_key_findings.up,
     down: migration_20260513_160000_add_cro_key_findings.down,
     name: '20260513_160000_add_cro_key_findings'
+  },
+  {
+    up: migration_20260516_120000_add_standalone_to_campaign_budgets.up,
+    down: migration_20260516_120000_add_standalone_to_campaign_budgets.down,
+    name: '20260516_120000_add_standalone_to_campaign_budgets'
   },
 ];

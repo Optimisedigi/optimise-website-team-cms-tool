@@ -213,6 +213,10 @@ export async function GET(
           enabled: saved
             ? (saved.enabled !== undefined ? saved.enabled : (saved.budgetPercentage > 0))
             : (c.campaignStatus !== 'PAUSED' && c.campaignStatus !== 'REMOVED'),
+          standalone: saved?.standalone ?? false,
+          standaloneBudget: saved?.standaloneBudget ?? 0,
+          standaloneStartDate: saved?.standaloneStartDate ?? null,
+          standaloneEndDate: saved?.standaloneEndDate ?? null,
           impressions: c.impressions || 0,
           clicks: c.clicks || 0,
           avgCpc: c.avgCpc || 0,

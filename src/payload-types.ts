@@ -5730,6 +5730,22 @@ export interface GoogleAdsCampaignBudget {
    */
   enabled?: boolean | null;
   /**
+   * Has its own dedicated budget. Excluded from % split allocation and from the main monthly budget total.
+   */
+  standalone?: boolean | null;
+  /**
+   * Total budget for the standalone period (AUD)
+   */
+  standaloneBudget?: number | null;
+  /**
+   * Start of the standalone budget period
+   */
+  standaloneStartDate?: string | null;
+  /**
+   * End of the standalone budget period (inclusive)
+   */
+  standaloneEndDate?: string | null;
+  /**
    * Percentage of total monthly budget to allocate to this campaign
    */
   budgetPercentage: number;
@@ -8039,6 +8055,10 @@ export interface GoogleAdsCampaignBudgetsSelect<T extends boolean = true> {
   adGroupId?: T;
   adGroupName?: T;
   enabled?: T;
+  standalone?: T;
+  standaloneBudget?: T;
+  standaloneStartDate?: T;
+  standaloneEndDate?: T;
   budgetPercentage?: T;
   calculatedDailyBudget?: T;
   actualDailyBudget?: T;
