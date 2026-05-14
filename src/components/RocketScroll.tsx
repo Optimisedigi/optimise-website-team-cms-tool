@@ -5,7 +5,7 @@ import Image from 'next/image'
 
 export default function RocketScroll({ children }: { children: React.ReactNode }) {
   const hasScrolled = useRef(false)
-  const [showHint, setShowHint] = useState(true)
+  const [showHint, setShowHint] = useState(false)
 
   const scrollToNextSlide = useCallback(() => {
     const slides = Array.from(document.querySelectorAll<HTMLElement>('.slide'))
@@ -142,6 +142,8 @@ export default function RocketScroll({ children }: { children: React.ReactNode }
       // Hide the hint after the user scrolls away from the first slide
       if (progress > 0.02) {
         setShowHint(false)
+      } else {
+        setShowHint(true)
       }
     }
 

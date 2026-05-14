@@ -2038,7 +2038,7 @@ export const Clients: CollectionConfig = {
               type: "array",
               admin: {
                 description:
-                  "Slide decks and presentations for this client. Files live at public/partners/<client-slug>/<deck-slug>/ — the live URL is computed from the slug below.",
+                  "Slide decks and presentations for this client. Paste the full deck URL from the 'Open Deck' button — the slug is extracted automatically.",
               },
               fields: [
                 {
@@ -2049,21 +2049,40 @@ export const Clients: CollectionConfig = {
                       type: "text",
                       required: true,
                       admin: {
-                        width: "60%",
+                        width: "35%",
                         description: "Display name (e.g. 'Pre-Migration Deck')",
                       },
                     },
                     {
-                      name: "deckSlug",
+                      name: "deckUrl",
                       type: "text",
                       required: true,
                       admin: {
                         width: "40%",
                         description:
-                          "Folder slug under public/partners/<client-slug>/ (e.g. 'pre-migration'). Must be unique within this client.",
+                          "Full deck URL, e.g. https://cms.optimisedigital.online/partners/<client>/<deck>/",
+                      },
+                    },
+                    {
+                      name: "linkPreview",
+                      type: "ui",
+                      admin: {
+                        width: "25%",
+                        components: {
+                          Field: "/components/ClientPresentationLink",
+                        },
                       },
                     },
                   ],
+                },
+                {
+                  name: "deckSlug",
+                  type: "text",
+                  admin: {
+                    description:
+                      "Internal: extracted from the deck URL above. Used for routing.",
+                    readOnly: true,
+                  },
                 },
                 {
                   type: "row",
@@ -2105,6 +2124,26 @@ export const Clients: CollectionConfig = {
                   name: "notes",
                   type: "textarea",
                   admin: { description: "Internal notes (audience, outcomes, follow-ups)" },
+                },
+                {
+                  name: "templateSlug",
+                  type: "relationship",
+                  relationTo: "deck-templates",
+                  hasMany: false,
+                  admin: {
+                    description:
+                      "Deck template to render at /partners/<clientSlug>/<deckSlug>/. Leave empty for legacy hand-built decks served from src/app/(frontend)/partners/<clientSlug>/<deckSlug>/.",
+                  },
+                  filterOptions: () => ({ isActive: { equals: true } }),
+                },
+                {
+                  name: "deckPayload",
+                  type: "json",
+                  admin: {
+                    description:
+                      "Template payload (JSON). Must match the selected template's schema. Required when templateSlug is set.",
+                    condition: (_data: any, siblingData: any) => Boolean(siblingData?.templateSlug),
+                  },
                 },
                 {
                   name: "linkPreview",

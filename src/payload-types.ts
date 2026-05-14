@@ -72,6 +72,7 @@ export interface Config {
     contracts: Contract;
     'sales-leads': SalesLead;
     'process-templates': ProcessTemplate;
+    'deck-templates': DeckTemplate;
     'client-processes': ClientProcess;
     'meeting-schedulers': MeetingScheduler;
     'blog-posts': BlogPost;
@@ -141,6 +142,7 @@ export interface Config {
     contracts: ContractsSelect<false> | ContractsSelect<true>;
     'sales-leads': SalesLeadsSelect<false> | SalesLeadsSelect<true>;
     'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
+    'deck-templates': DeckTemplatesSelect<false> | DeckTemplatesSelect<true>;
     'client-processes': ClientProcessesSelect<false> | ClientProcessesSelect<true>;
     'meeting-schedulers': MeetingSchedulersSelect<false> | MeetingSchedulersSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
@@ -995,6 +997,22 @@ export interface Client {
          * Internal notes (audience, outcomes, follow-ups)
          */
         notes?: string | null;
+        /**
+         * Deck template to render at /partners/<clientSlug>/<deckSlug>/. Leave empty for legacy hand-built decks served from src/app/(frontend)/partners/<clientSlug>/<deckSlug>/.
+         */
+        templateSlug?: (number | null) | DeckTemplate;
+        /**
+         * Template payload (JSON). Must match the selected template's schema. Required when templateSlug is set.
+         */
+        deckPayload?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
         id?: string | null;
       }[]
     | null;
@@ -3525,6 +3543,37 @@ export interface TagSetupAudit {
   createdAt: string;
 }
 /**
+ * Reusable slide-deck templates (Google Ads audits, stakeholder recaps, etc.)
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "deck-templates".
+ */
+export interface DeckTemplate {
+  id: number;
+  /**
+   * Must match a registered template in src/lib/decks/registry.ts (e.g. "google-ads-audit-15-slide").
+   */
+  templateSlug: string;
+  name: string;
+  description?: string | null;
+  category: 'stakeholder-recap' | 'google-ads-audit' | 'cro-audit' | 'seo-audit' | 'custom';
+  /**
+   * Thumbnail for the CMS admin picker
+   */
+  previewImage?: (number | null) | Media;
+  isActive?: boolean | null;
+  /**
+   * Default template for this category
+   */
+  isDefault?: boolean | null;
+  /**
+   * Internal-only notes about this template
+   */
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Monthly Google Search Console data snapshots
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -4195,6 +4244,7 @@ export interface User {
         | 'contracts'
         | 'sales-leads'
         | 'process-templates'
+        | 'deck-templates'
         | 'client-processes'
         | 'meeting-schedulers'
         | 'email-templates'
@@ -4299,6 +4349,7 @@ export interface PermissionProfile {
         | 'contracts'
         | 'sales-leads'
         | 'process-templates'
+        | 'deck-templates'
         | 'client-processes'
         | 'meeting-schedulers'
         | 'email-templates'
@@ -6060,6 +6111,10 @@ export interface PayloadLockedDocument {
         value: number | ProcessTemplate;
       } | null)
     | ({
+        relationTo: 'deck-templates';
+        value: number | DeckTemplate;
+      } | null)
+    | ({
         relationTo: 'client-processes';
         value: number | ClientProcess;
       } | null)
@@ -6545,6 +6600,8 @@ export interface ClientsSelect<T extends boolean = true> {
         kind?: T;
         isPublic?: T;
         notes?: T;
+        templateSlug?: T;
+        deckPayload?: T;
         id?: T;
       };
   gscConnected?: T;
@@ -6887,6 +6944,22 @@ export interface ProcessTemplatesSelect<T extends boolean = true> {
         id?: T;
       };
   durationDays?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "deck-templates_select".
+ */
+export interface DeckTemplatesSelect<T extends boolean = true> {
+  templateSlug?: T;
+  name?: T;
+  description?: T;
+  category?: T;
+  previewImage?: T;
+  isActive?: T;
+  isDefault?: T;
+  notes?: T;
   updatedAt?: T;
   createdAt?: T;
 }

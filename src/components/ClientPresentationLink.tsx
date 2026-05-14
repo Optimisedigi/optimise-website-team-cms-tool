@@ -1,97 +1,75 @@
 'use client'
 
-import { useDocumentInfo, useFormFields } from '@payloadcms/ui'
-import { useState } from 'react'
+import { useFormFields } from '@payloadcms/ui'
+import { useCallback } from 'react'
 
 type Props = {
   path?: string
 }
 
+/**
+ * Reads the sibling `deckUrl` field and renders an "Open Deck" button.
+ * The deck slug is extracted from the URL at render time in the partner
+ * page — no need to write it from here.
+ */
 const ClientPresentationLink = ({ path }: Props) => {
-  // path is like "presentations.0.linkPreview" — sibling deckSlug is at "presentations.0.deckSlug"
-  const siblingDeckSlugPath = path ? path.replace(/\.linkPreview$/, '.deckSlug') : ''
+  const siblingDeckUrlPath = path
+    ? path.replace(/\.linkPreview$/, '.deckUrl')
+    : ''
 
-  const deckSlug = useFormFields(([fields]) => {
-    if (!siblingDeckSlugPath) return ''
-    const v = fields?.[siblingDeckSlugPath]?.value
+  const deckUrl = useFormFields(([fields]) => {
+    if (!siblingDeckUrlPath) return ''
+    const v = fields?.[siblingDeckUrlPath]?.value
     return typeof v === 'string' ? v : ''
   })
 
-  const clientSlug = useFormFields(([fields]) => {
-    const v = fields?.slug?.value
-    return typeof v === 'string' ? v : ''
-  })
+  const handleOpen = useCallback(() => {
+    if (!deckUrl) return
+    const absolute =
+      deckUrl.startsWith('http')
+        ? deckUrl
+        : `https://cms.optimisedigital.online${deckUrl.startsWith('/') ? deckUrl : `/${deckUrl}`}`
+    window.open(absolute, '_blank', 'noopener,noreferrer')
+  }, [deckUrl])
 
-  const { id } = useDocumentInfo()
-  const [copied, setCopied] = useState(false)
-
-  if (!id || !clientSlug || !deckSlug) {
+  if (!deckUrl) {
     return (
       <div
         style={{
-          marginTop: 6,
-          fontSize: 12,
+          display: 'flex',
+          alignItems: 'center',
+          height: '100%',
+          fontSize: 13,
           color: 'var(--theme-elevation-500, #888)',
           fontStyle: 'italic',
         }}
       >
-        Set client slug and deck slug to see the live URL.
+        Paste the deck URL to enable
       </div>
     )
   }
 
-  const relativeUrl = `/partners/${clientSlug}/${deckSlug}/`
-  const PUBLIC_HOST = 'https://cms.optimisedigital.online'
-  const absoluteUrl = `${PUBLIC_HOST}${relativeUrl}`
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(absoluteUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // ignore
-    }
-  }
-
   return (
-    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
-      <a
-        href={absoluteUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          fontSize: 13,
-          fontWeight: 500,
-          color: 'var(--theme-success-500, #2e8b57)',
-          textDecoration: 'none',
-        }}
-      >
-        Open deck →
-      </a>
-      <span
-        style={{
-          fontSize: 12,
-          color: 'var(--theme-elevation-500, #888)',
-          fontFamily: 'var(--font-mono, monospace)',
-        }}
-      >
-        {absoluteUrl}
-      </span>
+    <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
       <button
         type="button"
-        onClick={handleCopy}
+        onClick={handleOpen}
         style={{
-          fontSize: 12,
-          padding: '3px 8px',
-          borderRadius: 4,
-          border: '1px solid var(--theme-elevation-250, #ccc)',
-          background: 'var(--theme-elevation-50, #fff)',
-          color: 'var(--theme-elevation-800, #333)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          padding: '6px 12px',
+          background: 'var(--theme-elevation-100, #2563eb)',
+          color: 'white',
+          border: 'none',
+          borderRadius: 6,
+          fontSize: 13,
+          fontWeight: 600,
           cursor: 'pointer',
+          whiteSpace: 'nowrap',
         }}
       >
-        {copied ? 'Copied!' : 'Copy URL'}
+        Open Deck ↗
       </button>
     </div>
   )

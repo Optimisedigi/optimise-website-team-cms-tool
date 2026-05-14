@@ -12,6 +12,7 @@
  *   - "budget-push-live"     → push campaign budgets to Google Ads
  *   - "ad-copy-generate"     → prepare an audit for ad-copy generation
  *   - "ad-copy-deploy"       → push approved RSAs to Google Ads (PAUSED)
+ *   - "stakeholder-deck"     → write a 5-slide deck (page.tsx + globals.css) to disk
  */
 
 import { registerApplyHandler } from "@/lib/agents/_shared/apply-dispatcher";
@@ -26,6 +27,8 @@ import { applyCampaignRestructure } from "./campaign-restructure";
 import { applyCampaignBuild } from "./campaign-build";
 import { applyScheduledTaskCreate } from "./scheduled-task-create";
 import { applyScheduledTaskUpdate } from "./scheduled-task-update";
+import { applyStakeholderDeck } from "./stakeholder-deck";
+import { applyDeckFromTemplate } from "./deck-from-template";
 
 let registered = false;
 
@@ -49,6 +52,8 @@ export function registerOptimateApplyHandlers(): void {
   registerApplyHandler("campaign-build", applyCampaignBuild);
   registerApplyHandler("scheduled-task-create", applyScheduledTaskCreate);
   registerApplyHandler("scheduled-task-update", applyScheduledTaskUpdate);
+  registerApplyHandler("stakeholder-deck", applyStakeholderDeck);
+  registerApplyHandler("deck-from-template", applyDeckFromTemplate);
 }
 
 /**

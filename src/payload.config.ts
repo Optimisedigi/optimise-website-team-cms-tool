@@ -43,6 +43,7 @@ import KeywordDeepDiveSessions from "./collections/KeywordDeepDiveSessions";
 import { Contracts } from "./collections/Contracts";
 import { SalesLeads } from "./collections/SalesLeads";
 import { ProcessTemplates } from "./collections/ProcessTemplates";
+import { DeckTemplates } from "./collections/DeckTemplates";
 import { ClientProcesses } from "./collections/ClientProcesses";
 import { TagSetupAudits } from "./collections/TagSetupAudits";
 import { SiteHealthReports } from "./collections/SiteHealthReports";
@@ -99,7 +100,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientProposals, Contracts, SalesLeads, ProcessTemplates, ClientProcesses, MeetingSchedulers,
+    Clients, ClientProposals, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, ClientProcesses, MeetingSchedulers,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO

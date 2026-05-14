@@ -35,6 +35,7 @@ import { proposeScheduledTask } from "./tools/propose-scheduled-task";
 import { listScheduledTasks } from "./tools/list-scheduled-tasks";
 import { proposeScheduledTaskUpdate } from "./tools/propose-scheduled-task-update";
 import { proposeStakeholderDeck } from "./tools/propose-stakeholder-deck";
+import { proposeDeckFromTemplateTool } from "./tools/propose-deck-from-template";
 import { remember } from "./tools/remember";
 import { memorySearch } from "./tools/memory-search";
 import { soulSet } from "./tools/soul-set";
@@ -74,6 +75,7 @@ export function getTools(): CanonicalTool<unknown>[] {
     listScheduledTasks as unknown as CanonicalTool<unknown>,
     proposeScheduledTaskUpdate as unknown as CanonicalTool<unknown>,
     proposeStakeholderDeck as unknown as CanonicalTool<unknown>,
+    proposeDeckFromTemplateTool as unknown as CanonicalTool<unknown>,
     remember as unknown as CanonicalTool<unknown>,
     memorySearch as unknown as CanonicalTool<unknown>,
     soulSet as unknown as CanonicalTool<unknown>,

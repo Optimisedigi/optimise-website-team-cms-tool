@@ -105,6 +105,18 @@ Client
 ProcessTemplate → ClientProcess (snapshot copy of phases/steps at creation time)
 ```
 
+## Deck Templates
+
+Live-rendered slide decks (no filesystem writes in production).
+
+- **Registry entry point:** `src/lib/decks/registry.ts` — `getTemplate(slug)`, `listTemplates()`
+- **Full reference:** `src/lib/decks/README.md`
+- **Templates:** `src/lib/decks/templates/<slug>/` — each has `index.ts` (register), `Component.tsx` (React), `payload.ts` (Zod schema + sample)
+- **CMS collection:** `deck-templates` — stores config (slug, name, category) per template
+- **Client data:** `clients.presentations[]` — embedded array holding `templateSlug` + `deckPayload` per deck
+- **Routes:** `/partners/_preview/<slug>/` (admin auth) · `/partners/<client>/<deck-slug>/` (PIN-gated)
+- **To add a template:** see `src/lib/decks/README.md` — follow steps 1–7
+
 ## Key API Routes
 
 | Route | Method | Purpose |

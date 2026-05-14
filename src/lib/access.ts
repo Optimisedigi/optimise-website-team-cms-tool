@@ -36,6 +36,7 @@ export const FEATURE_KEYS = [
   { label: "Contracts", value: "contracts" },
   { label: "Sales Leads", value: "sales-leads" },
   { label: "Process Templates", value: "process-templates" },
+  { label: "Deck Templates", value: "deck-templates" },
   { label: "Client Processes", value: "client-processes" },
   { label: "Meeting Schedulers", value: "meeting-schedulers" },
   { label: "Email Templates (Global)", value: "email-templates" },

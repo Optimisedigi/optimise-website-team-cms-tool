@@ -1439,7 +1439,7 @@ export const ClientProposals: CollectionConfig = {
               type: "array",
               admin: {
                 description:
-                  "Slide decks and presentations for this proposal (e.g. Google Ads audit deck, pitch deck). Files live at public/partners/<proposal-slug>/<deck-slug>/ — the live URL is computed from the slug below.",
+                  "Slide decks and presentations for this proposal. Paste the full deck URL from the 'Open Deck' button — the slug is extracted automatically.",
               },
               fields: [
                 {
@@ -1450,21 +1450,40 @@ export const ClientProposals: CollectionConfig = {
                       type: "text",
                       required: true,
                       admin: {
-                        width: "60%",
+                        width: "35%",
                         description: "Display name (e.g. 'Google Ads Audit Deck')",
                       },
                     },
                     {
-                      name: "deckSlug",
+                      name: "deckUrl",
                       type: "text",
                       required: true,
                       admin: {
                         width: "40%",
                         description:
-                          "Folder slug under public/partners/<proposal-slug>/ (e.g. 'google-ads-audit'). Must be unique within this proposal.",
+                          "Full deck URL, e.g. https://cms.optimisedigital.online/partners/<proposal>/<deck>/",
+                      },
+                    },
+                    {
+                      name: "linkPreview",
+                      type: "ui",
+                      admin: {
+                        width: "25%",
+                        components: {
+                          Field: "/components/ClientProposalPresentationLink",
+                        },
                       },
                     },
                   ],
+                },
+                {
+                  name: "deckSlug",
+                  type: "text",
+                  admin: {
+                    description:
+                      "Internal: extracted from the deck URL above. Used for routing.",
+                    readOnly: true,
+                  },
                 },
                 {
                   type: "row",
