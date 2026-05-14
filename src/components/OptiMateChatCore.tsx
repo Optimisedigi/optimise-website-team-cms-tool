@@ -781,17 +781,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           O
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: compact ? 13 : 14 }}>OptiMate</div>
-          <div
-            style={{
-              fontSize: 11,
-              color: '#6b7280',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Google Ads{businessName ? ` · ${businessName}` : ''} ({customerId})
+          <div style={{ fontWeight: 600, fontSize: compact ? 13 : 14 }}>
+            OptiMate Google Ads
           </div>
         </div>
         <a
@@ -824,28 +815,6 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           />
           {authStatus.label}
         </a>
-        <select
-          value={selectedModel}
-          onChange={(e) => setSelectedModel(e.target.value)}
-          disabled={loading}
-          title="Model used for the next message"
-          style={{
-            fontSize: 11,
-            padding: '4px 8px',
-            border: '1px solid var(--theme-border-color, #e5e7eb)',
-            borderRadius: 6,
-            background: 'var(--theme-input-bg, #fff)',
-            color: 'var(--theme-text, #1f2937)',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            maxWidth: compact ? 110 : 160,
-          }}
-        >
-          {CHAT_PICKER_MODELS.map((m) => (
-            <option key={m.canonical} value={m.canonical}>
-              {m.label}
-            </option>
-          ))}
-        </select>
         <OptiMateToolsHelp compact={compact} />
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <button
@@ -1324,6 +1293,30 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             }}
           />
 
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              disabled={loading}
+              title="Model used for the next message"
+              style={{
+                fontSize: 11,
+                padding: '4px 8px',
+                border: '1px solid var(--theme-border-color, #e5e7eb)',
+                borderRadius: 6,
+                background: 'var(--theme-input-bg, #fff)',
+                color: 'var(--theme-text, #1f2937)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                maxWidth: compact ? 110 : 160,
+              }}
+            >
+              {CHAT_PICKER_MODELS.map((m) => (
+                <option key={m.canonical} value={m.canonical}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <button
               type="button"

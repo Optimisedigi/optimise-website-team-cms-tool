@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import OptiMateChatCore, { type OptiMateChatCoreHandle } from './OptiMateChatCore'
+import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
 
 export interface OptiMateChatTarget {
   id: string | number
@@ -33,6 +34,8 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
   const [broadcast, setBroadcast] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
   const refs = useRef<Map<string, OptiMateChatCoreHandle | null>>(new Map())
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -214,7 +217,86 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
             </span>
           )}
         </label>
+        {attachedEmail && (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 8px',
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: 12,
+              fontSize: 11,
+              color: '#1e40af',
+              maxWidth: '100%',
+            }}
+            title={`From ${attachedEmail.from} · ${attachedEmail.date}`}
+          >
+            <span style={{ flexShrink: 0 }}>📎</span>
+            <span
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: 360,
+              }}
+            >
+              {attachedEmail.subject || '(no subject)'} — {attachedEmail.from}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                setAttachedEmail(null)
+              }}
+              aria-label="Remove attached email"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: '#1e40af',
+                padding: 0,
+                lineHeight: 1,
+                fontSize: 12,
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <EmailAttachPicker
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          onSelect={(meta) => {
+            setAttachedEmail(meta)
+            setPickerOpen(false)
+          }}
+        />
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setPickerOpen((v) => !v)
+            }}
+            disabled={busy}
+            title="Attach an email from your Gmail inbox"
+            style={{
+              padding: '10px 12px',
+              background: pickerOpen ? '#e0e7ff' : '#f3f4f6',
+              color: '#374151',
+              border: '1px solid var(--theme-border-color, #e5e7eb)',
+              borderRadius: 8,
+              fontSize: 14,
+              cursor: busy ? 'not-allowed' : 'pointer',
+              flexShrink: 0,
+            }}
+            aria-label="Attach email"
+          >
+            📎
+          </button>
           <textarea
             ref={inputRef}
             rows={1}
