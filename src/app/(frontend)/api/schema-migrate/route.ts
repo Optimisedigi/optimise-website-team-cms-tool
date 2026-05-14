@@ -1326,11 +1326,47 @@ export async function GET(request: NextRequest) {
   // ── Hidden keyword categories JSON column on client_proposals (2026-04-15) ──
   await run("client_proposals.hidden_keyword_categories", "ALTER TABLE `client_proposals` ADD `hidden_keyword_categories` text");
 
+  // ── Deck URL columns on presentations (2026-05-14) ──
+  await run("clients_presentations.deck_url", "ALTER TABLE `clients_presentations` ADD `deck_url` text");
+  await run("client_proposals_presentations.deck_url", "ALTER TABLE `client_proposals_presentations` ADD `deck_url` text");
+
+  // ── Deck Templates table ──
+  await run("deck_templates", `CREATE TABLE IF NOT EXISTS \`deck_templates\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`template_slug\` text NOT NULL,
+    \`name\` text NOT NULL,
+    \`description\` text,
+    \`category\` text,
+    \`preview_image\` text,
+    \`is_active\` integer DEFAULT true,
+    \`is_default\` integer DEFAULT false,
+    \`notes\` text,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("deck_templates_slug_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `deck_templates_slug_idx` ON `deck_templates` (`template_slug`)");
+  await run("deck_templates_created_at_idx", "CREATE INDEX IF NOT EXISTS `deck_templates_created_at_idx` ON `deck_templates` (`created_at`)");
+  await run("deck_templates_updated_at_idx", "CREATE INDEX IF NOT EXISTS `deck_templates_updated_at_idx` ON `deck_templates` (`updated_at`)");
+
+  // ── locked_docs_rels for deck_templates ──
+  await run("locked_docs_rels.deck_templates_id", "ALTER TABLE `payload_locked_documents_rels` ADD `deck_templates_id` integer REFERENCES `deck_templates`(`id`) ON DELETE cascade");
+
+  // ── deck_templates preview_image relation table (Payload upload field) ──
+  await run("deck_templates_preview_image_img", `CREATE TABLE IF NOT EXISTS \`deck_templates_preview_image_img\` (
+    \`order\` integer,
+    \`parent_id\` integer NOT NULL,
+    \`path\` text NOT NULL,
+    \`media_id\` integer REFERENCES \`media\`(\`id\`) ON DELETE cascade,
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL
+  )`);
+  await run("deck_templates_preview_image_img_parent_idx", "CREATE INDEX IF NOT EXISTS `deck_templates_preview_image_img_parent_id_idx` ON `deck_templates_preview_image_img` (`parent_id`)");
+  await run("deck_templates_preview_image_img_media_idx", "CREATE INDEX IF NOT EXISTS `deck_templates_preview_image_img_media_id_idx` ON `deck_templates_preview_image_img` (`media_id`)");
+
   let allTables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-04-14b", results, allTables });
+  return NextResponse.json({ ok: true, version: "2026-05-14a", results, allTables });
 }
