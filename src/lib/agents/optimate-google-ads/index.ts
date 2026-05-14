@@ -24,12 +24,17 @@ import { getGa4Overview } from "./tools/get-ga4-overview";
 import { getGscOverview } from "./tools/get-gsc-overview";
 import { getGscBrandedSplit } from "./tools/get-gsc-branded-split";
 import { getGscIndexingStatus } from "./tools/get-gsc-indexing-status";
+import { getSerpDisplacement } from "./tools/get-serp-displacement";
+import { getSerpDisplacementAlerts } from "./tools/get-serp-displacement-alerts";
+import { getAiVisibility } from "./tools/get-ai-visibility";
+import { getClientDetails } from "./tools/get-client-details";
 import { proposeCampaignRestructure } from "./tools/propose-campaign-restructure";
 import { proposeCampaignBuild } from "./tools/propose-campaign-build";
 import { getCampaignProposalStatus } from "./tools/get-campaign-proposal-status";
 import { proposeScheduledTask } from "./tools/propose-scheduled-task";
 import { listScheduledTasks } from "./tools/list-scheduled-tasks";
 import { proposeScheduledTaskUpdate } from "./tools/propose-scheduled-task-update";
+import { proposeStakeholderDeck } from "./tools/propose-stakeholder-deck";
 import { remember } from "./tools/remember";
 import { memorySearch } from "./tools/memory-search";
 import { soulSet } from "./tools/soul-set";
@@ -58,12 +63,17 @@ export function getTools(): CanonicalTool<unknown>[] {
     getGscOverview as unknown as CanonicalTool<unknown>,
     getGscBrandedSplit as unknown as CanonicalTool<unknown>,
     getGscIndexingStatus as unknown as CanonicalTool<unknown>,
+    getSerpDisplacement as unknown as CanonicalTool<unknown>,
+    getSerpDisplacementAlerts as unknown as CanonicalTool<unknown>,
+    getAiVisibility as unknown as CanonicalTool<unknown>,
+    getClientDetails as unknown as CanonicalTool<unknown>,
     proposeCampaignRestructure as unknown as CanonicalTool<unknown>,
     proposeCampaignBuild as unknown as CanonicalTool<unknown>,
     getCampaignProposalStatus as unknown as CanonicalTool<unknown>,
     proposeScheduledTask as unknown as CanonicalTool<unknown>,
     listScheduledTasks as unknown as CanonicalTool<unknown>,
     proposeScheduledTaskUpdate as unknown as CanonicalTool<unknown>,
+    proposeStakeholderDeck as unknown as CanonicalTool<unknown>,
     remember as unknown as CanonicalTool<unknown>,
     memorySearch as unknown as CanonicalTool<unknown>,
     soulSet as unknown as CanonicalTool<unknown>,
