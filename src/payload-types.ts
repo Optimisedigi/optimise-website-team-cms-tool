@@ -972,7 +972,7 @@ export interface Client {
     totalDocs?: number;
   };
   /**
-   * Slide decks and presentations for this client. Files live at public/partners/<client-slug>/<deck-slug>/ — the live URL is computed from the slug below.
+   * Slide decks and presentations for this client. Paste the full deck URL from the 'Open Deck' button — the slug is extracted automatically.
    */
   presentations?:
     | {
@@ -981,9 +981,13 @@ export interface Client {
          */
         title: string;
         /**
-         * Folder slug under public/partners/<client-slug>/ (e.g. 'pre-migration'). Must be unique within this client.
+         * Full deck URL, e.g. https://cms.optimisedigital.online/partners/<client>/<deck>/
          */
-        deckSlug: string;
+        deckUrl: string;
+        /**
+         * Internal: extracted from the deck URL above. Used for routing.
+         */
+        deckSlug?: string | null;
         /**
          * Date the deck was presented
          */
@@ -1208,6 +1212,86 @@ export interface Contract {
    * If filled in, this replaces the default payment terms section. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.
    */
   paymentTermsOverride?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Toggle ON to include the Annual Review & Tier Adjustment section in this contract.
+   */
+  annualReviewEnabled?: boolean | null;
+  /**
+   * Opening paragraph(s) explaining the tier structure. Default copy is pre-filled — edit per client as needed.
+   */
+  annualReviewIntro?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Paste your tier table straight from Excel or Google Sheets. First line = column headers. Each subsequent line = one tier row. Cells are separated by Tab (what Sheets/Excel paste). Example: 'Trailing spend  |  Monthly retainer' on line 1, then 'Up to $60,000  |  $4,800' on line 2, etc. Supports any number of columns (e.g. AUD + USD).
+   */
+  annualReviewTierTableText?: string | null;
+  /**
+   * Notice paragraph (e.g. 60-day written notice clause). Edit per client as needed.
+   */
+  annualReviewNotice?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Good Faith Review paragraph. Default copy is pre-filled — usually unchanged across contracts.
+   */
+  annualReviewGoodFaithReview?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Acceptance of Adjustment paragraph. Default copy is pre-filled — usually unchanged across contracts.
+   */
+  annualReviewAcceptance?: {
     root: {
       type: string;
       children: {
@@ -1968,7 +2052,7 @@ export interface ClientProposal {
     totalDocs?: number;
   };
   /**
-   * Slide decks and presentations for this proposal (e.g. Google Ads audit deck, pitch deck). Files live at public/partners/<proposal-slug>/<deck-slug>/ — the live URL is computed from the slug below.
+   * Slide decks and presentations for this proposal. Paste the full deck URL from the 'Open Deck' button — the slug is extracted automatically.
    */
   presentations?:
     | {
@@ -1977,9 +2061,13 @@ export interface ClientProposal {
          */
         title: string;
         /**
-         * Folder slug under public/partners/<proposal-slug>/ (e.g. 'google-ads-audit'). Must be unique within this proposal.
+         * Full deck URL, e.g. https://cms.optimisedigital.online/partners/<proposal>/<deck>/
          */
-        deckSlug: string;
+        deckUrl: string;
+        /**
+         * Internal: extracted from the deck URL above. Used for routing.
+         */
+        deckSlug?: string | null;
         /**
          * Date the deck was presented
          */
@@ -6595,6 +6683,7 @@ export interface ClientsSelect<T extends boolean = true> {
     | T
     | {
         title?: T;
+        deckUrl?: T;
         deckSlug?: T;
         presentedOn?: T;
         kind?: T;
@@ -6797,6 +6886,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
     | T
     | {
         title?: T;
+        deckUrl?: T;
         deckSlug?: T;
         presentedOn?: T;
         kind?: T;
@@ -6834,6 +6924,12 @@ export interface ContractsSelect<T extends boolean = true> {
   paymentTerms?: T;
   scopeOfWork?: T;
   paymentTermsOverride?: T;
+  annualReviewEnabled?: T;
+  annualReviewIntro?: T;
+  annualReviewTierTableText?: T;
+  annualReviewNotice?: T;
+  annualReviewGoodFaithReview?: T;
+  annualReviewAcceptance?: T;
   agencyContactName?: T;
   agencyContactEmail?: T;
   agencyContactPhone?: T;

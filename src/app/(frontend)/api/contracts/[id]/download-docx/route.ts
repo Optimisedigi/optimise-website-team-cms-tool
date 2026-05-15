@@ -19,6 +19,7 @@ import {
   formatCurrency,
   formatDate,
 } from "@/lib/contract-template";
+import { parseTierTable } from "@/lib/tier-table";
 import fs from "fs";
 import path from "path";
 
@@ -313,6 +314,71 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       children.push(...lexicalToDocx(doc.pricingNotes.root.children));
     }
 
+    children.push(thinRule());
+  }
+
+  // Annual Review & Tier Adjustment (optional)
+  if (doc.annualReviewEnabled) {
+    children.push(
+      new Paragraph({
+        text: "Annual Review and Adjustment",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { after: 100 },
+      }),
+    );
+    if (doc.annualReviewIntro?.root?.children) {
+      children.push(...lexicalToDocx(doc.annualReviewIntro.root.children));
+    }
+    const tierTable = parseTierTable(doc.annualReviewTierTableText);
+    if (tierTable) {
+      const thinBorder = { style: BorderStyle.SINGLE, size: 1, color: "111111" } as const;
+      const lightBorder = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } as const;
+      const colCount = tierTable.headers.length;
+      const colWidth = Math.floor(PAGE_WIDTH_DXA / Math.max(colCount, 1));
+      const headerRow = new TableRow({
+        tableHeader: true,
+        children: tierTable.headers.map((header, ci) => new TableCell({
+          children: [new Paragraph({ children: [new TextRun({ text: header, bold: true })] })],
+          width: { size: colWidth, type: WidthType.DXA },
+          shading: { type: "clear", color: "auto", fill: "F5F5F5" },
+          borders: {
+            top: thinBorder,
+            bottom: thinBorder,
+            left: ci === 0 ? thinBorder : { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            right: ci === tierTable.headers.length - 1 ? thinBorder : thinBorder,
+          },
+        })),
+      });
+      const bodyRows = tierTable.rows.map((row, ri) => new TableRow({
+        children: row.map((cell, ci) => new TableCell({
+          children: [new Paragraph({ text: cell })],
+          width: { size: colWidth, type: WidthType.DXA },
+          borders: {
+            top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            bottom: ri === tierTable.rows.length - 1 ? thinBorder : lightBorder,
+            left: ci === 0 ? thinBorder : { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            right: ci === row.length - 1 ? thinBorder : lightBorder,
+          },
+        })),
+      }));
+      children.push(new Paragraph({ spacing: { before: 100 } }));
+      children.push(
+        new Table({
+          rows: [headerRow, ...bodyRows],
+          width: { size: PAGE_WIDTH_DXA, type: WidthType.DXA },
+        }),
+      );
+      children.push(new Paragraph({ spacing: { after: 100 } }));
+    }
+    if (doc.annualReviewNotice?.root?.children) {
+      children.push(...lexicalToDocx(doc.annualReviewNotice.root.children));
+    }
+    if (doc.annualReviewGoodFaithReview?.root?.children) {
+      children.push(...lexicalToDocx(doc.annualReviewGoodFaithReview.root.children));
+    }
+    if (doc.annualReviewAcceptance?.root?.children) {
+      children.push(...lexicalToDocx(doc.annualReviewAcceptance.root.children));
+    }
     children.push(thinRule());
   }
 

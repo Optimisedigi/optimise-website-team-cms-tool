@@ -2656,6 +2656,18 @@ export async function runMigrations(
     await run("deck_templates_updated_at_idx", "CREATE INDEX IF NOT EXISTS `deck_templates_updated_at_idx` ON `deck_templates` (`updated_at`)");
     await run("deck_templates_preview_image_idx", "CREATE INDEX IF NOT EXISTS `deck_templates_preview_image_idx` ON `deck_templates` (`preview_image_id`)");
     await run("locked_docs_rels.deck_templates_id", "ALTER TABLE `payload_locked_documents_rels` ADD `deck_templates_id` integer REFERENCES `deck_templates`(`id`) ON DELETE CASCADE");
+
+    // ── contracts: Annual Review & Tier Adjustment (2026-05-15) ──
+    // Optional section gated by `annual_review_enabled`. Rich-text fields
+    // are stored as JSON-encoded text (matching Payload's other richText
+    // columns); the tier table is plain text (tab/multi-space separated)
+    // and parsed at render time by parseTierTable().
+    await run("contracts.annual_review_enabled", "ALTER TABLE `contracts` ADD `annual_review_enabled` integer DEFAULT 0");
+    await run("contracts.annual_review_intro", "ALTER TABLE `contracts` ADD `annual_review_intro` text");
+    await run("contracts.annual_review_tier_table_text", "ALTER TABLE `contracts` ADD `annual_review_tier_table_text` text");
+    await run("contracts.annual_review_notice", "ALTER TABLE `contracts` ADD `annual_review_notice` text");
+    await run("contracts.annual_review_good_faith_review", "ALTER TABLE `contracts` ADD `annual_review_good_faith_review` text");
+    await run("contracts.annual_review_acceptance", "ALTER TABLE `contracts` ADD `annual_review_acceptance` text");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

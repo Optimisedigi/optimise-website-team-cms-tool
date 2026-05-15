@@ -2,6 +2,7 @@
  * Contract template — generates structured content for PDF and signing page rendering.
  * Matches the Berendsen-style contract layout.
  */
+import { parseTierTable, type TierTable } from "./tier-table";
 
 export interface ContractData {
   contractTitle: string;
@@ -35,15 +36,36 @@ export interface ContractData {
   scopeOfWorkNodes?: any[];
   pricingNotesNodes?: any[];
   paymentTermsOverrideNodes?: any[];
+
+  // Annual Review & Tier Adjustment section (optional, gated by toggle)
+  annualReviewEnabled?: boolean;
+  annualReviewIntro?: string;
+  annualReviewIntroNodes?: any[];
+  annualReviewTierTableText?: string;
+  annualReviewNotice?: string;
+  annualReviewNoticeNodes?: any[];
+  annualReviewGoodFaithReview?: string;
+  annualReviewGoodFaithReviewNodes?: any[];
+  annualReviewAcceptance?: string;
+  annualReviewAcceptanceNodes?: any[];
 }
 
 export interface ContractSection {
-  type: "cover" | "heading" | "paragraph" | "bullets" | "table" | "signatures" | "richtext";
+  type:
+    | "cover"
+    | "heading"
+    | "paragraph"
+    | "bullets"
+    | "table"
+    | "tierTable"
+    | "signatures"
+    | "richtext";
   heading?: string;
   content?: string;
   lexicalNodes?: any[];
   items?: string[];
   rows?: { label: string; value: string }[];
+  tierTable?: TierTable;
   signatures?: {
     client: {
       name?: string;
@@ -171,6 +193,50 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       content: data.pricingNotes,
       lexicalNodes: data.pricingNotesNodes,
     });
+  }
+
+  // Annual Review & Tier Adjustment (optional). Rendered before Payment Terms
+  // so the tier table reads naturally next to the pricing details above.
+  if (data.annualReviewEnabled) {
+    sections.push({
+      type: "heading",
+      heading: "Annual Review and Adjustment",
+    });
+    if (data.annualReviewIntro || data.annualReviewIntroNodes) {
+      sections.push({
+        type: "richtext",
+        content: data.annualReviewIntro,
+        lexicalNodes: data.annualReviewIntroNodes,
+      });
+    }
+    const parsedTierTable = parseTierTable(data.annualReviewTierTableText);
+    if (parsedTierTable) {
+      sections.push({
+        type: "tierTable",
+        tierTable: parsedTierTable,
+      });
+    }
+    if (data.annualReviewNotice || data.annualReviewNoticeNodes) {
+      sections.push({
+        type: "richtext",
+        content: data.annualReviewNotice,
+        lexicalNodes: data.annualReviewNoticeNodes,
+      });
+    }
+    if (data.annualReviewGoodFaithReview || data.annualReviewGoodFaithReviewNodes) {
+      sections.push({
+        type: "richtext",
+        content: data.annualReviewGoodFaithReview,
+        lexicalNodes: data.annualReviewGoodFaithReviewNodes,
+      });
+    }
+    if (data.annualReviewAcceptance || data.annualReviewAcceptanceNodes) {
+      sections.push({
+        type: "richtext",
+        content: data.annualReviewAcceptance,
+        lexicalNodes: data.annualReviewAcceptanceNodes,
+      });
+    }
   }
 
   // Payment Terms - use override if provided, otherwise exact wording from contract PDF

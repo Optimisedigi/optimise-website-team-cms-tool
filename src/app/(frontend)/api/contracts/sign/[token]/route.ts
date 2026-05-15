@@ -7,6 +7,7 @@ import { generateContractPdf } from "@/lib/contract-pdf";
 import { logActivity } from "@/lib/activity-log";
 import type { ContractData } from "@/lib/contract-template";
 import { generateCompletionEmail } from "@/lib/contract-email";
+import { parseTierTable } from "@/lib/tier-table";
 
 // GET: return contract data for the signing page
 export async function GET(
@@ -70,6 +71,30 @@ export async function GET(
     paymentTermsOverrideText = extractPlainText(doc.paymentTermsOverride.root.children);
   }
 
+  // Annual Review & Tier Adjustment (optional section)
+  const annualReviewEnabled = Boolean(doc.annualReviewEnabled);
+  let annualReviewIntroHtml = "";
+  let annualReviewNoticeHtml = "";
+  let annualReviewGoodFaithReviewHtml = "";
+  let annualReviewAcceptanceHtml = "";
+  if (annualReviewEnabled) {
+    if (doc.annualReviewIntro?.root?.children) {
+      annualReviewIntroHtml = lexicalToHtml(doc.annualReviewIntro.root.children);
+    }
+    if (doc.annualReviewNotice?.root?.children) {
+      annualReviewNoticeHtml = lexicalToHtml(doc.annualReviewNotice.root.children);
+    }
+    if (doc.annualReviewGoodFaithReview?.root?.children) {
+      annualReviewGoodFaithReviewHtml = lexicalToHtml(doc.annualReviewGoodFaithReview.root.children);
+    }
+    if (doc.annualReviewAcceptance?.root?.children) {
+      annualReviewAcceptanceHtml = lexicalToHtml(doc.annualReviewAcceptance.root.children);
+    }
+  }
+  const annualReviewTierTable = annualReviewEnabled
+    ? parseTierTable(doc.annualReviewTierTableText)
+    : null;
+
   const agencySigUrl = await resolveMediaUrl(payload, doc.agencySignature);
 
   return NextResponse.json({
@@ -93,6 +118,12 @@ export async function GET(
     pricingNotesHtml: pricingNotesHtml,
     paymentTermsOverride: paymentTermsOverrideText,
     paymentTermsOverrideHtml: paymentTermsOverrideHtml,
+    annualReviewEnabled,
+    annualReviewIntroHtml,
+    annualReviewTierTable,
+    annualReviewNoticeHtml,
+    annualReviewGoodFaithReviewHtml,
+    annualReviewAcceptanceHtml,
     agencyContactName: doc.agencyContactName,
     agencyContactEmail: doc.agencyContactEmail,
     agencyContactPhone: doc.agencyContactPhone,
@@ -216,6 +247,12 @@ export async function POST(
       scopeOfWorkNodes: updatedDoc.scopeOfWork?.root?.children,
       pricingNotesNodes: updatedDoc.pricingNotes?.root?.children,
       paymentTermsOverrideNodes: updatedDoc.paymentTermsOverride?.root?.children,
+      annualReviewEnabled: Boolean(updatedDoc.annualReviewEnabled),
+      annualReviewIntroNodes: updatedDoc.annualReviewIntro?.root?.children,
+      annualReviewTierTableText: updatedDoc.annualReviewTierTableText,
+      annualReviewNoticeNodes: updatedDoc.annualReviewNotice?.root?.children,
+      annualReviewGoodFaithReviewNodes: updatedDoc.annualReviewGoodFaithReview?.root?.children,
+      annualReviewAcceptanceNodes: updatedDoc.annualReviewAcceptance?.root?.children,
       agencyContactName: updatedDoc.agencyContactName,
       agencyContactEmail: updatedDoc.agencyContactEmail,
       agencyContactPhone: updatedDoc.agencyContactPhone,

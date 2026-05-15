@@ -2,6 +2,74 @@ import type { CollectionConfig } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { ANNUAL_REVIEW_DEFAULTS } from "../lib/tier-table";
+
+/**
+ * Wrap a plain-text default in a minimal Lexical rich-text root so
+ * Payload's richText field accepts it. Each blank line in the source
+ * becomes a separate paragraph node.
+ */
+function plainTextToLexical(text: string): Record<string, unknown> {
+  const paragraphs = text.split(/\n+/).filter((p) => p.trim().length > 0);
+  return {
+    root: {
+      type: "root",
+      format: "",
+      indent: 0,
+      version: 1,
+      direction: "ltr",
+      children: paragraphs.map((para) => ({
+        type: "paragraph",
+        format: "",
+        indent: 0,
+        version: 1,
+        direction: "ltr",
+        textFormat: 0,
+        textStyle: "",
+        children: [
+          {
+            type: "text",
+            format: 0,
+            mode: "normal",
+            style: "",
+            text: para,
+            detail: 0,
+            version: 1,
+          },
+        ],
+      })),
+    },
+  };
+}
+
+/**
+ * When `annualReviewEnabled` flips on and the four supporting fields are
+ * empty, seed them with boilerplate defaults from `ANNUAL_REVIEW_DEFAULTS`.
+ * Subsequent edits are preserved — we only fill blanks.
+ */
+function seedAnnualReviewDefaults(data: Record<string, unknown>): void {
+  if (!data.annualReviewEnabled) return;
+
+  if (data.annualReviewIntro == null) {
+    data.annualReviewIntro = plainTextToLexical(ANNUAL_REVIEW_DEFAULTS.intro);
+  }
+  if (typeof data.annualReviewTierTableText !== "string" || data.annualReviewTierTableText.trim() === "") {
+    data.annualReviewTierTableText = ANNUAL_REVIEW_DEFAULTS.tierTable;
+  }
+  if (data.annualReviewNotice == null) {
+    data.annualReviewNotice = plainTextToLexical(ANNUAL_REVIEW_DEFAULTS.noticeParagraph);
+  }
+  if (data.annualReviewGoodFaithReview == null) {
+    data.annualReviewGoodFaithReview = plainTextToLexical(
+      ANNUAL_REVIEW_DEFAULTS.goodFaithReview,
+    );
+  }
+  if (data.annualReviewAcceptance == null) {
+    data.annualReviewAcceptance = plainTextToLexical(
+      ANNUAL_REVIEW_DEFAULTS.acceptanceOfAdjustment,
+    );
+  }
+}
 
 export const Contracts: CollectionConfig = {
   slug: "contracts",
@@ -32,6 +100,9 @@ export const Contracts: CollectionConfig = {
           if (!data.signingToken) {
             data.signingToken = crypto.randomBytes(48).toString("hex");
           }
+        }
+        if (data) {
+          seedAnnualReviewDefaults(data as Record<string, unknown>);
         }
         return data;
       },
@@ -216,6 +287,68 @@ export const Contracts: CollectionConfig = {
               type: "richText",
               admin: {
                 description: "If filled in, this replaces the default payment terms section. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.",
+              },
+            },
+          ],
+        },
+        {
+          label: "Annual Review & Tier Adjustment",
+          description:
+            "Optional section for tiered retainer adjustments based on media spend. When enabled, renders an intro paragraph, a tier table (paste straight from Excel/Sheets), a notice paragraph, a Good Faith Review paragraph, and an Acceptance of Adjustment paragraph \u2014 in that order \u2014 in the signing page, PDF, and Word export.",
+          fields: [
+            {
+              name: "annualReviewEnabled",
+              type: "checkbox",
+              defaultValue: false,
+              admin: {
+                description:
+                  "Toggle ON to include the Annual Review & Tier Adjustment section in this contract.",
+              },
+            },
+            {
+              name: "annualReviewIntro",
+              type: "richText",
+              admin: {
+                description:
+                  "Opening paragraph(s) explaining the tier structure. Default copy is pre-filled \u2014 edit per client as needed.",
+                condition: (data) => Boolean(data?.annualReviewEnabled),
+              },
+            },
+            {
+              name: "annualReviewTierTableText",
+              type: "textarea",
+              admin: {
+                description:
+                  "Paste your tier table straight from Excel or Google Sheets. First line = column headers. Each subsequent line = one tier row. Cells are separated by Tab (what Sheets/Excel paste). Example: 'Trailing spend  |  Monthly retainer' on line 1, then 'Up to $60,000  |  $4,800' on line 2, etc. Supports any number of columns (e.g. AUD + USD).",
+                condition: (data) => Boolean(data?.annualReviewEnabled),
+                rows: 8,
+              },
+            },
+            {
+              name: "annualReviewNotice",
+              type: "richText",
+              admin: {
+                description:
+                  "Notice paragraph (e.g. 60-day written notice clause). Edit per client as needed.",
+                condition: (data) => Boolean(data?.annualReviewEnabled),
+              },
+            },
+            {
+              name: "annualReviewGoodFaithReview",
+              type: "richText",
+              admin: {
+                description:
+                  "Good Faith Review paragraph. Default copy is pre-filled \u2014 usually unchanged across contracts.",
+                condition: (data) => Boolean(data?.annualReviewEnabled),
+              },
+            },
+            {
+              name: "annualReviewAcceptance",
+              type: "richText",
+              admin: {
+                description:
+                  "Acceptance of Adjustment paragraph. Default copy is pre-filled \u2014 usually unchanged across contracts.",
+                condition: (data) => Boolean(data?.annualReviewEnabled),
               },
             },
           ],

@@ -24,6 +24,12 @@ interface ContractInfo {
   pricingNotesHtml?: string
   paymentTermsOverride?: string
   paymentTermsOverrideHtml?: string
+  annualReviewEnabled?: boolean
+  annualReviewIntroHtml?: string
+  annualReviewTierTable?: { headers: string[]; rows: string[][] } | null
+  annualReviewNoticeHtml?: string
+  annualReviewGoodFaithReviewHtml?: string
+  annualReviewAcceptanceHtml?: string
   agencyContactName?: string
   agencyContactEmail?: string
   agencyContactPhone?: string
@@ -590,6 +596,100 @@ export default function ContractSignPage() {
               </div>
             )}
 
+            <hr style={hrStyle} />
+          </>
+        )}
+
+        {/* Annual Review & Tier Adjustment (optional) */}
+        {contract.annualReviewEnabled && (
+          <>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Annual Review and Adjustment</h2>
+            {contract.annualReviewIntroHtml && (
+              <div
+                className="scope-content"
+                dangerouslySetInnerHTML={{ __html: contract.annualReviewIntroHtml }}
+                style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}
+              />
+            )}
+            {contract.annualReviewTierTable && (
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  border: '1px solid #111',
+                  margin: '12px 0 16px',
+                  fontSize: 14,
+                }}
+              >
+                <thead>
+                  <tr style={{ background: '#f5f5f5', borderBottom: '1px solid #111' }}>
+                    {contract.annualReviewTierTable.headers.map((header, i) => (
+                      <th
+                        key={i}
+                        style={{
+                          padding: '10px 12px',
+                          textAlign: 'left',
+                          fontWeight: 700,
+                          borderRight:
+                            i < contract.annualReviewTierTable!.headers.length - 1
+                              ? '1px solid #111'
+                              : 'none',
+                        }}
+                      >
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {contract.annualReviewTierTable.rows.map((row, ri) => (
+                    <tr
+                      key={ri}
+                      style={{
+                        borderBottom:
+                          ri < contract.annualReviewTierTable!.rows.length - 1
+                            ? '1px solid #ccc'
+                            : 'none',
+                      }}
+                    >
+                      {row.map((cell, ci) => (
+                        <td
+                          key={ci}
+                          style={{
+                            padding: '10px 12px',
+                            borderRight:
+                              ci < row.length - 1 ? '1px solid #ccc' : 'none',
+                          }}
+                        >
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {contract.annualReviewNoticeHtml && (
+              <div
+                className="scope-content"
+                dangerouslySetInnerHTML={{ __html: contract.annualReviewNoticeHtml }}
+                style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}
+              />
+            )}
+            {contract.annualReviewGoodFaithReviewHtml && (
+              <div
+                className="scope-content"
+                dangerouslySetInnerHTML={{ __html: contract.annualReviewGoodFaithReviewHtml }}
+                style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}
+              />
+            )}
+            {contract.annualReviewAcceptanceHtml && (
+              <div
+                className="scope-content"
+                dangerouslySetInnerHTML={{ __html: contract.annualReviewAcceptanceHtml }}
+                style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}
+              />
+            )}
             <hr style={hrStyle} />
           </>
         )}

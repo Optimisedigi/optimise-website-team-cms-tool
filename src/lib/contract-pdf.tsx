@@ -148,6 +148,48 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     textAlign: "right",
   },
+  // Tier table (N-column, used by Annual Review section)
+  tierTable: {
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: "#111",
+  },
+  tierTableHeaderRow: {
+    flexDirection: "row",
+    backgroundColor: "#f5f5f5",
+    borderBottomWidth: 1,
+    borderBottomColor: "#111",
+  },
+  tierTableRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
+  },
+  tierTableRowLast: {
+    flexDirection: "row",
+  },
+  tierTableHeaderCell: {
+    padding: 8,
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    borderRightWidth: 1,
+    borderRightColor: "#111",
+  },
+  tierTableHeaderCellLast: {
+    padding: 8,
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+  },
+  tierTableCell: {
+    padding: 8,
+    fontSize: 10,
+    borderRightWidth: 1,
+    borderRightColor: "#ccc",
+  },
+  tierTableCellLast: {
+    padding: 8,
+    fontSize: 10,
+  },
   // Signatures
   signatureBlock: {
     marginTop: 20,
@@ -341,6 +383,50 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
           ))}
         </View>
       );
+
+    case "tierTable": {
+      if (!section.tierTable) return null;
+      const { headers, rows } = section.tierTable;
+      const colCount = headers.length;
+      const colWidth = `${100 / Math.max(colCount, 1)}%`;
+      return (
+        <View key={index} style={styles.tierTable} wrap={false}>
+          <View style={styles.tierTableHeaderRow}>
+            {headers.map((header, i) => (
+              <Text
+                key={i}
+                style={[
+                  i < headers.length - 1
+                    ? styles.tierTableHeaderCell
+                    : styles.tierTableHeaderCellLast,
+                  { width: colWidth },
+                ]}
+              >
+                {header}
+              </Text>
+            ))}
+          </View>
+          {rows.map((row, ri) => (
+            <View
+              key={ri}
+              style={ri < rows.length - 1 ? styles.tierTableRow : styles.tierTableRowLast}
+            >
+              {row.map((cell, ci) => (
+                <Text
+                  key={ci}
+                  style={[
+                    ci < row.length - 1 ? styles.tierTableCell : styles.tierTableCellLast,
+                    { width: colWidth },
+                  ]}
+                >
+                  {cell}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </View>
+      );
+    }
 
     case "signatures": {
       const sigs = section.signatures!;
