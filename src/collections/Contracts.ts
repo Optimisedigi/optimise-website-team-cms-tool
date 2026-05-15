@@ -87,6 +87,9 @@ export const Contracts: CollectionConfig = {
     },
     hidden: hideUnlessFeature("contracts"),
   },
+  // Sort newest-first by default in the admin list view. Users can
+  // override by clicking a column header.
+  defaultSort: "-createdAt",
   access: {
     read: canAccess("contracts"),
     create: canAccess("contracts"),
