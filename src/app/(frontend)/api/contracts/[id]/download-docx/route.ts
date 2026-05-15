@@ -14,6 +14,7 @@ import {
   BorderStyle,
   ImageRun,
   HeadingLevel,
+  PageBreak,
 } from "docx";
 import {
   formatCurrency,
@@ -324,8 +325,8 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
         right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
       } as const;
       const cellMargin = { top: 80, bottom: 80, left: 60, right: 60 } as const;
-      // Tier table is narrower than page width (~70%).
-      const tierTableWidth = Math.round(PAGE_WIDTH_DXA * 0.7);
+      // Tier table is wide enough to fit long headers on one line (~90%).
+      const tierTableWidth = Math.round(PAGE_WIDTH_DXA * 0.9);
       const colCount = tierTable.headers.length;
       const colWidth = Math.floor(tierTableWidth / Math.max(colCount, 1));
       const headerRow = new TableRow({
@@ -380,8 +381,9 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     children.push(thinRule());
   }
 
-  // Payment Terms
+  // Payment Terms — starts on a new page so the legal terms read as a fresh section.
   children.push(
+    new Paragraph({ children: [new PageBreak()] }),
     new Paragraph({ text: "Payment Terms:", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
   );
   if (doc.paymentTermsOverride?.root?.children) {
@@ -398,7 +400,7 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
         new Paragraph({
           children: [new TextRun({ text: bullet })],
           bullet: { level: 0 },
-          spacing: { after: 80 },
+          spacing: { after: 60 },
         }),
       );
     }
@@ -419,7 +421,7 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       new Paragraph({
         children: [new TextRun({ text: bullet })],
         bullet: { level: 0 },
-        spacing: { after: 80 },
+        spacing: { after: 60 },
       }),
     );
   }

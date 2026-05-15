@@ -75,7 +75,8 @@ export interface ContractSection {
     | "table"
     | "tierTable"
     | "signatures"
-    | "richtext";
+    | "richtext"
+    | "pageBreak";
   heading?: string;
   /** Optional h4 sub-heading rendered immediately before a richtext section. */
   subHeading?: string;
@@ -266,7 +267,9 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     }
   }
 
-  // Payment Terms - use override if provided, otherwise exact wording from contract PDF
+  // Payment Terms - use override if provided, otherwise exact wording from contract PDF.
+  // Starts on a new page in the PDF so the legal terms always read as a fresh section.
+  sections.push({ type: "pageBreak" });
   sections.push({
     type: "heading",
     heading: "Payment Terms:",

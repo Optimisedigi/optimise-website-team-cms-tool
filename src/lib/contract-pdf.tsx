@@ -159,12 +159,13 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   // Tier table (N-column, used by Annual Review section) — same horizontal-lines look.
-  // Narrower than page width; header text centered so multi-line headers stay readable.
+  // Wide enough to fit long headers like "Trailing 3-month avg. monthly spend (AUD)"
+  // on a single line; header text centered.
   tierTable: {
     marginVertical: 8,
     borderTopWidth: 1,
     borderTopColor: "#111",
-    width: "70%",
+    width: "90%",
   },
   tierTableHeaderRow: {
     flexDirection: "row",
@@ -346,6 +347,10 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
           {section.heading}
         </Text>
       );
+
+    case "pageBreak":
+      // Empty view that forces the next render onto a new page.
+      return <View key={index} break />;
 
     case "paragraph":
       return (

@@ -616,7 +616,7 @@ export default function ContractSignPage() {
             {contract.annualReviewTierTable && (
               <table
                 style={{
-                  width: '70%',
+                  width: '90%',
                   borderCollapse: 'collapse',
                   borderTop: '1px solid #111',
                   margin: '10px 0 14px',
@@ -694,13 +694,13 @@ export default function ContractSignPage() {
           <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.paymentTermsOverride}</div>
         ) : (
           <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
-            <li style={{ marginBottom: 4 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
-            <li style={{ marginBottom: 4 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
+            <li style={{ marginBottom: 3 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
+            <li style={{ marginBottom: 3 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
             {hostingAmount && (
-              <li style={{ marginBottom: 4 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
+              <li style={{ marginBottom: 3 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
             )}
-            <li style={{ marginBottom: 4 }}>Invoices are due within 14 days of issue.</li>
-            <li style={{ marginBottom: 4 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
+            <li style={{ marginBottom: 3 }}>Invoices are due within 14 days of issue.</li>
+            <li style={{ marginBottom: 3 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
           </ul>
         )}
 
@@ -709,9 +709,9 @@ export default function ContractSignPage() {
         {/* Termination - exact wording from PDF */}
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Termination:</h2>
         <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
-          <li style={{ marginBottom: 4 }}>Either party may terminate this contract with a 30-day written notice.</li>
-          <li style={{ marginBottom: 4 }}>Upon termination, the Client agrees to pay for all services rendered up to the termination date.</li>
-          <li style={{ marginBottom: 4 }}>Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.</li>
+          <li style={{ marginBottom: 3 }}>Either party may terminate this contract with a 30-day written notice.</li>
+          <li style={{ marginBottom: 3 }}>Upon termination, the Client agrees to pay for all services rendered up to the termination date.</li>
+          <li style={{ marginBottom: 3 }}>Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.</li>
         </ul>
 
         <hr style={hrStyle} />
