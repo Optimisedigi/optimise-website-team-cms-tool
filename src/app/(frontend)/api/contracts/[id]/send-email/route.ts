@@ -4,18 +4,6 @@ import config from "@/payload.config";
 import { generateSigningInviteEmail } from "@/lib/contract-email";
 import { logActivity } from "@/lib/activity-log";
 
-/**
- * Send the contract signing invite email to the client.
- *
- * Transport: Postmark. Brevo was the original transport but Brevo enforces
- * an IP allowlist on API keys that's incompatible with Vercel's rotating
- * serverless IP pool. Postmark has no such restriction; we already use it
- * for audit emails and contract reminders so the sender domain is verified.
- *
- * Sender: `CONTRACT_FROM_EMAIL` (default `contracts@optimisedigital.online`).
- * That domain must be verified in Postmark (Sender Signatures / DKIM) or
- * the API will return a 422.
- */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -62,10 +50,9 @@ export async function POST(
     );
   }
 
-  const POSTMARK_API_KEY = process.env.POSTMARK_API_KEY;
-  if (!POSTMARK_API_KEY) {
+  if (!process.env.BREVO_API_KEY) {
     return NextResponse.json(
-      { error: "POSTMARK_API_KEY not configured" },
+      { error: "BREVO_API_KEY not configured" },
       { status: 500 },
     );
   }
@@ -77,87 +64,62 @@ export async function POST(
       : "http://localhost:3004");
   const signingUrl = `${baseUrl}/contracts/sign/${doc.signingToken}`;
 
-  const fromEmail =
-    process.env.CONTRACT_FROM_EMAIL || "contracts@optimisedigital.online";
-  // Postmark renders "From" as `Name <email>` when given that format. Match
-  // Brevo's previous behaviour by including the agency display name.
-  const fromHeader = `Optimise Digital <${fromEmail}>`;
+  const fromEmail = process.env.CONTRACT_FROM_EMAIL || "contracts@optimisedigital.online";
+  const fromName = "Optimise Digital";
   const contractTitle = doc.contractTitle || "Service Contract";
   const recipientName = doc.clientContactName || doc.clientName || "Client";
-  const agencyContactName = doc.agencyContactName || "Optimise Digital";
+  const agencyContactName = doc.agencyContactName || fromName;
 
   try {
-    const res = await fetch("https://api.postmarkapp.com/email", {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        Accept: "application/json",
+        "api-key": process.env.BREVO_API_KEY,
         "Content-Type": "application/json",
-        "X-Postmark-Server-Token": POSTMARK_API_KEY,
       },
       body: JSON.stringify({
-        From: fromHeader,
-        To: doc.clientEmail,
-        Subject: `Contract for Review: ${contractTitle}`,
-        HtmlBody: generateSigningInviteEmail({
+        sender: { name: fromName, email: fromEmail },
+        to: [{ email: doc.clientEmail, name: recipientName }],
+        subject: `Contract for Review: ${contractTitle}`,
+        htmlContent: generateSigningInviteEmail({
           recipientName,
           contractTitle,
           signingUrl,
           senderName: agencyContactName,
         }),
-        MessageStream: "outbound",
       }),
     });
 
     if (!res.ok) {
       const text = await res.text();
-      console.error(
-        `[postmark] Send contract invite error (${res.status}):`,
-        text,
-      );
-      // Postmark returns JSON like { ErrorCode: 422, Message: "..." }.
-      // Surface both fields to the UI so the operator can diagnose without
-      // digging through Vercel logs. Falls back to raw text on non-JSON.
-      let postmarkCode: number | undefined;
-      let postmarkMessage: string | undefined;
+      console.error(`[brevo] Send email API error (${res.status}):`, text);
+      // Brevo returns JSON like { code: "unauthorized", message: "..." }. Surface
+      // both fields to the UI so the operator can diagnose without digging
+      // through Vercel logs. Falls back to the raw text body when the response
+      // isn't JSON (rare). Truncated so a stray HTML error page doesn't blow
+      // up the toast.
+      let brevoCode: string | undefined;
+      let brevoMessage: string | undefined;
       try {
-        const parsed = JSON.parse(text) as {
-          ErrorCode?: number;
-          Message?: string;
-        };
-        postmarkCode = parsed.ErrorCode;
-        postmarkMessage = parsed.Message;
+        const parsed = JSON.parse(text) as { code?: string; message?: string };
+        brevoCode = parsed.code;
+        brevoMessage = parsed.message;
       } catch {
-        postmarkMessage = text.slice(0, 300);
+        brevoMessage = text.slice(0, 300);
       }
-      const detail =
-        [postmarkCode, postmarkMessage].filter(Boolean).join(" — ") ||
-        `HTTP ${res.status}`;
+      const detail = [brevoCode, brevoMessage].filter(Boolean).join(" — ") || `HTTP ${res.status}`;
       return NextResponse.json(
         {
-          error: `Postmark rejected the send (${res.status}): ${detail}`,
-          postmarkStatus: res.status,
-          postmarkCode,
-          postmarkMessage,
+          error: `Brevo rejected the send (${res.status}): ${detail}`,
+          brevoStatus: res.status,
+          brevoCode,
+          brevoMessage,
         },
         { status: 502 },
       );
     }
 
-    // Postmark's success response carries a MessageID we can persist for
-    // delivery tracking (matches the invoice-statement-drafts pattern). Not
-    // wired to a Contracts field yet — log it for now.
-    try {
-      const success = (await res.clone().json()) as { MessageID?: string };
-      if (success.MessageID) {
-        console.log(
-          `[postmark] Signing invite sent to ${doc.clientEmail} — MessageID ${success.MessageID}`,
-        );
-      } else {
-        console.log(`[postmark] Signing invite sent to ${doc.clientEmail}`);
-      }
-    } catch {
-      console.log(`[postmark] Signing invite sent to ${doc.clientEmail}`);
-    }
+    console.log(`[brevo] Signing invite sent to ${doc.clientEmail}`);
 
     logActivity(payload, {
       type: "contract_sent",
@@ -168,7 +130,7 @@ export async function POST(
 
     return NextResponse.json({ ok: true, sentTo: doc.clientEmail });
   } catch (err: any) {
-    console.error("[postmark] Send email failed:", err.message);
+    console.error("[brevo] Send email failed:", err.message);
     return NextResponse.json(
       { error: `Failed to send email: ${err.message}` },
       { status: 500 },
