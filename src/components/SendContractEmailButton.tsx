@@ -15,6 +15,10 @@ const SendContractEmailButton = () => {
   const clientEmail = fields?.['clientEmail']?.value as string
 
   if (!id) return null
+  // Visible once a signing link has been issued (status === 'sent') for users
+  // returning to the contract after a page reload. The SendContractButton
+  // success panel also exposes an inline "email to client" action so the
+  // common one-session flow doesn't depend on this button rendering.
   if (status !== 'sent') return null
   if (!clientEmail) return null
 

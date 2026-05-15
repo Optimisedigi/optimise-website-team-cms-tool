@@ -89,12 +89,17 @@ export interface ContractSection {
   tierTable?: TierTable;
   signatures?: {
     client: {
+      /** Company name shown on the "Client:" header line at the bottom of the
+       *  contract. Not the signer's personal name — that's `name`. */
+      companyName?: string;
       name?: string;
       title?: string;
       signature?: string;
       date?: string;
     };
     provider: {
+      /** Company name shown on the "Service Provider:" header line. */
+      companyName?: string;
       name?: string;
       title?: string;
       signature?: string;
@@ -114,6 +119,10 @@ export interface ContractSection {
     agencyContactName?: string;
     agencyContactEmail?: string;
     agencyContactPhone?: string;
+    /** Reused on the cover next to the agency contact-person field. The agency
+     *  contact and the agency signer are the same person in practice, so we
+     *  surface the signer title here rather than maintain a separate field. */
+    agencySignerTitle?: string;
     effectiveDate: string;
     effectiveDateConfirmed?: boolean;
   };
@@ -161,6 +170,7 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       agencyContactName: data.agencyContactName || "Peter Tu",
       agencyContactEmail: data.agencyContactEmail || "peter@optimisedigital.online",
       agencyContactPhone: data.agencyContactPhone || "0493053188",
+      agencySignerTitle: data.agencySignerTitle,
       effectiveDate: formatDate(data.contractDate),
       effectiveDateConfirmed: data.effectiveDateConfirmed === true,
     },
@@ -341,12 +351,14 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     type: "signatures",
     signatures: {
       client: {
+        companyName: data.clientName,
         name: data.clientSignerName || data.clientContactName,
         title: data.clientTitle,
         signature: data.clientSignature,
         date: data.clientSignedAt ? formatDate(data.clientSignedAt) : undefined,
       },
       provider: {
+        companyName: agencyName + " Pty Ltd",
         name: data.agencySignerName,
         title: data.agencySignerTitle,
         signature: data.agencySignature,

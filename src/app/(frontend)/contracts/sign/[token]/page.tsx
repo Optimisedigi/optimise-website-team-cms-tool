@@ -372,6 +372,9 @@ export default function ContractSignPage() {
   const agencyContactName = contract.agencyContactName || 'Peter Tu'
   const agencyContactEmail = contract.agencyContactEmail || 'peter@optimisedigital.online'
   const agencyContactPhone = contract.agencyContactPhone || '0493053188'
+  // Agency contact title — same person as the signer in practice, so we reuse
+  // agencySignerTitle rather than maintaining a parallel field.
+  const agencyContactTitle = contract.agencySignerTitle || ''
   const currency = contract.currency || 'AUD'
   const setupAmount = formatCurrency(contract.setupFee ?? 0, currency)
   const retainerAmount = formatCurrency(contract.monthlyRetainer ?? 0, currency)
@@ -518,6 +521,11 @@ export default function ContractSignPage() {
           </p>
           <p style={{ fontSize: 15, margin: '0 0 6px' }}>
             <strong>Contact Person:</strong> {agencyContactName}
+            {agencyContactTitle && (
+              <>
+                {'   '}<strong>Title:</strong> {agencyContactTitle}
+              </>
+            )}
           </p>
           <p style={{ fontSize: 15, margin: '0 0 6px' }}>
             <strong>Email</strong>: {agencyContactEmail}
@@ -852,6 +860,12 @@ export default function ContractSignPage() {
               )}
               <div style={{ fontSize: 14, margin: '10px 0 2px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <span><strong>Name</strong>: {signerName || '[Name]'}</span>
+                {/* Title is captured higher up the page in the client-detail
+                    edit box; surface it here next to Name + Date so it ends
+                    up on the final signed PDF row. */}
+                {signerTitle && (
+                  <span><strong>Title</strong>: {signerTitle}</span>
+                )}
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <strong>Date</strong>:
                   <input
@@ -932,6 +946,11 @@ export default function ContractSignPage() {
             )}
             <p style={{ fontSize: 14, margin: '6px 0 0' }}>
               <strong>Name</strong>: {contract.agencySignerName || 'Peter Tu'}{' '}
+              {contract.agencySignerTitle && (
+                <>
+                  <strong>Title</strong>: {contract.agencySignerTitle}{' '}
+                </>
+              )}
               <strong>Date</strong>: {contract.agencySignedAt ? formatDate(contract.agencySignedAt) : formatDate(contract.contractDate)}
             </p>
           </div>

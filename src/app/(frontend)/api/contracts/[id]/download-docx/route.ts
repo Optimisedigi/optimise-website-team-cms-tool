@@ -176,11 +176,23 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     );
   }
 
-  // Service Provider
+  // Service Provider. Mirrors the PDF cover — Title sits next to Contact
+  // Person so the agency side carries the same information as the client
+  // side above. Falls back to agencySignerTitle since the agency contact
+  // and the agency signer are the same person in practice.
+  const agencyContactTitle = (doc.agencySignerTitle as string | undefined) || "";
   children.push(
     labelValuePara("Service Provider", agencyName),
     labelValuePara("Address", "72A Yelverton St, Sydenham NSW 2044"),
-    labelValuePara("Contact Person", contactName),
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Contact Person: ", bold: true }),
+        new TextRun({ text: `${contactName}    ` }),
+        new TextRun({ text: "Title: ", bold: true }),
+        new TextRun({ text: agencyContactTitle }),
+      ],
+      spacing: { after: 50 },
+    }),
     labelValuePara("Email", contactEmail),
     labelValuePara("Phone", contactPhone, 200),
   );
@@ -465,7 +477,9 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     }),
   );
 
-  // Client signature block
+  // Client signature block. "Client: <Company Name>" identifies the
+  // contracting entity; the signer's personal name, title and date sit
+  // beneath. Mirrors the PDF layout.
   children.push(
     new Paragraph({
       children: [
@@ -482,6 +496,8 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       children: [
         new TextRun({ text: "Name: ", bold: true }),
         new TextRun({ text: `${doc.clientSignerName || doc.clientContactName || "[Name]"}    ` }),
+        new TextRun({ text: "Title: ", bold: true }),
+        new TextRun({ text: `${doc.clientTitle || ""}    ` }),
         new TextRun({ text: "Date: ", bold: true }),
         new TextRun({ text: doc.clientSignedAt ? formatDate(doc.clientSignedAt) : "____________________" }),
       ],
@@ -532,6 +548,8 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       children: [
         new TextRun({ text: "Name: ", bold: true }),
         new TextRun({ text: `${doc.agencySignerName || "Peter Tu"}    ` }),
+        new TextRun({ text: "Title: ", bold: true }),
+        new TextRun({ text: `${doc.agencySignerTitle || ""}    ` }),
         new TextRun({ text: "Date: ", bold: true }),
         new TextRun({ text: doc.agencySignedAt ? formatDate(doc.agencySignedAt) : "____________________" }),
       ],

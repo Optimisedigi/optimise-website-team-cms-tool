@@ -11,6 +11,12 @@ const SendContractButton = () => {
   const [error, setError] = useState<string | null>(null)
   const [signingUrl, setSigningUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  // Inline email-send state. We send via the same /send-email route the
+  // sibling SendContractEmailButton uses, but inline so the user sees the
+  // freshly generated link AND the "email it" action without a page reload.
+  const [emailing, setEmailing] = useState(false)
+  const [emailedTo, setEmailedTo] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
 
   const status = fields?.['status']?.value as string
   const sentAt = fields?.['sentAt']?.value as string
@@ -38,11 +44,31 @@ const SendContractButton = () => {
       if (!res.ok) throw new Error(data.error || 'Failed to generate link')
 
       setSigningUrl(data.signingUrl)
-      setMessage('Signing link generated. Share it with the client manually.')
+      setMessage('Signing link generated. You can email it to the client (button below) or copy and share it manually.')
     } catch (e: any) {
       setError(e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleEmail = async () => {
+    if (!clientEmail || emailing) return
+    setEmailing(true)
+    setEmailError(null)
+    setEmailedTo(null)
+    try {
+      const res = await fetch(`/api/contracts/${id}/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to send email')
+      setEmailedTo(data.sentTo)
+    } catch (e: any) {
+      setEmailError(e.message)
+    } finally {
+      setEmailing(false)
     }
   }
 
@@ -146,6 +172,44 @@ const SendContractButton = () => {
           <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>
             This link expires in 7 days. The client can view, verify details, and sign.
           </p>
+
+          {/* Inline email-send. Lets the operator email the link to the
+              client without leaving this panel — no page reload required
+              for the sibling button to appear. */}
+          {clientEmail && !emailedTo && (
+            <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleEmail}
+                disabled={emailing}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  border: 'none',
+                  borderRadius: 4,
+                  background: emailing ? '#6b7280' : '#2563eb',
+                  color: '#fff',
+                  cursor: emailing ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {emailing ? 'Sending…' : `Email link to ${clientEmail}`}
+              </button>
+              {emailError && (
+                <span style={{ fontSize: 12, color: '#dc2626' }}>{emailError}</span>
+              )}
+            </div>
+          )}
+          {emailedTo && (
+            <p style={{ margin: '10px 0 0', fontSize: 13, color: '#059669', fontWeight: 600 }}>
+              ✓ Email sent to {emailedTo}
+            </p>
+          )}
+          {!clientEmail && (
+            <p style={{ margin: '10px 0 0', fontSize: 12, color: '#b45309' }}>
+              No client email saved on this contract — add one in the Client tab to enable one-click sending.
+            </p>
+          )}
         </div>
       )}
     </div>

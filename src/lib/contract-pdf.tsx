@@ -316,7 +316,13 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
             </View>
             <View style={{ flexDirection: "row", marginBottom: 3 }}>
               <Text style={styles.fieldLabel}>Contact Person: </Text>
-              <Text style={styles.fieldValue}>{c.agencyContactName || "Peter Tu"}</Text>
+              <Text style={styles.fieldValue}>{c.agencyContactName || "Peter Tu"}    </Text>
+              {/* Title sits next to the contact person to mirror the client
+                  section above (which already shows Name + Title + Email).
+                  Falls back to agencySignerTitle since the agency contact and
+                  agency signer are the same person in practice. */}
+              <Text style={styles.fieldLabel}>Title: </Text>
+              <Text style={styles.fieldValue}>{c.agencySignerTitle || ""}</Text>
             </View>
             <View style={{ flexDirection: "row", marginBottom: 3 }}>
               <Text style={styles.fieldLabel}>Email</Text>
@@ -462,12 +468,18 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
 
     case "signatures": {
       const sigs = section.signatures!;
+      // "Client: <Company Name>" — the heading row identifies the contracting
+      // entity, not the individual signer. The signer's personal name +
+      // title + date sit under the signature image. Falls back to the
+      // signer's personal name only if no company name was passed.
+      const clientHeader = sigs.client.companyName || sigs.client.name || "";
+      const providerHeader = sigs.provider.companyName || "Optimise Digital Pty Ltd";
       return (
         <View key={index} style={styles.signatureBlock}>
           {/* Client */}
           <View style={{ flexDirection: "row", marginBottom: 4 }}>
             <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 11 }}>Client</Text>
-            <Text style={{ fontSize: 11 }}>: {sigs.client.name || ""}</Text>
+            <Text style={{ fontSize: 11 }}>: {clientHeader}</Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "flex-end", marginBottom: 8 }}>
             <View>
@@ -483,6 +495,12 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
                 <Text style={styles.signatureFieldLabel}>Name: </Text>
                 <Text style={styles.signatureFieldValue}>{sigs.client.name || "[Name]"}</Text>
               </View>
+              {/* Title row added so the signer's role on the page mirrors
+                  the Title shown in the cover-page client block. */}
+              <View style={styles.signatureFieldRow}>
+                <Text style={styles.signatureFieldLabel}>Title: </Text>
+                <Text style={styles.signatureFieldValue}>{sigs.client.title || ""}</Text>
+              </View>
               <View style={styles.signatureFieldRow}>
                 <Text style={styles.signatureFieldLabel}>Date: </Text>
                 <Text style={styles.signatureFieldValue}>{sigs.client.date || ""}</Text>
@@ -493,7 +511,7 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
           {/* Service Provider */}
           <View style={{ flexDirection: "row", marginBottom: 4, marginTop: 16 }}>
             <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 11 }}>Service Provider</Text>
-            <Text style={{ fontSize: 11 }}>: Optimise Digital Pty Ltd</Text>
+            <Text style={{ fontSize: 11 }}>: {providerHeader}</Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
             <View>
@@ -508,6 +526,10 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
               <View style={styles.signatureFieldRow}>
                 <Text style={styles.signatureFieldLabel}>Name: </Text>
                 <Text style={styles.signatureFieldValue}>{sigs.provider.name || "Peter Tu"}</Text>
+              </View>
+              <View style={styles.signatureFieldRow}>
+                <Text style={styles.signatureFieldLabel}>Title: </Text>
+                <Text style={styles.signatureFieldValue}>{sigs.provider.title || ""}</Text>
               </View>
               <View style={styles.signatureFieldRow}>
                 <Text style={styles.signatureFieldLabel}>Date: </Text>
