@@ -10,6 +10,10 @@ export const NegativeKeywordLists: CollectionConfig = {
     // excludes it from routes too, which would break the deep-link flow).
     // Non-admins without the feature key are blocked the standard way.
     hidden: hideUnlessFeature("negative-keyword-lists"),
+    // Grouped under Growth Tools alongside the other Google Ads collections.
+    // Without a group set, Payload renders the entry in an orphan top-level
+    // "Collections" section above the sidebar groups.
+    group: "Growth Tools",
     useAsTitle: "name",
     defaultColumns: ["client", "name", "scope", "keywordCount", "isActive"],
   },
