@@ -15,6 +15,40 @@ interface NotificationRow {
 }
 
 const POLL_INTERVAL_MS = 60_000;
+const SHAKE_DURATION_MS = 1400;
+
+// Inject the shake + glow keyframes once. Payload's admin shell has no
+// global stylesheet hook from a client component, so we drop a <style>
+// tag on first mount and keep it for the life of the page.
+function useBellAnimations(): void {
+  useEffect(() => {
+    const id = "notifications-bell-keyframes";
+    if (document.getElementById(id)) return;
+    const el = document.createElement("style");
+    el.id = id;
+    el.textContent = `
+      @keyframes notif-bell-shake {
+        0%, 100% { transform: rotate(0deg); }
+        10% { transform: rotate(-14deg); }
+        20% { transform: rotate(12deg); }
+        30% { transform: rotate(-10deg); }
+        40% { transform: rotate(8deg); }
+        50% { transform: rotate(-6deg); }
+        60% { transform: rotate(4deg); }
+        70% { transform: rotate(-2deg); }
+      }
+      @keyframes notif-bell-glow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.0); }
+        50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0.18); }
+      }
+      @keyframes notif-badge-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.25); }
+      }
+    `;
+    document.head.appendChild(el);
+  }, []);
+}
 
 /**
  * Admin top-bar notifications bell.
@@ -32,35 +66,20 @@ const NotificationsBell = (): ReactElement | null => {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [shaking, setShaking] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Track last seen count so we can detect *rises* (not just non-zero).
+  // `null` on first fetch means "don't shake on initial page load".
+  const lastCountRef = useRef<number | null>(null);
+  // Auto-open the dropdown the first time new notifications arrive in a
+  // tab session. After that, the badge + animation is enough — we don't
+  // want to keep popping the dropdown over the user's work.
+  const autoOpenedRef = useRef(false);
 
-  // Poll unread count on a 60s interval while a user is signed in.
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
+  useBellAnimations();
 
-    const fetchCount = async (): Promise<void> => {
-      try {
-        const res = await fetch("/api/notifications/unread-count", {
-          credentials: "include",
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as { count: number };
-        if (!cancelled) setUnreadCount(data.count ?? 0);
-      } catch {
-        // Silent — bell stays at its last known count.
-      }
-    };
-
-    fetchCount();
-    const intervalId = window.setInterval(fetchCount, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [user]);
-
-  // Load the dropdown contents on first open.
+  // Load the dropdown contents. Declared before the polling effect so the
+  // auto-open path can call it.
   const loadList = useCallback(async () => {
     setLoading(true);
     try {
@@ -75,6 +94,49 @@ const NotificationsBell = (): ReactElement | null => {
       setLoading(false);
     }
   }, []);
+
+  // Poll unread count on a 60s interval while a user is signed in.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const fetchCount = async (): Promise<void> => {
+      try {
+        const res = await fetch("/api/notifications/unread-count", {
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { count: number };
+        if (cancelled) return;
+        const next = data.count ?? 0;
+        const prev = lastCountRef.current;
+        setUnreadCount(next);
+
+        // Rising-edge detection: only react when the count goes UP. Marking
+        // a notification read drops the count — we don't want to shake on
+        // that.
+        if (prev !== null && next > prev) {
+          setShaking(true);
+          window.setTimeout(() => setShaking(false), SHAKE_DURATION_MS);
+          if (!autoOpenedRef.current) {
+            autoOpenedRef.current = true;
+            setOpen(true);
+            void loadList();
+          }
+        }
+        lastCountRef.current = next;
+      } catch {
+        // Silent — bell stays at its last known count.
+      }
+    };
+
+    fetchCount();
+    const intervalId = window.setInterval(fetchCount, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [user, loadList]);
 
   // Close on outside click.
   useEffect(() => {
@@ -135,32 +197,45 @@ const NotificationsBell = (): ReactElement | null => {
         aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
         style={{
           position: "relative",
-          background: "none",
+          background: unreadCount > 0 ? "rgba(220, 38, 38, 0.08)" : "none",
           border: "none",
           cursor: "pointer",
           padding: "6px 8px",
           borderRadius: 6,
-          color: "var(--theme-elevation-800)",
+          // Brighten the bell colour when there's anything unread —
+          // muted grey -> red. Goes back to neutral once everything's read.
+          color: unreadCount > 0 ? "#dc2626" : "var(--theme-elevation-800)",
           display: "flex",
           alignItems: "center",
-          transition: "background 150ms",
+          transition: "background 150ms, color 150ms",
+          animation: shaking
+            ? `notif-bell-glow ${SHAKE_DURATION_MS}ms ease-in-out`
+            : undefined,
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = "var(--theme-elevation-100)";
+          e.currentTarget.style.background =
+            unreadCount > 0 ? "rgba(220, 38, 38, 0.16)" : "var(--theme-elevation-100)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = "none";
+          e.currentTarget.style.background =
+            unreadCount > 0 ? "rgba(220, 38, 38, 0.08)" : "none";
         }}
       >
         <svg
           width="18"
           height="18"
           viewBox="0 0 24 24"
-          fill="none"
+          fill={unreadCount > 0 ? "currentColor" : "none"}
           stroke="currentColor"
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
+          style={{
+            transformOrigin: "top center",
+            animation: shaking
+              ? `notif-bell-shake ${SHAKE_DURATION_MS}ms ease-in-out`
+              : undefined,
+          }}
         >
           <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
           <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
@@ -169,20 +244,24 @@ const NotificationsBell = (): ReactElement | null => {
           <span
             style={{
               position: "absolute",
-              top: 2,
-              right: 2,
+              top: 0,
+              right: 0,
               background: "#dc2626",
               color: "#fff",
               borderRadius: 999,
-              minWidth: 16,
-              height: 16,
-              padding: "0 4px",
-              fontSize: 10,
+              minWidth: 18,
+              height: 18,
+              padding: "0 5px",
+              fontSize: 11,
               fontWeight: 700,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               lineHeight: 1,
+              boxShadow: "0 0 0 2px var(--theme-elevation-0, #fff)",
+              animation: shaking
+                ? `notif-badge-pulse 700ms ease-in-out 2`
+                : undefined,
             }}
           >
             {unreadCount > 99 ? "99+" : unreadCount}
