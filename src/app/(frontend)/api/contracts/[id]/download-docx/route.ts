@@ -205,8 +205,8 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     children.push(thinRule());
   }
 
-  // Pricing table
-  if (doc.setupFee || doc.monthlyRetainer) {
+  // Pricing table — always rendered; setup fee row always shown ($0 when missing).
+  {
     children.push(
       new Paragraph({ text: "Pricing", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
     );
@@ -245,29 +245,27 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       }),
     ];
 
-    if (doc.setupFee && doc.setupFee > 0) {
-      tableRows.push(
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: "One-time setup fee", bold: true })] })],
-              width: { size: labelWidth, type: WidthType.DXA },
-              borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, right: thinBorder },
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  text: formatCurrency(doc.setupFee),
-                  alignment: AlignmentType.RIGHT,
-                }),
-              ],
-              width: { size: valueWidth, type: WidthType.DXA },
-              borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } },
-            }),
-          ],
-        }),
-      );
-    }
+    tableRows.push(
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: "One-time setup fee", bold: true })] })],
+            width: { size: labelWidth, type: WidthType.DXA },
+            borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, right: thinBorder },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                text: formatCurrency(doc.setupFee ?? 0),
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            width: { size: valueWidth, type: WidthType.DXA },
+            borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } },
+          }),
+        ],
+      }),
+    );
 
     if (doc.monthlyRetainer && doc.monthlyRetainer > 0) {
       tableRows.push(

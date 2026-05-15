@@ -536,69 +536,63 @@ export default function ContractSignPage() {
           </>
         )}
 
-        {/* Pricing */}
-        {(contract.setupFee || contract.monthlyRetainer || contract.monthlyHosting) && (
-          <>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Pricing</h2>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, border: '1px solid #111' }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: '10px 12px', borderBottom: '1px solid #111', borderRight: '1px solid #111', textAlign: 'left', fontWeight: 700 }}>&nbsp;</th>
-                  <th style={{ padding: '10px 12px', borderBottom: '1px solid #111', textAlign: 'right', fontWeight: 700 }}>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {contract.setupFee != null && contract.setupFee > 0 && (
-                  <tr>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', borderRight: '1px solid #111', fontWeight: 700 }}>
-                      One-time setup fee
-                    </td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>
-                      {formatCurrency(contract.setupFee)}
-                    </td>
-                  </tr>
-                )}
-                {contract.monthlyRetainer != null && contract.monthlyRetainer > 0 && (
-                  <tr>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', borderRight: '1px solid #111', fontWeight: 700 }}>
-                      Monthly management retainer
-                    </td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>
-                      {formatCurrency(contract.monthlyRetainer)}/month
-                    </td>
-                  </tr>
-                )}
-                {contract.monthlyHosting != null && contract.monthlyHosting > 0 && (
-                  <tr>
-                    <td style={{ padding: '10px 12px', borderRight: '1px solid #111', fontWeight: 700 }}>
-                      Monthly hosting
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                      {formatCurrency(contract.monthlyHosting)}/month
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-
-            {/* Pricing Notes */}
-            {(contract.pricingNotesHtml || contract.pricingNotes) && (
-              <div style={{ marginTop: 16, marginBottom: 8 }}>
-                {contract.pricingNotesHtml ? (
-                  <div
-                    className="scope-content"
-                    dangerouslySetInnerHTML={{ __html: contract.pricingNotesHtml }}
-                    style={{ fontSize: 14, lineHeight: 1.6 }}
-                  />
-                ) : (
-                  <div style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{contract.pricingNotes}</div>
-                )}
-              </div>
+        {/* Pricing — always rendered. Setup fee always shown ($0 when missing). */}
+        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Pricing</h2>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, border: '1px solid #111' }}>
+          <thead>
+            <tr>
+              <th style={{ padding: '10px 12px', borderBottom: '1px solid #111', borderRight: '1px solid #111', textAlign: 'left', fontWeight: 700 }}>&nbsp;</th>
+              <th style={{ padding: '10px 12px', borderBottom: '1px solid #111', textAlign: 'right', fontWeight: 700 }}>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', borderRight: '1px solid #111', fontWeight: 700 }}>
+                One-time setup fee
+              </td>
+              <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>
+                {formatCurrency(contract.setupFee ?? 0)}
+              </td>
+            </tr>
+            {contract.monthlyRetainer != null && contract.monthlyRetainer > 0 && (
+              <tr>
+                <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', borderRight: '1px solid #111', fontWeight: 700 }}>
+                  Monthly management retainer
+                </td>
+                <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>
+                  {formatCurrency(contract.monthlyRetainer)}/month
+                </td>
+              </tr>
             )}
+            {contract.monthlyHosting != null && contract.monthlyHosting > 0 && (
+              <tr>
+                <td style={{ padding: '10px 12px', borderRight: '1px solid #111', fontWeight: 700 }}>
+                  Monthly hosting
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                  {formatCurrency(contract.monthlyHosting)}/month
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
 
-            <hr style={hrStyle} />
-          </>
+        {/* Pricing Notes */}
+        {(contract.pricingNotesHtml || contract.pricingNotes) && (
+          <div style={{ marginTop: 16, marginBottom: 8 }}>
+            {contract.pricingNotesHtml ? (
+              <div
+                className="scope-content"
+                dangerouslySetInnerHTML={{ __html: contract.pricingNotesHtml }}
+                style={{ fontSize: 14, lineHeight: 1.6 }}
+              />
+            ) : (
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{contract.pricingNotes}</div>
+            )}
+          </div>
         )}
+
+        <hr style={hrStyle} />
 
         {/* Annual Review & Tier Adjustment (optional) */}
         {contract.annualReviewEnabled && (

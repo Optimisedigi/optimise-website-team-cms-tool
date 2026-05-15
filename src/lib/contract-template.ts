@@ -156,13 +156,13 @@ export function generateContractSections(data: ContractData): ContractSection[] 
   }
 
   // Pricing
+  // Setup fee is always shown in the pricing table — displays $0 when not
+  // configured — so the line item is consistent across every contract.
   const pricingRows: { label: string; value: string }[] = [];
-  if (data.setupFee) {
-    pricingRows.push({
-      label: "One-time setup fee",
-      value: `${formatCurrency(data.setupFee)}`,
-    });
-  }
+  pricingRows.push({
+    label: "One-time setup fee",
+    value: formatCurrency(data.setupFee ?? 0),
+  });
   if (data.monthlyRetainer) {
     pricingRows.push({
       label: "Monthly management retainer",
