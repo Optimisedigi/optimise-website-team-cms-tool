@@ -9,6 +9,7 @@ import {
   Table,
   TableRow,
   TableCell,
+  TableLayoutType,
   WidthType,
   AlignmentType,
   BorderStyle,
@@ -284,6 +285,11 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       new Table({
         rows: tableRows,
         width: { size: pricingTableWidth, type: WidthType.DXA },
+        // columnWidths + layout: FIXED so Mac Preview / Quick Look (and any
+        // other renderer that doesn't auto-fit) respect the explicit DXA
+        // widths instead of collapsing every column to a single character.
+        columnWidths: [labelWidth, valueWidth],
+        layout: TableLayoutType.FIXED,
         borders: {
           top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
           bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
@@ -351,6 +357,10 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
         new Table({
           rows: [headerRow, ...bodyRows],
           width: { size: tierTableWidth, type: WidthType.DXA },
+          // Same fix as the pricing table — explicit columnWidths + FIXED
+          // layout so every renderer honours the cell widths.
+          columnWidths: Array.from({ length: colCount }, () => colWidth),
+          layout: TableLayoutType.FIXED,
           borders: {
             top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
             bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
