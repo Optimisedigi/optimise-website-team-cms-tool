@@ -16,6 +16,7 @@ interface ContractInfo {
   monthlyRetainer?: number
   setupFee?: number
   monthlyHosting?: number
+  currency?: string
   contractTerm?: string
   paymentTerms?: string
   scopeOfWork?: string
@@ -39,10 +40,21 @@ interface ContractInfo {
   agencySignedAt?: string
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-AU', {
+const CURRENCY_LOCALE: Record<string, string> = {
+  AUD: 'en-AU',
+  USD: 'en-US',
+  GBP: 'en-GB',
+  EUR: 'en-IE',
+  NZD: 'en-NZ',
+  CAD: 'en-CA',
+  SGD: 'en-SG',
+}
+
+function formatCurrency(amount: number, currency = 'AUD'): string {
+  const locale = CURRENCY_LOCALE[currency] ?? 'en-AU'
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: 'AUD',
+    currency,
     minimumFractionDigits: 0,
   }).format(amount)
 }
@@ -359,9 +371,10 @@ export default function ContractSignPage() {
   const agencyContactName = contract.agencyContactName || 'Peter Tu'
   const agencyContactEmail = contract.agencyContactEmail || 'peter@optimisedigital.online'
   const agencyContactPhone = contract.agencyContactPhone || '0493053188'
-  const setupAmount = contract.setupFee ? formatCurrency(contract.setupFee) : '$0'
-  const retainerAmount = contract.monthlyRetainer ? formatCurrency(contract.monthlyRetainer) : '$0'
-  const hostingAmount = contract.monthlyHosting ? formatCurrency(contract.monthlyHosting) : null
+  const currency = contract.currency || 'AUD'
+  const setupAmount = formatCurrency(contract.setupFee ?? 0, currency)
+  const retainerAmount = formatCurrency(contract.monthlyRetainer ?? 0, currency)
+  const hostingAmount = contract.monthlyHosting ? formatCurrency(contract.monthlyHosting, currency) : null
 
   return (
     <div style={pageStyle}>
@@ -519,59 +532,50 @@ export default function ContractSignPage() {
 
         <hr style={hrThickStyle} />
 
+        {/* === Body block (Scope of Work onwards) — reduced font size, tighter bullets === */}
+        <div className="contract-body" style={{ fontSize: 13, lineHeight: 1.5 }}>
+
         {/* Scope of Work - rendered as rich HTML */}
         {(contract.scopeOfWorkHtml || contract.scopeOfWork) && (
           <>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Scope of Work</h2>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Scope of Work</h2>
             {contract.scopeOfWorkHtml ? (
               <div
                 className="scope-content"
                 dangerouslySetInnerHTML={{ __html: contract.scopeOfWorkHtml }}
-                style={{ fontSize: 14, lineHeight: 1.6 }}
+                style={{ fontSize: 13, lineHeight: 1.5 }}
               />
             ) : (
-              <div style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{contract.scopeOfWork}</div>
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.scopeOfWork}</div>
             )}
             <hr style={hrStyle} />
           </>
         )}
 
-        {/* Pricing — always rendered. Setup fee always shown ($0 when missing). */}
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Pricing</h2>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, border: '1px solid #111' }}>
+        {/* Pricing — always rendered. Horizontal-rules-only look matching the design spec. */}
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Pricing</h2>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 14, borderTop: '1px solid #111', fontSize: 13 }}>
           <thead>
-            <tr>
-              <th style={{ padding: '10px 12px', borderBottom: '1px solid #111', borderRight: '1px solid #111', textAlign: 'left', fontWeight: 700 }}>&nbsp;</th>
-              <th style={{ padding: '10px 12px', borderBottom: '1px solid #111', textAlign: 'right', fontWeight: 700 }}>Amount</th>
+            <tr style={{ borderBottom: '1px solid #111' }}>
+              <th style={{ padding: '6px 4px', textAlign: 'left', fontWeight: 700 }}>Service</th>
+              <th style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 700 }}>Amount ({currency})</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', borderRight: '1px solid #111', fontWeight: 700 }}>
-                One-time setup fee
-              </td>
-              <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>
-                {formatCurrency(contract.setupFee ?? 0)}
-              </td>
+            <tr style={{ borderBottom: '1px solid #d4d4d4' }}>
+              <td style={{ padding: '5px 4px' }}>One-time setup fee</td>
+              <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(contract.setupFee ?? 0, currency)}</td>
             </tr>
             {contract.monthlyRetainer != null && contract.monthlyRetainer > 0 && (
-              <tr>
-                <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', borderRight: '1px solid #111', fontWeight: 700 }}>
-                  Monthly management retainer
-                </td>
-                <td style={{ padding: '10px 12px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>
-                  {formatCurrency(contract.monthlyRetainer)}/month
-                </td>
+              <tr style={{ borderBottom: '1px solid #d4d4d4' }}>
+                <td style={{ padding: '5px 4px' }}>Monthly management retainer</td>
+                <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(contract.monthlyRetainer, currency)}/month</td>
               </tr>
             )}
             {contract.monthlyHosting != null && contract.monthlyHosting > 0 && (
-              <tr>
-                <td style={{ padding: '10px 12px', borderRight: '1px solid #111', fontWeight: 700 }}>
-                  Monthly hosting
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  {formatCurrency(contract.monthlyHosting)}/month
-                </td>
+              <tr style={{ borderBottom: '1px solid #d4d4d4' }}>
+                <td style={{ padding: '5px 4px' }}>Monthly hosting</td>
+                <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(contract.monthlyHosting, currency)}/month</td>
               </tr>
             )}
           </tbody>
@@ -579,15 +583,15 @@ export default function ContractSignPage() {
 
         {/* Pricing Notes */}
         {(contract.pricingNotesHtml || contract.pricingNotes) && (
-          <div style={{ marginTop: 16, marginBottom: 8 }}>
+          <div style={{ marginTop: 12, marginBottom: 6 }}>
             {contract.pricingNotesHtml ? (
               <div
                 className="scope-content"
                 dangerouslySetInnerHTML={{ __html: contract.pricingNotesHtml }}
-                style={{ fontSize: 14, lineHeight: 1.6 }}
+                style={{ fontSize: 13, lineHeight: 1.5 }}
               />
             ) : (
-              <div style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{contract.pricingNotes}</div>
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.pricingNotes}</div>
             )}
           </div>
         )}
@@ -597,12 +601,12 @@ export default function ContractSignPage() {
         {/* Annual Review & Tier Adjustment (optional) */}
         {contract.annualReviewEnabled && (
           <>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Annual Review and Adjustment</h2>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Annual Review and Adjustment</h2>
             {contract.annualReviewIntroHtml && (
               <div
                 className="scope-content"
                 dangerouslySetInnerHTML={{ __html: contract.annualReviewIntroHtml }}
-                style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}
+                style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}
               />
             )}
             {contract.annualReviewTierTable && (
@@ -610,24 +614,20 @@ export default function ContractSignPage() {
                 style={{
                   width: '100%',
                   borderCollapse: 'collapse',
-                  border: '1px solid #111',
-                  margin: '12px 0 16px',
-                  fontSize: 14,
+                  borderTop: '1px solid #111',
+                  margin: '10px 0 14px',
+                  fontSize: 13,
                 }}
               >
                 <thead>
-                  <tr style={{ background: '#f5f5f5', borderBottom: '1px solid #111' }}>
+                  <tr style={{ borderBottom: '1px solid #111' }}>
                     {contract.annualReviewTierTable.headers.map((header, i) => (
                       <th
                         key={i}
                         style={{
-                          padding: '10px 12px',
+                          padding: '6px 4px',
                           textAlign: 'left',
                           fontWeight: 700,
-                          borderRight:
-                            i < contract.annualReviewTierTable!.headers.length - 1
-                              ? '1px solid #111'
-                              : 'none',
                         }}
                       >
                         {header}
@@ -637,26 +637,9 @@ export default function ContractSignPage() {
                 </thead>
                 <tbody>
                   {contract.annualReviewTierTable.rows.map((row, ri) => (
-                    <tr
-                      key={ri}
-                      style={{
-                        borderBottom:
-                          ri < contract.annualReviewTierTable!.rows.length - 1
-                            ? '1px solid #ccc'
-                            : 'none',
-                      }}
-                    >
+                    <tr key={ri} style={{ borderBottom: '1px solid #d4d4d4' }}>
                       {row.map((cell, ci) => (
-                        <td
-                          key={ci}
-                          style={{
-                            padding: '10px 12px',
-                            borderRight:
-                              ci < row.length - 1 ? '1px solid #ccc' : 'none',
-                          }}
-                        >
-                          {cell}
-                        </td>
+                        <td key={ci} style={{ padding: '5px 4px' }}>{cell}</td>
                       ))}
                     </tr>
                   ))}
@@ -667,66 +650,75 @@ export default function ContractSignPage() {
               <div
                 className="scope-content"
                 dangerouslySetInnerHTML={{ __html: contract.annualReviewNoticeHtml }}
-                style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}
+                style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}
               />
             )}
             {contract.annualReviewGoodFaithReviewHtml && (
-              <div
-                className="scope-content"
-                dangerouslySetInnerHTML={{ __html: contract.annualReviewGoodFaithReviewHtml }}
-                style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}
-              />
+              <>
+                <h4 style={{ fontSize: 13, fontWeight: 700, margin: '12px 0 4px' }}>Good Faith Review</h4>
+                <div
+                  className="scope-content"
+                  dangerouslySetInnerHTML={{ __html: contract.annualReviewGoodFaithReviewHtml }}
+                  style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}
+                />
+              </>
             )}
             {contract.annualReviewAcceptanceHtml && (
-              <div
-                className="scope-content"
-                dangerouslySetInnerHTML={{ __html: contract.annualReviewAcceptanceHtml }}
-                style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}
-              />
+              <>
+                <h4 style={{ fontSize: 13, fontWeight: 700, margin: '12px 0 4px' }}>Acceptance of Adjustment</h4>
+                <div
+                  className="scope-content"
+                  dangerouslySetInnerHTML={{ __html: contract.annualReviewAcceptanceHtml }}
+                  style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}
+                />
+              </>
             )}
             <hr style={hrStyle} />
           </>
         )}
 
         {/* Payment Terms */}
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Payment Terms:</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Payment Terms:</h2>
         {contract.paymentTermsOverrideHtml ? (
           <div
             className="scope-content"
             dangerouslySetInnerHTML={{ __html: contract.paymentTermsOverrideHtml }}
-            style={{ fontSize: 14, lineHeight: 1.6 }}
+            style={{ fontSize: 13, lineHeight: 1.5 }}
           />
         ) : contract.paymentTermsOverride ? (
-          <div style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{contract.paymentTermsOverride}</div>
+          <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.paymentTermsOverride}</div>
         ) : (
-          <ul style={{ margin: '0 0 8px', paddingLeft: 28, lineHeight: 1.7 }}>
-            <li style={{ marginBottom: 8 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
-            <li style={{ marginBottom: 8 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
+          <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
+            <li style={{ marginBottom: 4 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
+            <li style={{ marginBottom: 4 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
             {hostingAmount && (
-              <li style={{ marginBottom: 8 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
+              <li style={{ marginBottom: 4 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
             )}
-            <li style={{ marginBottom: 8 }}>Invoices are due within 14 days of issue.</li>
-            <li style={{ marginBottom: 8 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
+            <li style={{ marginBottom: 4 }}>Invoices are due within 14 days of issue.</li>
+            <li style={{ marginBottom: 4 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
           </ul>
         )}
 
         <hr style={hrStyle} />
 
         {/* Termination - exact wording from PDF */}
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Termination:</h2>
-        <ul style={{ margin: '0 0 8px', paddingLeft: 28, lineHeight: 1.7 }}>
-          <li style={{ marginBottom: 8 }}>Either party may terminate this contract with a 30-day written notice.</li>
-          <li style={{ marginBottom: 8 }}>Upon termination, the Client agrees to pay for all services rendered up to the termination date.</li>
-          <li style={{ marginBottom: 8 }}>Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.</li>
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Termination:</h2>
+        <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
+          <li style={{ marginBottom: 4 }}>Either party may terminate this contract with a 30-day written notice.</li>
+          <li style={{ marginBottom: 4 }}>Upon termination, the Client agrees to pay for all services rendered up to the termination date.</li>
+          <li style={{ marginBottom: 4 }}>Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.</li>
         </ul>
 
         <hr style={hrStyle} />
 
         {/* Confidentiality - exact wording from PDF */}
-        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Confidentiality:</h2>
-        <ul style={{ margin: '0 0 8px', paddingLeft: 28, lineHeight: 1.7 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Confidentiality:</h2>
+        <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
           <li>Either party may disclose Confidential Information to the other. &quot;Confidential Information&quot; includes all non-public information about the Disclosing Party&apos;s business, technology, structure, and strategies, whether conveyed orally or in tangible form, and whether or not marked as &quot;confidential.&quot; The Recipient will keep the Confidential Information in trust, not disclose it to others, and ensure that its employees, agents, or any persons under its direction do the same, indefinitely.</li>
         </ul>
+
+        </div>
+        {/* === End body block === */}
 
         <hr style={hrThickStyle} />
 
@@ -943,15 +935,16 @@ export default function ContractSignPage() {
 
       {/* Scope content styles for rich text */}
       <style>{`
-        .scope-content p { margin: 0 0 8px; min-height: 1em; }
-        .scope-content p:empty { margin: 0 0 12px; }
-        .scope-content h1, .scope-content h2, .scope-content h3 { margin: 16px 0 8px; font-weight: 700; }
-        .scope-content h1 { font-size: 18px; }
-        .scope-content h2 { font-size: 16px; }
-        .scope-content h3 { font-size: 15px; }
-        .scope-content ul { margin: 0 0 8px; padding-left: 28px; list-style-type: disc; }
-        .scope-content ol { margin: 0 0 8px; padding-left: 28px; list-style-type: decimal; }
-        .scope-content li { margin-bottom: 6px; line-height: 1.6; }
+        .scope-content p { margin: 0 0 6px; min-height: 1em; }
+        .scope-content p:empty { margin: 0 0 8px; }
+        .scope-content h1, .scope-content h2, .scope-content h3, .scope-content h4 { margin: 12px 0 6px; font-weight: 700; }
+        .scope-content h1 { font-size: 16px; }
+        .scope-content h2 { font-size: 14px; }
+        .scope-content h3 { font-size: 13px; }
+        .scope-content h4 { font-size: 13px; }
+        .scope-content ul { margin: 0 0 6px; padding-left: 24px; list-style-type: disc; }
+        .scope-content ol { margin: 0 0 6px; padding-left: 24px; list-style-type: decimal; }
+        .scope-content li { margin-bottom: 3px; line-height: 1.5; }
         .scope-content li > ul { padding-left: 24px; margin: 4px 0; list-style-type: circle; }
         .scope-content li > ol { padding-left: 24px; margin: 4px 0; list-style-type: lower-alpha; }
         .scope-content strong { font-weight: 700; }

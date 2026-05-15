@@ -80,10 +80,12 @@ export const ANNUAL_REVIEW_DEFAULTS = {
     "$100,001 – $125,000\t$6,960",
     "$125,001 and above\tBy written agreement, minimum $7,680",
   ].join("\n"),
+  // The h4 heading ("Good Faith Review" / "Acceptance of Adjustment") is
+  // emitted by the section renderers — default copy is body-only.
   goodFaithReview:
-    "Good Faith Review\nAt each annual review, both parties will discuss overall account performance, strategic direction, and any material changes in circumstances in good faith. Where exceptional circumstances exist, the parties may agree in writing to defer, modify, or waive a scheduled tier adjustment. Any such agreement does not affect the application of future scheduled reviews.",
+    "At each annual review, both parties will discuss overall account performance, strategic direction, and any material changes in circumstances in good faith. Where exceptional circumstances exist, the parties may agree in writing to defer, modify, or waive a scheduled tier adjustment. Any such agreement does not affect the application of future scheduled reviews.",
   acceptanceOfAdjustment:
-    "Acceptance of Adjustment\nEither party may terminate this Agreement by giving sixty (60) days' written notice following receipt of an adjustment notice, should the revised retainer not be accepted.",
+    "Either party may terminate this Agreement by giving sixty (60) days' written notice following receipt of an adjustment notice, should the revised retainer not be accepted.",
   noticeParagraph:
     "The Agency will provide the Client with no less than sixty (60) days' written notice before any adjustment takes effect. Adjustments apply prospectively only and remain in force until the next annual review, regardless of spend fluctuations between reviews.",
 } as const;

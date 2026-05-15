@@ -2669,6 +2669,12 @@ export async function runMigrations(
     await run("contracts.annual_review_good_faith_review", "ALTER TABLE `contracts` ADD `annual_review_good_faith_review` text");
     await run("contracts.annual_review_acceptance", "ALTER TABLE `contracts` ADD `annual_review_acceptance` text");
 
+    // ── contracts.currency (2026-05-15) ──
+    // Currency code (AUD/USD/GBP/EUR/NZD/CAD/SGD). Shown in the pricing
+    // table header as "Amount (CCY)" and used by formatCurrency() to format
+    // every monetary value.
+    await run("contracts.currency", "ALTER TABLE `contracts` ADD `currency` text DEFAULT 'AUD'");
+
     // ── client_proposals: pre-sale Notes + Prospect Timeline + Discovery Notes (2026-05-18) ──
     // Schemas mirror clients.client_notes / clients.client_account_timeline so the existing
     // ClientNotesTable / AccountTimelineTable React components work unchanged (they read the

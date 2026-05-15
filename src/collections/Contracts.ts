@@ -218,6 +218,25 @@ export const Contracts: CollectionConfig = {
               },
             },
             {
+              name: "currency",
+              type: "select",
+              defaultValue: "AUD",
+              admin: {
+                description:
+                  "Currency for all amounts on this contract. Shown in the pricing table header as 'Amount (CCY)' and used to format every monetary value.",
+                width: "30%",
+              },
+              options: [
+                { label: "AUD \u2014 Australian Dollar", value: "AUD" },
+                { label: "USD \u2014 US Dollar", value: "USD" },
+                { label: "GBP \u2014 British Pound", value: "GBP" },
+                { label: "EUR \u2014 Euro", value: "EUR" },
+                { label: "NZD \u2014 New Zealand Dollar", value: "NZD" },
+                { label: "CAD \u2014 Canadian Dollar", value: "CAD" },
+                { label: "SGD \u2014 Singapore Dollar", value: "SGD" },
+              ],
+            },
+            {
               type: "row",
               fields: [
                 {
@@ -225,7 +244,7 @@ export const Contracts: CollectionConfig = {
                   type: "number",
                   min: 0,
                   admin: {
-                    description: "Monthly retainer ($)",
+                    description: "Monthly retainer",
                     step: 1,
                   },
                 },
@@ -234,7 +253,7 @@ export const Contracts: CollectionConfig = {
                   type: "number",
                   min: 0,
                   admin: {
-                    description: "One-time setup fee ($)",
+                    description: "One-time setup fee",
                     step: 1,
                   },
                 },
@@ -243,7 +262,7 @@ export const Contracts: CollectionConfig = {
                   type: "number",
                   min: 0,
                   admin: {
-                    description: "Monthly hosting cost ($)",
+                    description: "Monthly hosting cost",
                     step: 1,
                   },
                 },

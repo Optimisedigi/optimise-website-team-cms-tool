@@ -59,6 +59,7 @@ export async function GET(
       monthlyRetainer: doc.monthlyRetainer,
       setupFee: doc.setupFee,
       monthlyHosting: doc.monthlyHosting,
+      currency: doc.currency ?? "AUD",
       contractTerm: doc.contractTerm,
       paymentTerms: doc.paymentTerms,
       pricingNotes: pricingNotesText,

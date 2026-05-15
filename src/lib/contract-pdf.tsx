@@ -74,37 +74,44 @@ const styles = StyleSheet.create({
     borderBottomColor: "#111",
     marginVertical: 20,
   },
-  // Sections
+  // Sections (body fontsize 9pt from Scope of Work down per design spec)
   sectionHeading: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Helvetica-Bold",
-    marginTop: 18,
-    marginBottom: 8,
+    marginTop: 16,
+    marginBottom: 6,
+  },
+  sectionSubHeading: {
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    marginTop: 10,
+    marginBottom: 4,
   },
   paragraph: {
-    fontSize: 10,
-    marginBottom: 8,
-    lineHeight: 1.6,
+    fontSize: 9,
+    marginBottom: 6,
+    lineHeight: 1.5,
   },
   bulletItem: {
     flexDirection: "row",
-    marginBottom: 6,
+    marginBottom: 3,
     paddingLeft: 8,
   },
   bulletDot: {
-    width: 14,
-    fontSize: 10,
+    width: 12,
+    fontSize: 9,
   },
   bulletText: {
     flex: 1,
-    fontSize: 10,
-    lineHeight: 1.6,
+    fontSize: 9,
+    lineHeight: 1.4,
   },
-  // Table
+  // Tables — horizontal-lines-only look (no outer border, no vertical dividers).
+  // Bold header row with a thin black bottom rule; light grey rule between body rows.
   table: {
-    marginVertical: 10,
-    borderWidth: 1,
-    borderColor: "#111",
+    marginVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#111",
   },
   tableHeaderRow: {
     flexDirection: "row",
@@ -114,81 +121,83 @@ const styles = StyleSheet.create({
   tableRow: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
+    borderBottomColor: "#d4d4d4",
   },
   tableRowLast: {
     flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#d4d4d4",
   },
   tableCellLabel: {
     width: "60%",
-    padding: 8,
-    fontSize: 10,
-    fontFamily: "Helvetica-Bold",
-    borderRightWidth: 1,
-    borderRightColor: "#111",
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    fontSize: 9,
   },
   tableCellValue: {
     width: "40%",
-    padding: 8,
-    fontSize: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    fontSize: 9,
     textAlign: "right",
   },
   tableHeaderLabel: {
     width: "60%",
-    padding: 8,
-    fontSize: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    fontSize: 9,
     fontFamily: "Helvetica-Bold",
-    borderRightWidth: 1,
-    borderRightColor: "#111",
   },
   tableHeaderValue: {
     width: "40%",
-    padding: 8,
-    fontSize: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    fontSize: 9,
     fontFamily: "Helvetica-Bold",
     textAlign: "right",
   },
-  // Tier table (N-column, used by Annual Review section)
+  // Tier table (N-column, used by Annual Review section) — same horizontal-lines look.
   tierTable: {
-    marginVertical: 10,
-    borderWidth: 1,
-    borderColor: "#111",
+    marginVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#111",
   },
   tierTableHeaderRow: {
     flexDirection: "row",
-    backgroundColor: "#f5f5f5",
     borderBottomWidth: 1,
     borderBottomColor: "#111",
   },
   tierTableRow: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
+    borderBottomColor: "#d4d4d4",
   },
   tierTableRowLast: {
     flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#d4d4d4",
   },
   tierTableHeaderCell: {
-    padding: 8,
-    fontSize: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    fontSize: 9,
     fontFamily: "Helvetica-Bold",
-    borderRightWidth: 1,
-    borderRightColor: "#111",
   },
   tierTableHeaderCellLast: {
-    padding: 8,
-    fontSize: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    fontSize: 9,
     fontFamily: "Helvetica-Bold",
   },
   tierTableCell: {
-    padding: 8,
-    fontSize: 10,
-    borderRightWidth: 1,
-    borderRightColor: "#ccc",
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    fontSize: 9,
   },
   tierTableCellLast: {
-    padding: 8,
-    fontSize: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    fontSize: 9,
   },
   // Signatures
   signatureBlock: {
@@ -340,6 +349,9 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
       if (section.lexicalNodes && section.lexicalNodes.length > 0) {
         return (
           <View key={index}>
+            {section.subHeading && (
+              <Text style={styles.sectionSubHeading}>{section.subHeading}</Text>
+            )}
             {section.lexicalNodes.map((node: any, ni: number) =>
               renderLexicalNode(node, ni),
             )}
@@ -348,9 +360,12 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
       }
       // Plain text fallback
       return (
-        <Text key={index} style={styles.paragraph}>
-          {section.content}
-        </Text>
+        <View key={index}>
+          {section.subHeading && (
+            <Text style={styles.sectionSubHeading}>{section.subHeading}</Text>
+          )}
+          <Text style={styles.paragraph}>{section.content}</Text>
+        </View>
       );
 
     case "bullets":
@@ -365,12 +380,14 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
         </View>
       );
 
-    case "table":
+    case "table": {
+      const headerLabel = section.tableHeaders?.label ?? "";
+      const headerValue = section.tableHeaders?.value ?? "Amount";
       return (
         <View key={index} style={styles.table}>
           <View style={styles.tableHeaderRow}>
-            <Text style={styles.tableHeaderLabel}> </Text>
-            <Text style={styles.tableHeaderValue}>Amount</Text>
+            <Text style={styles.tableHeaderLabel}>{headerLabel || " "}</Text>
+            <Text style={styles.tableHeaderValue}>{headerValue}</Text>
           </View>
           {section.rows!.map((row, i) => (
             <View
@@ -383,6 +400,7 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
           ))}
         </View>
       );
+    }
 
     case "tierTable": {
       if (!section.tierTable) return null;
@@ -506,15 +524,23 @@ function renderLexicalNode(node: any, index: number): React.ReactNode {
       );
 
     case "heading": {
-      const level = node.tag === "h1" ? 16 : node.tag === "h2" ? 14 : 12;
+      // h1/h2/h3/h4 mapped to PDF sizes (one step smaller than legacy values).
+      const level =
+        node.tag === "h1"
+          ? 14
+          : node.tag === "h2"
+            ? 12
+            : node.tag === "h3"
+              ? 11
+              : 10;
       return (
         <Text
           key={index}
           style={{
             fontSize: level,
             fontFamily: "Helvetica-Bold",
-            marginTop: 12,
-            marginBottom: 6,
+            marginTop: 10,
+            marginBottom: 4,
           }}
         >
           {renderLexicalInline(node.children || [])}

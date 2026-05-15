@@ -89,8 +89,9 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
   const contactEmail = doc.agencyContactEmail || "peter@optimisedigital.online";
   const contactPhone = doc.agencyContactPhone || "0493053188";
 
-  const setupAmount = doc.setupFee ? formatCurrency(doc.setupFee) : "$0";
-  const retainerAmount = doc.monthlyRetainer ? formatCurrency(doc.monthlyRetainer) : "$0";
+  const currency = (doc.currency ?? "AUD") as Parameters<typeof formatCurrency>[1];
+  const setupAmount = formatCurrency(doc.setupFee ?? 0, currency);
+  const retainerAmount = formatCurrency(doc.monthlyRetainer ?? 0, currency);
 
   const children: (Paragraph | Table)[] = [];
 
@@ -205,90 +206,73 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     children.push(thinRule());
   }
 
-  // Pricing table — always rendered; setup fee row always shown ($0 when missing).
+  // Pricing table — horizontal-rules-only style. Setup fee row always shown ($0 when missing).
   {
     children.push(
-      new Paragraph({ text: "Pricing", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+      new Paragraph({ text: "Pricing", heading: HeadingLevel.HEADING_2, spacing: { after: 80 } }),
     );
 
     const labelWidth = Math.round(PAGE_WIDTH_DXA * 0.6);
     const valueWidth = PAGE_WIDTH_DXA - labelWidth;
 
-    const noBorders = {
-      top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+    const noVerticalBorders = {
       left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
       right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
     } as const;
-
     const thinBorder = { style: BorderStyle.SINGLE, size: 1, color: "111111" } as const;
+    const lightBorder = { style: BorderStyle.SINGLE, size: 1, color: "D4D4D4" } as const;
+
+    // Cell margins (twips) — compact rows.
+    const cellMargin = { top: 80, bottom: 80, left: 60, right: 60 } as const;
 
     const tableRows: TableRow[] = [
       new TableRow({
+        tableHeader: true,
         children: [
           new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: " ", bold: true })] })],
+            children: [new Paragraph({ children: [new TextRun({ text: "Service", bold: true })] })],
             width: { size: labelWidth, type: WidthType.DXA },
-            borders: { ...noBorders, bottom: thinBorder, right: thinBorder },
+            margins: cellMargin,
+            borders: { ...noVerticalBorders, top: thinBorder, bottom: thinBorder },
           }),
           new TableCell({
             children: [
               new Paragraph({
-                children: [new TextRun({ text: "Amount", bold: true })],
+                children: [new TextRun({ text: `Amount (${currency})`, bold: true })],
                 alignment: AlignmentType.RIGHT,
               }),
             ],
             width: { size: valueWidth, type: WidthType.DXA },
-            borders: { ...noBorders, bottom: thinBorder },
+            margins: cellMargin,
+            borders: { ...noVerticalBorders, top: thinBorder, bottom: thinBorder },
           }),
         ],
       }),
     ];
 
-    tableRows.push(
-      new TableRow({
-        children: [
-          new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: "One-time setup fee", bold: true })] })],
-            width: { size: labelWidth, type: WidthType.DXA },
-            borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, right: thinBorder },
-          }),
-          new TableCell({
-            children: [
-              new Paragraph({
-                text: formatCurrency(doc.setupFee ?? 0),
-                alignment: AlignmentType.RIGHT,
-              }),
-            ],
-            width: { size: valueWidth, type: WidthType.DXA },
-            borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } },
-          }),
-        ],
-      }),
-    );
-
-    if (doc.monthlyRetainer && doc.monthlyRetainer > 0) {
-      tableRows.push(
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: "Monthly management retainer", bold: true })] })],
-              width: { size: labelWidth, type: WidthType.DXA },
-              borders: { ...noBorders, right: thinBorder },
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  text: `${formatCurrency(doc.monthlyRetainer)}/month`,
-                  alignment: AlignmentType.RIGHT,
-                }),
-              ],
-              width: { size: valueWidth, type: WidthType.DXA },
-              borders: noBorders,
-            }),
-          ],
+    const bodyRow = (label: string, value: string) => new TableRow({
+      children: [
+        new TableCell({
+          children: [new Paragraph({ children: [new TextRun({ text: label })] })],
+          width: { size: labelWidth, type: WidthType.DXA },
+          margins: cellMargin,
+          borders: { ...noVerticalBorders, bottom: lightBorder },
         }),
-      );
+        new TableCell({
+          children: [new Paragraph({ text: value, alignment: AlignmentType.RIGHT })],
+          width: { size: valueWidth, type: WidthType.DXA },
+          margins: cellMargin,
+          borders: { ...noVerticalBorders, bottom: lightBorder },
+        }),
+      ],
+    });
+
+    tableRows.push(bodyRow("One-time setup fee", formatCurrency(doc.setupFee ?? 0, currency)));
+    if (doc.monthlyRetainer && doc.monthlyRetainer > 0) {
+      tableRows.push(bodyRow("Monthly management retainer", `${formatCurrency(doc.monthlyRetainer, currency)}/month`));
+    }
+    if (doc.monthlyHosting && doc.monthlyHosting > 0) {
+      tableRows.push(bodyRow("Monthly hosting", `${formatCurrency(doc.monthlyHosting, currency)}/month`));
     }
 
     children.push(
@@ -296,10 +280,10 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
         rows: tableRows,
         width: { size: PAGE_WIDTH_DXA, type: WidthType.DXA },
         borders: {
-          top: thinBorder,
-          bottom: thinBorder,
-          left: thinBorder,
-          right: thinBorder,
+          top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+          bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+          left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+          right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
           insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
           insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
         },
@@ -330,40 +314,44 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     const tierTable = parseTierTable(doc.annualReviewTierTableText);
     if (tierTable) {
       const thinBorder = { style: BorderStyle.SINGLE, size: 1, color: "111111" } as const;
-      const lightBorder = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } as const;
+      const lightBorder = { style: BorderStyle.SINGLE, size: 1, color: "D4D4D4" } as const;
+      const noVerticalBorders = {
+        left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      } as const;
+      const cellMargin = { top: 80, bottom: 80, left: 60, right: 60 } as const;
       const colCount = tierTable.headers.length;
       const colWidth = Math.floor(PAGE_WIDTH_DXA / Math.max(colCount, 1));
       const headerRow = new TableRow({
         tableHeader: true,
-        children: tierTable.headers.map((header, ci) => new TableCell({
+        children: tierTable.headers.map((header) => new TableCell({
           children: [new Paragraph({ children: [new TextRun({ text: header, bold: true })] })],
           width: { size: colWidth, type: WidthType.DXA },
-          shading: { type: "clear", color: "auto", fill: "F5F5F5" },
-          borders: {
-            top: thinBorder,
-            bottom: thinBorder,
-            left: ci === 0 ? thinBorder : { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            right: ci === tierTable.headers.length - 1 ? thinBorder : thinBorder,
-          },
+          margins: cellMargin,
+          borders: { ...noVerticalBorders, top: thinBorder, bottom: thinBorder },
         })),
       });
-      const bodyRows = tierTable.rows.map((row, ri) => new TableRow({
-        children: row.map((cell, ci) => new TableCell({
+      const bodyRows = tierTable.rows.map((row) => new TableRow({
+        children: row.map((cell) => new TableCell({
           children: [new Paragraph({ text: cell })],
           width: { size: colWidth, type: WidthType.DXA },
-          borders: {
-            top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            bottom: ri === tierTable.rows.length - 1 ? thinBorder : lightBorder,
-            left: ci === 0 ? thinBorder : { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            right: ci === row.length - 1 ? thinBorder : lightBorder,
-          },
+          margins: cellMargin,
+          borders: { ...noVerticalBorders, bottom: lightBorder },
         })),
       }));
-      children.push(new Paragraph({ spacing: { before: 100 } }));
+      children.push(new Paragraph({ spacing: { before: 80 } }));
       children.push(
         new Table({
           rows: [headerRow, ...bodyRows],
           width: { size: PAGE_WIDTH_DXA, type: WidthType.DXA },
+          borders: {
+            top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+          },
         }),
       );
       children.push(new Paragraph({ spacing: { after: 100 } }));
@@ -372,9 +360,15 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       children.push(...lexicalToDocx(doc.annualReviewNotice.root.children));
     }
     if (doc.annualReviewGoodFaithReview?.root?.children) {
+      children.push(
+        new Paragraph({ heading: HeadingLevel.HEADING_4, children: [new TextRun({ text: "Good Faith Review", bold: true })], spacing: { before: 120, after: 60 } }),
+      );
       children.push(...lexicalToDocx(doc.annualReviewGoodFaithReview.root.children));
     }
     if (doc.annualReviewAcceptance?.root?.children) {
+      children.push(
+        new Paragraph({ heading: HeadingLevel.HEADING_4, children: [new TextRun({ text: "Acceptance of Adjustment", bold: true })], spacing: { before: 120, after: 60 } }),
+      );
       children.push(...lexicalToDocx(doc.annualReviewAcceptance.root.children));
     }
     children.push(thinRule());

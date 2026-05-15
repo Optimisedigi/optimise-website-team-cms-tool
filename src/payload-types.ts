@@ -1153,15 +1153,19 @@ export interface Contract {
    */
   contractDate: string;
   /**
-   * Monthly retainer ($)
+   * Currency for all amounts on this contract. Shown in the pricing table header as 'Amount (CCY)' and used to format every monetary value.
+   */
+  currency?: ('AUD' | 'USD' | 'GBP' | 'EUR' | 'NZD' | 'CAD' | 'SGD') | null;
+  /**
+   * Monthly retainer
    */
   monthlyRetainer?: number | null;
   /**
-   * One-time setup fee ($)
+   * One-time setup fee
    */
   setupFee?: number | null;
   /**
-   * Monthly hosting cost ($)
+   * Monthly hosting cost
    */
   monthlyHosting?: number | null;
   /**
@@ -7002,6 +7006,7 @@ export interface ContractsSelect<T extends boolean = true> {
   clientPhone?: T;
   clientWebsite?: T;
   contractDate?: T;
+  currency?: T;
   monthlyRetainer?: T;
   setupFee?: T;
   monthlyHosting?: T;

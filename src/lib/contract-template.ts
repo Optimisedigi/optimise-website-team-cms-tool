@@ -4,6 +4,18 @@
  */
 import { parseTierTable, type TierTable } from "./tier-table";
 
+export type CurrencyCode = "AUD" | "USD" | "GBP" | "EUR" | "NZD" | "CAD" | "SGD";
+
+const CURRENCY_LOCALE: Record<CurrencyCode, string> = {
+  AUD: "en-AU",
+  USD: "en-US",
+  GBP: "en-GB",
+  EUR: "en-IE",
+  NZD: "en-NZ",
+  CAD: "en-CA",
+  SGD: "en-SG",
+};
+
 export interface ContractData {
   contractTitle: string;
   clientName: string;
@@ -17,6 +29,7 @@ export interface ContractData {
   monthlyRetainer?: number;
   setupFee?: number;
   monthlyHosting?: number;
+  currency?: CurrencyCode;
   contractTerm?: string;
   paymentTerms?: string;
   pricingNotes?: string;
@@ -54,6 +67,7 @@ export interface ContractSection {
   type:
     | "cover"
     | "heading"
+    | "subheading"
     | "paragraph"
     | "bullets"
     | "table"
@@ -61,10 +75,14 @@ export interface ContractSection {
     | "signatures"
     | "richtext";
   heading?: string;
+  /** Optional h4 sub-heading rendered immediately before a richtext section. */
+  subHeading?: string;
   content?: string;
   lexicalNodes?: any[];
   items?: string[];
   rows?: { label: string; value: string }[];
+  /** Column headers for `table` sections. Defaults to ['', 'Amount']. */
+  tableHeaders?: { label: string; value: string };
   tierTable?: TierTable;
   signatures?: {
     client: {
@@ -97,10 +115,11 @@ export interface ContractSection {
   };
 }
 
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
+export function formatCurrency(amount: number, currency: CurrencyCode = "AUD"): string {
+  const locale = CURRENCY_LOCALE[currency] ?? "en-AU";
+  return new Intl.NumberFormat(locale, {
     style: "currency",
-    currency: "AUD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
@@ -158,21 +177,22 @@ export function generateContractSections(data: ContractData): ContractSection[] 
   // Pricing
   // Setup fee is always shown in the pricing table — displays $0 when not
   // configured — so the line item is consistent across every contract.
+  const ccy = (data.currency ?? "AUD") as CurrencyCode;
   const pricingRows: { label: string; value: string }[] = [];
   pricingRows.push({
     label: "One-time setup fee",
-    value: formatCurrency(data.setupFee ?? 0),
+    value: formatCurrency(data.setupFee ?? 0, ccy),
   });
   if (data.monthlyRetainer) {
     pricingRows.push({
       label: "Monthly management retainer",
-      value: `${formatCurrency(data.monthlyRetainer)}/month`,
+      value: `${formatCurrency(data.monthlyRetainer, ccy)}/month`,
     });
   }
   if (data.monthlyHosting) {
     pricingRows.push({
       label: "Monthly hosting",
-      value: `${formatCurrency(data.monthlyHosting)}/month`,
+      value: `${formatCurrency(data.monthlyHosting, ccy)}/month`,
     });
   }
   if (pricingRows.length > 0) {
@@ -183,6 +203,7 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     sections.push({
       type: "table",
       rows: pricingRows,
+      tableHeaders: { label: "Service", value: `Amount (${ccy})` },
     });
   }
 
@@ -226,6 +247,7 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     if (data.annualReviewGoodFaithReview || data.annualReviewGoodFaithReviewNodes) {
       sections.push({
         type: "richtext",
+        subHeading: "Good Faith Review",
         content: data.annualReviewGoodFaithReview,
         lexicalNodes: data.annualReviewGoodFaithReviewNodes,
       });
@@ -233,6 +255,7 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     if (data.annualReviewAcceptance || data.annualReviewAcceptanceNodes) {
       sections.push({
         type: "richtext",
+        subHeading: "Acceptance of Adjustment",
         content: data.annualReviewAcceptance,
         lexicalNodes: data.annualReviewAcceptanceNodes,
       });
@@ -251,9 +274,9 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       lexicalNodes: data.paymentTermsOverrideNodes,
     });
   } else {
-    const setupAmount = data.setupFee ? formatCurrency(data.setupFee) : "$0";
-    const retainerAmount = data.monthlyRetainer ? formatCurrency(data.monthlyRetainer) : "$0";
-    const hostingAmount = data.monthlyHosting ? formatCurrency(data.monthlyHosting) : null;
+    const setupAmount = formatCurrency(data.setupFee ?? 0, ccy);
+    const retainerAmount = formatCurrency(data.monthlyRetainer ?? 0, ccy);
+    const hostingAmount = data.monthlyHosting ? formatCurrency(data.monthlyHosting, ccy) : null;
     const items = [
       `The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`,
       `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
