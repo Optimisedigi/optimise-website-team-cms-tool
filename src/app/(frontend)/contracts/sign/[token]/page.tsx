@@ -13,6 +13,7 @@ interface ContractInfo {
   clientWebsite?: string
   contractDate: string
   contractStartDate?: string
+  effectiveDateConfirmed?: boolean
   monthlyRetainer?: number
   setupFee?: number
   monthlyHosting?: number
@@ -388,12 +389,12 @@ export default function ContractSignPage() {
 
         <hr style={hrThickStyle} />
 
-        {/* Cover */}
-        <p style={{ fontSize: 16, margin: '0 0 16px' }}>Contract Agreement</p>
+        {/* Cover — generous spacing around the agency/client names. */}
+        <p style={{ fontSize: 16, margin: '0 0 18px' }}>Contract Agreement</p>
         <p style={{ fontSize: 16, margin: '0 0 8px' }}>Between</p>
-        <p style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>Optimise Digital Pty Ltd</p>
+        <p style={{ fontSize: 20, fontWeight: 700, margin: '0 0 28px' }}>Optimise Digital Pty Ltd</p>
         <p style={{ fontSize: 16, margin: '0 0 8px' }}>And</p>
-        <p style={{ fontSize: 18, fontWeight: 700, margin: '0 0 20px' }}>{clientDisplayName}</p>
+        <p style={{ fontSize: 20, fontWeight: 700, margin: '0 0 28px' }}>{clientDisplayName}</p>
 
         <hr style={hrThickStyle} />
 
@@ -527,7 +528,10 @@ export default function ContractSignPage() {
         </div>
 
         <p style={{ fontSize: 15, margin: '24px 0 0' }}>
-          <strong>Effective Date:</strong> {formatDate(contract.contractDate)} <span style={{ color: '#666', fontStyle: 'italic' }}>(to be confirmed with client)</span>
+          <strong>Effective Date:</strong> {formatDate(contract.contractDate)}
+          {!contract.effectiveDateConfirmed && (
+            <> <span style={{ color: '#666', fontStyle: 'italic' }}>(to be confirmed with client)</span></>
+          )}
         </p>
 
         <hr style={hrThickStyle} />
@@ -554,7 +558,7 @@ export default function ContractSignPage() {
 
         {/* Pricing — always rendered. Horizontal-rules-only look matching the design spec. */}
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Pricing</h2>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 14, borderTop: '1px solid #111', fontSize: 13 }}>
+        <table style={{ width: '60%', borderCollapse: 'collapse', marginBottom: 14, borderTop: '1px solid #111', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #111' }}>
               <th style={{ padding: '6px 4px', textAlign: 'left', fontWeight: 700 }}>Service</th>
@@ -612,7 +616,7 @@ export default function ContractSignPage() {
             {contract.annualReviewTierTable && (
               <table
                 style={{
-                  width: '100%',
+                  width: '70%',
                   borderCollapse: 'collapse',
                   borderTop: '1px solid #111',
                   margin: '10px 0 14px',
@@ -625,9 +629,10 @@ export default function ContractSignPage() {
                       <th
                         key={i}
                         style={{
-                          padding: '6px 4px',
-                          textAlign: 'left',
+                          padding: '6px 6px',
+                          textAlign: 'center',
                           fontWeight: 700,
+                          verticalAlign: 'bottom',
                         }}
                       >
                         {header}

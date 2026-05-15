@@ -53,6 +53,7 @@ export async function POST(
         monthlyRetainer: source.monthlyRetainer ?? undefined,
         setupFee: source.setupFee ?? undefined,
         currency: source.currency ?? undefined,
+        effectiveDateConfirmed: source.effectiveDateConfirmed ?? false,
         // Agency fields
         agencyContactName: source.agencyContactName || undefined,
         agencyContactEmail: source.agencyContactEmail || undefined,

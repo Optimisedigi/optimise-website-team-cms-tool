@@ -218,6 +218,15 @@ export const Contracts: CollectionConfig = {
               },
             },
             {
+              name: "effectiveDateConfirmed",
+              type: "checkbox",
+              defaultValue: false,
+              admin: {
+                description:
+                  "Toggle ON once the effective date is confirmed with the client. When OFF, the cover page shows '(to be confirmed with client)' next to the date; when ON, the qualifier is hidden.",
+              },
+            },
+            {
               name: "currency",
               type: "select",
               defaultValue: "AUD",
@@ -338,9 +347,11 @@ export const Contracts: CollectionConfig = {
               type: "textarea",
               admin: {
                 description:
-                  "Paste your tier table straight from Excel or Google Sheets. First line = column headers. Each subsequent line = one tier row. Cells are separated by Tab (what Sheets/Excel paste). Example: 'Trailing spend  |  Monthly retainer' on line 1, then 'Up to $60,000  |  $4,800' on line 2, etc. Supports any number of columns (e.g. AUD + USD).",
+                  "Spreadsheet-style tier table. The first row is the header (e.g. 'Trailing spend' / 'Monthly retainer'). Click any cell to edit; paste from Excel or Google Sheets into a cell to auto-fill multiple rows and columns. Stored as tab-separated text so existing renderers (PDF / HTML / Word) keep working.",
                 condition: (data) => Boolean(data?.annualReviewEnabled),
-                rows: 8,
+                components: {
+                  Field: "./components/TierTableGridEditor",
+                },
               },
             },
             {

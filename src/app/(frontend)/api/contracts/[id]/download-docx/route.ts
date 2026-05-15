@@ -183,17 +183,19 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     labelValuePara("Phone", contactPhone, 200),
   );
 
-  // Effective date
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({ text: "Effective Date: ", bold: true }),
-        new TextRun({ text: doc.contractDate ? formatDate(doc.contractDate) : "" }),
+  // Effective date — hide "(to be confirmed)" qualifier when the toggle is on.
+  {
+    const effectiveDateRuns = [
+      new TextRun({ text: "Effective Date: ", bold: true }),
+      new TextRun({ text: doc.contractDate ? formatDate(doc.contractDate) : "" }),
+    ];
+    if (!doc.effectiveDateConfirmed) {
+      effectiveDateRuns.push(
         new TextRun({ text: " (to be confirmed with client)", italics: true, color: "666666" }),
-      ],
-      spacing: { after: 200 },
-    }),
-  );
+      );
+    }
+    children.push(new Paragraph({ children: effectiveDateRuns, spacing: { after: 200 } }));
+  }
 
   children.push(thickRule());
 
@@ -212,8 +214,10 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       new Paragraph({ text: "Pricing", heading: HeadingLevel.HEADING_2, spacing: { after: 80 } }),
     );
 
-    const labelWidth = Math.round(PAGE_WIDTH_DXA * 0.6);
-    const valueWidth = PAGE_WIDTH_DXA - labelWidth;
+    // Pricing table is narrower than page width (~60%). 60/40 split inside that.
+    const pricingTableWidth = Math.round(PAGE_WIDTH_DXA * 0.6);
+    const labelWidth = Math.round(pricingTableWidth * 0.6);
+    const valueWidth = pricingTableWidth - labelWidth;
 
     const noVerticalBorders = {
       left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
@@ -278,7 +282,7 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     children.push(
       new Table({
         rows: tableRows,
-        width: { size: PAGE_WIDTH_DXA, type: WidthType.DXA },
+        width: { size: pricingTableWidth, type: WidthType.DXA },
         borders: {
           top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
           bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
@@ -320,12 +324,14 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
         right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
       } as const;
       const cellMargin = { top: 80, bottom: 80, left: 60, right: 60 } as const;
+      // Tier table is narrower than page width (~70%).
+      const tierTableWidth = Math.round(PAGE_WIDTH_DXA * 0.7);
       const colCount = tierTable.headers.length;
-      const colWidth = Math.floor(PAGE_WIDTH_DXA / Math.max(colCount, 1));
+      const colWidth = Math.floor(tierTableWidth / Math.max(colCount, 1));
       const headerRow = new TableRow({
         tableHeader: true,
         children: tierTable.headers.map((header) => new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: header, bold: true })] })],
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: header, bold: true })] })],
           width: { size: colWidth, type: WidthType.DXA },
           margins: cellMargin,
           borders: { ...noVerticalBorders, top: thinBorder, bottom: thinBorder },
@@ -343,7 +349,7 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       children.push(
         new Table({
           rows: [headerRow, ...bodyRows],
-          width: { size: PAGE_WIDTH_DXA, type: WidthType.DXA },
+          width: { size: tierTableWidth, type: WidthType.DXA },
           borders: {
             top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
             bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },

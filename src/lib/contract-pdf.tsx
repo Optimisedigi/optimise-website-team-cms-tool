@@ -34,9 +34,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   coverNameBold: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: "Helvetica-Bold",
-    marginBottom: 6,
+    marginTop: 10,
+    marginBottom: 18,
   },
   contractBetweenLine: {
     fontSize: 11,
@@ -112,6 +113,7 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderTopWidth: 1,
     borderTopColor: "#111",
+    width: "60%",
   },
   tableHeaderRow: {
     flexDirection: "row",
@@ -157,10 +159,12 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   // Tier table (N-column, used by Annual Review section) — same horizontal-lines look.
+  // Narrower than page width; header text centered so multi-line headers stay readable.
   tierTable: {
     marginVertical: 8,
     borderTopWidth: 1,
     borderTopColor: "#111",
+    width: "70%",
   },
   tierTableHeaderRow: {
     flexDirection: "row",
@@ -179,24 +183,26 @@ const styles = StyleSheet.create({
   },
   tierTableHeaderCell: {
     paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
+    textAlign: "center",
   },
   tierTableHeaderCellLast: {
     paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
+    textAlign: "center",
   },
   tierTableCell: {
     paddingVertical: 5,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     fontSize: 9,
   },
   tierTableCellLast: {
     paddingVertical: 5,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     fontSize: 9,
   },
   // Signatures
@@ -262,9 +268,9 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
           <View style={styles.hrThick} />
 
           <Text style={styles.coverText}>Contract Agreement</Text>
-          <Text style={styles.coverText}>Between</Text>
+          <Text style={[styles.coverText, { marginTop: 6 }]}>Between</Text>
           <Text style={styles.coverNameBold}>Optimise Digital Pty Ltd</Text>
-          <Text style={styles.coverText}>And</Text>
+          <Text style={[styles.coverText, { marginTop: 4 }]}>And</Text>
           <Text style={styles.coverNameBold}>{c.clientName}</Text>
 
           <View style={styles.hrThick} />
@@ -323,8 +329,11 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
 
           <Text style={styles.effectiveDate}>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>Effective Date:</Text>
-            {" "}{c.effectiveDate}{" "}
-            <Text style={{ color: "#666", fontFamily: "Helvetica-Oblique" }}>(to be confirmed with client)</Text>
+            {" "}{c.effectiveDate}
+            {c.effectiveDateConfirmed ? "" : " "}
+            {!c.effectiveDateConfirmed && (
+              <Text style={{ color: "#666", fontFamily: "Helvetica-Oblique" }}>(to be confirmed with client)</Text>
+            )}
           </Text>
           <View style={styles.hrThick} />
         </View>

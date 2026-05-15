@@ -1153,6 +1153,10 @@ export interface Contract {
    */
   contractDate: string;
   /**
+   * Toggle ON once the effective date is confirmed with the client. When OFF, the cover page shows '(to be confirmed with client)' next to the date; when ON, the qualifier is hidden.
+   */
+  effectiveDateConfirmed?: boolean | null;
+  /**
    * Currency for all amounts on this contract. Shown in the pricing table header as 'Amount (CCY)' and used to format every monetary value.
    */
   currency?: ('AUD' | 'USD' | 'GBP' | 'EUR' | 'NZD' | 'CAD' | 'SGD') | null;
@@ -7006,6 +7010,7 @@ export interface ContractsSelect<T extends boolean = true> {
   clientPhone?: T;
   clientWebsite?: T;
   contractDate?: T;
+  effectiveDateConfirmed?: T;
   currency?: T;
   monthlyRetainer?: T;
   setupFee?: T;

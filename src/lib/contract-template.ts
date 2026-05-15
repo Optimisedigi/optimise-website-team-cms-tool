@@ -30,6 +30,8 @@ export interface ContractData {
   setupFee?: number;
   monthlyHosting?: number;
   currency?: CurrencyCode;
+  /** When true the cover page hides the "(to be confirmed with client)" qualifier. */
+  effectiveDateConfirmed?: boolean;
   contractTerm?: string;
   paymentTerms?: string;
   pricingNotes?: string;
@@ -112,6 +114,7 @@ export interface ContractSection {
     agencyContactEmail?: string;
     agencyContactPhone?: string;
     effectiveDate: string;
+    effectiveDateConfirmed?: boolean;
   };
 }
 
@@ -158,6 +161,7 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       agencyContactEmail: data.agencyContactEmail || "peter@optimisedigital.online",
       agencyContactPhone: data.agencyContactPhone || "0493053188",
       effectiveDate: formatDate(data.contractDate),
+      effectiveDateConfirmed: data.effectiveDateConfirmed === true,
     },
   });
 

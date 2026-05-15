@@ -49,6 +49,7 @@ import { default as default_00f2f68e89ac94a9115ac79e7355850c } from '../../../co
 import { default as default_ee85e12563a2c76fb90347c827ce2e2c } from '../../../components/KeywordCategoryExcluder'
 import { default as default_0f5835a1721ce9d158589c56d0c0fb9d } from '../../../components/CreateContractButton'
 import { default as default_370a80b2909b592994cb28c05355bc3c } from '../../../components/ClientProposalPresentationLink'
+import { default as default_94eaeab32c437efb583ff77d2696f2b2 } from '../../../components/TierTableGridEditor'
 import { default as default_dc498ed93a93c18e4342ff8a50ddd9ec } from '../../../components/AgencySignButton'
 import { default as default_f67cf31d207033ac38b6ce6f5f074fb6 } from '../../../components/SendContractButton'
 import { default as default_f9eade6f7f767ed2b3c678a2659ef9d2 } from '../../../components/SendContractEmailButton'
@@ -56,6 +57,8 @@ import { default as default_dd37952574b774c5a30f482eff630855 } from '../../../co
 import { default as default_876a41240e98fb91b048fbca8e3bedba } from '../../../components/CreateFromTemplateButton'
 import { default as default_6b51bfc7ff3d088aa145c86f447b8fec } from '../../../components/StartProcessFromLeadButton'
 import { default as default_93823a9277bc02fa99ee18349ac99f8a } from '../../../components/ProcessTemplateWorksheet'
+import { default as default_deae2595362b3b8f2ecabbf725d5fcff } from '../../../components/DeckTemplatePreviewLink'
+import { default as default_f08de0d3cc7ef92fad4b9cc6d1a50c3e } from '../../../components/DeckTemplateUsageCount'
 import { default as default_03f868076ce9f068b848044dba6c2e81 } from '../../../components/ProcessTrackerCell'
 import { default as default_c942878b95bb76e4edb6703d0af13ae3 } from '../../../components/ProcessTracker'
 import { default as default_e5c235401c2506e52e0da17600621f37 } from '../../../components/ClientProcessWorksheet'
@@ -179,6 +182,7 @@ export const importMap = {
   "./components/KeywordCategoryExcluder#default": default_ee85e12563a2c76fb90347c827ce2e2c,
   "./components/CreateContractButton#default": default_0f5835a1721ce9d158589c56d0c0fb9d,
   "/components/ClientProposalPresentationLink#default": default_370a80b2909b592994cb28c05355bc3c,
+  "./components/TierTableGridEditor#default": default_94eaeab32c437efb583ff77d2696f2b2,
   "./components/AgencySignButton#default": default_dc498ed93a93c18e4342ff8a50ddd9ec,
   "./components/SendContractButton#default": default_f67cf31d207033ac38b6ce6f5f074fb6,
   "./components/SendContractEmailButton#default": default_f9eade6f7f767ed2b3c678a2659ef9d2,
@@ -186,6 +190,8 @@ export const importMap = {
   "./components/CreateFromTemplateButton#default": default_876a41240e98fb91b048fbca8e3bedba,
   "./components/StartProcessFromLeadButton#default": default_6b51bfc7ff3d088aa145c86f447b8fec,
   "./components/ProcessTemplateWorksheet#default": default_93823a9277bc02fa99ee18349ac99f8a,
+  "/components/DeckTemplatePreviewLink#default": default_deae2595362b3b8f2ecabbf725d5fcff,
+  "/components/DeckTemplateUsageCount#default": default_f08de0d3cc7ef92fad4b9cc6d1a50c3e,
   "./components/ProcessTrackerCell#default": default_03f868076ce9f068b848044dba6c2e81,
   "./components/ProcessTracker#default": default_c942878b95bb76e4edb6703d0af13ae3,
   "./components/ClientProcessWorksheet#default": default_e5c235401c2506e52e0da17600621f37,

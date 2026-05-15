@@ -2675,6 +2675,12 @@ export async function runMigrations(
     // every monetary value.
     await run("contracts.currency", "ALTER TABLE `contracts` ADD `currency` text DEFAULT 'AUD'");
 
+    // ── contracts.effective_date_confirmed (2026-05-15) ──
+    // Toggle controlling the "(to be confirmed with client)" qualifier on
+    // the cover page next to the effective date. When ON the qualifier
+    // is hidden (rendered as a plain date).
+    await run("contracts.effective_date_confirmed", "ALTER TABLE `contracts` ADD `effective_date_confirmed` integer DEFAULT 0");
+
     // ── client_proposals: pre-sale Notes + Prospect Timeline + Discovery Notes (2026-05-18) ──
     // Schemas mirror clients.client_notes / clients.client_account_timeline so the existing
     // ClientNotesTable / AccountTimelineTable React components work unchanged (they read the
