@@ -338,7 +338,7 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       const headerRow = new TableRow({
         tableHeader: true,
         children: tierTable.headers.map((header) => new TableCell({
-          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: header, bold: true })] })],
+          children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: header, bold: true })] })],
           width: { size: colWidth, type: WidthType.DXA },
           margins: cellMargin,
           borders: { ...noVerticalBorders, top: thinBorder, bottom: thinBorder },

@@ -187,14 +187,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
-    textAlign: "center",
+    textAlign: "left",
   },
   tierTableHeaderCellLast: {
     paddingVertical: 6,
     paddingHorizontal: 6,
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
-    textAlign: "center",
+    textAlign: "left",
   },
   tierTableCell: {
     paddingVertical: 5,

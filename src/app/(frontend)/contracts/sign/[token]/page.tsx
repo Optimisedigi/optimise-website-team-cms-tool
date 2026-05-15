@@ -630,7 +630,7 @@ export default function ContractSignPage() {
                         key={i}
                         style={{
                           padding: '6px 6px',
-                          textAlign: 'center',
+                          textAlign: 'left',
                           fontWeight: 700,
                           verticalAlign: 'bottom',
                         }}
