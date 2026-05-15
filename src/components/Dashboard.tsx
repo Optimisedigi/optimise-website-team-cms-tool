@@ -220,6 +220,7 @@ const Dashboard = () => {
   const [xeroInvoices, setXeroInvoices] = useState<XeroInvoiceSummary | null>(null)
   const [xeroScheduled, setXeroScheduled] = useState<XeroScheduledSend[]>([])
   const [xeroLoading, setXeroLoading] = useState(true)
+  const [statementsSummary, setStatementsSummary] = useState<{ pendingCount: number; totalOutstanding: number } | null>(null)
 
   const fetchDashboard = () => {
     return fetch('/api/dashboard')
@@ -268,9 +269,11 @@ const Dashboard = () => {
     Promise.all([
       fetch('/api/xero/invoices').then((r) => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/xero/scheduled-sends').then((r) => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([invoices, scheduled]) => {
+      fetch('/api/invoice-statements/pending-summary').then((r) => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([invoices, scheduled, statements]) => {
       if (invoices && !invoices.error) setXeroInvoices(invoices)
       if (Array.isArray(scheduled)) setXeroScheduled(scheduled)
+      if (statements && !statements.error) setStatementsSummary(statements)
       setXeroLoading(false)
     })
   }
@@ -416,6 +419,35 @@ const Dashboard = () => {
 
           {/* Outstanding Invoices & Scheduled Sends */}
           <XeroInvoicesCard invoices={xeroInvoices} scheduled={xeroScheduled} loading={xeroLoading} onRefresh={fetchXeroData} />
+
+          {/* Pending Statements widget */}
+          {statementsSummary && statementsSummary.pendingCount > 0 && (
+            <a
+              href="/admin/finance/invoice-statements"
+              style={{
+                display: 'block',
+                padding: 14,
+                marginBottom: 16,
+                background: 'var(--theme-elevation-0)',
+                border: '1px solid var(--theme-elevation-100)',
+                borderRadius: 8,
+                textDecoration: 'none',
+                color: 'inherit',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Pending statements
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
+                    {statementsSummary.pendingCount} client{statementsSummary.pendingCount === 1 ? '' : 's'} · ${statementsSummary.totalOutstanding.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} awaiting approval
+                  </div>
+                </div>
+                <div style={{ fontSize: 14, color: '#1a73e8' }}>Review →</div>
+              </div>
+            </a>
+          )}
 
           {/* Client Processes */}
           <ProcessesCard processes={data.processes} />

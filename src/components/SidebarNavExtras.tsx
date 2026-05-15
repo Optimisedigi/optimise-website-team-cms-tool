@@ -45,6 +45,8 @@ const ICONS = {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>',
   agentAuth:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  invoiceStatements:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3 5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="14 3 14 8 19 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>',
 }
 
 const SidebarNavExtras = () => {
@@ -168,6 +170,19 @@ const SidebarNavExtras = () => {
         'Invoices',
         'prepend',
       )
+      injectLink(
+        '#nav-group-Finance .nav-group__content',
+        'invoice-statements',
+        '/admin/finance/invoice-statements',
+        ICONS.invoiceStatements,
+        'Invoice Statements',
+        'append',
+      )
+      // Hide the auto-generated collection link — we have a custom page.
+      const autoLink = document.querySelector(
+        'a.nav__link[href="/admin/collections/invoice-statement-drafts"]',
+      ) as HTMLElement | null
+      if (autoLink) autoLink.style.display = 'none'
     }
 
     if (canContractorCosts) {

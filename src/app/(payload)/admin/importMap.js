@@ -111,6 +111,8 @@ import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../co
 import { default as default_0a0f3b40e58f63623cf710a9f1c57a57 } from '../../../components/FeatureAccessPicker'
 import { default as default_d7691cd6896b18804e19a29368edb888 } from '../../../components/ConnectSheetsButton'
 import { default as default_f7ce8484c2a04dac97a85c29cde49f11 } from '../../../components/ConnectCalendarButton'
+import { default as default_bdbf091e4ee4c8ba764b4f4e25a35525 } from '../../../components/SignaturePreviewField'
+import { default as default_77e619a924b976ecf037ef3b071568ba } from '../../../components/InvoiceStatementPreviewField'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_2539ed3128925d1e4131db1b637125cd } from '../../../components/NotificationsBell'
@@ -245,6 +247,8 @@ export const importMap = {
   "./components/FeatureAccessPicker#default": default_0a0f3b40e58f63623cf710a9f1c57a57,
   "./components/ConnectSheetsButton#default": default_d7691cd6896b18804e19a29368edb888,
   "./components/ConnectCalendarButton#default": default_f7ce8484c2a04dac97a85c29cde49f11,
+  "/components/SignaturePreviewField#default": default_bdbf091e4ee4c8ba764b4f4e25a35525,
+  "/components/InvoiceStatementPreviewField#default": default_77e619a924b976ecf037ef3b071568ba,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/NotificationsBell#default": default_2539ed3128925d1e4131db1b637125cd,

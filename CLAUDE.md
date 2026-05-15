@@ -35,7 +35,8 @@ Still actively expanding — core audit/proposal/content/GSC features are built,
 | **Google Ads** | Via Growth Tools | Google Ads audit data (requires MCC access grant from client) |
 | **Google Gemini** | `GOOGLE_GENERATIVE_AI_API_KEY` | Blog prompt generation, blog cover image generation |
 | **PageSpeed Insights** | `GOOGLE_PAGESPEED_API_KEY` | Screenshot fallback |
-| **Postmark** | `POSTMARK_API_KEY` | Audit email delivery |
+| **Postmark** | `POSTMARK_API_KEY` | Audit email delivery (not yet live) |
+| **Brevo** | `BREVO_API_KEY` | Contract / scheduler / invoice statement email delivery |
 | **Vercel Blob** | `BLOB_READ_WRITE_TOKEN` | Media and screenshot storage |
 | **Turso** | `DATABASE_URL`, `DATABASE_AUTH_TOKEN` | Production database |
 
@@ -81,7 +82,7 @@ scripts/                  # Utility scripts (e.g. migrate-richtext)
 **Audits:** `seo-audits`, `cro-audits`, `keyword-snapshots`, `competitor-analyses`, `content-researches`, `google-ads-audits`
 **GSC:** `gsc-snapshots`, `gsc-daily`, `gsc-alerts`
 **Content:** `blog-posts`, `blog-prompts`, `job-posts`, `internal-link-suggestions`
-**Finance:** `business-costs`, `cost-categories`, `cost-rules`
+**Finance:** `business-costs`, `cost-categories`, `cost-rules`, `invoice-statement-drafts`
 **Negative Keywords:** `negative-keyword-lists` (ongoing NKL management per client)
 **Processes:** `process-templates` (reusable blueprints), `client-processes` (live trackable instances)
 **Utility:** `activity-log`, `usage-reports`, `api-key-access`
@@ -138,6 +139,12 @@ Live-rendered slide decks (no filesystem writes in production).
 | `/api/client-processes/[id]/email-preview` | POST | Generate Gmail-ready progress update email |
 | `/api/client-processes/create-from-template` | POST | Create client process from a template |
 | `/api/process-templates/import-from-process` | POST | Import existing client process as reusable template |
+| `/api/invoice-statements/sweep` | GET | Monthly cron — generates statement drafts for clients with ≥2 outstanding invoices (CRON_SECRET) |
+| `/api/invoice-statements/[id]/preview` | POST | Build statement email HTML from current snapshot + custom message |
+| `/api/invoice-statements/[id]/refresh-snapshot` | POST | Re-fetch outstanding from Growth Tools and update snapshot |
+| `/api/invoice-statements/[id]/approve-send` | POST | Run safety caps + send via Postmark with CC + PDFs |
+| `/api/invoice-statements/[id]/reject` | POST | Mark draft rejected with optional reason |
+| `/api/invoice-statements/pending-summary` | GET | Counts + totals for dashboard widget and queue header |
 
 ## Key Workflows
 
@@ -182,6 +189,7 @@ Fix all errors before committing or continuing.
 ## Deployment Gotchas
 
 - **New collections require manual migration:** `POST /api/migrate` with `x-api-key` header after every deploy that adds tables/columns. Missing tables blank out the entire admin.
+- **Invoice statements deploy checklist:** after deploy, (1) run `/api/migrate` to add the `invoice_statement_drafts` table + FK on `payload_locked_documents_rels`; (2) verify the `0 22 1 * *` cron is registered in Vercel → Project → Cron Jobs; (3) verify `optimisedigital.online` is Brevo-verified (Senders & IPs → Domains) so `accounts@optimisedigital.online` can send.
 - **`payload_locked_documents_rels`:** Must add FK columns for every new collection or record views crash.
 - **importMap.js:** `payload generate:importmap` always drops `VercelBlobClientUploadHandler`. Kill dev server before editing. Re-add manually.
 - **Commit everything:** `payload-types.ts`, new globals, new routes — local build passes without them but Vercel fails.

@@ -61,6 +61,10 @@ export const Notifications: CollectionConfig = {
           label: "Contract annual review — 11.5 month",
           value: "contract-annual-review-11.5mo",
         },
+        {
+          label: "Invoice statements ready for review",
+          value: "invoice-statements-ready",
+        },
       ],
     },
     {

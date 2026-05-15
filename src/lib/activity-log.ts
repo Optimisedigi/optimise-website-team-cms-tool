@@ -33,7 +33,13 @@ type ActivityType =
   | "meeting_confirmed"
   | "ai_visibility_snapshot_created"
   | "serp_displacement_snapshot_created"
-  | "serp_displacement_alert_created";
+  | "serp_displacement_alert_created"
+  | "invoice_statements_swept"
+  | "invoice_statements_sweep_aborted"
+  | "invoice_statement_approved"
+  | "invoice_statement_rejected"
+  | "invoice_statement_send_failed"
+  | "invoice_statement_cap_tripped";
 
 interface ActivityEntry {
   type: ActivityType;

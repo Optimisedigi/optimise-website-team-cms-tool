@@ -64,6 +64,7 @@ import { ScheduledAgentTasks } from "./collections/ScheduledAgentTasks";
 import { OptimateChatTurns } from "./collections/OptimateChatTurns";
 import { ContractReminders } from "./collections/ContractReminders";
 import { Notifications } from "./collections/Notifications";
+import { InvoiceStatementDrafts } from "./collections/InvoiceStatementDrafts";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -112,7 +113,7 @@ export default buildConfig({
     // Reports
     AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Finance
-    BusinessCosts, CostCategories, CostRules,
+    BusinessCosts, CostCategories, CostRules, InvoiceStatementDrafts,
     Contractors, ContractorTimeEntries, ContractorPayments,
     // Admin
     Users, PermissionProfiles, UsageReports, ActivityLog,

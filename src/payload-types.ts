@@ -99,6 +99,7 @@ export interface Config {
     'business-costs': BusinessCost;
     'cost-categories': CostCategory;
     'cost-rules': CostRule;
+    'invoice-statement-drafts': InvoiceStatementDraft;
     contractors: Contractor;
     'contractor-time-entries': ContractorTimeEntry;
     'contractor-payments': ContractorPayment;
@@ -171,6 +172,7 @@ export interface Config {
     'business-costs': BusinessCostsSelect<false> | BusinessCostsSelect<true>;
     'cost-categories': CostCategoriesSelect<false> | CostCategoriesSelect<true>;
     'cost-rules': CostRulesSelect<false> | CostRulesSelect<true>;
+    'invoice-statement-drafts': InvoiceStatementDraftsSelect<false> | InvoiceStatementDraftsSelect<true>;
     contractors: ContractorsSelect<false> | ContractorsSelect<true>;
     'contractor-time-entries': ContractorTimeEntriesSelect<false> | ContractorTimeEntriesSelect<true>;
     'contractor-payments': ContractorPaymentsSelect<false> | ContractorPaymentsSelect<true>;
@@ -1125,7 +1127,7 @@ export interface Contract {
    */
   proposal?: (number | null) | ClientProposal;
   /**
-   * Linked client (populated after conversion)
+   * Linked client. Auto-populated when a proposal converts to a client; manually selectable for direct-to-client contracts (no proposal in between).
    */
   client?: (number | null) | Client;
   /**
@@ -5359,6 +5361,82 @@ export interface CostRule {
   createdAt: string;
 }
 /**
+ * Aggregated outstanding-invoice statement emails awaiting human approval.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "invoice-statement-drafts".
+ */
+export interface InvoiceStatementDraft {
+  id: number;
+  status: 'pending' | 'approved' | 'rejected' | 'failed' | 'expired';
+  generatedAt: string;
+  /**
+   * Upsert key. Stable per Xero contact.
+   */
+  xeroContactId: string;
+  /**
+   * Denormalised from snapshot for list rendering.
+   */
+  contactName: string;
+  /**
+   * Empty string when the Xero contact has no email — surfaces in the queue so the gap is visible. Approve & Send is disabled until populated.
+   */
+  recipientEmail?: string | null;
+  /**
+   * Best-effort case-insensitive name match. May be blank if no client record matches.
+   */
+  client?: (number | null) | Client;
+  /**
+   * Sum of AmountDue across all unpaid invoices (AUD).
+   */
+  totalOutstanding: number;
+  totalOverdue: number;
+  unpaidCount: number;
+  overdueCount: number;
+  /**
+   * Frozen StatementSnapshot — contact, unpaid[], paid[], totals, capturedAt.
+   */
+  snapshot:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Optional personal note prepended above the invoice table.
+   */
+  customMessage?: string | null;
+  /**
+   * Override the global greeting for this single draft. Leave blank to use the template greeting. Example: "Hi team,".
+   */
+  greetingOverride?: string | null;
+  reviewedBy?: (number | null) | User;
+  reviewedAt?: string | null;
+  sentAt?: string | null;
+  /**
+   * Returned by Postmark after a successful send.
+   */
+  postmarkMessageId?: string | null;
+  /**
+   * Snapshot of `statementCcEmails` at send time (comma-separated). For audit.
+   */
+  ccList?: string | null;
+  /**
+   * Populated when `status='failed'`.
+   */
+  sendError?: string | null;
+  rejectionReason?: string | null;
+  /**
+   * When the snapshot was last refreshed against Xero. Used to flag stale drafts in the queue.
+   */
+  lastRefreshedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Contractors and their rate cards. Each contractor gets a portal token they use to log hours.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -6286,7 +6364,7 @@ export interface ContractReminder {
 export interface Notification {
   id: number;
   recipient: number | User;
-  kind: 'contract-annual-review-11mo' | 'contract-annual-review-11.5mo';
+  kind: 'contract-annual-review-11mo' | 'contract-annual-review-11.5mo' | 'invoice-statements-ready';
   title: string;
   /**
    * Short summary line.
@@ -6456,6 +6534,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'cost-rules';
         value: number | CostRule;
+      } | null)
+    | ({
+        relationTo: 'invoice-statement-drafts';
+        value: number | InvoiceStatementDraft;
       } | null)
     | ({
         relationTo: 'contractors';
@@ -8115,6 +8197,35 @@ export interface CostRulesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "invoice-statement-drafts_select".
+ */
+export interface InvoiceStatementDraftsSelect<T extends boolean = true> {
+  status?: T;
+  generatedAt?: T;
+  xeroContactId?: T;
+  contactName?: T;
+  recipientEmail?: T;
+  client?: T;
+  totalOutstanding?: T;
+  totalOverdue?: T;
+  unpaidCount?: T;
+  overdueCount?: T;
+  snapshot?: T;
+  customMessage?: T;
+  greetingOverride?: T;
+  reviewedBy?: T;
+  reviewedAt?: T;
+  sentAt?: T;
+  postmarkMessageId?: T;
+  ccList?: T;
+  sendError?: T;
+  rejectionReason?: T;
+  lastRefreshedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "contractors_select".
  */
 export interface ContractorsSelect<T extends boolean = true> {
@@ -8686,7 +8797,7 @@ export interface ApiCostRate {
   createdAt?: string | null;
 }
 /**
- * Auto-reply email template fragments sent to new leads. Edit any field to customise; leave blank to use the default.
+ * Reusable email fragments: lead-response auto-replies, brand signature block, and invoice statement template.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "email-templates".
@@ -8775,6 +8886,42 @@ export interface EmailTemplate {
    * Use {firstName} as a placeholder for the lead's first name.
    */
   subjectTemplate?: string | null;
+  /**
+   * Raw HTML block. Brand-only — no name, no contact details. Rendered below the per-template sign-off + sender name.
+   */
+  signatureHtml: string;
+  /**
+   * Optional convenience field — swap the main logo without editing HTML.
+   */
+  signatureLogoImage?: (number | null) | Media;
+  signatureGoogleBadge?: (number | null) | Media;
+  signatureMetaBadge?: (number | null) | Media;
+  statementFromEmail: string;
+  /**
+   * Defaults to From email if blank.
+   */
+  statementReplyToEmail?: string | null;
+  /**
+   * Comma-separated. Always CC'd on every approved send.
+   */
+  statementCcEmails: string;
+  statementSubjectTemplate: string;
+  statementGreeting: string;
+  statementOpeningLine: string;
+  statementSummaryTemplate: string;
+  /**
+   * Block rendered between the invoice table and sign-off.
+   */
+  statementPaymentMethodsHtml: string;
+  statementClosingLine: string;
+  /**
+   * Line above the sender name (e.g. 'Thanks,').
+   */
+  statementSignOff: string;
+  /**
+   * Rendered below the sign-off, above the brand signature.
+   */
+  statementSenderName: string;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -8882,6 +9029,21 @@ export interface EmailTemplatesSelect<T extends boolean = true> {
       };
   closingParagraph?: T;
   subjectTemplate?: T;
+  signatureHtml?: T;
+  signatureLogoImage?: T;
+  signatureGoogleBadge?: T;
+  signatureMetaBadge?: T;
+  statementFromEmail?: T;
+  statementReplyToEmail?: T;
+  statementCcEmails?: T;
+  statementSubjectTemplate?: T;
+  statementGreeting?: T;
+  statementOpeningLine?: T;
+  statementSummaryTemplate?: T;
+  statementPaymentMethodsHtml?: T;
+  statementClosingLine?: T;
+  statementSignOff?: T;
+  statementSenderName?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
