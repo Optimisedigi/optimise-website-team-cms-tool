@@ -1,7 +1,7 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
-import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { canAccessOrApiKey, adminOnlyDelete } from "../lib/access";
 
 /**
  * Denormalise the linked client's name onto the snapshot so the admin list view
@@ -40,7 +40,11 @@ export const AiVisibilitySnapshots: CollectionConfig = {
     group: "Reports",
     description:
       "Weekly AI assistant referral traffic snapshots (ChatGPT, Perplexity, Gemini, Claude, Copilot, etc.) pulled from GA4 by Growth Tools.",
-    hidden: hideUnlessFeature("ai-visibility-snapshots"),
+    // Hidden from the sidebar entirely. Growth Tools push integration is not
+    // yet wired up, so the table is empty and clutters the nav. Routes still
+    // work for programmatic access (OptiMate's get_ai_visibility tool reads
+    // via payload.find with overrideAccess: true).
+    hidden: true,
   },
   hooks: {
     beforeChange: [denormaliseClientName],

@@ -445,6 +445,31 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpolyline points='9 12 11 14 15 10'/%3E#{$svg-close}");
 }
 
+// Agent Approval Queue — clipboard-with-check (review queue)
+.nav #nav-agent-approval-queue {
+  @include nav-icon("#{$svg-open}%3Crect x='8' y='2' width='8' height='4' rx='1' ry='1'/%3E%3Cpath d='M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'/%3E%3Cpath d='m9 14 2 2 4-4'/%3E#{$svg-close}");
+}
+
+// Agent Memory — brain (long-term recall)
+.nav #nav-agent-memory {
+  @include nav-icon("#{$svg-open}%3Cpath d='M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2z'/%3E%3Cpath d='M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2z'/%3E#{$svg-close}");
+}
+
+// Agent Soul — sparkle (personality/identity)
+.nav #nav-agent-soul {
+  @include nav-icon("#{$svg-open}%3Cpath d='M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z'/%3E#{$svg-close}");
+}
+
+// Scheduled Agent Tasks — clock with arrow (scheduled recurring)
+.nav #nav-scheduled-agent-tasks {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E#{$svg-close}");
+}
+
+// Deck Templates — presentation slide with chart
+.nav #nav-deck-templates {
+  @include nav-icon("#{$svg-open}%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3Cpolyline points='7 12 10 9 13 12 17 8'/%3E#{$svg-close}");
+}
+
 // Hide Payload's default active indicator (we use our own blue highlight)
 .od-nav-active .nav__link-indicator {
   display: none !important;

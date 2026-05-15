@@ -10,7 +10,9 @@ const BG = '#1a1a2e'
 type MiniIcon = {
   label: string
   href: string
-  feature: FeatureSlug
+  // Omit to show the entry for any logged-in user (used for nav links that
+  // aren't feature-gated, e.g. Agent Approvals).
+  feature?: FeatureSlug
   svg: React.ReactNode
 }
 
@@ -65,12 +67,49 @@ const icons: MiniIcon[] = [
     ),
   },
   {
+    label: 'Blog Prompter',
+    href: '/admin/blog/prompter',
+    feature: 'blog-prompts',
+    svg: (
+      // Lightbulb — mirrors the #nav-blog-prompts icon in custom.scss.
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="9" y1="18" x2="15" y2="18" />
+        <line x1="10" y1="22" x2="14" y2="22" />
+        <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Google Ads',
+    href: '/admin/google-ads',
+    feature: 'nav:google-ads',
+    svg: (
+      // Paper plane — mirrors the googleAds icon in SidebarNavExtras.
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="3 11 22 2 13 21 11 13 3 11" />
+      </svg>
+    ),
+  },
+  {
     label: 'Search Console',
     href: '/admin/performance/search-console',
     feature: 'nav:search-console',
     svg: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Agent Approvals',
+    href: '/agent-approvals',
+    // No feature key — surfaced for any logged-in user, mirroring the
+    // SidebarNavExtras pattern (the page itself does its own auth check).
+    svg: (
+      // Clipboard-with-check — mirrors the agentApprovals icon in SidebarNavExtras.
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 11l3 3 8-8" />
+        <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
       </svg>
     ),
   },
@@ -92,7 +131,8 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
 
   // Hide sidebar entirely when not logged in (login, create-first-user, etc.)
   const isLoggedIn = !!user
-  const visibleIcons = icons.filter((item) => userHasFeature(user, item.feature))
+  // No `feature` means the item is visible to any logged-in user.
+  const visibleIcons = icons.filter((item) => !item.feature || userHasFeature(user, item.feature))
 
   return (
     <>

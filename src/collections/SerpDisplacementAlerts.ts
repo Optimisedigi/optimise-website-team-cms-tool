@@ -1,7 +1,7 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import { hasValidApiKey } from "./api-key-access";
 import { logActivity } from "../lib/activity-log";
-import { canAccessOrApiKey, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { canAccessOrApiKey, adminOnlyDelete } from "../lib/access";
 
 /**
  * Denormalise the linked client's name onto the alert so the admin list view
@@ -45,7 +45,11 @@ export const SerpDisplacementAlerts: CollectionConfig = {
     group: "Reports",
     description:
       "Material SERP changes flagged by the daily displacement diff (AI Overview appeared/lost, citations gained/lost, organic drop, paid displaced). Pushed by Growth Tools.",
-    hidden: hideUnlessFeature("serp-displacement-alerts"),
+    // Hidden from the sidebar entirely. Growth Tools push integration is not
+    // yet wired up, so the table is empty and clutters the nav. Routes still
+    // work for programmatic access (OptiMate's get_serp_displacement_alerts
+    // tool reads via payload.find with overrideAccess: true).
+    hidden: true,
   },
   hooks: {
     beforeChange: [denormaliseClientName],
