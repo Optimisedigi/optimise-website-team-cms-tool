@@ -56,6 +56,48 @@ const trackRetainerChange: CollectionBeforeChangeHook = async ({
 };
 
 /**
+ * Extract the deck-slug segment from a full deck URL.
+ * Accepts forms like:
+ *   https://cms.optimisedigital.online/partners/acme/google-ads-audit/
+ *   https://cms.optimisedigital.online/partners/acme/google-ads-audit#tldr
+ *   /partners/acme/google-ads-audit/
+ *   google-ads-audit  (used as-is)
+ * Returns the second path segment after `/partners/`, or the input itself
+ * if no `/partners/` segment is present.
+ */
+function extractDeckSlugFromUrl(deckUrl: string): string {
+  const trimmed = deckUrl.trim();
+  if (!trimmed) return "";
+  try {
+    const href = trimmed.startsWith("http")
+      ? trimmed
+      : `https://example.com${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+    const { pathname } = new URL(href);
+    const parts = pathname
+      .replace(/^\/partners\//, "")
+      .split("/")
+      .filter(Boolean);
+    if (parts.length >= 2) return parts[1];
+  } catch {
+    // fall through
+  }
+  // No `/partners/<client>/<deck>` shape — strip any hash/trailing slash and return.
+  return trimmed.replace(/[#?].*$/, "").replace(/\/+$/, "");
+}
+
+const derivePresentationDeckSlugs: CollectionBeforeChangeHook = ({ data }) => {
+  if (!data || !Array.isArray(data.presentations)) return data;
+  data.presentations = data.presentations.map(
+    (p: { deckUrl?: string | null; deckSlug?: string | null } & Record<string, unknown>) => {
+      const url = typeof p.deckUrl === "string" ? p.deckUrl : "";
+      const derived = extractDeckSlugFromUrl(url);
+      return { ...p, deckSlug: derived || p.deckSlug || "" };
+    },
+  );
+  return data;
+};
+
+/**
  * Clients Collection
  *
  * Each client represents a website/business you manage.
@@ -82,7 +124,7 @@ export const Clients: CollectionConfig = {
     delete: adminOnlyDelete,
   },
   hooks: {
-    beforeChange: [trackRetainerChange],
+    beforeChange: [trackRetainerChange, derivePresentationDeckSlugs],
     afterChange: [
       async ({ doc, operation, req }) => {
         if (operation === "create") {
