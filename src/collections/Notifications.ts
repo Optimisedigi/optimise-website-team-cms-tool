@@ -1,0 +1,105 @@
+import type { CollectionConfig } from "payload";
+
+/**
+ * In-CMS Notifications.
+ *
+ * Per-user, dismissible notifications surfaced via the bell component in the
+ * admin top-bar. **Sparingly used** — only explicit user-facing events worth
+ * interrupting someone for. Not a generic activity-log feed; that lives in
+ * `activity-log`.
+ *
+ * Initial event kinds:
+ *  - `contract-annual-review-11mo` — fired by `/api/contract-reminders/tick`.
+ *  - `contract-annual-review-11.5mo` — same.
+ *
+ * Read access is per-recipient: non-admin users only see their own rows.
+ */
+export const Notifications: CollectionConfig = {
+  slug: "notifications" as never,
+  labels: {
+    singular: "Notification",
+    plural: "Notifications",
+  },
+  admin: {
+    group: "Admin",
+    hidden: true,
+    useAsTitle: "title",
+    defaultColumns: ["title", "recipient", "kind", "readAt", "createdAt"],
+    description:
+      "In-CMS notifications surfaced via the admin top-bar bell. Per-user, dismissible.",
+  },
+  access: {
+    read: ({ req }) => {
+      const user = req.user as { id?: string | number; role?: string } | null;
+      if (!user) return false;
+      if (user.role === "admin") return true;
+      return { recipient: { equals: user.id } };
+    },
+    create: ({ req }) => Boolean(req.user),
+    update: ({ req }) => Boolean(req.user),
+    delete: ({ req }) =>
+      (req.user as { role?: string } | null)?.role === "admin",
+  },
+  fields: [
+    {
+      name: "recipient",
+      type: "relationship",
+      relationTo: "users",
+      required: true,
+      index: true,
+    },
+    {
+      name: "kind",
+      type: "select",
+      required: true,
+      options: [
+        {
+          label: "Contract annual review — 11 month",
+          value: "contract-annual-review-11mo",
+        },
+        {
+          label: "Contract annual review — 11.5 month",
+          value: "contract-annual-review-11.5mo",
+        },
+      ],
+    },
+    {
+      name: "title",
+      type: "text",
+      required: true,
+    },
+    {
+      name: "body",
+      type: "text",
+      admin: {
+        description: "Short summary line.",
+      },
+    },
+    {
+      name: "url",
+      type: "text",
+      admin: {
+        description: "Deep link (relative, e.g. /admin/collections/contracts/123).",
+      },
+    },
+    {
+      name: "relatedContract",
+      type: "relationship",
+      relationTo: "contracts" as never,
+    },
+    {
+      name: "relatedClient",
+      type: "relationship",
+      relationTo: "clients",
+    },
+    {
+      name: "readAt",
+      type: "date",
+      admin: {
+        description:
+          "When the recipient dismissed or clicked the notification. Null until then.",
+      },
+    },
+  ],
+  timestamps: true,
+};

@@ -2714,6 +2714,90 @@ export async function runMigrations(
     await run("client_proposals_account_timeline_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_account_timeline_parent_id_idx` ON `client_proposals_account_timeline` (`_parent_id`)");
 
     await run("client_proposals.discovery_notes", "ALTER TABLE `client_proposals` ADD `discovery_notes` text");
+
+    // ── Contract annual-review reminders (2026-05-15) ──
+    // Master toggle on contracts + dedicated rels rows for the hasMany
+    // recipient relationship + new contract_reminders / notifications tables
+    // + their locked-docs FKs.
+    await run("contracts.annual_review_reminder_enabled", "ALTER TABLE `contracts` ADD `annual_review_reminder_enabled` integer DEFAULT 1");
+
+    // Payload stores hasMany relationship fields in a `<collection>_rels`
+    // table (see permission_profiles migration for the precedent).
+    // contracts.annualReviewReminderRecipients (hasMany users) needs:
+    //   - a `contracts_rels` table if it doesn't exist (path='annualReviewReminderRecipients', users_id FK)
+    await run("contracts_rels", `CREATE TABLE IF NOT EXISTS \`contracts_rels\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`order\` integer,
+      \`parent_id\` integer NOT NULL,
+      \`path\` text NOT NULL,
+      \`users_id\` integer,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`contracts\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("contracts_rels_order_idx", "CREATE INDEX IF NOT EXISTS `contracts_rels_order_idx` ON `contracts_rels` (`order`)");
+    await run("contracts_rels_parent_idx", "CREATE INDEX IF NOT EXISTS `contracts_rels_parent_idx` ON `contracts_rels` (`parent_id`)");
+    await run("contracts_rels_path_idx", "CREATE INDEX IF NOT EXISTS `contracts_rels_path_idx` ON `contracts_rels` (`path`)");
+    await run("contracts_rels_users_idx", "CREATE INDEX IF NOT EXISTS `contracts_rels_users_id_idx` ON `contracts_rels` (`users_id`)");
+
+    // contract_reminders: one row per scheduled reminder.
+    await run("contract_reminders", `CREATE TABLE IF NOT EXISTS \`contract_reminders\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`contract_id\` integer NOT NULL,
+      \`kind\` text NOT NULL,
+      \`send_at\` text NOT NULL,
+      \`status\` text NOT NULL DEFAULT 'pending',
+      \`sent_at\` text,
+      \`last_error\` text,
+      \`notes\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`contract_id\`) REFERENCES \`contracts\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("contract_reminders_contract_idx", "CREATE INDEX IF NOT EXISTS `contract_reminders_contract_idx` ON `contract_reminders` (`contract_id`)");
+    await run("contract_reminders_status_idx", "CREATE INDEX IF NOT EXISTS `contract_reminders_status_idx` ON `contract_reminders` (`status`)");
+    await run("contract_reminders_send_at_idx", "CREATE INDEX IF NOT EXISTS `contract_reminders_send_at_idx` ON `contract_reminders` (`send_at`)");
+    await run("contract_reminders_status_send_at_idx", "CREATE INDEX IF NOT EXISTS `contract_reminders_status_send_at_idx` ON `contract_reminders` (`status`, `send_at`)");
+
+    // contract_reminders.recipients (hasMany users) -> contract_reminders_rels
+    await run("contract_reminders_rels", `CREATE TABLE IF NOT EXISTS \`contract_reminders_rels\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`order\` integer,
+      \`parent_id\` integer NOT NULL,
+      \`path\` text NOT NULL,
+      \`users_id\` integer,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`contract_reminders\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("contract_reminders_rels_order_idx", "CREATE INDEX IF NOT EXISTS `contract_reminders_rels_order_idx` ON `contract_reminders_rels` (`order`)");
+    await run("contract_reminders_rels_parent_idx", "CREATE INDEX IF NOT EXISTS `contract_reminders_rels_parent_idx` ON `contract_reminders_rels` (`parent_id`)");
+    await run("contract_reminders_rels_path_idx", "CREATE INDEX IF NOT EXISTS `contract_reminders_rels_path_idx` ON `contract_reminders_rels` (`path`)");
+    await run("contract_reminders_rels_users_idx", "CREATE INDEX IF NOT EXISTS `contract_reminders_rels_users_id_idx` ON `contract_reminders_rels` (`users_id`)");
+
+    // notifications: per-user in-CMS notifications.
+    await run("notifications", `CREATE TABLE IF NOT EXISTS \`notifications\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`recipient_id\` integer NOT NULL,
+      \`kind\` text NOT NULL,
+      \`title\` text NOT NULL,
+      \`body\` text,
+      \`url\` text,
+      \`related_contract_id\` integer,
+      \`related_client_id\` integer,
+      \`read_at\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`recipient_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`related_contract_id\`) REFERENCES \`contracts\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`related_client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("notifications_recipient_idx", "CREATE INDEX IF NOT EXISTS `notifications_recipient_idx` ON `notifications` (`recipient_id`)");
+    await run("notifications_read_at_idx", "CREATE INDEX IF NOT EXISTS `notifications_read_at_idx` ON `notifications` (`read_at`)");
+    await run("notifications_recipient_read_at_idx", "CREATE INDEX IF NOT EXISTS `notifications_recipient_read_at_idx` ON `notifications` (`recipient_id`, `read_at`)");
+    await run("notifications_created_at_idx", "CREATE INDEX IF NOT EXISTS `notifications_created_at_idx` ON `notifications` (`created_at`)");
+
+    // payload_locked_documents_rels FKs for the two new collections.
+    await run("locked_docs_rels.contract_reminders_id", "ALTER TABLE `payload_locked_documents_rels` ADD `contract_reminders_id` integer REFERENCES `contract_reminders`(`id`) ON DELETE cascade");
+    await run("locked_docs_rels.notifications_id", "ALTER TABLE `payload_locked_documents_rels` ADD `notifications_id` integer REFERENCES `notifications`(`id`) ON DELETE cascade");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

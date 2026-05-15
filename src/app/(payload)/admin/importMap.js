@@ -113,6 +113,7 @@ import { default as default_d7691cd6896b18804e19a29368edb888 } from '../../../co
 import { default as default_f7ce8484c2a04dac97a85c29cde49f11 } from '../../../components/ConnectCalendarButton'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
+import { default as default_2539ed3128925d1e4131db1b637125cd } from '../../../components/NotificationsBell'
 import { default as default_4a8985253bad55ee72042259cf28f1d7 } from '../../../components/UserDisplayName'
 import { default as default_5c16f7aa63b8992f2b26b1a5603015ac } from '../../../components/SidebarNavExtras'
 import { default as default_c22c6ded068ed0e94e9b6d1c50d7f3ee } from '../../../components/Dashboard'
@@ -246,6 +247,7 @@ export const importMap = {
   "./components/ConnectCalendarButton#default": default_f7ce8484c2a04dac97a85c29cde49f11,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
+  "./components/NotificationsBell#default": default_2539ed3128925d1e4131db1b637125cd,
   "./components/UserDisplayName#default": default_4a8985253bad55ee72042259cf28f1d7,
   "./components/SidebarNavExtras#default": default_5c16f7aa63b8992f2b26b1a5603015ac,
   "./components/Dashboard#default": default_c22c6ded068ed0e94e9b6d1c50d7f3ee,

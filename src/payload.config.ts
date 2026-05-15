@@ -62,6 +62,8 @@ import { AgentMemory } from "./collections/AgentMemory";
 import { AgentSoul } from "./collections/AgentSoul";
 import { ScheduledAgentTasks } from "./collections/ScheduledAgentTasks";
 import { OptimateChatTurns } from "./collections/OptimateChatTurns";
+import { ContractReminders } from "./collections/ContractReminders";
+import { Notifications } from "./collections/Notifications";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -91,7 +93,7 @@ export default buildConfig({
         Logo: "./components/Logo",
         Icon: "./components/Icon",
       },
-      actions: ["./components/UserDisplayName"],
+      actions: ["./components/NotificationsBell", "./components/UserDisplayName"],
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
       providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass"],
@@ -117,7 +119,7 @@ export default buildConfig({
     // Optimate agents
     AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, OptimateChatTurns,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials,
+    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials, ContractReminders, Notifications,
   ].map((c) => ({
     ...c,
     admin: {

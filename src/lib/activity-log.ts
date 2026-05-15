@@ -20,6 +20,8 @@ type ActivityType =
   | "contract_sent"
   | "contract_client_signed"
   | "contract_link_generated"
+  | "contract_reminder_sent"
+  | "contract_reminder_failed"
   | "lead_created"
   | "lead_stage_changed"
   | "tag_audit_completed"

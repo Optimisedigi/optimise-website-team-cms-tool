@@ -11,6 +11,10 @@
     {
       "path": "/api/scheduled-tasks/tick",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/contract-reminders/tick",
+      "schedule": "0 9 * * *"
     }
   ],
   "functions": {
@@ -51,6 +55,9 @@
       "maxDuration": 300
     },
     "src/app/(frontend)/api/scheduled-tasks/tick/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/(frontend)/api/contract-reminders/tick/route.ts": {
       "maxDuration": 300
     }
   }

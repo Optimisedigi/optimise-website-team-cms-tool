@@ -118,6 +118,8 @@ export interface Config {
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCache;
     'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCache;
     'agent-credentials': AgentCredential;
+    'contract-reminders': ContractReminder;
+    notifications: Notification;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -188,6 +190,8 @@ export interface Config {
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCacheSelect<false> | NegativeKeywordAvoidedSpendCacheSelect<true>;
     'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCacheSelect<false> | NegativeKeywordMonthlyWasteRelevancyCacheSelect<true>;
     'agent-credentials': AgentCredentialsSelect<false> | AgentCredentialsSelect<true>;
+    'contract-reminders': ContractRemindersSelect<false> | ContractRemindersSelect<true>;
+    notifications: NotificationsSelect<false> | NotificationsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -1257,7 +1261,7 @@ export interface Contract {
     [k: string]: unknown;
   } | null;
   /**
-   * Paste your tier table straight from Excel or Google Sheets. First line = column headers. Each subsequent line = one tier row. Cells are separated by Tab (what Sheets/Excel paste). Example: 'Trailing spend  |  Monthly retainer' on line 1, then 'Up to $60,000  |  $4,800' on line 2, etc. Supports any number of columns (e.g. AUD + USD).
+   * Spreadsheet-style tier table. The first row is the header (e.g. 'Trailing spend' / 'Monthly retainer'). Click any cell to edit; paste from Excel or Google Sheets into a cell to auto-fill multiple rows and columns. Stored as tab-separated text so existing renderers (PDF / HTML / Word) keep working.
    */
   annualReviewTierTableText?: string | null;
   /**
@@ -1314,6 +1318,14 @@ export interface Contract {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * Send the selected user(s) two reminder emails before this contract's first anniversary (11 months and 11.5 months after the effective date).
+   */
+  annualReviewReminderEnabled?: boolean | null;
+  /**
+   * Admin users who receive the reminder email and in-CMS notification. Required when reminders are enabled.
+   */
+  annualReviewReminderRecipients?: (number | User)[] | null;
   /**
    * Agency contact name on the contract
    */
@@ -3343,6 +3355,182 @@ export interface GoogleAdsAudit {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users".
+ */
+export interface User {
+  id: number;
+  name: string;
+  /**
+   * Admins have full access to everything. Managers and Specialists are limited to the features ticked below.
+   */
+  role: 'admin' | 'manager' | 'specialist';
+  /**
+   * Reusable feature bundles. The user inherits all features from each assigned profile, on top of their own per-user overrides below.
+   */
+  permissionProfiles?: (number | PermissionProfile)[] | null;
+  featureAccess?:
+    | (
+        | 'clients'
+        | 'client-proposals'
+        | 'contracts'
+        | 'sales-leads'
+        | 'process-templates'
+        | 'deck-templates'
+        | 'client-processes'
+        | 'meeting-schedulers'
+        | 'email-templates'
+        | 'clients-basic'
+        | 'media-basic'
+        | 'blog-posts'
+        | 'blog-prompts'
+        | 'job-posts'
+        | 'media'
+        | 'internal-link-suggestions'
+        | 'seo-audits'
+        | 'cro-audits'
+        | 'google-ads-audits'
+        | 'tag-setup-audits'
+        | 'keyword-snapshots'
+        | 'competitor-analyses'
+        | 'content-researches'
+        | 'gsc-alerts'
+        | 'gsc-indexing-audits'
+        | 'negative-keyword-lists'
+        | 'keyword-deep-dive-sessions'
+        | 'site-health-reports'
+        | 'ai-visibility-snapshots'
+        | 'serp-displacement-snapshots'
+        | 'serp-displacement-alerts'
+        | 'business-costs'
+        | 'cost-categories'
+        | 'cost-rules'
+        | 'api-cost-rates'
+        | 'nav:invoices'
+        | 'contractors'
+        | 'nav:contractor-costs'
+        | 'nav:google-analytics'
+        | 'nav:search-console'
+        | 'nav:deployments'
+        | 'nav:google-ads'
+        | 'nav:integrations'
+        | 'nav:indexing-helper'
+        | 'sheets-auth'
+        | 'calendar-auth'
+        | 'nav:dashboard'
+        | 'usage-reports'
+      )[]
+    | null;
+  /**
+   * Whether this user has completed their first-login setup
+   */
+  setupCompleted?: boolean | null;
+  /**
+   * Whether this user has connected their Gmail account for scheduled-task drafts.
+   */
+  gmailConnected?: boolean | null;
+  /**
+   * The Gmail address associated with the connection.
+   */
+  gmailEmail?: string | null;
+  gmailAccessToken?: string | null;
+  gmailRefreshToken?: string | null;
+  gmailTokenExpiry?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
+  collection: 'users';
+}
+/**
+ * Reusable feature-access bundles assignable to users (e.g. 'Content Specialist').
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "permission-profiles".
+ */
+export interface PermissionProfile {
+  id: number;
+  /**
+   * Display name (e.g. 'Content Specialist', 'Account Manager').
+   */
+  name: string;
+  /**
+   * Optional summary of what this profile is for.
+   */
+  description?: string | null;
+  /**
+   * Features granted by this profile. Auto-grants (like clients-basic) apply automatically when this profile is assigned to a user.
+   */
+  features?:
+    | (
+        | 'clients'
+        | 'client-proposals'
+        | 'contracts'
+        | 'sales-leads'
+        | 'process-templates'
+        | 'deck-templates'
+        | 'client-processes'
+        | 'meeting-schedulers'
+        | 'email-templates'
+        | 'clients-basic'
+        | 'media-basic'
+        | 'blog-posts'
+        | 'blog-prompts'
+        | 'job-posts'
+        | 'media'
+        | 'internal-link-suggestions'
+        | 'seo-audits'
+        | 'cro-audits'
+        | 'google-ads-audits'
+        | 'tag-setup-audits'
+        | 'keyword-snapshots'
+        | 'competitor-analyses'
+        | 'content-researches'
+        | 'gsc-alerts'
+        | 'gsc-indexing-audits'
+        | 'negative-keyword-lists'
+        | 'keyword-deep-dive-sessions'
+        | 'site-health-reports'
+        | 'ai-visibility-snapshots'
+        | 'serp-displacement-snapshots'
+        | 'serp-displacement-alerts'
+        | 'business-costs'
+        | 'cost-categories'
+        | 'cost-rules'
+        | 'api-cost-rates'
+        | 'nav:invoices'
+        | 'contractors'
+        | 'nav:contractor-costs'
+        | 'nav:google-analytics'
+        | 'nav:search-console'
+        | 'nav:deployments'
+        | 'nav:google-ads'
+        | 'nav:integrations'
+        | 'nav:indexing-helper'
+        | 'sheets-auth'
+        | 'calendar-auth'
+        | 'nav:dashboard'
+        | 'usage-reports'
+      )[]
+    | null;
+  featuresCount?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "negative-keyword-lists".
  */
 export interface NegativeKeywordList {
@@ -4386,182 +4574,6 @@ export interface ClientProcess {
   createdAt: string;
 }
 /**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
- */
-export interface User {
-  id: number;
-  name: string;
-  /**
-   * Admins have full access to everything. Managers and Specialists are limited to the features ticked below.
-   */
-  role: 'admin' | 'manager' | 'specialist';
-  /**
-   * Reusable feature bundles. The user inherits all features from each assigned profile, on top of their own per-user overrides below.
-   */
-  permissionProfiles?: (number | PermissionProfile)[] | null;
-  featureAccess?:
-    | (
-        | 'clients'
-        | 'client-proposals'
-        | 'contracts'
-        | 'sales-leads'
-        | 'process-templates'
-        | 'deck-templates'
-        | 'client-processes'
-        | 'meeting-schedulers'
-        | 'email-templates'
-        | 'clients-basic'
-        | 'media-basic'
-        | 'blog-posts'
-        | 'blog-prompts'
-        | 'job-posts'
-        | 'media'
-        | 'internal-link-suggestions'
-        | 'seo-audits'
-        | 'cro-audits'
-        | 'google-ads-audits'
-        | 'tag-setup-audits'
-        | 'keyword-snapshots'
-        | 'competitor-analyses'
-        | 'content-researches'
-        | 'gsc-alerts'
-        | 'gsc-indexing-audits'
-        | 'negative-keyword-lists'
-        | 'keyword-deep-dive-sessions'
-        | 'site-health-reports'
-        | 'ai-visibility-snapshots'
-        | 'serp-displacement-snapshots'
-        | 'serp-displacement-alerts'
-        | 'business-costs'
-        | 'cost-categories'
-        | 'cost-rules'
-        | 'api-cost-rates'
-        | 'nav:invoices'
-        | 'contractors'
-        | 'nav:contractor-costs'
-        | 'nav:google-analytics'
-        | 'nav:search-console'
-        | 'nav:deployments'
-        | 'nav:google-ads'
-        | 'nav:integrations'
-        | 'nav:indexing-helper'
-        | 'sheets-auth'
-        | 'calendar-auth'
-        | 'nav:dashboard'
-        | 'usage-reports'
-      )[]
-    | null;
-  /**
-   * Whether this user has completed their first-login setup
-   */
-  setupCompleted?: boolean | null;
-  /**
-   * Whether this user has connected their Gmail account for scheduled-task drafts.
-   */
-  gmailConnected?: boolean | null;
-  /**
-   * The Gmail address associated with the connection.
-   */
-  gmailEmail?: string | null;
-  gmailAccessToken?: string | null;
-  gmailRefreshToken?: string | null;
-  gmailTokenExpiry?: string | null;
-  updatedAt: string;
-  createdAt: string;
-  email: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
-  sessions?:
-    | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
-      }[]
-    | null;
-  password?: string | null;
-  collection: 'users';
-}
-/**
- * Reusable feature-access bundles assignable to users (e.g. 'Content Specialist').
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "permission-profiles".
- */
-export interface PermissionProfile {
-  id: number;
-  /**
-   * Display name (e.g. 'Content Specialist', 'Account Manager').
-   */
-  name: string;
-  /**
-   * Optional summary of what this profile is for.
-   */
-  description?: string | null;
-  /**
-   * Features granted by this profile. Auto-grants (like clients-basic) apply automatically when this profile is assigned to a user.
-   */
-  features?:
-    | (
-        | 'clients'
-        | 'client-proposals'
-        | 'contracts'
-        | 'sales-leads'
-        | 'process-templates'
-        | 'deck-templates'
-        | 'client-processes'
-        | 'meeting-schedulers'
-        | 'email-templates'
-        | 'clients-basic'
-        | 'media-basic'
-        | 'blog-posts'
-        | 'blog-prompts'
-        | 'job-posts'
-        | 'media'
-        | 'internal-link-suggestions'
-        | 'seo-audits'
-        | 'cro-audits'
-        | 'google-ads-audits'
-        | 'tag-setup-audits'
-        | 'keyword-snapshots'
-        | 'competitor-analyses'
-        | 'content-researches'
-        | 'gsc-alerts'
-        | 'gsc-indexing-audits'
-        | 'negative-keyword-lists'
-        | 'keyword-deep-dive-sessions'
-        | 'site-health-reports'
-        | 'ai-visibility-snapshots'
-        | 'serp-displacement-snapshots'
-        | 'serp-displacement-alerts'
-        | 'business-costs'
-        | 'cost-categories'
-        | 'cost-rules'
-        | 'api-cost-rates'
-        | 'nav:invoices'
-        | 'contractors'
-        | 'nav:contractor-costs'
-        | 'nav:google-analytics'
-        | 'nav:search-console'
-        | 'nav:deployments'
-        | 'nav:google-ads'
-        | 'nav:integrations'
-        | 'nav:indexing-helper'
-        | 'sheets-auth'
-        | 'calendar-auth'
-        | 'nav:dashboard'
-        | 'usage-reports'
-      )[]
-    | null;
-  featuresCount?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
  * Schedule meetings with multiple client contacts by finding overlapping availability
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -5563,6 +5575,8 @@ export interface ActivityLog {
     | 'contract_agency_signed'
     | 'contract_sent'
     | 'contract_client_signed'
+    | 'contract_reminder_sent'
+    | 'contract_reminder_failed'
     | 'lead_created'
     | 'lead_stage_changed'
     | 'template_created'
@@ -6230,6 +6244,68 @@ export interface AgentCredential {
   createdAt: string;
 }
 /**
+ * Scheduled annual-review reminders for contracts. Created automatically when a contract is saved with reminders enabled.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contract-reminders".
+ */
+export interface ContractReminder {
+  id: number;
+  contract: number | Contract;
+  kind: '11-month' | '11.5-month';
+  /**
+   * When this reminder is due. Computed from the contract's effective date.
+   */
+  sendAt: string;
+  status: 'pending' | 'sent' | 'failed' | 'skipped';
+  /**
+   * Snapshot of the contract's recipients at scheduling time. Used by the cron when sending.
+   */
+  recipients?: (number | User)[] | null;
+  /**
+   * Wall-clock time when the email and notification fired.
+   */
+  sentAt?: string | null;
+  /**
+   * Populated only when status = failed.
+   */
+  lastError?: string | null;
+  /**
+   * Free-form notes. Used by the backfill script to mark rows as 'backfilled past anniversary'.
+   */
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * In-CMS notifications surfaced via the admin top-bar bell. Per-user, dismissible.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notifications".
+ */
+export interface Notification {
+  id: number;
+  recipient: number | User;
+  kind: 'contract-annual-review-11mo' | 'contract-annual-review-11.5mo';
+  title: string;
+  /**
+   * Short summary line.
+   */
+  body?: string | null;
+  /**
+   * Deep link (relative, e.g. /admin/collections/contracts/123).
+   */
+  url?: string | null;
+  relatedContract?: (number | null) | Contract;
+  relatedClient?: (number | null) | Client;
+  /**
+   * When the recipient dismissed or clicked the notification. Null until then.
+   */
+  readAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -6456,6 +6532,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'agent-credentials';
         value: number | AgentCredential;
+      } | null)
+    | ({
+        relationTo: 'contract-reminders';
+        value: number | ContractReminder;
+      } | null)
+    | ({
+        relationTo: 'notifications';
+        value: number | Notification;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -7026,6 +7110,8 @@ export interface ContractsSelect<T extends boolean = true> {
   annualReviewNotice?: T;
   annualReviewGoodFaithReview?: T;
   annualReviewAcceptance?: T;
+  annualReviewReminderEnabled?: T;
+  annualReviewReminderRecipients?: T;
   agencyContactName?: T;
   agencyContactEmail?: T;
   agencyContactPhone?: T;
@@ -8430,6 +8516,38 @@ export interface AgentCredentialsSelect<T extends boolean = true> {
   data?: T;
   forceFallback?: T;
   lastRefreshedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contract-reminders_select".
+ */
+export interface ContractRemindersSelect<T extends boolean = true> {
+  contract?: T;
+  kind?: T;
+  sendAt?: T;
+  status?: T;
+  recipients?: T;
+  sentAt?: T;
+  lastError?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notifications_select".
+ */
+export interface NotificationsSelect<T extends boolean = true> {
+  recipient?: T;
+  kind?: T;
+  title?: T;
+  body?: T;
+  url?: T;
+  relatedContract?: T;
+  relatedClient?: T;
+  readAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

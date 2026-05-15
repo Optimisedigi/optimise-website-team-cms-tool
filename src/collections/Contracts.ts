@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 import { ANNUAL_REVIEW_DEFAULTS } from "../lib/tier-table";
+import { scheduleContractReminders } from "../lib/contract-reminders";
 
 /**
  * Wrap a plain-text default in a minimal Lexical rich-text root so
@@ -119,6 +120,24 @@ export const Contracts: CollectionConfig = {
             description: doc.clientName || "",
             user: req.user?.id,
           }).catch(() => {});
+        }
+
+        // Reschedule the two annual-review reminders. Idempotent —
+        // pending rows are replaced; sent/failed/skipped history is kept.
+        // Best-effort: a scheduling failure must never block a contract save.
+        try {
+          await scheduleContractReminders(req.payload, {
+            id: doc.id,
+            contractDate: doc.contractDate,
+            annualReviewReminderEnabled: doc.annualReviewReminderEnabled,
+            annualReviewReminderRecipients: doc.annualReviewReminderRecipients,
+          });
+        } catch (err) {
+          req.payload.logger?.error?.({
+            msg: "scheduleContractReminders failed",
+            contractId: doc.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       },
     ],
@@ -382,6 +401,40 @@ export const Contracts: CollectionConfig = {
                 description:
                   "Acceptance of Adjustment paragraph. Default copy is pre-filled \u2014 usually unchanged across contracts.",
                 condition: (data) => Boolean(data?.annualReviewEnabled),
+              },
+            },
+            {
+              name: "annualReviewReminderEnabled",
+              type: "checkbox",
+              defaultValue: true,
+              admin: {
+                description:
+                  "Send the selected user(s) two reminder emails before this contract's first anniversary (11 months and 11.5 months after the effective date).",
+              },
+            },
+            {
+              name: "annualReviewReminderRecipients",
+              type: "relationship",
+              relationTo: "users",
+              hasMany: true,
+              admin: {
+                description:
+                  "Admin users who receive the reminder email and in-CMS notification. Required when reminders are enabled.",
+                condition: (data) => Boolean(data?.annualReviewReminderEnabled),
+              },
+              validate: (
+                value: unknown,
+                { siblingData }: { siblingData: Record<string, unknown> },
+              ) => {
+                const enabled = Boolean(
+                  (siblingData as Record<string, unknown>)?.annualReviewReminderEnabled,
+                );
+                if (!enabled) return true;
+                const arr = Array.isArray(value) ? value : [];
+                if (arr.length === 0) {
+                  return "At least one recipient is required when annual review reminders are enabled.";
+                }
+                return true;
               },
             },
           ],
