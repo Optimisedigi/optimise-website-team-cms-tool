@@ -173,8 +173,8 @@ export const Contracts: CollectionConfig = {
                   type: "relationship",
                   relationTo: "clients",
                   admin: {
-                    description: "Linked client (populated after conversion)",
-                    readOnly: true,
+                    description:
+                      "Linked client. Auto-populated when a proposal converts to a client; manually selectable for direct-to-client contracts (no proposal in between).",
                   },
                 },
               ],
