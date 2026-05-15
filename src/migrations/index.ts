@@ -53,6 +53,7 @@ import * as migration_20260513_160000_add_cro_key_findings from './20260513_1600
 import * as migration_20260516_120000_add_standalone_to_campaign_budgets from './20260516_120000_add_standalone_to_campaign_budgets';
 import * as migration_20260517_120000_add_deck_url_and_deck_templates from './20260517_120000_add_deck_url_and_deck_templates';
 import * as migration_20260518_120000_fix_sales_leads_array_id_types from './20260518_120000_fix_sales_leads_array_id_types';
+import * as migration_20260518_130000_add_proposal_notes_and_timeline from './20260518_130000_add_proposal_notes_and_timeline';
 
 export const migrations = [
   {
@@ -329,5 +330,10 @@ export const migrations = [
     up: migration_20260518_120000_fix_sales_leads_array_id_types.up,
     down: migration_20260518_120000_fix_sales_leads_array_id_types.down,
     name: '20260518_120000_fix_sales_leads_array_id_types'
+  },
+  {
+    up: migration_20260518_130000_add_proposal_notes_and_timeline.up,
+    down: migration_20260518_130000_add_proposal_notes_and_timeline.down,
+    name: '20260518_130000_add_proposal_notes_and_timeline'
   },
 ];

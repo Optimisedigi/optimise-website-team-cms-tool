@@ -2044,6 +2044,10 @@ export interface ClientProposal {
       }[]
     | null;
   /**
+   * Free-form discovery notes from pre-sale checks (manual GSC review, AI visibility spot-checks, cert/health observations, etc.). Carries over to the new client's notes on conversion.
+   */
+  discoveryNotes?: string | null;
+  /**
    * Contracts linked to this proposal
    */
   contracts?: {
@@ -2081,6 +2085,69 @@ export interface ClientProposal {
          * Internal notes (audience, outcomes, follow-ups)
          */
         notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  proposalNotes?:
+    | {
+        category?: ('general' | 'meeting' | 'strategy' | 'issue' | 'win' | 'feedback' | 'internal') | null;
+        date: string;
+        /**
+         * Auto-filled from the user who added the note
+         */
+        author?: string | null;
+        /**
+         * Note content (point form supported)
+         */
+        content: string;
+        id?: string | null;
+      }[]
+    | null;
+  proposalAccountTimeline?:
+    | {
+        date: string;
+        serviceArea?:
+          | (
+              | 'google_ads'
+              | 'seo'
+              | 'analytics'
+              | 'website'
+              | 'social'
+              | 'content'
+              | 'contracts'
+              | 'onboarding'
+              | 'general'
+            )
+          | null;
+        actionType:
+          | 'account_takeover'
+          | 'access_granted'
+          | 'onboarding_started'
+          | 'onboarding_completed'
+          | 'contract_signed'
+          | 'contract_renewed'
+          | 'scope_changed'
+          | 'kickoff_meeting'
+          | 'strategy_meeting'
+          | 'review_meeting'
+          | 'client_presentation'
+          | 'tagging_updated'
+          | 'conversion_tracking_changed'
+          | 'ga4_setup'
+          | 'gtm_updated'
+          | 'campaign_structure_proposed'
+          | 'campaign_structure_implemented'
+          | 'budget_changed'
+          | 'negative_keywords_added'
+          | 'bid_strategy_changed'
+          | 'ad_copy_updated'
+          | 'landing_pages_changed'
+          | 'dashboard_created'
+          | 'reporting_started'
+          | 'strategy_change'
+          | 'process_milestone'
+          | 'other';
+        description: string;
         id?: string | null;
       }[]
     | null;
@@ -6881,6 +6948,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         body?: T;
         id?: T;
       };
+  discoveryNotes?: T;
   contracts?: T;
   presentations?:
     | T
@@ -6892,6 +6960,24 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         kind?: T;
         isPublic?: T;
         notes?: T;
+        id?: T;
+      };
+  proposalNotes?:
+    | T
+    | {
+        category?: T;
+        date?: T;
+        author?: T;
+        content?: T;
+        id?: T;
+      };
+  proposalAccountTimeline?:
+    | T
+    | {
+        date?: T;
+        serviceArea?: T;
+        actionType?: T;
+        description?: T;
         id?: T;
       };
   proposalStatus?: T;

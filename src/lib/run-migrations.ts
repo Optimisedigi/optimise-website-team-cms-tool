@@ -2668,6 +2668,40 @@ export async function runMigrations(
     await run("contracts.annual_review_notice", "ALTER TABLE `contracts` ADD `annual_review_notice` text");
     await run("contracts.annual_review_good_faith_review", "ALTER TABLE `contracts` ADD `annual_review_good_faith_review` text");
     await run("contracts.annual_review_acceptance", "ALTER TABLE `contracts` ADD `annual_review_acceptance` text");
+
+    // ── client_proposals: pre-sale Notes + Prospect Timeline + Discovery Notes (2026-05-18) ──
+    // Schemas mirror clients.client_notes / clients.client_account_timeline so the existing
+    // ClientNotesTable / AccountTimelineTable React components work unchanged (they read the
+    // field path from props). The discovery_notes column is a single text field on client_proposals
+    // — the Pre-sale Discovery tab in admin will grow more tools later, but the column is enough for v1.
+    await run("client_proposals_notes", `CREATE TABLE IF NOT EXISTS \`client_proposals_notes\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`category\` text DEFAULT 'general',
+      \`date\` text NOT NULL,
+      \`author\` text,
+      \`content\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("client_proposals_notes_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_notes_order_idx` ON `client_proposals_notes` (`_order`)");
+    await run("client_proposals_notes_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_notes_parent_id_idx` ON `client_proposals_notes` (`_parent_id`)");
+
+    await run("client_proposals_account_timeline", `CREATE TABLE IF NOT EXISTS \`client_proposals_account_timeline\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`date\` text NOT NULL,
+      \`service_area\` text DEFAULT 'google_ads',
+      \`action_type\` text NOT NULL,
+      \`description\` text NOT NULL,
+      \`added_by\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("client_proposals_account_timeline_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_account_timeline_order_idx` ON `client_proposals_account_timeline` (`_order`)");
+    await run("client_proposals_account_timeline_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_account_timeline_parent_id_idx` ON `client_proposals_account_timeline` (`_parent_id`)");
+
+    await run("client_proposals.discovery_notes", "ALTER TABLE `client_proposals` ADD `discovery_notes` text");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

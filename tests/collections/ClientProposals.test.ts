@@ -148,6 +148,46 @@ describe("ClientProposals Collection", () => {
     expect(deleteFn({ req: { user: { role: "editor" } } })).toBe(false);
     expect(deleteFn({ req: {} })).toBe(false);
   });
+
+  // ── Pre-sale workspace fields (added 2026-05-18) ─────────────────
+  it("should have proposalNotes array field with correct dbName", () => {
+    const field = findField(ClientProposals.fields, "proposalNotes");
+    expect(field).toBeDefined();
+    expect(field.type).toBe("array");
+    expect(field.dbName).toBe("client_proposals_notes");
+    // Mirrors clientNotes — author + content visible, category + date hidden.
+    const author = findField(field.fields, "author");
+    const content = findField(field.fields, "content");
+    const category = findField(field.fields, "category");
+    const date = findField(field.fields, "date");
+    expect(author).toBeDefined();
+    expect(content).toBeDefined();
+    expect(content.required).toBe(true);
+    expect(category.admin?.hidden).toBe(true);
+    expect(date.admin?.hidden).toBe(true);
+  });
+
+  it("should have proposalAccountTimeline array field with correct dbName", () => {
+    const field = findField(ClientProposals.fields, "proposalAccountTimeline");
+    expect(field).toBeDefined();
+    expect(field.type).toBe("array");
+    expect(field.dbName).toBe("client_proposals_account_timeline");
+    // Mirrors accountTimeline — fields are nested in a row.
+    const date = findField(field.fields, "date");
+    const actionType = findField(field.fields, "actionType");
+    const description = findField(field.fields, "description");
+    expect(date).toBeDefined();
+    expect(actionType).toBeDefined();
+    expect(actionType.required).toBe(true);
+    expect(description).toBeDefined();
+    expect(description.required).toBe(true);
+  });
+
+  it("should have discoveryNotes textarea field on the Pre-sale Discovery tab", () => {
+    const field = findField(ClientProposals.fields, "discoveryNotes");
+    expect(field).toBeDefined();
+    expect(field.type).toBe("textarea");
+  });
 });
 
 // ─── generateUniqueSlug hook ───────────────────────────────────
@@ -617,6 +657,163 @@ describe("ClientProposals: convertToClient hook", () => {
   // Removed: "should set default notes when notes field is empty" — the convertToClient
   // hook does not write a `notes` field on the Client, and the legacyNotes field on
   // Client is now hidden + auto-migrated to clientNotes. Test no longer reflects reality.
+
+  it("should migrate proposalNotes → client clientNotes on conversion", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
+    mockPayload.create.mockResolvedValueOnce({ id: "new-client-id" });
+    mockPayload.update.mockResolvedValue({});
+
+    const doc = {
+      id: "prop-1",
+      convertToClient: true,
+      businessName: "Notes Test",
+      slug: "notes-test",
+      proposalNotes: [
+        {
+          id: "note-row-1",
+          category: "meeting",
+          date: "2026-05-10T10:00:00.000Z",
+          author: "Alice",
+          content: "Discovery call notes.",
+        },
+        {
+          id: "note-row-2",
+          category: "general",
+          date: "2026-05-12T10:00:00.000Z",
+          author: "Bob",
+          content: "Follow-up.",
+        },
+      ],
+    };
+
+    await convertToClientHook({
+      doc,
+      req: mockReq(),
+      previousDoc: { convertToClient: false },
+    });
+
+    // Find the update call that targets the new client with clientNotes
+    const clientUpdate = mockPayload.update.mock.calls.find(
+      ([args]: any[]) =>
+        args.collection === "clients" && args.id === "new-client-id",
+    );
+    expect(clientUpdate).toBeDefined();
+    const clientNotes = clientUpdate![0].data.clientNotes;
+    expect(clientNotes).toHaveLength(2);
+    // Row IDs stripped — Payload generates fresh ones.
+    expect(clientNotes[0]).not.toHaveProperty("id");
+    expect(clientNotes[0].author).toBe("Alice");
+    expect(clientNotes[0].content).toBe("Discovery call notes.");
+    expect(clientNotes[1].author).toBe("Bob");
+  });
+
+  it("should migrate proposalAccountTimeline → client accountTimeline on conversion", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
+    mockPayload.create.mockResolvedValueOnce({ id: "new-client-id" });
+    mockPayload.update.mockResolvedValue({});
+
+    const doc = {
+      id: "prop-1",
+      convertToClient: true,
+      businessName: "Timeline Test",
+      slug: "timeline-test",
+      proposalAccountTimeline: [
+        {
+          id: "tl-row-1",
+          date: "2026-05-01T00:00:00.000Z",
+          serviceArea: "google_ads",
+          actionType: "strategy_meeting",
+          description: "Initial strategy meeting.",
+          addedBy: "Alice",
+        },
+      ],
+    };
+
+    await convertToClientHook({
+      doc,
+      req: mockReq(),
+      previousDoc: { convertToClient: false },
+    });
+
+    const clientUpdate = mockPayload.update.mock.calls.find(
+      ([args]: any[]) =>
+        args.collection === "clients" && args.id === "new-client-id",
+    );
+    expect(clientUpdate).toBeDefined();
+    const timeline = clientUpdate![0].data.accountTimeline;
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0]).not.toHaveProperty("id");
+    expect(timeline[0].actionType).toBe("strategy_meeting");
+    expect(timeline[0].description).toBe("Initial strategy meeting.");
+    expect(timeline[0].addedBy).toBe("Alice");
+  });
+
+  it("should prepend discoveryNotes as the first client note on conversion", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
+    mockPayload.create.mockResolvedValueOnce({ id: "new-client-id" });
+    mockPayload.update.mockResolvedValue({});
+
+    const doc = {
+      id: "prop-1",
+      convertToClient: true,
+      businessName: "Discovery Test",
+      slug: "discovery-test",
+      discoveryNotes: "GSC shows brand traffic decline; AI visibility weak on key terms.",
+      proposalNotes: [
+        {
+          id: "note-row-1",
+          category: "general",
+          date: "2026-05-10T10:00:00.000Z",
+          author: "Alice",
+          content: "Existing note.",
+        },
+      ],
+    };
+
+    await convertToClientHook({
+      doc,
+      req: mockReq(),
+      previousDoc: { convertToClient: false },
+    });
+
+    const clientUpdate = mockPayload.update.mock.calls.find(
+      ([args]: any[]) =>
+        args.collection === "clients" && args.id === "new-client-id",
+    );
+    expect(clientUpdate).toBeDefined();
+    const clientNotes = clientUpdate![0].data.clientNotes;
+    expect(clientNotes).toHaveLength(2);
+    expect(clientNotes[0].content).toContain("Pre-sale discovery notes:");
+    expect(clientNotes[0].content).toContain("brand traffic decline");
+    expect(clientNotes[0].author).toBe("Pre-sale discovery");
+    expect(clientNotes[1].content).toBe("Existing note.");
+  });
+
+  it("should not perform notes/timeline migration when both arrays are empty and no discoveryNotes", async () => {
+    mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
+    mockPayload.create.mockResolvedValueOnce({ id: "new-client-id" });
+    mockPayload.update.mockResolvedValue({});
+
+    const doc = {
+      id: "prop-1",
+      convertToClient: true,
+      businessName: "Empty Test",
+      slug: "empty-test",
+    };
+
+    await convertToClientHook({
+      doc,
+      req: mockReq(),
+      previousDoc: { convertToClient: false },
+    });
+
+    // No update call should target the new client with clientNotes/accountTimeline.
+    const clientUpdate = mockPayload.update.mock.calls.find(
+      ([args]: any[]) =>
+        args.collection === "clients" && args.id === "new-client-id",
+    );
+    expect(clientUpdate).toBeUndefined();
+  });
 });
 
 // ─── afterChange: activity logging on create ───────────────────

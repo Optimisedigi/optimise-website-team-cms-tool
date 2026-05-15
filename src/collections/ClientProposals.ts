@@ -275,6 +275,67 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         });
       }
 
+      // Migrate proposal notes → client notes, proposal timeline → client timeline,
+      // and roll discoveryNotes into a single client note at the top.
+      // Done in a separate update so a malformed sub-row doesn't tank the entire
+      // client creation — we log and continue if any step fails.
+      try {
+        const proposalNotes =
+          (doc.proposalNotes as Array<Record<string, any>> | undefined) ?? [];
+        const proposalTimeline =
+          (doc.proposalAccountTimeline as
+            | Array<Record<string, any>>
+            | undefined) ?? [];
+        const discoveryNotes = (doc.discoveryNotes as string | undefined)?.trim();
+
+        const clientNotes = proposalNotes.map(
+          ({ category, date, author, content }) => ({
+            category,
+            date,
+            author,
+            content,
+          }),
+        );
+        // Strip row IDs above by destructuring — Payload generates fresh IDs
+        // so we avoid PK collisions in client_notes if the same hex ID exists.
+
+        if (discoveryNotes) {
+          clientNotes.unshift({
+            category: "general",
+            date: new Date().toISOString(),
+            author: "Pre-sale discovery",
+            content: `Pre-sale discovery notes: ${discoveryNotes}`,
+          });
+        }
+
+        const accountTimeline = proposalTimeline.map(
+          ({ date, serviceArea, actionType, description, addedBy }) => ({
+            date,
+            serviceArea,
+            actionType,
+            description,
+            addedBy,
+          }),
+        );
+
+        if (clientNotes.length > 0 || accountTimeline.length > 0) {
+          await payload.update({
+            collection: "clients",
+            id: newClient.id,
+            data: {
+              ...(clientNotes.length > 0 ? { clientNotes } : {}),
+              ...(accountTimeline.length > 0 ? { accountTimeline } : {}),
+            },
+            overrideAccess: true,
+          });
+        }
+      } catch (migrateErr) {
+        // Don't roll back the new client — just log and continue.
+        req.payload.logger.error(
+          `Proposal→Client conversion: failed to migrate notes/timeline for "${doc.businessName}": ${migrateErr}`,
+        );
+      }
+
       // Re-link all audit/research records from the proposal to the new client
       const collectionsToRelink = [
         "seo-audits",
@@ -1408,6 +1469,22 @@ export const ClientProposals: CollectionConfig = {
           ],
         },
         {
+          label: "Pre-sale Discovery",
+          description:
+            "Lightweight pre-sale workspace for one-off discovery checks before the prospect becomes a client. One-shot GSC / AI visibility checks coming soon — for now, use the notes field below to capture findings from any manual checks you run.",
+          fields: [
+            {
+              name: "discoveryNotes",
+              type: "textarea",
+              admin: {
+                description:
+                  "Free-form discovery notes from pre-sale checks (manual GSC review, AI visibility spot-checks, cert/health observations, etc.). Carries over to the new client's notes on conversion.",
+                rows: 8,
+              },
+            },
+          ],
+        },
+        {
           label: "Contract",
           fields: [
             {
@@ -1534,6 +1611,158 @@ export const ClientProposals: CollectionConfig = {
                       Field: "/components/ClientProposalPresentationLink",
                     },
                   },
+                },
+              ],
+            },
+          ],
+        },
+        {
+          label: "Notes",
+          fields: [
+            {
+              name: "proposalNotes",
+              type: "array",
+              dbName: "client_proposals_notes",
+              admin: {
+                // Reuses the same spreadsheet-style editor as Clients > Notes.
+                // The component is path-aware — Payload passes the field path so
+                // updates target proposalNotes rows, not clientNotes.
+                components: {
+                  RowLabel: false as any,
+                  Field: "./components/ClientNotesTable",
+                },
+                initCollapsed: false,
+              },
+              fields: [
+                // Mirrors clients.clientNotes exactly so ClientNotesTable works
+                // unchanged. `category` and `date` are hidden but stay in the
+                // schema for parity and so existing rows survive a round-trip.
+                {
+                  name: "category",
+                  type: "select",
+                  defaultValue: "general",
+                  admin: { hidden: true },
+                  options: [
+                    { label: "General", value: "general" },
+                    { label: "Meeting", value: "meeting" },
+                    { label: "Strategy", value: "strategy" },
+                    { label: "Issue", value: "issue" },
+                    { label: "Win", value: "win" },
+                    { label: "Feedback", value: "feedback" },
+                    { label: "Internal", value: "internal" },
+                  ],
+                },
+                {
+                  name: "date",
+                  type: "date",
+                  required: true,
+                  defaultValue: () => new Date().toISOString(),
+                  admin: { hidden: true },
+                },
+                {
+                  name: "author",
+                  type: "text",
+                  admin: {
+                    description: "Auto-filled from the user who added the note",
+                  },
+                },
+                {
+                  name: "content",
+                  type: "textarea",
+                  required: true,
+                  admin: {
+                    description: "Note content (point form supported)",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        {
+          label: "Prospect Timeline",
+          fields: [
+            {
+              name: "proposalAccountTimeline",
+              type: "array",
+              dbName: "client_proposals_account_timeline",
+              admin: {
+                components: {
+                  RowLabel: false as any,
+                  Field: "./components/AccountTimelineTable",
+                },
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "date",
+                      type: "date",
+                      required: true,
+                      defaultValue: () => new Date().toISOString(),
+                      admin: {
+                        date: {
+                          pickerAppearance: "dayOnly",
+                          displayFormat: "d MMM yyyy",
+                        },
+                      },
+                    },
+                    {
+                      name: "serviceArea",
+                      type: "select",
+                      defaultValue: "google_ads",
+                      options: [
+                        { label: "Google Ads", value: "google_ads" },
+                        { label: "SEO", value: "seo" },
+                        { label: "Analytics / Tracking", value: "analytics" },
+                        { label: "Website", value: "website" },
+                        { label: "Social / Meta", value: "social" },
+                        { label: "Content", value: "content" },
+                        { label: "Contracts / Legal", value: "contracts" },
+                        { label: "Onboarding", value: "onboarding" },
+                        { label: "General", value: "general" },
+                      ],
+                    },
+                    {
+                      name: "actionType",
+                      type: "select",
+                      required: true,
+                      options: [
+                        { label: "Account Takeover", value: "account_takeover" },
+                        { label: "Account Access Granted", value: "access_granted" },
+                        { label: "Onboarding Started", value: "onboarding_started" },
+                        { label: "Onboarding Completed", value: "onboarding_completed" },
+                        { label: "Contract Signed", value: "contract_signed" },
+                        { label: "Contract Renewed", value: "contract_renewed" },
+                        { label: "Scope of Work Changed", value: "scope_changed" },
+                        { label: "Kickoff Meeting", value: "kickoff_meeting" },
+                        { label: "Strategy Meeting", value: "strategy_meeting" },
+                        { label: "Review Meeting", value: "review_meeting" },
+                        { label: "Client Presentation", value: "client_presentation" },
+                        { label: "Tagging Updated", value: "tagging_updated" },
+                        { label: "Conversion Tracking Changed", value: "conversion_tracking_changed" },
+                        { label: "GA4 Setup / Migration", value: "ga4_setup" },
+                        { label: "GTM Setup / Updated", value: "gtm_updated" },
+                        { label: "Campaign Structure Proposed", value: "campaign_structure_proposed" },
+                        { label: "Campaign Structure Implemented", value: "campaign_structure_implemented" },
+                        { label: "Budget Changed", value: "budget_changed" },
+                        { label: "Negative Keyword List Added", value: "negative_keywords_added" },
+                        { label: "Bid Strategy Changed", value: "bid_strategy_changed" },
+                        { label: "Ad Copy Updated", value: "ad_copy_updated" },
+                        { label: "Landing Pages Changed", value: "landing_pages_changed" },
+                        { label: "Dashboard Created", value: "dashboard_created" },
+                        { label: "Reporting Started", value: "reporting_started" },
+                        { label: "Strategy Change", value: "strategy_change" },
+                        { label: "Process Milestone", value: "process_milestone" },
+                        { label: "Other", value: "other" },
+                      ],
+                    },
+                    {
+                      name: "description",
+                      type: "text",
+                      required: true,
+                    },
+                  ],
                 },
               ],
             },
