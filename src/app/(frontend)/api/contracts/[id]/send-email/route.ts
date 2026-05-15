@@ -93,8 +93,28 @@ export async function POST(
     if (!res.ok) {
       const text = await res.text();
       console.error(`[brevo] Send email API error (${res.status}):`, text);
+      // Brevo returns JSON like { code: "unauthorized", message: "..." }. Surface
+      // both fields to the UI so the operator can diagnose without digging
+      // through Vercel logs. Falls back to the raw text body when the response
+      // isn't JSON (rare). Truncated so a stray HTML error page doesn't blow
+      // up the toast.
+      let brevoCode: string | undefined;
+      let brevoMessage: string | undefined;
+      try {
+        const parsed = JSON.parse(text) as { code?: string; message?: string };
+        brevoCode = parsed.code;
+        brevoMessage = parsed.message;
+      } catch {
+        brevoMessage = text.slice(0, 300);
+      }
+      const detail = [brevoCode, brevoMessage].filter(Boolean).join(" — ") || `HTTP ${res.status}`;
       return NextResponse.json(
-        { error: `Brevo API error: ${res.status}` },
+        {
+          error: `Brevo rejected the send (${res.status}): ${detail}`,
+          brevoStatus: res.status,
+          brevoCode,
+          brevoMessage,
+        },
         { status: 502 },
       );
     }
