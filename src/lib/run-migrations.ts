@@ -1198,6 +1198,39 @@ export async function runMigrations(
     await run("sales_leads_services_parent_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_services_parent_idx` ON `sales_leads_services` (`parent_id`)");
     await run("sales_leads_services_order_idx", "CREATE INDEX IF NOT EXISTS `sales_leads_services_order_idx` ON `sales_leads_services` (`order`)");
   
+    // Fix sales_leads_stage_history.id and sales_leads_services.id from integer to text
+    // (Payload v3 generates 24-char hex IDs for array sub-rows → SQLITE_MISMATCH on save).
+    // Rebuild pattern matches the meeting_schedulers_attendees fix below.
+    await run("sl_stage_history_drop_new", "DROP TABLE IF EXISTS `sales_leads_stage_history_new`");
+    await run("sl_stage_history_new", `CREATE TABLE \`sales_leads_stage_history_new\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`from_stage\` text,
+      \`to_stage\` text,
+      \`transition_date\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`sales_leads\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("sl_stage_history_copy", `INSERT INTO \`sales_leads_stage_history_new\` (\`_order\`, \`_parent_id\`, \`id\`, \`from_stage\`, \`to_stage\`, \`transition_date\`) SELECT \`_order\`, \`_parent_id\`, CAST(\`id\` AS text), \`from_stage\`, \`to_stage\`, \`transition_date\` FROM \`sales_leads_stage_history\``);
+    await run("sl_stage_history_drop_old", "DROP TABLE IF EXISTS `sales_leads_stage_history`");
+    await run("sl_stage_history_rename", "ALTER TABLE `sales_leads_stage_history_new` RENAME TO `sales_leads_stage_history`");
+    await run("sl_stage_history_parent_idx2", "CREATE INDEX IF NOT EXISTS `sales_leads_stage_history_parent_idx` ON `sales_leads_stage_history` (`_parent_id`)");
+    await run("sl_stage_history_order_idx2", "CREATE INDEX IF NOT EXISTS `sales_leads_stage_history_order_idx` ON `sales_leads_stage_history` (`_order`)");
+
+    await run("sl_services_drop_new", "DROP TABLE IF EXISTS `sales_leads_services_new`");
+    await run("sl_services_new", `CREATE TABLE \`sales_leads_services_new\` (
+      \`order\` integer NOT NULL,
+      \`parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`value\` text,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`sales_leads\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("sl_services_copy", `INSERT INTO \`sales_leads_services_new\` (\`order\`, \`parent_id\`, \`id\`, \`value\`) SELECT \`order\`, \`parent_id\`, CAST(\`id\` AS text), \`value\` FROM \`sales_leads_services\``);
+    await run("sl_services_drop_old", "DROP TABLE IF EXISTS `sales_leads_services`");
+    await run("sl_services_rename", "ALTER TABLE `sales_leads_services_new` RENAME TO `sales_leads_services`");
+    await run("sl_services_parent_idx2", "CREATE INDEX IF NOT EXISTS `sales_leads_services_parent_idx` ON `sales_leads_services` (`parent_id`)");
+    await run("sl_services_order_idx2", "CREATE INDEX IF NOT EXISTS `sales_leads_services_order_idx` ON `sales_leads_services` (`order`)");
+
     // locked_docs_rels for sales_leads
     await run("locked_docs_rels.sales_leads_id", "ALTER TABLE `payload_locked_documents_rels` ADD `sales_leads_id` integer");
   
