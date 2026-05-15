@@ -1,7 +1,42 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
-import { CHAT_PICKER_MODELS, DEFAULT_CHAT_MODEL } from '@/lib/agents/_shared/llm/registry'
+import { CHAT_PICKER_MODELS, DEFAULT_CHAT_MODEL, isCanonicalModel } from '@/lib/agents/_shared/llm/registry'
+
+/** localStorage key for the user's preferred chat model. Kept module-scoped so
+ *  every ChatCore instance reads/writes the same slot — picking a model in
+ *  one tab updates the default the next tab opens with. ~25 bytes total. */
+const MODEL_STORAGE_KEY = 'optimate-chat-model'
+
+/** Read a persisted model choice from localStorage, falling back to the
+ *  registry default. Guards against:
+ *  - SSR (no window)
+ *  - localStorage disabled / quota exceeded (try/catch)
+ *  - stale values from a model that's since been removed from the registry
+ *    (isCanonicalModel) or from the chat picker (CHAT_PICKER_MODELS) */
+function loadPersistedModel(): string {
+  if (typeof window === 'undefined') return DEFAULT_CHAT_MODEL
+  try {
+    const raw = window.localStorage.getItem(MODEL_STORAGE_KEY)
+    if (!raw) return DEFAULT_CHAT_MODEL
+    if (!isCanonicalModel(raw)) return DEFAULT_CHAT_MODEL
+    if (!CHAT_PICKER_MODELS.some((m) => m.canonical === raw)) return DEFAULT_CHAT_MODEL
+    return raw
+  } catch {
+    return DEFAULT_CHAT_MODEL
+  }
+}
+
+/** Persist a model choice. Silently no-ops on SSR or storage failure —
+ *  the in-memory state is still correct for the current session. */
+function savePersistedModel(model: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(MODEL_STORAGE_KEY, model)
+  } catch {
+    // Quota exceeded or storage disabled — fine, just don't persist.
+  }
+}
 import OptiMateProposalCard, { type OptiMateProposal } from './OptiMateProposalCard'
 import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
 import OptiMateToolsHelp from './OptiMateToolsHelp'
@@ -350,7 +385,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_CHAT_MODEL)
+  // Lazy initializer: runs once on mount, so localStorage is only read once.
+  // Reset on reload picks up whatever the user last chose in any tab.
+  const [selectedModel, setSelectedModel] = useState<string>(() => loadPersistedModel())
   const [authStatus, setAuthStatus] = useState<AuthBadgeStatus>({
     tone: 'grey',
     label: 'Checking…',
@@ -763,28 +800,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           marginBottom: 10,
         }}
       >
-        <div
-          style={{
-            width: compact ? 28 : 32,
-            height: compact ? 28 : 32,
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: compact ? 12 : 14,
-            fontWeight: 700,
-            flexShrink: 0,
-          }}
-        >
-          O
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: compact ? 13 : 14 }}>
-            OptiMate Google Ads
-          </div>
-        </div>
+        {/* Title + avatar removed — the parent launcher / popout black bar
+            already shows the agent name ("OptiMate Google Ads"). This header
+            row still hosts the auth pill, tools-help button and history
+            button on the right; the empty flex spacer keeps them right-aligned. */}
+        <div style={{ flex: 1, minWidth: 0 }} />
         <a
           href="/agent-auth"
           target="_blank"
@@ -1296,7 +1316,10 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
             <select
               value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
+              onChange={(e) => {
+                setSelectedModel(e.target.value)
+                savePersistedModel(e.target.value)
+              }}
               disabled={loading}
               title="Model used for the next message"
               style={{

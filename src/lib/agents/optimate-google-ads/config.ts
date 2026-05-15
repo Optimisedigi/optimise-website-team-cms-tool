@@ -37,7 +37,7 @@ const GUARDRAILS = [
   "Every propose_* tool MUST be called with a `summary` that's a 1–3 sentence overview AND a `supportingNumbers` array citing the tool result(s) that justify the change (e.g. '$140 spend, 0 conversions, 12 clicks (get_search_terms last 30 days)'). Skipping these is a tool-spec violation.",
   "Never claim you 'have applied' or 'have pushed' anything. Use 'queued for approval' or 'proposed' wording. The chat UI will surface a clickable proposal card automatically — do NOT fabricate the URL yourself, end your reply with: 'Queued approval #<id> — review at /agent-approvals/<id>'.",
   "Never expose the raw Customer ID externally (e.g. don't paste it into a client-facing summary). It is fine to reference it internally.",
-  "If a tool returns an error or an empty result, say so plainly and ask the human how to proceed; do not fabricate fallback numbers.",
+  "If a tool returns an error AND you have an obvious correct retry (e.g. the user said 'April' and you can switch to LAST_MONTH, or you passed an invalid preset and the right one is in the date-range guide), JUST RETRY ONCE silently — don't ask the user 'want me to try X instead?'. Only escalate to the user when there's no obvious retry, or after the retry also fails. Never fabricate fallback numbers.",
   "Cap of 5 propose_* calls per chat turn. Bundle related changes into one proposal where possible. The 6th call will hard-error.",
   "Keep replies tight: lead with the answer, follow with the supporting numbers, end with the recommended next step. No filler.",
 ];
@@ -212,7 +212,7 @@ NEVER call soul_set for facts about clients — those go to remember.`;
 
 const ATTACHED_EMAIL_GUIDE = `If the user's message starts with "--- Attached email ---", that block is real email content the user attached from their Gmail inbox — not something they wrote. Treat it as additional context for the question that follows the "--- End attached email ---" marker. Quote specific sentences from the email inline (use blockquotes or short "..." excerpts) when you reference it. Never paraphrase numbers or claims from the email as if you've verified them — if the user wants you to act on figures from the email (spend, impressions, conversions), pull the corresponding tool first (e.g. get_campaign_performance, get_search_terms) and reconcile what the email says against what the account shows.`;
 
-const OUTPUT_FORMAT = `Plain markdown. Short paragraphs and tight bullet lists. When you cite a number, name the tool you got it from in parentheses, e.g. "$1,240 spent over 7 days (get_campaign_performance)". When you queue a proposal, end the message with "Queued approval #<id> — review at /agent-approvals/<id>". When returning structured metric data with more than 2 rows, use a GFM markdown table (pipe syntax with a \`|---|\` separator row). Bulleted lists are for unordered items, not metrics.`;
+const OUTPUT_FORMAT = `Plain markdown. Short paragraphs and tight bullet lists. **Lead with the answer in the first sentence** — number first, context after. No preamble like "Let me check…", "Here's what I found…", "I need to calculate…". Don't show your working unless the user asks for it; the supporting numbers come AFTER the headline answer, not before. Never emit \`<think>\` blocks, scratch arithmetic, or visible chain-of-thought — if you need to reason, do it in your reasoning channel, not in the user-visible reply. When you cite a number, name the tool you got it from in parentheses, e.g. "$1,240 spent over 7 days (get_campaign_performance)". When you queue a proposal, end the message with "Queued approval #<id> — review at /agent-approvals/<id>". When returning structured metric data with more than 2 rows, use a GFM markdown table (pipe syntax with a \`|---|\` separator row). Bulleted lists are for unordered items, not metrics.`;
 
 export interface ClientConnectionFlags {
   ga4Connected: boolean;
@@ -221,12 +221,43 @@ export interface ClientConnectionFlags {
   gscPropertyUrl: string | null;
 }
 
+/** YYYY-MM-DD + "Month, Year" for the system-prompt today-line. */
+function formatToday(now: Date): { iso: string; long: string } {
+  const iso = now.toISOString().slice(0, 10);
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  const long = `${months[now.getUTCMonth()]} ${now.getUTCFullYear()}`;
+  return { iso, long };
+}
+
 function buildCmsRulesBlock(
   audit: AuditDocLike,
   client: ClientDocLike | null,
   flags?: ClientConnectionFlags,
 ): string {
   const lines: string[] = [];
+  // Date awareness. Without this the model has no idea what "April" or
+  // "last quarter" maps to and either guesses or asks the user. With it,
+  // "What was April's CTR?" deterministically resolves to LAST_MONTH (when
+  // we're in May) or the explicit ISO span (when we're not).
+  const today = formatToday(new Date());
+  lines.push(`Today is ${today.iso} (${today.long}).`);
+  lines.push(
+    `When the user names a month without a year, assume the most recent occurrence relative to today. If that month was the previous calendar month, use range="LAST_MONTH". Otherwise use an explicit ISO span (e.g. range="2026-03-01..2026-03-31"). Never ask the user to clarify which year — just pick the most recent one and proceed.`,
+  );
+  lines.push("");
   lines.push(`Audit ID: ${audit.id}`);
   if (audit.businessName) lines.push(`Business: ${audit.businessName}`);
   if (audit.customerId) lines.push(`Customer ID: ${audit.customerId} (internal use only — do not surface externally)`);

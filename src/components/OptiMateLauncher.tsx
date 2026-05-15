@@ -327,10 +327,13 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 </span>
               )}
               {step === 'chat' && selectedAudits.length > 0 && (
+                // Agent name lives in the black bar slot that used to show the
+                // client name. The active account label is already surfaced by
+                // the per-account tab strip inside OptiMateMultiChat (and by
+                // the chat-body header when only one account is selected), so
+                // we don't repeat it here.
                 <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · {selectedAudits.length === 1
-                    ? (selectedAudits[0].businessName ?? selectedAudits[0].customerId)
-                    : `${selectedAudits.length} accounts`}
+                  · Google Ads
                 </span>
               )}
               {pendingCount > 0 && (

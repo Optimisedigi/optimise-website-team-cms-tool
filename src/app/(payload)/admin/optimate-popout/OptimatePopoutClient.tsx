@@ -48,6 +48,9 @@ export default function OptimatePopoutClient({ targets }: Props) {
         />
         <div style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>
           OptiMate
+          {/* Agent-name slot. The active account is surfaced inside the chat
+           *  itself (tab strip / single-account body header) so we don't
+           *  repeat it in the black title bar. */}
           <span
             style={{
               opacity: 0.7,
@@ -56,10 +59,7 @@ export default function OptimatePopoutClient({ targets }: Props) {
               fontSize: 11,
             }}
           >
-            ·{' '}
-            {targets.length === 1
-              ? (targets[0].businessName ?? targets[0].customerId)
-              : `${targets.length} accounts`}
+            · Google Ads
           </span>
         </div>
         <button
