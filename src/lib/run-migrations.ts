@@ -1692,6 +1692,11 @@ export async function runMigrations(
   
     // ── Client Proposals: client_id column (links proposal to converted client) ──
     await run("client_proposals.client_id", "ALTER TABLE `client_proposals` ADD `client_id` integer REFERENCES `clients`(`id`) ON DELETE set null");
+
+    // ── Client Proposals: "Start as lead" toggle (creates a SalesLead from a proposal) ──
+    await run("client_proposals.start_as_lead", "ALTER TABLE `client_proposals` ADD `start_as_lead` integer DEFAULT false");
+    await run("client_proposals.sales_lead_id", "ALTER TABLE `client_proposals` ADD `sales_lead_id` integer REFERENCES `sales_leads`(`id`) ON DELETE set null");
+    await run("client_proposals_sales_lead_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_sales_lead_idx` ON `client_proposals` (`sales_lead_id`)");
   
     // ── payload_locked_documents_rels: negative_sweep_candidates_id ──
     // The NegativeSweepCandidates collection is registered in payload.config.ts but
