@@ -50,7 +50,7 @@ const DEFAULT_PAYMENT_METHODS_HTML = `<p style="margin:0 0 8px 0;font-family:Ari
   Bank deposit:<br />
   &nbsp;&nbsp;Account: <strong>Optimise Digital Pty Ltd</strong><br />
   &nbsp;&nbsp;BSB: <strong>062-692</strong><br />
-  &nbsp;&nbsp;Account number: <strong>1117 6620</strong><br />
+  &nbsp;&nbsp;Account number: <strong>45576894</strong><br />
   &nbsp;&nbsp;Reference: your invoice number(s)
 </p>
 <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.55;">

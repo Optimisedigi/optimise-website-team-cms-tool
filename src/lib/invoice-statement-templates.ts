@@ -40,7 +40,7 @@ const FALLBACK = {
     "Quick consolidated summary of your account with us — here's everything currently open in one place.",
   summary:
     "Total outstanding: {totalOutstanding} across {unpaidCount} invoices, with {totalOverdue} overdue.",
-  paymentMethods: `<p>Bank deposit: <strong>BSB 062-692, Account 1117 6620</strong> — reference your invoice number(s).</p>`,
+  paymentMethods: `<p>Bank deposit: <strong>BSB 062-692, Account 45576894</strong> — reference your invoice number(s).</p>`,
   closing: "Any questions, just reply to this email.",
   signOff: "Thanks,",
   senderName: "Maria",
