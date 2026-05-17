@@ -408,15 +408,17 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
               Generated {formatDate(draft.generatedAt)} · Last refreshed {relativeAge(draft.lastRefreshedAt)}
             </div>
           </div>
-          <button onClick={onClose} style={btnSecondary}>Close</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={refreshSnapshot} disabled={refreshing} style={btnSecondary}>
+              {refreshing ? 'Refreshing\u2026' : 'Refresh from Xero'}
+            </button>
+            <button onClick={onClose} style={btnSecondary}>Close</button>
+          </div>
         </div>
 
         {stale && (
-          <div style={{ padding: '10px 20px', background: '#fef3c7', borderBottom: '1px solid #fde68a', fontSize: 13, color: '#92400e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Snapshot is over 24h old. Status may have changed in Xero — refresh recommended.</span>
-            <button onClick={refreshSnapshot} disabled={refreshing} style={btnSecondary}>
-              {refreshing ? 'Refreshing\u2026' : 'Refresh'}
-            </button>
+          <div style={{ padding: '10px 20px', background: '#fef3c7', borderBottom: '1px solid #fde68a', fontSize: 13, color: '#92400e' }}>
+            <span>Snapshot is over 24h old. Status may have changed in Xero — click “Refresh from Xero” above.</span>
           </div>
         )}
 
