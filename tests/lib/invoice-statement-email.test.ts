@@ -88,6 +88,10 @@ describe("buildStatementEmail", () => {
     expect(out.html).toContain(
       `<a href="https://in.xero.com/sample/inv-001"`,
     );
+    // Must open in a new tab — important inside iframe previews and as a
+    // general courtesy for clients reading the email in webmail.
+    expect(out.html).toContain(`target="_blank"`);
+    expect(out.html).toContain(`rel="noopener noreferrer"`);
     expect(out.html).toContain("View &amp; pay &rarr;");
   });
 

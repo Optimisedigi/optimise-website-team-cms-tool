@@ -206,7 +206,7 @@ export function buildStatementEmail(
       const number = escapeHtml(inv.invoiceNumber || inv.invoiceId);
       const description = escapeHtml(inv.reference || "");
       const payLinkCell = inv.onlineInvoiceUrl
-        ? `<a href="${escapeHtml(inv.onlineInvoiceUrl)}" style="color:#1a73e8;text-decoration:none;font-weight:600;">View &amp; pay &rarr;</a>`
+        ? `<a href="${escapeHtml(inv.onlineInvoiceUrl)}" target="_blank" rel="noopener noreferrer" style="color:#1a73e8;text-decoration:none;font-weight:600;">View &amp; pay &rarr;</a>`
         : `<span style="color:#9ca3af;">\u2014</span>`;
       return `
         <tr>

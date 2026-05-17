@@ -523,7 +523,10 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
                   key={previewHtml.length}
                   title="Statement preview"
                   srcDoc={previewHtml}
-                  sandbox=""
+                  // allow-popups + allow-popups-to-escape-sandbox so View &
+                  // pay links open in a new tab when the team tests the
+                  // preview. Without this, clicks blink and do nothing.
+                  sandbox="allow-popups allow-popups-to-escape-sandbox"
                   style={{ width: '100%', height: '100%', minHeight: 500, border: 0, background: '#fff' }}
                 />
               )}

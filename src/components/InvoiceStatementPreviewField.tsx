@@ -142,7 +142,9 @@ const InvoiceStatementPreviewField = () => {
         <iframe
           title="Invoice statement preview"
           srcDoc={result.html}
-          sandbox=""
+          // allow-popups so View & pay links open in a new tab when the
+          // team tests them. Without it the iframe just blinks.
+          sandbox="allow-popups allow-popups-to-escape-sandbox"
           style={{ width: '100%', minHeight: 700, border: 0, background: '#fff' }}
         />
       </div>
