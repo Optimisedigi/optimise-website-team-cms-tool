@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@payloadcms/ui'
 import OptiMateMultiChat, { type OptiMateChatTarget } from './OptiMateMultiChat'
+import InvoiceAssistantChat from './InvoiceAssistantChat'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 
-type AgentKey = 'google-ads'
+type AgentKey = 'google-ads' | 'invoices'
 
 interface AgentDef {
   key: AgentKey
@@ -17,6 +18,7 @@ interface AgentDef {
 
 const AGENTS: AgentDef[] = [
   { key: 'google-ads', label: 'Google Ads', icon: '/optimate-icon.png', enabled: true },
+  { key: 'invoices', label: 'Invoices', icon: '/optimate-icon.png', enabled: true },
   // Add more agents here as they ship — just append a row; the grid auto-fills.
 ]
 
@@ -26,7 +28,7 @@ interface AuditOption {
   customerId: string
 }
 
-type Step = 'agent' | 'audit' | 'chat' | 'pomodoro'
+type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'pomodoro'
 
 const PILL_RIGHT = 20 // pixels — pomodoro pill is gone, sit bottom-right alone
 const PILL_BOTTOM = 20
@@ -146,6 +148,12 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
   const handleAgentSelect = (key: AgentKey) => {
     setAgent(key)
+    // The invoice assistant doesn't need an audit/account picker — it
+    // operates against Xero directly, so jump straight to chat.
+    if (key === 'invoices') {
+      setStep('invoice-chat')
+      return
+    }
     setStep('audit')
   }
 
@@ -336,6 +344,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   · Google Ads
                 </span>
               )}
+              {step === 'invoice-chat' && (
+                <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
+                  · Invoices
+                </span>
+              )}
               {pendingCount > 0 && (
                 <a
                   href="/agent-approvals?status=pending"
@@ -374,6 +387,27 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 }}
               >
                 ← Accounts
+              </button>
+            )}
+            {step === 'invoice-chat' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAgent('')
+                  setStep('agent')
+                }}
+                title="Switch agent"
+                style={{
+                  background: 'transparent',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  padding: '3px 8px',
+                  cursor: 'pointer',
+                }}
+              >
+                ← Agents
               </button>
             )}
             {step === 'chat' && selectedAudits.length > 0 && (
@@ -458,15 +492,15 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             </button>
           </div>
 
-          {/* Panel body. Note: chat step uses flex layout (no scroll on the
-              wrapper) so OptiMateMultiChat can manage its own scrolling and
-              keep the shared input glued to the bottom. */}
+          {/* Panel body. Note: chat steps use flex layout (no scroll on the
+              wrapper) so the chat component can manage its own scrolling and
+              keep the input glued to the bottom. */}
           <div
             style={{
               flex: 1,
               padding: step === 'pomodoro' ? 0 : 14,
-              overflowY: step === 'chat' ? 'hidden' : 'auto',
-              display: step === 'chat' ? 'flex' : 'block',
+              overflowY: step === 'chat' || step === 'invoice-chat' ? 'hidden' : 'auto',
+              display: step === 'chat' || step === 'invoice-chat' ? 'flex' : 'block',
               flexDirection: 'column',
               minHeight: 0,
             }}
@@ -709,6 +743,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 compact
               />
             )}
+
+            {step === 'invoice-chat' && <InvoiceAssistantChat />}
           </div>
         </div>
       )}

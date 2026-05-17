@@ -25,6 +25,42 @@ interface GrowthToolsRow {
   overdueCount: number;
 }
 
+interface XeroContactRow {
+  contactId: string;
+  name: string;
+  emailAddress: string;
+}
+
+/**
+ * Fallback email lookup for a Xero contactId.
+ *
+ * Growth Tools' `/api/xero/contacts/with-outstanding` endpoint sometimes
+ * returns `emailAddress: ""` for contacts that do have an email set in
+ * Xero (the join differs from the general `/api/xero/contacts` endpoint).
+ * When the primary endpoint reports an empty email we fetch the contact
+ * directly to recover the canonical value.
+ *
+ * Returns the email if found, or an empty string if anything fails —
+ * callers should treat empty as "no email".
+ */
+async function fetchXeroContactEmail(
+  growthUrl: string,
+  internalKey: string,
+  contactId: string,
+): Promise<string> {
+  try {
+    const res = await fetch(`${growthUrl}/api/xero/contacts`, {
+      headers: { "x-internal-key": internalKey },
+    });
+    if (!res.ok) return "";
+    const rows = (await res.json()) as XeroContactRow[];
+    const match = rows.find((r) => r.contactId === contactId);
+    return match?.emailAddress ?? "";
+  } catch {
+    return "";
+  }
+}
+
 /**
  * POST /api/invoice-statements/:id/refresh-snapshot
  *
@@ -143,6 +179,17 @@ export async function POST(
     return NextResponse.json({ allPaid: true });
   }
 
+  // Email fallback: when `with-outstanding` reports empty email, look it up
+  // from the general contacts endpoint (the canonical Xero source).
+  let resolvedEmail = fresh.emailAddress;
+  if (!resolvedEmail) {
+    resolvedEmail = await fetchXeroContactEmail(
+      growthUrl,
+      internalKey,
+      fresh.contactId,
+    );
+  }
+
   const now = new Date().toISOString();
   const snapshot: StatementSnapshot = {
     contact: {
@@ -150,7 +197,7 @@ export async function POST(
       contactName: fresh.contactName,
       firstName: fresh.firstName,
       lastName: fresh.lastName,
-      emailAddress: fresh.emailAddress,
+      emailAddress: resolvedEmail,
     },
     unpaid: fresh.unpaid.map((inv) => ({
       invoiceId: inv.invoiceId,
@@ -188,7 +235,7 @@ export async function POST(
     data: {
       snapshot,
       contactName: fresh.contactName,
-      recipientEmail: fresh.emailAddress,
+      recipientEmail: resolvedEmail,
       totalOutstanding: fresh.totalOutstanding,
       totalOverdue: fresh.totalOverdue,
       unpaidCount: fresh.unpaidCount,

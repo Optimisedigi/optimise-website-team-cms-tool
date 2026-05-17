@@ -161,30 +161,12 @@ const SidebarNavExtras = () => {
     hideAutoCollectionLinks()
     const hideInterval = setInterval(hideAutoCollectionLinks, 500)
 
-    if (canInvoices) {
-      injectLink(
-        '#nav-group-Finance .nav-group__content',
-        'invoices',
-        '/admin/finance/invoices',
-        ICONS.invoices,
-        'Invoices',
-        'prepend',
-      )
-      injectLink(
-        '#nav-group-Finance .nav-group__content',
-        'invoice-statements',
-        '/admin/finance/invoice-statements',
-        ICONS.invoiceStatements,
-        'Invoice Statements',
-        'append',
-      )
-      // Hide the auto-generated collection link — we have a custom page.
-      const autoLink = document.querySelector(
-        'a.nav__link[href="/admin/collections/invoice-statement-drafts"]',
-      ) as HTMLElement | null
-      if (autoLink) autoLink.style.display = 'none'
-    }
-
+    // Finance sidebar order:
+    //   Invoices → Invoice Statements → Contractors → [auto] Contractor Time Entries
+    //
+    // Each prepend goes to index 0, so we inject bottom-up: Contractors first
+    // (sits above the auto contractor-time-entries link), then Invoice
+    // Statements, then Invoices (which lands at the very top).
     if (canContractorCosts) {
       injectLink(
         '#nav-group-Finance .nav-group__content',
@@ -194,6 +176,30 @@ const SidebarNavExtras = () => {
         'Contractors',
         'prepend',
       )
+    }
+
+    if (canInvoices) {
+      injectLink(
+        '#nav-group-Finance .nav-group__content',
+        'invoice-statements',
+        '/admin/finance/invoice-statements',
+        ICONS.invoiceStatements,
+        'Invoice Statements',
+        'prepend',
+      )
+      injectLink(
+        '#nav-group-Finance .nav-group__content',
+        'invoices',
+        '/admin/finance/invoices',
+        ICONS.invoices,
+        'Invoices',
+        'prepend',
+      )
+      // Hide the auto-generated collection link — we have a custom page.
+      const autoLink = document.querySelector(
+        'a.nav__link[href="/admin/collections/invoice-statement-drafts"]',
+      ) as HTMLElement | null
+      if (autoLink) autoLink.style.display = 'none'
     }
 
     // Agent fleet — surfaced under Settings for any logged-in user. The

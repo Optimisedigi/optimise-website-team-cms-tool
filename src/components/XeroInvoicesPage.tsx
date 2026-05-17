@@ -422,14 +422,36 @@ export default function XeroInvoicesPage() {
           <span style={{ color: 'var(--theme-elevation-300)' }}>/</span>
           <span style={{ color: 'var(--theme-elevation-800)', fontWeight: 600 }}>Xero Invoices</span>
         </nav>
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          style={{ ...refreshBtn, opacity: refreshing ? 0.5 : 1, cursor: refreshing ? 'not-allowed' : 'pointer' }}
-        >
-          {refreshing ? 'Refreshing...' : 'Refresh ↻'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <a
+            href="/admin/finance/invoice-statements"
+            style={{
+              ...refreshBtn,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              textDecoration: 'none',
+              color: 'var(--theme-elevation-500)',
+            }}
+            title="Open Invoice Statements"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="14 3 14 8 19 8"/>
+              <line x1="8" y1="13" x2="16" y2="13"/>
+              <line x1="8" y1="17" x2="13" y2="17"/>
+            </svg>
+            Invoice Statements
+          </a>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{ ...refreshBtn, opacity: refreshing ? 0.5 : 1, cursor: refreshing ? 'not-allowed' : 'pointer' }}
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh ↻'}
+          </button>
+        </div>
       </div>
 
       {/* KPI Summary */}
