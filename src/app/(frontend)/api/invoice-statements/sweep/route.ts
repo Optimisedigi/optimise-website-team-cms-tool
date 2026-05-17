@@ -317,9 +317,20 @@ async function runSweep(
     description: `Generated ${generated}, updated ${updatedPending}, expired ${expired} \u2014 ${contacts.length} contact(s) processed.`,
   }).catch(() => {});
 
-  // 6. Notify admins (one row each) if anything new appeared.
+  // 6. Notify admins. The title should reflect the *current total* of
+  // pending drafts (not just this sweep's delta), and previous
+  // `invoice-statements-ready` rows are superseded — deleted before we
+  // create the new ones — so each admin only ever sees the single most
+  // recent statement-queue notification.
   let notified = 0;
-  if (generated + updatedPending > 0) {
+  const pendingCountAfter = await payload.count({
+    collection: "invoice-statement-drafts" as never,
+    where: { status: { equals: "pending" } } as never,
+    overrideAccess: true,
+  });
+  const totalPending = pendingCountAfter.totalDocs;
+
+  if (totalPending > 0) {
     const admins = await payload.find({
       collection: "users",
       where: { role: { equals: "admin" } } as never,
@@ -327,7 +338,22 @@ async function runSweep(
       depth: 0,
       overrideAccess: true,
     });
-    const totalReady = generated + updatedPending;
+
+    // Supersede prior invoice-statements-ready notifications across all
+    // admins in one shot. Idempotent — safe to call when there are none.
+    try {
+      await payload.delete({
+        collection: "notifications" as never,
+        where: { kind: { equals: "invoice-statements-ready" } } as never,
+        overrideAccess: true,
+      });
+    } catch (err) {
+      payload.logger?.error?.({
+        msg: "invoice-statements notification cleanup failed",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     for (const admin of admins.docs) {
       const adminId = (admin as { id: number | string }).id;
       try {
@@ -337,8 +363,8 @@ async function runSweep(
           data: {
             recipient: adminId,
             kind: "invoice-statements-ready",
-            title: `${totalReady} client statement${totalReady === 1 ? "" : "s"} ready to review`,
-            body: `Total outstanding across all drafts will be shown on the queue page.`,
+            title: `${totalPending} client statement${totalPending === 1 ? "" : "s"} ready to review`,
+            body: `Total pending in the queue. Click to open and approve / reject.`,
             url: `/admin/finance/invoice-statements`,
           } as never,
         });
@@ -370,8 +396,8 @@ async function runSweep(
               name: "Optimise Digital",
             },
             to: [{ email: env.STATEMENT_NOTIFY_EMAIL }],
-            subject: `${totalReady} invoice statement${totalReady === 1 ? "" : "s"} ready for review`,
-            textContent: `${totalReady} draft${totalReady === 1 ? "" : "s"} pending approval. Review at /admin/finance/invoice-statements`,
+            subject: `${totalPending} invoice statement${totalPending === 1 ? "" : "s"} ready for review`,
+            textContent: `${totalPending} draft${totalPending === 1 ? "" : "s"} pending approval. Review at /admin/finance/invoice-statements`,
           }),
         });
       } catch (err) {

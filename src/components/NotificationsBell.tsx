@@ -331,6 +331,12 @@ const NotificationsBell = (): ReactElement | null => {
             {!loading &&
               items.map((item) => {
                 const unread = !item.readAt;
+                // Unread rows: white bg, blue left bar, blue title, blue dot.
+                // Read rows:   subtle grey bg, muted text, no bar, no dot.
+                const unreadBg = "var(--theme-elevation-0, #fff)";
+                const readBg = "var(--theme-elevation-50, #f4f5f7)";
+                const baseBg = unread ? unreadBg : readBg;
+                const hoverBg = "var(--theme-elevation-100, #e8eaf0)";
                 return (
                   <button
                     type="button"
@@ -340,39 +346,68 @@ const NotificationsBell = (): ReactElement | null => {
                       display: "block",
                       width: "100%",
                       textAlign: "left",
-                      padding: "10px 14px",
-                      background: unread ? "var(--theme-elevation-50, #f5f9ff)" : "none",
-                      border: "none",
+                      padding: "10px 14px 10px 14px",
+                      paddingLeft: unread ? 11 : 14,
+                      background: baseBg,
+                      borderLeft: unread ? "3px solid #1a73e8" : "3px solid transparent",
+                      borderTop: "none",
+                      borderRight: "none",
                       borderBottom: "1px solid var(--theme-elevation-100, #eee)",
                       cursor: "pointer",
                       transition: "background 150ms",
+                      opacity: unread ? 1 : 0.78,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "var(--theme-elevation-100, #eef)";
+                      e.currentTarget.style.background = hoverBg;
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = unread
-                        ? "var(--theme-elevation-50, #f5f9ff)"
-                        : "none";
+                      e.currentTarget.style.background = baseBg;
                     }}
                   >
                     <div
                       style={{
-                        fontSize: 13,
-                        fontWeight: unread ? 600 : 500,
-                        color: "var(--theme-elevation-800)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
                         marginBottom: 2,
                       }}
                     >
-                      {item.title}
+                      {unread && (
+                        <span
+                          aria-label="Unread"
+                          style={{
+                            display: "inline-block",
+                            width: 8,
+                            height: 8,
+                            borderRadius: 999,
+                            background: "#1a73e8",
+                            flex: "0 0 8px",
+                          }}
+                        />
+                      )}
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: unread ? 700 : 400,
+                          color: unread
+                            ? "var(--theme-elevation-900, #111)"
+                            : "var(--theme-elevation-600, #666)",
+                          flex: 1,
+                        }}
+                      >
+                        {item.title}
+                      </div>
                     </div>
                     {item.body && (
                       <div
                         style={{
                           fontSize: 12,
-                          color: "var(--theme-elevation-500)",
+                          color: unread
+                            ? "var(--theme-elevation-700, #444)"
+                            : "var(--theme-elevation-500, #888)",
                           lineHeight: 1.4,
                           marginBottom: 4,
+                          paddingLeft: unread ? 16 : 0,
                         }}
                       >
                         {item.body}
@@ -381,10 +416,19 @@ const NotificationsBell = (): ReactElement | null => {
                     <div
                       style={{
                         fontSize: 11,
-                        color: "var(--theme-elevation-400)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        color: "var(--theme-elevation-400, #999)",
+                        paddingLeft: unread ? 16 : 0,
                       }}
                     >
-                      {formatRelativeTime(item.createdAt)}
+                      <span>{formatRelativeTime(item.createdAt)}</span>
+                      {!unread && (
+                        <span style={{ color: "var(--theme-elevation-400, #999)" }}>
+                          · Read
+                        </span>
+                      )}
                     </div>
                   </button>
                 );

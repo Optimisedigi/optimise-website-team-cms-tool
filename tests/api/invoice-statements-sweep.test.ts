@@ -9,6 +9,8 @@ interface MockPayload {
   find: ReturnType<typeof vi.fn>;
   create: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
+  count: ReturnType<typeof vi.fn>;
   logger: { error: ReturnType<typeof vi.fn> };
 }
 
@@ -16,6 +18,8 @@ const mockPayload: MockPayload = {
   find: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  delete: vi.fn(),
+  count: vi.fn(),
   logger: { error: vi.fn() },
 };
 
@@ -47,6 +51,10 @@ beforeEach(() => {
   );
   mockPayload.create.mockResolvedValue({ id: 1 });
   mockPayload.update.mockResolvedValue({ id: 1 });
+  mockPayload.delete.mockResolvedValue({ docs: [] });
+  // Default: assume no pending drafts after sweep — individual tests
+  // override this when they expect a notification to fire.
+  mockPayload.count.mockResolvedValue({ totalDocs: 0 });
 });
 
 import { GET } from "@/app/(frontend)/api/invoice-statements/sweep/route";
@@ -220,6 +228,9 @@ describe("GET /api/invoice-statements/sweep", () => {
 
   it("creates notifications for every admin user when drafts were generated", async () => {
     mockGrowthToolsResponse([SAMPLE_CONTACT]);
+    // 4 pending drafts in the queue after this sweep — the notification
+    // title should reflect the total, not just this sweep's delta.
+    mockPayload.count.mockResolvedValue({ totalDocs: 4 });
     let findCallCount = 0;
     mockPayload.find.mockImplementation((args: { collection?: string }) => {
       findCallCount++;
@@ -245,6 +256,15 @@ describe("GET /api/invoice-statements/sweep", () => {
     const body = await res.json();
     expect(body.notified).toBe(2);
 
+    // Stale invoice-statements-ready notifications are superseded before
+    // new ones are created.
+    expect(mockPayload.delete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "notifications",
+        where: { kind: { equals: "invoice-statements-ready" } },
+      }),
+    );
+
     const notifCalls = mockPayload.create.mock.calls.filter(
       ([arg]) => (arg as { collection?: string }).collection === "notifications",
     );
@@ -252,6 +272,7 @@ describe("GET /api/invoice-statements/sweep", () => {
     expect(notifCalls[0][0].data).toMatchObject({
       kind: "invoice-statements-ready",
       url: "/admin/finance/invoice-statements",
+      title: "4 client statements ready to review",
     });
   });
 
