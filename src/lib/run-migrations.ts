@@ -2863,6 +2863,30 @@ export async function runMigrations(
         `ALTER TABLE \`email_templates\` ADD \`${col}\` ${type}`,
       );
     }
+
+    // ── pin_rate_limits (2026-05-20) ───────────────────────────────────────────────
+    // Persistent per-target lockout buckets for 4-digit PIN endpoints.
+    // Replaces in-memory IP-keyed rate-limiters — see
+    // `src/collections/PinRateLimits.ts` for the rationale. Bucketed per
+    // target (audit/proposal/client), immune to lambda fan-out and XFF
+    // rotation. 5 wrong attempts in 15min → 15min lockout.
+    await run("pin_rate_limits", `CREATE TABLE IF NOT EXISTS \`pin_rate_limits\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`bucket_key\` text NOT NULL,
+      \`attempts\` numeric DEFAULT 0 NOT NULL,
+      \`locked_until\` text,
+      \`window_start\` text NOT NULL,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+    )`);
+    await run(
+      "pin_rate_limits_bucket_key_idx",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `pin_rate_limits_bucket_key_idx` ON `pin_rate_limits` (`bucket_key`)",
+    );
+    await run(
+      "locked_docs_rels.pin_rate_limits_id",
+      "ALTER TABLE `payload_locked_documents_rels` ADD `pin_rate_limits_id` integer REFERENCES `pin_rate_limits`(`id`) ON DELETE cascade",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
