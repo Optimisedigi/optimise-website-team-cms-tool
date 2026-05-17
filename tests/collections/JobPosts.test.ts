@@ -40,8 +40,8 @@ describe("JobPosts Collection", () => {
     expect(JobPosts.admin?.useAsTitle).toBe("jobTitle");
   });
 
-  it("should be in Content admin group", () => {
-    expect(JobPosts.admin?.group).toBe("Content");
+  it("should be in Admin admin group", () => {
+    expect(JobPosts.admin?.group).toBe("Admin");
   });
 
   it("should have drafts enabled", () => {

@@ -5,7 +5,7 @@ export const CalendarAuth: GlobalConfig = {
   slug: "calendar-auth",
   label: "Google Calendar Auth",
   admin: {
-    group: "Settings",
+    group: "Integrations",
     description:
       "Google Calendar OAuth token for checking availability and creating meeting events. Connect once to enable meeting scheduling.",
     hidden: hideGlobalUnlessFeature("calendar-auth"),

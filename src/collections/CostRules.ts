@@ -5,7 +5,7 @@ export const CostRules: CollectionConfig = {
   slug: "cost-rules",
   labels: { singular: "Cost Rule", plural: "Cost Rules" },
   admin: {
-    group: "Finance",
+    group: "Costs Overview",
     useAsTitle: "pattern",
     defaultColumns: ["pattern", "category"],
     hidden: hideUnlessFeature("cost-rules"),

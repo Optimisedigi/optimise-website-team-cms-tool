@@ -5,7 +5,7 @@ export const ApiCostRates: GlobalConfig = {
   slug: "api-cost-rates",
   label: "API Cost Rates",
   admin: {
-    group: "Finance",
+    group: "Costs Overview",
     description: "Configurable cost-per-unit rates (AUD) and monthly subscriptions. Update when provider prices change.",
     hidden: hideGlobalUnlessFeature("api-cost-rates"),
   },

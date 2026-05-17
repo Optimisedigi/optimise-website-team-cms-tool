@@ -11,7 +11,7 @@ export const JobPosts: CollectionConfig = {
   slug: "job-posts",
   admin: {
     useAsTitle: "jobTitle",
-    group: "Content",
+    group: "Admin",
     defaultColumns: ["jobTitle", "department", "location", "employmentType", "status"],
     description: "Manage open roles displayed on the careers page",
     hidden: hideUnlessFeature("job-posts"),

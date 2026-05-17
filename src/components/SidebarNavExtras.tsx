@@ -100,7 +100,7 @@ const SidebarNavExtras = () => {
   useEffect(() => {
     if (canIntegrations) {
       injectLink(
-        '#nav-group-Settings .nav-group__content',
+        '#nav-group-Integrations .nav-group__content',
         'integrations',
         '/admin/settings/integrations',
         ICONS.integrations,
@@ -208,7 +208,7 @@ const SidebarNavExtras = () => {
       'append',
     )
     injectLink(
-      '#nav-group-Settings .nav-group__content',
+      '#nav-group-Integrations .nav-group__content',
       'agent-auth',
       '/agent-auth',
       ICONS.agentAuth,

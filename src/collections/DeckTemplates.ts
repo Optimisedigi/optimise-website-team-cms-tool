@@ -46,7 +46,7 @@ export const DeckTemplates: CollectionConfig = {
   },
   admin: {
     useAsTitle: "name",
-    group: "Clients",
+    group: "Content",
     description:
       "Reusable slide-deck templates (Google Ads audits, stakeholder recaps, etc.)",
     hidden: hideUnlessFeature("deck-templates"),

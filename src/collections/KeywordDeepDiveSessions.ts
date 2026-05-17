@@ -19,6 +19,7 @@ const KeywordDeepDiveSessions: CollectionConfig = {
     // excludes it from routes too, which would break the Apply to NKL flow).
     // Non-admins without the feature key are blocked the standard way.
     hidden: hideUnlessFeature("keyword-deep-dive-sessions"),
+    group: "Growth Tools",
     useAsTitle: "title",
     defaultColumns: ["client", "googleAdsAudit", "keywordCount", "status", "appliedToNKL", "createdAt"],
     listSearchableFields: ["client", "title"],

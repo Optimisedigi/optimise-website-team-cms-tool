@@ -154,7 +154,12 @@ export default buildConfig({
     // `push: true` for local file DBs only — auto-syncs schema from collection
     // configs so local dev doesn't need the incremental migration chain to bootstrap.
     // Production (Turso libsql://) stays on manual migrations via /api/migrate.
-    push: (process.env.DATABASE_URL ?? "").startsWith("file:"),
+    // Set DISABLE_DB_PUSH=1 when running against a production snapshot file —
+    // the snapshot already has prod's schema, and auto-push would prompt to
+    // reconcile drift interactively (which blocks `next dev`).
+    push:
+      (process.env.DATABASE_URL ?? "").startsWith("file:") &&
+      process.env.DISABLE_DB_PUSH !== "1",
   }),
   // NOTE: `onInit` auto-heal was tried and reverted — the ~2500-statement
   // sweep against Turso runs serially over the network and pushed cold-start
