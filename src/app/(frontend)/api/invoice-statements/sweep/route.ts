@@ -19,8 +19,14 @@ function readEnv() {
     GROWTH_TOOLS_URL: process.env.GROWTH_TOOLS_URL,
     INTERNAL_API_KEY: process.env.INTERNAL_API_KEY,
     BREVO_API_KEY: process.env.BREVO_API_KEY,
+    // Qualifying rule: include a contact if EITHER they have at least
+    // STATEMENT_MIN_OUTSTANDING unpaid invoices, OR they have at least
+    // STATEMENT_INCLUDE_OVERDUE_MIN overdue invoices. Defaults: 2 unpaid OR 1 overdue.
     STATEMENT_MIN_OUTSTANDING: Number(
       process.env.STATEMENT_MIN_OUTSTANDING ?? "2",
+    ),
+    STATEMENT_INCLUDE_OVERDUE_MIN: Number(
+      process.env.STATEMENT_INCLUDE_OVERDUE_MIN ?? "1",
     ),
     STATEMENT_SWEEP_MAX_DRAFTS: Number(
       process.env.STATEMENT_SWEEP_MAX_DRAFTS ?? "200",
@@ -151,11 +157,19 @@ async function runSweep(
   }
 
   // 1. Fetch from Growth Tools.
+  //
+  // We ask Growth Tools for everything with at least 1 unpaid invoice (the
+  // widest net that endpoint supports) and then filter client-side to apply
+  // the real qualifying rule:
+  //   include if unpaidCount >= STATEMENT_MIN_OUTSTANDING
+  //   OR overdueCount >= STATEMENT_INCLUDE_OVERDUE_MIN
+  // This catches both "multiple unpaid (chase early)" and "single overdue
+  // (chase late payers)" cases in one sweep.
   const url = new URL(`${env.GROWTH_TOOLS_URL}/api/xero/contacts/with-outstanding`);
-  url.searchParams.set("minCount", String(env.STATEMENT_MIN_OUTSTANDING));
+  url.searchParams.set("minCount", "1");
   url.searchParams.set("paidSinceDays", String(PAID_SINCE_DAYS));
 
-  let contacts: GrowthToolsContactRow[];
+  let rawContacts: GrowthToolsContactRow[];
   try {
     const res = await fetch(url.toString(), {
       headers: { "x-internal-key": env.INTERNAL_API_KEY },
@@ -170,7 +184,7 @@ async function runSweep(
         { status: 502 },
       );
     }
-    contacts = (await res.json()) as GrowthToolsContactRow[];
+    rawContacts = (await res.json()) as GrowthToolsContactRow[];
   } catch (err) {
     return NextResponse.json(
       {
@@ -180,6 +194,13 @@ async function runSweep(
       { status: 502 },
     );
   }
+
+  // Apply the qualifying rule.
+  const contacts = rawContacts.filter(
+    (row) =>
+      row.unpaidCount >= env.STATEMENT_MIN_OUTSTANDING ||
+      row.overdueCount >= env.STATEMENT_INCLUDE_OVERDUE_MIN,
+  );
 
   // 2. Safety gate.
   if (contacts.length > env.STATEMENT_SWEEP_MAX_DRAFTS) {
@@ -272,7 +293,7 @@ async function runSweep(
     }
   }
 
-  // 4. Expire 14-day-old pending rows.
+  // 4a. Expire 14-day-old pending rows.
   const cutoff = new Date(now.getTime() - PENDING_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
   const stale = await payload.find({
     collection: "invoice-statement-drafts" as never,
@@ -305,6 +326,44 @@ async function runSweep(
       });
     }
   }
+
+  // 4b. Expire pending rows whose contact no longer qualifies.
+  //
+  // A draft sticks around (in `pending`) until it's sent, rejected, manually
+  // expired, or 14 days old. But once Growth Tools stops returning the
+  // contact (because they paid down to 1 unpaid + 0 overdue, etc.), the
+  // draft becomes a ghost — stale data, often with a now-irrelevant email.
+  // We compare the current qualifying contactIds against existing pending
+  // drafts; anything not in the set gets expired immediately.
+  const qualifyingIds = new Set(contacts.map((c) => c.contactId));
+  const allPending = await payload.find({
+    collection: "invoice-statement-drafts" as never,
+    where: { status: { equals: "pending" } } as never,
+    limit: 500,
+    depth: 0,
+    overrideAccess: true,
+  });
+  let expiredUnqualified = 0;
+  for (const doc of allPending.docs as Array<{ id: number | string; xeroContactId?: string }>) {
+    if (doc.xeroContactId && !qualifyingIds.has(doc.xeroContactId)) {
+      try {
+        await payload.update({
+          collection: "invoice-statement-drafts" as never,
+          id: doc.id,
+          overrideAccess: true,
+          data: { status: "expired" } as never,
+        });
+        expiredUnqualified++;
+      } catch (err) {
+        payload.logger?.error?.({
+          msg: "invoice-statements expire-unqualified failed",
+          id: doc.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  }
+  expired += expiredUnqualified;
 
   // 5. Activity log.
   const trigger =

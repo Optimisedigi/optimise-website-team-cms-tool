@@ -288,4 +288,96 @@ describe("GET /api/invoice-statements/sweep", () => {
     );
     expect(notifCalls).toHaveLength(0);
   });
+
+  it("includes a contact with a single overdue invoice (overdue rule)", async () => {
+    // Single unpaid invoice, but it's overdue — should still qualify.
+    const singleOverdue = {
+      ...SAMPLE_CONTACT,
+      contactId: "single-overdue",
+      unpaid: [SAMPLE_CONTACT.unpaid[0]],
+      unpaidCount: 1,
+      overdueCount: 1,
+      totalOutstanding: 2200,
+      totalOverdue: 2200,
+    };
+    mockGrowthToolsResponse([singleOverdue]);
+
+    const res = await GET(makeRequest("Bearer test-secret"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.generated).toBe(1);
+    expect(body.contactsProcessed).toBe(1);
+  });
+
+  it("excludes a contact with one unpaid invoice that is not overdue", async () => {
+    // Single unpaid, none overdue — fails both rules, must not become a draft.
+    const singleNotOverdue = {
+      ...SAMPLE_CONTACT,
+      contactId: "single-not-overdue",
+      unpaid: [SAMPLE_CONTACT.unpaid[0]],
+      unpaidCount: 1,
+      overdueCount: 0,
+      totalOutstanding: 2200,
+      totalOverdue: 0,
+    };
+    mockGrowthToolsResponse([singleNotOverdue]);
+
+    const res = await GET(makeRequest("Bearer test-secret"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.generated).toBe(0);
+    expect(body.contactsProcessed).toBe(0);
+    expect(mockPayload.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: "invoice-statement-drafts" }),
+    );
+  });
+
+  it("expires pending drafts whose contact no longer qualifies", async () => {
+    // Growth Tools no longer returns the ghost contact, but a pending draft
+    // for it still exists — it should be auto-expired.
+    mockGrowthToolsResponse([SAMPLE_CONTACT]);
+    mockPayload.find.mockImplementation((args: { collection?: string; where?: unknown }) => {
+      const where = args?.where as
+        | { and?: Array<{ generatedAt?: { less_than?: string } }> }
+        | { status?: { equals?: string } }
+        | undefined;
+      // First find: per-contact existing-pending check for the sweep contact.
+      // Second find: 14-day expiry query (has generatedAt clause).
+      // Third find: all-pending query for state-based expiry.
+      if (
+        where &&
+        "and" in where &&
+        where.and?.some((c) => c.generatedAt?.less_than)
+      ) {
+        return Promise.resolve({ docs: [] });
+      }
+      if (
+        where &&
+        "status" in where &&
+        (where as { status: { equals: string } }).status?.equals === "pending"
+      ) {
+        // All-pending query — includes a ghost contact not in qualifying set.
+        return Promise.resolve({
+          docs: [
+            { id: 77, xeroContactId: "ghost-no-longer-qualifies" },
+            { id: 78, xeroContactId: SAMPLE_CONTACT.contactId },
+          ],
+        });
+      }
+      return Promise.resolve({ docs: [] });
+    });
+
+    const res = await GET(makeRequest("Bearer test-secret"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.expired).toBe(1);
+    // The ghost row (id 77) is expired; the row matching this sweep (id 78) is not.
+    const expireCalls = mockPayload.update.mock.calls.filter(
+      ([arg]) =>
+        (arg as { id?: number; data?: { status?: string } }).data?.status ===
+          "expired",
+    );
+    expect(expireCalls).toHaveLength(1);
+    expect((expireCalls[0][0] as { id: number }).id).toBe(77);
+  });
 });

@@ -732,7 +732,7 @@ export default function InvoiceStatementsPage() {
           <strong>{tab === 'pending' ? 'Pending drafts' : 'Recent activity'}</strong>
         </div>
         <div style={{ overflow: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr>
                 <th style={thStyle}>Client</th>
