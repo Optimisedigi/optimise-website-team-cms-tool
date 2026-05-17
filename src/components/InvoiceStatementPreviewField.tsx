@@ -86,7 +86,9 @@ const InvoiceStatementPreviewField = () => {
     try {
       return buildStatementEmail({
         snapshot: SAMPLE_STATEMENT_SNAPSHOT,
-        customMessage: 'Great chat earlier — really appreciate you sticking with us through the campaign rebuild. Let me know if anything below looks off.',
+        // No customMessage in the preview — that's a per-send note typed in
+        // the approval modal, not part of the template itself. The preview
+        // should show only what every statement contains by default.
         templates: {
           subjectTemplate: debounced.subjectTemplate || '',
           greeting: debounced.greeting || '',
