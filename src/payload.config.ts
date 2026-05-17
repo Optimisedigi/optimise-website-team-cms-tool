@@ -65,6 +65,7 @@ import { OptimateChatTurns } from "./collections/OptimateChatTurns";
 import { ContractReminders } from "./collections/ContractReminders";
 import { Notifications } from "./collections/Notifications";
 import { InvoiceStatementDrafts } from "./collections/InvoiceStatementDrafts";
+import { PinRateLimits } from "./collections/PinRateLimits";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -120,7 +121,7 @@ export default buildConfig({
     // Optimate agents
     AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, OptimateChatTurns,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials, ContractReminders, Notifications,
+    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials, ContractReminders, Notifications, PinRateLimits,
   ].map((c) => ({
     ...c,
     admin: {
@@ -150,7 +151,10 @@ export default buildConfig({
         ? { authToken: process.env.DATABASE_AUTH_TOKEN }
         : {}),
     },
-    push: false,
+    // `push: true` for local file DBs only — auto-syncs schema from collection
+    // configs so local dev doesn't need the incremental migration chain to bootstrap.
+    // Production (Turso libsql://) stays on manual migrations via /api/migrate.
+    push: (process.env.DATABASE_URL ?? "").startsWith("file:"),
   }),
   // NOTE: `onInit` auto-heal was tried and reverted — the ~2500-statement
   // sweep against Turso runs serially over the network and pushed cold-start

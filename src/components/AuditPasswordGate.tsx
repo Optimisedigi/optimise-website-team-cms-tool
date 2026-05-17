@@ -32,8 +32,12 @@ export default function AuditPasswordGate({
         setUnlocked(true)
         return
       }
-      if (res.status === 429) setError('Too many attempts. Please try again in a few minutes.')
-      else setError('Invalid access code.')
+      const body = await res.json().catch(() => ({} as { error?: string }))
+      if (res.status === 429) {
+        setError(body.error || 'Too many incorrect attempts. Please try again in 15 minutes.')
+      } else {
+        setError(body.error || 'Invalid access code.')
+      }
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {

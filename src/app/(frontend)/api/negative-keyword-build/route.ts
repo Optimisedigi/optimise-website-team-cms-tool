@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { checkPinWithLockout } from "@/lib/pin-auth";
 
 /**
  * GET /api/negative-keyword-build?slug=X&pin=Y
@@ -38,8 +39,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Negative keyword list is not published" }, { status: 403 });
     }
 
-    if (audit.presentationPin !== pin) {
-      return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
+    const pinResult = await checkPinWithLockout(
+      `nkb:${audit.id}`,
+      pin,
+      audit.presentationPin ?? "",
+    );
+    if (!pinResult.ok) {
+      return NextResponse.json(
+        { error: pinResult.message },
+        { status: pinResult.status },
+      );
     }
 
     const nlb = audit.negativeListBuilder as any;

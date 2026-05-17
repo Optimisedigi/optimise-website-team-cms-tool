@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { checkPinWithLockout } from "@/lib/pin-auth";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -32,8 +33,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Ad copy preview is not published" }, { status: 403 });
     }
 
-    if (audit.presentationPin !== pin) {
-      return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
+    const pinResult = await checkPinWithLockout(
+      `ad-copy:${audit.id}`,
+      pin,
+      audit.presentationPin ?? "",
+    );
+    if (!pinResult.ok) {
+      return NextResponse.json(
+        { error: pinResult.message },
+        { status: pinResult.status },
+      );
     }
 
     // Build landing page lookup from proposal

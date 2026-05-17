@@ -2,37 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import crypto from "crypto";
 import config from "@/payload.config";
-
-// Rate limiter: 3 attempts per IP per 5 minutes (stricter due to only 10k PIN combos)
-const attempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 3;
-const WINDOW_MS = 5 * 60_000;
-const CLEANUP_INTERVAL_MS = 10 * 60_000;
-
-let lastCleanup = Date.now();
-
-function cleanupExpiredEntries() {
-  const now = Date.now();
-  if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
-  lastCleanup = now;
-  for (const [ip, entry] of attempts) {
-    if (now > entry.resetAt) attempts.delete(ip);
-  }
-}
-
-function isRateLimited(ip: string): boolean {
-  cleanupExpiredEntries();
-  const now = Date.now();
-  const entry = attempts.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-
-  entry.count++;
-  return entry.count > MAX_ATTEMPTS;
-}
+import { checkPinWithLockout } from "@/lib/pin-auth";
 
 function constantTimeCompare(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
@@ -46,16 +16,18 @@ function constantTimeCompare(a: string, b: string): boolean {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+/**
+ * Client-hub PIN — matches a 4-digit PIN against ALL active clients and
+ * proposals. Because there is no per-target slug to bucket on, lockout is
+ * applied per source IP via `checkPinWithLockout`. IP is spoofable via
+ * `x-forwarded-for` but the DB-backed bucket survives lambda fan-out, and
+ * an attacker rotating XFF still has to perform a fresh header per
+ * attempt while burning attempts against any non-rotated identity. The
+ * previous in-memory `Map` rate limiter has been removed.
+ */
 export async function POST(req: NextRequest) {
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-
-  if (isRateLimited(ip)) {
-    return NextResponse.json(
-      { ok: false, error: "Too many attempts. Try again later." },
-      { status: 429 }
-    );
-  }
 
   let body: { pin?: string };
   try {
@@ -142,6 +114,21 @@ export async function POST(req: NextRequest) {
       matchedProposalSlug = (p.slug as string) || null;
       matchedMockupUrl = (p.websiteMockupUrl as string) || null;
     }
+  }
+
+  // Record this attempt against the per-IP bucket. Matched PIN resets the
+  // counter; unmatched increments it and may trigger a 15-minute lockout.
+  // Locked bucket short-circuits BEFORE we expose any audit data.
+  const lockoutResult = await checkPinWithLockout(
+    `client-hub:${ip}`,
+    pin,
+    matchedClientId || matchedProposalId ? pin : "",
+  );
+  if (!lockoutResult.ok) {
+    return NextResponse.json(
+      { ok: false, error: lockoutResult.message },
+      { status: lockoutResult.status },
+    );
   }
 
   // Client match takes priority
@@ -355,6 +342,11 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // No match
-  return NextResponse.json({ ok: false }, { status: 401 });
+  // No match — but lockout already returned 429 above if applicable.
+  // Surface the standard invalid-PIN message so the UI displays the
+  // lockout warning only when the bucket is actually locked.
+  return NextResponse.json(
+    { ok: false, error: "Incorrect PIN" },
+    { status: 401 },
+  );
 }

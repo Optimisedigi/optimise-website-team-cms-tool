@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { checkPinWithLockout } from "@/lib/pin-auth";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -28,8 +29,19 @@ export async function GET(req: NextRequest) {
 
     const audit = results.docs[0] as any;
 
-    if (!audit.adCopyPublished || audit.presentationPin !== pin) {
+    if (!audit.adCopyPublished) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const pinResult = await checkPinWithLockout(
+      `ad-copy-comments:${audit.id}`,
+      pin,
+      audit.presentationPin ?? "",
+    );
+    if (!pinResult.ok) {
+      return NextResponse.json(
+        { error: pinResult.message },
+        { status: pinResult.status },
+      );
     }
 
     return NextResponse.json({ comments: audit.adCopyComments || [] });
@@ -68,8 +80,19 @@ export async function POST(req: NextRequest) {
 
     const audit = results.docs[0] as any;
 
-    if (!audit.adCopyPublished || audit.presentationPin !== pin) {
+    if (!audit.adCopyPublished) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const pinResult = await checkPinWithLockout(
+      `ad-copy-comments:${audit.id}`,
+      pin,
+      audit.presentationPin ?? "",
+    );
+    if (!pinResult.ok) {
+      return NextResponse.json(
+        { error: pinResult.message },
+        { status: pinResult.status },
+      );
     }
 
     // Handle save-edits action — client edited ad copy directly

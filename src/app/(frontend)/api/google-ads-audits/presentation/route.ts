@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { checkPinWithLockout } from "@/lib/pin-auth";
 
 /**
  * Public GET endpoint for Google Ads audit presentations.
@@ -46,14 +47,22 @@ export async function GET(req: NextRequest) {
 
     const audit = result.docs[0] as any;
 
-    // Verify PIN
-    if (audit.presentationPin !== pin) {
-      return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
-    }
-
     // Check if published
     if (!audit.presentationPublished) {
       return NextResponse.json({ error: "Presentation not yet published" }, { status: 403 });
+    }
+
+    // Verify PIN with persistent per-target lockout
+    const pinResult = await checkPinWithLockout(
+      `presentation:${audit.id}`,
+      pin,
+      audit.presentationPin ?? "",
+    );
+    if (!pinResult.ok) {
+      return NextResponse.json(
+        { error: pinResult.message },
+        { status: pinResult.status },
+      );
     }
 
     // Return presentation data (prefer curated presentationData, fall back to scoredReport)

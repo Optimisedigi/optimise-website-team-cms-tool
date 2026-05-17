@@ -62,8 +62,8 @@ export default function NegativeKeywordPinGate({ slug, businessName, children }:
     try {
       const res = await fetch(`/api/negative-keyword-build?slug=${encodeURIComponent(slug)}&pin=${encodeURIComponent(pin)}`)
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        if (res.status === 429) setError('Too many attempts. Please try again in a few minutes.')
+        const body = await res.json().catch(() => ({} as { error?: string }))
+        if (res.status === 429) setError(body.error || 'Too many incorrect attempts. Please try again in 15 minutes.')
         else setError(body.error || 'Invalid access code.')
         return
       }

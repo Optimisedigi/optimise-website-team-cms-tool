@@ -1,63 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
-import crypto from "crypto";
 import config from "@/payload.config";
+import { checkPinWithLockout } from "@/lib/pin-auth";
 
-// In-memory rate limiter: max 5 attempts per IP per 60 seconds
-const attempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 60_000;
-const CLEANUP_INTERVAL_MS = 5 * 60_000;
-
-let lastCleanup = Date.now();
-
-function cleanupExpiredEntries() {
-  const now = Date.now();
-  if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
-  lastCleanup = now;
-  for (const [ip, entry] of attempts) {
-    if (now > entry.resetAt) attempts.delete(ip);
-  }
-}
-
-function isRateLimited(ip: string): boolean {
-  cleanupExpiredEntries();
-  const now = Date.now();
-  const entry = attempts.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-
-  entry.count++;
-  return entry.count > MAX_ATTEMPTS;
-}
-
-function constantTimeCompare(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) {
-    // Pad shorter buffer so timingSafeEqual can compare equal-length buffers
-    const padded = Buffer.alloc(bufA.length, 0);
-    bufB.copy(padded, 0, 0, Math.min(bufB.length, bufA.length));
-    crypto.timingSafeEqual(bufA, padded);
-    return false;
-  }
-  return crypto.timingSafeEqual(bufA, bufB);
-}
-
+/**
+ * Verify a 4-digit PIN against an audit / proposal / client-presentation
+ * deck. Lockout is enforced by `checkPinWithLockout` against a per-target
+ * bucket persisted in the `pin-rate-limits` collection — survives across
+ * Vercel lambda instances and immune to `x-forwarded-for` rotation. The
+ * previous in-memory `Map` rate limiter has been removed.
+ */
 export async function POST(req: NextRequest) {
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-
-  if (isRateLimited(ip)) {
-    return NextResponse.json(
-      { ok: false, error: "Too many attempts. Try again later." },
-      { status: 429 }
-    );
-  }
-
   let body: { slug?: string; password?: string };
   try {
     body = await req.json();
@@ -95,6 +48,7 @@ export async function POST(req: NextRequest) {
       });
       const clientRow = clientResult.docs[0] as
         | {
+            id: number | string;
             clientPin?: string | null;
             presentations?: { deckSlug?: string | null }[] | null;
           }
@@ -103,12 +57,32 @@ export async function POST(req: NextRequest) {
         const hasDeck = (clientRow.presentations ?? []).some(
           (p) => p?.deckSlug === deckSlug,
         );
-        const pin = clientRow.clientPin;
-        if (hasDeck && pin && constantTimeCompare(password, pin)) {
-          return NextResponse.json({ ok: true });
+        if (hasDeck) {
+          const result = await checkPinWithLockout(
+            `audit-auth:${slug}`,
+            password,
+            clientRow.clientPin ?? "",
+          );
+          if (result.ok) {
+            return NextResponse.json({ ok: true });
+          }
+          return NextResponse.json(
+            { ok: false, error: result.message },
+            { status: result.status },
+          );
         }
       }
-      return NextResponse.json({ ok: false }, { status: 401 });
+      // No matching deck → still consume an attempt against the slug so
+      // attackers can't probe slug existence without burning attempts.
+      const result = await checkPinWithLockout(
+        `audit-auth:${slug}`,
+        password,
+        "",
+      );
+      return NextResponse.json(
+        { ok: false, error: result.ok ? undefined : result.message },
+        { status: result.ok ? 401 : result.status },
+      );
     }
   }
 
@@ -125,17 +99,20 @@ export async function POST(req: NextRequest) {
 
   if (audit) {
     const storedPassword = (audit as Record<string, unknown>)
-      .reportPassword as string;
+      .reportPassword as string | undefined;
 
-    if (!storedPassword) {
-      return NextResponse.json({ ok: false }, { status: 401 });
-    }
-
-    if (constantTimeCompare(password, storedPassword)) {
+    const result = await checkPinWithLockout(
+      `audit-auth:${slug}`,
+      password,
+      storedPassword ?? "",
+    );
+    if (result.ok) {
       return NextResponse.json({ ok: true });
     }
-
-    return NextResponse.json({ ok: false }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: result.message },
+      { status: result.status },
+    );
   }
 
   // Try client-proposals (presentation reports)
@@ -149,20 +126,20 @@ export async function POST(req: NextRequest) {
 
   const proposal = proposalResult.docs[0];
 
-  if (!proposal) {
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
+  const storedPin = proposal
+    ? ((proposal as Record<string, unknown>).proposalPin as string | undefined)
+    : undefined;
 
-  const storedPin = (proposal as Record<string, unknown>)
-    .proposalPin as string;
-
-  if (!storedPin) {
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
-
-  if (constantTimeCompare(password, storedPin)) {
+  const result = await checkPinWithLockout(
+    `audit-auth:${slug}`,
+    password,
+    storedPin ?? "",
+  );
+  if (result.ok) {
     return NextResponse.json({ ok: true });
   }
-
-  return NextResponse.json({ ok: false }, { status: 401 });
+  return NextResponse.json(
+    { ok: false, error: result.message },
+    { status: result.status },
+  );
 }

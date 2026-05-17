@@ -2,23 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import crypto from "crypto";
 import config from "@/payload.config";
+import { checkPinWithLockout } from "@/lib/pin-auth";
 
-// Rate limiter: 3 attempts per IP per 5 minutes
-const attempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 3;
-const WINDOW_MS = 5 * 60_000;
+// HMAC-signed cookie: works across serverless instances (no shared memory needed)
+const COOKIE_SECRET =
+  process.env.PAYLOAD_SECRET ||
+  process.env.INTERNAL_API_KEY ||
+  "dashboard-fallback-secret";
+const COOKIE_MAX_AGE = 4 * 60 * 60; // 4 hours in seconds
 
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = attempts.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-
-  entry.count++;
-  return entry.count > MAX_ATTEMPTS;
+function signToken(slug: string, expiresAt: number): string {
+  const payloadStr = `${slug}:${expiresAt}`;
+  const sig = crypto
+    .createHmac("sha256", COOKIE_SECRET)
+    .update(payloadStr)
+    .digest("hex");
+  return `${payloadStr}:${sig}`;
 }
 
 function constantTimeCompare(a: string, b: string): boolean {
@@ -31,16 +30,6 @@ function constantTimeCompare(a: string, b: string): boolean {
     return false;
   }
   return crypto.timingSafeEqual(bufA, bufB);
-}
-
-// HMAC-signed cookie: works across serverless instances (no shared memory needed)
-const COOKIE_SECRET = process.env.PAYLOAD_SECRET || process.env.INTERNAL_API_KEY || "dashboard-fallback-secret";
-const COOKIE_MAX_AGE = 4 * 60 * 60; // 4 hours in seconds
-
-function signToken(slug: string, expiresAt: number): string {
-  const payload = `${slug}:${expiresAt}`;
-  const sig = crypto.createHmac("sha256", COOKIE_SECRET).update(payload).digest("hex");
-  return `${payload}:${sig}`;
 }
 
 export function validateDashboardToken(
@@ -66,17 +55,12 @@ export function validateDashboardToken(
   return constantTimeCompare(sig, expectedSig);
 }
 
+/**
+ * Verify a client dashboard PIN. Lockout is per-slug, persisted via
+ * `checkPinWithLockout`, immune to IP rotation. The previous in-memory
+ * `Map` rate limiter has been removed.
+ */
 export async function POST(req: NextRequest) {
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-
-  if (isRateLimited(ip)) {
-    return NextResponse.json(
-      { ok: false, error: "Too many attempts. Try again later." },
-      { status: 429 }
-    );
-  }
-
   let body: { pin?: string; slug?: string };
   try {
     body = await req.json();
@@ -113,14 +97,15 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const client = clientResult.docs[0] as any;
-  if (!client) {
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
+  const client = clientResult.docs[0] as { clientPin?: string } | undefined;
+  const storedPin = client?.clientPin ?? "";
 
-  const storedPin = client.clientPin as string;
-  if (!storedPin || !constantTimeCompare(pin, storedPin)) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+  const result = await checkPinWithLockout(`dashboard:${slug}`, pin, storedPin);
+  if (!result.ok) {
+    return NextResponse.json(
+      { ok: false, error: result.message },
+      { status: result.status },
+    );
   }
 
   // Verified — set HMAC-signed cookie (stateless, works across serverless instances)

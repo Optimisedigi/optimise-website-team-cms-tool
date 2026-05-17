@@ -55,6 +55,7 @@ import * as migration_20260517_120000_add_deck_url_and_deck_templates from './20
 import * as migration_20260518_120000_fix_sales_leads_array_id_types from './20260518_120000_fix_sales_leads_array_id_types';
 import * as migration_20260518_130000_add_proposal_notes_and_timeline from './20260518_130000_add_proposal_notes_and_timeline';
 import * as migration_20260519_120000_add_invoice_statement_drafts from './20260519_120000_add_invoice_statement_drafts';
+import * as migration_20260520_120000_add_pin_rate_limits from './20260520_120000_add_pin_rate_limits';
 
 export const migrations = [
   {
@@ -341,5 +342,10 @@ export const migrations = [
     up: migration_20260519_120000_add_invoice_statement_drafts.up,
     down: migration_20260519_120000_add_invoice_statement_drafts.down,
     name: '20260519_120000_add_invoice_statement_drafts'
+  },
+  {
+    up: migration_20260520_120000_add_pin_rate_limits.up,
+    down: migration_20260520_120000_add_pin_rate_limits.down,
+    name: '20260520_120000_add_pin_rate_limits'
   },
 ];

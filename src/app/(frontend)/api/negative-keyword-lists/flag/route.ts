@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { checkPinWithLockout } from "@/lib/pin-auth";
 
 /**
  * POST /api/negative-keyword-lists/flag
@@ -33,8 +34,16 @@ export async function POST(request: NextRequest) {
       overrideAccess: true,
     });
 
-    if (!client || (client as any).clientPin !== pin) {
-      return NextResponse.json({ error: "Invalid PIN" }, { status: 403 });
+    const pinResult = await checkPinWithLockout(
+      `nkl-flag:${clientId}`,
+      pin,
+      ((client as { clientPin?: string } | null)?.clientPin) ?? "",
+    );
+    if (!pinResult.ok) {
+      return NextResponse.json(
+        { error: pinResult.message },
+        { status: pinResult.status === 401 ? 403 : pinResult.status },
+      );
     }
 
     // Get the list

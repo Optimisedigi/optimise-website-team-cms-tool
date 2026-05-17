@@ -120,12 +120,13 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
           return;
         }
 
+        const body = await res.json().catch(() => ({} as { error?: string }));
         if (res.status === 429) {
-          setError("Too many attempts. Please try again in a few minutes.");
+          setError(body.error || "Too many incorrect attempts. Please try again in 15 minutes.");
         } else if (res.status === 401) {
-          setError("Invalid access code.");
+          setError(body.error || "Invalid access code.");
         } else {
-          setError("Something went wrong. Please try again.");
+          setError(body.error || "Something went wrong. Please try again.");
         }
       } catch {
         setError("Something went wrong. Please try again.");

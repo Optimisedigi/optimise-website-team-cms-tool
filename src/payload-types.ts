@@ -121,6 +121,7 @@ export interface Config {
     'agent-credentials': AgentCredential;
     'contract-reminders': ContractReminder;
     notifications: Notification;
+    'pin-rate-limits': PinRateLimit;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -194,6 +195,7 @@ export interface Config {
     'agent-credentials': AgentCredentialsSelect<false> | AgentCredentialsSelect<true>;
     'contract-reminders': ContractRemindersSelect<false> | ContractRemindersSelect<true>;
     notifications: NotificationsSelect<false> | NotificationsSelect<true>;
+    'pin-rate-limits': PinRateLimitsSelect<false> | PinRateLimitsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -6385,6 +6387,19 @@ export interface Notification {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pin-rate-limits".
+ */
+export interface PinRateLimit {
+  id: number;
+  bucketKey: string;
+  attempts: number;
+  lockedUntil?: string | null;
+  windowStart: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -6622,6 +6637,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'notifications';
         value: number | Notification;
+      } | null)
+    | ({
+        relationTo: 'pin-rate-limits';
+        value: number | PinRateLimit;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -8659,6 +8678,18 @@ export interface NotificationsSelect<T extends boolean = true> {
   relatedContract?: T;
   relatedClient?: T;
   readAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pin-rate-limits_select".
+ */
+export interface PinRateLimitsSelect<T extends boolean = true> {
+  bucketKey?: T;
+  attempts?: T;
+  lockedUntil?: T;
+  windowStart?: T;
   updatedAt?: T;
   createdAt?: T;
 }
