@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
+import crypto from "crypto";
 import config from "@/payload.config";
 import { runMigrations } from "@/lib/run-migrations";
 
@@ -13,12 +14,36 @@ import { runMigrations } from "@/lib/run-migrations";
  * The actual migration sweep lives in `src/lib/run-migrations.ts` so it can
  * also run from Payload's `onInit` hook (auto-heal on cold-start). This route
  * delegates to it and adds the diagnostics block.
+ *
+ * SECURITY: The response body intentionally returns ONLY migration status
+ * lines and the list of table names — no row data, no column listings, no
+ * Payload document samples. Anything richer would leak production data to
+ * anyone (incl. the CI runner) holding the AUDIT_API_KEY. Exposing migrations
+ * over HTTP at all is a workaround for Vercel cold-start cost; the long-term
+ * direction is CI-only migrations via a deploy hook, after which this route
+ * and its GET sibling should be deleted entirely.
  */
-export async function POST(request: NextRequest) {
-  const apiKey = request.headers.get("x-api-key");
-  if (!apiKey || apiKey !== process.env.AUDIT_API_KEY) {
+
+/**
+ * Timing-safe compare of the request's `x-api-key` against `AUDIT_API_KEY`.
+ * Returns `null` on success, or a 401 NextResponse on failure.
+ */
+function checkApiKey(request: NextRequest): NextResponse | null {
+  const expected = Buffer.from(process.env.AUDIT_API_KEY ?? "");
+  const got = Buffer.from(request.headers.get("x-api-key") ?? "");
+  if (
+    expected.length === 0 ||
+    got.length !== expected.length ||
+    !crypto.timingSafeEqual(got, expected)
+  ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  return null;
+}
+
+export async function POST(request: NextRequest) {
+  const unauthorized = checkApiKey(request);
+  if (unauthorized) return unauthorized;
 
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
@@ -34,99 +59,44 @@ export async function POST(request: NextRequest) {
   // Map MigrationResult[] back to the legacy `OK: <label>` / `SKIP: <label> (already exists)`
   // / `ERROR: <label> — <msg>` string format so any tooling parsing this
   // response shape (string-matching the old result lines) keeps working.
+  // The CI workflow specifically greps for `"ERROR:` in the JSON response to
+  // fail the migrate job — keep the leading `ERROR:` token intact.
   const results: string[] = migrationResults.map((r) => {
     if (r.status === "ok") return `OK: ${r.label}`;
     if (r.status === "skip") return `SKIP: ${r.label} (already exists)`;
     return `ERROR: ${r.label} — ${r.message ?? "unknown"}`;
   });
 
-  // --- Schema diagnostics ---
-  const tables = ["media", "clients", "clients_one_off_projects", "clients_google_maps_urls", "client_proposals", "client_proposals_competitors", "client_proposals_competitors_meta_ad_screenshots", "client_proposals_competitors_google_ad_screenshots", "client_proposals_rels", "client_proposals_visible_slides", "client_proposals_keyword_categories", "client_proposals_flight_plan_images", "client_proposals_mission_resources_images", "client_proposals_google_maps_urls", "payload_locked_documents_rels", "content_researches", "blog_posts", "_blog_posts_v", "blog_posts_rels", "_blog_posts_v_rels", "activity_log", "job_posts", "gsc_snapshots", "gsc_alerts", "cost_categories", "cost_rules", "business_costs", "api_cost_rates", "blog_prompts", "google_ads_audits", "contracts", "sales_leads", "sales_leads_stage_history", "sales_leads_services", "tag_setup_audits", "tag_setup_audits_issues", "tag_setup_audits_events"];
-  const schema: Record<string, string[]> = {};
-  for (const table of tables) {
-    try {
-      const info = await client.execute(`PRAGMA table_info(${table})`);
-      schema[table] = info.rows.map((r: any) => r.name || r[1]);
-    } catch {
-      schema[table] = ["TABLE_NOT_FOUND"];
-    }
+  // Write-side smoke test: confirm the connection is alive without touching
+  // any real collection. Avoids the earlier pattern of creating + deleting a
+  // throwaway `contracts` row on every POST.
+  let dbReachable = false;
+  try {
+    await client.execute("SELECT 1");
+    dbReachable = true;
+  } catch {
+    dbReachable = false;
   }
 
-  // Dump payload_migrations for debugging
-  let migrations: any[] = [];
+  // Table-name dump only. Column-by-column PRAGMA output and row samples are
+  // deliberately not returned (see SECURITY note above).
+  let tables: string[] = [];
   try {
-    const migrationRows = await client.execute("SELECT * FROM `payload_migrations` ORDER BY `created_at` DESC LIMIT 20");
-    migrations = migrationRows.rows;
-  } catch { /* ignore */ }
-
-  // List all tables in the database
-  let allTables: string[] = [];
-  try {
-    const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
-    allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
-  } catch { /* ignore */ }
-
-  // Diagnostic: list clients
-  let clients: any[] = [];
-  try {
-    const clientRows = await client.execute("SELECT id, name, slug, gsc_connected, gsc_property_url, monthly_retainer, client_start_date, is_active FROM `clients` ORDER BY id");
-    clients = clientRows.rows;
-  } catch { /* ignore */ }
-
-  // Diagnostic: check activity log and retainer history
-  let activityCount = 0;
-  let retainerHistory: any[] = [];
-  try {
-    const actResult = await client.execute("SELECT COUNT(*) as cnt FROM `activity_log`");
-    activityCount = actResult.rows[0]?.cnt ?? 0;
-  } catch { /* ignore */ }
-  try {
-    const retResult = await client.execute("SELECT * FROM `clients_retainer_history` ORDER BY _order");
-    retainerHistory = retResult.rows;
-  } catch { /* ignore */ }
-
-  // Diagnostic: test payload.find on clients (same as /api/clients/list)
-  let payloadFindTest: any = null;
-  try {
-    const findResult = await payload.find({
-      collection: "clients",
-      where: { isActive: { not_equals: false } },
-      sort: "name",
-      limit: 500,
-      select: { name: true, slug: true, gscConnected: true, blogCategories: true, blogTags: true, servicePages: true } as any,
-    });
-    payloadFindTest = { ok: true, totalDocs: findResult.totalDocs, firstDoc: findResult.docs[0] };
-  } catch (err: any) {
-    payloadFindTest = { ok: false, error: err?.message || String(err) };
+    const tablesResult = await client.execute(
+      "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+    );
+    tables = tablesResult.rows.map((r: any) => r.name || r[0]);
+  } catch {
+    /* ignore */
   }
 
-  // Test contracts create/find
-  let contractsTest: any = null;
-  try {
-    const findContracts = await payload.find({
-      collection: "contracts",
-      limit: 1,
-      overrideAccess: true,
-    });
-    contractsTest = { find: { ok: true, totalDocs: findContracts.totalDocs } };
-  } catch (err: any) {
-    contractsTest = { find: { ok: false, error: err?.message || String(err), stack: err?.stack?.split("\n").slice(0, 5) } };
-  }
-
-  try {
-    const testDoc = await payload.create({
-      collection: "contracts",
-      data: { contractTitle: "__migrate_test__", contractDate: "2026-03-05" },
-      overrideAccess: true,
-    });
-    // Delete test doc
-    await payload.delete({ collection: "contracts", id: testDoc.id, overrideAccess: true });
-    contractsTest.create = { ok: true };
-  } catch (err: any) {
-    contractsTest.create = { ok: false, error: err?.message || String(err), stack: err?.stack?.split("\n").slice(0, 5) };
-  }
-
-  return NextResponse.json({ ok: true, version: "2026-05-09", results, schema, migrations, allTables, clients, activityCount, retainerHistory, payloadFindTest, contractsTest });
+  return NextResponse.json({
+    ok: true,
+    version: "2026-05-17",
+    dbReachable,
+    migrationsRun: results,
+    tables,
+  });
 }
 
 
@@ -135,10 +105,8 @@ export async function POST(request: NextRequest) {
  * Useful when the full POST migration times out after too many operations.
  */
 export async function GET(request: NextRequest) {
-  const apiKey = request.headers.get("x-api-key");
-  if (!apiKey || apiKey !== process.env.AUDIT_API_KEY) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = checkApiKey(request);
+  if (unauthorized) return unauthorized;
 
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
@@ -583,35 +551,8 @@ export async function GET(request: NextRequest) {
   await run("clean_invalid_proposal_conv_goal", "UPDATE `google_ads_audits` SET `proposal_conversion_goal` = NULL WHERE `proposal_conversion_goal` NOT IN ('leads', 'sales', 'bookings', 'signups') OR `proposal_conversion_goal` = ''");
   await run("clean_invalid_proposal_svc_radius", "UPDATE `google_ads_audits` SET `proposal_service_radius` = NULL WHERE `proposal_service_radius` NOT IN ('local', 'metro', 'state', 'national') OR `proposal_service_radius` = ''");
 
-  // Diagnostic: check current values and table structures
-  let proposalDiag: any = null;
-  try {
-    const diagResult = await client.execute("SELECT id, proposal_business_type, proposal_conversion_goal, proposal_service_radius, length(scored_report) as scored_report_size, length(campaign_proposal) as campaign_proposal_size, length(campaign_proposal_email_html) as email_html_size, length(raw_data) as raw_data_size, length(presentation_data) as presentation_data_size, campaign_proposal_status FROM `google_ads_audits` WHERE id = 4");
-    proposalDiag = diagResult.rows[0] || null;
-  } catch (e: any) { proposalDiag = { error: e?.message }; }
-
-  // Check table structures for proposal-related tables
-  let tableStructures: Record<string, any> = {};
-  for (const t of ["gads_proposal_negatives", "google_ads_audits_proposal_enabled_campaigns"]) {
-    try {
-      const info = await client.execute(`PRAGMA table_info(${t})`);
-      tableStructures[t] = info.rows.map((r: any) => r.name || r[1]);
-    } catch { tableStructures[t] = "NOT_FOUND"; }
-  }
-
-  // Test if payload.update works on audit 3
-  let updateTest: any = null;
-  try {
-    await payload.update({
-      collection: "google-ads-audits",
-      id: 3,
-      data: { notes: "test-" + Date.now() } as any,
-      overrideAccess: true,
-    });
-    updateTest = { ok: true };
-  } catch (e: any) {
-    updateTest = { ok: false, error: e?.message, stack: e?.stack?.split("\n").slice(0, 5) };
-  }
+  // (Diagnostic SELECTs / PRAGMA dumps / live update tests removed — see
+  // SECURITY note on POST. The migration DDL below is what GET exists for.)
 
   // ── Yearly Sales Target (2026-03-20) ──
   await run("clients.yearly_sales_target", "ALTER TABLE `clients` ADD `yearly_sales_target` real");
@@ -704,6 +645,13 @@ export async function GET(request: NextRequest) {
   // ── Link proposals to clients (2026-03-27) ──
   await run("client_proposals.client_id", "ALTER TABLE `client_proposals` ADD `client_id` integer REFERENCES `clients`(`id`) ON DELETE set null");
   await run("client_proposals_client_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_client_idx` ON `client_proposals` (`client_id`)");
+
+  // ── Start-as-lead toggle on proposals (2026-05-17) ──
+  // Companion to convert_to_client: lets the team materialise a SalesLead
+  // from a proposal so the funnel is tracked even before client conversion.
+  await run("client_proposals.start_as_lead", "ALTER TABLE `client_proposals` ADD `start_as_lead` integer DEFAULT false");
+  await run("client_proposals.sales_lead_id", "ALTER TABLE `client_proposals` ADD `sales_lead_id` integer REFERENCES `sales_leads`(`id`) ON DELETE set null");
+  await run("client_proposals_sales_lead_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_sales_lead_idx` ON `client_proposals` (`sales_lead_id`)");
 
   // ── GBP override fields on competitors (2026-04-14) ──
   await run("client_proposals_competitors.gbp_rating", "ALTER TABLE `client_proposals_competitors` ADD `gbp_rating` numeric");
@@ -818,11 +766,13 @@ export async function GET(request: NextRequest) {
   await run("optimate_chat_turns_session_created_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_session_created_idx` ON `optimate_chat_turns` (`session_id`, `created_at`)");
   await run("locked_docs_rels.optimate_chat_turns_id", "ALTER TABLE `payload_locked_documents_rels` ADD `optimate_chat_turns_id` integer REFERENCES `optimate_chat_turns`(`id`) ON DELETE cascade");
 
-  let allTables: string[] = [];
+  let tables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
-    allTables = tablesResult.rows.map((r: any) => r.name || r[0]);
+    tables = tablesResult.rows.map((r: any) => r.name || r[0]);
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ok: true, version: "2026-03-27", results, allTables, proposalDiag, tableStructures, updateTest });
+  // Response shape mirrors POST: status lines + table-name list only.
+  // CI greps for `"ERROR:` in `results` — keep that token format intact.
+  return NextResponse.json({ ok: true, version: "2026-05-17", migrationsRun: results, tables });
 }

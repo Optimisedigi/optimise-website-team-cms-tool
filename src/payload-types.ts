@@ -2180,6 +2180,14 @@ export interface ClientProposal {
    */
   proposalStatus?: ('draft' | 'proposal_sent' | 'proposal_presented' | 'client' | 'declined') | null;
   /**
+   * Toggle on and save to create a Sales Lead from this proposal (stage: Proposal Sent). Useful for tracking prospects through the funnel even before they convert.
+   */
+  startAsLead?: boolean | null;
+  /**
+   * Linked sales lead (set automatically when “Start as lead” is toggled)
+   */
+  salesLead?: (number | null) | SalesLead;
+  /**
    * Toggle on and save to create an active Client from this proposal
    */
   convertToClient?: boolean | null;
@@ -3358,6 +3366,171 @@ export interface GoogleAdsAudit {
   createdAt: string;
 }
 /**
+ * Track leads through the sales funnel by channel
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sales-leads".
+ */
+export interface SalesLead {
+  id: number;
+  /**
+   * Business or prospect name
+   */
+  businessName: string;
+  /**
+   * Business website URL
+   */
+  websiteUrl?: string | null;
+  /**
+   * Primary contact name
+   */
+  contactName?: string | null;
+  /**
+   * Contact email
+   */
+  contactEmail?: string | null;
+  /**
+   * Contact phone
+   */
+  contactPhone?: string | null;
+  /**
+   * How this lead was acquired
+   */
+  channel:
+    | 'organic_search'
+    | 'paid_search'
+    | 'paid_social'
+    | 'organic_social'
+    | 'website_other'
+    | 'referral'
+    | 'referral_partner'
+    | 'bni_referral'
+    | 'cold_outreach';
+  /**
+   * Extra detail (e.g. referrer name, ad campaign, BNI chapter)
+   */
+  channelDetail?: string | null;
+  /**
+   * Estimated monthly retainer value ($)
+   */
+  estimatedValue?: number | null;
+  /**
+   * Type of business
+   */
+  businessType?:
+    | (
+        | 'trades'
+        | 'services'
+        | 'ecommerce'
+        | 'healthcare'
+        | 'hospitality'
+        | 'realestate'
+        | 'education'
+        | 'saas'
+        | 'other'
+      )
+    | null;
+  /**
+   * Services the lead is interested in
+   */
+  services?:
+    | ('google_ads' | 'seo' | 'meta_ads' | 'cro' | 'website_build' | 'ai_automations' | 'content' | 'full_service')[]
+    | null;
+  /**
+   * Internal notes about this lead
+   */
+  notes?: string | null;
+  /**
+   * Why this lead was lost
+   */
+  lostReason?: ('price' | 'competitor' | 'not_ready' | 'no_response' | 'bad_fit' | 'other') | null;
+  /**
+   * Additional context on why this lead was lost
+   */
+  lostNotes?: string | null;
+  /**
+   * UTM source (auto-captured)
+   */
+  utmSource?: string | null;
+  /**
+   * UTM medium (auto-captured)
+   */
+  utmMedium?: string | null;
+  /**
+   * UTM campaign (auto-captured)
+   */
+  utmCampaign?: string | null;
+  /**
+   * UTM term / keyword (auto-captured)
+   */
+  utmTerm?: string | null;
+  /**
+   * Google Ads click ID
+   */
+  gclid?: string | null;
+  /**
+   * Meta/Facebook click ID
+   */
+  fbclid?: string | null;
+  /**
+   * First page the lead landed on
+   */
+  landingPage?: string | null;
+  /**
+   * HTTP referrer URL
+   */
+  referrerUrl?: string | null;
+  /**
+   * How this lead was created
+   */
+  leadSource?: ('website_form' | 'growth_tool' | 'manual') | null;
+  /**
+   * Self-reported: where they heard about us (from contact form)
+   */
+  heardAbout?: string | null;
+  /**
+   * Linked proposal (if created)
+   */
+  proposal?: (number | null) | ClientProposal;
+  /**
+   * Linked contract (if sent)
+   */
+  contract?: (number | null) | Contract;
+  /**
+   * Linked client (if converted)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Automatic log of stage transitions
+   */
+  stageHistory?:
+    | {
+        fromStage?: string | null;
+        toStage?: string | null;
+        transitionDate?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Current funnel stage
+   */
+  stage: 'new_lead' | 'contacted' | 'meeting_booked' | 'proposal_sent' | 'contract_sent' | 'client' | 'lost';
+  /**
+   * When this lead first came in
+   */
+  firstContactDate?: string | null;
+  /**
+   * Expected close date
+   */
+  expectedCloseDate?: string | null;
+  /**
+   * Lead priority
+   */
+  priority?: ('high' | 'medium' | 'low') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
@@ -4088,171 +4261,6 @@ export interface GscSnapshot {
    * Previous snapshot for comparison
    */
   previousSnapshot?: (number | null) | GscSnapshot;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Track leads through the sales funnel by channel
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "sales-leads".
- */
-export interface SalesLead {
-  id: number;
-  /**
-   * Business or prospect name
-   */
-  businessName: string;
-  /**
-   * Business website URL
-   */
-  websiteUrl?: string | null;
-  /**
-   * Primary contact name
-   */
-  contactName?: string | null;
-  /**
-   * Contact email
-   */
-  contactEmail?: string | null;
-  /**
-   * Contact phone
-   */
-  contactPhone?: string | null;
-  /**
-   * How this lead was acquired
-   */
-  channel:
-    | 'organic_search'
-    | 'paid_search'
-    | 'paid_social'
-    | 'organic_social'
-    | 'website_other'
-    | 'referral'
-    | 'referral_partner'
-    | 'bni_referral'
-    | 'cold_outreach';
-  /**
-   * Extra detail (e.g. referrer name, ad campaign, BNI chapter)
-   */
-  channelDetail?: string | null;
-  /**
-   * Estimated monthly retainer value ($)
-   */
-  estimatedValue?: number | null;
-  /**
-   * Type of business
-   */
-  businessType?:
-    | (
-        | 'trades'
-        | 'services'
-        | 'ecommerce'
-        | 'healthcare'
-        | 'hospitality'
-        | 'realestate'
-        | 'education'
-        | 'saas'
-        | 'other'
-      )
-    | null;
-  /**
-   * Services the lead is interested in
-   */
-  services?:
-    | ('google_ads' | 'seo' | 'meta_ads' | 'cro' | 'website_build' | 'ai_automations' | 'content' | 'full_service')[]
-    | null;
-  /**
-   * Internal notes about this lead
-   */
-  notes?: string | null;
-  /**
-   * Why this lead was lost
-   */
-  lostReason?: ('price' | 'competitor' | 'not_ready' | 'no_response' | 'bad_fit' | 'other') | null;
-  /**
-   * Additional context on why this lead was lost
-   */
-  lostNotes?: string | null;
-  /**
-   * UTM source (auto-captured)
-   */
-  utmSource?: string | null;
-  /**
-   * UTM medium (auto-captured)
-   */
-  utmMedium?: string | null;
-  /**
-   * UTM campaign (auto-captured)
-   */
-  utmCampaign?: string | null;
-  /**
-   * UTM term / keyword (auto-captured)
-   */
-  utmTerm?: string | null;
-  /**
-   * Google Ads click ID
-   */
-  gclid?: string | null;
-  /**
-   * Meta/Facebook click ID
-   */
-  fbclid?: string | null;
-  /**
-   * First page the lead landed on
-   */
-  landingPage?: string | null;
-  /**
-   * HTTP referrer URL
-   */
-  referrerUrl?: string | null;
-  /**
-   * How this lead was created
-   */
-  leadSource?: ('website_form' | 'growth_tool' | 'manual') | null;
-  /**
-   * Self-reported: where they heard about us (from contact form)
-   */
-  heardAbout?: string | null;
-  /**
-   * Linked proposal (if created)
-   */
-  proposal?: (number | null) | ClientProposal;
-  /**
-   * Linked contract (if sent)
-   */
-  contract?: (number | null) | Contract;
-  /**
-   * Linked client (if converted)
-   */
-  client?: (number | null) | Client;
-  /**
-   * Automatic log of stage transitions
-   */
-  stageHistory?:
-    | {
-        fromStage?: string | null;
-        toStage?: string | null;
-        transitionDate?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Current funnel stage
-   */
-  stage: 'new_lead' | 'contacted' | 'meeting_booked' | 'proposal_sent' | 'contract_sent' | 'client' | 'lost';
-  /**
-   * When this lead first came in
-   */
-  firstContactDate?: string | null;
-  /**
-   * Expected close date
-   */
-  expectedCloseDate?: string | null;
-  /**
-   * Lead priority
-   */
-  priority?: ('high' | 'medium' | 'low') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -7174,6 +7182,8 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         id?: T;
       };
   proposalStatus?: T;
+  startAsLead?: T;
+  salesLead?: T;
   convertToClient?: T;
   client?: T;
   proposalPin?: T;

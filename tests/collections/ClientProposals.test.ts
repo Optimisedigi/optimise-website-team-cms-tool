@@ -823,9 +823,10 @@ describe("ClientProposals: afterChange activity logging", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     const hooks = getAfterChangeHooks();
-    // The second afterChange hook is the activity logger
-    expect(hooks.length).toBeGreaterThanOrEqual(2);
-    activityHook = hooks[1];
+    // The activity logger is the last afterChange hook (registered after
+    // convertToClientHook and startAsLeadHook).
+    expect(hooks.length).toBeGreaterThanOrEqual(3);
+    activityHook = hooks[2];
   });
 
   it("should log activity when a proposal is created", async () => {
@@ -863,6 +864,160 @@ describe("ClientProposals: afterChange activity logging", () => {
     expect(logActivity).toHaveBeenCalledWith(
       mockPayload,
       expect.objectContaining({ title: "New proposal: fallback-slug" }),
+    );
+  });
+});
+
+// ─── afterChange: startAsLead hook ───────────────────────────
+describe("ClientProposals: startAsLead hook", () => {
+  let startAsLeadHook: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const hooks = getAfterChangeHooks();
+    // Hook order: [convertToClientHook, startAsLeadHook, activityHook]
+    expect(hooks.length).toBeGreaterThanOrEqual(3);
+    startAsLeadHook = hooks[1];
+  });
+
+  it("does nothing when startAsLead is false", async () => {
+    await startAsLeadHook({
+      doc: { id: 1, startAsLead: false, businessName: "Foo" },
+      previousDoc: { startAsLead: false },
+      req: mockReq(),
+    });
+    expect(mockPayload.create).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when startAsLead was already true (no flip)", async () => {
+    await startAsLeadHook({
+      doc: { id: 1, startAsLead: true, businessName: "Foo" },
+      previousDoc: { startAsLead: true },
+      req: mockReq(),
+    });
+    expect(mockPayload.create).not.toHaveBeenCalled();
+  });
+
+  it("creates a new SalesLead at proposal_sent stage when toggled on", async () => {
+    mockPayload.find.mockResolvedValueOnce({ docs: [], totalDocs: 0 });
+    mockPayload.create.mockResolvedValueOnce({ id: 42 });
+    mockPayload.update.mockResolvedValue({});
+
+    await startAsLeadHook({
+      doc: {
+        id: 7,
+        startAsLead: true,
+        businessName: "Acme Pty Ltd",
+        websiteUrl: "https://acme.example",
+        contactName: "Jane Smith",
+        contactEmail: "jane@acme.example",
+        businessType: "services",
+        discoveryNotes: "Wants more leads",
+      },
+      previousDoc: { startAsLead: false },
+      req: mockReq(),
+    });
+
+    expect(mockPayload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "sales-leads",
+        data: expect.objectContaining({
+          businessName: "Acme Pty Ltd",
+          websiteUrl: "https://acme.example",
+          contactName: "Jane Smith",
+          contactEmail: "jane@acme.example",
+          businessType: "services",
+          stage: "proposal_sent",
+          leadSource: "manual",
+          proposal: 7,
+        }),
+      }),
+    );
+
+    // The proposal is updated to link the new lead and reset the toggle.
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "client-proposals",
+        id: 7,
+        data: expect.objectContaining({
+          salesLead: 42,
+          startAsLead: false,
+        }),
+      }),
+    );
+  });
+
+  it("reuses an existing linked lead instead of creating a duplicate", async () => {
+    // Existing lead with id 99 already references this proposal.
+    mockPayload.find.mockResolvedValueOnce({
+      docs: [{ id: 99 }],
+      totalDocs: 1,
+    });
+    mockPayload.update.mockResolvedValue({});
+
+    await startAsLeadHook({
+      doc: { id: 3, startAsLead: true, businessName: "Acme" },
+      previousDoc: { startAsLead: false },
+      req: mockReq(),
+    });
+
+    expect(mockPayload.create).not.toHaveBeenCalled();
+    // Still links the lead back onto the proposal.
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "client-proposals",
+        id: 3,
+        data: expect.objectContaining({
+          salesLead: 99,
+          startAsLead: false,
+        }),
+      }),
+    );
+  });
+
+  it("maps an unknown businessType to 'other' rather than failing", async () => {
+    mockPayload.find.mockResolvedValueOnce({ docs: [], totalDocs: 0 });
+    mockPayload.create.mockResolvedValueOnce({ id: 1 });
+    mockPayload.update.mockResolvedValue({});
+
+    await startAsLeadHook({
+      doc: {
+        id: 1,
+        startAsLead: true,
+        businessName: "Test",
+        businessType: "some-unmapped-value",
+      },
+      previousDoc: { startAsLead: false },
+      req: mockReq(),
+    });
+
+    expect(mockPayload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ businessType: "other" }),
+      }),
+    );
+  });
+
+  it("resets the toggle and throws when lead creation fails", async () => {
+    mockPayload.find.mockResolvedValueOnce({ docs: [], totalDocs: 0 });
+    mockPayload.create.mockRejectedValueOnce(new Error("DB constraint hit"));
+    mockPayload.update.mockResolvedValue({});
+
+    await expect(
+      startAsLeadHook({
+        doc: { id: 5, startAsLead: true, businessName: "Boom" },
+        previousDoc: { startAsLead: false },
+        req: mockReq(),
+      }),
+    ).rejects.toThrow(/Failed to create lead/);
+
+    // The toggle is reset so the user can retry.
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "client-proposals",
+        id: 5,
+        data: { startAsLead: false },
+      }),
     );
   });
 });

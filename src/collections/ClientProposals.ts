@@ -396,6 +396,151 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
 };
 
 /**
+ * Map a proposal's businessType (Google-Ads-flavoured options) onto the
+ * SalesLeads businessType select (broader categories). When a proposal
+ * type isn't directly representable, fall back to "other" so the lead
+ * record still saves.
+ */
+function mapProposalBusinessTypeToLead(
+  proposalType: string | null | undefined,
+): string | undefined {
+  if (!proposalType) return undefined;
+  const map: Record<string, string> = {
+    trades: "trades",
+    services: "services",
+    ecommerce: "ecommerce",
+    healthcare: "healthcare",
+    hospitality: "hospitality",
+    realestate: "realestate",
+    education: "education",
+    saas: "saas",
+    other: "other",
+  };
+  return map[proposalType] ?? "other";
+}
+
+/**
+ * Hook: when `startAsLead` flips false → true, create (or link) a
+ * SalesLead for this proposal so the team can track it through the
+ * funnel without leaving the proposal record.
+ *
+ * Idempotent:
+ *  - If a SalesLead already exists for this proposal (forward FK), we
+ *    just link it on the proposal side and reset the toggle. No
+ *    duplicate row is created.
+ *  - On failure, the toggle is reset so the user can retry.
+ *
+ * Field mapping (proposal → lead):
+ *   businessName, websiteUrl, contactName, contactEmail → verbatim
+ *   businessType                                       → mapped (may be "other")
+ *   discoveryNotes / notes                             → notes
+ *   stage                                              → "proposal_sent"
+ *   channel                                            → "website_other" (admin can edit)
+ *   leadSource                                         → "manual"
+ */
+const startAsLeadHook: CollectionAfterChangeHook = async ({
+  doc,
+  req,
+  previousDoc,
+}) => {
+  if (!doc.startAsLead || previousDoc?.startAsLead) return doc;
+
+  const payload = req.payload;
+
+  try {
+    // Check for an existing lead linked to this proposal.
+    const existing = await payload.find({
+      collection: "sales-leads" as never,
+      where: { proposal: { equals: doc.id } } as never,
+      limit: 1,
+      overrideAccess: true,
+    });
+
+    let leadId: number | string;
+
+    if (existing.totalDocs > 0) {
+      // Already linked — just surface it on the proposal side.
+      leadId = (existing.docs[0] as { id: number | string }).id;
+    } else {
+      // Roll up any discovery / general notes the team captured pre-sale
+      // into the lead's `notes` field so context isn't lost.
+      const discoveryNotes = (
+        doc.discoveryNotes as string | undefined
+      )?.trim();
+      const proposalNotes =
+        (doc.proposalNotes as
+          | Array<{ content?: string; category?: string }>
+          | undefined) ?? [];
+      const noteParts: string[] = [];
+      if (discoveryNotes) noteParts.push(`Discovery: ${discoveryNotes}`);
+      for (const n of proposalNotes) {
+        if (n.content) noteParts.push(n.content);
+      }
+
+      const created = await payload.create({
+        collection: "sales-leads" as never,
+        data: {
+          businessName: doc.businessName,
+          websiteUrl: doc.websiteUrl,
+          contactName: doc.contactName,
+          contactEmail: doc.contactEmail,
+          businessType: mapProposalBusinessTypeToLead(
+            doc.businessType as string | null | undefined,
+          ),
+          channel: "website_other",
+          channelDetail: "Created from proposal",
+          stage: "proposal_sent",
+          leadSource: "manual",
+          firstContactDate: new Date().toISOString(),
+          notes: noteParts.length > 0 ? noteParts.join("\n\n") : undefined,
+          proposal: doc.id,
+          // If the proposal has already been converted to a client, link
+          // that too so the lead reflects the full funnel.
+          ...(doc.client ? { client: doc.client } : {}),
+        } as never,
+        overrideAccess: true,
+      });
+      leadId = (created as { id: number | string }).id;
+    }
+
+    // Link the lead back onto the proposal and reset the toggle so the
+    // checkbox doesn't sit on "true" forever.
+    await payload.update({
+      collection: "client-proposals",
+      id: doc.id,
+      data: {
+        salesLead: leadId,
+        startAsLead: false,
+      } as never,
+      overrideAccess: true,
+    });
+
+    logActivity(payload, {
+      type: "lead_created",
+      title: `Lead started from proposal: ${doc.businessName}`,
+      description: existing.totalDocs > 0 ? "Linked to existing lead" : "New lead created",
+      user: req.user?.id,
+    }).catch(() => {});
+  } catch (error) {
+    // Reset the toggle so the user can retry, surface the error.
+    await payload.update({
+      collection: "client-proposals",
+      id: doc.id,
+      data: { startAsLead: false } as never,
+      overrideAccess: true,
+    }).catch(() => {});
+    req.payload.logger.error(
+      `Failed to start lead from proposal "${doc.businessName}": ${error}`,
+    );
+    throw new Error(
+      `Failed to create lead: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  return doc;
+};
+
+/**
  * ClientProposals Collection
  *
  * Internal proposal system for prospects. Team enters prospect details,
@@ -1787,6 +1932,27 @@ export const ClientProposals: CollectionConfig = {
       ],
     },
     {
+      name: "startAsLead",
+      type: "checkbox",
+      defaultValue: false,
+      admin: {
+        position: "sidebar",
+        description:
+          "Toggle on and save to create a Sales Lead from this proposal (stage: Proposal Sent). Useful for tracking prospects through the funnel even before they convert.",
+      },
+    },
+    {
+      name: "salesLead",
+      type: "relationship",
+      relationTo: "sales-leads",
+      admin: {
+        position: "sidebar",
+        description:
+          "Linked sales lead (set automatically when “Start as lead” is toggled)",
+        readOnly: true,
+      },
+    },
+    {
       name: "convertToClient",
       type: "checkbox",
       defaultValue: false,
@@ -1848,6 +2014,7 @@ export const ClientProposals: CollectionConfig = {
   hooks: {
     afterChange: [
       convertToClientHook,
+      startAsLeadHook,
       async ({ doc, operation, req, previousDoc }) => {
         if (operation === "create") {
           logActivity(req.payload, {
