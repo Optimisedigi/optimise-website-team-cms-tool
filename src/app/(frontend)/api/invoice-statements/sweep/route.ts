@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getPayload } from "payload";
+import { headers as getHeaders } from "next/headers";
 import config from "@/payload.config";
 import { logActivity } from "@/lib/activity-log";
 import type {
@@ -104,6 +105,42 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const cfg = await config;
+  const payload = await getPayload({ config: cfg });
+  return runSweep(payload, { triggeredBy: "cron" });
+}
+
+/**
+ * POST /api/invoice-statements/sweep
+ *
+ * Admin-triggered manual refresh — same logic as the cron, but authenticated
+ * via the user's admin session. Used by the "Refresh sweep" button on the
+ * Invoice Statements page so the team can pull the latest outstanding from
+ * Xero on demand (e.g. after payments come in, or after resetting test data).
+ */
+export async function POST(): Promise<NextResponse> {
+  const cfg = await config;
+  const payload = await getPayload({ config: cfg });
+  const reqHeaders = await getHeaders();
+  const { user } = await payload.auth({ headers: reqHeaders });
+  if (!user || (user as { role?: string }).role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return runSweep(payload, {
+    triggeredBy: "manual",
+    triggeredByEmail: (user as { email?: string }).email,
+  });
+}
+
+interface SweepOptions {
+  triggeredBy: "cron" | "manual";
+  triggeredByEmail?: string;
+}
+
+async function runSweep(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  opts: SweepOptions,
+): Promise<NextResponse> {
   const env = readEnv();
 
   if (!env.GROWTH_TOOLS_URL || !env.INTERNAL_API_KEY) {
@@ -112,9 +149,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       { status: 500 },
     );
   }
-
-  const cfg = await config;
-  const payload = await getPayload({ config: cfg });
 
   // 1. Fetch from Growth Tools.
   const url = new URL(`${env.GROWTH_TOOLS_URL}/api/xero/contacts/with-outstanding`);
@@ -273,9 +307,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // 5. Activity log.
+  const trigger =
+    opts.triggeredBy === "manual"
+      ? ` (manual by ${opts.triggeredByEmail ?? "admin"})`
+      : "";
   logActivity(payload, {
     type: "invoice_statements_swept",
-    title: `Invoice statement sweep`,
+    title: `Invoice statement sweep${trigger}`,
     description: `Generated ${generated}, updated ${updatedPending}, expired ${expired} \u2014 ${contacts.length} contact(s) processed.`,
   }).catch(() => {});
 

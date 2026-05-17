@@ -3,7 +3,7 @@ import { headers as getHeaders } from 'next/headers'
 import { getPayload, createLocalReq } from 'payload'
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import Ga4PerformancePage from '../../../../../components/Ga4PerformancePage'
-import { getVisibleEntities } from '../../../../../lib/visible-entities'
+import { getVisibleEntities, getCustomViewActions } from '../../../../../lib/visible-entities'
 
 export default async function Page() {
   const payload = await getPayload({ config })
@@ -13,6 +13,7 @@ export default async function Page() {
   const req = await createLocalReq({ user: user ?? undefined }, payload)
 
   const visibleEntities = getVisibleEntities(payload, user)
+  const viewActions = getCustomViewActions(payload)
 
   return (
     <DefaultTemplate
@@ -21,6 +22,7 @@ export default async function Page() {
       permissions={permissions}
       req={req}
       user={user ?? undefined}
+      viewActions={viewActions}
       visibleEntities={visibleEntities}
     >
       <div className="gutter--left gutter--right" style={{ maxWidth: 1440 }}>

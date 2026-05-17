@@ -4,7 +4,7 @@ import { getPayload, createLocalReq } from 'payload'
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import { redirect } from 'next/navigation'
 import ContractorCostsPage from '../../../../components/ContractorCostsPage'
-import { getVisibleEntities } from '../../../../lib/visible-entities'
+import { getVisibleEntities, getCustomViewActions } from '../../../../lib/visible-entities'
 import { userHasFeature } from '../../../../lib/access'
 
 export default async function Page() {
@@ -21,6 +21,7 @@ export default async function Page() {
 
   const req = await createLocalReq({ user: user ?? undefined }, payload)
   const visibleEntities = getVisibleEntities(payload, user)
+  const viewActions = getCustomViewActions(payload)
 
   return (
     <DefaultTemplate
@@ -29,6 +30,7 @@ export default async function Page() {
       permissions={permissions}
       req={req}
       user={user ?? undefined}
+      viewActions={viewActions}
       visibleEntities={visibleEntities}
     >
       <div className="gutter--left gutter--right" style={{ maxWidth: 1440 }}>

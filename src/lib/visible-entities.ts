@@ -45,3 +45,20 @@ export function getVisibleEntities(payload: Payload, user: any) {
       .map((g) => g.slug),
   };
 }
+
+/**
+ * Custom admin pages that render `<DefaultTemplate>` directly bypass
+ * Payload's `getRouteData` path, which is where the global
+ * `admin.components.actions` array (notifications bell, user-display name)
+ * normally gets piped into `viewActions`. Without it, the top-right action
+ * cluster in the admin header renders empty on those pages.
+ *
+ * Pass the result of this helper as `viewActions` to `DefaultTemplate` so
+ * every custom page shows the same breadcrumb-on-left / actions-on-right
+ * header as the rest of the admin.
+ */
+export function getCustomViewActions(payload: Payload): string[] {
+  const actions = payload.config.admin?.components?.actions ?? [];
+  return actions.filter((a): a is string => typeof a === "string");
+}
+

@@ -574,6 +574,8 @@ export default function InvoiceStatementsPage() {
   const [drafts, setDrafts] = useState<DraftRow[]>([])
   const [summary, setSummary] = useState<PendingSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sweeping, setSweeping] = useState(false)
+  const [sweepResult, setSweepResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [activeDraft, setActiveDraft] = useState<DraftRow | null>(null)
   const [tab, setTab] = useState<'pending' | 'recent'>('pending')
@@ -604,6 +606,43 @@ export default function InvoiceStatementsPage() {
     void load()
   }, [load])
 
+  const runSweep = useCallback(async () => {
+    if (
+      !window.confirm(
+        'Re-pull all outstanding invoices from Xero and refresh pending drafts? This will pick up clients with new outstanding invoices and update existing drafts with the latest amounts.',
+      )
+    ) {
+      return
+    }
+    setSweeping(true)
+    setSweepResult(null)
+    setError(null)
+    try {
+      const res = await fetch('/api/invoice-statements/sweep', { method: 'POST' })
+      const body = (await res.json().catch(() => ({}))) as {
+        generated?: number
+        updatedPending?: number
+        expired?: number
+        contactsProcessed?: number
+        error?: string
+      }
+      if (!res.ok) {
+        setError(body.error ?? `Sweep failed (${res.status})`)
+      } else {
+        setSweepResult(
+          `Sweep complete \u2014 ${body.contactsProcessed ?? 0} contact(s) processed, ` +
+            `${body.generated ?? 0} new draft(s), ${body.updatedPending ?? 0} updated, ` +
+            `${body.expired ?? 0} expired.`,
+        )
+        await load()
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSweeping(false)
+    }
+  }, [load])
+
   const pending = useMemo(
     () => drafts.filter((d) => d.status === 'pending' || d.status === 'failed'),
     [drafts],
@@ -622,10 +661,35 @@ export default function InvoiceStatementsPage() {
           </div>
           <h1 style={{ fontSize: 24, margin: '4px 0 0 0' }}>Invoice Statements</h1>
         </div>
-        <button onClick={() => void load()} style={btnSecondary} disabled={loading}>
-          {loading ? 'Loading\u2026' : 'Refresh'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => void load()} style={btnSecondary} disabled={loading || sweeping}>
+            {loading ? 'Loading\u2026' : 'Refresh list'}
+          </button>
+          <button
+            onClick={() => void runSweep()}
+            style={btnPrimary}
+            disabled={sweeping || loading}
+            title="Re-pull outstanding invoices from Xero and refresh pending drafts"
+          >
+            {sweeping ? 'Sweeping\u2026' : 'Refresh sweep from Xero'}
+          </button>
+        </div>
       </div>
+
+      {sweepResult && (
+        <div
+          style={{
+            padding: 12,
+            background: '#dcfce7',
+            color: '#166534',
+            borderRadius: 6,
+            fontSize: 13,
+            marginBottom: 14,
+          }}
+        >
+          {sweepResult}
+        </div>
+      )}
 
       <CapMeter summary={summary} />
 
