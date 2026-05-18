@@ -17,7 +17,7 @@ import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
 import {
   SUPPORTED_PRESETS,
   resolveRangeWithSegment,
-  snapCustomToPreset,
+  customRangeForGrowthTools,
   type Segment,
 } from "./_date-range";
 
@@ -91,17 +91,16 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
 
     // Different default than the others: 7 days is the operational sweet spot
     // when triaging campaign performance.
-    const requested = resolveRangeWithSegment(args.range ?? "LAST_7_DAYS", args.segment);
-    // Growth Tools' get-metrics endpoint substitutes dateRange into a GAQL
-    // DURING clause verbatim, so we have to snap CUSTOM → nearest preset
-    // before calling it (see snapCustomToPreset comments). Both halves of
-    // the response surface the snap so the agent can be honest about it.
-    const resolved = snapCustomToPreset(requested);
+    const resolved = resolveRangeWithSegment(args.range ?? "LAST_7_DAYS", args.segment);
+    // Growth Tools' get-metrics endpoint accepts either a preset enum or a
+    // 'YYYY-MM-DD,YYYY-MM-DD' comma-span as `dateRange`. customRangeForGrowthTools
+    // formats CUSTOM ranges as a comma-span; presets pass through unchanged.
+    // We don't send startDate/endDate as separate params — Growth Tools
+    // ignores them once the dateRange carries the span.
+    const dateRangeParam = customRangeForGrowthTools(resolved);
     const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
-    const qs = new URLSearchParams({ customerId, dateRange: resolved.dateRange });
+    const qs = new URLSearchParams({ customerId, dateRange: dateRangeParam });
     if (conversionActions) qs.set("conversionActions", conversionActions);
-    if (resolved.startDate) qs.set("startDate", resolved.startDate);
-    if (resolved.endDate) qs.set("endDate", resolved.endDate);
     if (resolved.segment) qs.set("segment", resolved.segment);
 
     const res = await growthToolsGet<MetricsEnvelope>(

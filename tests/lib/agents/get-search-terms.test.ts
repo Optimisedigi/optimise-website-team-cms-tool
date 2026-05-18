@@ -36,14 +36,13 @@ beforeEach(() => {
 });
 
 describe("get_search_terms tool", () => {
-  it("snaps CUSTOM quarter ranges to a preset (Growth Tools rejects literal CUSTOM in GAQL DURING)", async () => {
+  it("forwards CUSTOM quarter ranges as a comma-span dateRange (Growth Tools accepts BETWEEN since 2026)", async () => {
     // Q1 2026 resolves to CUSTOM startDate=2026-01-01..2026-03-31. Growth
-    // Tools' search-terms endpoint substitutes dateRange into a GAQL DURING
-    // clause verbatim and rejects "CUSTOM". The snap layer converts that to
-    // the smallest LAST_N_DAYS preset that fully covers the requested span
-    // (here: ~90 days back from "now" since the quarter is in the past).
-    // We assert the request shape; the response's `coercedFrom` / `note`
-    // tells the agent honestly that the window was widened.
+    // Tools' getSearchTerms now accepts 'YYYY-MM-DD,YYYY-MM-DD' in the
+    // `dateRange` arg and substitutes it into a GAQL BETWEEN clause, so we
+    // pass the bounds straight through instead of snapping to a preset.
+    // No separate startDate / endDate query params — Growth Tools ignores
+    // them once the dateRange carries the span.
     const captured = mockFetchOnce({
       searchTerms: [
         { searchTerm: "shoes", impressions: 1000, clicks: 50, cost: 40, conversions: 2, segment: "2026-01" },
@@ -57,12 +56,11 @@ describe("get_search_terms tool", () => {
     const url = captured.url ?? "";
     expect(url).toContain("/api/google-ads/search-terms");
     expect(url).toContain("segment=month");
-    // Snap must have stripped these so Growth Tools doesn't see CUSTOM.
     expect(url).not.toContain("dateRange=CUSTOM");
     expect(url).not.toContain("startDate=");
     expect(url).not.toContain("endDate=");
-    // The forwarded dateRange must be one of the LAST_N_DAYS presets.
-    expect(url).toMatch(/dateRange=LAST_\d+_DAYS/);
+    // The forwarded dateRange must be the comma-span. URLSearchParams URL-encodes ',' as '%2C'.
+    expect(url).toContain("dateRange=2026-01-01%2C2026-03-31");
   });
 
   it("returns one row per (term, segment) sorted by term then segment when segmenting", async () => {

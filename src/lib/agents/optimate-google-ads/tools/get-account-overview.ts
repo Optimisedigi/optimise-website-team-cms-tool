@@ -10,7 +10,7 @@
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
-import { SUPPORTED_PRESETS, resolveRange, snapCustomToPreset } from "./_date-range";
+import { SUPPORTED_PRESETS, resolveRange, customRangeForGrowthTools } from "./_date-range";
 
 interface OverviewArgs {
   range?: string;
@@ -64,12 +64,14 @@ export const getAccountOverview: CanonicalTool<OverviewArgs> = {
       return { ok: false, error: (err as Error).message };
     }
 
-    // Snap CUSTOM → nearest preset; the get-metrics endpoint rejects literal
-    // CUSTOM in its GAQL DURING clause. See snapCustomToPreset comments.
-    const resolved = snapCustomToPreset(resolveRange(args.range));
+    // Growth Tools' get-metrics endpoint accepts either a preset enum or a
+    // 'YYYY-MM-DD,YYYY-MM-DD' comma-span as `dateRange`. customRangeForGrowthTools
+    // formats CUSTOM ranges as a comma-span; presets pass through unchanged.
+    const resolved = resolveRange(args.range);
+    const dateRangeParam = customRangeForGrowthTools(resolved);
     const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
 
-    const qs = new URLSearchParams({ customerId, dateRange: resolved.dateRange });
+    const qs = new URLSearchParams({ customerId, dateRange: dateRangeParam });
     if (conversionActions) qs.set("conversionActions", conversionActions);
 
     const res = await growthToolsGet<MetricsEnvelope>(
@@ -103,6 +105,7 @@ export const getAccountOverview: CanonicalTool<OverviewArgs> = {
       data: {
         dateRange: resolved.dateRange,
         rangeLabel: resolved.label,
+        ...(resolved.startDate ? { startDate: resolved.startDate, endDate: resolved.endDate } : {}),
         ...(resolved.coercedFrom ? { coercedFrom: resolved.coercedFrom, note: resolved.note } : {}),
         totalSpend: round2(totalSpend),
         totalConversions: round2(totalConversions),

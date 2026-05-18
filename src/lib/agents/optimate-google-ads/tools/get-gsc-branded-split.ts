@@ -8,7 +8,7 @@
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { fetchBrandedAnalytics } from "@/lib/gsc-service";
-import { SUPPORTED_PRESETS, resolveRange, snapCustomToPreset } from "./_date-range";
+import { SUPPORTED_PRESETS, resolveRange } from "./_date-range";
 import { getValidGscToken, rangeToDates } from "./_client-tokens";
 
 interface BrandedSplitArgs {
@@ -43,10 +43,15 @@ export const getGscBrandedSplit: CanonicalTool<BrandedSplitArgs> = {
       return { ok: false, error: "Client has no brandKeywords set; can't split brand vs non-brand. Add brand terms to the client and retry." };
     }
 
-    // Snap CUSTOM → preset because rangeToDates() only knows presets.
-    // See snapCustomToPreset comments.
-    const resolved = snapCustomToPreset(resolveRange(args.range));
-    const { startDate, endDate } = rangeToDates(resolved.dateRange);
+    // GSC Search Analytics accepts arbitrary startDate/endDate — pass the
+    // custom span through. CUSTOM resolves to a literal 'YYYY-MM-DD..YYYY-MM-DD'
+    // string so rangeToDates' span branch returns the bounds verbatim.
+    const resolved = resolveRange(args.range);
+    const rangeForDates =
+      resolved.dateRange === "CUSTOM" && resolved.startDate && resolved.endDate
+        ? `${resolved.startDate}..${resolved.endDate}`
+        : resolved.dateRange;
+    const { startDate, endDate } = rangeToDates(rangeForDates);
 
     try {
       const result = await fetchBrandedAnalytics(tokenRes.accessToken, tokenRes.siteUrl, startDate, endDate, tokenRes.brandTerms);

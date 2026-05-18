@@ -412,3 +412,27 @@ export function snapCustomToPreset(
     ...(resolved.segment ? { segment: resolved.segment } : {}),
   };
 }
+
+// ────────────────────────────────────────────────────────────────────
+// CUSTOM → Growth Tools comma-span pass-through
+// ────────────────────────────────────────────────────────────────────
+// Growth Tools' Google Ads helpers (`getCampaignMetrics`, `getSearchTerms`,
+// `getCampaignConversionsByAction`) all accept a `'YYYY-MM-DD,YYYY-MM-DD'`
+// comma-span as the dateRange and substitute it into a GAQL `BETWEEN` clause.
+// So custom back-dated spans CAN round-trip end-to-end — the snap above was
+// only ever needed when Growth Tools spoke presets exclusively.
+//
+// `customRangeForGrowthTools` returns the value that should be sent as the
+// `dateRange` query-string param to those endpoints. For CUSTOM ranges with
+// explicit bounds, that's the comma-span. For everything else, the original
+// preset enum.
+//
+// Tools using this helper should drop the redundant `startDate`/`endDate`
+// query params — Growth Tools ignores them once dateRange carries the span.
+
+export function customRangeForGrowthTools(resolved: ResolvedRange): string {
+  if (resolved.dateRange === "CUSTOM" && resolved.startDate && resolved.endDate) {
+    return `${resolved.startDate},${resolved.endDate}`;
+  }
+  return resolved.dateRange;
+}

@@ -63,6 +63,50 @@ function resolveBaseUrl(): string {
   ).replace(/\/+$/, "");
 }
 
+/**
+ * Fetch with one silent retry on 5xx or network error. Returns either the
+ * parsed JSON body or a structured failure. We retry once because the call
+ * chain here is CMS → Growth Tools → Google Ads — a transient hiccup anywhere
+ * along that path lands as a one-shot failure, and the underlying data is
+ * idempotent (a GET / a recap calculation), so a retry is safe.
+ */
+async function fetchJsonWithRetry<T>(
+  url: string,
+  init: RequestInit,
+  label: string,
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  let lastErrText = "";
+  let lastStatus: number | null = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(60_000) });
+      if (res.ok) {
+        const data = (await res.json()) as T;
+        if (attempt > 1) {
+          console.log(`[BudgetEmail] ${label} succeeded on retry`);
+        }
+        return { ok: true, data };
+      }
+      lastStatus = res.status;
+      lastErrText = await res.text().catch(() => "");
+      console.error(
+        `[BudgetEmail] ${label} HTTP ${res.status} (attempt ${attempt}/2): ${lastErrText.slice(0, 500)}`,
+      );
+      // Only retry on server-side failures — 4xx is the caller's fault, retrying won't help.
+      if (res.status < 500) break;
+    } catch (err) {
+      lastErrText = (err as Error).message;
+      console.error(`[BudgetEmail] ${label} network error (attempt ${attempt}/2): ${lastErrText}`);
+      // Network errors retry.
+    }
+  }
+  const statusPart = lastStatus !== null ? ` (HTTP ${lastStatus})` : "";
+  return {
+    ok: false,
+    error: `Failed to ${label}${statusPart}: ${lastErrText.slice(0, 500) || "unknown error"}. Tried twice. The data path is CMS → Growth Tools → Google Ads — check Growth Tools logs and the Budget Management tab in the CMS for live data.`,
+  };
+}
+
 export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
   name: "get_budget_management_email",
   description:
@@ -138,27 +182,13 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
     if (args.mode === "this_month") {
       // Fetch live campaigns + MTD spend from the same endpoint the UI loads
       // on mount. The /list route already supports x-api-key authentication.
-      let listData: ListResponse;
-      try {
-        const res = await fetch(`${baseUrl}/api/google-ads-budgets/${auditId}/list`, {
-          method: "GET",
-          headers: { "x-api-key": apiKey },
-          signal: AbortSignal.timeout(60_000),
-        });
-        if (!res.ok) {
-          const errText = await res.text().catch(() => "");
-          return {
-            ok: false,
-            error: `Failed to load campaigns (${res.status}): ${errText.slice(0, 200)}`,
-          };
-        }
-        listData = (await res.json()) as ListResponse;
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Failed to load campaigns: ${(err as Error).message}`,
-        };
-      }
+      const listRes = await fetchJsonWithRetry<ListResponse>(
+        `${baseUrl}/api/google-ads-budgets/${auditId}/list`,
+        { method: "GET", headers: { "x-api-key": apiKey } },
+        "load campaigns",
+      );
+      if (!listRes.ok) return listRes;
+      const listData = listRes.data;
 
       const campaigns: BudgetCampaign[] = (listData.campaigns ?? []).map((c) => ({
         campaignId: String(c.campaignId),
@@ -210,30 +240,16 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
     }
 
     // mode === "last_month"
-    let recap: LastMonthRecap;
-    try {
-      const res = await fetch(
-        `${baseUrl}/api/google-ads-audits/${auditId}/last-month-recap`,
-        {
-          method: "POST",
-          headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(60_000),
-        },
-      );
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        return {
-          ok: false,
-          error: `Failed to load last-month recap (${res.status}): ${errText.slice(0, 200)}`,
-        };
-      }
-      recap = (await res.json()) as LastMonthRecap;
-    } catch (err) {
-      return {
-        ok: false,
-        error: `Failed to load last-month recap: ${(err as Error).message}`,
-      };
-    }
+    const recapRes = await fetchJsonWithRetry<LastMonthRecap>(
+      `${baseUrl}/api/google-ads-audits/${auditId}/last-month-recap`,
+      {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+      },
+      "load last-month recap",
+    );
+    if (!recapRes.ok) return recapRes;
+    const recap = recapRes.data;
 
     const html = generateLastMonthRecapEmailHtml(
       businessName,

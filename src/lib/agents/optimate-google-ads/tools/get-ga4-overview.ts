@@ -8,7 +8,7 @@
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { fetchGa4Report } from "@/lib/ga4-service";
-import { SUPPORTED_PRESETS, resolveRange, snapCustomToPreset } from "./_date-range";
+import { SUPPORTED_PRESETS, resolveRange } from "./_date-range";
 import { getValidGa4Token, rangeToDates } from "./_client-tokens";
 
 interface Ga4OverviewArgs {
@@ -40,12 +40,16 @@ export const getGa4Overview: CanonicalTool<Ga4OverviewArgs> = {
     const tokenRes = await getValidGa4Token(clientId ?? null);
     if (!tokenRes.ok) return { ok: false, error: tokenRes.reason };
 
-    // Snap CUSTOM → preset because rangeToDates() (downstream) only knows
-    // about the named presets and would otherwise silently fall back to
-    // LAST_30_DAYS while still labelling the response with the user's
-    // requested range. Snapping makes the label honest.
-    const resolved = snapCustomToPreset(resolveRange(args.range));
-    const { startDate, endDate } = rangeToDates(resolved.dateRange);
+    // GA4's Data API accepts arbitrary startDate/endDate — we can hand the
+    // custom span straight through. For CUSTOM ranges we build a literal
+    // 'YYYY-MM-DD..YYYY-MM-DD' string so rangeToDates' span branch returns
+    // the bounds verbatim; presets continue to map through the switch.
+    const resolved = resolveRange(args.range);
+    const rangeForDates =
+      resolved.dateRange === "CUSTOM" && resolved.startDate && resolved.endDate
+        ? `${resolved.startDate}..${resolved.endDate}`
+        : resolved.dateRange;
+    const { startDate, endDate } = rangeToDates(rangeForDates);
 
     let report: Awaited<ReturnType<typeof fetchGa4Report>>;
     try {

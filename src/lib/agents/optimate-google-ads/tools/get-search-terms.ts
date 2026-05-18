@@ -19,7 +19,7 @@ import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
 import {
   SUPPORTED_PRESETS,
   resolveRangeWithSegment,
-  snapCustomToPreset,
+  customRangeForGrowthTools,
   type Segment,
 } from "./_date-range";
 
@@ -116,23 +116,23 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
       return { ok: false, error: (err as Error).message };
     }
 
-    // Snap CUSTOM → nearest preset because Growth Tools' search-terms
-    // endpoint substitutes dateRange into a GAQL DURING clause verbatim (see
-    // snapCustomToPreset comments). Non-CUSTOM ranges pass through unchanged.
-    const requested = resolveRangeWithSegment(args.range, args.segment);
-    const resolved = snapCustomToPreset(requested);
+    // Growth Tools' search-terms endpoint accepts either a preset enum or a
+    // 'YYYY-MM-DD,YYYY-MM-DD' comma-span as `dateRange`. customRangeForGrowthTools
+    // formats CUSTOM ranges as a comma-span; presets pass through unchanged.
+    // We don't send startDate/endDate as separate params — Growth Tools
+    // ignores them once the dateRange carries the span.
+    const resolved = resolveRangeWithSegment(args.range, args.segment);
+    const dateRangeParam = customRangeForGrowthTools(resolved);
     const limit = args.limit ?? 200;
     const minImpressions = args.minImpressions ?? 0;
     const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
 
     const qs = new URLSearchParams({
       customerId,
-      dateRange: resolved.dateRange,
+      dateRange: dateRangeParam,
       limit: String(limit),
     });
     if (conversionActions) qs.set("conversionActions", conversionActions);
-    if (resolved.startDate) qs.set("startDate", resolved.startDate);
-    if (resolved.endDate) qs.set("endDate", resolved.endDate);
     if (resolved.segment) qs.set("segment", resolved.segment);
 
     const res = await growthToolsGet<SearchTermsEnvelope>(
