@@ -3,7 +3,6 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import {
-  historicalRevenueTotal,
   netMonthlyRetainer,
   oneOffsThisMonth,
   oneOffsYTD,
@@ -583,19 +582,30 @@ export async function GET() {
     .filter((row: any) => row !== null)
     .sort((a: any, b: any) => b.total - a.total);
 
-  // Total historical (pre-CMS) revenue, summed across clients — feeds the
-  // backwards-compat `ytdRevenue` field used by the sales-target progress bar.
-  const historicalTotal = round(
-    clientsForRetainer.docs.reduce(
-      (sum: number, c: any) => sum + historicalRevenueTotal(c.historicalRevenueByYear),
-      0,
-    ),
+  // Historical revenue rows for the **current calendar year only** — feeds
+  // the sales-target progress bar via `ytdRevenue`. Prior-year rows are
+  // excluded; they belong to lifetime totals, not this year's YTD.
+  const currentYear = now.getFullYear();
+  const historicalThisYear = round(
+    clientsForRetainer.docs.reduce((sum: number, c: any) => {
+      const rows = Array.isArray(c.historicalRevenueByYear) ? c.historicalRevenueByYear : [];
+      return (
+        sum +
+        rows.reduce(
+          (s: number, r: any) =>
+            Number(r?.year) === currentYear && Number.isFinite(Number(r?.amount))
+              ? s + Math.max(0, Number(r.amount))
+              : s,
+          0,
+        )
+      );
+    }, 0),
   );
 
   // Back-compat fields (existing consumers)
   const totalMonthlyRevenue = monthlyRetainerNet;
   const totalRetainer = round(monthlyRetainerNet + oneOffTotal);
-  const ytdRevenue = round(retainerYTD + oneOffYTD + historicalTotal);
+  const ytdRevenue = round(retainerYTD + oneOffYTD + historicalThisYear);
 
   const usage = {
     seoAudits: seoCount.totalDocs,
