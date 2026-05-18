@@ -30,6 +30,12 @@ export interface ContractData {
   setupFee?: number;
   monthlyHosting?: number;
   annualHosting?: number;
+  /** Additional one-off work items rendered as extra rows in the pricing table. Only rows with a non-empty projectName are shown. */
+  additionalWork?: Array<{
+    projectName?: string | null;
+    amount?: number | null;
+    countTowardsRetainer?: boolean | null;
+  }> | null;
   currency?: CurrencyCode;
   /** When true the cover page hides the "(to be confirmed with client)" qualifier. */
   effectiveDateConfirmed?: boolean;
@@ -218,6 +224,17 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       label: "Annual hosting",
       value: `${formatCurrency(data.annualHosting, ccy)}/year`,
     });
+  }
+  // Additional one-off work — only rows with a non-empty project name render.
+  if (Array.isArray(data.additionalWork)) {
+    for (const item of data.additionalWork) {
+      const label = item?.projectName?.trim();
+      if (!label) continue;
+      pricingRows.push({
+        label,
+        value: formatCurrency(item?.amount ?? 0, ccy),
+      });
+    }
   }
   if (pricingRows.length > 0) {
     sections.push({

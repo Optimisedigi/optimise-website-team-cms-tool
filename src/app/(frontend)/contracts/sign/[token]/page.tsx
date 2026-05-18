@@ -18,6 +18,7 @@ interface ContractInfo {
   setupFee?: number
   monthlyHosting?: number
   annualHosting?: number
+  additionalWork?: Array<{ projectName?: string | null; amount?: number | null }>
   currency?: string
   contractTerm?: string
   paymentTerms?: string
@@ -599,6 +600,15 @@ export default function ContractSignPage() {
                 <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(contract.annualHosting, currency)}/year</td>
               </tr>
             )}
+            {Array.isArray(contract.additionalWork) &&
+              contract.additionalWork
+                .filter((item) => item?.projectName && String(item.projectName).trim() !== '')
+                .map((item, i) => (
+                  <tr key={`aw-${i}`} style={{ borderBottom: '1px solid #d4d4d4' }}>
+                    <td style={{ padding: '5px 4px' }}>{item.projectName}</td>
+                    <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(item.amount ?? 0, currency)}</td>
+                  </tr>
+                ))}
           </tbody>
         </table>
 

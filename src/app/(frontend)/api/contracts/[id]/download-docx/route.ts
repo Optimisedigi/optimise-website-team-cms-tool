@@ -296,6 +296,14 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     if (doc.annualHosting && doc.annualHosting > 0) {
       tableRows.push(bodyRow("Annual hosting", `${formatCurrency(doc.annualHosting, currency)}/year`));
     }
+    // Additional one-off work — only rows with a non-empty project name render.
+    if (Array.isArray(doc.additionalWork)) {
+      for (const item of doc.additionalWork) {
+        const label = item?.projectName?.trim();
+        if (!label) continue;
+        tableRows.push(bodyRow(label, formatCurrency(item?.amount ?? 0, currency)));
+      }
+    }
 
     children.push(
       new Table({

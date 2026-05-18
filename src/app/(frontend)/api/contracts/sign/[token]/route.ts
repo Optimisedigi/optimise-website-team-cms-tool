@@ -121,6 +121,14 @@ export async function GET(
     setupFee: doc.setupFee,
     monthlyHosting: doc.monthlyHosting,
     annualHosting: doc.annualHosting,
+    additionalWork: Array.isArray(doc.additionalWork)
+      ? doc.additionalWork
+          .filter((item: any) => item?.projectName && String(item.projectName).trim() !== "")
+          .map((item: any) => ({
+            projectName: item.projectName,
+            amount: item.amount ?? 0,
+          }))
+      : [],
     currency: doc.currency ?? "AUD",
     effectiveDateConfirmed: doc.effectiveDateConfirmed === true,
     contractTerm: doc.contractTerm,
@@ -281,6 +289,7 @@ export async function POST(
       setupFee: updatedDoc.setupFee,
       monthlyHosting: updatedDoc.monthlyHosting,
       annualHosting: updatedDoc.annualHosting,
+      additionalWork: updatedDoc.additionalWork,
       currency: updatedDoc.currency ?? "AUD",
       effectiveDateConfirmed: updatedDoc.effectiveDateConfirmed === true,
       contractTerm: updatedDoc.contractTerm,
