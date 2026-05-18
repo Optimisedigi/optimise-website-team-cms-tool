@@ -417,6 +417,10 @@ export interface Client {
    */
   monthlyRetainer?: number | null;
   /**
+   * One-time setup fee ($). Counts toward Retainer Revenue YTD in the calendar year of clientStartDate.
+   */
+  setupFee?: number | null;
+  /**
    * One-off projects (website builds, audits, etc.)
    */
   oneOffProjects?:
@@ -433,6 +437,10 @@ export interface Client {
          * Project date
          */
         date: string;
+        /**
+         * Toggle ON if this fee is part of the managing retainer (e.g. setup, custom build accompanying retainer). Counts toward Retainer YTD instead of One-Off YTD.
+         */
+        countTowardsRetainer?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -1234,6 +1242,10 @@ export interface Contract {
    */
   contractDate: string;
   /**
+   * Engagement effective date — used for retainer pro-ration when synced to the client on signature.
+   */
+  contractStartDate?: string | null;
+  /**
    * Toggle ON once the effective date is confirmed with the client. When OFF, the cover page shows '(to be confirmed with client)' next to the date; when ON, the qualifier is hidden.
    */
   effectiveDateConfirmed?: boolean | null;
@@ -1257,6 +1269,26 @@ export interface Contract {
    * Annual hosting cost (leave blank if billed monthly)
    */
   annualHosting?: number | null;
+  /**
+   * Additional one-time work items (website builds, agent builds, audits). Copied to the client on signature.
+   */
+  additionalWork?:
+    | {
+        /**
+         * Project name
+         */
+        projectName: string;
+        /**
+         * Amount
+         */
+        amount: number;
+        /**
+         * Toggle ON if this is part of the managing retainer (counts toward Retainer YTD on the client side).
+         */
+        countTowardsRetainer?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Additional pricing details shown below the pricing table (e.g. bundle pricing, ad spend thresholds)
    */
@@ -6834,12 +6866,14 @@ export interface ClientsSelect<T extends boolean = true> {
   referredByContact?: T;
   clientStartDate?: T;
   monthlyRetainer?: T;
+  setupFee?: T;
   oneOffProjects?:
     | T
     | {
         projectName?: T;
         amount?: T;
         date?: T;
+        countTowardsRetainer?: T;
         id?: T;
       };
   referralCommissions?:
@@ -7323,12 +7357,21 @@ export interface ContractsSelect<T extends boolean = true> {
   clientPhone?: T;
   clientWebsite?: T;
   contractDate?: T;
+  contractStartDate?: T;
   effectiveDateConfirmed?: T;
   currency?: T;
   monthlyRetainer?: T;
   setupFee?: T;
   monthlyHosting?: T;
   annualHosting?: T;
+  additionalWork?:
+    | T
+    | {
+        projectName?: T;
+        amount?: T;
+        countTowardsRetainer?: T;
+        id?: T;
+      };
   pricingNotes?: T;
   contractTerm?: T;
   paymentTerms?: T;

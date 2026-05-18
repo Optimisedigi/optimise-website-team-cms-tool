@@ -198,9 +198,11 @@ export const Clients: CollectionConfig = {
         const retainerRevenue = retainerRevenueYTD(
           {
             monthlyRetainer: Number(doc?.monthlyRetainer) || 0,
+            setupFee: Number(doc?.setupFee) || 0,
             clientStartDate: doc?.clientStartDate as string | null,
             retainerHistory,
             referralCommissions,
+            oneOffProjects,
           },
           now,
         );
@@ -647,6 +649,21 @@ export const Clients: CollectionConfig = {
               },
             },
             {
+              name: "setupFee",
+              type: "number",
+              min: 0,
+              access: sensitiveFieldAccess("clients"),
+              admin: {
+                description:
+                  "One-time setup fee ($). Counts toward Retainer Revenue YTD in the calendar year of clientStartDate.",
+                step: 1,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
+              },
+            },
+            {
               name: "oneOffProjects",
               type: "array",
               access: sensitiveFieldAccess("clients"),
@@ -659,29 +676,46 @@ export const Clients: CollectionConfig = {
               },
               fields: [
                 {
-                  name: "projectName",
-                  type: "text",
-                  required: true,
-                  admin: {
-                    description: "Project name",
-                  },
+                  type: "row",
+                  fields: [
+                    {
+                      name: "projectName",
+                      type: "text",
+                      required: true,
+                      admin: {
+                        description: "Project name",
+                        width: "40%",
+                      },
+                    },
+                    {
+                      name: "amount",
+                      type: "number",
+                      required: true,
+                      min: 0,
+                      admin: {
+                        description: "Project amount ($)",
+                        step: 1,
+                        width: "30%",
+                      },
+                    },
+                    {
+                      name: "date",
+                      type: "date",
+                      required: true,
+                      admin: {
+                        description: "Project date",
+                        width: "30%",
+                      },
+                    },
+                  ],
                 },
                 {
-                  name: "amount",
-                  type: "number",
-                  required: true,
-                  min: 0,
+                  name: "countTowardsRetainer",
+                  type: "checkbox",
+                  defaultValue: false,
                   admin: {
-                    description: "Project amount ($)",
-                    step: 1,
-                  },
-                },
-                {
-                  name: "date",
-                  type: "date",
-                  required: true,
-                  admin: {
-                    description: "Project date",
+                    description:
+                      "Toggle ON if this fee is part of the managing retainer (e.g. setup, custom build accompanying retainer). Counts toward Retainer YTD instead of One-Off YTD.",
                   },
                 },
               ],

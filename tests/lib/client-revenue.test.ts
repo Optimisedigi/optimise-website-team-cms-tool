@@ -5,6 +5,8 @@ import {
   oneOffsYTD,
   oneOffsThisMonth,
   monthsBetween,
+  firstMonthProrationFactor,
+  splitOneOffs,
   type ReferralCommission,
 } from "@/lib/client-revenue";
 
@@ -279,6 +281,24 @@ describe("oneOffsYTD", () => {
     expect(oneOffsYTD([], now)).toBe(0);
     expect(oneOffsYTD(null, now)).toBe(0);
   });
+
+  it("excludes future-dated projects within the current month", () => {
+    const projects = [
+      { amount: 500, date: "2026-05-31" }, // future this month — excluded
+      { amount: 200, date: "2026-05-10" }, // past — included
+    ];
+    expect(oneOffsYTD(projects, now)).toBe(200);
+  });
+
+  it("filters by countTowardsRetainer when filter arg supplied", () => {
+    const projects = [
+      { amount: 500, date: "2026-02-01", countTowardsRetainer: true },
+      { amount: 700, date: "2026-03-01", countTowardsRetainer: false },
+      { amount: 300, date: "2026-04-01" },
+    ];
+    expect(oneOffsYTD(projects, now, true)).toBe(500);
+    expect(oneOffsYTD(projects, now, false)).toBe(1000); // 700 + 300 (unset treated as off)
+  });
 });
 
 describe("oneOffsThisMonth", () => {
@@ -288,8 +308,154 @@ describe("oneOffsThisMonth", () => {
     const projects = [
       { amount: 500, date: "2026-04-30" },
       { amount: 700, date: "2026-05-10" },
-      { amount: 100, date: "2026-05-31" },
+      { amount: 100, date: "2026-05-31" }, // future this month — excluded
     ];
-    expect(oneOffsThisMonth(projects, now)).toBe(800);
+    expect(oneOffsThisMonth(projects, now)).toBe(700);
+  });
+});
+
+describe("firstMonthProrationFactor", () => {
+  it("returns 1 when start day is the 1st", () => {
+    const start = new Date(2026, 2, 1); // 1 Mar 2026
+    expect(firstMonthProrationFactor(start, new Date(2026, 2, 15))).toBe(1);
+  });
+
+  it("returns 1/daysInMonth when start day is the last of the month", () => {
+    const start = new Date(2026, 2, 31); // 31 Mar 2026 (31 days)
+    expect(firstMonthProrationFactor(start, new Date(2026, 2, 31))).toBeCloseTo(1 / 31);
+  });
+
+  it("returns 1 for any later month", () => {
+    const start = new Date(2026, 2, 13);
+    expect(firstMonthProrationFactor(start, new Date(2026, 3, 1))).toBe(1);
+    expect(firstMonthProrationFactor(start, new Date(2027, 0, 1))).toBe(1);
+  });
+
+  it("returns 0 for any earlier month", () => {
+    const start = new Date(2026, 2, 13);
+    expect(firstMonthProrationFactor(start, new Date(2026, 1, 28))).toBe(0);
+    expect(firstMonthProrationFactor(start, new Date(2025, 11, 1))).toBe(0);
+  });
+
+  it("Berendsen case: start 13 Mar → 19/31", () => {
+    const start = new Date(2026, 2, 13);
+    expect(firstMonthProrationFactor(start, new Date(2026, 2, 15))).toBeCloseTo(19 / 31, 10);
+  });
+});
+
+describe("splitOneOffs", () => {
+  it("returns empty groups for empty input", () => {
+    expect(splitOneOffs([])).toEqual({ retainer: [], oneOff: [] });
+    expect(splitOneOffs(null)).toEqual({ retainer: [], oneOff: [] });
+  });
+
+  it("partitions rows by countTowardsRetainer flag", () => {
+    const a = { projectName: "a", amount: 1, date: "2026-01-01", countTowardsRetainer: true };
+    const b = { projectName: "b", amount: 2, date: "2026-01-02", countTowardsRetainer: false };
+    const c = { projectName: "c", amount: 3, date: "2026-01-03" };
+    const result = splitOneOffs([a, b, c]);
+    expect(result.retainer).toEqual([a]);
+    expect(result.oneOff).toEqual([b, c]);
+  });
+});
+
+describe("retainerRevenueYTD with pro-ration, setupFee, and tagged one-offs", () => {
+  const now = new Date(2026, 4, 18); // 18 May 2026
+
+  it("pro-rates the first month based on clientStartDate (Berendsen case)", () => {
+    // Start 13 Mar 2026, $1350/mo, today 18 May 2026
+    // Mar = 1350 × 19/31, Apr = 1350, May = 1350 → sum
+    const expected = 1350 * (19 / 31) + 1350 + 1350;
+    expect(
+      retainerRevenueYTD(
+        { monthlyRetainer: 1350, clientStartDate: "2026-03-13" },
+        now,
+      ),
+    ).toBeCloseTo(expected, 6);
+  });
+
+  it("applies pro-ration to monthly commission in the start month", () => {
+    // Start 13 Mar 2026, $1350/mo, 8% commission
+    // Mar = (1350 − 108) × 19/31, Apr = 1242, May = 1242
+    const expected = 1242 * (19 / 31) + 1242 + 1242;
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 1350,
+          clientStartDate: "2026-03-13",
+          referralCommissions: [
+            { frequency: "monthly", commissionType: "percentage", percentage: 8, startDate: "2026-03-13" },
+          ],
+        },
+        now,
+      ),
+    ).toBeCloseTo(expected, 6);
+  });
+
+  it("adds setupFee to YTD when clientStartDate is in current year", () => {
+    // No retainer, just a setup fee in YTD
+    expect(
+      retainerRevenueYTD(
+        { monthlyRetainer: 0, setupFee: 1000, clientStartDate: "2026-03-13" },
+        now,
+      ),
+    ).toBe(1000);
+  });
+
+  it("excludes setupFee when clientStartDate is in a prior year", () => {
+    // Started in 2025 — setup fee belongs to 2025 YTD, not 2026
+    expect(
+      retainerRevenueYTD(
+        { monthlyRetainer: 0, setupFee: 1000, clientStartDate: "2025-06-01" },
+        now,
+      ),
+    ).toBe(0);
+  });
+
+  it("includes retainer-tagged one-offs in retainerYTD", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 0,
+          clientStartDate: "2025-06-01",
+          oneOffProjects: [
+            { amount: 500, date: "2026-02-01", countTowardsRetainer: true },
+            { amount: 200, date: "2026-03-01", countTowardsRetainer: false },
+          ],
+        },
+        now,
+      ),
+    ).toBe(500);
+  });
+
+  it("excludes one-offs without the flag from retainerYTD", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 0,
+          clientStartDate: "2025-06-01",
+          oneOffProjects: [
+            { amount: 200, date: "2026-03-01", countTowardsRetainer: false },
+            { amount: 300, date: "2026-04-01" },
+          ],
+        },
+        now,
+      ),
+    ).toBe(0);
+  });
+
+  it("excludes future-dated retainer-tagged one-offs from YTD", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 0,
+          clientStartDate: "2025-06-01",
+          oneOffProjects: [
+            { amount: 800, date: "2026-12-01", countTowardsRetainer: true },
+          ],
+        },
+        now,
+      ),
+    ).toBe(0);
   });
 });

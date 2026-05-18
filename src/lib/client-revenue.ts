@@ -35,13 +35,70 @@ export interface OneOffProject {
   projectName?: string | null;
   amount?: number | null;
   date?: string | null;
+  countTowardsRetainer?: boolean | null;
 }
 
 export interface ClientRevenueInput {
   monthlyRetainer?: number | null;
+  setupFee?: number | null;
   clientStartDate?: string | null;
   retainerHistory?: RetainerHistoryEntry[] | null;
   referralCommissions?: ReferralCommission[] | null;
+  oneOffProjects?: OneOffProject[] | null;
+}
+
+/**
+ * Pro-ration factor for the first month of an engagement.
+ *
+ * If `monthDate` is in the same calendar month as `clientStartDate`,
+ * returns `(daysInMonth − startDay + 1) / daysInMonth` — the share of
+ * that month from the start day through month-end, inclusive.
+ *
+ * If `monthDate` is in a later month, returns 1 (full month billed).
+ * If `monthDate` is in an earlier month, returns 0 (engagement hadn't
+ * started yet).
+ */
+export function firstMonthProrationFactor(
+  clientStartDate: Date,
+  monthDate: Date,
+): number {
+  const startY = clientStartDate.getFullYear();
+  const startM = clientStartDate.getMonth();
+  const monthY = monthDate.getFullYear();
+  const monthM = monthDate.getMonth();
+
+  if (monthY < startY || (monthY === startY && monthM < startM)) return 0;
+  if (monthY > startY || (monthY === startY && monthM > startM)) return 1;
+
+  // Same calendar month: pro-rate by calendar days remaining.
+  const daysInMonth = new Date(startY, startM + 1, 0).getDate();
+  const startDay = clientStartDate.getDate();
+  const remaining = daysInMonth - startDay + 1;
+  const factor = remaining / daysInMonth;
+  if (factor < 0) return 0;
+  if (factor > 1) return 1;
+  return factor;
+}
+
+/**
+ * Partitions `oneOffProjects` into two groups based on the
+ * `countTowardsRetainer` flag on each row. Rows with the flag ON count
+ * toward the managing retainer; rows without count as standalone one-offs.
+ */
+export function splitOneOffs(
+  projects: OneOffProject[] | null | undefined,
+): { retainer: OneOffProject[]; oneOff: OneOffProject[] } {
+  if (!Array.isArray(projects) || projects.length === 0) {
+    return { retainer: [], oneOff: [] };
+  }
+  const retainer: OneOffProject[] = [];
+  const oneOff: OneOffProject[] = [];
+  for (const p of projects) {
+    if (!p) continue;
+    if (p.countTowardsRetainer) retainer.push(p);
+    else oneOff.push(p);
+  }
+  return { retainer, oneOff };
 }
 
 /**
@@ -222,28 +279,81 @@ export function retainerRevenueYTD(
   ) {
     const gross = grossRetainerForMonth(monthlyRetainer, retainerHistory, m);
     const commission = monthlyCommissionForDate(commissions, gross, m);
-    total += Math.max(0, gross - commission);
+    const factor = firstMonthProrationFactor(startDate, m);
+    const netForMonth = Math.max(0, gross - commission) * factor;
+    total += netForMonth;
   }
+
+  // Setup fee: counted in the calendar year of clientStartDate, only once
+  // the start month has begun (so it doesn't appear in a future YTD).
+  const setupFee = Math.max(0, Number(client.setupFee) || 0);
+  if (setupFee > 0 && startDate.getFullYear() === now.getFullYear()) {
+    const startMonth = monthStart(startDate);
+    if (startMonth <= lastMonth) {
+      total += setupFee;
+    }
+  }
+
+  // Retainer-tagged one-offs: any row dated within the YTD window where
+  // countTowardsRetainer is on.
+  const oneOffs = Array.isArray(client.oneOffProjects)
+    ? client.oneOffProjects
+    : [];
+  if (oneOffs.length > 0) {
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const upperBound = now;
+    for (const p of oneOffs) {
+      if (!p?.countTowardsRetainer) continue;
+      if (!p?.date || p.amount == null) continue;
+      const d = toDate(p.date);
+      if (!d) continue;
+      if (d >= yearStart && d <= upperBound) {
+        total += Number(p.amount) || 0;
+      }
+    }
+  }
+
   return total;
 }
 
 /**
+ * Optional filter for the YTD/this-month one-off helpers:
+ * - `true`  → sum only rows with countTowardsRetainer ON
+ * - `false` → sum only rows with countTowardsRetainer OFF (or unset)
+ * - omitted → sum every row regardless of the flag (back-compat)
+ */
+function matchesRetainerFilter(
+  p: OneOffProject,
+  filter: boolean | undefined,
+): boolean {
+  if (filter === undefined) return true;
+  const flag = Boolean(p.countTowardsRetainer);
+  return flag === filter;
+}
+
+/**
  * Sum of one-off project amounts dated in the current calendar year up to
- * and including today.
+ * and including today. Future-dated rows are excluded.
+ *
+ * When `countTowardsRetainerFilter` is supplied, only rows matching the
+ * flag value contribute; omit it to sum every row.
  */
 export function oneOffsYTD(
   oneOffProjects: OneOffProject[] | null | undefined,
   now: Date,
+  countTowardsRetainerFilter?: boolean,
 ): number {
   if (!Array.isArray(oneOffProjects) || oneOffProjects.length === 0) return 0;
   const yearStart = new Date(now.getFullYear(), 0, 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const upper = monthEnd < now ? monthEnd : now;
   let total = 0;
   for (const p of oneOffProjects) {
     if (!p?.date || p.amount == null) continue;
+    if (!matchesRetainerFilter(p, countTowardsRetainerFilter)) continue;
     const d = toDate(p.date);
     if (!d) continue;
-    if (d >= yearStart && d < monthEnd) {
+    if (d >= yearStart && d <= upper) {
       total += Number(p.amount) || 0;
     }
   }
@@ -251,21 +361,25 @@ export function oneOffsYTD(
 }
 
 /**
- * Sum of one-off project amounts dated in the current calendar month.
+ * Sum of one-off project amounts dated in the current calendar month, up
+ * to and including today. Future-dated rows are excluded.
  */
 export function oneOffsThisMonth(
   oneOffProjects: OneOffProject[] | null | undefined,
   now: Date,
+  countTowardsRetainerFilter?: boolean,
 ): number {
   if (!Array.isArray(oneOffProjects) || oneOffProjects.length === 0) return 0;
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const upper = end < now ? end : now;
   let total = 0;
   for (const p of oneOffProjects) {
     if (!p?.date || p.amount == null) continue;
+    if (!matchesRetainerFilter(p, countTowardsRetainerFilter)) continue;
     const d = toDate(p.date);
     if (!d) continue;
-    if (d >= start && d < end) {
+    if (d >= start && d <= upper) {
       total += Number(p.amount) || 0;
     }
   }

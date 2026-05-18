@@ -140,7 +140,59 @@ interface DashboardData {
     target: number
     deadline: string
   } | null
+  breakdowns?: {
+    monthlyRetainer: Array<{
+      clientName: string
+      gross: number
+      commission: number
+      net: number
+    }>
+    oneOffYTD: Array<{
+      clientName: string
+      projectName: string
+      amount: number
+      date: string
+    }>
+    retainerYTD: Array<{
+      clientName: string
+      monthlyNetSum: number
+      setupFee: number
+      retainerOneOffs: Array<{ projectName: string; amount: number }>
+      total: number
+    }>
+  }
   month: string
+}
+
+// ── Hover-tooltip stat box: renders a small popover next to the stat ──
+function StatWithTooltip({
+  value,
+  label,
+  rows,
+  emptyHint,
+}: {
+  value: string
+  label: string
+  rows: React.ReactNode[]
+  emptyHint?: string
+}) {
+  const hasRows = rows.length > 0
+  return (
+    <div
+      className="od-box__stat od-box__stat--hoverable"
+      tabIndex={hasRows ? 0 : -1}
+    >
+      <span className="od-box__stat-value">{value}</span>
+      <span className="od-box__stat-label">{label}</span>
+      {hasRows && (
+        <div className="od-stat-tooltip" role="tooltip">
+          <div className="od-stat-tooltip__head">{label}</div>
+          <div className="od-stat-tooltip__body">{rows}</div>
+        </div>
+      )}
+      {!hasRows && emptyHint && <span className="od-box__stat-hint">{emptyHint}</span>}
+    </div>
+  )
 }
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -310,13 +362,6 @@ const Dashboard = () => {
     )
   }
 
-  const totalAudits =
-    data.usage.seoAudits +
-    data.usage.croAudits +
-    data.usage.keywordSnapshots +
-    data.usage.competitorAnalyses +
-    data.usage.contentResearches
-
   return (
     <div className="od-dash">
       {/* Header */}
@@ -342,7 +387,7 @@ const Dashboard = () => {
             <div className="od-box__head">
               <span className="od-box__title">Topline Agency Data</span>
             </div>
-            <div className="od-box__stats od-box__stats--9">
+            <div className="od-box__stats od-box__stats--8">
               <div className="od-box__stat">
                 <span className="od-box__stat-value">{data.activeClients}</span>
                 <span className="od-box__stat-label">Active Clients</span>
@@ -352,21 +397,65 @@ const Dashboard = () => {
                 <span className="od-box__stat-label">Total Leads</span>
               </div>
               <div className="od-box__stat">
-                <span className="od-box__stat-value">${(data.monthlyRetainerNet ?? 0).toLocaleString()}</span>
-                <span className="od-box__stat-label">Monthly Retainer</span>
-              </div>
-              <div className="od-box__stat">
-                <span className="od-box__stat-value">${(data.oneOffYTD ?? 0).toLocaleString()}</span>
-                <span className="od-box__stat-label">One-Off Projects (YTD)</span>
-              </div>
-              <div className="od-box__stat">
-                <span className="od-box__stat-value">${(data.retainerYTD ?? 0).toLocaleString()}</span>
-                <span className="od-box__stat-label">Retainer Revenue (YTD)</span>
-              </div>
-              <div className="od-box__stat">
                 <span className="od-box__stat-value">{data.proposals.active}</span>
-                <span className="od-box__stat-label">Active Proposals</span>
+                <span className="od-box__stat-label">Active Client Proposals</span>
               </div>
+              <StatWithTooltip
+                value={`$${(data.monthlyRetainerNet ?? 0).toLocaleString()}`}
+                label="Monthly Retainer"
+                rows={(data.breakdowns?.monthlyRetainer ?? []).map((row, i) => (
+                  <div key={i} className="od-stat-tooltip__row">
+                    <span className="od-stat-tooltip__name">{row.clientName}</span>
+                    <span className="od-stat-tooltip__detail">
+                      ${row.gross.toLocaleString()} gross
+                      {row.commission > 0 && (
+                        <>
+                          {' − '}${row.commission.toLocaleString()} commission{' → '}
+                          <strong>${row.net.toLocaleString()} net</strong>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              />
+              <StatWithTooltip
+                value={`$${(data.oneOffYTD ?? 0).toLocaleString()}`}
+                label="One-Off Projects (YTD)"
+                rows={(data.breakdowns?.oneOffYTD ?? []).map((row, i) => (
+                  <div key={i} className="od-stat-tooltip__row">
+                    <span className="od-stat-tooltip__name">{row.clientName}</span>
+                    <span className="od-stat-tooltip__detail">
+                      {row.projectName} — <strong>${row.amount.toLocaleString()}</strong>
+                    </span>
+                  </div>
+                ))}
+              />
+              <StatWithTooltip
+                value={`$${(data.retainerYTD ?? 0).toLocaleString()}`}
+                label="Retainer Revenue (YTD)"
+                rows={(data.breakdowns?.retainerYTD ?? []).map((row, i) => (
+                  <div key={i} className="od-stat-tooltip__row">
+                    <span className="od-stat-tooltip__name">{row.clientName}</span>
+                    <span className="od-stat-tooltip__detail">
+                      Retainer net: ${row.monthlyNetSum.toLocaleString()}
+                      {row.setupFee > 0 && (
+                        <>
+                          {' • Setup: '}${row.setupFee.toLocaleString()}
+                        </>
+                      )}
+                      {row.retainerOneOffs.length > 0 && (
+                        <>
+                          {' • Extras: '}
+                          {row.retainerOneOffs
+                            .map((p) => `${p.projectName} $${p.amount.toLocaleString()}`)
+                            .join(', ')}
+                        </>
+                      )}
+                      {' → '}<strong>${row.total.toLocaleString()}</strong>
+                    </span>
+                  </div>
+                ))}
+              />
               <div className="od-box__stat">
                 <span className="od-box__stat-value">{data.proposals.conversionRate}%</span>
                 <span className="od-box__stat-label">Lead Conversion Rate</span>
@@ -374,10 +463,6 @@ const Dashboard = () => {
               <div className="od-box__stat">
                 <span className="od-box__stat-value">${(data.costs.total + (data.businessCosts?.totalThisMonth || 0)).toFixed(2)}</span>
                 <span className="od-box__stat-label">MTD Costs (AUD)</span>
-              </div>
-              <div className="od-box__stat">
-                <span className="od-box__stat-value">{totalAudits}</span>
-                <span className="od-box__stat-label">Audits This Month</span>
               </div>
             </div>
           </div>

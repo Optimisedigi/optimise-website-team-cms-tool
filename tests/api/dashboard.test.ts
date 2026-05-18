@@ -72,6 +72,63 @@ describe('GET /api/dashboard', () => {
     expect(json.retainerYTD).toBe(0)
   })
 
+  it('returns breakdowns object with monthlyRetainer / oneOffYTD / retainerYTD arrays', async () => {
+    const res = await GET()
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json).toHaveProperty('breakdowns')
+    expect(Array.isArray(json.breakdowns.monthlyRetainer)).toBe(true)
+    expect(Array.isArray(json.breakdowns.oneOffYTD)).toBe(true)
+    expect(Array.isArray(json.breakdowns.retainerYTD)).toBe(true)
+  })
+
+  it('sorts breakdown entries by amount descending', async () => {
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args?.collection === 'clients' && args?.select?.monthlyRetainer) {
+        return Promise.resolve({
+          docs: [
+            {
+              id: 1,
+              name: 'Small Co',
+              monthlyRetainer: 500,
+              clientStartDate: '2020-01-01',
+              oneOffProjects: [],
+              retainerHistory: [],
+              historicalRevenue: 0,
+              referralCommissions: [],
+            },
+            {
+              id: 2,
+              name: 'Big Co',
+              monthlyRetainer: 2000,
+              clientStartDate: '2020-01-01',
+              oneOffProjects: [],
+              retainerHistory: [],
+              historicalRevenue: 0,
+              referralCommissions: [],
+            },
+            {
+              id: 3,
+              name: 'Mid Co',
+              monthlyRetainer: 1000,
+              clientStartDate: '2020-01-01',
+              oneOffProjects: [],
+              retainerHistory: [],
+              historicalRevenue: 0,
+              referralCommissions: [],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+
+    const res = await GET()
+    const json = await res.json()
+    const names = json.breakdowns.monthlyRetainer.map((r: any) => r.clientName)
+    expect(names).toEqual(['Big Co', 'Mid Co', 'Small Co'])
+  })
+
   it('deducts an 8% monthly commission from a $1350 retainer in monthlyRetainerNet', async () => {
     // Override the clientsForRetainer call to return one fixture client.
     mockPayload.find.mockImplementation((args: any) => {

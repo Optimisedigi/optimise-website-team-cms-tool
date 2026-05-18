@@ -9,6 +9,7 @@ import type { ContractData } from "@/lib/contract-template";
 import { generateCompletionEmail } from "@/lib/contract-email";
 import { parseTierTable } from "@/lib/tier-table";
 import { parseClientEmails } from "@/lib/contract-emails";
+import { syncContractToClient } from "@/lib/contract-to-client-sync";
 
 // GET: return contract data for the signing page
 export async function GET(
@@ -225,6 +226,24 @@ export async function POST(
       id: doc.id,
       overrideAccess: true,
     }) as any;
+
+    // One-way copy of contract → client (setupFee, monthlyRetainer,
+    // contractStartDate, additionalWork). Fire-and-forget; sync failure
+    // must not block the signing flow.
+    syncContractToClient(payload, {
+      id: updatedDoc.id,
+      contractTitle: updatedDoc.contractTitle,
+      client: updatedDoc.client,
+      setupFee: updatedDoc.setupFee,
+      monthlyRetainer: updatedDoc.monthlyRetainer,
+      contractStartDate: updatedDoc.contractStartDate,
+      additionalWork: updatedDoc.additionalWork,
+    }).catch((err: unknown) => {
+      console.error(
+        "[sign-contract] contract→client sync error:",
+        err instanceof Error ? err.message : String(err),
+      );
+    });
 
     // Extract text from rich text fields
     let scopeText = "";

@@ -281,7 +281,9 @@ export async function GET() {
       },
       limit: 500,
       select: {
+        name: true,
         monthlyRetainer: true,
+        setupFee: true,
         oneOffProjects: true,
         referralCommissions: true,
         clientStartDate: true,
@@ -452,23 +454,25 @@ export async function GET() {
     ),
   );
 
-  // Sum one-off projects from the current month
+  // Sum one-off projects from the current month (retainer-tagged rows are
+  // excluded — they belong to Retainer YTD, not One-Off totals).
   const oneOffTotal = round(
     clientsForRetainer.docs.reduce(
-      (sum: number, c: any) => sum + oneOffsThisMonth(c.oneOffProjects, now),
+      (sum: number, c: any) => sum + oneOffsThisMonth(c.oneOffProjects, now, false),
       0,
     ),
   );
 
-  // One-off YTD (sum across clients)
+  // One-off YTD (sum across clients, retainer-tagged rows excluded).
   const oneOffYTD = round(
     clientsForRetainer.docs.reduce(
-      (sum: number, c: any) => sum + oneOffsYTD(c.oneOffProjects, now),
+      (sum: number, c: any) => sum + oneOffsYTD(c.oneOffProjects, now, false),
       0,
     ),
   );
 
-  // Retainer revenue YTD (net of commissions, walks retainer history per client)
+  // Retainer revenue YTD (net of commissions, walks retainer history per client,
+  // includes setupFee + retainer-tagged one-offs).
   const retainerYTD = round(
     clientsForRetainer.docs.reduce(
       (sum: number, c: any) =>
@@ -476,17 +480,107 @@ export async function GET() {
         retainerRevenueYTD(
           {
             monthlyRetainer: Number(c.monthlyRetainer) || 0,
+            setupFee: Number(c.setupFee) || 0,
             clientStartDate: c.clientStartDate ?? null,
             retainerHistory: Array.isArray(c.retainerHistory) ? c.retainerHistory : [],
             referralCommissions: Array.isArray(c.referralCommissions)
               ? c.referralCommissions
               : [],
+            oneOffProjects: Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [],
           },
           now,
         ),
       0,
     ),
   );
+
+  // ── Per-client breakdowns for dashboard tooltips ───────────────────────
+  const yearStartIso = new Date(now.getFullYear(), 0, 1);
+  const monthlyRetainerBreakdown = clientsForRetainer.docs
+    .map((c: any) => {
+      const gross = Number(c.monthlyRetainer) || 0;
+      if (gross <= 0) return null;
+      const commissions = Array.isArray(c.referralCommissions) ? c.referralCommissions : [];
+      const net = netMonthlyRetainer(gross, commissions, now);
+      return {
+        clientName: String(c.name ?? `#${c.id}`),
+        gross: round(gross),
+        commission: round(gross - net),
+        net: round(net),
+      };
+    })
+    .filter((row: any) => row !== null)
+    .sort((a: any, b: any) => b.net - a.net);
+
+  const oneOffYTDBreakdown: Array<{
+    clientName: string;
+    projectName: string;
+    amount: number;
+    date: string;
+  }> = [];
+  for (const c of clientsForRetainer.docs as any[]) {
+    const rows = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
+    for (const p of rows) {
+      if (p?.countTowardsRetainer) continue;
+      if (!p?.date || p?.amount == null) continue;
+      const d = new Date(p.date);
+      if (isNaN(d.getTime())) continue;
+      if (d < yearStartIso || d > now) continue;
+      oneOffYTDBreakdown.push({
+        clientName: String(c.name ?? `#${c.id}`),
+        projectName: String(p.projectName ?? ""),
+        amount: round(Number(p.amount) || 0),
+        date: typeof p.date === "string" ? p.date : d.toISOString(),
+      });
+    }
+  }
+  oneOffYTDBreakdown.sort((a, b) => b.amount - a.amount);
+
+  const retainerYTDBreakdown = clientsForRetainer.docs
+    .map((c: any) => {
+      const monthlyOnly = retainerRevenueYTD(
+        {
+          monthlyRetainer: Number(c.monthlyRetainer) || 0,
+          clientStartDate: c.clientStartDate ?? null,
+          retainerHistory: Array.isArray(c.retainerHistory) ? c.retainerHistory : [],
+          referralCommissions: Array.isArray(c.referralCommissions)
+            ? c.referralCommissions
+            : [],
+        },
+        now,
+      );
+      const startDate = c.clientStartDate ? new Date(c.clientStartDate) : null;
+      const setupFee =
+        startDate && !isNaN(startDate.getTime()) && startDate.getFullYear() === now.getFullYear()
+          ? Number(c.setupFee) || 0
+          : 0;
+      const retainerOneOffs: Array<{ projectName: string; amount: number }> = [];
+      const rows = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
+      for (const p of rows) {
+        if (!p?.countTowardsRetainer) continue;
+        if (!p?.date || p?.amount == null) continue;
+        const d = new Date(p.date);
+        if (isNaN(d.getTime())) continue;
+        if (d < yearStartIso || d > now) continue;
+        retainerOneOffs.push({
+          projectName: String(p.projectName ?? ""),
+          amount: round(Number(p.amount) || 0),
+        });
+      }
+      const total = round(
+        monthlyOnly + setupFee + retainerOneOffs.reduce((s, r) => s + r.amount, 0),
+      );
+      if (total <= 0) return null;
+      return {
+        clientName: String(c.name ?? `#${c.id}`),
+        monthlyNetSum: round(monthlyOnly),
+        setupFee: round(setupFee),
+        retainerOneOffs,
+        total,
+      };
+    })
+    .filter((row: any) => row !== null)
+    .sort((a: any, b: any) => b.total - a.total);
 
   // Total historical (pre-CMS) revenue, summed across clients — feeds the
   // backwards-compat `ytdRevenue` field used by the sales-target progress bar.
@@ -592,6 +686,11 @@ export async function GET() {
     businessCosts: businessCostsSummary,
     processes: processesData || null,
     salesTarget,
+    breakdowns: {
+      monthlyRetainer: monthlyRetainerBreakdown,
+      oneOffYTD: oneOffYTDBreakdown,
+      retainerYTD: retainerYTDBreakdown,
+    },
     month: now.toLocaleString("en-AU", { month: "long", year: "numeric" }),
   });
   } catch (err) {

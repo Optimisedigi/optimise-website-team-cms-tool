@@ -2923,6 +2923,46 @@ export async function runMigrations(
       "locked_docs_rels.pin_rate_limits_id",
       "ALTER TABLE `payload_locked_documents_rels` ADD `pin_rate_limits_id` integer REFERENCES `pin_rate_limits`(`id`) ON DELETE cascade",
     );
+
+    // ── Setup fee, pro-rated retainer, retainer-tagged one-offs, contract
+    //    additionalWork (2026-05-18) ──────────────────────────────────────────────
+    // Clients: one-time setup fee, counts toward Retainer YTD in the calendar
+    // year of clientStartDate.
+    await run(
+      "clients.setup_fee",
+      "ALTER TABLE `clients` ADD `setup_fee` numeric",
+    );
+    // One-off project rows can now be flagged as "part of the retainer".
+    await run(
+      "clients_one_off_projects.count_towards_retainer",
+      "ALTER TABLE `clients_one_off_projects` ADD `count_towards_retainer` integer DEFAULT false",
+    );
+    // Contracts: explicit engagement-effective date (separate from contractDate).
+    await run(
+      "contracts.contract_start_date",
+      "ALTER TABLE `contracts` ADD `contract_start_date` text",
+    );
+    // Contracts: additionalWork sub-table (mirrors clients' oneOffProjects).
+    await run(
+      "contracts_additional_work",
+      `CREATE TABLE IF NOT EXISTS \`contracts_additional_work\` (
+        \`_order\` integer NOT NULL,
+        \`_parent_id\` integer NOT NULL,
+        \`id\` text PRIMARY KEY NOT NULL,
+        \`project_name\` text NOT NULL,
+        \`amount\` numeric NOT NULL,
+        \`count_towards_retainer\` integer DEFAULT false,
+        FOREIGN KEY (\`_parent_id\`) REFERENCES \`contracts\`(\`id\`) ON UPDATE no action ON DELETE cascade
+      )`,
+    );
+    await run(
+      "contracts_additional_work_order_idx",
+      "CREATE INDEX IF NOT EXISTS `contracts_additional_work_order_idx` ON `contracts_additional_work` (`_order`)",
+    );
+    await run(
+      "contracts_additional_work_parent_id_idx",
+      "CREATE INDEX IF NOT EXISTS `contracts_additional_work_parent_id_idx` ON `contracts_additional_work` (`_parent_id`)",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

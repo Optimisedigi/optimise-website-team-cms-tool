@@ -14,6 +14,7 @@ import {
 
 type ClientBillingData = {
   monthlyRetainer: number
+  setupFee: number
   historicalRevenue: number
   clientStartDate: string | null
   oneOffProjects: OneOffProject[]
@@ -38,6 +39,7 @@ function ClientBillingSummary() {
       .then((doc) => {
         setData({
           monthlyRetainer: doc.monthlyRetainer ?? 0,
+          setupFee: doc.setupFee ?? 0,
           historicalRevenue: doc.historicalRevenue ?? 0,
           clientStartDate: doc.clientStartDate ?? null,
           oneOffProjects: Array.isArray(doc.oneOffProjects) ? doc.oneOffProjects : [],
@@ -55,6 +57,7 @@ function ClientBillingSummary() {
 
   const {
     monthlyRetainer,
+    setupFee,
     historicalRevenue,
     clientStartDate,
     oneOffProjects,
@@ -69,19 +72,29 @@ function ClientBillingSummary() {
     now,
   )
   const netRetainer = netMonthlyRetainer(monthlyRetainer, referralCommissions, now)
+  // Retainer Revenue YTD now folds in setupFee + retainer-tagged one-offs.
   const retainerRevenue = retainerRevenueYTD(
     {
       monthlyRetainer,
+      setupFee,
       clientStartDate,
       retainerHistory,
       referralCommissions,
+      oneOffProjects,
     },
     now,
   )
-  const oneOffTotal = oneOffsYTD(oneOffProjects, now)
+  // Pure one-offs only (rows without countTowardsRetainer).
+  const oneOffTotal = oneOffsYTD(oneOffProjects, now, false)
   const totalRevenue = retainerRevenue + oneOffTotal + historicalRevenue
 
-  if (totalRevenue === 0 && monthlyRetainer === 0) return null
+  // Setup fee counts toward Retainer YTD in the year of clientStartDate—
+  // surface it as its own stat when applicable.
+  const startDate = clientStartDate ? new Date(clientStartDate) : null
+  const setupFeeApplies =
+    !!startDate && !isNaN(startDate.getTime()) && startDate.getFullYear() === now.getFullYear() && setupFee > 0
+
+  if (totalRevenue === 0 && monthlyRetainer === 0 && setupFee === 0) return null
 
   const retainerLabel = activeMonthlyCommission > 0 ? 'Net Monthly Retainer' : 'Monthly Retainer'
   const retainerSubtext =
@@ -110,6 +123,9 @@ function ClientBillingSummary() {
           label="Active Commissions"
           value={`− ${formatCurrency(activeMonthlyCommission)}/mo`}
         />
+      )}
+      {setupFeeApplies && (
+        <StatBox label="Setup Fee (in Retainer YTD)" value={formatCurrency(setupFee)} />
       )}
       <StatBox label="One-Off Billings (YTD)" value={formatCurrency(oneOffTotal)} />
       <StatBox label="Total Revenue to Date" value={formatCurrency(totalRevenue)} highlight />

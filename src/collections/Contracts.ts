@@ -243,6 +243,14 @@ export const Contracts: CollectionConfig = {
               },
             },
             {
+              name: "contractStartDate",
+              type: "date",
+              admin: {
+                description:
+                  "Engagement effective date — used for retainer pro-ration when synced to the client on signature.",
+              },
+            },
+            {
               name: "effectiveDateConfirmed",
               type: "checkbox",
               defaultValue: false,
@@ -312,6 +320,50 @@ export const Contracts: CollectionConfig = {
               ],
             },
             {
+              name: "additionalWork",
+              type: "array",
+              admin: {
+                description:
+                  "Additional one-time work items (website builds, agent builds, audits). Copied to the client on signature.",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "projectName",
+                      type: "text",
+                      required: true,
+                      admin: {
+                        description: "Project name",
+                        width: "60%",
+                      },
+                    },
+                    {
+                      name: "amount",
+                      type: "number",
+                      required: true,
+                      min: 0,
+                      admin: {
+                        description: "Amount",
+                        step: 1,
+                        width: "40%",
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: "countTowardsRetainer",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description:
+                      "Toggle ON if this is part of the managing retainer (counts toward Retainer YTD on the client side).",
+                  },
+                },
+              ],
+            },
+            {
               name: "pricingNotes",
               type: "richText",
               admin: {
@@ -356,6 +408,9 @@ export const Contracts: CollectionConfig = {
               type: "richText",
               admin: {
                 description: "If filled in, this replaces the default termination section. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.",
+                components: {
+                  Field: "./components/TerminationOverrideField",
+                },
               },
             },
           ],
