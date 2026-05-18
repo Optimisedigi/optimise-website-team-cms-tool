@@ -37,6 +37,35 @@ function savePersistedModel(model: string): void {
     // Quota exceeded or storage disabled — fine, just don't persist.
   }
 }
+
+/** sessionStorage key for the live chat sessionId, scoped per auditId so two
+ *  audits open in different tabs don't share threads. sessionStorage (not
+ *  localStorage) so closing the tab still clears it — the assumption is that
+ *  a tab close means "I'm done with this thread". */
+function sessionStorageKey(auditId: string | number): string {
+  return `optimate-session:${String(auditId)}`
+}
+
+function loadPersistedSessionId(auditId: string | number): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(sessionStorageKey(auditId))
+    return raw && raw.length > 0 ? raw : null
+  } catch {
+    return null
+  }
+}
+
+function savePersistedSessionId(auditId: string | number, sid: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(sessionStorageKey(auditId), sid)
+  } catch {
+    // Quota exceeded or storage disabled — in-memory ref still works for
+    // this tab; we just lose reload-survival.
+  }
+}
+
 import OptiMateProposalCard, { type OptiMateProposal } from './OptiMateProposalCard'
 import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
 import OptiMateToolsHelp from './OptiMateToolsHelp'
@@ -61,6 +90,12 @@ interface ChatMessage {
    *  (e.g. Anthropic 429 → Kimi). Drives the amber failover pill. */
   modelRequested?: string
   proposals?: OptiMateProposal[]
+  /** True when the server reported `persisted: false` for this turn —
+   *  the chat-turns DB write failed (typically because `/api/migrate`
+   *  hasn't been run after a deploy that added the table). Drives an
+   *  inline amber "history not saved" pill so the user knows reloading
+   *  will lose this turn. */
+  historyNotSaved?: boolean
 }
 
 export interface OptiMateChatCoreProps {
@@ -404,10 +439,29 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     const maxPx = 8 * 20 // ~8 rows at 20px line-height
     el.style.height = Math.min(el.scrollHeight, maxPx) + 'px'
   }, [input])
-  const sessionIdRef = useRef(initialSessionId ?? crypto.randomUUID())
+  // Resolve the sessionId once on mount. Priority: caller-supplied
+  // (resuming a thread) → sessionStorage (tab reload — lets us re-attach to
+  // whatever thread this tab was last on without needing the DB) → fresh
+  // UUID. The lazy initializer ensures we don't churn through UUIDs on
+  // every render.
+  const sessionIdRef = useRef<string>(
+    initialSessionId ?? loadPersistedSessionId(auditId) ?? crypto.randomUUID(),
+  )
+  // Persist the initial session id immediately so a reload before the first
+  // message still attaches to the same thread.
+  useEffect(() => {
+    savePersistedSessionId(auditId, sessionIdRef.current)
+    // We intentionally only run on mount / auditId change — sessionIdRef
+    // mutations elsewhere call savePersistedSessionId themselves.
+  }, [auditId])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
+  /** Sticky flag: true if we've seen at least one `persisted: false` reply
+   *  in this tab. Used by the History popover empty-state to suggest the
+   *  user (or an ops person) runs /api/migrate. Resets on full reload —
+   *  which is fine, it'll re-flag on the next failing turn. */
+  const [persistenceFailedSeen, setPersistenceFailedSeen] = useState(false)
   const [pendingForAudit, setPendingForAudit] = useState<OptiMateProposal[]>([])
   const [pendingRefreshTick, setPendingRefreshTick] = useState(0)
   const bumpPendingRefresh = useCallback(() => setPendingRefreshTick((n) => n + 1), [])
@@ -617,19 +671,22 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           modelUsed: typeof t.modelUsed === 'string' ? t.modelUsed : undefined,
         }))
       sessionIdRef.current = sid
+      savePersistedSessionId(auditId, sid)
       setMessages(loaded)
       setError(null)
     } catch {
       /* silent */
     }
-  }, [])
+  }, [auditId])
 
   const startNewChat = useCallback(() => {
-    sessionIdRef.current = crypto.randomUUID()
+    const fresh = crypto.randomUUID()
+    sessionIdRef.current = fresh
+    savePersistedSessionId(auditId, fresh)
     setMessages([])
     setError(null)
     setHistoryOpen(false)
-  }, [])
+  }, [auditId])
 
   // Fetch OAuth status once on mount.
   useEffect(() => {
@@ -707,6 +764,12 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             }))
             .filter((p) => Number.isFinite(p.id))
         : []
+      // `persisted` is sent by the chat route when one or both DB writes
+      // (user prompt + assistant reply) failed. The reply still flows —
+      // we just badge it so the user knows reload will lose it. Treat
+      // missing/undefined as "persisted" (older deploys / future shapes).
+      const turnPersisted = data.persisted !== false
+      if (!turnPersisted) setPersistenceFailedSeen(true)
       const assistantMsg: ChatMessage = {
         role: 'assistant',
         content: data.reply || 'No response received.',
@@ -714,8 +777,19 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         modelUsed: typeof data.modelUsed === 'string' ? data.modelUsed : undefined,
         modelRequested: typeof data.modelRequested === 'string' ? data.modelRequested : undefined,
         proposals: proposals.length > 0 ? proposals : undefined,
+        historyNotSaved: !turnPersisted,
       }
       setMessages((prev) => [...prev, assistantMsg])
+
+      // Server may have minted a fresh sessionId when none was sent. Keep
+      // our local ref in sync so subsequent turns + reloads attach to it.
+      if (typeof data.sessionId === 'string' && data.sessionId.length > 0 && data.sessionId !== sessionIdRef.current) {
+        sessionIdRef.current = data.sessionId
+        savePersistedSessionId(auditId, data.sessionId)
+      } else {
+        // Reaffirm storage (cheap) so any earlier write failure is retried.
+        savePersistedSessionId(auditId, sessionIdRef.current)
+      }
 
       // Email attachment is per-turn context only — clear after a successful
       // send so the next unrelated question doesn't accidentally reuse it.
@@ -908,8 +982,27 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 </div>
               )}
               {!sessionsLoading && sessions.length === 0 && (
-                <div style={{ padding: '8px', fontSize: 11, color: '#6b7280' }}>
-                  No previous chats.
+                <div style={{ padding: '8px', fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                  <div>No previous chats.</div>
+                  <div style={{ marginTop: 4, color: '#9ca3af' }}>
+                    Past chats appear here once they’re saved.
+                  </div>
+                  {persistenceFailedSeen && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        padding: '4px 6px',
+                        background: '#fffbeb',
+                        color: '#92400e',
+                        border: '1px solid #fde68a',
+                        borderRadius: 4,
+                        fontSize: 10,
+                      }}
+                      title="The server reported it couldn’t save this session’s turns. Ops: POST /api/migrate with the x-api-key header to create the optimate_chat_turns table."
+                    >
+                      ⚠ History not saving — run <code>POST /api/migrate</code>
+                    </div>
+                  )}
                 </div>
               )}
               {!sessionsLoading &&
@@ -1095,6 +1188,30 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   gap: 8,
                 }}
               >
+                {/* History-not-saved pill: shown when the server couldn't
+                    persist this turn (typically: optimate_chat_turns table
+                    missing because /api/migrate wasn't run after deploy).
+                    The reply itself worked — this just warns the user that
+                    reloading will lose it. */}
+                {msg.historyNotSaved && (
+                  <span
+                    title="This turn was returned by the agent but the chat-turns DB write failed. Reloading the page will lose it. Ops: run POST /api/migrate with the x-api-key header."
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '2px 6px',
+                      background: '#fffbeb',
+                      color: '#92400e',
+                      border: '1px solid #fde68a',
+                      borderRadius: 10,
+                      fontWeight: 600,
+                      fontSize: 10,
+                    }}
+                  >
+                    ⚠ History not saved — run /api/migrate
+                  </span>
+                )}
                 {/* Failover badge: amber pill when the agent had to walk
                     the fallback chain (typically Anthropic 429 → Kimi). */}
                 {msg.modelRequested && msg.modelUsed && msg.modelRequested !== msg.modelUsed ? (

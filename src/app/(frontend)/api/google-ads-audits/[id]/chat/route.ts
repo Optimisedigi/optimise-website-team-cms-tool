@@ -143,12 +143,32 @@ export async function POST(
     // through the audit's proposal. Either way, this is best-effort context.
     const linkedClient = await resolveLinkedClient(payload, audit);
 
+    // Track whether any persistence attempt failed so we can surface it to
+    // the user inline. Persistence is best-effort — failures must NOT block
+    // the chat reply — but the UI needs to know so the user isn't surprised
+    // when their history vanishes on reload.
+    let persisted = true;
+    const handlePersistError = (label: string, err: unknown) => {
+      persisted = false;
+      const msg = err instanceof Error ? err.message : String(err);
+      // Detect the most common production failure mode (missing table after
+      // a deploy that didn't run /api/migrate) and log a single targeted
+      // warning so it's easy to spot in Vercel logs.
+      if (/no such table/i.test(msg)) {
+        console.warn(
+          `[chat-persist] optimate_chat_turns table missing — run POST /api/migrate with x-api-key header to create it. (${label})`,
+        );
+      } else {
+        console.error(`[chat-persist] ${label} row failed:`, err);
+      }
+    };
+
     // Persist the user's prompt before the agent runs. Best-effort — if the
     // write fails (e.g. table missing on a freshly-deployed env), the chat
     // turn still proceeds. We store the user's actual prompt, not the
     // attached-email-decorated version, since the email body is fetched
     // fresh from Gmail per the existing comment above.
-    payload
+    const userPersistPromise = payload
       .create({
         collection: "optimate-chat-turns" as any,
         data: {
@@ -162,7 +182,7 @@ export async function POST(
         overrideAccess: true,
       })
       .catch((err) => {
-        console.error("[chat-persist] user row failed:", err);
+        handlePersistError("user", err);
       });
 
     const messages: Message[] = [
@@ -187,7 +207,7 @@ export async function POST(
           .map((p) => (p && typeof p === "object" ? (p as { id?: unknown }).id : undefined))
           .filter((v): v is number | string => typeof v === "number" || typeof v === "string")
       : [];
-    payload
+    const assistantPersistPromise = payload
       .create({
         collection: "optimate-chat-turns" as any,
         data: {
@@ -204,8 +224,15 @@ export async function POST(
         overrideAccess: true,
       })
       .catch((err) => {
-        console.error("[chat-persist] assistant row failed:", err);
+        handlePersistError("assistant", err);
       });
+
+    // Await both persistence attempts so we can report `persisted` accurately
+    // in the response. These are quick local DB writes — the agent loop
+    // (multi-second LLM call) has already completed by this point, so this
+    // adds negligible latency. Errors are already swallowed by the .catch
+    // handlers above, so neither promise will reject.
+    await Promise.all([userPersistPromise, assistantPersistPromise]);
 
     return NextResponse.json({
       reply: result.reply,
@@ -215,6 +242,7 @@ export async function POST(
       source: result.source,
       proposals: result.proposals,
       sessionId,
+      persisted,
     });
   } catch (err) {
     console.error("[google-ads-chat] error:", err);
