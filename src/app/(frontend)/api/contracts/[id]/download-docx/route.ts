@@ -438,18 +438,22 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
   children.push(
     new Paragraph({ text: "Termination:", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
   );
-  for (const bullet of [
-    "Either party may terminate this contract with a 30-day written notice.",
-    "Upon termination, the Client agrees to pay for all services rendered up to the termination date.",
-    "Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.",
-  ]) {
-    children.push(
-      new Paragraph({
-        children: [new TextRun({ text: bullet })],
-        bullet: { level: 0 },
-        spacing: { after: 60 },
-      }),
-    );
+  if (doc.terminationOverride?.root?.children) {
+    children.push(...lexicalToDocx(doc.terminationOverride.root.children));
+  } else {
+    for (const bullet of [
+      "Either party may terminate this contract with a 30-day written notice.",
+      "Upon termination, the Client agrees to pay for all services rendered up to the termination date.",
+      "Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.",
+    ]) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: bullet })],
+          bullet: { level: 0 },
+          spacing: { after: 60 },
+        }),
+      );
+    }
   }
 
   children.push(thinRule());

@@ -37,6 +37,8 @@ export interface ContractData {
   paymentTerms?: string;
   pricingNotes?: string;
   paymentTermsOverride?: string;
+  terminationOverride?: string;
+  terminationOverrideNodes?: any[];
   scopeOfWork?: string;
   agencyContactName?: string;
   agencyContactEmail?: string;
@@ -322,19 +324,31 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     });
   }
 
-  // Termination - exact wording from contract PDF
-  sections.push({
-    type: "heading",
-    heading: "Termination:",
-  });
-  sections.push({
-    type: "bullets",
-    items: [
-      "Either party may terminate this contract with a 30-day written notice.",
-      "Upon termination, the Client agrees to pay for all services rendered up to the termination date.",
-      "Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.",
-    ],
-  });
+  // Termination
+  if (data.terminationOverride || data.terminationOverrideNodes) {
+    sections.push({
+      type: "heading",
+      heading: "Termination:",
+    });
+    sections.push({
+      type: "richtext",
+      content: data.terminationOverride,
+      lexicalNodes: data.terminationOverrideNodes,
+    });
+  } else {
+    sections.push({
+      type: "heading",
+      heading: "Termination:",
+    });
+    sections.push({
+      type: "bullets",
+      items: [
+        "Either party may terminate this contract with a 30-day written notice.",
+        "Upon termination, the Client agrees to pay for all services rendered up to the termination date.",
+        "Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.",
+      ],
+    });
+  }
 
   // Confidentiality - exact wording from contract PDF
   sections.push({

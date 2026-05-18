@@ -1812,6 +1812,8 @@ export async function runMigrations(
     await run("contracts.annual_hosting_post", "ALTER TABLE `contracts` ADD `annual_hosting` integer");
     // Add template_label column for the "Create from Template" button display
     await run("contracts.template_label_post", "ALTER TABLE `contracts` ADD `template_label` text");
+    // Add termination_override column for custom termination sections
+    await run("contracts.termination_override_post", "ALTER TABLE `contracts` ADD `termination_override` text");
   
     // ── Process Templates ──
     await run("process_templates", `CREATE TABLE IF NOT EXISTS \`process_templates\` (

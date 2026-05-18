@@ -27,6 +27,8 @@ interface ContractInfo {
   pricingNotesHtml?: string
   paymentTermsOverride?: string
   paymentTermsOverrideHtml?: string
+  terminationOverride?: string
+  terminationOverrideHtml?: string
   annualReviewEnabled?: boolean
   annualReviewIntroHtml?: string
   annualReviewTierTable?: { headers: string[]; rows: string[][] } | null
@@ -721,13 +723,23 @@ export default function ContractSignPage() {
 
         <hr style={hrStyle} />
 
-        {/* Termination - exact wording from PDF */}
+        {/* Termination */}
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Termination:</h2>
-        <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
-          <li style={{ marginBottom: 3 }}>Either party may terminate this contract with a 30-day written notice.</li>
-          <li style={{ marginBottom: 3 }}>Upon termination, the Client agrees to pay for all services rendered up to the termination date.</li>
-          <li style={{ marginBottom: 3 }}>Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.</li>
-        </ul>
+        {contract.terminationOverrideHtml ? (
+          <div
+            className="scope-content"
+            dangerouslySetInnerHTML={{ __html: contract.terminationOverrideHtml }}
+            style={{ fontSize: 13, lineHeight: 1.5 }}
+          />
+        ) : contract.terminationOverride ? (
+          <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.terminationOverride}</div>
+        ) : (
+          <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
+            <li style={{ marginBottom: 3 }}>Either party may terminate this contract with a 30-day written notice.</li>
+            <li style={{ marginBottom: 3 }}>Upon termination, the Client agrees to pay for all services rendered up to the termination date.</li>
+            <li style={{ marginBottom: 3 }}>Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.</li>
+          </ul>
+        )}
 
         <hr style={hrStyle} />
 

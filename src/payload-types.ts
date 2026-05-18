@@ -1320,6 +1320,24 @@ export interface Contract {
     [k: string]: unknown;
   } | null;
   /**
+   * If filled in, this replaces the default termination section. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.
+   */
+  terminationOverride?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
    * Toggle ON to include the Annual Review & Tier Adjustment section in this contract.
    */
   annualReviewEnabled?: boolean | null;
@@ -7316,6 +7334,7 @@ export interface ContractsSelect<T extends boolean = true> {
   paymentTerms?: T;
   scopeOfWork?: T;
   paymentTermsOverride?: T;
+  terminationOverride?: T;
   annualReviewEnabled?: T;
   annualReviewIntro?: T;
   annualReviewTierTableText?: T;

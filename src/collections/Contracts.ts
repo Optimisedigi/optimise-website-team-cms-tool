@@ -351,6 +351,13 @@ export const Contracts: CollectionConfig = {
                 description: "If filled in, this replaces the default payment terms section. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.",
               },
             },
+            {
+              name: "terminationOverride",
+              type: "richText",
+              admin: {
+                description: "If filled in, this replaces the default termination section. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.",
+              },
+            },
           ],
         },
         {

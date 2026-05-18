@@ -439,6 +439,7 @@ export async function GET(request: NextRequest) {
   await run("contracts.monthly_hosting", "ALTER TABLE `contracts` ADD `monthly_hosting` integer");
   await run("contracts.annual_hosting", "ALTER TABLE `contracts` ADD `annual_hosting` integer");
   await run("contracts.template_label", "ALTER TABLE `contracts` ADD `template_label` text");
+  await run("contracts.termination_override", "ALTER TABLE `contracts` ADD `termination_override` text");
 
   // ── Client Notes (2026-03-14) ──
   // Rename legacy notes column

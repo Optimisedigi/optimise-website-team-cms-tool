@@ -71,6 +71,12 @@ export async function GET(
     paymentTermsOverrideHtml = lexicalToHtml(doc.paymentTermsOverride.root.children);
     paymentTermsOverrideText = extractPlainText(doc.paymentTermsOverride.root.children);
   }
+  let terminationOverrideHtml = "";
+  let terminationOverrideText = "";
+  if (doc.terminationOverride?.root?.children) {
+    terminationOverrideHtml = lexicalToHtml(doc.terminationOverride.root.children);
+    terminationOverrideText = extractPlainText(doc.terminationOverride.root.children);
+  }
 
   // Annual Review & Tier Adjustment (optional section)
   const annualReviewEnabled = Boolean(doc.annualReviewEnabled);
@@ -124,6 +130,8 @@ export async function GET(
     pricingNotesHtml: pricingNotesHtml,
     paymentTermsOverride: paymentTermsOverrideText,
     paymentTermsOverrideHtml: paymentTermsOverrideHtml,
+    terminationOverride: terminationOverrideText,
+    terminationOverrideHtml: terminationOverrideHtml,
     annualReviewEnabled,
     annualReviewIntroHtml,
     annualReviewTierTable,
@@ -231,6 +239,10 @@ export async function POST(
     if (updatedDoc.paymentTermsOverride?.root?.children) {
       paymentTermsOverrideText = extractPlainText(updatedDoc.paymentTermsOverride.root.children);
     }
+    let terminationOverrideText = "";
+    if (updatedDoc.terminationOverride?.root?.children) {
+      terminationOverrideText = extractPlainText(updatedDoc.terminationOverride.root.children);
+    }
 
     // Resolve agency signature media to data URI for PDF rendering
     const agencySigUrlForPdf = await resolveMediaToDataUri(payload, updatedDoc.agencySignature);
@@ -256,6 +268,8 @@ export async function POST(
       paymentTerms: updatedDoc.paymentTerms,
       pricingNotes: pricingNotesText,
       paymentTermsOverride: paymentTermsOverrideText,
+      terminationOverride: terminationOverrideText,
+      terminationOverrideNodes: updatedDoc.terminationOverride?.root?.children,
       scopeOfWork: scopeText,
       scopeOfWorkNodes: updatedDoc.scopeOfWork?.root?.children,
       pricingNotesNodes: updatedDoc.pricingNotes?.root?.children,
