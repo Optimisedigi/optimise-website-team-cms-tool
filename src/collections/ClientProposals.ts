@@ -235,6 +235,60 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         // No contracts found, continue
       }
 
+      // Look up the linked sales lead (if any) so we can port acquisition
+      // attribution onto the new client. Either the proposal's salesLead
+      // relationship, or any lead whose `proposal` points back at us.
+      let linkedLead: any = null;
+      try {
+        const leadIdFromProposal =
+          typeof doc.salesLead === "object"
+            ? (doc.salesLead as any)?.id
+            : doc.salesLead;
+        if (leadIdFromProposal) {
+          linkedLead = await payload.findByID({
+            collection: "sales-leads" as never,
+            id: leadIdFromProposal,
+            overrideAccess: true,
+          });
+        } else {
+          const leadResults = await payload.find({
+            collection: "sales-leads" as never,
+            where: { proposal: { equals: doc.id } } as never,
+            limit: 1,
+            overrideAccess: true,
+          });
+          if (leadResults.totalDocs > 0) {
+            linkedLead = leadResults.docs[0];
+          }
+        }
+      } catch {
+        // Sales lead lookup is best-effort — don't block the conversion.
+      }
+
+      // Map the sales-lead acquisition fields onto the client. The two
+      // enums have identical values today (organic_search, paid_search,
+      // paid_social, organic_social, website_other, referral,
+      // referral_partner, bni_referral, cold_outreach) so we can copy
+      // verbatim. For any referral-flavoured channel we also seed
+      // `referredBy` from `channelDetail`, since that's where the team
+      // captures the referrer name on the lead side.
+      const acquisitionFields: Record<string, unknown> = {};
+      if (linkedLead) {
+        if (linkedLead.channel) {
+          acquisitionFields.acquisitionChannel = linkedLead.channel;
+        }
+        if (linkedLead.channelDetail) {
+          acquisitionFields.acquisitionDetail = linkedLead.channelDetail;
+        }
+        const isReferral =
+          linkedLead.channel === "referral" ||
+          linkedLead.channel === "referral_partner" ||
+          linkedLead.channel === "bni_referral";
+        if (isReferral && linkedLead.channelDetail) {
+          acquisitionFields.referredBy = linkedLead.channelDetail;
+        }
+      }
+
       const newClient = await payload.create({
         collection: "clients",
         data: {
@@ -259,6 +313,7 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
           annualPurchaseFrequency: doc.annualPurchaseFrequency,
           newCustomersLast12Months: doc.newCustomersLast12Months,
           isActive: true,
+          ...acquisitionFields,
           ...(completedContract?.signedPdfUrl
             ? { signedContractUrl: completedContract.signedPdfUrl, signedContract: completedContract.id }
             : {}),
