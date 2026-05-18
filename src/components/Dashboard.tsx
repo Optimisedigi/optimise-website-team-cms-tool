@@ -211,6 +211,11 @@ const typeLabels: Record<string, string> = {
   lead_stage_changed: 'Lead Update',
 }
 
+// Format a dollar amount with no decimal places (en-AU thousand separators).
+function fmt0(n: number): string {
+  return n.toLocaleString('en-AU', { maximumFractionDigits: 0 })
+}
+
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
   if (seconds < 60) return 'just now'
@@ -431,7 +436,7 @@ const Dashboard = () => {
                 ))}
               />
               <StatWithTooltip
-                value={`$${(data.retainerYTD ?? 0).toLocaleString()}`}
+                value={`$${fmt0(data.retainerYTD ?? 0)}`}
                 label="Retainer Revenue (YTD)"
                 rows={(data.breakdowns?.retainerYTD ?? []).map((row, i) => (
                   <div key={i} className="od-stat-tooltip__row">
@@ -461,7 +466,7 @@ const Dashboard = () => {
                 <span className="od-box__stat-label">Lead Conversion Rate</span>
               </div>
               <div className="od-box__stat">
-                <span className="od-box__stat-value">${(data.costs.total + (data.businessCosts?.totalThisMonth || 0)).toFixed(2)}</span>
+                <span className="od-box__stat-value">${fmt0(data.costs.total + (data.businessCosts?.totalThisMonth || 0))}</span>
                 <span className="od-box__stat-label">MTD Costs (AUD)</span>
               </div>
             </div>
@@ -1785,10 +1790,10 @@ function YearlySalesTargetBar({ target, current, deadline }: { target: number; c
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7280', flexWrap: 'wrap' as const }}>
           <span>
-            <strong style={{ color: '#111827' }}>${current.toLocaleString()}</strong> / ${target.toLocaleString()}
+            <strong style={{ color: '#111827' }}>${current.toLocaleString('en-AU', { maximumFractionDigits: 0 })}</strong> / ${target.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
           </span>
           <span>
-            {remaining > 0 ? `$${remaining.toLocaleString()} to go` : '🎉 Target reached!'}
+            {remaining > 0 ? `$${remaining.toLocaleString('en-AU', { maximumFractionDigits: 0 })} to go` : '🎉 Target reached!'}
           </span>
           <span>
             {daysRemaining} days left · {deadlineDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
