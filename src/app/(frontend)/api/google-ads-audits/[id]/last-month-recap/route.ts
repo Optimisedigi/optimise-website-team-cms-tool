@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { hasValidApiKey } from "@/collections/api-key-access";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -119,7 +120,7 @@ export async function POST(
   const payload = await getPayload({ config: payloadConfig });
 
   const { user } = await payload.auth({ headers: req.headers });
-  if (!user) {
+  if (!user && !hasValidApiKey(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

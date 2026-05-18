@@ -138,6 +138,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   get_account_overview: "read-google-ads",
   get_campaign_performance: "read-google-ads",
   get_search_terms: "read-google-ads",
+  get_budget_management_email: "read-google-ads",
 
   // Read — Search Console / GA4 / SERP / AI Visibility
   get_ga4_overview: "read-search-and-ai",

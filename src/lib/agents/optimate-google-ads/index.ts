@@ -12,6 +12,7 @@ import { AGENT_NAME, buildSystemPromptForAudit, conversionActionsForClient } fro
 import { getAccountOverview } from "./tools/get-account-overview";
 import { getCampaignPerformance } from "./tools/get-campaign-performance";
 import { getSearchTerms } from "./tools/get-search-terms";
+import { getBudgetManagementEmail } from "./tools/get-budget-management-email";
 import { proposeNegativeKeywords } from "./tools/propose-negative-keywords";
 import { proposeNklCreate } from "./tools/propose-nkl-create";
 import { proposeNklUpdate } from "./tools/propose-nkl-update";
@@ -52,6 +53,7 @@ export function getTools(): CanonicalTool<unknown>[] {
     getAccountOverview as unknown as CanonicalTool<unknown>,
     getCampaignPerformance as unknown as CanonicalTool<unknown>,
     getSearchTerms as unknown as CanonicalTool<unknown>,
+    getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
     proposeNegativeKeywords as unknown as CanonicalTool<unknown>,
     proposeNklCreate as unknown as CanonicalTool<unknown>,
     proposeNklUpdate as unknown as CanonicalTool<unknown>,

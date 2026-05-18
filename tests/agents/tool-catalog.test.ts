@@ -25,6 +25,7 @@ const FIXTURE_TOOLS = [
   { name: "get_account_overview", description: "Account totals." },
   { name: "get_campaign_performance", description: "Per-campaign performance." },
   { name: "get_search_terms", description: "User search queries." },
+  { name: "get_budget_management_email", description: "Gmail-ready budget management email HTML." },
   { name: "propose_negative_keywords", description: "Quick negative-keyword propose." },
   { name: "propose_nkl_create", description: "Create a new NKL." },
   { name: "propose_nkl_update", description: "Update an existing NKL." },

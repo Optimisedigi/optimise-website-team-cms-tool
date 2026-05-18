@@ -47,6 +47,7 @@ const TOOL_INVENTORY = [
   "- get_account_overview(range?): total spend, conversions, avg CPA, active campaign count, and the date range it covers. Call once at the start of any diagnostic conversation. Default range LAST_30_DAYS.",
   "- get_campaign_performance(range?, segment?): per-campaign spend / clicks / impressions / conversions / CTR / CPA. Default range LAST_7_DAYS. Pass segment='month'|'week'|'day' for a per-period breakdown (one row per campaign per segment). See SEGMENTATION_GUIDE.",
   "- get_search_terms(range?, minImpressions?, limit?, segment?): user search queries that triggered ads, with metrics. Default range LAST_30_DAYS. Pass segment='month'|'week'|'day' for a per-period breakdown. Use to find waste before proposing negatives. See SEGMENTATION_GUIDE.",
+  "- get_budget_management_email(mode): returns the EXACT Gmail-ready HTML the CMS Budget Management 'Copy for Gmail' button produces. mode='this_month' for the current MTD budget update, mode='last_month' for the previous-month recap. Use whenever the user asks for a budget update email, a draft for client comms, or as the body of a scheduled weekly report. Copy the returned `html` field verbatim into your reply — do NOT summarise it.",
   "",
   "PROPOSE TOOLS (queue for approval; never apply directly):",
   "- propose_negative_keywords(candidates, summary): legacy quick-propose. Each candidate needs term, matchType, and a one-line reason. Prefer propose_nkl_create for new lists.",
@@ -115,7 +116,17 @@ const SCHEDULED_TASKS_GUIDE = `When the user asks for a recurring report (e.g. "
 4. The user MUST have Gmail connected (via /api/gmail/connect from the admin Account page) for drafts to land. If they haven't, the next tick will record \`lastRunError\` and they can see it via list_scheduled_tasks. Tell them this in your reply.
 5. When the user asks "what reports am I getting?" or "pause the Acme weekly", call list_scheduled_tasks first to learn the taskId, then propose_scheduled_task_update.
 
-Never fabricate cron expressions you're unsure of — the schedule field is validated against cron-parser and an invalid expression will reject the proposal.`;
+Never fabricate cron expressions you're unsure of — the schedule field is validated against cron-parser and an invalid expression will reject the proposal.
+
+WORKED EXAMPLE — weekly budget management email with optional summary up top:
+
+User: "Every Monday at 9am draft me the budget management email. If cost-per-lead is up week-on-week, add a two-sentence note up top explaining it."
+
+The right recurring \`prompt\` to save (remember: it runs with NO chat history) is something like:
+
+  "Pull get_campaign_performance with range=LAST_14_DAYS and segment='week' so you have this-week vs last-week per-campaign CPL. Then call get_budget_management_email with mode='this_month' to get the budget update HTML. Build the reply as: (1) if account-level CPL this week is higher than last week, write a 2-sentence note explaining which campaigns drove the increase, otherwise omit this note entirely; (2) on a new line, paste the html field from get_budget_management_email verbatim — do not summarise or modify it. Keep the optional note under 50 words."
+
+Then call propose_scheduled_task with title="Weekly budget management email", that prompt, schedule="0 9 * * 1", and a 1-sentence summary. On each Monday firing, the agent runs that prompt, the reply is wrapped by the scheduled-task tick into a Gmail Draft on the proposing user's account. The full branded budget table renders inline; the user reviews, edits the To: address, and hits Send.`;
 
 const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plain English into one of these range inputs and pass it as the \`range\` arg:
 

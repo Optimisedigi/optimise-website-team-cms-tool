@@ -1,0 +1,223 @@
+/**
+ * get_budget_management_email tool.
+ *
+ * Mocks `payload.findByID` (audit + linked client loaded server-side) and
+ * `global.fetch` (the self-call to /api/google-ads-budgets/[id]/list and
+ * /api/google-ads-audits/[id]/last-month-recap). Verifies:
+ *   - missing auditId in context returns ok:false
+ *   - this_month hits the /list endpoint with x-api-key and returns HTML
+ *     containing the business name + monthly label
+ *   - last_month hits the recap endpoint with x-api-key and renders the recap
+ *     HTML
+ *   - upstream HTTP errors propagate as ok:false
+ */
+
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const mockFindByID = vi.fn();
+
+vi.mock("payload", () => ({
+  getPayload: vi.fn(async () => ({
+    findByID: mockFindByID,
+  })),
+}));
+vi.mock("@/payload.config", () => ({ default: Promise.resolve({}) }));
+
+import { getBudgetManagementEmail } from "@/lib/agents/optimate-google-ads/tools/get-budget-management-email";
+import type { ToolContext } from "@/lib/agents/_shared/tool";
+
+const baseCtx = (extra: Partial<ToolContext["context"]> = {}): ToolContext => ({
+  agentName: "optimate-google-ads",
+  agentRunId: "run_test_budget_email",
+  context: { auditId: 7, clientId: 42, ...extra },
+  log: vi.fn(),
+});
+
+beforeEach(() => {
+  mockFindByID.mockReset();
+  // Stable env so the tool can self-call.
+  process.env.AUDIT_API_KEY = "test-key";
+  process.env.CMS_BASE_URL = "http://localhost:3004";
+  // Reset fetch between tests.
+  // @ts-expect-error - test override
+  globalThis.fetch = vi.fn();
+});
+
+describe("get_budget_management_email", () => {
+  it("returns ok:false when auditId is missing from context", async () => {
+    const ctx: ToolContext = {
+      agentName: "optimate-google-ads",
+      agentRunId: "run_no_audit",
+      context: {},
+      log: vi.fn(),
+    };
+    const args = getBudgetManagementEmail.validate!({ mode: "this_month" });
+    const result = await getBudgetManagementEmail.execute(args, ctx);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/auditId/);
+  });
+
+  it("rejects an unknown mode at validate time", () => {
+    expect(() => getBudgetManagementEmail.validate!({ mode: "yesterday" })).toThrow(
+      /mode must be/i,
+    );
+  });
+
+  it("this_month: hits /list with x-api-key and returns HTML containing the business name", async () => {
+    mockFindByID.mockResolvedValueOnce({
+      id: 7,
+      businessName: "Acme Plumbing",
+      monthlyBudget: 1000,
+      client: { id: 42, slug: "acme", clientPin: "1234" },
+    });
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          monthlyBudget: 1000,
+          campaigns: [
+            {
+              campaignId: "c1",
+              campaignName: "Brand Search",
+              budgetPercentage: 100,
+              calculatedDailyBudget: 33,
+              actualDailyBudget: 30,
+              bidStrategy: "manual_cpc",
+              impressions: 1000,
+              clicks: 80,
+              avgCpc: 1.25,
+              conversions: 5,
+              mtdSpend: 200,
+              enabled: true,
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    // @ts-expect-error - test override
+    globalThis.fetch = fetchMock;
+
+    const args = getBudgetManagementEmail.validate!({ mode: "this_month" });
+    const result = await getBudgetManagementEmail.execute(args, baseCtx());
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe("http://localhost:3004/api/google-ads-budgets/7/list");
+    expect((init as RequestInit).method).toBe("GET");
+    expect(((init as RequestInit).headers as Record<string, string>)["x-api-key"]).toBe(
+      "test-key",
+    );
+
+    const data = result.data as { mode: string; subject: string; html: string; monthLabel: string };
+    expect(data.mode).toBe("this_month");
+    expect(data.subject).toContain("Acme Plumbing");
+    expect(data.subject).toContain("Google Ads Budget Report");
+    expect(data.html.startsWith('<div style="font-family:Arial')).toBe(true);
+    // Campaign breakdown row renders the campaign name verbatim.
+    expect(data.html).toContain("Brand Search");
+    expect(data.html).toContain("google-dashboard/acme");
+    expect(data.html).toContain("PIN: 1234");
+  });
+
+  it("last_month: hits last-month-recap with x-api-key and renders recap HTML", async () => {
+    mockFindByID.mockResolvedValueOnce({
+      id: 7,
+      businessName: "Acme Plumbing",
+      monthlyBudget: 1000,
+      client: { id: 42, slug: "acme", clientPin: "1234" },
+    });
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          monthLabel: "April 2026",
+          monthlyBudget: 1000,
+          totals: {
+            spend: 950,
+            clicks: 200,
+            impressions: 5000,
+            conversions: 12,
+            ctr: 4,
+            avgCpc: 4.75,
+            cpl: 79.17,
+          },
+          campaigns: [
+            {
+              campaignId: "c1",
+              campaignName: "Brand Search",
+              impressions: 5000,
+              clicks: 200,
+              cost: 950,
+              conversions: 12,
+              ctr: 4,
+              avgCpc: 4.75,
+              cpl: 79.17,
+            },
+          ],
+          topByClicks: [],
+          topByConversions: [],
+          topBySpend: [],
+          insights: [],
+          searchTermsAvailable: false,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    // @ts-expect-error - test override
+    globalThis.fetch = fetchMock;
+
+    const args = getBudgetManagementEmail.validate!({ mode: "last_month" });
+    const result = await getBudgetManagementEmail.execute(args, baseCtx());
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe(
+      "http://localhost:3004/api/google-ads-audits/7/last-month-recap",
+    );
+    expect((init as RequestInit).method).toBe("POST");
+    expect(((init as RequestInit).headers as Record<string, string>)["x-api-key"]).toBe(
+      "test-key",
+    );
+
+    const data = result.data as { mode: string; subject: string; html: string; monthLabel: string };
+    expect(data.mode).toBe("last_month");
+    expect(data.monthLabel).toBe("April 2026");
+    expect(data.subject).toBe("Acme Plumbing - Google Ads Recap - April 2026");
+    expect(data.html).toContain("April 2026 Recap");
+    expect(data.html).toContain("Brand Search");
+  });
+
+  it("propagates upstream HTTP errors as ok:false with the status code", async () => {
+    mockFindByID.mockResolvedValueOnce({
+      id: 7,
+      businessName: "Acme",
+      monthlyBudget: 0,
+      client: null,
+    });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("upstream broken", { status: 502 }));
+    // @ts-expect-error - test override
+    globalThis.fetch = fetchMock;
+
+    const args = getBudgetManagementEmail.validate!({ mode: "this_month" });
+    const result = await getBudgetManagementEmail.execute(args, baseCtx());
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/502/);
+  });
+
+  it("returns ok:false when AUDIT_API_KEY is not configured", async () => {
+    delete process.env.AUDIT_API_KEY;
+    const args = getBudgetManagementEmail.validate!({ mode: "this_month" });
+    const result = await getBudgetManagementEmail.execute(args, baseCtx());
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/AUDIT_API_KEY/);
+  });
+});
