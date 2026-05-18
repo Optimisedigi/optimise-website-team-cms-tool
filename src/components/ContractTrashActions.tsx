@@ -56,7 +56,7 @@ function ContractTrashActions() {
 
   const title = state.contractTitle || `#${id}`
 
-  const action = async (endpoint: 'trash' | 'restore' | 'purge', confirmMsg: string) => {
+  const action = async (endpoint: 'restore' | 'purge', confirmMsg: string) => {
     if (!window.confirm(confirmMsg)) return
     setBusy(endpoint)
     setError(null)
@@ -148,34 +148,9 @@ function ContractTrashActions() {
     )
   }
 
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        gap: 8,
-        marginBottom: 12,
-        alignItems: 'center',
-      }}
-    >
-      {error && (
-        <span style={{ color: '#991b1b', fontSize: 12, marginRight: 8 }}>{error}</span>
-      )}
-      <button
-        type="button"
-        onClick={() =>
-          action(
-            'trash',
-            `Move \u201c${title}\u201d to trash?\n\nIt will be recoverable for 30 days, then permanently deleted.`,
-          )
-        }
-        disabled={!!busy}
-        style={btn('#dc2626')}
-      >
-        {busy === 'trash' ? 'Moving\u2026' : '🗑 Move to Trash'}
-      </button>
-    </div>
-  )
+  // Active contract: the delete affordance now lives inside Payload's
+  // three-dot menu (see ContractDeleteMenuItem). Nothing to render here.
+  return null
 }
 
 export default ContractTrashActions

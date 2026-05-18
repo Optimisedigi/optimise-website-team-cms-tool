@@ -13,6 +13,15 @@ const SendContractEmailButton = () => {
 
   const status = fields?.['status']?.value as string
   const clientEmail = fields?.['clientEmail']?.value as string
+  // The raw clientEmail field is a comma-separated list (primary, ccs...).
+  // Parse it for display so the operator sees every address the email will
+  // actually reach.
+  const allEmails = (clientEmail || '')
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean)
+  const primaryEmail = allEmails[0] || ''
+  const ccEmails = allEmails.slice(1)
 
   if (!id) return null
   // Visible once a signing link has been issued (status === 'sent') for users
@@ -34,7 +43,10 @@ const SendContractEmailButton = () => {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to send email')
-      setMessage(`Email sent to ${data.sentTo}`)
+      const ccLabel = Array.isArray(data.cc) && data.cc.length > 0
+        ? ` (cc: ${data.cc.join(', ')})`
+        : ''
+      setMessage(`Email sent to ${data.sentTo}${ccLabel}`)
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -73,7 +85,10 @@ const SendContractEmailButton = () => {
           borderRadius: 6,
         }}>
           <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: '#92400e' }}>
-            Send signing link to {clientEmail}?
+            Send signing link to {primaryEmail}
+            {ccEmails.length > 0 && (
+              <> (cc: {ccEmails.join(', ')})</>
+            )}?
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <button

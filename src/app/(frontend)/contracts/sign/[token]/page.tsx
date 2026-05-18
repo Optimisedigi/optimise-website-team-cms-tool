@@ -300,9 +300,10 @@ export default function ContractSignPage() {
   }
 
   const fieldLabelStyle: React.CSSProperties = {
-    display: 'inline',
-    fontSize: 14,
+    display: 'block',
+    fontSize: 13,
     fontWeight: 700,
+    marginBottom: 4,
   }
 
   if (loading) {
@@ -388,7 +389,7 @@ export default function ContractSignPage() {
 
   return (
     <div style={pageStyle}>
-      <div style={docStyle}>
+      <div className="signing-doc" style={docStyle}>
         {/* Logo */}
         <img
           src="/logo.png"
@@ -426,71 +427,70 @@ export default function ContractSignPage() {
           <p style={{ fontSize: 13, fontWeight: 600, color: '#f97316', margin: '0 0 12px' }}>
             Please check and update your details below
           </p>
-          <div style={{ display: 'flex', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 50%' }}>
-              <span style={fieldLabelStyle}>Client Name: </span>
+          {/* Two-column grid on tablet/desktop, single column on mobile.
+              Each cell stacks label above input so long labels/values never
+              get cut off. Mobile breakpoint defined in the <style> block below. */}
+          <div className="signing-fields-grid">
+            <label className="signing-field">
+              <span style={fieldLabelStyle}>Company Name</span>
               <input
                 type="text"
                 value={clientDisplayName}
                 onChange={(e) => setClientDisplayName(e.target.value)}
                 placeholder="Enter business name"
-                style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 105px)' }}
+                style={inputStyle}
               />
-            </div>
-            <div style={{ flex: '1 1 40%' }}>
-              <span style={fieldLabelStyle}>Name: </span>
+            </label>
+            <label className="signing-field">
+              <span style={fieldLabelStyle}>Name</span>
               <input
                 type="text"
                 value={signerName}
                 onChange={(e) => setSignerName(e.target.value)}
                 placeholder="Enter your name"
-                style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 60px)' }}
+                style={inputStyle}
               />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 50%' }}>
-              <span style={fieldLabelStyle}>Phone: </span>
+            </label>
+            <label className="signing-field">
+              <span style={fieldLabelStyle}>Phone</span>
               <input
                 type="text"
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
                 placeholder="Enter phone"
-                style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 65px)' }}
+                style={inputStyle}
               />
-            </div>
-            <div style={{ flex: '1 1 40%' }}>
-              <span style={fieldLabelStyle}>Title: </span>
+            </label>
+            <label className="signing-field">
+              <span style={fieldLabelStyle}>Title</span>
               <input
                 type="text"
                 value={signerTitle}
                 onChange={(e) => setSignerTitle(e.target.value)}
                 placeholder="Enter your title"
-                style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 50px)' }}
+                style={inputStyle}
               />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 50%' }}>
-              <span style={fieldLabelStyle}>Email: </span>
+            </label>
+            <label className="signing-field">
+              <span style={fieldLabelStyle}>Email</span>
               <input
                 type="email"
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="Enter email"
-                style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 55px)' }}
+                style={inputStyle}
               />
-            </div>
-            <div style={{ flex: '1 1 40%' }}>
-              <span style={fieldLabelStyle}>Website: </span>
+            </label>
+            <label className="signing-field">
+              <span style={fieldLabelStyle}>Website</span>
               <input
                 type="text"
                 value={clientWebsite}
                 onChange={(e) => setClientWebsite(e.target.value)}
                 placeholder="Enter website"
-                style={{ ...inputStyle, display: 'inline-block', width: 'calc(100% - 75px)' }}
+                style={inputStyle}
               />
-            </div>
+            </label>
           </div>
           {/* Click to Sign button */}
           <div style={{ textAlign: 'right', marginTop: 12 }}>
@@ -1022,6 +1022,19 @@ export default function ContractSignPage() {
 
       {/* Scope content styles for rich text */}
       <style>{`
+        /* Client-details grid: 2 cols on tablet+ (≥ 600px), 1 col on phones. */
+        .signing-fields-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px 16px;
+        }
+        .signing-field { display: block; }
+        @media (max-width: 599px) {
+          .signing-fields-grid { grid-template-columns: 1fr; }
+          /* Tighter page padding on phones so the contract content uses
+             more of the viewport. */
+          .signing-doc { padding: 24px 16px !important; }
+        }
         .scope-content p { margin: 0 0 6px; min-height: 1em; }
         .scope-content p:empty { margin: 0 0 8px; }
         .scope-content h1, .scope-content h2, .scope-content h3, .scope-content h4 { margin: 12px 0 6px; font-weight: 700; }

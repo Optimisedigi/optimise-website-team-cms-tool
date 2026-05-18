@@ -64,7 +64,10 @@ const SendContractButton = () => {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to send email')
-      setEmailedTo(data.sentTo)
+      const ccLabel = Array.isArray(data.cc) && data.cc.length > 0
+        ? ` (cc: ${data.cc.join(', ')})`
+        : ''
+      setEmailedTo(`${data.sentTo}${ccLabel}`)
     } catch (e: any) {
       setEmailError(e.message)
     } finally {
@@ -193,7 +196,11 @@ const SendContractButton = () => {
                   cursor: emailing ? 'not-allowed' : 'pointer',
                 }}
               >
-                {emailing ? 'Sending…' : `Email link to ${clientEmail}`}
+                {emailing ? 'Sending…' : (() => {
+                  const emails = (clientEmail || '').split(',').map((e) => e.trim()).filter(Boolean)
+                  if (emails.length <= 1) return `Email link to ${clientEmail}`
+                  return `Email link to ${emails[0]} + ${emails.length - 1} cc`
+                })()}
               </button>
               {emailError && (
                 <span style={{ fontSize: 12, color: '#dc2626' }}>{emailError}</span>

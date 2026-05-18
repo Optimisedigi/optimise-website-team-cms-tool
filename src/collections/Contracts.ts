@@ -91,6 +91,7 @@ export const Contracts: CollectionConfig = {
       ],
       edit: {
         beforeDocumentControls: ["./components/ContractTrashActions"],
+        editMenuItems: ["./components/ContractDeleteMenuItem"],
       },
     },
     hidden: hideUnlessFeature("contracts"),
