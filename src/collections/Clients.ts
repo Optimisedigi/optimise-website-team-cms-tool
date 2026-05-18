@@ -535,6 +535,88 @@ export const Clients: CollectionConfig = {
                 { label: "Brand Awareness", value: "brand awareness" },
               ],
             },
+            // ── Acquisition ────────────────────────────────────────
+            // Where did this client come from, and who referred them?
+            // `referredBy` is always recorded for word-of-mouth referrals
+            // — even when no commission is paid (see referralCommissions
+            // below for the formal commission rows).
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "acquisitionChannel",
+                  type: "select",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description: "How this client was acquired",
+                    width: "50%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                  options: [
+                    // Online channels
+                    { label: "Organic Search", value: "organic_search" },
+                    { label: "Paid Search (Google Ads)", value: "paid_search" },
+                    { label: "Paid Social (Meta Ads)", value: "paid_social" },
+                    { label: "Organic Social", value: "organic_social" },
+                    { label: "Website (Other)", value: "website_other" },
+                    // Offline / manual
+                    { label: "Referral", value: "referral" },
+                    { label: "Referral Partner", value: "referral_partner" },
+                    { label: "BNI Referral", value: "bni_referral" },
+                    { label: "Cold Outreach", value: "cold_outreach" },
+                  ],
+                },
+                {
+                  name: "acquisitionDetail",
+                  type: "text",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description:
+                      "Extra detail (e.g. ad campaign name, BNI chapter)",
+                    width: "50%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "referredBy",
+                  type: "text",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description:
+                      "Person or business who referred this client (record even for free word-of-mouth referrals)",
+                    width: "50%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                },
+                {
+                  name: "referredByContact",
+                  type: "text",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description: "Optional contact for the referrer (email/phone)",
+                    width: "50%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                },
+              ],
+            },
             {
               name: "clientStartDate",
               type: "date",

@@ -381,6 +381,34 @@ export interface Client {
       )
     | null;
   /**
+   * How this client was acquired
+   */
+  acquisitionChannel?:
+    | (
+        | 'organic_search'
+        | 'paid_search'
+        | 'paid_social'
+        | 'organic_social'
+        | 'website_other'
+        | 'referral'
+        | 'referral_partner'
+        | 'bni_referral'
+        | 'cold_outreach'
+      )
+    | null;
+  /**
+   * Extra detail (e.g. ad campaign name, BNI chapter)
+   */
+  acquisitionDetail?: string | null;
+  /**
+   * Person or business who referred this client (record even for free word-of-mouth referrals)
+   */
+  referredBy?: string | null;
+  /**
+   * Optional contact for the referrer (email/phone)
+   */
+  referredByContact?: string | null;
+  /**
    * When this client started working with us
    */
   clientStartDate?: string | null;
@@ -6774,6 +6802,10 @@ export interface ClientsSelect<T extends boolean = true> {
       };
   conversionGoal?: T;
   secondaryConversionGoal?: T;
+  acquisitionChannel?: T;
+  acquisitionDetail?: T;
+  referredBy?: T;
+  referredByContact?: T;
   clientStartDate?: T;
   monthlyRetainer?: T;
   oneOffProjects?:

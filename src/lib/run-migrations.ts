@@ -668,6 +668,12 @@ export async function runMigrations(
     await run("clients_one_off_projects_order_idx", "CREATE INDEX IF NOT EXISTS `clients_one_off_projects_order_idx` ON `clients_one_off_projects` (`_order`)");
     await run("clients_one_off_projects_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_one_off_projects_parent_id_idx` ON `clients_one_off_projects` (`_parent_id`)");
 
+    // --- Acquisition / Referral attribution columns on clients ---
+    await run("clients.acquisition_channel", "ALTER TABLE `clients` ADD `acquisition_channel` text");
+    await run("clients.acquisition_detail", "ALTER TABLE `clients` ADD `acquisition_detail` text");
+    await run("clients.referred_by", "ALTER TABLE `clients` ADD `referred_by` text");
+    await run("clients.referred_by_contact", "ALTER TABLE `clients` ADD `referred_by_contact` text");
+
     // --- Referral Commissions sub-table ---
     await run("clients_referral_commissions", `CREATE TABLE IF NOT EXISTS \`clients_referral_commissions\` (
       \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
