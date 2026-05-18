@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react'
 import OptiMateChatCore, { type OptiMateChatCoreHandle } from './OptiMateChatCore'
 import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
 
@@ -8,6 +8,15 @@ export interface OptiMateChatTarget {
   id: string | number
   customerId: string
   businessName?: string
+  /** Optional thread to resume on mount. Used by the popout window so the
+   *  new tab shows the same conversation the launcher had open. */
+  initialSessionId?: string
+}
+
+export interface OptiMateMultiChatHandle {
+  /** Map of String(auditId) → current sessionId for that tab. Used by the
+   *  launcher popout handler so the new window can resume each thread. */
+  getSessionIds: () => Record<string, string>
 }
 
 interface OptiMateMultiChatProps {
@@ -29,7 +38,10 @@ interface OptiMateMultiChatProps {
  * state. Per-tab pending/proposal/notification behaviour stays inside each
  * ChatCore unchanged.
  */
-const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps) => {
+const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatProps>(function OptiMateMultiChat(
+  { targets, compact = false },
+  ref,
+) {
   const [activeId, setActiveId] = useState<string>(() => String(targets[0]?.id ?? ''))
   const [broadcast, setBroadcast] = useState(false)
   const [input, setInput] = useState('')
@@ -99,6 +111,22 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
     )
   }
 
+  // Expose per-tab sessionIds so the launcher's popout button can pass them
+  // through to the new window. Reads live from the imperative handles so the
+  // value is always current (even after the server mints a fresh sessionId
+  // mid-turn).
+  useImperativeHandle(ref, () => ({
+    getSessionIds: () => {
+      const out: Record<string, string> = {}
+      for (const t of targets) {
+        const key = String(t.id)
+        const sid = refs.current.get(key)?.getSessionId()
+        if (sid) out[key] = sid
+      }
+      return out
+    },
+  }), [targets])
+
   // Single-account fast path: skip the tab strip and let the ChatCore render
   // its own input. Keeps behaviour identical to the old launcher when only
   // one account is picked.
@@ -106,11 +134,13 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
     const t = targets[0]
     return (
       <OptiMateChatCore
+        ref={setRef(String(t.id))}
         key={String(t.id)}
         auditId={t.id}
         customerId={t.customerId}
         businessName={t.businessName}
         compact={compact}
+        initialSessionId={t.initialSessionId}
       />
     )
   }
@@ -177,6 +207,7 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
                 businessName={t.businessName}
                 compact={compact}
                 hideInput
+                initialSessionId={t.initialSessionId}
               />
             </div>
           )
@@ -348,6 +379,6 @@ const OptiMateMultiChat = ({ targets, compact = false }: OptiMateMultiChatProps)
       </div>
     </div>
   )
-}
+})
 
 export default OptiMateMultiChat

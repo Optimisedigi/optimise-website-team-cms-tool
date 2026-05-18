@@ -79,6 +79,10 @@ import OptiMateToolsHelp from './OptiMateToolsHelp'
 export interface OptiMateChatCoreHandle {
   sendMessage: (text: string) => Promise<void>
   isBusy: () => boolean
+  /** Current sessionId for this audit's chat thread. Read by the launcher
+   *  popout handler so the new window can resume the same thread instead
+   *  of starting fresh. Returns undefined if the ref isn't attached yet. */
+  getSessionId: () => string | undefined
 }
 
 interface ChatMessage {
@@ -833,6 +837,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       await sendMessage(text)
     },
     isBusy: () => loading,
+    getSessionId: () => sessionIdRef.current,
   }), [loading, sendMessage])
 
   // Sizing

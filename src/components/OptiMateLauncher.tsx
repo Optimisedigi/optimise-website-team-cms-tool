@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@payloadcms/ui'
-import OptiMateMultiChat, { type OptiMateChatTarget } from './OptiMateMultiChat'
+import OptiMateMultiChat, {
+  type OptiMateChatTarget,
+  type OptiMateMultiChatHandle,
+} from './OptiMateMultiChat'
 import InvoiceAssistantChat from './InvoiceAssistantChat'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 
@@ -49,6 +52,9 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('agent')
   const previousStepRef = useRef<Step>('agent')
+  /** Imperative handle on the embedded MultiChat so the popout button can
+   *  read each tab's live sessionId and hand it off to the new window. */
+  const multiChatRef = useRef<OptiMateMultiChatHandle | null>(null)
   const [agent, setAgent] = useState<AgentKey | ''>('')
   const [audits, setAudits] = useState<AuditOption[] | null>(null)
   const [auditsLoading, setAuditsLoading] = useState(false)
@@ -420,8 +426,26 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   // re-mounts the multi-chat full-window. Close the launcher
                   // panel as soon as we hand off so we don't have two
                   // copies of the same conversation.
+                  //
+                  // Pass each tab's live sessionId in the URL so the popout
+                  // window resumes the same thread instead of starting a
+                  // fresh one. Without this, the new window mounts a fresh
+                  // ChatCore and the in-progress conversation appears lost
+                  // (the rows are still in the DB — reachable via the
+                  // History popover — but the user expects the chat to be
+                  // there).
                   const ids = selectedAudits.map((a) => String(a.id)).join(',')
-                  const url = `/admin/optimate-popout?audits=${encodeURIComponent(ids)}`
+                  const sessionMap = multiChatRef.current?.getSessionIds() ?? {}
+                  // Pair sessionIds with audit ids by index so the popout
+                  // page can zip them back together. Empty string for any
+                  // tab whose ChatCore hasn't reported a sessionId yet (the
+                  // popout falls back to a fresh thread for those).
+                  const sessionIds = selectedAudits
+                    .map((a) => sessionMap[String(a.id)] ?? '')
+                    .join(',')
+                  const url =
+                    `/admin/optimate-popout?audits=${encodeURIComponent(ids)}` +
+                    `&sessionIds=${encodeURIComponent(sessionIds)}`
                   const features = [
                     'popup=yes',
                     'width=520',
@@ -734,6 +758,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
             {step === 'chat' && selectedAudits.length > 0 && (
               <OptiMateMultiChat
+                ref={multiChatRef}
                 key={selectedAudits.map((a) => String(a.id)).join('|')}
                 targets={selectedAudits.map((a): OptiMateChatTarget => ({
                   id: a.id,

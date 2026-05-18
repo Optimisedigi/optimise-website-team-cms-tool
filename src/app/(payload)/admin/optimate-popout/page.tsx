@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import OptimatePopoutClient from './OptimatePopoutClient'
 
 interface PageProps {
-  searchParams: Promise<{ audits?: string }>
+  searchParams: Promise<{ audits?: string; sessionIds?: string }>
 }
 
 /**
@@ -18,8 +18,12 @@ interface PageProps {
  * Bypasses the Payload admin chrome (no sidebar / nav) so the chat takes
  * the whole window. Auth is still required.
  *
- * URL: /admin/optimate-popout?audits=12,34
+ * URL: /admin/optimate-popout?audits=12,34&sessionIds=abc,def
  *   - audits = comma-separated google-ads-audit ids.
+ *   - sessionIds = optional, parallel list of chat sessionIds (one per
+ *     audit, by position). Empty entries mean "start a fresh thread for
+ *     that audit". Set by the launcher popout button so the new window
+ *     resumes the same conversations the launcher had open.
  */
 export default async function OptimatePopoutPage({ searchParams }: PageProps) {
   const payload = await getPayload({ config })
@@ -29,7 +33,7 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
     redirect('/admin/login?redirect=/admin/optimate-popout')
   }
 
-  const { audits } = await searchParams
+  const { audits, sessionIds: sessionIdsParam } = await searchParams
   const ids = (audits ?? '')
     .split(',')
     .map((s) => s.trim())
@@ -37,6 +41,18 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
 
   if (ids.length === 0) {
     return <NoAudits />
+  }
+
+  // sessionIds is paired with `audits` by index — a parallel list where the
+  // i-th sessionId belongs to the i-th audit id. Empty entries mean "no
+  // thread to resume, start a fresh one".
+  const sessionIdsByAuditId = new Map<string, string>()
+  if (sessionIdsParam) {
+    const sids = sessionIdsParam.split(',').map((s) => s.trim())
+    ids.forEach((auditId, i) => {
+      const sid = sids[i]
+      if (sid) sessionIdsByAuditId.set(auditId, sid)
+    })
   }
 
   // Resolve audit docs so the chat has businessName + customerId per target.
@@ -49,13 +65,23 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
     depth: 0,
   })
 
-  type Target = { id: number | string; customerId: string; businessName?: string }
+  type Target = {
+    id: number | string
+    customerId: string
+    businessName?: string
+    initialSessionId?: string
+  }
   const targets: Target[] = (result.docs as unknown as Array<Record<string, unknown>>)
-    .map((d) => ({
-      id: d.id as number | string,
-      customerId: typeof d.customerId === 'string' ? d.customerId : '',
-      businessName: typeof d.businessName === 'string' ? d.businessName : undefined,
-    }))
+    .map((d) => {
+      const id = d.id as number | string
+      const sid = sessionIdsByAuditId.get(String(id))
+      return {
+        id,
+        customerId: typeof d.customerId === 'string' ? d.customerId : '',
+        businessName: typeof d.businessName === 'string' ? d.businessName : undefined,
+        ...(sid ? { initialSessionId: sid } : {}),
+      }
+    })
     .filter((t) => Boolean(t.customerId))
 
   if (targets.length === 0) {
