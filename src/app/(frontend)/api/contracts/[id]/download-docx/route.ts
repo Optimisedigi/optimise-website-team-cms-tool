@@ -198,15 +198,20 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     labelValuePara("Phone", contactPhone, 200),
   );
 
-  // Effective date — hide "(to be confirmed)" qualifier when the toggle is on.
+  // Effective date — hide qualifier when confirmed; otherwise show either the
+  // default "(to be confirmed with client)" or, when the deposit toggle is on,
+  // "(once the deposit has been paid)".
   {
     const effectiveDateRuns = [
       new TextRun({ text: "Effective Date: ", bold: true }),
       new TextRun({ text: doc.contractDate ? formatDate(doc.contractDate) : "" }),
     ];
     if (!doc.effectiveDateConfirmed) {
+      const qualifier = doc.effectiveDateOnDeposit
+        ? " (once the deposit has been paid)"
+        : " (to be confirmed with client)";
       effectiveDateRuns.push(
-        new TextRun({ text: " (to be confirmed with client)", italics: true, color: "666666" }),
+        new TextRun({ text: qualifier, italics: true, color: "666666" }),
       );
     }
     children.push(new Paragraph({ children: effectiveDateRuns, spacing: { after: 200 } }));
@@ -214,9 +219,11 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
 
   children.push(thickRule());
 
-  // Scope of Work
+  // Scope of Work — starts on a new page so the deliverables read as their
+  // own section after the cover.
   if (doc.scopeOfWork?.root?.children) {
     children.push(
+      new Paragraph({ children: [new PageBreak()] }),
       new Paragraph({ text: "Scope of Work", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
     );
     children.push(...lexicalToDocx(doc.scopeOfWork.root.children));

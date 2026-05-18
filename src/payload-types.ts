@@ -1262,9 +1262,13 @@ export interface Contract {
    */
   contractStartDate?: string | null;
   /**
-   * Toggle ON once the effective date is confirmed with the client. When OFF, the cover page shows '(to be confirmed with client)' next to the date; when ON, the qualifier is hidden.
+   * Toggle ON once the effective date is confirmed with the client. When OFF, the cover page shows '(to be confirmed with client)' next to the date; when ON, the qualifier is hidden. Takes precedence over the deposit toggle.
    */
   effectiveDateConfirmed?: boolean | null;
+  /**
+   * When ON: the cover page shows '(once the deposit has been paid)' next to the effective date. Use on jobs that require an upfront deposit before work starts. Ignored when 'Effective date confirmed' is ON.
+   */
+  effectiveDateOnDeposit?: boolean | null;
   /**
    * Currency for all amounts on this contract. Shown in the pricing table header as 'Amount (CCY)' and used to format every monetary value.
    */
@@ -7386,6 +7390,7 @@ export interface ContractsSelect<T extends boolean = true> {
   contractDate?: T;
   contractStartDate?: T;
   effectiveDateConfirmed?: T;
+  effectiveDateOnDeposit?: T;
   currency?: T;
   monthlyRetainer?: T;
   setupFee?: T;

@@ -70,6 +70,7 @@ export async function GET(
       additionalWork: doc.additionalWork,
       currency: doc.currency ?? "AUD",
       effectiveDateConfirmed: doc.effectiveDateConfirmed === true,
+      effectiveDateOnDeposit: doc.effectiveDateOnDeposit === true,
       contractTerm: doc.contractTerm,
       paymentTerms: doc.paymentTerms,
       pricingNotes: pricingNotesText,

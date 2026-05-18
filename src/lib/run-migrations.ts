@@ -3006,6 +3006,15 @@ export async function runMigrations(
       "contracts.hide_setup_fee",
       "ALTER TABLE `contracts` ADD `hide_setup_fee` integer DEFAULT 0",
     );
+
+    // ── Effective-date-on-deposit toggle (2026-05-18) ───────────────────
+    // Contracts: per-contract toggle that switches the cover-page qualifier
+    // from "(to be confirmed with client)" to "(once the deposit has been
+    // paid)". Ignored when effective_date_confirmed is ON.
+    await run(
+      "contracts.effective_date_on_deposit",
+      "ALTER TABLE `contracts` ADD `effective_date_on_deposit` integer DEFAULT 0",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

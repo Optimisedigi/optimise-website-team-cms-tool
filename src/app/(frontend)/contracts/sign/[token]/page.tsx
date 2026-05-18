@@ -14,6 +14,7 @@ interface ContractInfo {
   contractDate: string
   contractStartDate?: string
   effectiveDateConfirmed?: boolean
+  effectiveDateOnDeposit?: boolean
   monthlyRetainer?: number
   setupFee?: number
   hideSetupFee?: boolean
@@ -543,7 +544,11 @@ export default function ContractSignPage() {
         <p style={{ fontSize: 15, margin: '24px 0 0' }}>
           <strong>Effective Date:</strong> {formatDate(contract.contractDate)}
           {!contract.effectiveDateConfirmed && (
-            <> <span style={{ color: '#666', fontStyle: 'italic' }}>(to be confirmed with client)</span></>
+            <> <span style={{ color: '#666', fontStyle: 'italic' }}>{
+              contract.effectiveDateOnDeposit
+                ? '(once the deposit has been paid)'
+                : '(to be confirmed with client)'
+            }</span></>
           )}
         </p>
 

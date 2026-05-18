@@ -39,8 +39,10 @@ export interface ContractData {
     countTowardsRetainer?: boolean | null;
   }> | null;
   currency?: CurrencyCode;
-  /** When true the cover page hides the "(to be confirmed with client)" qualifier. */
+  /** When true the cover page hides the "(to be confirmed with client)" qualifier. Takes precedence over `effectiveDateOnDeposit`. */
   effectiveDateConfirmed?: boolean;
+  /** When true (and effectiveDateConfirmed is false) the cover page shows "(once the deposit has been paid)" instead of the default qualifier. */
+  effectiveDateOnDeposit?: boolean;
   contractTerm?: string;
   paymentTerms?: string;
   pricingNotes?: string;
@@ -143,6 +145,7 @@ export interface ContractSection {
     agencySignerTitle?: string;
     effectiveDate: string;
     effectiveDateConfirmed?: boolean;
+    effectiveDateOnDeposit?: boolean;
   };
 }
 
@@ -191,11 +194,14 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       agencySignerTitle: data.agencySignerTitle,
       effectiveDate: formatDate(data.contractDate),
       effectiveDateConfirmed: data.effectiveDateConfirmed === true,
+      effectiveDateOnDeposit: data.effectiveDateOnDeposit === true,
     },
   });
 
-  // Scope of Work
+  // Scope of Work — starts on a new page in the PDF so the deliverables read
+  // as their own section after the cover.
   if (data.scopeOfWork || data.scopeOfWorkNodes) {
+    sections.push({ type: "pageBreak" });
     sections.push({
       type: "heading",
       heading: "Scope of Work",

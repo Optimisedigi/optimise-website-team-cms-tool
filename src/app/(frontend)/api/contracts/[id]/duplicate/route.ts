@@ -76,6 +76,7 @@ export async function POST(
         setupFee: source.setupFee ?? undefined,
         currency: source.currency ?? undefined,
         effectiveDateConfirmed: source.effectiveDateConfirmed ?? false,
+        effectiveDateOnDeposit: source.effectiveDateOnDeposit ?? false,
         // Agency fields
         agencyContactName: source.agencyContactName || undefined,
         agencyContactEmail: source.agencyContactEmail || undefined,
