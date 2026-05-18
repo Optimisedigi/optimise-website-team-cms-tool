@@ -131,17 +131,19 @@ export async function syncContractToClient(
     const updates: Record<string, unknown> = {};
 
     // Monthly retainer ─────────────────────────────────────────────────────
+    // Apply the contract's retainer whenever it's non-zero and differs from
+    // the client's current value. Covers two cases:
+    //   1) first contract → client retainer is 0 → set it.
+    //   2) follow-up contract (e.g. a Year-2 increase, or a new piece of
+    //      work that bumps the retainer) → update to the new amount. The
+    //      Clients beforeChange hook automatically appends the old + new
+    //      amounts to client.retainerHistory[] with an audit timestamp,
+    //      so the prior retainer is preserved — not overwritten in history.
     const contractRetainer = Number(contract.monthlyRetainer) || 0;
     const existingRetainer = Number(client.monthlyRetainer) || 0;
-    if (contractRetainer > 0) {
-      if (existingRetainer > 0 && existingRetainer !== contractRetainer) {
-        result.warnings.push(
-          `monthlyRetainer not overwritten: client has $${existingRetainer}, contract has $${contractRetainer}.`,
-        );
-      } else if (existingRetainer === 0) {
-        updates.monthlyRetainer = contractRetainer;
-        result.applied.monthlyRetainer = true;
-      }
+    if (contractRetainer > 0 && contractRetainer !== existingRetainer) {
+      updates.monthlyRetainer = contractRetainer;
+      result.applied.monthlyRetainer = true;
     }
 
     // Setup fee ────────────────────────────────────────────────────────────
@@ -280,13 +282,20 @@ export async function syncContractToClient(
       overrideAccess: true,
     });
 
-    // If the retainer was newly applied, surface it via the existing tracker
-    // so the dashboard / activity log picks it up.
+    // If the retainer was applied, surface it via the existing tracker so
+    // the dashboard / activity log picks it up. (The Clients beforeChange
+    // hook also appends a row to client.retainerHistory[] with the old and
+    // new amounts, so the prior retainer is preserved as a separate entry.)
     if (result.applied.monthlyRetainer) {
+      const wasFirst = existingRetainer === 0;
       await logActivity(payload, {
         type: "retainer_changed",
-        title: `Retainer set from signed contract: ${contract.contractTitle ?? `#${contract.id}`}`,
-        description: `Synced $${contractRetainer}/mo to client #${clientId} on contract signature.`,
+        title: wasFirst
+          ? `Retainer set from contract: ${contract.contractTitle ?? `#${contract.id}`}`
+          : `Retainer updated from contract: ${contract.contractTitle ?? `#${contract.id}`}`,
+        description: wasFirst
+          ? `Synced $${contractRetainer}/mo to client #${clientId}.`
+          : `Updated $${existingRetainer}/mo → $${contractRetainer}/mo on client #${clientId}; prior amount kept in retainer history.`,
         client: clientId,
       }).catch(() => {});
     }

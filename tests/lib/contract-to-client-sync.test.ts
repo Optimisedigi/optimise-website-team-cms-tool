@@ -58,7 +58,7 @@ describe("syncContractToClient", () => {
     ]);
   });
 
-  it("does not overwrite existing monthlyRetainer and logs a warning", async () => {
+  it("overwrites monthlyRetainer when contract has a different non-zero value (history preserved via Clients hook)", async () => {
     const payload = createMockPayload({
       id: 42,
       monthlyRetainer: 1000,
@@ -73,9 +73,30 @@ describe("syncContractToClient", () => {
       monthlyRetainer: 1500,
     });
 
+    expect(result.applied.monthlyRetainer).toBe(true);
+    const call = payload.update.mock.calls[0]?.[0];
+    expect(call?.data.monthlyRetainer).toBe(1500);
+    // The retainerHistory append is the Clients collection's responsibility
+    // (its beforeChange hook), not this sync function's — we just write the
+    // new value and let the existing hook record the change.
+  });
+
+  it("does not touch monthlyRetainer when contract value matches client", async () => {
+    const payload = createMockPayload({
+      id: 42,
+      monthlyRetainer: 1500,
+      setupFee: 0,
+      clientStartDate: null,
+      oneOffProjects: [],
+    });
+
+    const result = await syncContractToClient(payload as any, {
+      id: 1,
+      client: 42,
+      monthlyRetainer: 1500,
+    });
+
     expect(result.applied.monthlyRetainer).toBe(false);
-    expect(result.warnings.some((w) => w.includes("monthlyRetainer"))).toBe(true);
-    // No retainer update sent
     const call = payload.update.mock.calls[0]?.[0];
     expect(call?.data.monthlyRetainer).toBeUndefined();
   });
