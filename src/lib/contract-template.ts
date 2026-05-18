@@ -207,7 +207,9 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     });
   }
 
-  // Pricing
+  // Pricing — starts on a new page in the PDF so the pricing table always
+  // reads as a fresh section after Scope of Work.
+  sections.push({ type: "pageBreak" });
   // Row order (per contract spec):
   //   1. Additional Work projects (only rows with a non-empty projectName)
   //   2. One-time setup fee (unless hideSetupFee is ON)
@@ -384,7 +386,9 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     });
   }
 
-  // Confidentiality - exact wording from contract PDF
+  // Confidentiality — starts on a new page in the PDF so the legal clause
+  // reads as its own section.
+  sections.push({ type: "pageBreak" });
   sections.push({
     type: "heading",
     heading: "Confidentiality:",

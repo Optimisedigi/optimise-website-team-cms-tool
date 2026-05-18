@@ -224,8 +224,10 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
   }
 
   // Pricing table — horizontal-rules-only style. Setup fee row always shown ($0 when missing).
+  // Starts on a new page so the pricing block reads as a fresh section.
   {
     children.push(
+      new Paragraph({ children: [new PageBreak()] }),
       new Paragraph({ text: "Pricing", heading: HeadingLevel.HEADING_2, spacing: { after: 80 } }),
     );
 
@@ -475,8 +477,9 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
 
   children.push(thinRule());
 
-  // Confidentiality
+  // Confidentiality — starts on a new page so the legal clause reads as its own section.
   children.push(
+    new Paragraph({ children: [new PageBreak()] }),
     new Paragraph({ text: "Confidentiality:", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
   );
   children.push(
