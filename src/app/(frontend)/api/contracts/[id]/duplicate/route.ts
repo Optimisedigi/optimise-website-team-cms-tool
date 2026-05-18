@@ -48,6 +48,16 @@ export async function POST(
         annualReviewNotice: source.annualReviewNotice || undefined,
         annualReviewGoodFaithReview: source.annualReviewGoodFaithReview || undefined,
         annualReviewAcceptance: source.annualReviewAcceptance || undefined,
+        // Annual review reminders — copy from template. If the template has no
+        // recipients, force reminders off so the new draft passes validation
+        // (the user can re-enable + pick recipients later).
+        annualReviewReminderRecipients: Array.isArray(source.annualReviewReminderRecipients)
+          ? source.annualReviewReminderRecipients.map((u: any) => (typeof u === "object" ? u?.id : u)).filter(Boolean)
+          : [],
+        annualReviewReminderEnabled:
+          Boolean(source.annualReviewReminderEnabled) &&
+          Array.isArray(source.annualReviewReminderRecipients) &&
+          source.annualReviewReminderRecipients.length > 0,
         contractTerm: source.contractTerm || undefined,
         paymentTerms: source.paymentTerms || undefined,
         monthlyRetainer: source.monthlyRetainer ?? undefined,
