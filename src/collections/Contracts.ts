@@ -691,5 +691,15 @@ export const Contracts: CollectionConfig = {
         description: "Mark as a template contract (e.g. Google Ads). Duplicate to create new contracts.",
       },
     },
+    {
+      name: "templateLabel",
+      type: "text",
+      admin: {
+        position: "sidebar",
+        description:
+          "Short label shown on the 'Create from Template' button (e.g. 'E-Commerce', 'Google Ads'). Falls back to the contract title if blank.",
+        condition: (data) => Boolean(data?.isTemplate),
+      },
+    },
   ],
 };

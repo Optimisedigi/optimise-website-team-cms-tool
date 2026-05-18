@@ -28,10 +28,22 @@ export async function POST(
       return NextResponse.json({ error: "Contract not found" }, { status: 404 });
     }
 
+    // When duplicating from a template, start the new contract with the
+    // template's own contractTitle (operator will rename for the client).
+    // When duplicating a normal contract, prefix "Copy of" so it's obvious
+    // this is a clone.
+    const newTitle = source.isTemplate
+      ? source.contractTitle || "Untitled"
+      : `Copy of ${source.contractTitle || "Untitled"}`;
+
     const newContract = await payload.create({
       collection: "contracts",
       data: {
-        contractTitle: `Copy of ${source.contractTitle || "Untitled"}`,
+        contractTitle: newTitle,
+        // The new contract is never itself a template, and never carries the
+        // template's button label.
+        isTemplate: false,
+        templateLabel: null,
         status: "draft",
         contractDate: new Date().toISOString().split("T")[0],
         // Required DB columns — pass empty values for the new draft

@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react'
 
-type Template = { id: string; contractTitle: string }
+type Template = { id: string; contractTitle: string; templateLabel?: string | null }
+
+// What to show on the button — the short templateLabel when set, otherwise
+// fall back to the contractTitle.
+const buttonLabel = (t: Template): string =>
+  (t.templateLabel && t.templateLabel.trim()) || t.contractTitle || 'Untitled template'
 
 const CreateFromTemplateButton = () => {
   const [templates, setTemplates] = useState<Template[]>([])
@@ -12,7 +17,13 @@ const CreateFromTemplateButton = () => {
   useEffect(() => {
     fetch('/api/contracts?where[isTemplate][equals]=true&limit=50&sort=contractTitle')
       .then((res) => res.json())
-      .then((data) => setTemplates(data.docs ?? []))
+      .then((data) => {
+        const docs: Template[] = data.docs ?? []
+        // Sort by the same label that's shown on the button so the visible
+        // order matches alphabetically.
+        docs.sort((a, b) => buttonLabel(a).localeCompare(buttonLabel(b)))
+        setTemplates(docs)
+      })
       .catch(() => {})
   }, [])
 
@@ -64,7 +75,7 @@ const CreateFromTemplateButton = () => {
               opacity: loading && loading !== t.id ? 0.5 : 1,
             }}
           >
-            {loading === t.id ? 'Creating...' : t.contractTitle}
+            {loading === t.id ? 'Creating...' : buttonLabel(t)}
           </button>
         ))}
       </div>

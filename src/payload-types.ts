@@ -1483,6 +1483,10 @@ export interface Contract {
    * Mark as a template contract (e.g. Google Ads). Duplicate to create new contracts.
    */
   isTemplate?: boolean | null;
+  /**
+   * Short label shown on the 'Create from Template' button (e.g. 'E-Commerce', 'Google Ads'). Falls back to the contract title if blank.
+   */
+  templateLabel?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -7339,6 +7343,7 @@ export interface ContractsSelect<T extends boolean = true> {
   signingTokenExpiresAt?: T;
   sentAt?: T;
   isTemplate?: T;
+  templateLabel?: T;
   updatedAt?: T;
   createdAt?: T;
 }
