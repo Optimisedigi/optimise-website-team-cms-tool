@@ -437,14 +437,6 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
               {draft.ccList ? <> · CC: {draft.ccList}</> : null}
               {draft.postmarkMessageId ? <> · Brevo ID: <code style={{ fontSize: 11 }}>{draft.postmarkMessageId}</code></> : null}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={overrideCooldown}
-                onChange={(e) => setOverrideCooldown(e.target.checked)}
-              />
-              <span>Override cooldown and resend (e.g. to a different/additional email address)</span>
-            </label>
           </div>
         )}
 
@@ -561,6 +553,29 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
             </div>
           </div>
         </div>
+
+        {!rejectMode && (
+          <div
+            style={{
+              padding: '8px 20px',
+              borderTop: '1px solid var(--theme-elevation-100)',
+              background: 'var(--theme-elevation-50)',
+              fontSize: 12,
+              color: 'var(--theme-elevation-600)',
+            }}
+          >
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={overrideCooldown}
+                onChange={(e) => setOverrideCooldown(e.target.checked)}
+              />
+              <span>
+                Override 20-day cooldown for this contact (tick this if a prior test/send to the same Xero contact is blocking this draft).
+              </span>
+            </label>
+          </div>
+        )}
 
         <div style={{ padding: '12px 20px', borderTop: '1px solid var(--theme-elevation-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div>
