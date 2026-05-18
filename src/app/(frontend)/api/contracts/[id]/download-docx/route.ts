@@ -198,18 +198,19 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     labelValuePara("Phone", contactPhone, 200),
   );
 
-  // Effective date — hide qualifier when confirmed; otherwise show either the
-  // default "(to be confirmed with client)" or, when the deposit toggle is on,
-  // "(once the deposit has been paid)".
+  // Effective date — precedence: deposit qualifier wins when ON; otherwise
+  // show the "to be confirmed" qualifier unless the date is confirmed.
   {
     const effectiveDateRuns = [
       new TextRun({ text: "Effective Date: ", bold: true }),
       new TextRun({ text: doc.contractDate ? formatDate(doc.contractDate) : "" }),
     ];
-    if (!doc.effectiveDateConfirmed) {
-      const qualifier = doc.effectiveDateOnDeposit
-        ? " (once the deposit has been paid)"
-        : " (to be confirmed with client)";
+    const qualifier = doc.effectiveDateOnDeposit
+      ? " (once the deposit has been paid)"
+      : !doc.effectiveDateConfirmed
+        ? " (to be confirmed with client)"
+        : null;
+    if (qualifier) {
       effectiveDateRuns.push(
         new TextRun({ text: qualifier, italics: true, color: "666666" }),
       );

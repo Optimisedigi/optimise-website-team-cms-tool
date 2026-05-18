@@ -338,16 +338,19 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
           <Text style={styles.effectiveDate}>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>Effective Date:</Text>
             {" "}{c.effectiveDate}
-            {!c.effectiveDateConfirmed && (
+            {/* Precedence: deposit qualifier wins when ON; otherwise show the
+                "to be confirmed" qualifier unless the date is confirmed. */}
+            {c.effectiveDateOnDeposit ? (
               <>
                 {" "}
-                <Text style={{ color: "#666", fontFamily: "Helvetica-Oblique" }}>
-                  {c.effectiveDateOnDeposit
-                    ? "(once the deposit has been paid)"
-                    : "(to be confirmed with client)"}
-                </Text>
+                <Text style={{ color: "#666", fontFamily: "Helvetica-Oblique" }}>(once the deposit has been paid)</Text>
               </>
-            )}
+            ) : !c.effectiveDateConfirmed ? (
+              <>
+                {" "}
+                <Text style={{ color: "#666", fontFamily: "Helvetica-Oblique" }}>(to be confirmed with client)</Text>
+              </>
+            ) : null}
           </Text>
           <View style={styles.hrThick} />
         </View>

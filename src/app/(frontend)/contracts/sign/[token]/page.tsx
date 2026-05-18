@@ -543,13 +543,13 @@ export default function ContractSignPage() {
 
         <p style={{ fontSize: 15, margin: '24px 0 0' }}>
           <strong>Effective Date:</strong> {formatDate(contract.contractDate)}
-          {!contract.effectiveDateConfirmed && (
-            <> <span style={{ color: '#666', fontStyle: 'italic' }}>{
-              contract.effectiveDateOnDeposit
-                ? '(once the deposit has been paid)'
-                : '(to be confirmed with client)'
-            }</span></>
-          )}
+          {/* Precedence: deposit qualifier wins when ON; otherwise show the
+              "to be confirmed" qualifier unless the date is confirmed. */}
+          {contract.effectiveDateOnDeposit ? (
+            <> <span style={{ color: '#666', fontStyle: 'italic' }}>(once the deposit has been paid)</span></>
+          ) : !contract.effectiveDateConfirmed ? (
+            <> <span style={{ color: '#666', fontStyle: 'italic' }}>(to be confirmed with client)</span></>
+          ) : null}
         </p>
 
         <hr style={hrThickStyle} />

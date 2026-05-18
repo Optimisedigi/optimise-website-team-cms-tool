@@ -302,7 +302,7 @@ export const Contracts: CollectionConfig = {
                   defaultValue: false,
                   admin: {
                     description:
-                      "Toggle ON once the effective date is confirmed with the client. When OFF, the cover page shows '(to be confirmed with client)' next to the date; when ON, the qualifier is hidden. Takes precedence over the deposit toggle.",
+                      "Toggle ON once the effective date is confirmed with the client. When OFF, the cover page shows '(to be confirmed with client)' next to the date; when ON, the qualifier is hidden. The deposit toggle below overrides this.",
                   },
                 },
                 {
@@ -311,7 +311,7 @@ export const Contracts: CollectionConfig = {
                   defaultValue: false,
                   admin: {
                     description:
-                      "When ON: the cover page shows '(once the deposit has been paid)' next to the effective date. Use on jobs that require an upfront deposit before work starts. Ignored when 'Effective date confirmed' is ON.",
+                      "When ON: the cover page shows '(once the deposit has been paid)' next to the effective date, even if 'Effective date confirmed' is also ON. Use on jobs that require an upfront deposit before work starts.",
                   },
                 },
               ],
