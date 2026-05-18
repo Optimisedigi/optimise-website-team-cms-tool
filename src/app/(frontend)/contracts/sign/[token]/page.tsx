@@ -728,16 +728,16 @@ export default function ContractSignPage() {
         ) : contract.paymentTermsOverride ? (
           <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.paymentTermsOverride}</div>
         ) : (
-          <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
+          <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.25 }}>
             {!contract.hideSetupFee && (
-              <li style={{ marginBottom: 2 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
+              <li style={{ marginBottom: 0 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
             )}
-            <li style={{ marginBottom: 2 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
+            <li style={{ marginBottom: 0 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
             {hostingAmount && (
-              <li style={{ marginBottom: 2 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
+              <li style={{ marginBottom: 0 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
             )}
-            <li style={{ marginBottom: 2 }}>Invoices are due within 14 days of issue.</li>
-            <li style={{ marginBottom: 2 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
+            <li style={{ marginBottom: 0 }}>Invoices are due within 14 days of issue.</li>
+            <li style={{ marginBottom: 0 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
           </ul>
         )}
 
@@ -754,10 +754,10 @@ export default function ContractSignPage() {
         ) : contract.terminationOverride ? (
           <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.terminationOverride}</div>
         ) : (
-          <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
-            <li style={{ marginBottom: 2 }}>Either party may terminate this contract with a 30-day written notice.</li>
-            <li style={{ marginBottom: 2 }}>Upon termination, the Client agrees to pay for all services rendered up to the termination date.</li>
-            <li style={{ marginBottom: 2 }}>Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.</li>
+          <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.25 }}>
+            <li style={{ marginBottom: 0 }}>Either party may terminate this contract with a 30-day written notice.</li>
+            <li style={{ marginBottom: 0 }}>Upon termination, the Client agrees to pay for all services rendered up to the termination date.</li>
+            <li style={{ marginBottom: 0 }}>Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.</li>
           </ul>
         )}
 
@@ -1007,7 +1007,7 @@ export default function ContractSignPage() {
         .scope-content h4 { font-size: 13px; }
         .scope-content ul { margin: 0 0 6px; padding-left: 24px; list-style-type: disc; }
         .scope-content ol { margin: 0 0 6px; padding-left: 24px; list-style-type: decimal; }
-        .scope-content li { margin-bottom: 3px; line-height: 1.5; }
+        .scope-content li { margin-bottom: 0; line-height: 1.25; }
         .scope-content li > ul { padding-left: 24px; margin: 4px 0; list-style-type: circle; }
         .scope-content li > ol { padding-left: 24px; margin: 4px 0; list-style-type: lower-alpha; }
         .scope-content strong { font-weight: 700; }

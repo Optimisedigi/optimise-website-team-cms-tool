@@ -43,6 +43,10 @@ export async function GET(
     if (doc.paymentTermsOverride?.root?.children) {
       paymentTermsOverrideText = extractPlainText(doc.paymentTermsOverride.root.children);
     }
+    let terminationOverrideText = "";
+    if (doc.terminationOverride?.root?.children) {
+      terminationOverrideText = extractPlainText(doc.terminationOverride.root.children);
+    }
 
     // Resolve agency signature media to URL
     const agencySigUrl = await resolveMediaToDataUri(payload, doc.agencySignature);
@@ -70,6 +74,8 @@ export async function GET(
       paymentTerms: doc.paymentTerms,
       pricingNotes: pricingNotesText,
       paymentTermsOverride: paymentTermsOverrideText,
+      terminationOverride: terminationOverrideText,
+      terminationOverrideNodes: doc.terminationOverride?.root?.children,
       scopeOfWork: scopeText,
       scopeOfWorkNodes: doc.scopeOfWork?.root?.children,
       pricingNotesNodes: doc.pricingNotes?.root?.children,

@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   bulletItem: {
     flexDirection: "row",
-    marginBottom: 2,
+    marginBottom: 0,
     paddingLeft: 8,
   },
   bulletDot: {
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   bulletText: {
     flex: 1,
     fontSize: 9,
-    lineHeight: 1.35,
+    lineHeight: 1.2,
   },
   // Tables — horizontal-lines-only look (no outer border, no vertical dividers).
   // Bold header row with a thin black bottom rule; light grey rule between body rows.

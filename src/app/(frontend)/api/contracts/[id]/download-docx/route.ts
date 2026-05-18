@@ -443,7 +443,7 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
         new Paragraph({
           children: [new TextRun({ text: bullet })],
           bullet: { level: 0 },
-          spacing: { after: 40 },
+          spacing: { after: 0, line: 260 },
         }),
       );
     }
@@ -467,7 +467,7 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
         new Paragraph({
           children: [new TextRun({ text: bullet })],
           bullet: { level: 0 },
-          spacing: { after: 40 },
+          spacing: { after: 0, line: 260 },
         }),
       );
     }
@@ -675,7 +675,7 @@ function lexicalListItemToDocx(item: any, isOrdered: boolean, level: number): Pa
       new Paragraph({
         children: lexicalInlineRuns(inlineChildren),
         bullet: { level },
-        spacing: { after: 60 },
+        spacing: { after: 0, line: 260 },
       }),
     );
   }
