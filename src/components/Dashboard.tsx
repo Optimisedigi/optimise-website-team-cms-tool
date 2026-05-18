@@ -460,17 +460,17 @@ const Dashboard = () => {
                 <span className="od-box__stat-label">Active Client Proposals</span>
               </div>
               <StatWithTooltip
-                value={`$${(data.monthlyRetainerNet ?? 0).toLocaleString()}`}
+                value={`$${fmt0(data.monthlyRetainerNet ?? 0)}`}
                 label="Monthly Retainer"
                 rows={(data.breakdowns?.monthlyRetainer ?? []).map((row, i) => (
                   <div key={i} className="od-stat-tooltip__row">
                     <span className="od-stat-tooltip__name">{row.clientName}</span>
                     <span className="od-stat-tooltip__detail">
-                      ${row.gross.toLocaleString()} gross
+                      ${fmt0(row.gross)} gross
                       {row.commission > 0 && (
                         <>
-                          {' − '}${row.commission.toLocaleString()} commission{' → '}
-                          <strong>${row.net.toLocaleString()} net</strong>
+                          {' − '}${fmt0(row.commission)} commission{' → '}
+                          <strong>${fmt0(row.net)} net</strong>
                         </>
                       )}
                     </span>
@@ -484,39 +484,39 @@ const Dashboard = () => {
                   <div key={i} className="od-stat-tooltip__row">
                     <span className="od-stat-tooltip__name">{row.clientName}</span>
                     <span className="od-stat-tooltip__detail">
-                      Retainer net: ${row.monthlyNetSum.toLocaleString()}
+                      Retainer net: ${fmt0(row.monthlyNetSum)}
                       {row.setupFee > 0 && (
                         <>
-                          {' • Setup: '}${row.setupFee.toLocaleString()}
+                          {' • Setup: '}${fmt0(row.setupFee)}
                         </>
                       )}
                       {(row.priorPeriodThisYear ?? 0) > 0 && (
                         <>
                           {' • Prior-period (this year): '}
-                          ${(row.priorPeriodThisYear ?? 0).toLocaleString()}
+                          ${fmt0(row.priorPeriodThisYear ?? 0)}
                         </>
                       )}
                       {row.retainerOneOffs.length > 0 && (
                         <>
                           {' • Extras: '}
                           {row.retainerOneOffs
-                            .map((p) => `${p.projectName} $${p.amount.toLocaleString()}`)
+                            .map((p) => `${p.projectName} $${fmt0(p.amount)}`)
                             .join(', ')}
                         </>
                       )}
-                      {' → '}<strong>${row.total.toLocaleString()}</strong>
+                      {' → '}<strong>${fmt0(row.total)}</strong>
                     </span>
                   </div>
                 ))}
               />
               <StatWithTooltip
-                value={`$${(data.oneOffYTD ?? 0).toLocaleString()}`}
+                value={`$${fmt0(data.oneOffYTD ?? 0)}`}
                 label="One-Off Projects (YTD)"
                 rows={(data.breakdowns?.oneOffYTD ?? []).map((row, i) => (
                   <div key={i} className="od-stat-tooltip__row">
                     <span className="od-stat-tooltip__name">{row.clientName}</span>
                     <span className="od-stat-tooltip__detail">
-                      {row.projectName} — <strong>${row.amount.toLocaleString()}</strong>
+                      {row.projectName} — <strong>${fmt0(row.amount)}</strong>
                     </span>
                   </div>
                 ))}
