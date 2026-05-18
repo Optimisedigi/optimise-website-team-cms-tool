@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { generateContractPdf } from "@/lib/contract-pdf";
 import type { ContractData } from "@/lib/contract-template";
+import { getPrimaryClientEmail } from "@/lib/contract-emails";
 
 export async function GET(
   req: NextRequest,
@@ -50,7 +51,8 @@ export async function GET(
       contractTitle: doc.contractTitle,
       clientName: doc.clientName,
       clientContactName: doc.clientContactName,
-      clientEmail: doc.clientEmail,
+      // Only the primary (first) email is shown on the contract.
+      clientEmail: getPrimaryClientEmail(doc.clientEmail),
       clientTitle: doc.clientTitle,
       clientPhone: doc.clientPhone,
       clientWebsite: doc.clientWebsite,

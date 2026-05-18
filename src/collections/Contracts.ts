@@ -4,6 +4,7 @@ import { logActivity } from "../lib/activity-log";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 import { ANNUAL_REVIEW_DEFAULTS } from "../lib/tier-table";
 import { scheduleContractReminders } from "../lib/contract-reminders";
+import { validateClientEmails } from "../lib/contract-emails";
 
 /**
  * Wrap a plain-text default in a minimal Lexical rich-text root so
@@ -203,9 +204,11 @@ export const Contracts: CollectionConfig = {
               fields: [
                 {
                   name: "clientEmail",
-                  type: "email",
+                  type: "text",
+                  validate: (value: unknown) => validateClientEmails(value),
                   admin: {
-                    description: "Client email",
+                    description:
+                      "Client email(s) \u2014 comma-separated. The first address is the signer shown on the contract; the rest are CC'd on the signing invite and signed receipt.",
                   },
                 },
                 {

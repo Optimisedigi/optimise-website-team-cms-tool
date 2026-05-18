@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { generateSigningInviteEmail } from "@/lib/contract-email";
 import { logActivity } from "@/lib/activity-log";
+import { parseClientEmails } from "@/lib/contract-emails";
 
 export async function POST(
   req: NextRequest,
@@ -36,7 +37,8 @@ export async function POST(
     );
   }
 
-  if (!doc.clientEmail) {
+  const { primary: primaryEmail, ccs: ccEmails } = parseClientEmails(doc.clientEmail);
+  if (!primaryEmail) {
     return NextResponse.json(
       { error: "No client email address on this contract" },
       { status: 400 },
@@ -79,7 +81,8 @@ export async function POST(
       },
       body: JSON.stringify({
         sender: { name: fromName, email: fromEmail },
-        to: [{ email: doc.clientEmail, name: recipientName }],
+        to: [{ email: primaryEmail, name: recipientName }],
+        ...(ccEmails.length > 0 && { cc: ccEmails.map((email) => ({ email })) }),
         subject: `Contract for Review: ${contractTitle}`,
         htmlContent: generateSigningInviteEmail({
           recipientName,
@@ -119,16 +122,19 @@ export async function POST(
       );
     }
 
-    console.log(`[brevo] Signing invite sent to ${doc.clientEmail}`);
+    const sentToLabel = ccEmails.length > 0
+      ? `${primaryEmail} (cc: ${ccEmails.join(", ")})`
+      : primaryEmail;
+    console.log(`[brevo] Signing invite sent to ${sentToLabel}`);
 
     logActivity(payload, {
       type: "contract_sent",
       title: `Contract email sent: ${contractTitle}`,
-      description: `Sent to ${doc.clientEmail}`,
+      description: `Sent to ${sentToLabel}`,
       user: user.id,
     }).catch(() => {});
 
-    return NextResponse.json({ ok: true, sentTo: doc.clientEmail });
+    return NextResponse.json({ ok: true, sentTo: primaryEmail, cc: ccEmails });
   } catch (err: any) {
     console.error("[brevo] Send email failed:", err.message);
     return NextResponse.json(

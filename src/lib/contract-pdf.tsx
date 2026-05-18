@@ -13,6 +13,7 @@ import {
   type ContractData,
   type ContractSection,
 } from "./contract-template";
+import { getPrimaryClientEmail } from "./contract-emails";
 import path from "path";
 import fs from "fs";
 
@@ -291,7 +292,7 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
             <Text style={styles.fieldLabel}>Title: </Text>
             <Text style={styles.fieldValue}>{c.clientTitle || ""}    </Text>
             <Text style={styles.fieldLabel}>Email</Text>
-            <Text style={styles.fieldValue}>: {c.clientEmail}</Text>
+            <Text style={styles.fieldValue}>: {getPrimaryClientEmail(c.clientEmail)}</Text>
           </View>
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>Phone</Text>

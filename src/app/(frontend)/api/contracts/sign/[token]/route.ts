@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity-log";
 import type { ContractData } from "@/lib/contract-template";
 import { generateCompletionEmail } from "@/lib/contract-email";
 import { parseTierTable } from "@/lib/tier-table";
+import { parseClientEmails } from "@/lib/contract-emails";
 
 // GET: return contract data for the signing page
 export async function GET(
@@ -101,7 +102,9 @@ export async function GET(
     contractTitle: doc.contractTitle,
     clientName: doc.clientName,
     clientContactName: doc.clientContactName,
-    clientEmail: doc.clientEmail,
+    // Only expose the primary signer email to the sign page — any CC
+    // addresses are kept server-side for receipt delivery only.
+    clientEmail: parseClientEmails(doc.clientEmail).primary ?? "",
     clientTitle: doc.clientTitle,
     clientPhone: doc.clientPhone,
     clientWebsite: doc.clientWebsite,
@@ -162,6 +165,10 @@ export async function POST(
   if (doc.status !== "sent") {
     return NextResponse.json({ error: "This contract is not available for signing" }, { status: 400 });
   }
+
+  // Capture CC addresses from the ORIGINAL clientEmail (comma-separated list)
+  // before any update overwrites the field with the signer's single address.
+  const originalCcEmails = parseClientEmails(doc.clientEmail).ccs;
 
   if (doc.signingTokenExpiresAt && new Date(doc.signingTokenExpiresAt) < new Date()) {
     return NextResponse.json({ error: "Signing link expired" }, { status: 400 });
@@ -332,7 +339,12 @@ export async function POST(
       const agencyEmail = process.env.CONTRACT_AGENCY_EMAIL || "contracts@optimisedigital.online";
       const contractTitle = updatedDoc.contractTitle || "Service Contract";
 
-      const sendBrevoEmail = async (to: { email: string; name: string }, htmlContent: string, subject: string) => {
+      const sendBrevoEmail = async (
+        to: { email: string; name: string },
+        htmlContent: string,
+        subject: string,
+        ccEmails: string[] = [],
+      ) => {
         const res = await fetch("https://api.brevo.com/v3/smtp/email", {
           method: "POST",
           headers: {
@@ -342,6 +354,7 @@ export async function POST(
           body: JSON.stringify({
             sender: { name: fromName, email: fromEmail },
             to: [to],
+            ...(ccEmails.length > 0 && { cc: ccEmails.map((email) => ({ email })) }),
             subject,
             htmlContent,
           }),
@@ -350,13 +363,15 @@ export async function POST(
           const text = await res.text();
           console.error(`[brevo] API error (${res.status}):`, text);
         } else {
-          console.log(`[brevo] Email sent to ${to.email}`);
+          const ccLabel = ccEmails.length > 0 ? ` (cc: ${ccEmails.join(", ")})` : "";
+          console.log(`[brevo] Email sent to ${to.email}${ccLabel}`);
         }
       };
 
       // Send both emails in parallel and await before returning (required for Vercel serverless)
       await Promise.all([
-        // Client email
+        // Client email — to the signer, CC any additional addresses that were
+        // on the original clientEmail list when the contract was sent.
         sendBrevoEmail(
           { email: updatedDoc.clientEmail, name: updatedDoc.clientContactName || updatedDoc.clientName || "" },
           generateCompletionEmail({
@@ -366,6 +381,7 @@ export async function POST(
             isAgencyCopy: false,
           }),
           `Signed Contract: ${contractTitle}`,
+          originalCcEmails,
         ).catch((err: any) => console.error("[brevo] Client email failed:", err.message)),
 
         // Agency email

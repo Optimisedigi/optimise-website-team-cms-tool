@@ -22,6 +22,7 @@ import {
   formatDate,
 } from "@/lib/contract-template";
 import { parseTierTable } from "@/lib/tier-table";
+import { getPrimaryClientEmail } from "@/lib/contract-emails";
 import fs from "fs";
 import path from "path";
 
@@ -156,7 +157,7 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
           new TextRun({ text: "Title: ", bold: true }),
           new TextRun({ text: `${doc.clientTitle || ""}    ` }),
           new TextRun({ text: "Email: ", bold: true }),
-          new TextRun({ text: doc.clientEmail || "" }),
+          new TextRun({ text: getPrimaryClientEmail(doc.clientEmail) }),
         ],
         spacing: { after: 50 },
       }),
