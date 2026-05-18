@@ -226,6 +226,27 @@ describe("syncContractToClient", () => {
     expect(payload.update).not.toHaveBeenCalled();
   });
 
+  it("falls back to contractDate for clientStartDate when contractStartDate is blank", async () => {
+    const payload = createMockPayload({
+      id: 42,
+      monthlyRetainer: 0,
+      setupFee: 0,
+      clientStartDate: null,
+      oneOffProjects: [],
+    });
+
+    const result = await syncContractToClient(payload as any, {
+      id: 1,
+      client: 42,
+      contractStartDate: null,
+      contractDate: "2026-05-18",
+    });
+
+    expect(result.applied.clientStartDate).toBe(true);
+    const call = payload.update.mock.calls[0][0];
+    expect(call.data.clientStartDate).toBe("2026-05-18");
+  });
+
   it("backfills signedContract + signedContractUrl on the client when missing", async () => {
     const payload = createMockPayload({
       id: 42,

@@ -221,6 +221,7 @@ export const Contracts: CollectionConfig = {
               setupFee: doc.setupFee,
               monthlyRetainer: doc.monthlyRetainer,
               contractStartDate: doc.contractStartDate,
+              contractDate: doc.contractDate,
               clientName: doc.clientName,
               clientContactName: doc.clientContactName,
               clientEmail: doc.clientEmail,

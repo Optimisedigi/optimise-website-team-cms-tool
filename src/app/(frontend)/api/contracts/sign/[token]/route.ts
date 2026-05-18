@@ -247,6 +247,7 @@ export async function POST(
       setupFee: updatedDoc.setupFee,
       monthlyRetainer: updatedDoc.monthlyRetainer,
       contractStartDate: updatedDoc.contractStartDate,
+      contractDate: updatedDoc.contractDate,
       clientName: updatedDoc.clientName,
       clientContactName: updatedDoc.clientContactName,
       clientEmail: updatedDoc.clientEmail,

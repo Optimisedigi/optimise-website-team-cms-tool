@@ -13,7 +13,10 @@ export interface ContractSyncSource {
   client?: number | string | { id: number | string } | null;
   setupFee?: number | null;
   monthlyRetainer?: number | null;
+  /** Engagement effective date. Preferred source for client.clientStartDate. */
   contractStartDate?: string | null;
+  /** Contract date — fallback for client.clientStartDate when contractStartDate is blank (most contracts fill in only one of the two date fields). */
+  contractDate?: string | null;
   /** Business / company name on the contract — copied to client.name when missing. */
   clientName?: string | null;
   /** Primary contact person — copied to client.contactName when missing. */
@@ -156,7 +159,12 @@ export async function syncContractToClient(
     }
 
     // Client start date ────────────────────────────────────────────────────
-    const contractStart = contract.contractStartDate ?? null;
+    // Prefer the explicit contractStartDate; fall back to contractDate so a
+    // contract with only one date field filled in still seeds the client.
+    const contractStart =
+      (contract.contractStartDate ?? "").trim() ||
+      (contract.contractDate ?? "").trim() ||
+      null;
     const existingStart = (client.clientStartDate as string | null) ?? null;
     if (contractStart && !existingStart) {
       updates.clientStartDate = contractStart;
@@ -243,7 +251,9 @@ export async function syncContractToClient(
         ? (client.oneOffProjects as Array<Record<string, unknown>>)
         : [];
       const defaultDate =
-        (contract.contractStartDate as string | null) ?? new Date().toISOString();
+        (contract.contractStartDate as string | null) ||
+        (contract.contractDate as string | null) ||
+        new Date().toISOString();
       const appended = additionalWork
         .filter((row) => row && row.projectName && row.amount != null)
         .map((row) => ({
