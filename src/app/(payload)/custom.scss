@@ -763,6 +763,10 @@ $svg-close: "%3C/svg%3E";
   grid-template-columns: repeat(8, 1fr);
 }
 
+.od-box__stats--9 {
+  grid-template-columns: repeat(9, 1fr);
+}
+
 .od-box__stats--4 {
   grid-template-columns: repeat(4, 1fr);
 }
@@ -1601,6 +1605,7 @@ $svg-close: "%3C/svg%3E";
 
   // ── Stat grids — 2 columns on mobile ──
   .od-box__stats,
+  .od-box__stats--9,
   .od-box__stats--8,
   .od-box__stats--7,
   .od-box__stats--6,

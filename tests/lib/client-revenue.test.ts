@@ -1,0 +1,295 @@
+import {
+  monthlyCommissionForDate,
+  netMonthlyRetainer,
+  retainerRevenueYTD,
+  oneOffsYTD,
+  oneOffsThisMonth,
+  monthsBetween,
+  type ReferralCommission,
+} from "@/lib/client-revenue";
+
+describe("monthsBetween", () => {
+  it("counts whole months between two dates", () => {
+    expect(monthsBetween(new Date(2026, 0, 1), new Date(2026, 5, 1))).toBe(5);
+  });
+  it("clamps at 0 when end is before start", () => {
+    expect(monthsBetween(new Date(2026, 5, 1), new Date(2026, 0, 1))).toBe(0);
+  });
+});
+
+describe("monthlyCommissionForDate", () => {
+  const monthlyRetainer = 1000;
+  const date = new Date(2026, 4, 15); // 15 May 2026
+
+  it("returns 0 when no commissions", () => {
+    expect(monthlyCommissionForDate([], monthlyRetainer, date)).toBe(0);
+    expect(monthlyCommissionForDate(null, monthlyRetainer, date)).toBe(0);
+  });
+
+  it("ignores one_off commissions", () => {
+    const commissions: ReferralCommission[] = [
+      {
+        frequency: "one_off",
+        oneOffAmount: 500,
+        startDate: "2026-01-01",
+      },
+    ];
+    expect(monthlyCommissionForDate(commissions, monthlyRetainer, date)).toBe(0);
+  });
+
+  it("computes percentage of gross retainer", () => {
+    const commissions: ReferralCommission[] = [
+      {
+        frequency: "monthly",
+        commissionType: "percentage",
+        percentage: 8,
+        startDate: "2026-01-01",
+      },
+    ];
+    expect(monthlyCommissionForDate(commissions, monthlyRetainer, date)).toBe(80);
+  });
+
+  it("uses fixed monthly amount when commissionType=fixed", () => {
+    const commissions: ReferralCommission[] = [
+      {
+        frequency: "monthly",
+        commissionType: "fixed",
+        monthlyAmount: 120,
+        startDate: "2026-01-01",
+      },
+    ];
+    expect(monthlyCommissionForDate(commissions, monthlyRetainer, date)).toBe(120);
+  });
+
+  it("excludes commissions starting in the future", () => {
+    const commissions: ReferralCommission[] = [
+      {
+        frequency: "monthly",
+        commissionType: "percentage",
+        percentage: 10,
+        startDate: "2026-08-01",
+      },
+    ];
+    expect(monthlyCommissionForDate(commissions, monthlyRetainer, date)).toBe(0);
+  });
+
+  it("excludes commissions whose endDate has passed", () => {
+    const commissions: ReferralCommission[] = [
+      {
+        frequency: "monthly",
+        commissionType: "percentage",
+        percentage: 10,
+        startDate: "2025-01-01",
+        endDate: "2026-03-31",
+      },
+    ];
+    expect(monthlyCommissionForDate(commissions, monthlyRetainer, date)).toBe(0);
+  });
+
+  it("includes commissions whose endDate is in the future", () => {
+    const commissions: ReferralCommission[] = [
+      {
+        frequency: "monthly",
+        commissionType: "percentage",
+        percentage: 10,
+        startDate: "2025-01-01",
+        endDate: "2026-12-31",
+      },
+    ];
+    expect(monthlyCommissionForDate(commissions, monthlyRetainer, date)).toBe(100);
+  });
+
+  it("treats missing percentage as 0 with no error", () => {
+    const commissions: ReferralCommission[] = [
+      {
+        frequency: "monthly",
+        commissionType: "percentage",
+        startDate: "2025-01-01",
+      },
+    ];
+    expect(monthlyCommissionForDate(commissions, monthlyRetainer, date)).toBe(0);
+  });
+
+  it("sums multiple active commissions", () => {
+    const commissions: ReferralCommission[] = [
+      { frequency: "monthly", commissionType: "percentage", percentage: 8, startDate: "2026-01-01" },
+      { frequency: "monthly", commissionType: "fixed", monthlyAmount: 50, startDate: "2026-01-01" },
+    ];
+    expect(monthlyCommissionForDate(commissions, monthlyRetainer, date)).toBe(130);
+  });
+});
+
+describe("netMonthlyRetainer", () => {
+  const date = new Date(2026, 4, 15);
+
+  it("subtracts commission from retainer", () => {
+    const commissions: ReferralCommission[] = [
+      { frequency: "monthly", commissionType: "percentage", percentage: 8, startDate: "2026-01-01" },
+    ];
+    expect(netMonthlyRetainer(1350, commissions, date)).toBe(1242);
+  });
+
+  it("clamps at 0 when commission exceeds retainer", () => {
+    const commissions: ReferralCommission[] = [
+      { frequency: "monthly", commissionType: "fixed", monthlyAmount: 2000, startDate: "2026-01-01" },
+    ];
+    expect(netMonthlyRetainer(1000, commissions, date)).toBe(0);
+  });
+
+  it("returns gross when no commissions", () => {
+    expect(netMonthlyRetainer(1000, [], date)).toBe(1000);
+  });
+});
+
+describe("retainerRevenueYTD", () => {
+  const now = new Date(2026, 4, 15); // 15 May 2026 — 5 full months (Jan-May)
+
+  it("returns 0 when no retainer", () => {
+    expect(
+      retainerRevenueYTD({ monthlyRetainer: 0, clientStartDate: "2026-01-01" }, now),
+    ).toBe(0);
+  });
+
+  it("falls back to current-month net when no clientStartDate", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 1000,
+          referralCommissions: [
+            { frequency: "monthly", commissionType: "percentage", percentage: 10, startDate: "2026-01-01" },
+          ],
+        },
+        now,
+      ),
+    ).toBe(900);
+  });
+
+  it("multiplies net retainer by months elapsed when no history", () => {
+    // Jan, Feb, Mar, Apr, May = 5 months, each $1242 net
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 1350,
+          clientStartDate: "2025-06-01",
+          referralCommissions: [
+            { frequency: "monthly", commissionType: "percentage", percentage: 8, startDate: "2025-06-01" },
+          ],
+        },
+        now,
+      ),
+    ).toBe(1242 * 5);
+  });
+
+  it("applies a retainer change mid-year with a percentage commission", () => {
+    // Client started 2025-06-01 at $1000; on 2026-04-01 changed to $1500.
+    // Commission: 10% of gross, active all year.
+    // Jan, Feb, Mar 2026 = 3 × ($1000 − $100) = 2700
+    // Apr, May 2026 = 2 × ($1500 − $150) = 2700
+    // Total = 5400
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 1500,
+          clientStartDate: "2025-06-01",
+          retainerHistory: [
+            {
+              amount: 1500,
+              previousAmount: 1000,
+              effectiveDate: "2026-04-01T00:00:00.000Z",
+            },
+          ],
+          referralCommissions: [
+            { frequency: "monthly", commissionType: "percentage", percentage: 10, startDate: "2025-06-01" },
+          ],
+        },
+        now,
+      ),
+    ).toBe(5400);
+  });
+
+  it("only counts months from clientStartDate forward when started this year", () => {
+    // Started 1 Mar 2026 → Mar, Apr, May = 3 months × 1000 = 3000
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 1000,
+          clientStartDate: "2026-03-01",
+        },
+        now,
+      ),
+    ).toBe(3000);
+  });
+
+  it("returns 0 when clientStartDate is in the future", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 1000,
+          clientStartDate: "2026-12-01",
+        },
+        now,
+      ),
+    ).toBe(0);
+  });
+
+  it("ignores one_off commissions in retainer math", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 1000,
+          clientStartDate: "2025-06-01",
+          referralCommissions: [
+            { frequency: "one_off", oneOffAmount: 500, startDate: "2026-02-01" },
+          ],
+        },
+        now,
+      ),
+    ).toBe(5000);
+  });
+
+  it("clamps net to 0 when commission exceeds retainer", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 1000,
+          clientStartDate: "2025-06-01",
+          referralCommissions: [
+            { frequency: "monthly", commissionType: "fixed", monthlyAmount: 2000, startDate: "2025-06-01" },
+          ],
+        },
+        now,
+      ),
+    ).toBe(0);
+  });
+});
+
+describe("oneOffsYTD", () => {
+  const now = new Date(2026, 4, 15);
+
+  it("sums projects in current calendar year up to now", () => {
+    const projects = [
+      { amount: 500, date: "2026-01-15" },
+      { amount: 700, date: "2026-04-20" },
+      { amount: 100, date: "2025-12-31" }, // prior year — excluded
+    ];
+    expect(oneOffsYTD(projects, now)).toBe(1200);
+  });
+
+  it("returns 0 for empty input", () => {
+    expect(oneOffsYTD([], now)).toBe(0);
+    expect(oneOffsYTD(null, now)).toBe(0);
+  });
+});
+
+describe("oneOffsThisMonth", () => {
+  const now = new Date(2026, 4, 15);
+
+  it("sums only current-month projects", () => {
+    const projects = [
+      { amount: 500, date: "2026-04-30" },
+      { amount: 700, date: "2026-05-10" },
+      { amount: 100, date: "2026-05-31" },
+    ];
+    expect(oneOffsThisMonth(projects, now)).toBe(800);
+  });
+});

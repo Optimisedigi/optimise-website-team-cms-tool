@@ -1,6 +1,7 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
+import { retainerRevenueYTD } from "../lib/client-revenue";
 import {
   canAccess,
   canAccessAnyOrApiKey,
@@ -10,13 +11,6 @@ import {
   sensitiveFieldAccess,
 } from "../lib/access";
 import { hasValidApiKey } from "./api-key-access";
-
-function monthsBetween(start: Date, end: Date): number {
-  const months =
-    (end.getFullYear() - start.getFullYear()) * 12 +
-    (end.getMonth() - start.getMonth());
-  return Math.max(0, months);
-}
 
 const trackRetainerChange: CollectionBeforeChangeHook = async ({
   data,
@@ -189,48 +183,27 @@ export const Clients: CollectionConfig = {
       ({ doc }) => {
         if (doc?.isAgency) return doc;
 
-        const monthlyRetainer = Number(doc?.monthlyRetainer) || 0;
         const historicalRevenue = Number(doc?.historicalRevenue) || 0;
-        const clientStartDate = doc?.clientStartDate as string | null;
         const oneOffProjects = Array.isArray(doc?.oneOffProjects) ? doc.oneOffProjects : [];
+        const referralCommissions = Array.isArray(doc?.referralCommissions)
+          ? doc.referralCommissions
+          : [];
         const retainerHistory = Array.isArray(doc?.retainerHistory) ? doc.retainerHistory : [];
 
-        // One-off totals
+        const now = new Date();
         const oneOffTotal = oneOffProjects.reduce(
           (sum: number, p: any) => sum + (Number(p?.amount) || 0),
           0,
         );
-
-        // Retainer revenue to date
-        let retainerRevenue = 0;
-        if (monthlyRetainer > 0) {
-          const now = new Date();
-          if (clientStartDate) {
-            const sortedHistory = [...retainerHistory]
-              .filter((h: any) => h?.effectiveDate && h?.amount != null)
-              .sort(
-                (a: any, b: any) =>
-                  new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime(),
-              );
-            const start = new Date(clientStartDate);
-            if (sortedHistory.length > 0) {
-              let periodStart = start;
-              for (const entry of sortedHistory) {
-                const changeDate = new Date(entry.effectiveDate);
-                if (changeDate > periodStart) {
-                  const months = monthsBetween(periodStart, changeDate);
-                  retainerRevenue += months * (Number(entry.previousAmount) || 0);
-                  periodStart = changeDate;
-                }
-              }
-              retainerRevenue += monthsBetween(periodStart, now) * monthlyRetainer;
-            } else {
-              retainerRevenue = monthsBetween(start, now) * monthlyRetainer;
-            }
-          } else {
-            retainerRevenue = monthlyRetainer;
-          }
-        }
+        const retainerRevenue = retainerRevenueYTD(
+          {
+            monthlyRetainer: Number(doc?.monthlyRetainer) || 0,
+            clientStartDate: doc?.clientStartDate as string | null,
+            retainerHistory,
+            referralCommissions,
+          },
+          now,
+        );
 
         doc.billingSummary = retainerRevenue + oneOffTotal + historicalRevenue;
         return doc;
@@ -628,6 +601,166 @@ export const Clients: CollectionConfig = {
                   admin: {
                     description: "Project date",
                   },
+                },
+              ],
+            },
+            {
+              name: "referralCommissions",
+              type: "array",
+              dbName: "clients_referral_commissions",
+              access: sensitiveFieldAccess("clients"),
+              admin: {
+                description:
+                  "People we pay a commission to for this client. Monthly commissions are deducted from the retainer in all revenue calculations.",
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
+                initCollapsed: true,
+              },
+              validate: ((value: unknown) => {
+                if (!Array.isArray(value)) return true;
+                for (let i = 0; i < value.length; i++) {
+                  const row = value[i] as Record<string, unknown> | null;
+                  if (!row) continue;
+                  if (row.frequency === "monthly" && !row.endDate) {
+                    return `Row ${i + 1}: End date is required for monthly commissions.`;
+                  }
+                }
+                return true;
+              }) as any,
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "payeeName",
+                      type: "text",
+                      required: true,
+                      admin: { description: "Who we pay", width: "50%" },
+                    },
+                    {
+                      name: "payeeContact",
+                      type: "text",
+                      admin: {
+                        description: "Email or phone (internal reference)",
+                        width: "50%",
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "frequency",
+                      type: "select",
+                      required: true,
+                      defaultValue: "monthly",
+                      options: [
+                        { label: "Monthly (ongoing)", value: "monthly" },
+                        { label: "One-off", value: "one_off" },
+                      ],
+                      admin: { width: "33%" },
+                    },
+                    {
+                      name: "commissionType",
+                      type: "select",
+                      defaultValue: "percentage",
+                      options: [
+                        { label: "% of retainer", value: "percentage" },
+                        { label: "Fixed $", value: "fixed" },
+                      ],
+                      admin: {
+                        width: "33%",
+                        description: "Only used when frequency is monthly",
+                        condition: (_data: any, siblingData: any) =>
+                          siblingData?.frequency === "monthly",
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "percentage",
+                      type: "number",
+                      min: 0,
+                      max: 100,
+                      admin: {
+                        description: "e.g. 8 = 8% of monthly retainer",
+                        step: 0.1,
+                        width: "33%",
+                        condition: (_data: any, siblingData: any) =>
+                          siblingData?.frequency === "monthly" &&
+                          (siblingData?.commissionType ?? "percentage") === "percentage",
+                      },
+                    },
+                    {
+                      name: "monthlyAmount",
+                      type: "number",
+                      min: 0,
+                      admin: {
+                        description: "Fixed $/month",
+                        step: 1,
+                        width: "33%",
+                        condition: (_data: any, siblingData: any) =>
+                          siblingData?.frequency === "monthly" &&
+                          siblingData?.commissionType === "fixed",
+                      },
+                    },
+                    {
+                      name: "oneOffAmount",
+                      type: "number",
+                      min: 0,
+                      admin: {
+                        description: "One-off $ amount",
+                        step: 1,
+                        width: "33%",
+                        condition: (_data: any, siblingData: any) =>
+                          siblingData?.frequency === "one_off",
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "startDate",
+                      type: "date",
+                      required: true,
+                      admin: {
+                        description: "When commission begins",
+                        width: "50%",
+                        date: {
+                          pickerAppearance: "dayOnly",
+                          displayFormat: "d MMM yyyy",
+                        },
+                      },
+                    },
+                    {
+                      name: "endDate",
+                      type: "date",
+                      admin: {
+                        description:
+                          "When monthly commission ends (required for monthly). After this date no longer deducted.",
+                        width: "50%",
+                        date: {
+                          pickerAppearance: "dayOnly",
+                          displayFormat: "d MMM yyyy",
+                        },
+                        condition: (_data: any, siblingData: any) =>
+                          siblingData?.frequency === "monthly",
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: "notes",
+                  type: "textarea",
+                  admin: { description: "Free-form notes" },
                 },
               ],
             },

@@ -100,6 +100,9 @@ interface DashboardData {
   activeClients: number
   totalRetainer: number
   ytdRevenue: number
+  monthlyRetainerNet: number
+  oneOffYTD: number
+  retainerYTD: number
   activity: ActivityEntry[]
   userRole: string
   userName: string
@@ -339,7 +342,7 @@ const Dashboard = () => {
             <div className="od-box__head">
               <span className="od-box__title">Topline Agency Data</span>
             </div>
-            <div className="od-box__stats od-box__stats--8">
+            <div className="od-box__stats od-box__stats--9">
               <div className="od-box__stat">
                 <span className="od-box__stat-value">{data.activeClients}</span>
                 <span className="od-box__stat-label">Active Clients</span>
@@ -349,12 +352,16 @@ const Dashboard = () => {
                 <span className="od-box__stat-label">Total Leads</span>
               </div>
               <div className="od-box__stat">
-                <span className="od-box__stat-value">${data.totalRetainer.toLocaleString()}</span>
-                <span className="od-box__stat-label">Monthly Revenue</span>
+                <span className="od-box__stat-value">${(data.monthlyRetainerNet ?? 0).toLocaleString()}</span>
+                <span className="od-box__stat-label">Monthly Retainer</span>
               </div>
               <div className="od-box__stat">
-                <span className="od-box__stat-value">${data.ytdRevenue.toLocaleString()}</span>
-                <span className="od-box__stat-label">YTD Revenue</span>
+                <span className="od-box__stat-value">${(data.oneOffYTD ?? 0).toLocaleString()}</span>
+                <span className="od-box__stat-label">One-Off Projects (YTD)</span>
+              </div>
+              <div className="od-box__stat">
+                <span className="od-box__stat-value">${(data.retainerYTD ?? 0).toLocaleString()}</span>
+                <span className="od-box__stat-label">Retainer Revenue (YTD)</span>
               </div>
               <div className="od-box__stat">
                 <span className="od-box__stat-value">{data.proposals.active}</span>

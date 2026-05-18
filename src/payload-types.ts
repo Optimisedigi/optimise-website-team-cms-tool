@@ -409,6 +409,51 @@ export interface Client {
       }[]
     | null;
   /**
+   * People we pay a commission to for this client. Monthly commissions are deducted from the retainer in all revenue calculations.
+   */
+  referralCommissions?:
+    | {
+        /**
+         * Who we pay
+         */
+        payeeName: string;
+        /**
+         * Email or phone (internal reference)
+         */
+        payeeContact?: string | null;
+        frequency: 'monthly' | 'one_off';
+        /**
+         * Only used when frequency is monthly
+         */
+        commissionType?: ('percentage' | 'fixed') | null;
+        /**
+         * e.g. 8 = 8% of monthly retainer
+         */
+        percentage?: number | null;
+        /**
+         * Fixed $/month
+         */
+        monthlyAmount?: number | null;
+        /**
+         * One-off $ amount
+         */
+        oneOffAmount?: number | null;
+        /**
+         * When commission begins
+         */
+        startDate: string;
+        /**
+         * When monthly commission ends (required for monthly). After this date no longer deducted.
+         */
+        endDate?: string | null;
+        /**
+         * Free-form notes
+         */
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Pre-CMS revenue ($). Added to auto-calculated total for clients who started before the CMS was set up.
    */
   historicalRevenue?: number | null;
@@ -6737,6 +6782,21 @@ export interface ClientsSelect<T extends boolean = true> {
         projectName?: T;
         amount?: T;
         date?: T;
+        id?: T;
+      };
+  referralCommissions?:
+    | T
+    | {
+        payeeName?: T;
+        payeeContact?: T;
+        frequency?: T;
+        commissionType?: T;
+        percentage?: T;
+        monthlyAmount?: T;
+        oneOffAmount?: T;
+        startDate?: T;
+        endDate?: T;
+        notes?: T;
         id?: T;
       };
   historicalRevenue?: T;

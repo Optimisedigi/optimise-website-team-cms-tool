@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
+import {
+  netMonthlyRetainer,
+  oneOffsThisMonth,
+  oneOffsYTD,
+  retainerRevenueYTD,
+} from "@/lib/client-revenue";
 
 // ── Default per-unit API costs in AUD (fallbacks if global not configured) ──
 const DEFAULT_COST_PER_AUD = {
@@ -274,7 +280,14 @@ export async function GET() {
         ],
       },
       limit: 500,
-      select: { monthlyRetainer: true, oneOffProjects: true } as any,
+      select: {
+        monthlyRetainer: true,
+        oneOffProjects: true,
+        referralCommissions: true,
+        clientStartDate: true,
+        retainerHistory: true,
+        historicalRevenue: true,
+      } as any,
     }).catch(() => ({ docs: [] })),
 
     payload.find({
@@ -425,44 +438,69 @@ export async function GET() {
     }),
   ]);
 
-  const totalMonthlyRevenue = clientsForRetainer.docs.reduce(
-    (sum: number, c: any) => sum + (c.monthlyRetainer || 0),
-    0,
+  // Net monthly retainer (this month) — sum across clients, deducting active commissions
+  const monthlyRetainerNet = round(
+    clientsForRetainer.docs.reduce(
+      (sum: number, c: any) =>
+        sum +
+        netMonthlyRetainer(
+          Number(c.monthlyRetainer) || 0,
+          Array.isArray(c.referralCommissions) ? c.referralCommissions : [],
+          now,
+        ),
+      0,
+    ),
   );
 
   // Sum one-off projects from the current month
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const oneOffTotal = clientsForRetainer.docs.reduce((sum: number, c: any) => {
-    const projects = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
-    return sum + projects.reduce((pSum: number, p: any) => {
-      if (!p.date || !p.amount) return pSum;
-      const pDate = new Date(p.date);
-      if (pDate >= currentMonthStart && pDate < currentMonthEnd) {
-        return pSum + p.amount;
-      }
-      return pSum;
-    }, 0);
-  }, 0);
+  const oneOffTotal = round(
+    clientsForRetainer.docs.reduce(
+      (sum: number, c: any) => sum + oneOffsThisMonth(c.oneOffProjects, now),
+      0,
+    ),
+  );
 
-  const totalRetainer = round(totalMonthlyRevenue + oneOffTotal);
+  // One-off YTD (sum across clients)
+  const oneOffYTD = round(
+    clientsForRetainer.docs.reduce(
+      (sum: number, c: any) => sum + oneOffsYTD(c.oneOffProjects, now),
+      0,
+    ),
+  );
 
-  // YTD revenue: monthly retainer * months paid + all one-off projects this calendar year
-  // Count all prior months as paid, plus current month only if past the 15th (invoice due ~14 days after 1st)
-  const ytdMonths = now.getMonth() + (now.getDate() >= 15 ? 1 : 0);
-  const yearStart = new Date(now.getFullYear(), 0, 1);
-  const ytdOneOff = clientsForRetainer.docs.reduce((sum: number, c: any) => {
-    const projects = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
-    return sum + projects.reduce((pSum: number, p: any) => {
-      if (!p.date || !p.amount) return pSum;
-      const pDate = new Date(p.date);
-      if (pDate >= yearStart && pDate < currentMonthEnd) {
-        return pSum + p.amount;
-      }
-      return pSum;
-    }, 0);
-  }, 0);
-  const ytdRevenue = round(totalMonthlyRevenue * ytdMonths + ytdOneOff);
+  // Retainer revenue YTD (net of commissions, walks retainer history per client)
+  const retainerYTD = round(
+    clientsForRetainer.docs.reduce(
+      (sum: number, c: any) =>
+        sum +
+        retainerRevenueYTD(
+          {
+            monthlyRetainer: Number(c.monthlyRetainer) || 0,
+            clientStartDate: c.clientStartDate ?? null,
+            retainerHistory: Array.isArray(c.retainerHistory) ? c.retainerHistory : [],
+            referralCommissions: Array.isArray(c.referralCommissions)
+              ? c.referralCommissions
+              : [],
+          },
+          now,
+        ),
+      0,
+    ),
+  );
+
+  // Total historical (pre-CMS) revenue, summed across clients — feeds the
+  // backwards-compat `ytdRevenue` field used by the sales-target progress bar.
+  const historicalTotal = round(
+    clientsForRetainer.docs.reduce(
+      (sum: number, c: any) => sum + (Number(c.historicalRevenue) || 0),
+      0,
+    ),
+  );
+
+  // Back-compat fields (existing consumers)
+  const totalMonthlyRevenue = monthlyRetainerNet;
+  const totalRetainer = round(monthlyRetainerNet + oneOffTotal);
+  const ytdRevenue = round(retainerYTD + oneOffYTD + historicalTotal);
 
   const usage = {
     seoAudits: seoCount.totalDocs,
@@ -527,6 +565,9 @@ export async function GET() {
     totalMonthlyRevenue,
     oneOffTotal,
     ytdRevenue,
+    monthlyRetainerNet,
+    oneOffYTD,
+    retainerYTD,
     activity: activityResult.docs,
     userRole: user.role,
     userName: user.name || user.email,

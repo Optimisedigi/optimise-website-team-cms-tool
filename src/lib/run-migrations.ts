@@ -667,6 +667,25 @@ export async function runMigrations(
     )`);
     await run("clients_one_off_projects_order_idx", "CREATE INDEX IF NOT EXISTS `clients_one_off_projects_order_idx` ON `clients_one_off_projects` (`_order`)");
     await run("clients_one_off_projects_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_one_off_projects_parent_id_idx` ON `clients_one_off_projects` (`_parent_id`)");
+
+    // --- Referral Commissions sub-table ---
+    await run("clients_referral_commissions", `CREATE TABLE IF NOT EXISTS \`clients_referral_commissions\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`payee_name\` text NOT NULL,
+      \`payee_contact\` text,
+      \`frequency\` text NOT NULL,
+      \`commission_type\` text,
+      \`percentage\` numeric,
+      \`monthly_amount\` numeric,
+      \`one_off_amount\` numeric,
+      \`start_date\` text NOT NULL,
+      \`end_date\` text,
+      \`notes\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_referral_commissions_order_idx", "CREATE INDEX IF NOT EXISTS `clients_referral_commissions_order_idx` ON `clients_referral_commissions` (`_order`)");
+    await run("clients_referral_commissions_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_referral_commissions_parent_id_idx` ON `clients_referral_commissions` (`_parent_id`)");
   
     // --- Cost Categories table ---
     await run("cost_categories", `CREATE TABLE IF NOT EXISTS \`cost_categories\` (
