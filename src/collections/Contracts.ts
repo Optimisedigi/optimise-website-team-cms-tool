@@ -407,10 +407,8 @@ export const Contracts: CollectionConfig = {
               name: "terminationOverride",
               type: "richText",
               admin: {
-                description: "If filled in, this replaces the default termination section. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.",
-                components: {
-                  Field: "./components/TerminationOverrideField",
-                },
+                description:
+                  "If filled in, this replaces the default termination section. Paste bullet lists (- item) or numbered lists (1. item) and they will auto-format.",
               },
             },
           ],
