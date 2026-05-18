@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import RocketSplash from './RocketSplash'
 import SalesFunnelDashboard from './SalesFunnelDashboard'
 import DripEmailTracker from './DripEmailTracker'
@@ -165,7 +166,10 @@ interface DashboardData {
   month: string
 }
 
-// ── Hover-tooltip stat box: renders a small popover next to the stat ──
+// ── Hover-tooltip stat box ──
+// The tooltip is rendered via a React portal into <body> so it escapes
+// the topline box's `overflow: hidden` clip. Position is computed from
+// the host tile's bounding rect on hover/focus.
 function StatWithTooltip({
   value,
   label,
@@ -178,20 +182,69 @@ function StatWithTooltip({
   emptyHint?: string
 }) {
   const hasRows = rows.length > 0
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const updateCoords = () => {
+    const el = hostRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setCoords({
+      top: rect.bottom + 8,
+      left: rect.left + rect.width / 2,
+    })
+  }
+
+  const show = () => {
+    if (!hasRows) return
+    updateCoords()
+    setOpen(true)
+  }
+  const hide = () => setOpen(false)
+
+  // Reposition while open in case the window scrolls/resizes.
+  useEffect(() => {
+    if (!open) return
+    const handler = () => updateCoords()
+    window.addEventListener('scroll', handler, true)
+    window.addEventListener('resize', handler)
+    return () => {
+      window.removeEventListener('scroll', handler, true)
+      window.removeEventListener('resize', handler)
+    }
+  }, [open])
+
   return (
     <div
+      ref={hostRef}
       className="od-box__stat od-box__stat--hoverable"
       tabIndex={hasRows ? 0 : -1}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
     >
       <span className="od-box__stat-value">{value}</span>
       <span className="od-box__stat-label">{label}</span>
-      {hasRows && (
-        <div className="od-stat-tooltip" role="tooltip">
-          <div className="od-stat-tooltip__head">{label}</div>
-          <div className="od-stat-tooltip__body">{rows}</div>
-        </div>
-      )}
       {!hasRows && emptyHint && <span className="od-box__stat-hint">{emptyHint}</span>}
+      {mounted && hasRows && open && coords &&
+        createPortal(
+          <div
+            className="od-stat-tooltip od-stat-tooltip--portal"
+            role="tooltip"
+            style={{ top: coords.top, left: coords.left }}
+          >
+            <div className="od-stat-tooltip__head">{label}</div>
+            <div className="od-stat-tooltip__body">{rows}</div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
