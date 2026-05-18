@@ -237,9 +237,9 @@ export async function POST(
       overrideAccess: true,
     }) as any;
 
-    // One-way copy of contract → client (setupFee, monthlyRetainer,
-    // contractStartDate, additionalWork). Fire-and-forget; sync failure
-    // must not block the signing flow.
+    // One-way copy of contract → client (contact details, pricing,
+    // start date, additional work). Fire-and-forget; sync failure must
+    // not block the signing flow.
     syncContractToClient(payload, {
       id: updatedDoc.id,
       contractTitle: updatedDoc.contractTitle,
@@ -247,6 +247,10 @@ export async function POST(
       setupFee: updatedDoc.setupFee,
       monthlyRetainer: updatedDoc.monthlyRetainer,
       contractStartDate: updatedDoc.contractStartDate,
+      clientName: updatedDoc.clientName,
+      clientContactName: updatedDoc.clientContactName,
+      clientEmail: updatedDoc.clientEmail,
+      clientWebsite: updatedDoc.clientWebsite,
       additionalWork: updatedDoc.additionalWork,
     }).catch((err: unknown) => {
       console.error(

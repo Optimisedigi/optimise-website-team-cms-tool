@@ -14,6 +14,14 @@ export interface ContractSyncSource {
   setupFee?: number | null;
   monthlyRetainer?: number | null;
   contractStartDate?: string | null;
+  /** Business / company name on the contract — copied to client.name when missing. */
+  clientName?: string | null;
+  /** Primary contact person — copied to client.contactName when missing. */
+  clientContactName?: string | null;
+  /** Comma-separated email list on the contract; the first address is copied to client.contactEmail when missing. */
+  clientEmail?: string | null;
+  /** Website URL on the contract — copied to client.websiteUrl when missing. */
+  clientWebsite?: string | null;
   additionalWork?: Array<{
     projectName?: string | null;
     amount?: number | null;
@@ -32,6 +40,10 @@ export interface ContractSyncResult {
     setupFee: boolean;
     clientStartDate: boolean;
     additionalWorkAppended: number;
+    name: boolean;
+    contactName: boolean;
+    contactEmail: boolean;
+    websiteUrl: boolean;
   };
   warnings: string[];
   error?: string;
@@ -78,6 +90,10 @@ export async function syncContractToClient(
       setupFee: false,
       clientStartDate: false,
       additionalWorkAppended: 0,
+      name: false,
+      contactName: false,
+      contactEmail: false,
+      websiteUrl: false,
     },
     warnings: [],
   };
@@ -141,6 +157,45 @@ export async function syncContractToClient(
       result.warnings.push(
         `clientStartDate not overwritten: client has ${existingStart}, contract has ${contractStart}.`,
       );
+    }
+
+    // Business name ─────────────────────────────────────────────────────────
+    // Only fill when missing. `name` is required on the client so we don't
+    // overwrite — the client must have a name to exist.
+    const contractClientName = (contract.clientName ?? "").trim();
+    const existingClientName = ((client.name as string | null) ?? "").trim();
+    if (contractClientName && !existingClientName) {
+      updates.name = contractClientName;
+      result.applied.name = true;
+    }
+
+    // Contact name ──────────────────────────────────────────────────────────
+    const contractContactName = (contract.clientContactName ?? "").trim();
+    const existingContactName = ((client.contactName as string | null) ?? "").trim();
+    if (contractContactName && !existingContactName) {
+      updates.contactName = contractContactName;
+      result.applied.contactName = true;
+    }
+
+    // Contact email ─────────────────────────────────────────────────────────
+    // The contract's clientEmail is a comma-separated list; copy only the
+    // first (signer) address to the client's primary contactEmail.
+    const contractPrimaryEmail = (contract.clientEmail ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .find((s) => s.length > 0);
+    const existingContactEmail = ((client.contactEmail as string | null) ?? "").trim();
+    if (contractPrimaryEmail && !existingContactEmail) {
+      updates.contactEmail = contractPrimaryEmail;
+      result.applied.contactEmail = true;
+    }
+
+    // Website URL ───────────────────────────────────────────────────────────
+    const contractWebsite = (contract.clientWebsite ?? "").trim();
+    const existingWebsite = ((client.websiteUrl as string | null) ?? "").trim();
+    if (contractWebsite && !existingWebsite) {
+      updates.websiteUrl = contractWebsite;
+      result.applied.websiteUrl = true;
     }
 
     // additionalWork → oneOffProjects (always append) ──────────────────────

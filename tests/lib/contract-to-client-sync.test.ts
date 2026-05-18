@@ -35,6 +35,10 @@ describe("syncContractToClient", () => {
       setupFee: true,
       clientStartDate: true,
       additionalWorkAppended: 1,
+      name: false,
+      contactName: false,
+      contactEmail: false,
+      websiteUrl: false,
     });
     expect(payload.update).toHaveBeenCalledOnce();
     const call = payload.update.mock.calls[0][0];
@@ -146,6 +150,72 @@ describe("syncContractToClient", () => {
     expect(typeof row.date).toBe("string");
     expect(row.date.length).toBeGreaterThan(0);
     expect(row.countTowardsRetainer).toBe(false);
+  });
+
+  it("copies contact details (name, contactName, contactEmail, websiteUrl) onto an empty client", async () => {
+    const payload = createMockPayload({
+      id: 42,
+      name: "",
+      contactName: "",
+      contactEmail: "",
+      websiteUrl: "",
+      monthlyRetainer: 0,
+      setupFee: 0,
+      clientStartDate: null,
+      oneOffProjects: [],
+    });
+
+    const result = await syncContractToClient(payload as any, {
+      id: 1,
+      client: 42,
+      clientName: "Acme Corp",
+      clientContactName: "Jane Doe",
+      clientEmail: "jane@acme.com, ops@acme.com",
+      clientWebsite: "https://acme.com",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.applied.name).toBe(true);
+    expect(result.applied.contactName).toBe(true);
+    expect(result.applied.contactEmail).toBe(true);
+    expect(result.applied.websiteUrl).toBe(true);
+    const call = payload.update.mock.calls[0][0];
+    expect(call.data.name).toBe("Acme Corp");
+    expect(call.data.contactName).toBe("Jane Doe");
+    // Only the first email (the signer) is copied; CCs ignored.
+    expect(call.data.contactEmail).toBe("jane@acme.com");
+    expect(call.data.websiteUrl).toBe("https://acme.com");
+  });
+
+  it("does not overwrite existing contact details", async () => {
+    const payload = createMockPayload({
+      id: 42,
+      name: "Existing Co",
+      contactName: "Bob",
+      contactEmail: "bob@existing.com",
+      websiteUrl: "https://existing.com",
+      monthlyRetainer: 0,
+      setupFee: 0,
+      clientStartDate: null,
+      oneOffProjects: [],
+    });
+
+    const result = await syncContractToClient(payload as any, {
+      id: 1,
+      client: 42,
+      clientName: "Acme Corp",
+      clientContactName: "Jane Doe",
+      clientEmail: "jane@acme.com",
+      clientWebsite: "https://acme.com",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.applied.name).toBe(false);
+    expect(result.applied.contactName).toBe(false);
+    expect(result.applied.contactEmail).toBe(false);
+    expect(result.applied.websiteUrl).toBe(false);
+    // Nothing to update -> update should not be called at all
+    expect(payload.update).not.toHaveBeenCalled();
   });
 
   it("skips sync when contract has no linked client", async () => {

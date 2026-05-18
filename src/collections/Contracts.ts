@@ -157,7 +157,7 @@ export const Contracts: CollectionConfig = {
       },
     ],
     afterChange: [
-      async ({ doc, operation, req }) => {
+      async ({ doc, previousDoc, operation, req }) => {
         if (operation === "create") {
           logActivity(req.payload, {
             type: "contract_created",
@@ -183,6 +183,65 @@ export const Contracts: CollectionConfig = {
             contractId: doc.id,
             error: err instanceof Error ? err.message : String(err),
           });
+        }
+
+        // Re-run the contract→client sync when a client is newly linked
+        // (or swapped) on a completed contract. Covers the case where the
+        // contract was signed first, then a client record was created and
+        // linked afterwards — without this hook, the client never receives
+        // the contract's contact details, pricing, or one-off projects.
+        // Best-effort: a sync failure must not block the contract save.
+        const resolveClientId = (rel: unknown): string | number | null => {
+          if (rel == null) return null;
+          if (typeof rel === "object" && rel !== null && "id" in rel) {
+            const id = (rel as { id?: string | number }).id;
+            return id ?? null;
+          }
+          if (typeof rel === "string" || typeof rel === "number") return rel;
+          return null;
+        };
+        const newClientId = resolveClientId(doc.client);
+        const prevClientId = resolveClientId(previousDoc?.client);
+        const clientChanged = newClientId != null && newClientId !== prevClientId;
+        if (
+          operation === "update" &&
+          clientChanged &&
+          doc.status === "completed"
+        ) {
+          try {
+            const { syncContractToClient } = await import(
+              "../lib/contract-to-client-sync"
+            );
+            const result = await syncContractToClient(req.payload, {
+              id: doc.id,
+              contractTitle: doc.contractTitle,
+              client: doc.client,
+              setupFee: doc.setupFee,
+              monthlyRetainer: doc.monthlyRetainer,
+              contractStartDate: doc.contractStartDate,
+              clientName: doc.clientName,
+              clientContactName: doc.clientContactName,
+              clientEmail: doc.clientEmail,
+              clientWebsite: doc.clientWebsite,
+              additionalWork: doc.additionalWork,
+            });
+            if (!result.ok) {
+              req.payload.logger?.warn?.({
+                msg: "contract→client sync returned not-ok",
+                contractId: doc.id,
+                clientId: newClientId,
+                error: result.error,
+                warnings: result.warnings,
+              });
+            }
+          } catch (err) {
+            req.payload.logger?.error?.({
+              msg: "contract→client sync after link failed",
+              contractId: doc.id,
+              clientId: newClientId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
         }
       },
     ],
