@@ -326,3 +326,89 @@ export function isSupportedPreset(value: string): value is Exclude<RangePreset, 
 export function labelFor(preset: string): string {
   return (LABELS as Record<string, string>)[preset] ?? preset;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// CUSTOM → preset snap-down
+// ─────────────────────────────────────────────────────────────────────────
+// Growth Tools' `get-metrics` endpoint currently substitutes `dateRange` into
+// a GAQL `DURING` clause verbatim. Google rejects literal `CUSTOM` there
+// (`INVALID_VALUE_WITH_DURING_OPERATOR`), so any tool that resolves a range
+// to CUSTOM and forwards startDate/endDate currently 500s. Until Growth Tools
+// is fixed, we map CUSTOM ranges down to the smallest `LAST_N_DAYS` preset
+// that fully covers the requested span. Trades a little precision for
+// "it actually returns data."
+//
+// Snap policy:
+//   - If endDate isn't today, we still snap (Growth Tools presets always
+//     end today). Caller gets a note explaining the shift.
+//   - For spans ≤ 7/14/30/60 days we use the matching preset.
+//   - Anything longer snaps to LAST_90_DAYS (the largest preset we have).
+//     Months-old data won't round-trip yet; a future Growth Tools fix is the
+//     proper home for that.
+
+const SNAP_PRESETS: ReadonlyArray<{ preset: Exclude<RangePreset, "CUSTOM">; days: number }> = [
+  { preset: "LAST_7_DAYS", days: 7 },
+  { preset: "LAST_14_DAYS", days: 14 },
+  { preset: "LAST_30_DAYS", days: 30 },
+  { preset: "LAST_60_DAYS", days: 60 },
+  { preset: "LAST_90_DAYS", days: 90 },
+];
+
+function daysBetween(start: string, end: string): number {
+  const s = Date.parse(`${start}T00:00:00Z`);
+  const e = Date.parse(`${end}T00:00:00Z`);
+  if (Number.isNaN(s) || Number.isNaN(e) || e < s) return 0;
+  return Math.floor((e - s) / 86_400_000) + 1; // inclusive
+}
+
+/**
+ * If `resolved` is a CUSTOM range, return a copy snapped to the smallest
+ * `LAST_N_DAYS` preset that fully covers the span. Non-CUSTOM ranges pass
+ * through unchanged. `now` is injected for tests.
+ *
+ * The resolver itself stays pure — callers that need exact start/end (e.g.
+ * for display / labelling) can keep using `resolveRange` directly. Only the
+ * HTTP layer should snap.
+ */
+export function snapCustomToPreset(
+  resolved: ResolvedRange,
+  now: Date = new Date(),
+): ResolvedRange {
+  if (resolved.dateRange !== "CUSTOM") return resolved;
+  if (!resolved.startDate || !resolved.endDate) return resolved;
+
+  const today = toIso(now);
+  const spanDays = daysBetween(resolved.startDate, resolved.endDate);
+  const startToTodayDays = daysBetween(resolved.startDate, today);
+  // Use the wider of the two so we cover the entire requested window even
+  // when the user asked for a back-dated span (Growth Tools presets always
+  // end "today", so we need at least startDate → today's worth of data).
+  const neededDays = Math.max(spanDays, startToTodayDays);
+
+  const snap =
+    SNAP_PRESETS.find((p) => neededDays <= p.days) ??
+    SNAP_PRESETS[SNAP_PRESETS.length - 1]!;
+
+  const originalLabel = resolved.label;
+  const noteParts: string[] = [];
+  noteParts.push(
+    `custom range ${resolved.startDate}…${resolved.endDate} ("${originalLabel}") snapped to ${snap.preset} — Growth Tools doesn't accept CUSTOM ranges yet`,
+  );
+  if (resolved.endDate !== today) {
+    noteParts.push(
+      `result window ends today (${today}) instead of ${resolved.endDate}`,
+    );
+  }
+
+  return {
+    dateRange: snap.preset,
+    requested: resolved.requested,
+    coercedFrom: `CUSTOM ${resolved.startDate}..${resolved.endDate}`,
+    note: noteParts.join("; "),
+    label: `${LABELS[snap.preset]} (covers ${originalLabel})`,
+    // Intentionally drop startDate/endDate so the HTTP layer stops forwarding
+    // them — Growth Tools ignores them once dateRange is a preset, but
+    // sending them muddies the request log.
+    ...(resolved.segment ? { segment: resolved.segment } : {}),
+  };
+}

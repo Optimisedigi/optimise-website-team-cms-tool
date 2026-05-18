@@ -36,7 +36,14 @@ beforeEach(() => {
 });
 
 describe("get_search_terms tool", () => {
-  it("forwards segment + custom startDate/endDate to Growth Tools when range is a quarter", async () => {
+  it("snaps CUSTOM quarter ranges to a preset (Growth Tools rejects literal CUSTOM in GAQL DURING)", async () => {
+    // Q1 2026 resolves to CUSTOM startDate=2026-01-01..2026-03-31. Growth
+    // Tools' search-terms endpoint substitutes dateRange into a GAQL DURING
+    // clause verbatim and rejects "CUSTOM". The snap layer converts that to
+    // the smallest LAST_N_DAYS preset that fully covers the requested span
+    // (here: ~90 days back from "now" since the quarter is in the past).
+    // We assert the request shape; the response's `coercedFrom` / `note`
+    // tells the agent honestly that the window was widened.
     const captured = mockFetchOnce({
       searchTerms: [
         { searchTerm: "shoes", impressions: 1000, clicks: 50, cost: 40, conversions: 2, segment: "2026-01" },
@@ -50,9 +57,12 @@ describe("get_search_terms tool", () => {
     const url = captured.url ?? "";
     expect(url).toContain("/api/google-ads/search-terms");
     expect(url).toContain("segment=month");
-    expect(url).toContain("startDate=2026-01-01");
-    expect(url).toContain("endDate=2026-03-31");
-    expect(url).toContain("dateRange=CUSTOM");
+    // Snap must have stripped these so Growth Tools doesn't see CUSTOM.
+    expect(url).not.toContain("dateRange=CUSTOM");
+    expect(url).not.toContain("startDate=");
+    expect(url).not.toContain("endDate=");
+    // The forwarded dateRange must be one of the LAST_N_DAYS presets.
+    expect(url).toMatch(/dateRange=LAST_\d+_DAYS/);
   });
 
   it("returns one row per (term, segment) sorted by term then segment when segmenting", async () => {

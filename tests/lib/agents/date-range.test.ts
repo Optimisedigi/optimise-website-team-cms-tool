@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   resolveRange,
   resolveRangeWithSegment,
+  snapCustomToPreset,
 } from "@/lib/agents/optimate-google-ads/tools/_date-range";
 
 describe("resolveRange — presets", () => {
@@ -114,5 +115,83 @@ describe("resolveRangeWithSegment", () => {
   it("omits segment field when input was not supplied", () => {
     const r = resolveRangeWithSegment("LAST_30_DAYS", undefined);
     expect(r.segment).toBeUndefined();
+  });
+});
+
+describe("snapCustomToPreset", () => {
+  // The Growth Tools get-metrics endpoint substitutes dateRange into a GAQL
+  // DURING clause verbatim and rejects the literal string "CUSTOM", so every
+  // tool that hits it has to snap CUSTOM → nearest LAST_N_DAYS preset before
+  // calling out. These tests pin that contract so a future refactor doesn't
+  // accidentally reintroduce the 500.
+
+  it("passes non-CUSTOM ranges through unchanged", () => {
+    const preset = resolveRange("LAST_7_DAYS");
+    const snapped = snapCustomToPreset(preset);
+    expect(snapped).toEqual(preset);
+  });
+
+  it("snaps a 6-week 'since early April' span to LAST_60_DAYS", () => {
+    const now = new Date(Date.UTC(2026, 4, 18)); // 2026-05-18
+    const requested = resolveRange("2026-04-01..2026-05-18");
+    expect(requested.dateRange).toBe("CUSTOM");
+
+    const snapped = snapCustomToPreset(requested, now);
+    expect(snapped.dateRange).toBe("LAST_60_DAYS");
+    expect(snapped.coercedFrom).toContain("CUSTOM");
+    expect(snapped.startDate).toBeUndefined();
+    expect(snapped.endDate).toBeUndefined();
+    expect(snapped.note).toContain("Growth Tools");
+  });
+
+  it("snaps a 1-week span to LAST_7_DAYS", () => {
+    const now = new Date(Date.UTC(2026, 4, 18));
+    const requested = resolveRange("2026-05-12..2026-05-18");
+    const snapped = snapCustomToPreset(requested, now);
+    expect(snapped.dateRange).toBe("LAST_7_DAYS");
+    expect(snapped.label).toContain("covers");
+  });
+
+  it("snaps a quarter (3 months) to LAST_90_DAYS", () => {
+    const now = new Date(Date.UTC(2026, 4, 12));
+    const requested = resolveRange("THIS_QUARTER", now);
+    expect(requested.dateRange).toBe("CUSTOM");
+
+    const snapped = snapCustomToPreset(requested, now);
+    expect(snapped.dateRange).toBe("LAST_90_DAYS");
+    expect(snapped.coercedFrom).toContain("CUSTOM");
+  });
+
+  it("snaps an oversized span to LAST_90_DAYS (largest available preset)", () => {
+    const now = new Date(Date.UTC(2026, 4, 18));
+    const requested = resolveRange("2025-01-01..2026-05-18"); // 17 months
+    const snapped = snapCustomToPreset(requested, now);
+    expect(snapped.dateRange).toBe("LAST_90_DAYS");
+  });
+
+  it("snaps a back-dated span based on distance from today, not span length", () => {
+    // A 3-day span ending 50 days ago should still need a preset that reaches
+    // back ~53 days, because Growth Tools presets always end today.
+    const now = new Date(Date.UTC(2026, 4, 18));
+    const requested = resolveRange("2026-03-26..2026-03-28");
+    const snapped = snapCustomToPreset(requested, now);
+    // ~53 days back → LAST_60_DAYS
+    expect(snapped.dateRange).toBe("LAST_60_DAYS");
+    expect(snapped.note).toContain("ends today");
+  });
+
+  it("preserves segment on the snapped range", () => {
+    const now = new Date(Date.UTC(2026, 4, 18));
+    const requested = resolveRangeWithSegment("2026-04-01..2026-05-18", "week");
+    const snapped = snapCustomToPreset(requested, now);
+    expect(snapped.segment).toBe("week");
+  });
+
+  it("is a no-op when CUSTOM is missing startDate/endDate", () => {
+    // Defensive: shouldn't happen, but if a hand-crafted CUSTOM range with no
+    // bounds slips through, snap returns it unchanged rather than crashing.
+    const requested = { dateRange: "CUSTOM" as const, requested: "weird", label: "weird" };
+    const snapped = snapCustomToPreset(requested);
+    expect(snapped).toEqual(requested);
   });
 });

@@ -14,7 +14,7 @@
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { getPayload } from "payload";
 import payloadConfig from "@/payload.config";
-import { SUPPORTED_PRESETS, resolveRange } from "./_date-range";
+import { SUPPORTED_PRESETS, resolveRange, snapCustomToPreset } from "./_date-range";
 import { rangeToDates } from "./_client-tokens";
 
 interface GetSerpDisplacementArgs {
@@ -126,7 +126,9 @@ export const getSerpDisplacement: CanonicalTool<GetSerpDisplacementArgs> = {
             .filter(Boolean)
         : [];
 
-    const resolved = resolveRange(args.range ?? "LAST_7_DAYS");
+    // Snap CUSTOM → preset because rangeToDates() only knows presets.
+    // See snapCustomToPreset comments.
+    const resolved = snapCustomToPreset(resolveRange(args.range ?? "LAST_7_DAYS"));
     const { startDate, endDate } = rangeToDates(resolved.dateRange);
     // capturedAt is a Date field — compare against ISO timestamps spanning the
     // full day. End date is the END of endDate (23:59:59.999) so today's snapshot

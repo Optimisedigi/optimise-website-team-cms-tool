@@ -7,7 +7,7 @@
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { fetchSearchAnalytics } from "@/lib/gsc-service";
-import { SUPPORTED_PRESETS, resolveRange } from "./_date-range";
+import { SUPPORTED_PRESETS, resolveRange, snapCustomToPreset } from "./_date-range";
 import { getValidGscToken, rangeToDates } from "./_client-tokens";
 
 interface GscOverviewArgs {
@@ -39,7 +39,9 @@ export const getGscOverview: CanonicalTool<GscOverviewArgs> = {
     const tokenRes = await getValidGscToken(clientId ?? null);
     if (!tokenRes.ok) return { ok: false, error: tokenRes.reason };
 
-    const resolved = resolveRange(args.range);
+    // Snap CUSTOM → preset because rangeToDates() only knows presets.
+    // See snapCustomToPreset comments.
+    const resolved = snapCustomToPreset(resolveRange(args.range));
     const { startDate, endDate } = rangeToDates(resolved.dateRange);
 
     try {

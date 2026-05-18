@@ -8,7 +8,7 @@
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { fetchBrandedAnalytics } from "@/lib/gsc-service";
-import { SUPPORTED_PRESETS, resolveRange } from "./_date-range";
+import { SUPPORTED_PRESETS, resolveRange, snapCustomToPreset } from "./_date-range";
 import { getValidGscToken, rangeToDates } from "./_client-tokens";
 
 interface BrandedSplitArgs {
@@ -43,7 +43,9 @@ export const getGscBrandedSplit: CanonicalTool<BrandedSplitArgs> = {
       return { ok: false, error: "Client has no brandKeywords set; can't split brand vs non-brand. Add brand terms to the client and retry." };
     }
 
-    const resolved = resolveRange(args.range);
+    // Snap CUSTOM → preset because rangeToDates() only knows presets.
+    // See snapCustomToPreset comments.
+    const resolved = snapCustomToPreset(resolveRange(args.range));
     const { startDate, endDate } = rangeToDates(resolved.dateRange);
 
     try {

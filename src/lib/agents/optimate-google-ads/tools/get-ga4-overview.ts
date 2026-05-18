@@ -8,7 +8,7 @@
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { fetchGa4Report } from "@/lib/ga4-service";
-import { SUPPORTED_PRESETS, resolveRange } from "./_date-range";
+import { SUPPORTED_PRESETS, resolveRange, snapCustomToPreset } from "./_date-range";
 import { getValidGa4Token, rangeToDates } from "./_client-tokens";
 
 interface Ga4OverviewArgs {
@@ -40,7 +40,11 @@ export const getGa4Overview: CanonicalTool<Ga4OverviewArgs> = {
     const tokenRes = await getValidGa4Token(clientId ?? null);
     if (!tokenRes.ok) return { ok: false, error: tokenRes.reason };
 
-    const resolved = resolveRange(args.range);
+    // Snap CUSTOM → preset because rangeToDates() (downstream) only knows
+    // about the named presets and would otherwise silently fall back to
+    // LAST_30_DAYS while still labelling the response with the user's
+    // requested range. Snapping makes the label honest.
+    const resolved = snapCustomToPreset(resolveRange(args.range));
     const { startDate, endDate } = rangeToDates(resolved.dateRange);
 
     let report: Awaited<ReturnType<typeof fetchGa4Report>>;

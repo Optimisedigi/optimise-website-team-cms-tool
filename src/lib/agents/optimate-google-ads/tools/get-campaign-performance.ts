@@ -14,7 +14,12 @@
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
-import { SUPPORTED_PRESETS, resolveRangeWithSegment, type Segment } from "./_date-range";
+import {
+  SUPPORTED_PRESETS,
+  resolveRangeWithSegment,
+  snapCustomToPreset,
+  type Segment,
+} from "./_date-range";
 
 interface CampaignPerfArgs {
   range?: string;
@@ -86,7 +91,12 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
 
     // Different default than the others: 7 days is the operational sweet spot
     // when triaging campaign performance.
-    const resolved = resolveRangeWithSegment(args.range ?? "LAST_7_DAYS", args.segment);
+    const requested = resolveRangeWithSegment(args.range ?? "LAST_7_DAYS", args.segment);
+    // Growth Tools' get-metrics endpoint substitutes dateRange into a GAQL
+    // DURING clause verbatim, so we have to snap CUSTOM → nearest preset
+    // before calling it (see snapCustomToPreset comments). Both halves of
+    // the response surface the snap so the agent can be honest about it.
+    const resolved = snapCustomToPreset(requested);
     const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
     const qs = new URLSearchParams({ customerId, dateRange: resolved.dateRange });
     if (conversionActions) qs.set("conversionActions", conversionActions);

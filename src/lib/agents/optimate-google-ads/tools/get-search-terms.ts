@@ -16,7 +16,12 @@
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
-import { SUPPORTED_PRESETS, resolveRangeWithSegment, type Segment } from "./_date-range";
+import {
+  SUPPORTED_PRESETS,
+  resolveRangeWithSegment,
+  snapCustomToPreset,
+  type Segment,
+} from "./_date-range";
 
 interface SearchTermArgs {
   range?: string;
@@ -111,7 +116,11 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
       return { ok: false, error: (err as Error).message };
     }
 
-    const resolved = resolveRangeWithSegment(args.range, args.segment);
+    // Snap CUSTOM → nearest preset because Growth Tools' search-terms
+    // endpoint substitutes dateRange into a GAQL DURING clause verbatim (see
+    // snapCustomToPreset comments). Non-CUSTOM ranges pass through unchanged.
+    const requested = resolveRangeWithSegment(args.range, args.segment);
+    const resolved = snapCustomToPreset(requested);
     const limit = args.limit ?? 200;
     const minImpressions = args.minImpressions ?? 0;
     const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
