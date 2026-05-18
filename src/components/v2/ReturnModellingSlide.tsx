@@ -8,29 +8,15 @@
  * footer to activate an input, type a new number, press Enter or click away
  * to confirm. The table recalculates instantly. Changes are local to the
  * browser session (presentation-time tweaks) and don't persist to the CMS.
+ *
+ * SECURITY: this component is `'use client'` so its props are serialized into
+ * the RSC payload. It receives a pre-projected `trafficModel` DTO (built in
+ * page.tsx) — NOT the full competitor-analysis document — to prevent internal
+ * audit data (raw keywords, SERP results, ad screenshots) from crossing the
+ * wire.
  */
 
-'use client'
-
 import { useState, useRef, useCallback, type ReactElement, type KeyboardEvent } from 'react'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type TrafficData = {
-  monthlyVisits?: number | string | number[] | null
-} | null
-
-type CompetitorProfile = {
-  domain?: string | null
-  traffic?: TrafficData
-}
-
-type CompetitorAnalysisLike = {
-  yourProfile?: (CompetitorProfile & { traffic?: TrafficData }) | null
-  competitors?: CompetitorProfile[] | null
-} | null
 
 type Row = {
   name: string
@@ -45,21 +31,6 @@ type Row = {
 // ---------------------------------------------------------------------------
 // Pure helpers (no React)
 // ---------------------------------------------------------------------------
-
-function normaliseVisits(raw: number | string | number[] | null | undefined): number {
-  if (raw == null) return 0
-  if (typeof raw === 'number') return raw
-  if (Array.isArray(raw)) {
-    const last = raw[raw.length - 1]
-    return typeof last === 'number' ? last : 0
-  }
-  const s = String(raw).trim().toUpperCase().replace(/,/g, '')
-  const num = parseFloat(s)
-  if (!Number.isFinite(num)) return 0
-  if (s.endsWith('M')) return num * 1_000_000
-  if (s.endsWith('K')) return num * 1_000
-  return num
-}
 
 function formatVisits(n: number): string {
   if (n <= 0) return ''
@@ -77,15 +48,6 @@ function formatPct(n: number | null): string {
   if (n == null) return ''
   const rounded = Math.round(n * 100) / 100
   return `${rounded}%`
-}
-
-function domainToBusinessName(domain: string): string {
-  const withoutWww = domain.replace(/^https?:\/\//, '').replace(/^www\./, '')
-  const name = withoutWww.split('.')[0] ?? withoutWww
-  return name
-    .split(/[-_]/)
-    .map((w) => (w.length > 0 ? w[0]!.toUpperCase() + w.slice(1).toLowerCase() : ''))
-    .join(' ')
 }
 
 function buildRow(
@@ -205,6 +167,11 @@ function EditableNumber({
 // Main slide component
 // ---------------------------------------------------------------------------
 
+export type ReturnModellingTrafficModel = {
+  yourMonthlyVisits: number
+  competitors: Array<{ name: string; monthlyVisits: number }>
+}
+
 export function ReturnModellingSlide({
   businessName,
   leadConversionRate,
@@ -212,7 +179,7 @@ export function ReturnModellingSlide({
   averageOrderValue,
   annualPurchaseFrequency,
   overrideMonthlyVisits,
-  competitorAnalysis,
+  trafficModel,
 }: {
   businessName: string
   leadConversionRate: number | null
@@ -220,7 +187,7 @@ export function ReturnModellingSlide({
   averageOrderValue: number | null
   annualPurchaseFrequency: number | null
   overrideMonthlyVisits: number | null
-  competitorAnalysis: CompetitorAnalysisLike
+  trafficModel: ReturnModellingTrafficModel
 }): ReactElement | null {
   // Local editable state — seeded from CMS values, local-only changes.
   const [aov, setAov] = useState<number>(averageOrderValue ?? 0)
@@ -239,14 +206,13 @@ export function ReturnModellingSlide({
   const yourVisits =
     overrideMonthlyVisits != null
       ? overrideMonthlyVisits
-      : normaliseVisits(competitorAnalysis?.yourProfile?.traffic?.monthlyVisits ?? null)
+      : trafficModel.yourMonthlyVisits
 
-  const rows: Row[] = [buildRow(businessName, yourVisits, lcrDecimal, ltsrDecimal, aov, apf, true)]
-  for (const c of competitorAnalysis?.competitors ?? []) {
-    const visits = normaliseVisits(c?.traffic?.monthlyVisits ?? null)
-    if (visits <= 0) continue
-    const label = domainToBusinessName(c?.domain ?? 'Unknown')
-    rows.push(buildRow(label, visits, lcrDecimal, ltsrDecimal, aov, apf))
+  const rows: Row[] = [
+    buildRow(businessName, yourVisits, lcrDecimal, ltsrDecimal, aov, apf, true),
+  ]
+  for (const c of trafficModel.competitors) {
+    rows.push(buildRow(c.name, c.monthlyVisits, lcrDecimal, ltsrDecimal, aov, apf))
   }
   rows.sort((a, b) => {
     if (a.isYou) return -1

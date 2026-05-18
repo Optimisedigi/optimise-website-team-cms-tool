@@ -509,7 +509,7 @@ export default async function ProposalReportV2Page({
           seoAudit={seoAuditDoc}
           croAudit={croAuditDoc}
           keywordSnapshot={keywordSnapshotDoc}
-          competitorAnalysis={competitorAnalysisDoc}
+          competitorAnalysis={buildCompetitorAnalysisMinimal(competitorAnalysisDoc)}
           keywordCategories={filteredKeywordCategories}
         />
 
@@ -523,7 +523,7 @@ export default async function ProposalReportV2Page({
         {/* Slide 09 — Competitor analysis (dynamic). */}
         <CompetitorAnalysisSlide
           proposalWebsiteUrl={p.websiteUrl ?? null}
-          competitorAnalysis={competitorAnalysisDoc}
+          competitorAnalysis={buildCompetitorAnalysisForSlide(competitorAnalysisDoc)}
           proposalCompetitors={filteredProposalCompetitors}
         />
 
@@ -589,7 +589,7 @@ export default async function ProposalReportV2Page({
         />
 
         {/* Paid burn (dynamic). */}
-        <PaidBurnSlide competitorAnalysis={competitorAnalysisDoc} />
+        <PaidBurnSlide competitorAnalysis={buildCompetitorAnalysisForPaidBurn(competitorAnalysisDoc)} />
 
         {/* Mission Control divider sits between Paid Burn and Return Modelling. */}
         <div
@@ -598,7 +598,14 @@ export default async function ProposalReportV2Page({
           dangerouslySetInnerHTML={{ __html: staticMid5 }}
         />
 
-        {/* Return modelling (dynamic, hidden when inputs are missing). */}
+        {/* Return modelling (dynamic, hidden when inputs are missing).
+
+            SECURITY: this slide is `'use client'` so its props are serialized
+            into the RSC payload that ships to the browser. We MUST NOT pass the
+            full `competitorAnalysisDoc` here — it contains the entire audit
+            document (raw keywords, SERP data, ad screenshots, audit metadata,
+            etc.) that the slide never displays. Project a minimal traffic-only
+            DTO so only the numbers actually drawn on screen cross the wire. */}
         <ReturnModellingSlide
           businessName={proposal.businessName}
           leadConversionRate={p.leadConversionRate ?? null}
@@ -606,7 +613,7 @@ export default async function ProposalReportV2Page({
           averageOrderValue={p.averageOrderValue ?? null}
           annualPurchaseFrequency={p.annualPurchaseFrequency ?? null}
           overrideMonthlyVisits={p.overrideMonthlyVisits ?? null}
-          competitorAnalysis={competitorAnalysisDoc}
+          trafficModel={buildReturnModellingTrafficModel(competitorAnalysisDoc)}
         />
 
         {/* Mission Priorities divider sits between Return Modelling and the
@@ -729,4 +736,181 @@ function formatMonthYear(date: string | Date | null | undefined): string {
   return d
     .toLocaleString('en-US', { month: 'long', year: 'numeric' })
     .toUpperCase()
+}
+
+// ---------------------------------------------------------------------------
+// Security: traffic-only DTO for ReturnModellingSlide
+// ---------------------------------------------------------------------------
+
+type TrafficData = {
+  monthlyVisits?: number | string | number[] | null
+} | null
+
+type RawCompetitorProfile = {
+  domain?: string | null
+  traffic?: TrafficData
+  googleAds?: { isRunningAds?: boolean } | null
+  metaAds?: { isRunningAds?: boolean } | null
+  avgPosition?: number | null
+  averagePosition?: number | null
+  keywordsFound?: number | null
+  websiteScreenshot?: string | null
+} | null
+
+type RawCompetitorAnalysis = {
+  yourProfile?: (RawCompetitorProfile & { traffic?: TrafficData }) | null
+  competitors?: RawCompetitorProfile[] | null
+} | null
+
+export type ReturnModellingTrafficModel = {
+  yourMonthlyVisits: number
+  competitors: Array<{ name: string; monthlyVisits: number }>
+}
+
+/**
+ * Project a minimal traffic-only DTO from the full competitor-analysis doc.
+ * ReturnModellingSlide is `'use client'` so its props get serialized into the
+ * RSC payload. We MUST NOT pass the full audit document — it contains raw
+ * SERP data, keywords, ad screenshots, and internal audit metadata that the
+ * slide never displays. Only traffic numbers cross the wire.
+ */
+function buildReturnModellingTrafficModel(
+  raw: RawCompetitorAnalysis,
+): ReturnModellingTrafficModel {
+  const yourVisits = normaliseVisits(raw?.yourProfile?.traffic?.monthlyVisits ?? null)
+  const competitors: ReturnModellingTrafficModel['competitors'] = []
+  for (const c of raw?.competitors ?? []) {
+    const visits = normaliseVisits(c?.traffic?.monthlyVisits ?? null)
+    if (visits <= 0) continue
+    const domain = c?.domain ?? ''
+    const name = domain
+      .replace(/^https?:\/\//, '')
+      .replace(/^www\./, '')
+      .split('.')[0]!
+      .split(/[-_]/)
+      .map((w) =>
+        w.length > 0 ? w[0]!.toUpperCase() + w.slice(1).toLowerCase() : '',
+      )
+      .join(' ')
+    competitors.push({ name, monthlyVisits: visits })
+  }
+  // Sort by traffic descending, client always first
+  competitors.sort((a, b) => b.monthlyVisits - a.monthlyVisits)
+  return { yourMonthlyVisits: yourVisits, competitors }
+}
+
+function normaliseVisits(raw: number | string | number[] | null | undefined): number {
+  if (raw == null) return 0
+  if (typeof raw === 'number') return raw
+  if (Array.isArray(raw)) {
+    const last = raw[raw.length - 1]
+    return typeof last === 'number' ? last : 0
+  }
+  const s = String(raw).trim().toUpperCase().replace(/,/g, '')
+  const num = parseFloat(s)
+  if (!Number.isFinite(num)) return 0
+  if (s.endsWith('M')) return num * 1_000_000
+  if (s.endsWith('K')) return num * 1_000
+  return num
+}
+
+// ---------------------------------------------------------------------------
+// Projection DTOs — ship only what each slide renders, not the full audit doc
+//
+// All three slides below (<MissionBriefSlide>, <CompetitorAnalysisSlide>,
+// <PaidBurnSlide>) are server components whose output is passed as children to
+// client components (<RocketScroll> / <DeckStage>). Next.js RSC serialises
+// their props into the streaming payload that ships to the browser. Passing
+// the raw CompetitorAnalysisLike document would expose raw keywords, SERP
+// position arrays, social links, Google Business data, internal audit IDs
+// and report slugs — none of which any slide renders. Each helper below
+// projects only the fields the slide actually reads.
+// ---------------------------------------------------------------------------
+
+/** Fields MissionBriefSlide actually reads from competitorAnalysis. */
+export type CompetitorAnalysisMinimal = {
+  yourProfile?: { domain?: string | null } | null
+  competitors?: Array<{ domain?: string | null; traffic?: { monthlyVisits?: number | string | null } | null }> | null
+}
+
+function buildCompetitorAnalysisMinimal(raw: CompetitorAnalysisMinimal): CompetitorAnalysisMinimal {
+  // Only serialise: domain + traffic.monthlyVisits. Nothing else.
+  const yourDomain = raw?.yourProfile?.domain ?? null
+  const competitors = (raw?.competitors ?? []).map((c) => ({
+    domain: c?.domain ?? null,
+    traffic:
+      c?.traffic != null
+        ? { monthlyVisits: c.traffic.monthlyVisits != null ? c.traffic.monthlyVisits : null }
+        : null,
+  }))
+  return { yourProfile: yourDomain ? { domain: yourDomain } : null, competitors }
+}
+
+/** Fields CompetitorAnalysisSlide actually reads from competitorAnalysis. */
+export type CompetitorAnalysisForSlide = {
+  yourProfile?: {
+    domain?: string | null
+    avgPosition?: number | null
+    averagePosition?: number | null
+    keywordsFound?: number | null
+    traffic?: { monthlyVisits?: number | string | null } | null
+    googleAds?: { isRunningAds?: boolean } | null
+    metaAds?: { isRunningAds?: boolean } | null
+    websiteScreenshot?: string | null
+  } | null
+  competitors?: Array<{
+    domain?: string | null
+    avgPosition?: number | null
+    averagePosition?: number | null
+    keywordsFound?: number | null
+    traffic?: { monthlyVisits?: number | string | null } | null
+    googleAds?: { isRunningAds?: boolean } | null
+    metaAds?: { isRunningAds?: boolean } | null
+    websiteScreenshot?: string | null
+  }> | null
+}
+
+function buildCompetitorAnalysisForSlide(
+  raw: RawCompetitorAnalysis,
+): CompetitorAnalysisForSlide {
+  const buildProfile = (
+    p: RawCompetitorProfile | null | undefined,
+  ): CompetitorAnalysisForSlide['yourProfile'] => {
+    if (!p) return null
+    return {
+      domain: p.domain ?? null,
+      avgPosition: p.avgPosition ?? null,
+      averagePosition: p.averagePosition ?? null,
+      keywordsFound: p.keywordsFound ?? null,
+      traffic: p.traffic
+        ? { monthlyVisits: normaliseVisits(p.traffic.monthlyVisits ?? null) }
+        : null,
+      googleAds: p.googleAds ? { isRunningAds: p.googleAds.isRunningAds ?? undefined } : null,
+      metaAds: p.metaAds ? { isRunningAds: p.metaAds.isRunningAds ?? undefined } : null,
+      websiteScreenshot: p.websiteScreenshot ?? null,
+    }
+  }
+  return {
+    yourProfile: buildProfile(raw?.yourProfile),
+    competitors: (raw?.competitors ?? []).map((c) => buildProfile(c) ?? { domain: null }),
+  }
+}
+
+/** Fields PaidBurnSlide actually reads from competitorAnalysis. */
+export type CompetitorAnalysisForPaidBurn = {
+  competitors?: Array<{
+    domain?: string | null
+    googleAds?: { isRunningAds?: boolean } | null
+    metaAds?: { isRunningAds?: boolean } | null
+  }> | null
+}
+
+function buildCompetitorAnalysisForPaidBurn(raw: RawCompetitorAnalysis): CompetitorAnalysisForPaidBurn {
+  return {
+    competitors: (raw?.competitors ?? []).map((c) => ({
+      domain: c?.domain ?? null,
+      googleAds: c?.googleAds ? { isRunningAds: c.googleAds.isRunningAds ?? undefined } : null,
+      metaAds: c?.metaAds ? { isRunningAds: c.metaAds.isRunningAds ?? undefined } : null,
+    })),
+  }
 }

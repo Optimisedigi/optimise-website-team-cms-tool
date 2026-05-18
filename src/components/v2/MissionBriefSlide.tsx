@@ -31,6 +31,7 @@ type CompetitorLike = {
 
 type KeywordSnapshotLike = { keywords?: KeywordLike[] | null } | null
 type CompetitorAnalysisLike = {
+  yourProfile?: { domain?: string | null } | null
   competitors?: CompetitorLike[] | null
 } | null
 
