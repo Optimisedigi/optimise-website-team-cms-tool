@@ -510,12 +510,18 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     async (text: string, idx: number) => {
       setDraftState((prev) => ({ ...prev, [idx]: { status: 'saving' } }))
       try {
+        // Don't hardcode a subject. The Gmail draft route parses a leading
+        // `Subject:` / `To:` header block out of the body when OptiMate has
+        // drafted an actual email — those land in the Gmail subject/to
+        // fields directly. For non-email replies the subject stays blank
+        // (Gmail compose pane shows an empty Subject line, which is the
+        // honest default — nothing OptiMate-y leaks into client-facing
+        // mail).
         const res = await fetch('/api/gmail/draft', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            subject: `OptiMate · ${businessName ?? customerId}`,
             body: text,
           }),
         })
@@ -544,7 +550,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         }))
       }
     },
-    [businessName, customerId],
+    [],
   )
 
   // Pending-strip fetch: query approvals for this audit and surface anything

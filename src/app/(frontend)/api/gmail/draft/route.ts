@@ -3,6 +3,10 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { createGmailDraft } from "@/lib/gmail-service";
+import {
+  extractEmailHeaders,
+  stripAgentSignOff,
+} from "@/lib/gmail-draft-parsing";
 
 /**
  * POST /api/gmail/draft
@@ -111,18 +115,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const text = typeof body.body === "string" ? body.body.trim() : "";
-  if (!text) {
+  const rawText = typeof body.body === "string" ? body.body.trim() : "";
+  if (!rawText) {
     return NextResponse.json(
       { error: "body is required and must be non-empty." },
       { status: 400 },
     );
   }
-  const subject =
-    typeof body.subject === "string" && body.subject.trim()
-      ? body.subject.trim()
-      : "OptiMate reply";
-  const to = typeof body.to === "string" ? body.to.trim() : "";
+
+  // OptiMate drafts often start with a `Subject:` / `To:` header block when
+  // the user asks for an email. Hoist those into the Gmail draft fields so
+  // they don't end up rendered as text in the message body. Server-supplied
+  // subject/to win over what the agent wrote (the caller may have stronger
+  // context). After header extraction we also strip the agent's habitual
+  // "Want me to tweak the tone…" sign-off so the email reads cleanly.
+  const headers = extractEmailHeaders(rawText);
+  const cleanedBody = stripAgentSignOff(headers.body).trim();
+  const text = cleanedBody || headers.body.trim() || rawText;
+
+  const clientSubject = typeof body.subject === "string" ? body.subject.trim() : "";
+  const clientTo = typeof body.to === "string" ? body.to.trim() : "";
+  // Precedence: explicit client subject → parsed Subject: header → empty
+  // (Gmail compose pane shows an empty subject line, which is honest).
+  const subject = clientSubject || headers.subject || "";
+  const to = clientTo || headers.to || "";
 
   const tokenResult = await getValidGmailToken(user.id);
   if (!tokenResult.ok) {
