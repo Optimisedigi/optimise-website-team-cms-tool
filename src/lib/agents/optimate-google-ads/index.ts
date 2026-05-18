@@ -31,6 +31,8 @@ import { getAiVisibility } from "./tools/get-ai-visibility";
 import { getClientDetails } from "./tools/get-client-details";
 import { proposeCampaignRestructure } from "./tools/propose-campaign-restructure";
 import { proposeCampaignBuild } from "./tools/propose-campaign-build";
+import { proposeAdGroupCreate } from "./tools/propose-ad-group-create";
+import { proposeKeywordsAdd } from "./tools/propose-keywords-add";
 import { getCampaignProposalStatus } from "./tools/get-campaign-proposal-status";
 import { proposeScheduledTask } from "./tools/propose-scheduled-task";
 import { listScheduledTasks } from "./tools/list-scheduled-tasks";
@@ -72,6 +74,8 @@ export function getTools(): CanonicalTool<unknown>[] {
     getClientDetails as unknown as CanonicalTool<unknown>,
     proposeCampaignRestructure as unknown as CanonicalTool<unknown>,
     proposeCampaignBuild as unknown as CanonicalTool<unknown>,
+    proposeAdGroupCreate as unknown as CanonicalTool<unknown>,
+    proposeKeywordsAdd as unknown as CanonicalTool<unknown>,
     getCampaignProposalStatus as unknown as CanonicalTool<unknown>,
     proposeScheduledTask as unknown as CanonicalTool<unknown>,
     listScheduledTasks as unknown as CanonicalTool<unknown>,

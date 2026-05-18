@@ -12,6 +12,8 @@
  *   - "budget-push-live"     → push campaign budgets to Google Ads
  *   - "ad-copy-generate"     → prepare an audit for ad-copy generation
  *   - "ad-copy-deploy"       → push approved RSAs to Google Ads (PAUSED)
+ *   - "ad-group-create"      → create ONE ad group in an existing campaign (PAUSED), optionally cloning a source
+ *   - "keywords-add"         → bulk-add positive keywords to an existing ad group (PAUSED)
  *   - "stakeholder-deck"     → write a 5-slide deck (page.tsx + globals.css) to disk
  */
 
@@ -23,6 +25,8 @@ import { applyBudgetUpdate } from "./budget-update";
 import { applyBudgetPushLive } from "./budget-push-live";
 import { applyAdCopyGenerate } from "./ad-copy-generate";
 import { applyAdCopyDeploy } from "./ad-copy-deploy";
+import { applyAdGroupCreate } from "./ad-group-create";
+import { applyKeywordsAdd } from "./keywords-add";
 import { applyCampaignRestructure } from "./campaign-restructure";
 import { applyCampaignBuild } from "./campaign-build";
 import { applyScheduledTaskCreate } from "./scheduled-task-create";
@@ -48,6 +52,8 @@ export function registerOptimateApplyHandlers(): void {
   registerApplyHandler("budget-push-live", applyBudgetPushLive);
   registerApplyHandler("ad-copy-generate", applyAdCopyGenerate);
   registerApplyHandler("ad-copy-deploy", applyAdCopyDeploy);
+  registerApplyHandler("ad-group-create", applyAdGroupCreate);
+  registerApplyHandler("keywords-add", applyKeywordsAdd);
   registerApplyHandler("campaign-restructure", applyCampaignRestructure);
   registerApplyHandler("campaign-build", applyCampaignBuild);
   registerApplyHandler("scheduled-task-create", applyScheduledTaskCreate);

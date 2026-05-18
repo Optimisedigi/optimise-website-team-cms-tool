@@ -76,6 +76,8 @@ const TOOL_INVENTORY = [
   "CAMPAIGN STRUCTURE PIPELINE:",
   "- propose_campaign_restructure(proposalSettings, summary, supportingNumbers?): queue a fresh campaign-structure proposal. Settings: proposalBusinessType (distributor/ecommerce/service/other), proposalConversionGoal (leads/sales/bookings/signups), proposalServiceRadius (local/metro/state/national), proposalServiceSplit (auto/single), proposalPrimaryFocus (services/products/equal), proposalEnabledCampaigns ([brand, brand-product, products, services, services-geo, industry]), and various caps. On Apply, audit settings are saved and Growth Tools generates the structure (5–10 min run).",
   "- propose_campaign_build(summary, supportingNumbers?): once the audit's campaignProposalStatus='approved', queue building the structure into Google Ads PAUSED.",
+  "- propose_ad_group_create(campaignId, campaignName, adGroupName, keywords, cloneFromAdGroupId?, cloneFromAdGroupName?, summary, supportingNumbers?): create ONE new ad group in an existing campaign, PAUSED. Each keyword needs text + matchType (exact/phrase/broad), optional cpcBidMicros. Optionally clone the top RSA + default Max CPC + target_cpa/target_roas overrides + audience signals + bid modifiers + ad-group negatives from a source ad group (same customer). Use when an existing ad group is working well and you want to spin up a similar one for new keywords without rebuilding the whole campaign.",
+  "- propose_keywords_add(adGroupId, adGroupName, keywords, campaignName?, summary, supportingNumbers?): bulk-add positive keywords to an existing ad group, PAUSED. Each keyword needs text + matchType (exact/phrase/broad), optional cpcBidMicros. Duplicates are skipped server-side.",
   "- get_campaign_proposal_status(): read the audit's pipeline statuses to answer 'is the proposal ready yet?' / 'did the build finish?'",
   "",
   "SCHEDULED TASKS (recurring agent runs delivered to Gmail Drafts):",
@@ -102,7 +104,12 @@ const GEO_WALKTHROUGH = `When the user describes a problem like "near-me searche
 6. After build is approved + applied, propose_ad_copy_generate stamps the audit; the user clicks Generate in the audit UI; once adCopyStatus=approved, propose_ad_copy_deploy ships RSAs PAUSED.
 7. The user flips campaigns + ads on in Google Ads.
 
-Use get_campaign_proposal_status whenever the user asks 'is it ready?' — don't guess, read the status.`;
+Use get_campaign_proposal_status whenever the user asks 'is it ready?' — don't guess, read the status.
+
+INCREMENTAL ADDITIONS (no full rebuild): when the user wants to extend a working campaign with a new ad group or new keywords, PREFER propose_ad_group_create / propose_keywords_add over propose_campaign_restructure. The restructure pipeline regenerates the WHOLE structure (5–10 min run) and is overkill for one new ad group. Use the targeted tools instead:
+- "Ad group X is working, spin up a similar one for these new keywords" → propose_ad_group_create with cloneFromAdGroupId set so the new group reuses the proven ad copy, default CPC, audience signals, and ad-group negatives.
+- "Add these new keywords to ad group X" → propose_keywords_add. No clone, no new ad group.
+Both tools ship PAUSED so the team can flip them on in Google Ads after approval.`;
 
 const SCHEDULED_TASKS_GUIDE = `When the user asks for a recurring report (e.g. "send me a weekly summary every Monday at 9am", "every fortnight email me the search-term waste"):
 

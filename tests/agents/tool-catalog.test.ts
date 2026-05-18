@@ -44,6 +44,8 @@ const FIXTURE_TOOLS = [
   { name: "get_client_details", description: "On-demand client info." },
   { name: "propose_campaign_restructure", description: "Queue restructure proposal." },
   { name: "propose_campaign_build", description: "Build approved structure." },
+  { name: "propose_ad_group_create", description: "Create one ad group in an existing campaign." },
+  { name: "propose_keywords_add", description: "Bulk-add keywords to an ad group." },
   { name: "get_campaign_proposal_status", description: "Read pipeline status." },
   { name: "propose_scheduled_task", description: "Create recurring task." },
   { name: "list_scheduled_tasks", description: "List user's tasks." },
