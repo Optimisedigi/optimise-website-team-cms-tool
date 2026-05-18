@@ -873,6 +873,14 @@ $svg-close: "%3C/svg%3E";
   color: #ffffff;
 }
 
+.od-stat-tooltip__share {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  margin-left: 4px;
+  letter-spacing: 0.02em;
+}
+
 .od-stat-tooltip__detail {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.78);

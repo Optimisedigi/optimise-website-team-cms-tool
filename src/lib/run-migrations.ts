@@ -2989,6 +2989,15 @@ export async function runMigrations(
       "CREATE INDEX IF NOT EXISTS `clients_historical_revenue_by_year_parent_id_idx` ON `clients_historical_revenue_by_year` (`_parent_id`)",
     );
 
+    // ── Revenue share percentage on clients (2026-05-18) ──────────────────
+    // Agency's share of a client's revenue, in percent. Defaults to 100;
+    // set to 50 for a 50/50 partner split. Applied at the dashboard
+    // rollup + billingSummary layer; contract amounts unchanged.
+    await run(
+      "clients.revenue_share_percent",
+      "ALTER TABLE `clients` ADD `revenue_share_percent` numeric DEFAULT 100",
+    );
+
     // ── Hide-setup-fee toggle (2026-05-18) ───────────────────────────────
     // Contracts: per-contract toggle to hide the setup-fee row in the pricing
     // table and the matching default Payment Terms bullet. Used when an

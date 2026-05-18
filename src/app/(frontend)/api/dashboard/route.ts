@@ -7,6 +7,7 @@ import {
   oneOffsThisMonth,
   oneOffsYTD,
   retainerRevenueYTD,
+  revenueShareFactor,
 } from "@/lib/client-revenue";
 
 // ── Default per-unit API costs in AUD (fallbacks if global not configured) ──
@@ -284,6 +285,7 @@ export async function GET() {
         name: true,
         monthlyRetainer: true,
         setupFee: true,
+        revenueSharePercent: true,
         oneOffProjects: true,
         referralCommissions: true,
         clientStartDate: true,
@@ -440,7 +442,14 @@ export async function GET() {
     }),
   ]);
 
-  // Net monthly retainer (this month) — sum across clients, deducting active commissions
+  // Helper: agency's share of this client's revenue (0..1). Defaults to 1
+  // when the field is unset. Multiplied into every per-client contribution
+  // below so contract amounts stay full but dashboard rollups reflect the
+  // agency's actual take.
+  const shareOf = (c: any) => revenueShareFactor(c?.revenueSharePercent);
+
+  // Net monthly retainer (this month) — sum across clients, deducting active
+  // commissions, then applying the per-client revenue share.
   const monthlyRetainerNet = round(
     clientsForRetainer.docs.reduce(
       (sum: number, c: any) =>
@@ -449,24 +458,29 @@ export async function GET() {
           Number(c.monthlyRetainer) || 0,
           Array.isArray(c.referralCommissions) ? c.referralCommissions : [],
           now,
-        ),
+        ) *
+          shareOf(c),
       0,
     ),
   );
 
   // Sum one-off projects from the current month (retainer-tagged rows are
-  // excluded — they belong to Retainer YTD, not One-Off totals).
+  // excluded — they belong to Retainer YTD, not One-Off totals). Multiplied
+  // by per-client revenue share.
   const oneOffTotal = round(
     clientsForRetainer.docs.reduce(
-      (sum: number, c: any) => sum + oneOffsThisMonth(c.oneOffProjects, now, false),
+      (sum: number, c: any) =>
+        sum + oneOffsThisMonth(c.oneOffProjects, now, false) * shareOf(c),
       0,
     ),
   );
 
-  // One-off YTD (sum across clients, retainer-tagged rows excluded).
+  // One-off YTD (sum across clients, retainer-tagged rows excluded, scaled
+  // by per-client revenue share).
   const oneOffYTD = round(
     clientsForRetainer.docs.reduce(
-      (sum: number, c: any) => sum + oneOffsYTD(c.oneOffProjects, now, false),
+      (sum: number, c: any) =>
+        sum + oneOffsYTD(c.oneOffProjects, now, false) * shareOf(c),
       0,
     ),
   );
@@ -488,12 +502,13 @@ export async function GET() {
   }
 
   // Retainer revenue YTD (net of commissions, walks retainer history per client,
-  // includes setupFee + retainer-tagged one-offs + current-year historical rows).
+  // includes setupFee + retainer-tagged one-offs + current-year historical
+  // rows). Scaled per client by revenue share.
   const retainerYTD = round(
     clientsForRetainer.docs.reduce(
       (sum: number, c: any) =>
         sum +
-        retainerRevenueYTD(
+        (retainerRevenueYTD(
           {
             monthlyRetainer: Number(c.monthlyRetainer) || 0,
             setupFee: Number(c.setupFee) || 0,
@@ -506,7 +521,8 @@ export async function GET() {
           },
           now,
         ) +
-        thisYearHistoricalForClient(c),
+          thisYearHistoricalForClient(c)) *
+          shareOf(c),
       0,
     ),
   );
@@ -519,11 +535,14 @@ export async function GET() {
       if (gross <= 0) return null;
       const commissions = Array.isArray(c.referralCommissions) ? c.referralCommissions : [];
       const net = netMonthlyRetainer(gross, commissions, now);
+      const share = shareOf(c);
+      const sharePct = Number(c.revenueSharePercent);
       return {
         clientName: String(c.name ?? `#${c.id}`),
-        gross: round(gross),
-        commission: round(gross - net),
-        net: round(net),
+        gross: round(gross * share),
+        commission: round((gross - net) * share),
+        net: round(net * share),
+        revenueSharePercent: Number.isFinite(sharePct) && sharePct < 100 ? sharePct : null,
       };
     })
     .filter((row: any) => row !== null)
@@ -537,6 +556,7 @@ export async function GET() {
   }> = [];
   for (const c of clientsForRetainer.docs as any[]) {
     const rows = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
+    const share = shareOf(c);
     for (const p of rows) {
       if (p?.countTowardsRetainer) continue;
       if (!p?.date || p?.amount == null) continue;
@@ -546,7 +566,7 @@ export async function GET() {
       oneOffYTDBreakdown.push({
         clientName: String(c.name ?? `#${c.id}`),
         projectName: String(p.projectName ?? ""),
-        amount: round(Number(p.amount) || 0),
+        amount: round((Number(p.amount) || 0) * share),
         date: typeof p.date === "string" ? p.date : d.toISOString(),
       });
     }
@@ -555,6 +575,8 @@ export async function GET() {
 
   const retainerYTDBreakdown = clientsForRetainer.docs
     .map((c: any) => {
+      const share = shareOf(c);
+      const sharePct = Number(c.revenueSharePercent);
       const monthlyOnly = retainerRevenueYTD(
         {
           monthlyRetainer: Number(c.monthlyRetainer) || 0,
@@ -581,24 +603,32 @@ export async function GET() {
         if (d < yearStartIso || d > now) continue;
         retainerOneOffs.push({
           projectName: String(p.projectName ?? ""),
-          amount: round(Number(p.amount) || 0),
+          amount: round((Number(p.amount) || 0) * share),
         });
       }
       const priorPeriodThisYear = thisYearHistoricalForClient(c);
       const total = round(
-        monthlyOnly +
+        (monthlyOnly +
           setupFee +
-          retainerOneOffs.reduce((s, r) => s + r.amount, 0) +
-          priorPeriodThisYear,
+          rows
+            .filter((p: any) => p?.countTowardsRetainer)
+            .reduce((s: number, p: any) => {
+              const pd = p?.date ? new Date(p.date) : null;
+              if (!pd || isNaN(pd.getTime()) || pd < yearStartIso || pd > now) return s;
+              return s + (Number(p.amount) || 0);
+            }, 0) +
+          priorPeriodThisYear) *
+          share,
       );
       if (total <= 0) return null;
       return {
         clientName: String(c.name ?? `#${c.id}`),
-        monthlyNetSum: round(monthlyOnly),
-        setupFee: round(setupFee),
+        monthlyNetSum: round(monthlyOnly * share),
+        setupFee: round(setupFee * share),
         retainerOneOffs,
-        priorPeriodThisYear: round(priorPeriodThisYear),
+        priorPeriodThisYear: round(priorPeriodThisYear * share),
         total,
+        revenueSharePercent: Number.isFinite(sharePct) && sharePct < 100 ? sharePct : null,
       };
     })
     .filter((row: any) => row !== null)

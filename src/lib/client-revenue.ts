@@ -44,6 +44,24 @@ export interface HistoricalRevenueYear {
 }
 
 /**
+ * Normalises `revenueSharePercent` (1–100) to a 0..1 factor for
+ * multiplying contract amounts by the agency's share.
+ *
+ * Values outside [1, 100] or non-finite inputs default to 1 (100% share),
+ * preserving back-compat for clients without the field set.
+ */
+export function revenueShareFactor(
+  pct: number | null | undefined,
+): number {
+  if (pct == null) return 1;
+  const n = Number(pct);
+  if (!Number.isFinite(n)) return 1;
+  if (n <= 0) return 0;
+  if (n >= 100) return 1;
+  return n / 100;
+}
+
+/**
  * Sums per-year historical revenue rows, treating null/invalid amounts as 0.
  * Year is informational only — the sum spans every row regardless of year.
  */

@@ -147,6 +147,7 @@ interface DashboardData {
       gross: number
       commission: number
       net: number
+      revenueSharePercent?: number | null
     }>
     oneOffYTD: Array<{
       clientName: string
@@ -161,6 +162,7 @@ interface DashboardData {
       retainerOneOffs: Array<{ projectName: string; amount: number }>
       priorPeriodThisYear?: number
       total: number
+      revenueSharePercent?: number | null
     }>
   }
   month: string
@@ -464,7 +466,12 @@ const Dashboard = () => {
                 label="Monthly Retainer"
                 rows={(data.breakdowns?.monthlyRetainer ?? []).map((row, i) => (
                   <div key={i} className="od-stat-tooltip__row">
-                    <span className="od-stat-tooltip__name">{row.clientName}</span>
+                    <span className="od-stat-tooltip__name">
+                      {row.clientName}
+                      {row.revenueSharePercent != null && (
+                        <span className="od-stat-tooltip__share"> ({row.revenueSharePercent}% share)</span>
+                      )}
+                    </span>
                     <span className="od-stat-tooltip__detail">
                       ${fmt0(row.gross)} gross
                       {row.commission > 0 && (
@@ -482,7 +489,12 @@ const Dashboard = () => {
                 label="Retainer Revenue (YTD)"
                 rows={(data.breakdowns?.retainerYTD ?? []).map((row, i) => (
                   <div key={i} className="od-stat-tooltip__row">
-                    <span className="od-stat-tooltip__name">{row.clientName}</span>
+                    <span className="od-stat-tooltip__name">
+                      {row.clientName}
+                      {row.revenueSharePercent != null && (
+                        <span className="od-stat-tooltip__share"> ({row.revenueSharePercent}% share)</span>
+                      )}
+                    </span>
                     <span className="od-stat-tooltip__detail">
                       Retainer net: ${fmt0(row.monthlyNetSum)}
                       {row.setupFee > 0 && (

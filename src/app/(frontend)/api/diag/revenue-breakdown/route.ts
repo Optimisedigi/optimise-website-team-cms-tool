@@ -20,6 +20,7 @@ import {
   oneOffsThisMonth,
   oneOffsYTD,
   retainerRevenueYTD,
+  revenueShareFactor,
 } from "@/lib/client-revenue";
 
 function checkApiKey(request: NextRequest): NextResponse | null {
@@ -69,6 +70,8 @@ export async function GET(request: NextRequest) {
     const commissions = Array.isArray(c.referralCommissions) ? c.referralCommissions : [];
     const oneOffs = Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [];
     const history = Array.isArray(c.retainerHistory) ? c.retainerHistory : [];
+    const sharePct = Number(c.revenueSharePercent ?? 100);
+    const share = revenueShareFactor(sharePct);
 
     const commissionNow = monthlyCommissionForDate(commissions, mr, now);
     const net = netMonthlyRetainer(mr, commissions, now);
@@ -85,22 +88,29 @@ export async function GET(request: NextRequest) {
     const oo_month = oneOffsThisMonth(oneOffs, now);
     const hist = historicalRevenueTotal(c.historicalRevenueByYear);
 
-    monthlyRetainerNet += net;
-    retainerYTD += r_ytd;
-    oneOffYTD += oo_ytd;
-    oneOffThisMonth += oo_month;
-    historicalTotal += hist;
+    // Apply per-client share to the agency-wide rollups; per-client fields
+    // below stay gross so the diag shows both views.
+    monthlyRetainerNet += net * share;
+    retainerYTD += r_ytd * share;
+    oneOffYTD += oo_ytd * share;
+    oneOffThisMonth += oo_month * share;
+    historicalTotal += hist * share;
 
     return {
       id: c.id,
       name: c.name,
       clientStartDate: c.clientStartDate ?? null,
+      revenueSharePercent: sharePct,
       monthlyRetainerGross: mr,
       activeMonthlyCommission: commissionNow,
       monthlyRetainerNet: net,
+      monthlyRetainerNetAgency: net * share,
       historicalRevenue: hist,
+      historicalRevenueAgency: hist * share,
       retainerYTD: r_ytd,
+      retainerYTDAgency: r_ytd * share,
       oneOffsYTD: oo_ytd,
+      oneOffsYTDAgency: oo_ytd * share,
       oneOffsThisMonth: oo_month,
       retainerHistory: history.map((h: any) => ({
         amount: h.amount,

@@ -8,6 +8,7 @@ import {
   firstMonthProrationFactor,
   splitOneOffs,
   historicalRevenueTotal,
+  revenueShareFactor,
   type ReferralCommission,
 } from "@/lib/client-revenue";
 
@@ -341,6 +342,30 @@ describe("firstMonthProrationFactor", () => {
   it("Berendsen case: start 13 Mar → 19/31", () => {
     const start = new Date(2026, 2, 13);
     expect(firstMonthProrationFactor(start, new Date(2026, 2, 15))).toBeCloseTo(19 / 31, 10);
+  });
+});
+
+describe("revenueShareFactor", () => {
+  it("defaults to 1 for null / undefined / unset", () => {
+    expect(revenueShareFactor(null)).toBe(1);
+    expect(revenueShareFactor(undefined)).toBe(1);
+  });
+
+  it("defaults to 1 for non-finite or above-100 values", () => {
+    expect(revenueShareFactor(NaN)).toBe(1);
+    expect(revenueShareFactor(150)).toBe(1);
+    expect(revenueShareFactor(100)).toBe(1);
+  });
+
+  it("clamps non-positive values to 0", () => {
+    expect(revenueShareFactor(0)).toBe(0);
+    expect(revenueShareFactor(-25)).toBe(0);
+  });
+
+  it("returns pct/100 for values in (0, 100)", () => {
+    expect(revenueShareFactor(50)).toBe(0.5);
+    expect(revenueShareFactor(25)).toBe(0.25);
+    expect(revenueShareFactor(75)).toBe(0.75);
   });
 });
 

@@ -163,4 +163,64 @@ describe('GET /api/dashboard', () => {
     // 1350 * 0.92 = 1242 (not 1350)
     expect(json.monthlyRetainerNet).toBe(1242)
   })
+
+  it('applies revenueSharePercent to monthlyRetainerNet (50% partner split)', async () => {
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args?.collection === 'clients' && args?.select?.monthlyRetainer) {
+        return Promise.resolve({
+          docs: [
+            {
+              id: 1,
+              name: 'Partner Co',
+              monthlyRetainer: 2000,
+              revenueSharePercent: 50,
+              clientStartDate: null,
+              oneOffProjects: [],
+              retainerHistory: [],
+              referralCommissions: [],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+
+    const res = await GET()
+    const json = await res.json()
+    // $2,000 × 50% share = $1,000
+    expect(json.monthlyRetainerNet).toBe(1000)
+    // Breakdown row reflects the post-share net + carries the share %
+    expect(json.breakdowns.monthlyRetainer[0]).toMatchObject({
+      clientName: 'Partner Co',
+      gross: 1000,
+      net: 1000,
+      revenueSharePercent: 50,
+    })
+  })
+
+  it('omits revenueSharePercent badge when share is 100', async () => {
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args?.collection === 'clients' && args?.select?.monthlyRetainer) {
+        return Promise.resolve({
+          docs: [
+            {
+              id: 1,
+              name: 'Full Co',
+              monthlyRetainer: 1000,
+              revenueSharePercent: 100,
+              clientStartDate: null,
+              oneOffProjects: [],
+              retainerHistory: [],
+              referralCommissions: [],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+
+    const res = await GET()
+    const json = await res.json()
+    expect(json.breakdowns.monthlyRetainer[0].revenueSharePercent).toBeNull()
+  })
 })

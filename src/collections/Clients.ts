@@ -1,7 +1,11 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
-import { historicalRevenueTotal, retainerRevenueYTD } from "../lib/client-revenue";
+import {
+  historicalRevenueTotal,
+  retainerRevenueYTD,
+  revenueShareFactor,
+} from "../lib/client-revenue";
 import {
   canAccess,
   canAccessAnyOrApiKey,
@@ -209,7 +213,10 @@ export const Clients: CollectionConfig = {
           now,
         );
 
-        doc.billingSummary = retainerRevenue + oneOffTotal + historicalRevenue;
+        // Apply revenue share — e.g. 50% partner split. Defaults to 100%
+        // when the field is unset, so existing clients are unaffected.
+        const share = revenueShareFactor(doc?.revenueSharePercent as number | null | undefined);
+        doc.billingSummary = (retainerRevenue + oneOffTotal + historicalRevenue) * share;
         return doc;
       },
     ],
@@ -667,6 +674,23 @@ export const Clients: CollectionConfig = {
               admin: {
                 description:
                   "One-time setup fee ($). Counts toward Retainer Revenue YTD in the calendar year of clientStartDate.",
+                step: 1,
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
+              },
+            },
+            {
+              name: "revenueSharePercent",
+              type: "number",
+              defaultValue: 100,
+              min: 1,
+              max: 100,
+              access: sensitiveFieldAccess("clients"),
+              admin: {
+                description:
+                  "Agency's share of this client's revenue, in percent. Use 50 if you split this client 50/50 with a partner. Contract amounts stay unchanged; every revenue figure (Retainer YTD, One-Off YTD, Billing Summary, Historical) is multiplied by this percentage. Defaults to 100.",
                 step: 1,
                 condition: conditionRequiresFeature(
                   "clients",

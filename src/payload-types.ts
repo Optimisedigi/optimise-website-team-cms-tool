@@ -421,6 +421,10 @@ export interface Client {
    */
   setupFee?: number | null;
   /**
+   * Agency's share of this client's revenue, in percent. Use 50 if you split this client 50/50 with a partner. Contract amounts stay unchanged; every revenue figure (Retainer YTD, One-Off YTD, Billing Summary, Historical) is multiplied by this percentage. Defaults to 100.
+   */
+  revenueSharePercent?: number | null;
+  /**
    * One-off projects (website builds, audits, etc.)
    */
   oneOffProjects?:
@@ -1281,6 +1285,10 @@ export interface Contract {
    * Annual hosting cost (leave blank if billed monthly)
    */
   annualHosting?: number | null;
+  /**
+   * When ON: the setup fee row is omitted from the pricing table and the matching Payment Terms bullet is removed. Use when an Additional Work project replaces the setup fee.
+   */
+  hideSetupFee?: boolean | null;
   /**
    * Additional one-time work items (website builds, agent builds, audits). Copied to the client on signature.
    */
@@ -6879,6 +6887,7 @@ export interface ClientsSelect<T extends boolean = true> {
   clientStartDate?: T;
   monthlyRetainer?: T;
   setupFee?: T;
+  revenueSharePercent?: T;
   oneOffProjects?:
     | T
     | {
@@ -7382,6 +7391,7 @@ export interface ContractsSelect<T extends boolean = true> {
   setupFee?: T;
   monthlyHosting?: T;
   annualHosting?: T;
+  hideSetupFee?: T;
   additionalWork?:
     | T
     | {
