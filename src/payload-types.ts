@@ -490,9 +490,21 @@ export interface Client {
       }[]
     | null;
   /**
-   * Pre-CMS revenue ($). Added to auto-calculated total for clients who started before the CMS was set up.
+   * Pre-CMS revenue, broken out by calendar year. Sum is added to the lifetime billing total.
    */
-  historicalRevenue?: number | null;
+  historicalRevenueByYear?:
+    | {
+        /**
+         * Calendar year (e.g. 2024)
+         */
+        year: number;
+        /**
+         * Revenue for that year ($)
+         */
+        amount: number;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Client contract document (legacy upload)
    */
@@ -6891,7 +6903,13 @@ export interface ClientsSelect<T extends boolean = true> {
         notes?: T;
         id?: T;
       };
-  historicalRevenue?: T;
+  historicalRevenueByYear?:
+    | T
+    | {
+        year?: T;
+        amount?: T;
+        id?: T;
+      };
   contract?: T;
   signedContractUrl?: T;
   signedContract?: T;

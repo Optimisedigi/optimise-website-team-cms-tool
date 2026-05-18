@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import {
+  historicalRevenueTotal,
   netMonthlyRetainer,
   oneOffsThisMonth,
   oneOffsYTD,
@@ -288,7 +289,7 @@ export async function GET() {
         referralCommissions: true,
         clientStartDate: true,
         retainerHistory: true,
-        historicalRevenue: true,
+        historicalRevenueByYear: true,
       } as any,
     }).catch(() => ({ docs: [] })),
 
@@ -586,7 +587,7 @@ export async function GET() {
   // backwards-compat `ytdRevenue` field used by the sales-target progress bar.
   const historicalTotal = round(
     clientsForRetainer.docs.reduce(
-      (sum: number, c: any) => sum + (Number(c.historicalRevenue) || 0),
+      (sum: number, c: any) => sum + historicalRevenueTotal(c.historicalRevenueByYear),
       0,
     ),
   );

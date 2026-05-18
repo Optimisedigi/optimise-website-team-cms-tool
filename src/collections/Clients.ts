@@ -1,7 +1,7 @@
 import type { CollectionConfig, CollectionBeforeChangeHook } from "payload";
 import crypto from "crypto";
 import { logActivity } from "../lib/activity-log";
-import { retainerRevenueYTD } from "../lib/client-revenue";
+import { historicalRevenueTotal, retainerRevenueYTD } from "../lib/client-revenue";
 import {
   canAccess,
   canAccessAnyOrApiKey,
@@ -183,7 +183,9 @@ export const Clients: CollectionConfig = {
       ({ doc }) => {
         if (doc?.isAgency) return doc;
 
-        const historicalRevenue = Number(doc?.historicalRevenue) || 0;
+        const historicalRevenue = historicalRevenueTotal(
+          Array.isArray(doc?.historicalRevenueByYear) ? doc.historicalRevenueByYear : [],
+        );
         const oneOffProjects = Array.isArray(doc?.oneOffProjects) ? doc.oneOffProjects : [];
         const referralCommissions = Array.isArray(doc?.referralCommissions)
           ? doc.referralCommissions
@@ -881,18 +883,66 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
-              name: "historicalRevenue",
-              type: "number",
-              min: 0,
+              name: "historicalRevenueByYear",
+              type: "array",
+              dbName: "clients_historical_revenue_by_year",
               access: sensitiveFieldAccess("clients"),
               admin: {
-                description: "Pre-CMS revenue ($). Added to auto-calculated total for clients who started before the CMS was set up.",
-                step: 1,
+                description:
+                  "Pre-CMS revenue, broken out by calendar year. Sum is added to the lifetime billing total.",
+                initCollapsed: true,
                 condition: conditionRequiresFeature(
                   "clients",
                   (data: any) => !data?.isAgency,
                 ),
               },
+              validate: ((value: unknown) => {
+                if (!Array.isArray(value)) return true;
+                const seen = new Set<number>();
+                for (let i = 0; i < value.length; i++) {
+                  const row = value[i] as Record<string, unknown> | null;
+                  if (!row) continue;
+                  const year = Number(row.year);
+                  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+                    return `Row ${i + 1}: Year must be between 2000 and 2100.`;
+                  }
+                  if (seen.has(year)) {
+                    return `Row ${i + 1}: Year ${year} appears more than once.`;
+                  }
+                  seen.add(year);
+                }
+                return true;
+              }) as any,
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "year",
+                      type: "number",
+                      required: true,
+                      min: 2000,
+                      max: 2100,
+                      admin: {
+                        description: "Calendar year (e.g. 2024)",
+                        step: 1,
+                        width: "40%",
+                      },
+                    },
+                    {
+                      name: "amount",
+                      type: "number",
+                      required: true,
+                      min: 0,
+                      admin: {
+                        description: "Revenue for that year ($)",
+                        step: 1,
+                        width: "60%",
+                      },
+                    },
+                  ],
+                },
+              ],
             },
             {
               name: "contract",

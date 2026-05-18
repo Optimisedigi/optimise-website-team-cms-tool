@@ -2963,6 +2963,31 @@ export async function runMigrations(
       "contracts_additional_work_parent_id_idx",
       "CREATE INDEX IF NOT EXISTS `contracts_additional_work_parent_id_idx` ON `contracts_additional_work` (`_parent_id`)",
     );
+
+    // ── Per-year historical revenue (2026-05-18) ──────────────────────────────────
+    // Replaces the single `clients.historical_revenue` column. The old
+    // column stays on disk — Payload just stops surfacing it. The sum of
+    // these rows now feeds `billingSummary` and the dashboard's
+    // `historicalTotal` rollup.
+    await run(
+      "clients_historical_revenue_by_year",
+      `CREATE TABLE IF NOT EXISTS \`clients_historical_revenue_by_year\` (
+        \`_order\` integer NOT NULL,
+        \`_parent_id\` integer NOT NULL,
+        \`id\` text PRIMARY KEY NOT NULL,
+        \`year\` numeric NOT NULL,
+        \`amount\` numeric NOT NULL,
+        FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+      )`,
+    );
+    await run(
+      "clients_historical_revenue_by_year_order_idx",
+      "CREATE INDEX IF NOT EXISTS `clients_historical_revenue_by_year_order_idx` ON `clients_historical_revenue_by_year` (`_order`)",
+    );
+    await run(
+      "clients_historical_revenue_by_year_parent_id_idx",
+      "CREATE INDEX IF NOT EXISTS `clients_historical_revenue_by_year_parent_id_idx` ON `clients_historical_revenue_by_year` (`_parent_id`)",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

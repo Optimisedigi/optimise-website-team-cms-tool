@@ -3,10 +3,12 @@
 import { useDocumentInfo } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
 import {
+  historicalRevenueTotal,
   monthlyCommissionForDate,
   netMonthlyRetainer,
   oneOffsYTD,
   retainerRevenueYTD,
+  type HistoricalRevenueYear,
   type ReferralCommission,
   type RetainerHistoryEntry,
   type OneOffProject,
@@ -15,7 +17,7 @@ import {
 type ClientBillingData = {
   monthlyRetainer: number
   setupFee: number
-  historicalRevenue: number
+  historicalRevenueByYear: HistoricalRevenueYear[]
   clientStartDate: string | null
   oneOffProjects: OneOffProject[]
   retainerHistory: RetainerHistoryEntry[]
@@ -40,7 +42,9 @@ function ClientBillingSummary() {
         setData({
           monthlyRetainer: doc.monthlyRetainer ?? 0,
           setupFee: doc.setupFee ?? 0,
-          historicalRevenue: doc.historicalRevenue ?? 0,
+          historicalRevenueByYear: Array.isArray(doc.historicalRevenueByYear)
+            ? doc.historicalRevenueByYear
+            : [],
           clientStartDate: doc.clientStartDate ?? null,
           oneOffProjects: Array.isArray(doc.oneOffProjects) ? doc.oneOffProjects : [],
           retainerHistory: Array.isArray(doc.retainerHistory) ? doc.retainerHistory : [],
@@ -58,7 +62,7 @@ function ClientBillingSummary() {
   const {
     monthlyRetainer,
     setupFee,
-    historicalRevenue,
+    historicalRevenueByYear,
     clientStartDate,
     oneOffProjects,
     retainerHistory,
@@ -86,6 +90,7 @@ function ClientBillingSummary() {
   )
   // Pure one-offs only (rows without countTowardsRetainer).
   const oneOffTotal = oneOffsYTD(oneOffProjects, now, false)
+  const historicalRevenue = historicalRevenueTotal(historicalRevenueByYear)
   const totalRevenue = retainerRevenue + oneOffTotal + historicalRevenue
 
   // Setup fee counts toward Retainer YTD in the year of clientStartDate—

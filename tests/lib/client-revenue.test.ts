@@ -7,6 +7,7 @@ import {
   monthsBetween,
   firstMonthProrationFactor,
   splitOneOffs,
+  historicalRevenueTotal,
   type ReferralCommission,
 } from "@/lib/client-revenue";
 
@@ -340,6 +341,34 @@ describe("firstMonthProrationFactor", () => {
   it("Berendsen case: start 13 Mar → 19/31", () => {
     const start = new Date(2026, 2, 13);
     expect(firstMonthProrationFactor(start, new Date(2026, 2, 15))).toBeCloseTo(19 / 31, 10);
+  });
+});
+
+describe("historicalRevenueTotal", () => {
+  it("returns 0 for empty / null input", () => {
+    expect(historicalRevenueTotal(null)).toBe(0);
+    expect(historicalRevenueTotal([])).toBe(0);
+  });
+
+  it("sums amount across rows regardless of year", () => {
+    expect(
+      historicalRevenueTotal([
+        { year: 2023, amount: 10000 },
+        { year: 2024, amount: 25000 },
+        { year: 2025, amount: 64300 },
+      ]),
+    ).toBe(99300);
+  });
+
+  it("ignores rows with non-positive / non-finite amounts", () => {
+    expect(
+      historicalRevenueTotal([
+        { year: 2023, amount: 0 },
+        { year: 2024, amount: null },
+        { year: 2025, amount: 64300 },
+        { year: 2026, amount: NaN as unknown as number },
+      ]),
+    ).toBe(64300);
   });
 });
 

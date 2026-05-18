@@ -38,6 +38,29 @@ export interface OneOffProject {
   countTowardsRetainer?: boolean | null;
 }
 
+export interface HistoricalRevenueYear {
+  year?: number | null;
+  amount?: number | null;
+}
+
+/**
+ * Sums per-year historical revenue rows, treating null/invalid amounts as 0.
+ * Year is informational only — the sum spans every row regardless of year.
+ */
+export function historicalRevenueTotal(
+  rows: HistoricalRevenueYear[] | null | undefined,
+): number {
+  if (!Array.isArray(rows) || rows.length === 0) return 0;
+  let total = 0;
+  for (const r of rows) {
+    if (!r) continue;
+    const amt = Number(r.amount);
+    if (!isFinite(amt) || amt <= 0) continue;
+    total += amt;
+  }
+  return total;
+}
+
 export interface ClientRevenueInput {
   monthlyRetainer?: number | null;
   setupFee?: number | null;

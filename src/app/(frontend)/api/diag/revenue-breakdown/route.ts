@@ -14,6 +14,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import crypto from "crypto";
 import {
+  historicalRevenueTotal,
   monthlyCommissionForDate,
   netMonthlyRetainer,
   oneOffsThisMonth,
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
     );
     const oo_ytd = oneOffsYTD(oneOffs, now);
     const oo_month = oneOffsThisMonth(oneOffs, now);
-    const hist = Number(c.historicalRevenue) || 0;
+    const hist = historicalRevenueTotal(c.historicalRevenueByYear);
 
     monthlyRetainerNet += net;
     retainerYTD += r_ytd;
