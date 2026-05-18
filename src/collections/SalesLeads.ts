@@ -39,31 +39,15 @@ export const SalesLeads: CollectionConfig = {
   },
   defaultSort: "-updatedAt",
   hooks: {
-    beforeChange: [
-      async ({ data, originalDoc, operation }) => {
-        if (!data) return data;
-
-        // Auto-record stage transitions in history
-        if (
-          operation === "update" &&
-          originalDoc &&
-          data.stage &&
-          data.stage !== originalDoc.stage
-        ) {
-          const historyEntry = {
-            fromStage: originalDoc.stage,
-            toStage: data.stage,
-            transitionDate: new Date().toISOString(),
-          };
-          const existing = Array.isArray(originalDoc.stageHistory)
-            ? originalDoc.stageHistory
-            : [];
-          data.stageHistory = [historyEntry, ...existing];
-        }
-
-        return data;
-      },
-    ],
+    // NOTE: stage-history recording used to live in beforeChange, which
+    // mutated `data.stageHistory` with a new array row mid-save. Payload's
+    // admin form would then diff its own payload against the response and
+    // see a new array entry with a server-generated id it never sent —
+    // leaving the form perpetually "dirty" and triggering the
+    // "Leave without saving?" prompt on every save. We now defer that
+    // write to afterChange via setTimeout (mirrors the existing
+    // proposal-sync pattern below) so the user's save POST/response cycle
+    // touches only the fields they actually edited.
     afterChange: [
       async ({ doc, operation, req, previousDoc }) => {
         if (operation === "create") {
@@ -86,6 +70,42 @@ export const SalesLeads: CollectionConfig = {
             description: `${previousDoc.stage} → ${doc.stage}`,
             user: req.user?.id,
           }).catch(() => {});
+
+          // Deferred stage-history write. Guarded by req.context.skipStageHistory
+          // so our own recursive update (which triggers afterChange again)
+          // short-circuits instead of looping. Same fire-and-forget pattern as
+          // the proposal sync below — acceptable failure mode: if the process
+          // dies in the 500ms gap the stage is recorded but the history row
+          // isn't (history is UI nicety, not business logic).
+          const ctx = req.context as { skipStageHistory?: boolean } | undefined;
+          if (!ctx?.skipStageHistory) {
+            const historyEntry = {
+              fromStage: previousDoc.stage,
+              toStage: doc.stage,
+              transitionDate: new Date().toISOString(),
+            };
+            const existing = Array.isArray((doc as any).stageHistory)
+              ? ((doc as any).stageHistory as Array<Record<string, unknown>>)
+              : [];
+            const syncPayload = req.payload;
+            const leadId = doc.id;
+            setTimeout(async () => {
+              try {
+                await syncPayload.update({
+                  collection: "sales-leads",
+                  id: leadId,
+                  data: { stageHistory: [historyEntry, ...existing] } as any,
+                  overrideAccess: true,
+                  context: { skipStageHistory: true },
+                });
+              } catch (err) {
+                // Best-effort: history is a UI nicety, not used for business logic.
+                req.payload.logger?.warn?.(
+                  `[sales-leads] deferred stageHistory write failed for lead ${leadId}: ${err instanceof Error ? err.message : String(err)}`,
+                );
+              }
+            }, 500);
+          }
 
           // Sync: when lead moves to "client", update linked proposal status
           // Fire-and-forget to avoid SQLite lock conflicts with the current save
