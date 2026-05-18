@@ -1441,33 +1441,6 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             }}
           />
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-            <select
-              value={selectedModel}
-              onChange={(e) => {
-                setSelectedModel(e.target.value)
-                savePersistedModel(e.target.value)
-              }}
-              disabled={loading}
-              title="Model used for the next message"
-              style={{
-                fontSize: 11,
-                padding: '4px 8px',
-                border: '1px solid var(--theme-border-color, #e5e7eb)',
-                borderRadius: 6,
-                background: 'var(--theme-input-bg, #fff)',
-                color: 'var(--theme-text, #1f2937)',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                maxWidth: compact ? 110 : 160,
-              }}
-            >
-              {CHAT_PICKER_MODELS.map((m) => (
-                <option key={m.canonical} value={m.canonical}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <button
               type="button"
@@ -1564,6 +1537,40 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             >
               Send
             </button>
+          </div>
+
+          {/* Model selector lives BELOW the input row so the typebox is the
+              primary affordance. Width is set to fit the longest current
+              label ("Claude Sonnet 4.6 (OAuth)" — ~25 chars) without
+              truncation. Browsers ignore most styling on <option> elements,
+              but the closed-select width is controlled here. */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+            <select
+              value={selectedModel}
+              onChange={(e) => {
+                setSelectedModel(e.target.value)
+                savePersistedModel(e.target.value)
+              }}
+              disabled={loading}
+              title="Model used for the next message"
+              style={{
+                fontSize: 11,
+                padding: '4px 8px',
+                border: '1px solid var(--theme-border-color, #e5e7eb)',
+                borderRadius: 6,
+                background: 'var(--theme-input-bg, #fff)',
+                color: 'var(--theme-text, #1f2937)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                width: '100%',
+                maxWidth: 240,
+              }}
+            >
+              {CHAT_PICKER_MODELS.map((m) => (
+                <option key={m.canonical} value={m.canonical}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       )}

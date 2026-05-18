@@ -127,21 +127,56 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
     },
   }), [targets])
 
-  // Single-account fast path: skip the tab strip and let the ChatCore render
-  // its own input. Keeps behaviour identical to the old launcher when only
-  // one account is picked.
+  // Single-account fast path: skip the broadcast-aware shared input and
+  // let the ChatCore render its own input. We still render an account
+  // label strip on top in the SAME visual position as the multi-account
+  // tab strip, so the user always sees which account they're talking to
+  // — previously this slot rendered nothing for single-account chats,
+  // which made it ambiguous when you'd picked a single account.
   if (targets.length === 1) {
     const t = targets[0]
     return (
-      <OptiMateChatCore
-        ref={setRef(String(t.id))}
-        key={String(t.id)}
-        auditId={t.id}
-        customerId={t.customerId}
-        businessName={t.businessName}
-        compact={compact}
-        initialSessionId={t.initialSessionId}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 4,
+            borderBottom: '1px solid var(--theme-border-color, #e5e7eb)',
+            marginBottom: 8,
+            overflowX: 'auto',
+            flexShrink: 0,
+          }}
+        >
+          {/* Non-clickable label — there's nothing to switch to, but the
+              strip matches the multi-account header so the layout is stable
+              when you add/remove accounts. */}
+          <div
+            title={t.customerId}
+            style={{
+              padding: '6px 10px',
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#111',
+              borderBottom: '2px solid #2563eb',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            {t.businessName || t.customerId}
+          </div>
+        </div>
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <OptiMateChatCore
+            ref={setRef(String(t.id))}
+            key={String(t.id)}
+            auditId={t.id}
+            customerId={t.customerId}
+            businessName={t.businessName}
+            compact={compact}
+            initialSessionId={t.initialSessionId}
+          />
+        </div>
+      </div>
     )
   }
 
