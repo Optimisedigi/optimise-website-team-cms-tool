@@ -279,14 +279,6 @@ export interface Client {
    */
   isAgency?: boolean | null;
   /**
-   * Yearly revenue target ($). Shown as a progress bar on the dashboard.
-   */
-  yearlySalesTarget?: number | null;
-  /**
-   * Target deadline (defaults to Dec 31 of current year if not set)
-   */
-  targetDeadlineDate?: string | null;
-  /**
    * 4-digit PIN for client hub access (auto-generated)
    */
   clientPin?: string | null;
@@ -424,6 +416,22 @@ export interface Client {
    * Agency's share of this client's revenue, in percent. Use 50 if you split this client 50/50 with a partner. Contract amounts stay unchanged; every revenue figure (Retainer YTD, One-Off YTD, Billing Summary, Historical) is multiplied by this percentage. Defaults to 100.
    */
   revenueSharePercent?: number | null;
+  /**
+   * Yearly sales targets by calendar year. For the agency client, the row matching the current year drives the Yearly Sales Target progress bar on the dashboard. For ordinary clients this is a tracking number only.
+   */
+  yearlyTargets?:
+    | {
+        /**
+         * Calendar year (e.g. 2026)
+         */
+        year: number;
+        /**
+         * Sales target for that year ($)
+         */
+        target: number;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * One-off projects (website builds, audits, etc.)
    */
@@ -1262,11 +1270,11 @@ export interface Contract {
    */
   contractStartDate?: string | null;
   /**
-   * Toggle ON once the effective date is confirmed with the client. When OFF, the cover page shows '(to be confirmed with client)' next to the date; when ON, the qualifier is hidden. Takes precedence over the deposit toggle.
+   * Toggle ON once the effective date is confirmed with the client. When OFF, the cover page shows '(to be confirmed with client)' next to the date; when ON, the qualifier is hidden. The deposit toggle below overrides this.
    */
   effectiveDateConfirmed?: boolean | null;
   /**
-   * When ON: the cover page shows '(once the deposit has been paid)' next to the effective date. Use on jobs that require an upfront deposit before work starts. Ignored when 'Effective date confirmed' is ON.
+   * When ON: the cover page shows '(once the deposit has been paid)' next to the effective date, even if 'Effective date confirmed' is also ON. Use on jobs that require an upfront deposit before work starts.
    */
   effectiveDateOnDeposit?: boolean | null;
   /**
@@ -6863,8 +6871,6 @@ export interface ClientsSelect<T extends boolean = true> {
   apiKey?: T;
   isActive?: T;
   isAgency?: T;
-  yearlySalesTarget?: T;
-  targetDeadlineDate?: T;
   clientPin?: T;
   websiteType?: T;
   externalCms?: T;
@@ -6896,6 +6902,13 @@ export interface ClientsSelect<T extends boolean = true> {
   monthlyRetainer?: T;
   setupFee?: T;
   revenueSharePercent?: T;
+  yearlyTargets?:
+    | T
+    | {
+        year?: T;
+        target?: T;
+        id?: T;
+      };
   oneOffProjects?:
     | T
     | {

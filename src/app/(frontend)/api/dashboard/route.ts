@@ -664,8 +664,9 @@ export async function GET() {
   const totalCost = round(infraTotal + apiTotal + llmTotal);
 
   // Lead conversion: leads that reached "client" stage / total leads
-  // Fetch agency yearly sales target
-  let salesTarget: { target: number; deadline: string } | null = null;
+  // Fetch agency yearly sales target — from the agency client's
+  // yearlyTargets[] array, matching the current calendar year.
+  let salesTarget: { target: number } | null = null;
   try {
     const agencyClient = await payload.find({
       collection: "clients",
@@ -675,11 +676,16 @@ export async function GET() {
       overrideAccess: true,
     });
     const agency = agencyClient.docs[0] as any;
-    if (agency?.yearlySalesTarget && agency.yearlySalesTarget > 0) {
-      salesTarget = {
-        target: agency.yearlySalesTarget,
-        deadline: agency.targetDeadlineDate || `${now.getFullYear()}-12-31T00:00:00.000Z`,
-      };
+    const targetsArr: Array<{ year?: number; target?: number }> = Array.isArray(
+      agency?.yearlyTargets,
+    )
+      ? agency.yearlyTargets
+      : [];
+    const yr = now.getFullYear();
+    const match = targetsArr.find((t) => Number(t?.year) === yr);
+    const target = Number(match?.target) || 0;
+    if (target > 0) {
+      salesTarget = { target };
     }
   } catch { /* agency not configured */ }
 

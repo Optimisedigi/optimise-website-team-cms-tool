@@ -139,7 +139,6 @@ interface DashboardData {
   processes?: ProcessesData | null
   salesTarget?: {
     target: number
-    deadline: string
   } | null
   breakdowns?: {
     monthlyRetainer: Array<{
@@ -435,7 +434,6 @@ const Dashboard = () => {
         <YearlySalesTargetBar
           target={data.salesTarget.target}
           current={data.ytdRevenue}
-          deadline={data.salesTarget.deadline}
         />
       )}
 
@@ -1827,18 +1825,20 @@ function Ga4Chart({ data }: { data: { date: string; users: number; sessions: num
 
 // ─── Yearly Sales Target Bar ─────────────────────────────
 
-function YearlySalesTargetBar({ target, current, deadline }: { target: number; current: number; deadline: string }) {
+function YearlySalesTargetBar({ target, current }: { target: number; current: number }) {
   const percentage = Math.min(100, Math.round((current / target) * 100))
   const remaining = target - current
-  const deadlineDate = new Date(deadline)
   const now = new Date()
-  const daysRemaining = Math.max(0, Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-
-  // Pace: $160k / 12 months = ~$13,333/mo. By March 20 we're ~2.65 months in → should be at ~$35,333
-  // Calculate as: (days elapsed since Jan 1) / (total days Jan 1 → deadline) × 100
+  // Year-end is implicit — the target is by definition for the current
+  // calendar year (Jan 1 → Dec 31).
   const yearStart = new Date(now.getFullYear(), 0, 1)
-  const totalDays = Math.max(1, Math.ceil((deadlineDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)))
+  const yearEnd = new Date(now.getFullYear() + 1, 0, 1)
+  const totalDays = Math.max(
+    1,
+    Math.ceil((yearEnd.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)),
+  )
   const elapsedDays = Math.ceil((now.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24))
+  const daysRemaining = Math.max(0, totalDays - elapsedDays)
   const pacePercent = Math.min(100, Math.round((elapsedDays / totalDays) * 100))
   const expectedAmount = Math.round((elapsedDays / totalDays) * target)
 
@@ -1868,7 +1868,7 @@ function YearlySalesTargetBar({ target, current, deadline }: { target: number; c
             {remaining > 0 ? `$${remaining.toLocaleString('en-AU', { maximumFractionDigits: 0 })} to go` : '🎉 Target reached!'}
           </span>
           <span>
-            {daysRemaining} days left · {deadlineDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+            {daysRemaining} days left
           </span>
         </div>
       </div>

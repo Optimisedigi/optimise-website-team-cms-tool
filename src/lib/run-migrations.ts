@@ -3014,6 +3014,43 @@ export async function runMigrations(
       "CREATE INDEX IF NOT EXISTS `contracts_deleted_at_idx` ON `contracts` (`deleted_at`)",
     );
 
+    // ── Per-year sales targets on clients (2026-05-18) ───────────────────
+    // Replaces the single `yearlySalesTarget` + `targetDeadlineDate` fields
+    // on the agency client. Any non-agency client can also have rows here
+    // for tracking purposes (no agency-wide aggregation yet).
+    await run(
+      "clients_yearly_targets",
+      `CREATE TABLE IF NOT EXISTS \`clients_yearly_targets\` (
+        \`_order\` integer NOT NULL,
+        \`_parent_id\` integer NOT NULL,
+        \`id\` text PRIMARY KEY NOT NULL,
+        \`year\` numeric NOT NULL,
+        \`target\` numeric NOT NULL,
+        FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+      )`,
+    );
+    await run(
+      "clients_yearly_targets_order_idx",
+      "CREATE INDEX IF NOT EXISTS `clients_yearly_targets_order_idx` ON `clients_yearly_targets` (`_order`)",
+    );
+    await run(
+      "clients_yearly_targets_parent_id_idx",
+      "CREATE INDEX IF NOT EXISTS `clients_yearly_targets_parent_id_idx` ON `clients_yearly_targets` (`_parent_id`)",
+    );
+    // Backfill: copy each client's existing yearly_sales_target into a row
+    // for the current calendar year, but only if the client doesn't already
+    // have any rows in the new table. Idempotent — re-running this is a
+    // no-op once rows exist.
+    await run(
+      "clients_yearly_targets_backfill",
+      `INSERT INTO \`clients_yearly_targets\` (\`_order\`, \`_parent_id\`, \`id\`, \`year\`, \`target\`)
+       SELECT 1, c.id, lower(hex(randomblob(12))), CAST(strftime('%Y', 'now') AS INTEGER), c.yearly_sales_target
+       FROM clients c
+       WHERE c.yearly_sales_target IS NOT NULL
+         AND c.yearly_sales_target > 0
+         AND NOT EXISTS (SELECT 1 FROM clients_yearly_targets t WHERE t._parent_id = c.id)`,
+    );
+
     await run(
       "contracts.hide_setup_fee",
       "ALTER TABLE `contracts` ADD `hide_setup_fee` integer DEFAULT 0",

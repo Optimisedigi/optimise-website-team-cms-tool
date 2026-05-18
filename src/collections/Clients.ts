@@ -326,36 +326,6 @@ export const Clients: CollectionConfig = {
               },
             },
             {
-              name: "yearlySalesTarget",
-              type: "number",
-              min: 0,
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description: "Yearly revenue target ($). Shown as a progress bar on the dashboard.",
-                step: 1,
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !!data?.isAgency,
-                ),
-              },
-            },
-            {
-              name: "targetDeadlineDate",
-              type: "date",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description: "Target deadline (defaults to Dec 31 of current year if not set)",
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !!data?.isAgency,
-                ),
-                date: {
-                  pickerAppearance: "dayOnly",
-                  displayFormat: "d MMM yyyy",
-                },
-              },
-            },
-            {
               name: "clientPin",
               type: "text",
               unique: true,
@@ -697,6 +667,64 @@ export const Clients: CollectionConfig = {
                   (data: any) => !data?.isAgency,
                 ),
               },
+            },
+            {
+              name: "yearlyTargets",
+              type: "array",
+              dbName: "clients_yearly_targets",
+              access: sensitiveFieldAccess("clients"),
+              admin: {
+                description:
+                  "Yearly sales targets by calendar year. For the agency client, the row matching the current year drives the Yearly Sales Target progress bar on the dashboard. For ordinary clients this is a tracking number only.",
+                initCollapsed: true,
+              },
+              validate: ((value: unknown) => {
+                if (!Array.isArray(value)) return true;
+                const seen = new Set<number>();
+                for (let i = 0; i < value.length; i++) {
+                  const row = value[i] as Record<string, unknown> | null;
+                  if (!row) continue;
+                  const year = Number(row.year);
+                  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+                    return `Row ${i + 1}: Year must be between 2000 and 2100.`;
+                  }
+                  if (seen.has(year)) {
+                    return `Row ${i + 1}: Year ${year} appears more than once.`;
+                  }
+                  seen.add(year);
+                }
+                return true;
+              }) as any,
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "year",
+                      type: "number",
+                      required: true,
+                      min: 2000,
+                      max: 2100,
+                      admin: {
+                        description: "Calendar year (e.g. 2026)",
+                        step: 1,
+                        width: "40%",
+                      },
+                    },
+                    {
+                      name: "target",
+                      type: "number",
+                      required: true,
+                      min: 0,
+                      admin: {
+                        description: "Sales target for that year ($)",
+                        step: 1,
+                        width: "60%",
+                      },
+                    },
+                  ],
+                },
+              ],
             },
             {
               name: "oneOffProjects",
