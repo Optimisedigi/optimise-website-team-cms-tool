@@ -106,6 +106,9 @@ export async function GET(
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="${doc.contractTitle || "contract"}.pdf"`,
+        // The PDF reflects live contract data — never cache. Without this,
+        // Vercel's CDN / browsers can serve a stale render after edits.
+        "Cache-Control": "no-store, max-age=0, must-revalidate",
       },
     });
   } catch (e: any) {

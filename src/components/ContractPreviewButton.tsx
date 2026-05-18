@@ -16,14 +16,16 @@ const ContractPreviewButton = () => {
   const handlePreview = async () => {
     setLoading(true)
     try {
-      window.open(`/api/contracts/${id}/preview-pdf`, '_blank')
+      // Cache-buster query so the browser/CDN never serves a stale PDF after
+      // edits (Cache-Control on the route is the primary defence; this is belt).
+      window.open(`/api/contracts/${id}/preview-pdf?t=${Date.now()}`, '_blank')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDownloadDocx = () => {
-    window.open(`/api/contracts/${id}/download-docx`, '_blank')
+    window.open(`/api/contracts/${id}/download-docx?t=${Date.now()}`, '_blank')
   }
 
   return (
