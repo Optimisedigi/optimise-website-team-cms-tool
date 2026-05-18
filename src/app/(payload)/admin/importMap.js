@@ -56,6 +56,8 @@ import { default as default_f67cf31d207033ac38b6ce6f5f074fb6 } from '../../../co
 import { default as default_f9eade6f7f767ed2b3c678a2659ef9d2 } from '../../../components/SendContractEmailButton'
 import { default as default_dd37952574b774c5a30f482eff630855 } from '../../../components/ContractPreviewButton'
 import { default as default_876a41240e98fb91b048fbca8e3bedba } from '../../../components/CreateFromTemplateButton'
+import { default as default_29da3f8f6bcc3dfd99d69b1d9120e145 } from '../../../components/ContractsTrashToggle'
+import { default as default_ba47162a488e0657cd228d7c64cd522e } from '../../../components/ContractTrashActions'
 import { default as default_6b51bfc7ff3d088aa145c86f447b8fec } from '../../../components/StartProcessFromLeadButton'
 import { default as default_93823a9277bc02fa99ee18349ac99f8a } from '../../../components/ProcessTemplateWorksheet'
 import { default as default_deae2595362b3b8f2ecabbf725d5fcff } from '../../../components/DeckTemplatePreviewLink'
@@ -193,6 +195,8 @@ export const importMap = {
   "./components/SendContractEmailButton#default": default_f9eade6f7f767ed2b3c678a2659ef9d2,
   "./components/ContractPreviewButton#default": default_dd37952574b774c5a30f482eff630855,
   "./components/CreateFromTemplateButton#default": default_876a41240e98fb91b048fbca8e3bedba,
+  "./components/ContractsTrashToggle#default": default_29da3f8f6bcc3dfd99d69b1d9120e145,
+  "./components/ContractTrashActions#default": default_ba47162a488e0657cd228d7c64cd522e,
   "./components/StartProcessFromLeadButton#default": default_6b51bfc7ff3d088aa145c86f447b8fec,
   "./components/ProcessTemplateWorksheet#default": default_93823a9277bc02fa99ee18349ac99f8a,
   "/components/DeckTemplatePreviewLink#default": default_deae2595362b3b8f2ecabbf725d5fcff,

@@ -30,6 +30,12 @@ const CreateFromTemplateButton = () => {
   if (templates.length === 0) return null
 
   const handleCreate = async (templateId: string) => {
+    const template = templates.find((t) => t.id === templateId)
+    const name = template ? buttonLabel(template) : 'this template'
+    if (!window.confirm(`Create a new contract from “${name}”?\n\nA new contract will be created and opened.`)) {
+      return
+    }
+
     setLoading(templateId)
     setError(null)
 

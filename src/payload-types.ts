@@ -1561,6 +1561,10 @@ export interface Contract {
    * Short label shown on the 'Create from Template' button (e.g. 'E-Commerce', 'Google Ads'). Falls back to the contract title if blank.
    */
   templateLabel?: string | null;
+  /**
+   * Soft-delete timestamp. Trashed contracts are hidden from the default list and auto-purged 30 days after this date.
+   */
+  deletedAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -7439,6 +7443,7 @@ export interface ContractsSelect<T extends boolean = true> {
   sentAt?: T;
   isTemplate?: T;
   templateLabel?: T;
+  deletedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

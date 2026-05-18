@@ -85,9 +85,32 @@ export const Contracts: CollectionConfig = {
     description: "Service contracts linked to client proposals",
     defaultColumns: ["contractTitle", "clientName", "status", "contractDate", "createdAt"],
     components: {
-      beforeListTable: ["./components/CreateFromTemplateButton"],
+      beforeListTable: [
+        "./components/CreateFromTemplateButton",
+        "./components/ContractsTrashToggle",
+      ],
+      edit: {
+        beforeDocumentControls: ["./components/ContractTrashActions"],
+      },
     },
     hidden: hideUnlessFeature("contracts"),
+    // Hide soft-deleted (trashed) contracts from the default list view.
+    // When the user opens the Trash toggle, the page sets
+    // `req.query.showTrash=true`, and the filter inverts to show only
+    // trashed records.
+    baseListFilter: ({ req }) => {
+      const showTrash =
+        (req.query as Record<string, unknown> | undefined)?.showTrash === "true";
+      if (showTrash) {
+        return { deletedAt: { exists: true } } as any;
+      }
+      return {
+        or: [
+          { deletedAt: { exists: false } },
+          { deletedAt: { equals: null as any } },
+        ],
+      } as any;
+    },
   },
   // Sort newest-first by default in the admin list view. Users can
   // override by clicking a column header.
@@ -96,7 +119,15 @@ export const Contracts: CollectionConfig = {
     read: canAccess("contracts"),
     create: canAccess("contracts"),
     update: canAccess("contracts"),
-    delete: adminOnlyDelete,
+    // Hard-delete is admin-only AND requires the purge context flag set
+    // by our custom /api/contracts/[id]/purge and /api/contracts/trash-sweep
+    // endpoints. This neutralises Payload's native Delete button — trashing
+    // is the only path for ordinary users.
+    delete: ({ req }) => {
+      if (!req.user) return false;
+      if (!(req.context as Record<string, unknown> | undefined)?.allowPurge) return false;
+      return adminOnlyDelete({ req } as any);
+    },
   },
   hooks: {
     beforeChange: [
@@ -110,6 +141,18 @@ export const Contracts: CollectionConfig = {
           seedAnnualReviewDefaults(data as Record<string, unknown>);
         }
         return data;
+      },
+    ],
+    // Belt-and-braces: even if a delete operation slips past the access
+    // rule (e.g. local-API calls), block it unless the purge context flag
+    // is set. Surfaces a clear error message instead of silent data loss.
+    beforeDelete: [
+      async ({ req }) => {
+        if (!(req.context as Record<string, unknown> | undefined)?.allowPurge) {
+          throw new Error(
+            "Contracts cannot be hard-deleted directly. Use the Trash flow (Move to Trash → Delete Forever) or wait for the 30-day auto-purge.",
+          );
+        }
       },
     ],
     afterChange: [
@@ -782,6 +825,18 @@ export const Contracts: CollectionConfig = {
         description:
           "Short label shown on the 'Create from Template' button (e.g. 'E-Commerce', 'Google Ads'). Falls back to the contract title if blank.",
         condition: (data) => Boolean(data?.isTemplate),
+      },
+    },
+    {
+      name: "deletedAt",
+      type: "date",
+      index: true,
+      admin: {
+        position: "sidebar",
+        readOnly: true,
+        description:
+          "Soft-delete timestamp. Trashed contracts are hidden from the default list and auto-purged 30 days after this date.",
+        condition: (data) => Boolean(data?.deletedAt),
       },
     },
   ],

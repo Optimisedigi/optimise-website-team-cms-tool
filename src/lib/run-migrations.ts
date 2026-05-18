@@ -3002,6 +3002,18 @@ export async function runMigrations(
     // Contracts: per-contract toggle to hide the setup-fee row in the pricing
     // table and the matching default Payment Terms bullet. Used when an
     // Additional Work line item replaces the setup fee.
+    // ── Contracts soft-delete trash (2026-05-18) ─────────────────────────
+    // Adds deletedAt to support a 30-day recovery window. Trashed contracts
+    // are hidden from the default list and auto-purged via a daily cron.
+    await run(
+      "contracts.deleted_at",
+      "ALTER TABLE `contracts` ADD `deleted_at` text",
+    );
+    await run(
+      "contracts_deleted_at_idx",
+      "CREATE INDEX IF NOT EXISTS `contracts_deleted_at_idx` ON `contracts` (`deleted_at`)",
+    );
+
     await run(
       "contracts.hide_setup_fee",
       "ALTER TABLE `contracts` ADD `hide_setup_fee` integer DEFAULT 0",
