@@ -158,6 +158,7 @@ interface DashboardData {
       monthlyNetSum: number
       setupFee: number
       retainerOneOffs: Array<{ projectName: string; amount: number }>
+      priorPeriodThisYear?: number
       total: number
     }>
   }
@@ -434,6 +435,12 @@ const Dashboard = () => {
                       {row.setupFee > 0 && (
                         <>
                           {' • Setup: '}${row.setupFee.toLocaleString()}
+                        </>
+                      )}
+                      {(row.priorPeriodThisYear ?? 0) > 0 && (
+                        <>
+                          {' • Prior-period (this year): '}
+                          ${(row.priorPeriodThisYear ?? 0).toLocaleString()}
                         </>
                       )}
                       {row.retainerOneOffs.length > 0 && (

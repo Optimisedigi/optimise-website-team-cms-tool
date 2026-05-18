@@ -471,8 +471,24 @@ export async function GET() {
     ),
   );
 
+  // Sum of historicalRevenueByYear rows tagged with the current calendar
+  // year for a given client. These rows represent retainer income for the
+  // current year that pre-dates CMS tracking, so they flow into Retainer YTD.
+  const currentYearForHist = now.getFullYear();
+  function thisYearHistoricalForClient(c: any): number {
+    const rows = Array.isArray(c?.historicalRevenueByYear) ? c.historicalRevenueByYear : [];
+    let total = 0;
+    for (const r of rows) {
+      if (Number(r?.year) !== currentYearForHist) continue;
+      const amt = Number(r?.amount);
+      if (!Number.isFinite(amt) || amt <= 0) continue;
+      total += amt;
+    }
+    return total;
+  }
+
   // Retainer revenue YTD (net of commissions, walks retainer history per client,
-  // includes setupFee + retainer-tagged one-offs).
+  // includes setupFee + retainer-tagged one-offs + current-year historical rows).
   const retainerYTD = round(
     clientsForRetainer.docs.reduce(
       (sum: number, c: any) =>
@@ -489,7 +505,8 @@ export async function GET() {
             oneOffProjects: Array.isArray(c.oneOffProjects) ? c.oneOffProjects : [],
           },
           now,
-        ),
+        ) +
+        thisYearHistoricalForClient(c),
       0,
     ),
   );
@@ -567,8 +584,12 @@ export async function GET() {
           amount: round(Number(p.amount) || 0),
         });
       }
+      const priorPeriodThisYear = thisYearHistoricalForClient(c);
       const total = round(
-        monthlyOnly + setupFee + retainerOneOffs.reduce((s, r) => s + r.amount, 0),
+        monthlyOnly +
+          setupFee +
+          retainerOneOffs.reduce((s, r) => s + r.amount, 0) +
+          priorPeriodThisYear,
       );
       if (total <= 0) return null;
       return {
@@ -576,36 +597,18 @@ export async function GET() {
         monthlyNetSum: round(monthlyOnly),
         setupFee: round(setupFee),
         retainerOneOffs,
+        priorPeriodThisYear: round(priorPeriodThisYear),
         total,
       };
     })
     .filter((row: any) => row !== null)
     .sort((a: any, b: any) => b.total - a.total);
 
-  // Historical revenue rows for the **current calendar year only** — feeds
-  // the sales-target progress bar via `ytdRevenue`. Prior-year rows are
-  // excluded; they belong to lifetime totals, not this year's YTD.
-  const currentYear = now.getFullYear();
-  const historicalThisYear = round(
-    clientsForRetainer.docs.reduce((sum: number, c: any) => {
-      const rows = Array.isArray(c.historicalRevenueByYear) ? c.historicalRevenueByYear : [];
-      return (
-        sum +
-        rows.reduce(
-          (s: number, r: any) =>
-            Number(r?.year) === currentYear && Number.isFinite(Number(r?.amount))
-              ? s + Math.max(0, Number(r.amount))
-              : s,
-          0,
-        )
-      );
-    }, 0),
-  );
-
-  // Back-compat fields (existing consumers)
+  // Back-compat fields (existing consumers). Current-year historical rows
+  // are already folded into `retainerYTD` above — do not double-count here.
   const totalMonthlyRevenue = monthlyRetainerNet;
   const totalRetainer = round(monthlyRetainerNet + oneOffTotal);
-  const ytdRevenue = round(retainerYTD + oneOffYTD + historicalThisYear);
+  const ytdRevenue = round(retainerYTD + oneOffYTD);
 
   const usage = {
     seoAudits: seoCount.totalDocs,

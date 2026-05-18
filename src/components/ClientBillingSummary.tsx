@@ -76,22 +76,42 @@ function ClientBillingSummary() {
     now,
   )
   const netRetainer = netMonthlyRetainer(monthlyRetainer, referralCommissions, now)
-  // Retainer Revenue YTD now folds in setupFee + retainer-tagged one-offs.
-  const retainerRevenue = retainerRevenueYTD(
-    {
-      monthlyRetainer,
-      setupFee,
-      clientStartDate,
-      retainerHistory,
-      referralCommissions,
-      oneOffProjects,
-    },
-    now,
-  )
+  // Current-year historical rows are retainer income for this year that
+  // pre-dates CMS tracking — count them toward Retainer YTD (matches the
+  // dashboard rollup).
+  const currentYear = now.getFullYear()
+  const priorPeriodThisYear = Array.isArray(historicalRevenueByYear)
+    ? historicalRevenueByYear.reduce(
+        (s, r) =>
+          Number(r?.year) === currentYear && Number.isFinite(Number(r?.amount))
+            ? s + Math.max(0, Number(r?.amount))
+            : s,
+        0,
+      )
+    : 0
+  // Retainer Revenue YTD now folds in setupFee + retainer-tagged one-offs
+  // + current-year historical rows.
+  const retainerRevenue =
+    retainerRevenueYTD(
+      {
+        monthlyRetainer,
+        setupFee,
+        clientStartDate,
+        retainerHistory,
+        referralCommissions,
+        oneOffProjects,
+      },
+      now,
+    ) + priorPeriodThisYear
   // Pure one-offs only (rows without countTowardsRetainer).
   const oneOffTotal = oneOffsYTD(oneOffProjects, now, false)
+  // Lifetime historical (all years) for the totalRevenue stat.
   const historicalRevenue = historicalRevenueTotal(historicalRevenueByYear)
-  const totalRevenue = retainerRevenue + oneOffTotal + historicalRevenue
+  // Lifetime total = retainer-this-year (already incl. current-year historical)
+  //                + one-offs this year
+  //                + historical from prior years
+  const priorYearsHistorical = historicalRevenue - priorPeriodThisYear
+  const totalRevenue = retainerRevenue + oneOffTotal + priorYearsHistorical
 
   // Setup fee counts toward Retainer YTD in the year of clientStartDate—
   // surface it as its own stat when applicable.
