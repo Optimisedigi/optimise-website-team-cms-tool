@@ -1,9 +1,20 @@
 import { describe, it, expect } from "vitest";
+
+// `_client-tokens.ts` imports payload.config which throws if PAYLOAD_SECRET is
+// unset. Stub it before importing the helper. Top-level statements are hoisted
+// above imports by Vitest's transform.
+process.env.PAYLOAD_SECRET = process.env.PAYLOAD_SECRET || "test-secret";
+
 import {
   resolveRange,
   resolveRangeWithSegment,
   snapCustomToPreset,
+  customRangeForGrowthTools,
 } from "@/lib/agents/optimate-google-ads/tools/_date-range";
+
+const { rangeToDates } = await import(
+  "@/lib/agents/optimate-google-ads/tools/_client-tokens"
+);
 
 describe("resolveRange — presets", () => {
   it("defaults to LAST_30_DAYS when called with nothing", () => {
@@ -193,5 +204,47 @@ describe("snapCustomToPreset", () => {
     const requested = { dateRange: "CUSTOM" as const, requested: "weird", label: "weird" };
     const snapped = snapCustomToPreset(requested);
     expect(snapped).toEqual(requested);
+  });
+});
+
+describe("customRangeForGrowthTools", () => {
+  it("returns a 'YYYY-MM-DD,YYYY-MM-DD' span for CUSTOM ranges", () => {
+    const r = resolveRange("2026-05-04..2026-05-10");
+    expect(customRangeForGrowthTools(r)).toBe("2026-05-04,2026-05-10");
+  });
+
+  it("passes through preset names unchanged", () => {
+    expect(customRangeForGrowthTools(resolveRange("LAST_7_DAYS"))).toBe("LAST_7_DAYS");
+    expect(customRangeForGrowthTools(resolveRange("THIS_MONTH"))).toBe("THIS_MONTH");
+  });
+
+  it("falls back to the dateRange field when CUSTOM has no bounds (defensive)", () => {
+    const weird = { dateRange: "CUSTOM" as const, requested: "weird", label: "weird" };
+    expect(customRangeForGrowthTools(weird)).toBe("CUSTOM");
+  });
+
+  it("works for quarter literals (resolved to CUSTOM)", () => {
+    const q1 = resolveRange("Q1 2026");
+    expect(customRangeForGrowthTools(q1)).toBe("2026-01-01,2026-03-31");
+  });
+});
+
+describe("rangeToDates — ISO span pass-through", () => {
+  it("returns the bounds verbatim for a literal 'YYYY-MM-DD..YYYY-MM-DD' input", () => {
+    const r = rangeToDates("2026-05-04..2026-05-10");
+    expect(r).toEqual({ startDate: "2026-05-04", endDate: "2026-05-10" });
+  });
+
+  it("still resolves preset names through the existing switch", () => {
+    const r = rangeToDates("LAST_7_DAYS");
+    expect(r.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(r.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("ignores malformed span strings and falls through to the default branch", () => {
+    // Not a valid YYYY-MM-DD..YYYY-MM-DD shape — must hit the default case.
+    const r = rangeToDates("2026/05/04..2026/05/10");
+    expect(r.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(r.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

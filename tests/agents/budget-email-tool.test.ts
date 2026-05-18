@@ -192,7 +192,34 @@ describe("get_budget_management_email", () => {
     expect(data.html).toContain("Brand Search");
   });
 
-  it("propagates upstream HTTP errors as ok:false with the status code", async () => {
+  it("propagates upstream 5xx errors as ok:false with the status + body after retrying twice", async () => {
+    mockFindByID.mockResolvedValueOnce({
+      id: 7,
+      businessName: "Acme",
+      monthlyBudget: 0,
+      client: null,
+    });
+
+    // Both attempts return 502 — must fail after two tries.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("upstream broken: db timeout", { status: 502 }))
+      .mockResolvedValueOnce(new Response("upstream broken: db timeout", { status: 502 }));
+    // @ts-expect-error - test override
+    globalThis.fetch = fetchMock;
+
+    const args = getBudgetManagementEmail.validate!({ mode: "this_month" });
+    const result = await getBudgetManagementEmail.execute(args, baseCtx());
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/502/);
+    // Richer error surface: the body should be included, not stripped.
+    expect(result.error).toMatch(/db timeout/);
+    // Confirm we actually retried.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does NOT retry on 4xx (caller's fault, retry won't help)", async () => {
     mockFindByID.mockResolvedValueOnce({
       id: 7,
       businessName: "Acme",
@@ -202,7 +229,7 @@ describe("get_budget_management_email", () => {
 
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response("upstream broken", { status: 502 }));
+      .mockResolvedValueOnce(new Response("missing audit", { status: 404 }));
     // @ts-expect-error - test override
     globalThis.fetch = fetchMock;
 
@@ -210,7 +237,80 @@ describe("get_budget_management_email", () => {
     const result = await getBudgetManagementEmail.execute(args, baseCtx());
 
     expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/502/);
+    expect(result.error).toMatch(/404/);
+    // 4xx: bail immediately, no retry.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("succeeds on retry when the first attempt 5xxs but the second succeeds", async () => {
+    mockFindByID.mockResolvedValueOnce({
+      id: 7,
+      businessName: "Acme Plumbing",
+      monthlyBudget: 1000,
+      client: { id: 42, slug: "acme", clientPin: "1234" },
+    });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("transient", { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            monthlyBudget: 1000,
+            campaigns: [
+              {
+                campaignId: "c1",
+                campaignName: "Brand Search",
+                budgetPercentage: 100,
+                calculatedDailyBudget: 33,
+                actualDailyBudget: 30,
+                bidStrategy: "manual_cpc",
+                impressions: 1000,
+                clicks: 80,
+                avgCpc: 1.25,
+                conversions: 5,
+                mtdSpend: 200,
+                enabled: true,
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    // @ts-expect-error - test override
+    globalThis.fetch = fetchMock;
+
+    const args = getBudgetManagementEmail.validate!({ mode: "this_month" });
+    const result = await getBudgetManagementEmail.execute(args, baseCtx());
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const data = result.data as { html: string };
+    expect(data.html).toContain("Brand Search");
+  });
+
+  it("retries once on network error before failing", async () => {
+    mockFindByID.mockResolvedValueOnce({
+      id: 7,
+      businessName: "Acme",
+      monthlyBudget: 0,
+      client: null,
+    });
+
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("ECONNRESET"))
+      .mockRejectedValueOnce(new Error("ECONNRESET"));
+    // @ts-expect-error - test override
+    globalThis.fetch = fetchMock;
+
+    const args = getBudgetManagementEmail.validate!({ mode: "this_month" });
+    const result = await getBudgetManagementEmail.execute(args, baseCtx());
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/ECONNRESET/);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns ok:false when AUDIT_API_KEY is not configured", async () => {

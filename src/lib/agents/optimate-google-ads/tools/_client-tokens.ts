@@ -181,8 +181,26 @@ export async function readClientConnectionFlags(
   }
 }
 
-/** Translate a range preset to (startDate, endDate) ISO strings for GA4/GSC queries. */
+/**
+ * Translate a range preset (or a literal ISO span) to (startDate, endDate)
+ * ISO strings for GA4 / GSC queries.
+ *
+ * Accepts:
+ *   - A preset name from SUPPORTED_PRESETS (e.g. "LAST_7_DAYS").
+ *   - A literal `"YYYY-MM-DD..YYYY-MM-DD"` span — returned verbatim. Used
+ *     by the OptiMate tools so the agent can isolate back-dated weeks for
+ *     GA4 / GSC the same way it can for Google Ads now.
+ *
+ * Unknown inputs fall back to LAST_30_DAYS (last 30 days ending yesterday).
+ */
 export function rangeToDates(rangePreset: string): { startDate: string; endDate: string } {
+  // Literal ISO span: "YYYY-MM-DD..YYYY-MM-DD". Validated by `resolveRange`
+  // upstream, so we trust the format here.
+  const spanMatch = /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/.exec(rangePreset);
+  if (spanMatch) {
+    return { startDate: spanMatch[1], endDate: spanMatch[2] };
+  }
+
   const today = new Date();
   const yyyymmdd = (d: Date) => d.toISOString().slice(0, 10);
   const startOfDay = (d: Date) => {

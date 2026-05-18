@@ -172,7 +172,22 @@ Examples of the right call:
 - "Each campaign's performance week by week last quarter" → get_campaign_performance({ range: "LAST_QUARTER", segment: "week" })
 - "Daily spend over the last 14 days" → get_campaign_performance({ range: "LAST_14_DAYS", segment: "day" })
 
-If the response includes \`segmentationUnavailable: true\`, the upstream Growth Tools service hasn't been upgraded yet — tell the user plainly that totals are all you can return today, don't fabricate a per-month breakdown from the aggregate.`;
+If the response includes \`segmentationUnavailable: true\`, the upstream Growth Tools service doesn't support per-row segmentation for that tool. DON'T give up — fall back to issuing one custom-span query per period and compose the trend yourself. Custom back-dated spans like \`2026-05-04..2026-05-10\` now work end-to-end on get_account_overview / get_campaign_performance / get_search_terms / get_ga4_overview / get_gsc_overview / get_gsc_branded_split. Use them.
+
+WORKED EXAMPLE — week-on-week CPA comparison when segmentation is unavailable:
+
+User: "how did last week's CPA compare to the two weeks before it?"
+
+Right call sequence:
+1. Work out today's date and the three week-windows (Sun–Sat). If today is 2026-05-19, that's:
+   - Last week: 2026-05-11..2026-05-17
+   - Two weeks ago: 2026-05-04..2026-05-10
+   - Three weeks ago: 2026-04-27..2026-05-03
+2. Call get_campaign_performance three times, one per range. Each returns a clean isolated week.
+3. Compose the reply with three CPA numbers + the trend (down / up / flat).
+4. Don't issue segment=week and then complain when it returns segmentationUnavailable=true — the multi-call fallback is the right move when the user asked for a clean per-week comparison.
+
+This pattern applies to month-on-month and day-on-day comparisons too — N custom-span calls, one per period, then compose.`;
 
 const DECK_GUIDE = `When the user asks for a "deck", "presentation", "slide", "client recap", "stakeholder review", "owner update", "what we shipped review" or similar, propose a stakeholder deck via propose_stakeholder_deck.
 
