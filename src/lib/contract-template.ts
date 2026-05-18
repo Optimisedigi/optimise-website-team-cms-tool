@@ -29,6 +29,7 @@ export interface ContractData {
   monthlyRetainer?: number;
   setupFee?: number;
   monthlyHosting?: number;
+  annualHosting?: number;
   currency?: CurrencyCode;
   /** When true the cover page hides the "(to be confirmed with client)" qualifier. */
   effectiveDateConfirmed?: boolean;
@@ -210,6 +211,12 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       value: `${formatCurrency(data.monthlyHosting, ccy)}/month`,
     });
   }
+  if (data.annualHosting) {
+    pricingRows.push({
+      label: "Annual hosting",
+      value: `${formatCurrency(data.annualHosting, ccy)}/year`,
+    });
+  }
   if (pricingRows.length > 0) {
     sections.push({
       type: "heading",
@@ -293,13 +300,17 @@ export function generateContractSections(data: ContractData): ContractSection[] 
   } else {
     const setupAmount = formatCurrency(data.setupFee ?? 0, ccy);
     const retainerAmount = formatCurrency(data.monthlyRetainer ?? 0, ccy);
-    const hostingAmount = data.monthlyHosting ? formatCurrency(data.monthlyHosting, ccy) : null;
+    const monthlyHostingAmount = data.monthlyHosting ? formatCurrency(data.monthlyHosting, ccy) : null;
+    const annualHostingAmount = data.annualHosting ? formatCurrency(data.annualHosting, ccy) : null;
     const items = [
       `The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`,
       `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
     ];
-    if (hostingAmount) {
-      items.push(`The monthly hosting fee of ${hostingAmount} will be invoiced alongside the monthly retainer.`);
+    if (monthlyHostingAmount) {
+      items.push(`The monthly hosting fee of ${monthlyHostingAmount} will be invoiced alongside the monthly retainer.`);
+    }
+    if (annualHostingAmount) {
+      items.push(`The annual hosting fee of ${annualHostingAmount} will be invoiced yearly on the anniversary of the contract start date.`);
     }
     items.push(
       "Invoices are due within 14 days of issue.",

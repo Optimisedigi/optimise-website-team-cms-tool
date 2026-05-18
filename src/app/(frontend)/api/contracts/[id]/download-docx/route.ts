@@ -293,6 +293,9 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     if (doc.monthlyHosting && doc.monthlyHosting > 0) {
       tableRows.push(bodyRow("Monthly hosting", `${formatCurrency(doc.monthlyHosting, currency)}/month`));
     }
+    if (doc.annualHosting && doc.annualHosting > 0) {
+      tableRows.push(bodyRow("Annual hosting", `${formatCurrency(doc.annualHosting, currency)}/year`));
+    }
 
     children.push(
       new Table({

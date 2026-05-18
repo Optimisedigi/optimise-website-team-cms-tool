@@ -296,7 +296,16 @@ export const Contracts: CollectionConfig = {
                   type: "number",
                   min: 0,
                   admin: {
-                    description: "Monthly hosting cost",
+                    description: "Monthly hosting cost (leave blank if billed annually)",
+                    step: 1,
+                  },
+                },
+                {
+                  name: "annualHosting",
+                  type: "number",
+                  min: 0,
+                  admin: {
+                    description: "Annual hosting cost (leave blank if billed monthly)",
                     step: 1,
                   },
                 },

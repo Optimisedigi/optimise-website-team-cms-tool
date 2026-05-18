@@ -1214,7 +1214,7 @@ export interface Contract {
    */
   clientContactName?: string | null;
   /**
-   * Client email
+   * Client email(s) — comma-separated. The first address is the signer shown on the contract; the rest are CC'd on the signing invite and signed receipt.
    */
   clientEmail?: string | null;
   /**
@@ -1250,9 +1250,13 @@ export interface Contract {
    */
   setupFee?: number | null;
   /**
-   * Monthly hosting cost
+   * Monthly hosting cost (leave blank if billed annually)
    */
   monthlyHosting?: number | null;
+  /**
+   * Annual hosting cost (leave blank if billed monthly)
+   */
+  annualHosting?: number | null;
   /**
    * Additional pricing details shown below the pricing table (e.g. bundle pricing, ad spend thresholds)
    */
@@ -7302,6 +7306,7 @@ export interface ContractsSelect<T extends boolean = true> {
   monthlyRetainer?: T;
   setupFee?: T;
   monthlyHosting?: T;
+  annualHosting?: T;
   pricingNotes?: T;
   contractTerm?: T;
   paymentTerms?: T;

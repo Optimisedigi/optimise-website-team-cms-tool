@@ -1808,6 +1808,8 @@ export async function runMigrations(
   
     // Add monthly_hosting column (must be after contracts table creation)
     await run("contracts.monthly_hosting_post", "ALTER TABLE `contracts` ADD `monthly_hosting` integer");
+    // Add annual_hosting column for clients billed yearly for hosting
+    await run("contracts.annual_hosting_post", "ALTER TABLE `contracts` ADD `annual_hosting` integer");
   
     // ── Process Templates ──
     await run("process_templates", `CREATE TABLE IF NOT EXISTS \`process_templates\` (

@@ -437,6 +437,7 @@ export async function GET(request: NextRequest) {
   await run("contracts.is_template", "ALTER TABLE `contracts` ADD `is_template` integer DEFAULT 0");
   await run("contracts.pdf_hash", "ALTER TABLE `contracts` ADD `pdf_hash` text");
   await run("contracts.monthly_hosting", "ALTER TABLE `contracts` ADD `monthly_hosting` integer");
+  await run("contracts.annual_hosting", "ALTER TABLE `contracts` ADD `annual_hosting` integer");
 
   // ── Client Notes (2026-03-14) ──
   // Rename legacy notes column

@@ -61,6 +61,7 @@ export async function GET(
       monthlyRetainer: doc.monthlyRetainer,
       setupFee: doc.setupFee,
       monthlyHosting: doc.monthlyHosting,
+      annualHosting: doc.annualHosting,
       currency: doc.currency ?? "AUD",
       effectiveDateConfirmed: doc.effectiveDateConfirmed === true,
       contractTerm: doc.contractTerm,

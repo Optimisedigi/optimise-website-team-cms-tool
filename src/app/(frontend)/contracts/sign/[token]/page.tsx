@@ -17,6 +17,7 @@ interface ContractInfo {
   monthlyRetainer?: number
   setupFee?: number
   monthlyHosting?: number
+  annualHosting?: number
   currency?: string
   contractTerm?: string
   paymentTerms?: string
@@ -588,6 +589,12 @@ export default function ContractSignPage() {
               <tr style={{ borderBottom: '1px solid #d4d4d4' }}>
                 <td style={{ padding: '5px 4px' }}>Monthly hosting</td>
                 <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(contract.monthlyHosting, currency)}/month</td>
+              </tr>
+            )}
+            {contract.annualHosting != null && contract.annualHosting > 0 && (
+              <tr style={{ borderBottom: '1px solid #d4d4d4' }}>
+                <td style={{ padding: '5px 4px' }}>Annual hosting</td>
+                <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(contract.annualHosting, currency)}/year</td>
               </tr>
             )}
           </tbody>
