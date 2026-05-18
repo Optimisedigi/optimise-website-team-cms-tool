@@ -423,9 +423,9 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     children.push(thinRule());
   }
 
-  // Payment Terms — starts on a new page so the legal terms read as a fresh section.
+  // Payment Terms — flows on the same page as Pricing (no page break) so
+  // they read as one billing-related section.
   children.push(
-    new Paragraph({ children: [new PageBreak()] }),
     new Paragraph({ text: "Payment Terms:", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
   );
   if (doc.paymentTermsOverride?.root?.children) {

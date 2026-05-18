@@ -319,9 +319,9 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     }
   }
 
-  // Payment Terms - use override if provided, otherwise exact wording from contract PDF.
-  // Starts on a new page in the PDF so the legal terms always read as a fresh section.
-  sections.push({ type: "pageBreak" });
+  // Payment Terms — use override if provided, otherwise exact wording from
+  // the contract PDF. Flows on the same page as Pricing (no page break) so
+  // they read as one billing-related section.
   sections.push({
     type: "heading",
     heading: "Payment Terms:",
