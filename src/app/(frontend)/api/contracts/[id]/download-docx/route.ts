@@ -286,7 +286,21 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       ],
     });
 
-    tableRows.push(bodyRow("One-time setup fee", formatCurrency(doc.setupFee ?? 0, currency)));
+    // Row order (mirrors PDF / signing page):
+    //   1. Additional Work projects (only rows with a non-empty projectName)
+    //   2. One-time setup fee (unless hideSetupFee is ON)
+    //   3. Monthly management retainer
+    //   4. Monthly / annual hosting
+    if (Array.isArray(doc.additionalWork)) {
+      for (const item of doc.additionalWork) {
+        const label = item?.projectName?.trim();
+        if (!label) continue;
+        tableRows.push(bodyRow(label, formatCurrency(item?.amount ?? 0, currency)));
+      }
+    }
+    if (!doc.hideSetupFee) {
+      tableRows.push(bodyRow("One-time setup fee", formatCurrency(doc.setupFee ?? 0, currency)));
+    }
     if (doc.monthlyRetainer && doc.monthlyRetainer > 0) {
       tableRows.push(bodyRow("Monthly management retainer", `${formatCurrency(doc.monthlyRetainer, currency)}/month`));
     }
@@ -295,14 +309,6 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     }
     if (doc.annualHosting && doc.annualHosting > 0) {
       tableRows.push(bodyRow("Annual hosting", `${formatCurrency(doc.annualHosting, currency)}/year`));
-    }
-    // Additional one-off work — only rows with a non-empty project name render.
-    if (Array.isArray(doc.additionalWork)) {
-      for (const item of doc.additionalWork) {
-        const label = item?.projectName?.trim();
-        if (!label) continue;
-        tableRows.push(bodyRow(label, formatCurrency(item?.amount ?? 0, currency)));
-      }
     }
 
     children.push(
@@ -423,18 +429,21 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
   if (doc.paymentTermsOverride?.root?.children) {
     children.push(...lexicalToDocx(doc.paymentTermsOverride.root.children));
   } else {
-    const paymentBullets = [
-      `The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`,
+    const paymentBullets: string[] = [];
+    if (!doc.hideSetupFee) {
+      paymentBullets.push(`The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`);
+    }
+    paymentBullets.push(
       `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
       "Invoices are due within 14 days of issue.",
       "This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.",
-    ];
+    );
     for (const bullet of paymentBullets) {
       children.push(
         new Paragraph({
           children: [new TextRun({ text: bullet })],
           bullet: { level: 0 },
-          spacing: { after: 60 },
+          spacing: { after: 40 },
         }),
       );
     }
@@ -458,7 +467,7 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
         new Paragraph({
           children: [new TextRun({ text: bullet })],
           bullet: { level: 0 },
-          spacing: { after: 60 },
+          spacing: { after: 40 },
         }),
       );
     }

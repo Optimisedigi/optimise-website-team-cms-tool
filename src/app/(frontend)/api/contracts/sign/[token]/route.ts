@@ -119,6 +119,7 @@ export async function GET(
     contractStartDate: doc.contractStartDate,
     monthlyRetainer: doc.monthlyRetainer,
     setupFee: doc.setupFee,
+    hideSetupFee: doc.hideSetupFee === true,
     monthlyHosting: doc.monthlyHosting,
     annualHosting: doc.annualHosting,
     additionalWork: Array.isArray(doc.additionalWork)
@@ -287,6 +288,7 @@ export async function POST(
       contractStartDate: updatedDoc.contractStartDate,
       monthlyRetainer: updatedDoc.monthlyRetainer,
       setupFee: updatedDoc.setupFee,
+      hideSetupFee: updatedDoc.hideSetupFee === true,
       monthlyHosting: updatedDoc.monthlyHosting,
       annualHosting: updatedDoc.annualHosting,
       additionalWork: updatedDoc.additionalWork,

@@ -2988,6 +2988,15 @@ export async function runMigrations(
       "clients_historical_revenue_by_year_parent_id_idx",
       "CREATE INDEX IF NOT EXISTS `clients_historical_revenue_by_year_parent_id_idx` ON `clients_historical_revenue_by_year` (`_parent_id`)",
     );
+
+    // ── Hide-setup-fee toggle (2026-05-18) ───────────────────────────────
+    // Contracts: per-contract toggle to hide the setup-fee row in the pricing
+    // table and the matching default Payment Terms bullet. Used when an
+    // Additional Work line item replaces the setup fee.
+    await run(
+      "contracts.hide_setup_fee",
+      "ALTER TABLE `contracts` ADD `hide_setup_fee` integer DEFAULT 0",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

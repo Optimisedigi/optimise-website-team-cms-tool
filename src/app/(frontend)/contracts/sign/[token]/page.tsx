@@ -16,6 +16,7 @@ interface ContractInfo {
   effectiveDateConfirmed?: boolean
   monthlyRetainer?: number
   setupFee?: number
+  hideSetupFee?: boolean
   monthlyHosting?: number
   annualHosting?: number
   additionalWork?: Array<{ projectName?: string | null; amount?: number | null }>
@@ -578,10 +579,26 @@ export default function ContractSignPage() {
             </tr>
           </thead>
           <tbody>
-            <tr style={{ borderBottom: '1px solid #d4d4d4' }}>
-              <td style={{ padding: '5px 4px' }}>One-time setup fee</td>
-              <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(contract.setupFee ?? 0, currency)}</td>
-            </tr>
+            {/* Row order (mirrors PDF / DOCX):
+                1. Additional Work projects
+                2. One-time setup fee (unless hideSetupFee is ON)
+                3. Monthly management retainer
+                4. Monthly / annual hosting */}
+            {Array.isArray(contract.additionalWork) &&
+              contract.additionalWork
+                .filter((item) => item?.projectName && String(item.projectName).trim() !== '')
+                .map((item, i) => (
+                  <tr key={`aw-${i}`} style={{ borderBottom: '1px solid #d4d4d4' }}>
+                    <td style={{ padding: '5px 4px' }}>{item.projectName}</td>
+                    <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(item.amount ?? 0, currency)}</td>
+                  </tr>
+                ))}
+            {!contract.hideSetupFee && (
+              <tr style={{ borderBottom: '1px solid #d4d4d4' }}>
+                <td style={{ padding: '5px 4px' }}>One-time setup fee</td>
+                <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(contract.setupFee ?? 0, currency)}</td>
+              </tr>
+            )}
             {contract.monthlyRetainer != null && contract.monthlyRetainer > 0 && (
               <tr style={{ borderBottom: '1px solid #d4d4d4' }}>
                 <td style={{ padding: '5px 4px' }}>Monthly management retainer</td>
@@ -600,15 +617,6 @@ export default function ContractSignPage() {
                 <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(contract.annualHosting, currency)}/year</td>
               </tr>
             )}
-            {Array.isArray(contract.additionalWork) &&
-              contract.additionalWork
-                .filter((item) => item?.projectName && String(item.projectName).trim() !== '')
-                .map((item, i) => (
-                  <tr key={`aw-${i}`} style={{ borderBottom: '1px solid #d4d4d4' }}>
-                    <td style={{ padding: '5px 4px' }}>{item.projectName}</td>
-                    <td style={{ padding: '5px 4px', textAlign: 'right' }}>{formatCurrency(item.amount ?? 0, currency)}</td>
-                  </tr>
-                ))}
           </tbody>
         </table>
 
@@ -721,13 +729,15 @@ export default function ContractSignPage() {
           <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.paymentTermsOverride}</div>
         ) : (
           <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
-            <li style={{ marginBottom: 3 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
-            <li style={{ marginBottom: 3 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
-            {hostingAmount && (
-              <li style={{ marginBottom: 3 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
+            {!contract.hideSetupFee && (
+              <li style={{ marginBottom: 2 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
             )}
-            <li style={{ marginBottom: 3 }}>Invoices are due within 14 days of issue.</li>
-            <li style={{ marginBottom: 3 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
+            <li style={{ marginBottom: 2 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
+            {hostingAmount && (
+              <li style={{ marginBottom: 2 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
+            )}
+            <li style={{ marginBottom: 2 }}>Invoices are due within 14 days of issue.</li>
+            <li style={{ marginBottom: 2 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
           </ul>
         )}
 
@@ -745,9 +755,9 @@ export default function ContractSignPage() {
           <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.terminationOverride}</div>
         ) : (
           <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.5 }}>
-            <li style={{ marginBottom: 3 }}>Either party may terminate this contract with a 30-day written notice.</li>
-            <li style={{ marginBottom: 3 }}>Upon termination, the Client agrees to pay for all services rendered up to the termination date.</li>
-            <li style={{ marginBottom: 3 }}>Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.</li>
+            <li style={{ marginBottom: 2 }}>Either party may terminate this contract with a 30-day written notice.</li>
+            <li style={{ marginBottom: 2 }}>Upon termination, the Client agrees to pay for all services rendered up to the termination date.</li>
+            <li style={{ marginBottom: 2 }}>Upon termination, Optimise Digital will provide the Client with full access to and ownership of all Google Ads campaigns, conversion tracking, and assets created during the engagement.</li>
           </ul>
         )}
 

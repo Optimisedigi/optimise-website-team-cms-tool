@@ -28,6 +28,8 @@ export interface ContractData {
   contractStartDate?: string;
   monthlyRetainer?: number;
   setupFee?: number;
+  /** When true the setup-fee row is omitted from the pricing table and the matching default Payment Terms bullet is removed. */
+  hideSetupFee?: boolean;
   monthlyHosting?: number;
   annualHosting?: number;
   /** Additional one-off work items rendered as extra rows in the pricing table. Only rows with a non-empty projectName are shown. */
@@ -82,6 +84,7 @@ export interface ContractSection {
     | "paragraph"
     | "bullets"
     | "table"
+    | "pricingBlock"
     | "tierTable"
     | "signatures"
     | "richtext"
@@ -95,6 +98,12 @@ export interface ContractSection {
   rows?: { label: string; value: string }[];
   /** Column headers for `table` sections. Defaults to ['', 'Amount']. */
   tableHeaders?: { label: string; value: string };
+  /** Pricing block — heading + table rendered together so the PDF renderer keeps them on the same page. */
+  pricingBlock?: {
+    heading: string;
+    rows: { label: string; value: string }[];
+    tableHeaders: { label: string; value: string };
+  };
   tierTable?: TierTable;
   signatures?: {
     client: {
@@ -199,14 +208,29 @@ export function generateContractSections(data: ContractData): ContractSection[] 
   }
 
   // Pricing
-  // Setup fee is always shown in the pricing table — displays $0 when not
-  // configured — so the line item is consistent across every contract.
+  // Row order (per contract spec):
+  //   1. Additional Work projects (only rows with a non-empty projectName)
+  //   2. One-time setup fee (unless hideSetupFee is ON)
+  //   3. Monthly management retainer
+  //   4. Monthly / annual hosting
   const ccy = (data.currency ?? "AUD") as CurrencyCode;
   const pricingRows: { label: string; value: string }[] = [];
-  pricingRows.push({
-    label: "One-time setup fee",
-    value: formatCurrency(data.setupFee ?? 0, ccy),
-  });
+  if (Array.isArray(data.additionalWork)) {
+    for (const item of data.additionalWork) {
+      const label = item?.projectName?.trim();
+      if (!label) continue;
+      pricingRows.push({
+        label,
+        value: formatCurrency(item?.amount ?? 0, ccy),
+      });
+    }
+  }
+  if (!data.hideSetupFee) {
+    pricingRows.push({
+      label: "One-time setup fee",
+      value: formatCurrency(data.setupFee ?? 0, ccy),
+    });
+  }
   if (data.monthlyRetainer) {
     pricingRows.push({
       label: "Monthly management retainer",
@@ -225,26 +249,16 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       value: `${formatCurrency(data.annualHosting, ccy)}/year`,
     });
   }
-  // Additional one-off work — only rows with a non-empty project name render.
-  if (Array.isArray(data.additionalWork)) {
-    for (const item of data.additionalWork) {
-      const label = item?.projectName?.trim();
-      if (!label) continue;
-      pricingRows.push({
-        label,
-        value: formatCurrency(item?.amount ?? 0, ccy),
-      });
-    }
-  }
   if (pricingRows.length > 0) {
+    // Emit heading + table as ONE section so the PDF renderer can keep them
+    // on the same page (avoids the dangling-rule break shown in screenshots).
     sections.push({
-      type: "heading",
-      heading: "Pricing",
-    });
-    sections.push({
-      type: "table",
-      rows: pricingRows,
-      tableHeaders: { label: "Service", value: `Amount (${ccy})` },
+      type: "pricingBlock",
+      pricingBlock: {
+        heading: "Pricing",
+        rows: pricingRows,
+        tableHeaders: { label: "Service", value: `Amount (${ccy})` },
+      },
     });
   }
 
@@ -321,10 +335,13 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     const retainerAmount = formatCurrency(data.monthlyRetainer ?? 0, ccy);
     const monthlyHostingAmount = data.monthlyHosting ? formatCurrency(data.monthlyHosting, ccy) : null;
     const annualHostingAmount = data.annualHosting ? formatCurrency(data.annualHosting, ccy) : null;
-    const items = [
-      `The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`,
+    const items: string[] = [];
+    if (!data.hideSetupFee) {
+      items.push(`The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`);
+    }
+    items.push(
       `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
-    ];
+    );
     if (monthlyHostingAmount) {
       items.push(`The monthly hosting fee of ${monthlyHostingAmount} will be invoiced alongside the monthly retainer.`);
     }

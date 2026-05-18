@@ -60,6 +60,7 @@ export async function GET(
       contractStartDate: doc.contractStartDate,
       monthlyRetainer: doc.monthlyRetainer,
       setupFee: doc.setupFee,
+      hideSetupFee: doc.hideSetupFee === true,
       monthlyHosting: doc.monthlyHosting,
       annualHosting: doc.annualHosting,
       additionalWork: doc.additionalWork,

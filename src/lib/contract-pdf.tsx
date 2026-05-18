@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   bulletItem: {
     flexDirection: "row",
-    marginBottom: 3,
+    marginBottom: 2,
     paddingLeft: 8,
   },
   bulletDot: {
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   bulletText: {
     flex: 1,
     fontSize: 9,
-    lineHeight: 1.4,
+    lineHeight: 1.35,
   },
   // Tables — horizontal-lines-only look (no outer border, no vertical dividers).
   // Bold header row with a thin black bottom rule; light grey rule between body rows.
@@ -419,6 +419,33 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
               <Text style={styles.tableCellValue}>{row.value}</Text>
             </View>
           ))}
+        </View>
+      );
+    }
+
+    case "pricingBlock": {
+      if (!section.pricingBlock) return null;
+      const { heading, rows, tableHeaders } = section.pricingBlock;
+      // wrap={false} keeps the heading + entire table on the same page so the
+      // pricing table never breaks across a page boundary.
+      return (
+        <View key={index} wrap={false}>
+          <Text style={styles.sectionHeading}>{heading}</Text>
+          <View style={styles.table}>
+            <View style={styles.tableHeaderRow}>
+              <Text style={styles.tableHeaderLabel}>{tableHeaders.label || " "}</Text>
+              <Text style={styles.tableHeaderValue}>{tableHeaders.value}</Text>
+            </View>
+            {rows.map((row, i) => (
+              <View
+                key={i}
+                style={i < rows.length - 1 ? styles.tableRow : styles.tableRowLast}
+              >
+                <Text style={styles.tableCellLabel}>{row.label}</Text>
+                <Text style={styles.tableCellValue}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
         </View>
       );
     }

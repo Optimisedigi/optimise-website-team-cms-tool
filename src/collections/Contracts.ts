@@ -320,6 +320,15 @@ export const Contracts: CollectionConfig = {
               ],
             },
             {
+              name: "hideSetupFee",
+              type: "checkbox",
+              defaultValue: false,
+              admin: {
+                description:
+                  "When ON: the setup fee row is omitted from the pricing table and the matching Payment Terms bullet is removed. Use when an Additional Work project replaces the setup fee.",
+              },
+            },
+            {
               name: "additionalWork",
               type: "array",
               admin: {
