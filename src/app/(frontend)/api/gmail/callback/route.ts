@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { exchangeGmailCode } from "@/lib/gmail-service";
+import { OAUTH_NONCE_COOKIE, verifyOAuthState } from "@/lib/oauth-state";
 
 /**
- * Gmail OAuth callback. Exchanges the code for tokens, persists them onto
- * the user identified by `state`, then redirects back to the admin account
- * page.
+ * Gmail OAuth callback.
+ *
+ * Validates the HMAC-signed `state` (BP-007 mitigation) before persisting any
+ * tokens onto the target user row. For Gmail, target == initiator: only the
+ * user themselves may (re)bind their own Gmail tokens. Three independent
+ * checks must pass:
+ *   1. State signature (`PAYLOAD_SECRET` HMAC).
+ *   2. Nonce cookie match.
+ *   3. Current session must equal `initiatorUserId` (which equals `targetId`).
  */
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
-  const state = req.nextUrl.searchParams.get("state");
-  const error = req.nextUrl.searchParams.get("error");
+  const stateRaw = req.nextUrl.searchParams.get("state");
+  const oauthError = req.nextUrl.searchParams.get("error");
 
   const redirectTo = (params: Record<string, string>) => {
     const u = new URL("/admin/account", req.url);
@@ -19,26 +27,48 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(u);
   };
 
-  if (error) {
-    return redirectTo({ gmail_error: error });
+  if (oauthError) {
+    return redirectTo({ gmail_error: oauthError });
   }
-  if (!code || !state) {
+  if (!code || !stateRaw) {
     return NextResponse.json(
       { error: "Missing code or state parameter" },
       { status: 400 },
     );
   }
 
-  const userId = Number(state);
+  const verified = verifyOAuthState(stateRaw);
+  if (!verified.ok) return redirectTo({ gmail_error: verified.reason });
+
+  const { nonce, targetId, initiatorUserId } = verified;
+  if (targetId !== initiatorUserId) {
+    // Defence-in-depth: Gmail flows always self-bind. A mismatched pair
+    // would mean the state was minted by something other than our connect
+    // route (or a bug in it) \u2014 refuse.
+    return redirectTo({ gmail_error: "target_initiator_mismatch" });
+  }
+
+  const cookieStore = await cookies();
+  const cookieNonce = cookieStore.get(OAUTH_NONCE_COOKIE.gmail)?.value;
+  if (!cookieNonce || cookieNonce !== nonce) {
+    return redirectTo({ gmail_error: "nonce_mismatch" });
+  }
+  cookieStore.delete(OAUTH_NONCE_COOKIE.gmail);
+
+  const payloadConfig = await config;
+  const payload = await getPayload({ config: payloadConfig });
+  const { user } = await payload.auth({ headers: req.headers });
+  if (!user || String(user.id) !== initiatorUserId) {
+    return redirectTo({ gmail_error: "user_mismatch" });
+  }
+
+  const userId = Number(targetId);
   if (!Number.isFinite(userId) || userId <= 0) {
-    return NextResponse.json({ error: "Invalid state" }, { status: 400 });
+    return redirectTo({ gmail_error: "invalid_state" });
   }
 
   try {
     const tokens = await exchangeGmailCode(code);
-
-    const payloadConfig = await config;
-    const payload = await getPayload({ config: payloadConfig });
 
     await payload.update({
       collection: "users",

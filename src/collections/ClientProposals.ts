@@ -748,6 +748,20 @@ export const ClientProposals: CollectionConfig = {
                 description:
                   "Path or URL to the HTML mockup for this client (e.g. /mockups/purples/index.html)",
               },
+              validate: (value: string | null | undefined) => {
+                if (!value) return true;
+                if (typeof value !== "string") return "Must be a string";
+                // Same-origin paths are fine
+                if (value.startsWith("/")) return true;
+                try {
+                  const u = new URL(value);
+                  const ALLOWED = [/\.public\.blob\.vercel-storage\.com$/];
+                  if (ALLOWED.some((re) => re.test(u.hostname))) return true;
+                  return "Mockup URL must be a Vercel Blob URL or same-origin path";
+                } catch {
+                  return "Invalid URL";
+                }
+              },
             },
             {
               name: "mockupUpload",

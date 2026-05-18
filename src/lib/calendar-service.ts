@@ -16,14 +16,19 @@ function getOAuth2Client(redirectUri?: string) {
 
 /**
  * Generate the Google OAuth consent URL for Calendar access.
+ *
+ * @param redirectUri - OAuth redirect URI; must match the callback route.
+ * @param state - Random CSRF state. The caller must persist this in an
+ *   httpOnly cookie and constant-time compare against the value Google
+ *   returns on the callback.
  */
-export function getCalendarOAuthUrl(redirectUri: string): string {
+export function getCalendarOAuthUrl(redirectUri: string, state: string): string {
   const oauth2Client = getOAuth2Client(redirectUri);
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     prompt: "consent",
-    state: "calendar",
+    state,
     redirect_uri: redirectUri,
   });
 }

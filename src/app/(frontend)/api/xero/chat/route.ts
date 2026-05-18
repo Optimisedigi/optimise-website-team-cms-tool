@@ -1,4 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPayload } from "payload";
+import config from "@/payload.config";
+import { userHasFeature } from "@/lib/access";
+
+// Xero invoice IDs are GUIDs. Same validation as /api/xero/actions —
+// rejects path-traversal payloads and query-string hoists before the
+// value is spliced into a URL path segment.
+const GUID_REGEX = /^[0-9a-fA-F-]{36}$/;
 
 // ─── Env ──────────────────────────────────────────────────
 
@@ -271,19 +279,34 @@ async function executeTool(
       method = "POST";
       body = JSON.stringify(args);
       break;
-    case "approveInvoice":
-      endpoint = `/api/xero/invoices/${args.invoiceId}/approve`;
+    case "approveInvoice": {
+      const id = args.invoiceId;
+      if (typeof id !== "string" || !GUID_REGEX.test(id)) {
+        return { error: "Invalid invoiceId format" };
+      }
+      endpoint = `/api/xero/invoices/${encodeURIComponent(id)}/approve`;
       method = "POST";
       break;
-    case "sendInvoice":
-      endpoint = `/api/xero/invoices/${args.invoiceId}/send`;
+    }
+    case "sendInvoice": {
+      const id = args.invoiceId;
+      if (typeof id !== "string" || !GUID_REGEX.test(id)) {
+        return { error: "Invalid invoiceId format" };
+      }
+      endpoint = `/api/xero/invoices/${encodeURIComponent(id)}/send`;
       method = "POST";
       break;
-    case "scheduleSend":
-      endpoint = `/api/xero/invoices/${args.invoiceId}/schedule-send`;
+    }
+    case "scheduleSend": {
+      const id = args.invoiceId;
+      if (typeof id !== "string" || !GUID_REGEX.test(id)) {
+        return { error: "Invalid invoiceId format" };
+      }
+      endpoint = `/api/xero/invoices/${encodeURIComponent(id)}/schedule-send`;
       method = "POST";
       body = JSON.stringify({ sendDate: args.sendDate });
       break;
+    }
     case "getScheduledSends":
       endpoint = "/api/xero/scheduled-sends";
       method = "GET";
@@ -313,6 +336,17 @@ async function executeTool(
 // ─── POST handler ─────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  // ── Auth gate ──
+  const payloadConfig = await config;
+  const payload = await getPayload({ config: payloadConfig });
+  const { user } = await payload.auth({ headers: req.headers });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!userHasFeature(user, "nav:invoices")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const KIMI_API_KEY = process.env.KIMI_API_KEY;
   const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
   const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;

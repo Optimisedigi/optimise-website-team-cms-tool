@@ -16,6 +16,18 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: sessionId } = await params;
+
+  const payloadConfig = await config;
+  const payload = await getPayload({ config: payloadConfig });
+
+  // Require an authenticated CMS user — this route mutates client NKLs and
+  // must not be callable anonymously. The companion `ApplyToNKLButton`
+  // already sends cookies via `credentials: "include"`.
+  const { user } = await payload.auth({ headers: req.headers });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body: ApplyPayload = await req.json();
   const { nklId, keywords } = body;
 
@@ -25,9 +37,6 @@ export async function POST(
       { status: 400 }
     );
   }
-
-  const payloadConfig = await config;
-  const payload = await getPayload({ config: payloadConfig });
 
   // Fetch the session
   const session = await payload.findByID({

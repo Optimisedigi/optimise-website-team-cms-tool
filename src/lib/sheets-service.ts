@@ -12,14 +12,18 @@ function getOAuth2Client() {
 
 /**
  * Generate the Google OAuth consent URL for Sheets access.
+ *
+ * @param state - Random CSRF state. The caller must persist this in an
+ *   httpOnly cookie and constant-time compare against the value Google
+ *   returns on the callback.
  */
-export function getSheetsOAuthUrl(): string {
+export function getSheetsOAuthUrl(state: string): string {
   const oauth2Client = getOAuth2Client();
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     prompt: "consent",
-    state: "sheets",
+    state,
   });
 }
 

@@ -13,6 +13,11 @@ export async function GET(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
+  const { user } = await payload.auth({ headers: req.headers });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const result = await payload.find({
     collection: "negative-keyword-lists",
     where: {
@@ -21,7 +26,7 @@ export async function GET(req: NextRequest) {
     },
     sort: "name",
     limit: 100,
-    overrideAccess: true,
+    user,
   });
 
   const nkls = result.docs.map((doc) => {

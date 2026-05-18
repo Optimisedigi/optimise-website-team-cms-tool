@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPayload } from 'payload'
+import config from '@/payload.config'
+import { userHasFeature } from '@/lib/access'
 
 const VERCEL_API = 'https://api.vercel.com'
 
@@ -150,8 +153,18 @@ async function fetchBillingHistory(teamId: string, months: number) {
 }
 
 export async function GET(req: NextRequest) {
-  // Auth is handled by the server component page at /admin/deployments
-  // This route only returns Vercel data and requires VERCEL_API_TOKEN
+  // Route handlers are independently reachable — enforce auth here directly
+  // rather than relying on the calling server component. Deployment metadata
+  // and Vercel billing are admin-only (gated on `nav:deployments`).
+  const payload = await getPayload({ config })
+  const { user } = await payload.auth({ headers: req.headers })
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  if (!userHasFeature(user, 'nav:deployments')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   if (!process.env.VERCEL_API_TOKEN) {
     return NextResponse.json(
       { error: 'VERCEL_API_TOKEN not configured' },
@@ -206,8 +219,9 @@ export async function GET(req: NextRequest) {
     const deployments = await fetchDeployments(teamId, projectId, limit)
     return NextResponse.json({ deployments })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    console.error('[Vercel API]', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Don't leak verbatim upstream Vercel error bodies (may include tokens,
+    // internal IDs, billing details). Log server-side, return generic message.
+    console.error('[vercel-deployments]', err)
+    return NextResponse.json({ error: 'Upstream error' }, { status: 500 })
   }
 }

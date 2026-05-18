@@ -33,15 +33,20 @@ function getOAuth2Client() {
 
 /**
  * Generate the Google OAuth consent URL for Gmail Drafts access.
- * The userId is stored in the `state` parameter so the callback can
- * identify which user just connected.
+ *
+ * `state` must be an HMAC-signed payload produced by the connect route — it
+ * binds the OAuth flow to (nonce, targetUserId, initiatorUserId) so the
+ * callback can verify the round-trip wasn't tampered with (OAuth CSRF /
+ * row-rebind mitigation — see BP-007). The bare-userId form was retired
+ * alongside that fix; users must click "Connect Gmail" once after the
+ * rollout to obtain a freshly-signed state.
  */
-export function getGmailOAuthUrl(userId: number): string {
+export function getGmailOAuthUrl(state: string): string {
   const oauth2Client = getOAuth2Client();
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
-    state: String(userId),
+    state,
     prompt: "consent",
     include_granted_scopes: true,
   });

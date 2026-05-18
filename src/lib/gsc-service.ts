@@ -15,14 +15,20 @@ function getOAuth2Client() {
 
 /**
  * Generate the Google OAuth consent URL for GSC access.
- * The clientId is stored in the `state` parameter so the callback can identify the client.
+ *
+ * `state` must be an HMAC-signed payload produced by the connect route — it
+ * binds the OAuth flow to (nonce, clientId, initiatorUserId) so the callback
+ * can verify the round-trip wasn't tampered with (OAuth CSRF / row-rebind
+ * mitigation — see BP-007). The bare-clientId form was retired alongside
+ * that fix; users must click "Connect GSC" once after the rollout to obtain
+ * a freshly-signed state.
  */
-export function getOAuthUrl(clientId: string): string {
+export function getOAuthUrl(state: string): string {
   const oauth2Client = getOAuth2Client();
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
-    state: clientId,
+    state,
     prompt: "consent",
   });
 }
