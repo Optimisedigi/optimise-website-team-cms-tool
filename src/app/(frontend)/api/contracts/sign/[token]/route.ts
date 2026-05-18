@@ -251,6 +251,7 @@ export async function POST(
       clientContactName: updatedDoc.clientContactName,
       clientEmail: updatedDoc.clientEmail,
       clientWebsite: updatedDoc.clientWebsite,
+      signedPdfUrl: updatedDoc.signedPdfUrl,
       additionalWork: updatedDoc.additionalWork,
     }).catch((err: unknown) => {
       console.error(

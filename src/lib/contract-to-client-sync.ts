@@ -22,6 +22,8 @@ export interface ContractSyncSource {
   clientEmail?: string | null;
   /** Website URL on the contract — copied to client.websiteUrl when missing. */
   clientWebsite?: string | null;
+  /** URL of the signed PDF on Vercel Blob — copied to client.signedContractUrl when missing. */
+  signedPdfUrl?: string | null;
   additionalWork?: Array<{
     projectName?: string | null;
     amount?: number | null;
@@ -44,6 +46,10 @@ export interface ContractSyncResult {
     contactName: boolean;
     contactEmail: boolean;
     websiteUrl: boolean;
+    /** True when the client.signedContract relationship was linked to this contract. */
+    signedContract: boolean;
+    /** True when the client.signedContractUrl was filled in. */
+    signedContractUrl: boolean;
   };
   warnings: string[];
   error?: string;
@@ -94,6 +100,8 @@ export async function syncContractToClient(
       contactName: false,
       contactEmail: false,
       websiteUrl: false,
+      signedContract: false,
+      signedContractUrl: false,
     },
     warnings: [],
   };
@@ -196,6 +204,34 @@ export async function syncContractToClient(
     if (contractWebsite && !existingWebsite) {
       updates.websiteUrl = contractWebsite;
       result.applied.websiteUrl = true;
+    }
+
+    // Signed contract relationship + PDF URL ──────────────────────────────
+    // Backfill the relationship pointer when the client doesn't already
+    // point at a signed contract. Covers the case where the client record
+    // is linked to a completed contract well after signing — without this
+    // the contract never appears on the client's Business tab.
+    const resolveExistingContractId = (rel: unknown): string | number | null => {
+      if (rel == null) return null;
+      if (typeof rel === "object" && rel !== null && "id" in rel) {
+        const id = (rel as { id?: string | number }).id;
+        return id ?? null;
+      }
+      if (typeof rel === "string" || typeof rel === "number") return rel;
+      return null;
+    };
+    const existingSignedContractId = resolveExistingContractId(
+      (client as Record<string, unknown>).signedContract,
+    );
+    if (existingSignedContractId == null) {
+      updates.signedContract = contract.id;
+      result.applied.signedContract = true;
+    }
+    const contractPdfUrl = (contract.signedPdfUrl ?? "").trim();
+    const existingSignedContractUrl = ((client.signedContractUrl as string | null) ?? "").trim();
+    if (contractPdfUrl && !existingSignedContractUrl) {
+      updates.signedContractUrl = contractPdfUrl;
+      result.applied.signedContractUrl = true;
     }
 
     // additionalWork → oneOffProjects (always append) ──────────────────────

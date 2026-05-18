@@ -186,10 +186,16 @@ export const Contracts: CollectionConfig = {
         }
 
         // Re-run the contract→client sync when a client is newly linked
-        // (or swapped) on a completed contract. Covers the case where the
-        // contract was signed first, then a client record was created and
-        // linked afterwards — without this hook, the client never receives
-        // the contract's contact details, pricing, or one-off projects.
+        // (or swapped) on the contract. Covers the case where the contract
+        // was signed first, then a client record was created and linked
+        // afterwards — without this hook, the client never receives the
+        // contract's contact details, pricing, one-off projects, or the
+        // signedContract relationship that drives the Business tab UI.
+        //
+        // Runs regardless of contract status: the sync's fill-only semantics
+        // (don't overwrite when the client already has a value) protect
+        // existing data, so it's safe to run on draft / sent / completed.
+        //
         // Best-effort: a sync failure must not block the contract save.
         const resolveClientId = (rel: unknown): string | number | null => {
           if (rel == null) return null;
@@ -203,11 +209,7 @@ export const Contracts: CollectionConfig = {
         const newClientId = resolveClientId(doc.client);
         const prevClientId = resolveClientId(previousDoc?.client);
         const clientChanged = newClientId != null && newClientId !== prevClientId;
-        if (
-          operation === "update" &&
-          clientChanged &&
-          doc.status === "completed"
-        ) {
+        if (operation === "update" && clientChanged) {
           try {
             const { syncContractToClient } = await import(
               "../lib/contract-to-client-sync"
@@ -223,17 +225,19 @@ export const Contracts: CollectionConfig = {
               clientContactName: doc.clientContactName,
               clientEmail: doc.clientEmail,
               clientWebsite: doc.clientWebsite,
+              signedPdfUrl: doc.signedPdfUrl,
               additionalWork: doc.additionalWork,
             });
-            if (!result.ok) {
-              req.payload.logger?.warn?.({
-                msg: "contract→client sync returned not-ok",
-                contractId: doc.id,
-                clientId: newClientId,
-                error: result.error,
-                warnings: result.warnings,
-              });
-            }
+            req.payload.logger?.info?.({
+              msg: "contract→client sync after link",
+              contractId: doc.id,
+              clientId: newClientId,
+              status: doc.status,
+              applied: result.applied,
+              warnings: result.warnings,
+              ok: result.ok,
+              error: result.error,
+            });
           } catch (err) {
             req.payload.logger?.error?.({
               msg: "contract→client sync after link failed",

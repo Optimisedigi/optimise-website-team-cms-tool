@@ -39,6 +39,8 @@ describe("syncContractToClient", () => {
       contactName: false,
       contactEmail: false,
       websiteUrl: false,
+      signedContract: true,
+      signedContractUrl: false,
     });
     expect(payload.update).toHaveBeenCalledOnce();
     const call = payload.update.mock.calls[0][0];
@@ -194,6 +196,9 @@ describe("syncContractToClient", () => {
       contactName: "Bob",
       contactEmail: "bob@existing.com",
       websiteUrl: "https://existing.com",
+      // signedContract already linked -> backfill is also a no-op below.
+      signedContract: 99,
+      signedContractUrl: "https://blob/existing.pdf",
       monthlyRetainer: 0,
       setupFee: 0,
       clientStartDate: null,
@@ -207,6 +212,7 @@ describe("syncContractToClient", () => {
       clientContactName: "Jane Doe",
       clientEmail: "jane@acme.com",
       clientWebsite: "https://acme.com",
+      signedPdfUrl: "https://blob/new.pdf",
     });
 
     expect(result.ok).toBe(true);
@@ -214,8 +220,35 @@ describe("syncContractToClient", () => {
     expect(result.applied.contactName).toBe(false);
     expect(result.applied.contactEmail).toBe(false);
     expect(result.applied.websiteUrl).toBe(false);
+    expect(result.applied.signedContract).toBe(false);
+    expect(result.applied.signedContractUrl).toBe(false);
     // Nothing to update -> update should not be called at all
     expect(payload.update).not.toHaveBeenCalled();
+  });
+
+  it("backfills signedContract + signedContractUrl on the client when missing", async () => {
+    const payload = createMockPayload({
+      id: 42,
+      name: "Existing Co",
+      monthlyRetainer: 1500,
+      setupFee: 500,
+      signedContract: null,
+      signedContractUrl: null,
+      oneOffProjects: [],
+    });
+
+    const result = await syncContractToClient(payload as any, {
+      id: 99,
+      client: 42,
+      signedPdfUrl: "https://blob/signed-99.pdf",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.applied.signedContract).toBe(true);
+    expect(result.applied.signedContractUrl).toBe(true);
+    const call = payload.update.mock.calls[0][0];
+    expect(call.data.signedContract).toBe(99);
+    expect(call.data.signedContractUrl).toBe("https://blob/signed-99.pdf");
   });
 
   it("skips sync when contract has no linked client", async () => {
