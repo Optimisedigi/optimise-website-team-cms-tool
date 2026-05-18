@@ -999,6 +999,25 @@ export default function ContractSignPage() {
             </p>
           </div>
         </div>
+
+        {/* Document-integrity footer — mirrors the PDF footer so the signing
+            page and the generated PDF tell the client the same thing. */}
+        <p
+          style={{
+            marginTop: 32,
+            paddingTop: 16,
+            borderTop: '1px solid #e5e7eb',
+            fontSize: 11,
+            lineHeight: 1.5,
+            color: '#6b7280',
+            textAlign: 'center',
+          }}
+        >
+          This document was digitally signed via Optimise Digital&apos;s contract
+          management system. A SHA-256 hash of this document is stored for
+          integrity verification. Signed documents are retained for a minimum
+          of 7 years in accordance with Australian record-keeping requirements.
+        </p>
       </div>
 
       {/* Scope content styles for rich text */}
