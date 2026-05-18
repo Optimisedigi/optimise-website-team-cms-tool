@@ -424,18 +424,6 @@ const Dashboard = () => {
                 ))}
               />
               <StatWithTooltip
-                value={`$${(data.oneOffYTD ?? 0).toLocaleString()}`}
-                label="One-Off Projects (YTD)"
-                rows={(data.breakdowns?.oneOffYTD ?? []).map((row, i) => (
-                  <div key={i} className="od-stat-tooltip__row">
-                    <span className="od-stat-tooltip__name">{row.clientName}</span>
-                    <span className="od-stat-tooltip__detail">
-                      {row.projectName} — <strong>${row.amount.toLocaleString()}</strong>
-                    </span>
-                  </div>
-                ))}
-              />
-              <StatWithTooltip
                 value={`$${fmt0(data.retainerYTD ?? 0)}`}
                 label="Retainer Revenue (YTD)"
                 rows={(data.breakdowns?.retainerYTD ?? []).map((row, i) => (
@@ -457,6 +445,18 @@ const Dashboard = () => {
                         </>
                       )}
                       {' → '}<strong>${row.total.toLocaleString()}</strong>
+                    </span>
+                  </div>
+                ))}
+              />
+              <StatWithTooltip
+                value={`$${(data.oneOffYTD ?? 0).toLocaleString()}`}
+                label="One-Off Projects (YTD)"
+                rows={(data.breakdowns?.oneOffYTD ?? []).map((row, i) => (
+                  <div key={i} className="od-stat-tooltip__row">
+                    <span className="od-stat-tooltip__name">{row.clientName}</span>
+                    <span className="od-stat-tooltip__detail">
+                      {row.projectName} — <strong>${row.amount.toLocaleString()}</strong>
                     </span>
                   </div>
                 ))}
