@@ -249,6 +249,7 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
   const [refreshing, setRefreshing] = useState(false)
   const [rejectMode, setRejectMode] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
+  const [overrideCooldown, setOverrideCooldown] = useState(false)
 
   const refreshPreview = useCallback(
     async (msg: string, greeting: string) => {
@@ -327,7 +328,10 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
     const ccLine = draft.snapshot.unpaid.length > 0
       ? `Will email ${draft.snapshot.unpaidCount} invoices totalling ${formatAud(draft.totalOutstanding)} and CC peter@optimisedigital.online.`
       : ''
-    if (!window.confirm(`Send to ${recipientOverride}? ${ccLine}`)) return
+    const resendNote = draft.status === 'approved' && overrideCooldown
+      ? `\n\nThis is a RESEND \u2014 the previous statement was already sent on ${formatDate(draft.sentAt)} to ${draft.recipientEmail || '(unknown)'}.`
+      : ''
+    if (!window.confirm(`Send to ${recipientOverride}? ${ccLine}${resendNote}`)) return
     setBusy(true)
     setError(null)
     try {
@@ -338,6 +342,7 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
           customMessage,
           greetingOverride,
           recipientEmailOverride: recipientOverride,
+          overrideCooldown,
         }),
       })
       const data = await res.json()
@@ -373,6 +378,9 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
 
   const stale = isStale(draft.lastRefreshedAt)
   const recipientMissing = !recipientOverride.trim()
+  const alreadySent = draft.status === 'approved' && Boolean(draft.sentAt)
+  const canSend =
+    !recipientMissing && (draft.status !== 'approved' || overrideCooldown)
 
   return (
     <div
@@ -419,6 +427,24 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
         {stale && (
           <div style={{ padding: '10px 20px', background: '#fef3c7', borderBottom: '1px solid #fde68a', fontSize: 13, color: '#92400e' }}>
             <span>Snapshot is over 24h old. Status may have changed in Xero — click “Refresh from Xero” above.</span>
+          </div>
+        )}
+
+        {alreadySent && (
+          <div style={{ padding: '10px 20px', background: '#dcfce7', borderBottom: '1px solid #bbf7d0', fontSize: 13, color: '#166534' }}>
+            <div>
+              <strong>Already sent</strong> on {formatDate(draft.sentAt)} ({relativeAge(draft.sentAt)}) to <strong>{draft.recipientEmail || '(unknown)'}</strong>
+              {draft.ccList ? <> · CC: {draft.ccList}</> : null}
+              {draft.postmarkMessageId ? <> · Brevo ID: <code style={{ fontSize: 11 }}>{draft.postmarkMessageId}</code></> : null}
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={overrideCooldown}
+                onChange={(e) => setOverrideCooldown(e.target.checked)}
+              />
+              <span>Override cooldown and resend (e.g. to a different/additional email address)</span>
+            </label>
           </div>
         )}
 
@@ -559,11 +585,23 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
             ) : (
               <button
                 onClick={approveSend}
-                style={{ ...btnPrimary, opacity: recipientMissing ? 0.5 : 1 }}
-                disabled={busy || recipientMissing}
-                title={recipientMissing ? 'Add email address in Xero first' : ''}
+                style={{ ...btnPrimary, opacity: canSend ? 1 : 0.5 }}
+                disabled={busy || !canSend}
+                title={
+                  recipientMissing
+                    ? 'Add email address in Xero first'
+                    : alreadySent && !overrideCooldown
+                      ? 'Tick "Override cooldown" above to resend'
+                      : ''
+                }
               >
-                {busy ? 'Sending\u2026' : draft.status === 'failed' ? 'Retry send' : 'Approve & Send'}
+                {busy
+                  ? 'Sending\u2026'
+                  : draft.status === 'failed'
+                    ? 'Retry send'
+                    : alreadySent
+                      ? 'Resend'
+                      : 'Approve & Send'}
               </button>
             )}
           </div>
@@ -732,15 +770,16 @@ export default function InvoiceStatementsPage() {
           <strong>{tab === 'pending' ? 'Pending drafts' : 'Recent activity'}</strong>
         </div>
         <div style={{ overflow: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'auto' }}>
             <thead>
               <tr>
                 <th style={thStyle}>Client</th>
-                <th style={thStyle}>Recipient</th>
+                <th style={{ ...thStyle, maxWidth: 180 }}>Recipient</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Invoices</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Outstanding</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Overdue</th>
                 <th style={thStyle}>Generated</th>
+                <th style={thStyle}>Last sent</th>
                 <th style={thStyle}>Status</th>
                 <th style={thStyle}></th>
               </tr>
@@ -760,7 +799,15 @@ export default function InvoiceStatementsPage() {
                     <td style={tdStyle}>
                       <strong>{d.contactName}</strong>
                     </td>
-                    <td style={tdStyle}>
+                    <td
+                      style={{
+                        ...tdStyle,
+                        maxWidth: 180,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={d.recipientEmail || ''}
+                    >
                       {d.recipientEmail || <span style={{ color: '#dc2626' }}>(no email)</span>}
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'right' }}>{d.unpaidCount}</td>
@@ -772,6 +819,18 @@ export default function InvoiceStatementsPage() {
                       {formatDate(d.generatedAt)}
                       {stale && (
                         <span style={{ marginLeft: 6, fontSize: 11, color: '#d97706' }}>(stale)</span>
+                      )}
+                    </td>
+                    <td style={tdStyle} title={d.sentAt ?? ''}>
+                      {d.sentAt ? (
+                        <span>
+                          {formatDate(d.sentAt)}
+                          <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+                            ({relativeAge(d.sentAt)})
+                          </span>
+                        </span>
+                      ) : (
+                        '\u2014'
                       )}
                     </td>
                     <td style={tdStyle}>
@@ -793,7 +852,7 @@ export default function InvoiceStatementsPage() {
               })}
               {(tab === 'pending' ? pending : recent).length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ padding: 30, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>
+                  <td colSpan={9} style={{ padding: 30, textAlign: 'center', color: 'var(--theme-elevation-500)' }}>
                     {loading ? 'Loading\u2026' : 'No drafts.'}
                   </td>
                 </tr>

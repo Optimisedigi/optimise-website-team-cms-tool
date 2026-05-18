@@ -75,6 +75,12 @@ export async function runCaps(args: {
   xeroContactId: string;
   now?: Date;
   env?: CapEnv;
+  /**
+   * Skip the per-contact cooldown check. Monthly + hourly caps still apply.
+   * Used by admin "override cooldown & resend" flow when a follow-up email
+   * needs to go to a different/additional recipient at the same Xero contact.
+   */
+  skipCooldown?: boolean;
 }): Promise<CapResult> {
   const env = args.env ?? readCapEnv();
   const now = args.now ?? new Date();
@@ -112,6 +118,9 @@ export async function runCaps(args: {
   }
 
   // 3. Per-contact cooldown.
+  if (args.skipCooldown) {
+    return { ok: true };
+  }
   const cooldownStart = new Date(
     now.getTime() - env.minDaysBetweenSends * 24 * 60 * 60 * 1000,
   );

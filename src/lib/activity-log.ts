@@ -39,7 +39,8 @@ type ActivityType =
   | "invoice_statement_approved"
   | "invoice_statement_rejected"
   | "invoice_statement_send_failed"
-  | "invoice_statement_cap_tripped";
+  | "invoice_statement_cap_tripped"
+  | "invoice_statement_cooldown_override";
 
 interface ActivityEntry {
   type: ActivityType;

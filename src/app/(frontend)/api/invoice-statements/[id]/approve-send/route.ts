@@ -73,6 +73,12 @@ export async function POST(
     customMessage?: string;
     recipientEmailOverride?: string;
     greetingOverride?: string;
+    /**
+     * Admin override: bypass the per-contact cooldown so a follow-up
+     * statement can be sent within the cooldown window (e.g. to a newly
+     * added accounts email). Monthly + hourly caps still apply.
+     */
+    overrideCooldown?: boolean;
   } = {};
   try {
     body = await req.json();
@@ -92,7 +98,14 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (draft.status !== "pending" && draft.status !== "failed") {
+  // Pending / failed always allowed. Approved is allowed only when the
+  // caller explicitly opts into a resend via overrideCooldown.
+  const isResend = draft.status === "approved" && body.overrideCooldown === true;
+  if (
+    draft.status !== "pending" &&
+    draft.status !== "failed" &&
+    !isResend
+  ) {
     return NextResponse.json(
       { error: `Draft is ${draft.status}; cannot send.` },
       { status: 409 },
@@ -151,6 +164,7 @@ export async function POST(
   const capResult = await runCaps({
     payload,
     xeroContactId: draft.xeroContactId,
+    skipCooldown: body.overrideCooldown === true,
   });
   if (!capResult.ok) {
     logActivity(payload, {
@@ -162,6 +176,13 @@ export async function POST(
       { error: `Send blocked: ${capResult.reason}`, detail: capResult.detail },
       { status: 429 },
     );
+  }
+  if (isResend) {
+    logActivity(payload, {
+      type: "invoice_statement_cooldown_override",
+      title: `Cooldown override used`,
+      description: `${draft.contactName} \u2014 resend by ${user.email ?? user.id}`,
+    }).catch(() => {});
   }
 
   // ── Fetch PDFs (best-effort) ───────────────────────────────────────────
