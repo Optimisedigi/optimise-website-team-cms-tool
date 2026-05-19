@@ -289,6 +289,56 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         }
       }
 
+      // Map proposal presentations → client presentations. The two share
+      // most fields, but `kind` enums diverge — proposal-specific values
+      // (google_ads_audit, pitch) collapse to "other" on the client.
+      const CLIENT_PRESENTATION_KINDS = new Set([
+        "deck",
+        "status",
+        "workshop",
+        "migration",
+        "other",
+      ]);
+      const presentations = (
+        doc.presentations as Array<Record<string, any>> | undefined
+      )?.map(
+        ({
+          title,
+          deckUrl,
+          deckSlug,
+          presentedOn,
+          kind,
+          isPublic,
+          notes,
+          templateSlug,
+          deckPayload,
+        }) => ({
+          title,
+          deckUrl,
+          deckSlug,
+          presentedOn,
+          kind: CLIENT_PRESENTATION_KINDS.has(kind) ? kind : "other",
+          isPublic,
+          notes,
+          templateSlug:
+            typeof templateSlug === "object" && templateSlug !== null
+              ? (templateSlug as any).id
+              : templateSlug,
+          deckPayload,
+        }),
+      );
+
+      // Carry the SERP Displacement / AI Visibility enable toggles so the
+      // converted client opens with the same UI state. The proposal only
+      // exposes `enabled`; the rest of the config is set on the Client
+      // record after conversion (domain, keywords, recipients, probes).
+      const serpMonitor = doc.serpMonitor?.enabled
+        ? { enabled: true }
+        : undefined;
+      const aiVisibility = doc.aiVisibility?.enabled
+        ? { enabled: true }
+        : undefined;
+
       const newClient = await payload.create({
         collection: "clients",
         data: {
@@ -312,6 +362,12 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
           averageOrderValue: doc.averageOrderValue,
           annualPurchaseFrequency: doc.annualPurchaseFrequency,
           newCustomersLast12Months: doc.newCustomersLast12Months,
+          googleAdsCustomerId: doc.googleAdsCustomerId,
+          ga4PropertyId: doc.ga4PropertyId,
+          gscSiteUrl: doc.gscSiteUrl,
+          ...(presentations && presentations.length > 0 ? { presentations } : {}),
+          ...(serpMonitor ? { serpMonitor } : {}),
+          ...(aiVisibility ? { aiVisibility } : {}),
           isActive: true,
           ...acquisitionFields,
           ...(completedContract?.signedPdfUrl
@@ -342,6 +398,10 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
             | Array<Record<string, any>>
             | undefined) ?? [];
         const discoveryNotes = (doc.discoveryNotes as string | undefined)?.trim();
+        // The Prospect-tab `notes` textarea is internal team notes that the
+        // user flagged as redundant with the Notes-tab spreadsheet. Fold it
+        // into clientNotes on conversion so nothing is lost.
+        const prospectNotes = (doc.notes as string | undefined)?.trim();
 
         const clientNotes = proposalNotes.map(
           ({ category, date, author, content }) => ({
@@ -354,6 +414,14 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         // Strip row IDs above by destructuring — Payload generates fresh IDs
         // so we avoid PK collisions in client_notes if the same hex ID exists.
 
+        if (prospectNotes) {
+          clientNotes.unshift({
+            category: "general",
+            date: new Date().toISOString(),
+            author: "Prospect notes",
+            content: prospectNotes,
+          });
+        }
         if (discoveryNotes) {
           clientNotes.unshift({
             category: "general",
@@ -391,7 +459,10 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         );
       }
 
-      // Re-link all audit/research records from the proposal to the new client
+      // Re-link all audit/research records from the proposal to the new client.
+      // SERP Displacement + AI Visibility snapshots ride along too — the
+      // underlying rows don't move, we just re-point their FK to the client
+      // so the new Client record surfaces the proposal-era snapshots.
       const collectionsToRelink = [
         "seo-audits",
         "cro-audits",
@@ -399,6 +470,8 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         "competitor-analyses",
         "google-ads-audits",
         "content-researches",
+        "serp-displacement-snapshots",
+        "ai-visibility-snapshots",
       ] as const;
 
       await Promise.all(
@@ -785,7 +858,24 @@ export const ClientProposals: CollectionConfig = {
               name: "googleAdsCustomerId",
               type: "text",
               admin: {
-                description: "Google Ads customer ID (e.g. 955-493-5739). Required to run a Google Ads audit from this proposal.",
+                description:
+                  "Google Ads customer ID (e.g. 955-493-5739). Required to run a Google Ads audit from this proposal. Client must give MCC access to peter@optimisedigital.online for this audit to work.",
+              },
+            },
+            {
+              name: "ga4PropertyId",
+              type: "text",
+              admin: {
+                description:
+                  "Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Required for the AI Visibility audit. Client must give viewer access to peter@optimisedigital.online for GA4 data to flow.",
+              },
+            },
+            {
+              name: "gscSiteUrl",
+              type: "text",
+              admin: {
+                description:
+                  "Google Search Console property URL — use the exact GSC format (e.g. `sc-domain:example.com.au` for a domain property, or `https://www.example.com/` for a URL-prefix property — trailing slash required). Client must give access to peter@optimisedigital.online for Search Console data to flow.",
               },
             },
             {
@@ -1290,6 +1380,85 @@ export const ClientProposals: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "Linked Google Ads audit",
+              },
+            },
+            // ── SERP Displacement — mirrors clients.serpMonitor ──
+            // Only the `enabled` toggle is exposed on the proposal so the
+            // converted client keeps the same UI state. Domain / keyword
+            // configuration is set on the Client record after conversion.
+            {
+              name: "serpMonitor",
+              type: "group",
+              admin: {
+                description:
+                  "Toggle SERP Displacement monitoring for this prospect. Runs ad-hoc snapshots via the button below; carries to the new Client on conversion.",
+              },
+              fields: [
+                {
+                  name: "enabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description:
+                      "Enable SERP Displacement tracking (AI Overview presence, organic position, paid displacement).",
+                  },
+                },
+              ],
+            },
+            {
+              name: "runSerpDisplacement",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunSerpDisplacementFromProposalButton",
+                },
+              },
+            },
+            {
+              name: "latestSerpDisplacementSnapshot",
+              type: "relationship",
+              relationTo: "serp-displacement-snapshots",
+              admin: {
+                readOnly: true,
+                description: "Most recent SERP Displacement snapshot for this proposal",
+              },
+            },
+            // ── AI Visibility — mirrors clients.aiVisibility ──
+            {
+              name: "aiVisibility",
+              type: "group",
+              admin: {
+                description:
+                  "Toggle AI Visibility tracking for this prospect. Runs ad-hoc snapshots via the button below; carries to the new Client on conversion. Requires GA4 property ID on the Prospect tab.",
+              },
+              fields: [
+                {
+                  name: "enabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description:
+                      "Enable AI Visibility snapshots (traffic from ChatGPT, Gemini, Perplexity, Claude, etc).",
+                  },
+                },
+              ],
+            },
+            {
+              name: "runAiVisibility",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunAiVisibilityFromProposalButton",
+                },
+              },
+            },
+            {
+              name: "latestAiVisibilitySnapshot",
+              type: "relationship",
+              relationTo: "ai-visibility-snapshots",
+              admin: {
+                readOnly: true,
+                description: "Most recent AI Visibility snapshot for this proposal",
               },
             },
             {

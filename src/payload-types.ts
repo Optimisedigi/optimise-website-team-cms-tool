@@ -848,6 +848,33 @@ export interface Client {
     trend?: ('improving' | 'stable' | 'declining') | null;
   };
   /**
+   * Brand terms (one per line OR comma-separated). Single source of truth used by GSC monitoring, Google Ads dashboard (brand-vs-generic spend split), AI Visibility, AI Search Erosion Detector, negative-sweep, and quality score analysis. Per-audit overrides live on each Google Ads audit's brandTerms field. Entries shorter than 3 chars are ignored.
+   */
+  brandKeywords?: string | null;
+  /**
+   * Whether Google Search Console is connected
+   */
+  gscConnected?: boolean | null;
+  /**
+   * The connected GSC property URL
+   */
+  gscPropertyUrl?: string | null;
+  gscAccessToken?: string | null;
+  gscRefreshToken?: string | null;
+  gscTokenExpiry?: string | null;
+  /**
+   * Google Search Console property URL. Use the exact GSC format — e.g. `sc-domain:example.com.au` for a domain property, or `https://www.example.com/` for a URL-prefix property (trailing slash required). Read by the AI Search Erosion Detector. Leave empty to fall back to the Business tab's Website URL.
+   */
+  gscSiteUrl?: string | null;
+  /**
+   * Last successful GSC data sync
+   */
+  gscLastSync?: string | null;
+  /**
+   * Most recent GSC data snapshot
+   */
+  latestGscSnapshot?: (number | null) | GscSnapshot;
+  /**
    * Configure Ahrefs-style monthly site health audits. Crawls the site, checks for issues, and pushes a report to CMS.
    */
   seoAuto?: {
@@ -892,6 +919,100 @@ export interface Client {
     docs?: (number | SiteHealthReport)[];
     hasNextPage?: boolean;
     totalDocs?: number;
+  };
+  /**
+   * Daily SERP tracking. Detects AI Overview appearance and paid-displacement risk. Domain is inherited from the Business tab's Website URL by default. See the Notes tab for full setup instructions.
+   */
+  serpMonitor?: {
+    enabled?: boolean | null;
+    /**
+     * Optional override. Leave empty to inherit the client's Website URL from the Business tab (recommended). Only set this when the SERP target differs from the main site (e.g. tracking a subdomain like 'shop.example.com').
+     */
+    domain?: string | null;
+    keywords?:
+      | {
+          keyword: string;
+          location:
+            | 'au'
+            | 'au:sydney'
+            | 'au:melbourne'
+            | 'au:brisbane'
+            | 'au:perth'
+            | 'us'
+            | 'us:new-york'
+            | 'us:los-angeles'
+            | 'us:chicago'
+            | 'us:houston'
+            | 'us:miami'
+            | 'uk'
+            | 'uk:london'
+            | 'uk:manchester'
+            | 'uk:birmingham'
+            | 'ca'
+            | 'ca:toronto'
+            | 'ca:vancouver'
+            | 'ca:montreal'
+            | 'de'
+            | 'fr'
+            | 'fr:paris'
+            | 'es'
+            | 'it'
+            | 'jp'
+            | 'jp:tokyo'
+            | 'in'
+            | 'sg'
+            | 'hk'
+            | 'nl';
+          device?: ('desktop' | 'mobile') | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Recipients of the daily SERP alert digest. Add one row per email. Leave empty to skip email delivery (snapshots still recorded). Alerts only fire when one of the keywords breaches the thresholds below.
+     */
+    alertRecipientEmails?:
+      | {
+          email: string;
+          id?: string | null;
+        }[]
+      | null;
+    alertThresholds?: {
+      /**
+       * Alert when our organic position drops by this many spots day-over-day.
+       */
+      organicDropPositions?: number | null;
+      /**
+       * Alert when estimated vertical pixel offset increases by this much (lower = more sensitive).
+       */
+      pixelOffsetDrop?: number | null;
+    };
+  };
+  /**
+   * Configure weekly AI Visibility snapshots — traffic from ChatGPT, Gemini, Perplexity, Claude, etc. — and buyer-question probes run across those assistants.
+   */
+  aiVisibility?: {
+    /**
+     * Enable weekly AI Visibility snapshots (traffic from ChatGPT, Gemini, Perplexity, Claude, etc).
+     */
+    enabled?: boolean | null;
+    /**
+     * Who receives the weekly AI Visibility digest.
+     */
+    recipientEmails?:
+      | {
+          email: string;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Phase 4 — buyer questions to run through ChatGPT/Gemini/Perplexity/Claude each week. Leave empty to skip probing.
+     */
+    probePrompts?:
+      | {
+          prompt: string;
+          id?: string | null;
+        }[]
+      | null;
   };
   /**
    * Blog categories for this client (one per line). Pre-populates the category dropdown in the Blog Prompter.
@@ -983,100 +1104,6 @@ export interface Client {
   ga4RefreshToken?: string | null;
   ga4TokenExpiry?: string | null;
   /**
-   * Configure weekly AI Visibility snapshots — traffic from ChatGPT, Gemini, Perplexity, Claude, etc. — and buyer-question probes run across those assistants.
-   */
-  aiVisibility?: {
-    /**
-     * Enable weekly AI Visibility snapshots (traffic from ChatGPT, Gemini, Perplexity, Claude, etc).
-     */
-    enabled?: boolean | null;
-    /**
-     * Who receives the weekly AI Visibility digest.
-     */
-    recipientEmails?:
-      | {
-          email: string;
-          id?: string | null;
-        }[]
-      | null;
-    /**
-     * Phase 4 — buyer questions to run through ChatGPT/Gemini/Perplexity/Claude each week. Leave empty to skip probing.
-     */
-    probePrompts?:
-      | {
-          prompt: string;
-          id?: string | null;
-        }[]
-      | null;
-  };
-  /**
-   * Daily SERP tracking. Detects AI Overview appearance and paid-displacement risk. Domain is inherited from the Business tab's Website URL by default. See the Notes tab for full setup instructions.
-   */
-  serpMonitor?: {
-    enabled?: boolean | null;
-    /**
-     * Optional override. Leave empty to inherit the client's Website URL from the Business tab (recommended). Only set this when the SERP target differs from the main site (e.g. tracking a subdomain like 'shop.example.com').
-     */
-    domain?: string | null;
-    keywords?:
-      | {
-          keyword: string;
-          location:
-            | 'au'
-            | 'au:sydney'
-            | 'au:melbourne'
-            | 'au:brisbane'
-            | 'au:perth'
-            | 'us'
-            | 'us:new-york'
-            | 'us:los-angeles'
-            | 'us:chicago'
-            | 'us:houston'
-            | 'us:miami'
-            | 'uk'
-            | 'uk:london'
-            | 'uk:manchester'
-            | 'uk:birmingham'
-            | 'ca'
-            | 'ca:toronto'
-            | 'ca:vancouver'
-            | 'ca:montreal'
-            | 'de'
-            | 'fr'
-            | 'fr:paris'
-            | 'es'
-            | 'it'
-            | 'jp'
-            | 'jp:tokyo'
-            | 'in'
-            | 'sg'
-            | 'hk'
-            | 'nl';
-          device?: ('desktop' | 'mobile') | null;
-          id?: string | null;
-        }[]
-      | null;
-    /**
-     * Recipients of the daily SERP alert digest. Add one row per email. Leave empty to skip email delivery (snapshots still recorded). Alerts only fire when one of the keywords breaches the thresholds below.
-     */
-    alertRecipientEmails?:
-      | {
-          email: string;
-          id?: string | null;
-        }[]
-      | null;
-    alertThresholds?: {
-      /**
-       * Alert when our organic position drops by this many spots day-over-day.
-       */
-      organicDropPositions?: number | null;
-      /**
-       * Alert when estimated vertical pixel offset increases by this much (lower = more sensitive).
-       */
-      pixelOffsetDrop?: number | null;
-    };
-  };
-  /**
    * Original proposal that became this client
    */
   clientProposals?: {
@@ -1134,32 +1161,9 @@ export interface Client {
       }[]
     | null;
   /**
-   * Whether Google Search Console is connected
+   * Meta Ads account ID (format: act_XXXXXXXXX). Client must grant the Optimise Digital Business Manager access. Used by the Tools panel below.
    */
-  gscConnected?: boolean | null;
-  /**
-   * The connected GSC property URL
-   */
-  gscPropertyUrl?: string | null;
-  gscAccessToken?: string | null;
-  gscRefreshToken?: string | null;
-  gscTokenExpiry?: string | null;
-  /**
-   * Google Search Console property URL. Use the exact GSC format — e.g. `sc-domain:example.com.au` for a domain property, or `https://www.example.com/` for a URL-prefix property (trailing slash required). Read by the AI Search Erosion Detector. Leave empty to fall back to the Business tab's Website URL.
-   */
-  gscSiteUrl?: string | null;
-  /**
-   * Brand terms (one per line OR comma-separated). Single source of truth used by GSC monitoring, Google Ads dashboard, AI Visibility, AI Search Erosion Detector, negative-sweep, and quality score analysis. Per-audit overrides live on each Google Ads audit's brandTerms field. Entries shorter than 3 chars are ignored.
-   */
-  brandKeywords?: string | null;
-  /**
-   * Last successful GSC data sync
-   */
-  gscLastSync?: string | null;
-  /**
-   * Most recent GSC data snapshot
-   */
-  latestGscSnapshot?: (number | null) | GscSnapshot;
+  metaAdAccountId?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1692,9 +1696,17 @@ export interface ClientProposal {
     [k: string]: unknown;
   } | null;
   /**
-   * Google Ads customer ID (e.g. 955-493-5739). Required to run a Google Ads audit from this proposal.
+   * Google Ads customer ID (e.g. 955-493-5739). Required to run a Google Ads audit from this proposal. Client must give MCC access to peter@optimisedigital.online for this audit to work.
    */
   googleAdsCustomerId?: string | null;
+  /**
+   * Numeric GA4 property ID (e.g. 308123456) — strip any 'properties/' prefix and don't paste the 'G-' Measurement ID. Required for the AI Visibility audit. Client must give viewer access to peter@optimisedigital.online for GA4 data to flow.
+   */
+  ga4PropertyId?: string | null;
+  /**
+   * Google Search Console property URL — use the exact GSC format (e.g. `sc-domain:example.com.au` for a domain property, or `https://www.example.com/` for a URL-prefix property — trailing slash required). Client must give access to peter@optimisedigital.online for Search Console data to flow.
+   */
+  gscSiteUrl?: string | null;
   /**
    * CSS selector to click before capturing screenshots (e.g. age-gate 'Enter site' button). Leave blank for most sites.
    */
@@ -1906,6 +1918,32 @@ export interface ClientProposal {
    * Linked Google Ads audit
    */
   googleAdsAudit?: (number | null) | GoogleAdsAudit;
+  /**
+   * Toggle SERP Displacement monitoring for this prospect. Runs ad-hoc snapshots via the button below; carries to the new Client on conversion.
+   */
+  serpMonitor?: {
+    /**
+     * Enable SERP Displacement tracking (AI Overview presence, organic position, paid displacement).
+     */
+    enabled?: boolean | null;
+  };
+  /**
+   * Most recent SERP Displacement snapshot for this proposal
+   */
+  latestSerpDisplacementSnapshot?: (number | null) | SerpDisplacementSnapshot;
+  /**
+   * Toggle AI Visibility tracking for this prospect. Runs ad-hoc snapshots via the button below; carries to the new Client on conversion. Requires GA4 property ID on the Prospect tab.
+   */
+  aiVisibility?: {
+    /**
+     * Enable AI Visibility snapshots (traffic from ChatGPT, Gemini, Perplexity, Claude, etc).
+     */
+    enabled?: boolean | null;
+  };
+  /**
+   * Most recent AI Visibility snapshot for this proposal
+   */
+  latestAiVisibilitySnapshot?: (number | null) | AiVisibilitySnapshot;
   /**
    * Select slides to REMOVE from the report. Selected slides will be hidden. Leave empty to show all.
    */
@@ -3537,6 +3575,170 @@ export interface GoogleAdsAudit {
   createdAt: string;
 }
 /**
+ * Daily SERP layout snapshots per monitored keyword — tracks AI Overview appearance, SERP features, organic position, pixel offset, and paid position. Pushed by Growth Tools' SERP Displacement Monitor.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "serp-displacement-snapshots".
+ */
+export interface SerpDisplacementSnapshot {
+  id: number;
+  /**
+   * Linked client (set after a proposal converts)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Linked client proposal (only set for pre-conversion ad-hoc snapshots; persists after conversion so the proposal page can still link the result).
+   */
+  proposal?: (number | null) | ClientProposal;
+  /**
+   * Denormalised client name for the admin list view. Auto-populated from the linked client when left blank.
+   */
+  clientName?: string | null;
+  /**
+   * The search query that was captured
+   */
+  keyword: string;
+  /**
+   * Geo target (e.g. "au:sydney")
+   */
+  location: string;
+  device: 'desktop' | 'mobile';
+  /**
+   * When the SERP was captured
+   */
+  capturedAt: string;
+  /**
+   * AI Overview block present on the SERP
+   */
+  hasAiOverview?: boolean | null;
+  /**
+   * AIO was rendered expanded (null = unknown)
+   */
+  aiOverviewExpanded?: boolean | null;
+  /**
+   * Client domain is cited in AIO references
+   */
+  aiOverviewCitesDomain?: boolean | null;
+  /**
+   * AIO reference list. Shape: Array<{ domain, link, title }>
+   */
+  aiOverviewReferences?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  hasAnswerBox?: boolean | null;
+  hasKnowledgeGraph?: boolean | null;
+  hasShopping?: boolean | null;
+  hasLocalPack?: boolean | null;
+  /**
+   * Sponsored ads above the organic results
+   */
+  topAdCount?: number | null;
+  /**
+   * Sponsored ads below the organic results
+   */
+  bottomAdCount?: number | null;
+  /**
+   * Client domain's organic position (null = not in top 100)
+   */
+  organicPosition?: number | null;
+  /**
+   * Estimated vertical pixel offset of the client's organic listing from the top of the SERP (heuristic).
+   */
+  organicPixelOffset?: number | null;
+  /**
+   * Average paid position from Google Ads
+   */
+  paidPosition?: number | null;
+  /**
+   * Absolute top impression share (0-1)
+   */
+  paidAbsoluteTopIs?: number | null;
+  /**
+   * Top impression share (0-1)
+   */
+  paidTopIs?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Weekly AI assistant referral traffic snapshots (ChatGPT, Perplexity, Gemini, Claude, Copilot, etc.) pulled from GA4 by Growth Tools.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ai-visibility-snapshots".
+ */
+export interface AiVisibilitySnapshot {
+  id: number;
+  /**
+   * Linked client (set after a proposal converts)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Linked client proposal (only set for pre-conversion ad-hoc snapshots; persists after conversion so the proposal page can still link the result).
+   */
+  proposal?: (number | null) | ClientProposal;
+  /**
+   * Denormalised client name for the admin list view. Auto-populated from the linked client when left blank.
+   */
+  clientName?: string | null;
+  /**
+   * GA4 property ID the snapshot was pulled from
+   */
+  propertyId: string;
+  /**
+   * Start of the reporting window (YYYY-MM-DD)
+   */
+  periodStart: string;
+  /**
+   * End of the reporting window (YYYY-MM-DD)
+   */
+  periodEnd: string;
+  totalSessions: number;
+  totalUsers: number;
+  totalConversions: number;
+  conversionValue?: number | null;
+  engagedSessions?: number | null;
+  /**
+   * Average engagement time in seconds
+   */
+  avgEngagementTime?: number | null;
+  /**
+   * Full per-assistant breakdown. Shape: Array<{ source, assistant, sessions, users, conversions, conversionValue, engagedSessions, topLandingPages: Array<{ path, sessions, conversions }> }>
+   */
+  bySource?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Share of AI referrals per assistant. Shape: Record<string, number> (values 0-1)
+   */
+  shareBySource?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * ISO timestamp of when the snapshot was pulled from GA4
+   */
+  fetchedAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Track leads through the sales funnel by channel
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -4004,6 +4206,169 @@ export interface KeywordDeepDiveSession {
   createdAt: string;
 }
 /**
+ * Monthly Google Search Console data snapshots
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gsc-snapshots".
+ */
+export interface GscSnapshot {
+  id: number;
+  /**
+   * The client this snapshot belongs to
+   */
+  client: number | Client;
+  /**
+   * Date this snapshot was taken
+   */
+  snapshotDate: string;
+  /**
+   * Start of the reporting period
+   */
+  periodStart: string;
+  /**
+   * End of the reporting period
+   */
+  periodEnd: string;
+  /**
+   * Total clicks from search
+   */
+  totalClicks?: number | null;
+  /**
+   * Total search impressions
+   */
+  totalImpressions?: number | null;
+  /**
+   * Average click-through rate (%)
+   */
+  avgCtr?: number | null;
+  /**
+   * Average search position
+   */
+  avgPosition?: number | null;
+  /**
+   * Top keywords — array of {keyword, clicks, impressions, ctr, position}
+   */
+  topKeywords?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Top pages — array of {page, clicks, impressions, ctr, position}
+   */
+  topPages?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Brand query metrics — {clicks, impressions, ctr, position}
+   */
+  brandedData?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Non-brand query metrics — {clicks, impressions, ctr, position, topQueries: [...]}
+   */
+  nonBrandedData?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Number of indexed pages
+   */
+  indexedPages?: number | null;
+  /**
+   * Number of pages not indexed
+   */
+  notIndexedPages?: number | null;
+  /**
+   * Indexing issues — array of {reason, count, urls}
+   */
+  indexingIssues?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Sitemaps — array of {url, lastSubmitted, isPending, warnings, errors}
+   */
+  sitemaps?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Mobile CWV — {lcp, fid, cls, status} where status is GOOD/NEEDS_IMPROVEMENT/POOR
+   */
+  cwvMobile?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Desktop CWV — {lcp, fid, cls, status}
+   */
+  cwvDesktop?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Clicks change vs previous period (%)
+   */
+  clicksChange?: number | null;
+  /**
+   * Impressions change vs previous period (%)
+   */
+  impressionsChange?: number | null;
+  /**
+   * Position change vs previous period (negative = improved)
+   */
+  positionChange?: number | null;
+  /**
+   * Previous snapshot for comparison
+   */
+  previousSnapshot?: (number | null) | GscSnapshot;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Monthly Ahrefs-style SEO health audit reports
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -4269,169 +4634,6 @@ export interface DeckTemplate {
    * Internal-only notes about this template
    */
   notes?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Monthly Google Search Console data snapshots
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "gsc-snapshots".
- */
-export interface GscSnapshot {
-  id: number;
-  /**
-   * The client this snapshot belongs to
-   */
-  client: number | Client;
-  /**
-   * Date this snapshot was taken
-   */
-  snapshotDate: string;
-  /**
-   * Start of the reporting period
-   */
-  periodStart: string;
-  /**
-   * End of the reporting period
-   */
-  periodEnd: string;
-  /**
-   * Total clicks from search
-   */
-  totalClicks?: number | null;
-  /**
-   * Total search impressions
-   */
-  totalImpressions?: number | null;
-  /**
-   * Average click-through rate (%)
-   */
-  avgCtr?: number | null;
-  /**
-   * Average search position
-   */
-  avgPosition?: number | null;
-  /**
-   * Top keywords — array of {keyword, clicks, impressions, ctr, position}
-   */
-  topKeywords?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Top pages — array of {page, clicks, impressions, ctr, position}
-   */
-  topPages?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Brand query metrics — {clicks, impressions, ctr, position}
-   */
-  brandedData?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Non-brand query metrics — {clicks, impressions, ctr, position, topQueries: [...]}
-   */
-  nonBrandedData?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Number of indexed pages
-   */
-  indexedPages?: number | null;
-  /**
-   * Number of pages not indexed
-   */
-  notIndexedPages?: number | null;
-  /**
-   * Indexing issues — array of {reason, count, urls}
-   */
-  indexingIssues?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Sitemaps — array of {url, lastSubmitted, isPending, warnings, errors}
-   */
-  sitemaps?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Mobile CWV — {lcp, fid, cls, status} where status is GOOD/NEEDS_IMPROVEMENT/POOR
-   */
-  cwvMobile?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Desktop CWV — {lcp, fid, cls, status}
-   */
-  cwvDesktop?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Clicks change vs previous period (%)
-   */
-  clicksChange?: number | null;
-  /**
-   * Impressions change vs previous period (%)
-   */
-  impressionsChange?: number | null;
-  /**
-   * Position change vs previous period (negative = improved)
-   */
-  positionChange?: number | null;
-  /**
-   * Previous snapshot for comparison
-   */
-  previousSnapshot?: (number | null) | GscSnapshot;
   updatedAt: string;
   createdAt: string;
 }
@@ -5269,162 +5471,6 @@ export interface NegativeSweepCandidate {
   sweepDate: string;
   writtenToSheet?: boolean | null;
   writtenAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Weekly AI assistant referral traffic snapshots (ChatGPT, Perplexity, Gemini, Claude, Copilot, etc.) pulled from GA4 by Growth Tools.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "ai-visibility-snapshots".
- */
-export interface AiVisibilitySnapshot {
-  id: number;
-  /**
-   * Linked client
-   */
-  client: number | Client;
-  /**
-   * Denormalised client name for the admin list view. Auto-populated from the linked client when left blank.
-   */
-  clientName?: string | null;
-  /**
-   * GA4 property ID the snapshot was pulled from
-   */
-  propertyId: string;
-  /**
-   * Start of the reporting window (YYYY-MM-DD)
-   */
-  periodStart: string;
-  /**
-   * End of the reporting window (YYYY-MM-DD)
-   */
-  periodEnd: string;
-  totalSessions: number;
-  totalUsers: number;
-  totalConversions: number;
-  conversionValue?: number | null;
-  engagedSessions?: number | null;
-  /**
-   * Average engagement time in seconds
-   */
-  avgEngagementTime?: number | null;
-  /**
-   * Full per-assistant breakdown. Shape: Array<{ source, assistant, sessions, users, conversions, conversionValue, engagedSessions, topLandingPages: Array<{ path, sessions, conversions }> }>
-   */
-  bySource?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Share of AI referrals per assistant. Shape: Record<string, number> (values 0-1)
-   */
-  shareBySource?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * ISO timestamp of when the snapshot was pulled from GA4
-   */
-  fetchedAt: string;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Daily SERP layout snapshots per monitored keyword — tracks AI Overview appearance, SERP features, organic position, pixel offset, and paid position. Pushed by Growth Tools' SERP Displacement Monitor.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "serp-displacement-snapshots".
- */
-export interface SerpDisplacementSnapshot {
-  id: number;
-  /**
-   * Linked client
-   */
-  client: number | Client;
-  /**
-   * Denormalised client name for the admin list view. Auto-populated from the linked client when left blank.
-   */
-  clientName?: string | null;
-  /**
-   * The search query that was captured
-   */
-  keyword: string;
-  /**
-   * Geo target (e.g. "au:sydney")
-   */
-  location: string;
-  device: 'desktop' | 'mobile';
-  /**
-   * When the SERP was captured
-   */
-  capturedAt: string;
-  /**
-   * AI Overview block present on the SERP
-   */
-  hasAiOverview?: boolean | null;
-  /**
-   * AIO was rendered expanded (null = unknown)
-   */
-  aiOverviewExpanded?: boolean | null;
-  /**
-   * Client domain is cited in AIO references
-   */
-  aiOverviewCitesDomain?: boolean | null;
-  /**
-   * AIO reference list. Shape: Array<{ domain, link, title }>
-   */
-  aiOverviewReferences?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  hasAnswerBox?: boolean | null;
-  hasKnowledgeGraph?: boolean | null;
-  hasShopping?: boolean | null;
-  hasLocalPack?: boolean | null;
-  /**
-   * Sponsored ads above the organic results
-   */
-  topAdCount?: number | null;
-  /**
-   * Sponsored ads below the organic results
-   */
-  bottomAdCount?: number | null;
-  /**
-   * Client domain's organic position (null = not in top 100)
-   */
-  organicPosition?: number | null;
-  /**
-   * Estimated vertical pixel offset of the client's organic listing from the top of the SERP (heuristic).
-   */
-  organicPixelOffset?: number | null;
-  /**
-   * Average paid position from Google Ads
-   */
-  paidPosition?: number | null;
-  /**
-   * Absolute top impression share (0-1)
-   */
-  paidAbsoluteTopIs?: number | null;
-  /**
-   * Top impression share (0-1)
-   */
-  paidTopIs?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -7056,6 +7102,15 @@ export interface ClientsSelect<T extends boolean = true> {
         scoreChange?: T;
         trend?: T;
       };
+  brandKeywords?: T;
+  gscConnected?: T;
+  gscPropertyUrl?: T;
+  gscAccessToken?: T;
+  gscRefreshToken?: T;
+  gscTokenExpiry?: T;
+  gscSiteUrl?: T;
+  gscLastSync?: T;
+  latestGscSnapshot?: T;
   seoAuto?:
     | T
     | {
@@ -7073,6 +7128,49 @@ export interface ClientsSelect<T extends boolean = true> {
             };
       };
   siteHealthReports?: T;
+  serpMonitor?:
+    | T
+    | {
+        enabled?: T;
+        domain?: T;
+        keywords?:
+          | T
+          | {
+              keyword?: T;
+              location?: T;
+              device?: T;
+              id?: T;
+            };
+        alertRecipientEmails?:
+          | T
+          | {
+              email?: T;
+              id?: T;
+            };
+        alertThresholds?:
+          | T
+          | {
+              organicDropPositions?: T;
+              pixelOffsetDrop?: T;
+            };
+      };
+  aiVisibility?:
+    | T
+    | {
+        enabled?: T;
+        recipientEmails?:
+          | T
+          | {
+              email?: T;
+              id?: T;
+            };
+        probePrompts?:
+          | T
+          | {
+              prompt?: T;
+              id?: T;
+            };
+      };
   blogCategories?: T;
   blogTags?: T;
   servicePages?: T;
@@ -7107,49 +7205,6 @@ export interface ClientsSelect<T extends boolean = true> {
   ga4AccessToken?: T;
   ga4RefreshToken?: T;
   ga4TokenExpiry?: T;
-  aiVisibility?:
-    | T
-    | {
-        enabled?: T;
-        recipientEmails?:
-          | T
-          | {
-              email?: T;
-              id?: T;
-            };
-        probePrompts?:
-          | T
-          | {
-              prompt?: T;
-              id?: T;
-            };
-      };
-  serpMonitor?:
-    | T
-    | {
-        enabled?: T;
-        domain?: T;
-        keywords?:
-          | T
-          | {
-              keyword?: T;
-              location?: T;
-              device?: T;
-              id?: T;
-            };
-        alertRecipientEmails?:
-          | T
-          | {
-              email?: T;
-              id?: T;
-            };
-        alertThresholds?:
-          | T
-          | {
-              organicDropPositions?: T;
-              pixelOffsetDrop?: T;
-            };
-      };
   clientProposals?: T;
   presentations?:
     | T
@@ -7165,15 +7220,7 @@ export interface ClientsSelect<T extends boolean = true> {
         deckPayload?: T;
         id?: T;
       };
-  gscConnected?: T;
-  gscPropertyUrl?: T;
-  gscAccessToken?: T;
-  gscRefreshToken?: T;
-  gscTokenExpiry?: T;
-  gscSiteUrl?: T;
-  brandKeywords?: T;
-  gscLastSync?: T;
-  latestGscSnapshot?: T;
+  metaAdAccountId?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -7202,6 +7249,8 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   notes?: T;
   tam?: T;
   googleAdsCustomerId?: T;
+  ga4PropertyId?: T;
+  gscSiteUrl?: T;
   screenshotClickSelector?: T;
   websiteMockupUrl?: T;
   keywordCategories?:
@@ -7260,6 +7309,18 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   competitorAnalysis?: T;
   contentResearch?: T;
   googleAdsAudit?: T;
+  serpMonitor?:
+    | T
+    | {
+        enabled?: T;
+      };
+  latestSerpDisplacementSnapshot?: T;
+  aiVisibility?:
+    | T
+    | {
+        enabled?: T;
+      };
+  latestAiVisibilitySnapshot?: T;
   visibleSlides?: T;
   missionPriorities?:
     | T
@@ -8343,6 +8404,7 @@ export interface SiteHealthReportsSelect<T extends boolean = true> {
  */
 export interface AiVisibilitySnapshotsSelect<T extends boolean = true> {
   client?: T;
+  proposal?: T;
   clientName?: T;
   propertyId?: T;
   periodStart?: T;
@@ -8365,6 +8427,7 @@ export interface AiVisibilitySnapshotsSelect<T extends boolean = true> {
  */
 export interface SerpDisplacementSnapshotsSelect<T extends boolean = true> {
   client?: T;
+  proposal?: T;
   clientName?: T;
   keyword?: T;
   location?: T;

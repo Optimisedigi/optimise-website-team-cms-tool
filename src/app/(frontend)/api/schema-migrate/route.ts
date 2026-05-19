@@ -371,6 +371,16 @@ export async function POST(request: NextRequest) {
   await run("client_proposals.override_avg_position", "ALTER TABLE `client_proposals` ADD `override_avg_position` numeric");
   await run("client_proposals.override_keywords_found", "ALTER TABLE `client_proposals` ADD `override_keywords_found` numeric");
 
+  // --- SERP Displacement / AI Visibility / GA4 / GSC carry-over fields on client_proposals ---
+  await run("client_proposals.ga4_property_id", "ALTER TABLE `client_proposals` ADD `ga4_property_id` text");
+  await run("client_proposals.gsc_site_url", "ALTER TABLE `client_proposals` ADD `gsc_site_url` text");
+  await run("client_proposals.serp_monitor_enabled", "ALTER TABLE `client_proposals` ADD `serp_monitor_enabled` integer DEFAULT false");
+  await run("client_proposals.ai_visibility_enabled", "ALTER TABLE `client_proposals` ADD `ai_visibility_enabled` integer DEFAULT false");
+  await run("client_proposals.latest_serp_displacement_snapshot_id", "ALTER TABLE `client_proposals` ADD `latest_serp_displacement_snapshot_id` integer REFERENCES `serp_displacement_snapshots`(`id`) ON DELETE set null");
+  await run("client_proposals_latest_serp_displacement_snapshot_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_latest_serp_displacement_snapshot_idx` ON `client_proposals` (`latest_serp_displacement_snapshot_id`)");
+  await run("client_proposals.latest_ai_visibility_snapshot_id", "ALTER TABLE `client_proposals` ADD `latest_ai_visibility_snapshot_id` integer REFERENCES `ai_visibility_snapshots`(`id`) ON DELETE set null");
+  await run("client_proposals_latest_ai_visibility_snapshot_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_latest_ai_visibility_snapshot_idx` ON `client_proposals` (`latest_ai_visibility_snapshot_id`)");
+
   // --- Flight Plan Images sub-table ---
   await run("client_proposals_flight_plan_images", `CREATE TABLE IF NOT EXISTS \`client_proposals_flight_plan_images\` (
     \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
