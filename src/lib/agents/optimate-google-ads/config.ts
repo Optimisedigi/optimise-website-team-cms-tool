@@ -47,7 +47,8 @@ const TOOL_INVENTORY = [
   "- get_account_overview(range?): total spend, conversions, avg CPA, active campaign count, and the date range it covers. Call once at the start of any diagnostic conversation. Default range LAST_30_DAYS.",
   "- get_campaign_performance(range?, segment?): per-campaign spend / clicks / impressions / conversions / CTR / CPA. Default range LAST_7_DAYS. Pass segment='month'|'week'|'day' for a per-period breakdown (one row per campaign per segment). See SEGMENTATION_GUIDE.",
   "- get_search_terms(range?, minImpressions?, limit?, segment?): user search queries that triggered ads, with metrics. Default range LAST_30_DAYS. Pass segment='month'|'week'|'day' for a per-period breakdown. Use to find waste before proposing negatives. See SEGMENTATION_GUIDE.",
-  "- get_budget_management_email(mode): returns the EXACT Gmail-ready HTML the CMS Budget Management 'Copy for Gmail' button produces. mode='this_month' for the current MTD budget update, mode='last_month' for the previous-month recap. Use whenever the user asks for a budget update email, a draft for client comms, or as the body of a scheduled weekly report. Copy the returned `html` field verbatim into your reply — do NOT summarise it.",
+  "- get_budget_management_email(mode): returns the EXACT Gmail-ready HTML the CMS Budget Management 'Copy for Gmail' button produces. mode='this_month' for the current MTD budget update, mode='last_month' for the previous-month recap. Returns the html string, the subject line, and the month label. Use whenever the user asks for a budget update email, a draft for client comms, or as the body of a scheduled weekly report.",
+  "- create_gmail_draft(subject, htmlBody, to?): create a ONE-OFF draft in the proposing user's own Gmail Drafts, right now (never sends mail). Use IMMEDIATELY after get_budget_management_email when the user asks for a Gmail draft \u2014 pass the returned `subject` and `html` straight through. The user reviews, picks a recipient, and hits Send. Use propose_scheduled_task instead for RECURRING drafts. Requires Gmail connected on the user's account; the tool returns a clear error if not.",
   "",
   "PROPOSE TOOLS (queue for approval; never apply directly):",
   "- propose_negative_keywords(candidates, summary): legacy quick-propose. Each candidate needs term, matchType, and a one-line reason. Prefer propose_nkl_create for new lists.",
@@ -124,6 +125,20 @@ const SCHEDULED_TASKS_GUIDE = `When the user asks for a recurring report (e.g. "
 5. When the user asks "what reports am I getting?" or "pause the Acme weekly", call list_scheduled_tasks first to learn the taskId, then propose_scheduled_task_update.
 
 Never fabricate cron expressions you're unsure of — the schedule field is validated against cron-parser and an invalid expression will reject the proposal.
+
+ONE-OFF Gmail drafts (the user wants it NOW, not on a schedule):
+
+When the user says \"create a Gmail draft for the budget email\", \"send me a draft of X\", \"drop this into Gmail Drafts now\", or any one-off draft request, DO NOT use propose_scheduled_task (that's for recurring drafts and won't fire until the next cron tick). DO NOT paste the HTML in chat and hope the user clicks 'Save as draft'. Use create_gmail_draft directly.
+
+WORKED EXAMPLE — one-off budget management email with a summary on top:
+
+User: \"Create a Gmail draft for the budget management email. If CPA improved last week vs the two weeks before, add a short summary on top.\"
+
+1. Pull get_campaign_performance for last week (LAST_WEEK_SUN_SAT) and the two weeks before (back-dated custom span) so you can compute the CPA delta. Reference SEGMENTATION_GUIDE for the right shape.
+2. Call get_budget_management_email with mode='this_month' to get the budget HTML, subject, and monthLabel.
+3. If CPA improved, prepend a small green callout div with a 1–2 sentence summary to the HTML. If it worsened or was flat, prepend a different colour callout or skip the prepend. Keep the prepended block visually consistent with the email's existing style.
+4. Call create_gmail_draft with the original subject + the combined HTML (your callout + the budget HTML). Leave the \`to\` field blank — the user picks the recipient in Gmail.
+5. Reply with a SHORT confirmation in chat: \"Draft saved to Gmail. CPA improved from $X to $Y last week. [Open in Gmail](gmailUrl).\" — NEVER paste the budget HTML in chat after you've already saved it as a draft. The draft IS the deliverable.
 
 WORKED EXAMPLE — weekly budget management email with optional summary up top:
 
