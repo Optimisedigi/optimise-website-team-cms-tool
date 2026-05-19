@@ -22,6 +22,7 @@ export type ToolCategoryKey =
   | "read-pipeline"
   | "read-client-info"
   | "read-scheduled"
+  | "actions"
   | "propose-budget"
   | "propose-negatives"
   | "propose-structure"
@@ -77,6 +78,13 @@ export const TOOL_CATEGORIES: Record<ToolCategoryKey, CategoryMeta> = {
     blurb: "Lists the recurring agent reports you've set up.",
     color: "#475569",
     order: 50,
+  },
+  actions: {
+    key: "actions",
+    label: "Actions \u2014 do-it-now",
+    blurb: "Tools that take immediate side-effecting action on your own account (Gmail drafts). No approval queue.",
+    color: "#0284c7",
+    order: 55,
   },
   "propose-budget": {
     key: "propose-budget",
@@ -157,6 +165,9 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
 
   // Read — scheduled
   list_scheduled_tasks: "read-scheduled",
+
+  // Actions — do-it-now
+  create_gmail_draft: "actions",
 
   // Propose — budgets
   propose_budget_update: "propose-budget",

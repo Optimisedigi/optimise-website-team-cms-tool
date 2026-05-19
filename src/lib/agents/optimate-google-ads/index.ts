@@ -13,6 +13,7 @@ import { getAccountOverview } from "./tools/get-account-overview";
 import { getCampaignPerformance } from "./tools/get-campaign-performance";
 import { getSearchTerms } from "./tools/get-search-terms";
 import { getBudgetManagementEmail } from "./tools/get-budget-management-email";
+import { createGmailDraftTool } from "./tools/create-gmail-draft";
 import { proposeNegativeKeywords } from "./tools/propose-negative-keywords";
 import { proposeNklCreate } from "./tools/propose-nkl-create";
 import { proposeNklUpdate } from "./tools/propose-nkl-update";
@@ -56,6 +57,7 @@ export function getTools(): CanonicalTool<unknown>[] {
     getCampaignPerformance as unknown as CanonicalTool<unknown>,
     getSearchTerms as unknown as CanonicalTool<unknown>,
     getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
+    createGmailDraftTool as unknown as CanonicalTool<unknown>,
     proposeNegativeKeywords as unknown as CanonicalTool<unknown>,
     proposeNklCreate as unknown as CanonicalTool<unknown>,
     proposeNklUpdate as unknown as CanonicalTool<unknown>,
