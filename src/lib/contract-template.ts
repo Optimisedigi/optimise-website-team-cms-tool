@@ -288,8 +288,49 @@ export function generateContractSections(data: ContractData): ContractSection[] 
     });
   }
 
-  // Annual Review & Tier Adjustment (optional). Rendered before Payment Terms
-  // so the tier table reads naturally next to the pricing details above.
+  // Payment Terms — use override if provided, otherwise exact wording from
+  // the contract PDF. Flows on the same page as Pricing (no page break) so
+  // they read as one billing-related section.
+  sections.push({
+    type: "heading",
+    heading: "Payment Terms:",
+  });
+  if (data.paymentTermsOverride || data.paymentTermsOverrideNodes) {
+    sections.push({
+      type: "richtext",
+      content: data.paymentTermsOverride,
+      lexicalNodes: data.paymentTermsOverrideNodes,
+    });
+  } else {
+    const setupAmount = formatCurrency(data.setupFee ?? 0, ccy);
+    const retainerAmount = formatCurrency(data.monthlyRetainer ?? 0, ccy);
+    const monthlyHostingAmount = data.monthlyHosting ? formatCurrency(data.monthlyHosting, ccy) : null;
+    const annualHostingAmount = data.annualHosting ? formatCurrency(data.annualHosting, ccy) : null;
+    const items: string[] = [];
+    if (!data.hideSetupFee) {
+      items.push(`The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`);
+    }
+    items.push(
+      `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
+    );
+    if (monthlyHostingAmount) {
+      items.push(`The monthly hosting fee of ${monthlyHostingAmount} will be invoiced alongside the monthly retainer.`);
+    }
+    if (annualHostingAmount) {
+      items.push(`The annual hosting fee of ${annualHostingAmount} will be invoiced yearly on the anniversary of the contract start date.`);
+    }
+    items.push(
+      "Invoices are due within 14 days of issue.",
+      "This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.",
+    );
+    sections.push({
+      type: "bullets",
+      items,
+    });
+  }
+
+  // Annual Review & Tier Adjustment (optional). Sits directly after Payment
+  // Terms so the billing-related clauses read as one continuous section.
   if (data.annualReviewEnabled) {
     sections.push({
       type: "heading",
@@ -339,47 +380,6 @@ export function generateContractSections(data: ContractData): ContractSection[] 
         lexicalNodes: data.annualReviewAcceptanceNodes,
       });
     }
-  }
-
-  // Payment Terms — use override if provided, otherwise exact wording from
-  // the contract PDF. Flows on the same page as Pricing (no page break) so
-  // they read as one billing-related section.
-  sections.push({
-    type: "heading",
-    heading: "Payment Terms:",
-  });
-  if (data.paymentTermsOverride || data.paymentTermsOverrideNodes) {
-    sections.push({
-      type: "richtext",
-      content: data.paymentTermsOverride,
-      lexicalNodes: data.paymentTermsOverrideNodes,
-    });
-  } else {
-    const setupAmount = formatCurrency(data.setupFee ?? 0, ccy);
-    const retainerAmount = formatCurrency(data.monthlyRetainer ?? 0, ccy);
-    const monthlyHostingAmount = data.monthlyHosting ? formatCurrency(data.monthlyHosting, ccy) : null;
-    const annualHostingAmount = data.annualHosting ? formatCurrency(data.annualHosting, ccy) : null;
-    const items: string[] = [];
-    if (!data.hideSetupFee) {
-      items.push(`The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`);
-    }
-    items.push(
-      `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
-    );
-    if (monthlyHostingAmount) {
-      items.push(`The monthly hosting fee of ${monthlyHostingAmount} will be invoiced alongside the monthly retainer.`);
-    }
-    if (annualHostingAmount) {
-      items.push(`The annual hosting fee of ${annualHostingAmount} will be invoiced yearly on the anniversary of the contract start date.`);
-    }
-    items.push(
-      "Invoices are due within 14 days of issue.",
-      "This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.",
-    );
-    sections.push({
-      type: "bullets",
-      items,
-    });
   }
 
   // Termination

@@ -642,7 +642,33 @@ export default function ContractSignPage() {
 
         <hr style={hrStyle} />
 
-        {/* Annual Review & Tier Adjustment (optional) */}
+        {/* Payment Terms */}
+        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Payment Terms:</h2>
+        {contract.paymentTermsOverrideHtml ? (
+          <div
+            className="scope-content"
+            dangerouslySetInnerHTML={{ __html: contract.paymentTermsOverrideHtml }}
+            style={{ fontSize: 13, lineHeight: 1.5 }}
+          />
+        ) : contract.paymentTermsOverride ? (
+          <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.paymentTermsOverride}</div>
+        ) : (
+          <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.25 }}>
+            {!contract.hideSetupFee && (
+              <li style={{ marginBottom: 0 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
+            )}
+            <li style={{ marginBottom: 0 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
+            {hostingAmount && (
+              <li style={{ marginBottom: 0 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
+            )}
+            <li style={{ marginBottom: 0 }}>Invoices are due within 14 days of issue.</li>
+            <li style={{ marginBottom: 0 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
+          </ul>
+        )}
+
+        <hr style={hrStyle} />
+
+        {/* Annual Review & Tier Adjustment (optional) — sits after Payment Terms */}
         {contract.annualReviewEnabled && (
           <>
             <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Annual Review and Adjustment</h2>
@@ -721,32 +747,6 @@ export default function ContractSignPage() {
             <hr style={hrStyle} />
           </>
         )}
-
-        {/* Payment Terms */}
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Payment Terms:</h2>
-        {contract.paymentTermsOverrideHtml ? (
-          <div
-            className="scope-content"
-            dangerouslySetInnerHTML={{ __html: contract.paymentTermsOverrideHtml }}
-            style={{ fontSize: 13, lineHeight: 1.5 }}
-          />
-        ) : contract.paymentTermsOverride ? (
-          <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{contract.paymentTermsOverride}</div>
-        ) : (
-          <ul style={{ margin: '0 0 6px', paddingLeft: 24, lineHeight: 1.25 }}>
-            {!contract.hideSetupFee && (
-              <li style={{ marginBottom: 0 }}>The one-time setup fee of {setupAmount} is payable upon signing of this contract.</li>
-            )}
-            <li style={{ marginBottom: 0 }}>The monthly retainer of {retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.</li>
-            {hostingAmount && (
-              <li style={{ marginBottom: 0 }}>The monthly hosting fee of {hostingAmount} will be invoiced alongside the monthly retainer.</li>
-            )}
-            <li style={{ marginBottom: 0 }}>Invoices are due within 14 days of issue.</li>
-            <li style={{ marginBottom: 0 }}>This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.</li>
-          </ul>
-        )}
-
-        <hr style={hrStyle} />
 
         {/* Termination */}
         <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Termination:</h2>

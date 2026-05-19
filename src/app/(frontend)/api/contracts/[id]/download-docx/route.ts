@@ -350,7 +350,38 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     children.push(thinRule());
   }
 
-  // Annual Review & Tier Adjustment (optional)
+  // Payment Terms — flows on the same page as Pricing (no page break) so
+  // they read as one billing-related section.
+  children.push(
+    new Paragraph({ text: "Payment Terms:", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+  );
+  if (doc.paymentTermsOverride?.root?.children) {
+    children.push(...lexicalToDocx(doc.paymentTermsOverride.root.children));
+  } else {
+    const paymentBullets: string[] = [];
+    if (!doc.hideSetupFee) {
+      paymentBullets.push(`The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`);
+    }
+    paymentBullets.push(
+      `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
+      "Invoices are due within 14 days of issue.",
+      "This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.",
+    );
+    for (const bullet of paymentBullets) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: bullet })],
+          bullet: { level: 0 },
+          spacing: { after: 0, line: 260 },
+        }),
+      );
+    }
+  }
+
+  children.push(thinRule());
+
+  // Annual Review & Tier Adjustment (optional) — sits after Payment Terms so
+  // the billing-related clauses read as one continuous section.
   if (doc.annualReviewEnabled) {
     children.push(
       new Paragraph({
@@ -434,36 +465,6 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     }
     children.push(thinRule());
   }
-
-  // Payment Terms — flows on the same page as Pricing (no page break) so
-  // they read as one billing-related section.
-  children.push(
-    new Paragraph({ text: "Payment Terms:", heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
-  );
-  if (doc.paymentTermsOverride?.root?.children) {
-    children.push(...lexicalToDocx(doc.paymentTermsOverride.root.children));
-  } else {
-    const paymentBullets: string[] = [];
-    if (!doc.hideSetupFee) {
-      paymentBullets.push(`The one-time setup fee of ${setupAmount} is payable upon signing of this contract.`);
-    }
-    paymentBullets.push(
-      `The monthly retainer of ${retainerAmount} will be invoiced on the first day of each month. If the engagement begins partway through a calendar month, the first month's retainer will be pro-rated based on the number of remaining days in that month. From the following month onward, the full monthly retainer will be invoiced on the 1st of each month.`,
-      "Invoices are due within 14 days of issue.",
-      "This contract will automatically renew on a rolling monthly basis unless terminated by either party with a 30-day written notice.",
-    );
-    for (const bullet of paymentBullets) {
-      children.push(
-        new Paragraph({
-          children: [new TextRun({ text: bullet })],
-          bullet: { level: 0 },
-          spacing: { after: 0, line: 260 },
-        }),
-      );
-    }
-  }
-
-  children.push(thinRule());
 
   // Termination
   children.push(
