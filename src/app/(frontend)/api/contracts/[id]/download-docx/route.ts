@@ -362,7 +362,11 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     if (doc.annualReviewIntro?.root?.children) {
       children.push(...lexicalToDocx(doc.annualReviewIntro.root.children));
     }
-    const tierTable = parseTierTable(doc.annualReviewTierTableText);
+    // Tier table is gated by both the section toggle (annualReviewEnabled,
+    // checked above) and the nested per-table toggle. Nested toggle defaults
+    // to TRUE so contracts predating the toggle keep their table.
+    const tierTableEnabled = doc.annualReviewTierTableEnabled !== false;
+    const tierTable = tierTableEnabled ? parseTierTable(doc.annualReviewTierTableText) : null;
     if (tierTable) {
       const thinBorder = { style: BorderStyle.SINGLE, size: 1, color: "111111" } as const;
       const lightBorder = { style: BorderStyle.SINGLE, size: 1, color: "D4D4D4" } as const;

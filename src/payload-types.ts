@@ -1424,6 +1424,10 @@ export interface Contract {
     [k: string]: unknown;
   } | null;
   /**
+   * Toggle ON to include the trailing 3-month spend / tier retainer table inside this section. Turn OFF for clients on a flat retainer where tier-based adjustments don't apply — the intro, notice, good-faith, and acceptance paragraphs above and below still render.
+   */
+  annualReviewTierTableEnabled?: boolean | null;
+  /**
    * Spreadsheet-style tier table. The first row is the header (e.g. 'Trailing spend' / 'Monthly retainer'). Click any cell to edit; paste from Excel or Google Sheets into a cell to auto-fill multiple rows and columns. Stored as tab-separated text so existing renderers (PDF / HTML / Word) keep working.
    */
   annualReviewTierTableText?: string | null;
@@ -7430,6 +7434,7 @@ export interface ContractsSelect<T extends boolean = true> {
   terminationOverride?: T;
   annualReviewEnabled?: T;
   annualReviewIntro?: T;
+  annualReviewTierTableEnabled?: T;
   annualReviewTierTableText?: T;
   annualReviewNotice?: T;
   annualReviewGoodFaithReview?: T;

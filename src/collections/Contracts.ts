@@ -568,12 +568,24 @@ export const Contracts: CollectionConfig = {
               },
             },
             {
+              name: "annualReviewTierTableEnabled",
+              type: "checkbox",
+              defaultValue: true,
+              admin: {
+                description:
+                  "Toggle ON to include the trailing 3-month spend / tier retainer table inside this section. Turn OFF for clients on a flat retainer where tier-based adjustments don't apply — the intro, notice, good-faith, and acceptance paragraphs above and below still render.",
+                condition: (data) => Boolean(data?.annualReviewEnabled),
+              },
+            },
+            {
               name: "annualReviewTierTableText",
               type: "textarea",
               admin: {
                 description:
                   "Spreadsheet-style tier table. The first row is the header (e.g. 'Trailing spend' / 'Monthly retainer'). Click any cell to edit; paste from Excel or Google Sheets into a cell to auto-fill multiple rows and columns. Stored as tab-separated text so existing renderers (PDF / HTML / Word) keep working.",
-                condition: (data) => Boolean(data?.annualReviewEnabled),
+                condition: (data) =>
+                  Boolean(data?.annualReviewEnabled) &&
+                  data?.annualReviewTierTableEnabled !== false,
                 components: {
                   Field: "./components/TierTableGridEditor",
                 },

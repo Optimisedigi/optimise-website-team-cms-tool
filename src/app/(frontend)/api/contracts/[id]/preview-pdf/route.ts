@@ -83,6 +83,7 @@ export async function GET(
       paymentTermsOverrideNodes: doc.paymentTermsOverride?.root?.children,
       annualReviewEnabled: Boolean(doc.annualReviewEnabled),
       annualReviewIntroNodes: doc.annualReviewIntro?.root?.children,
+      annualReviewTierTableEnabled: doc.annualReviewTierTableEnabled !== false,
       annualReviewTierTableText: doc.annualReviewTierTableText,
       annualReviewNoticeNodes: doc.annualReviewNotice?.root?.children,
       annualReviewGoodFaithReviewNodes: doc.annualReviewGoodFaithReview?.root?.children,
