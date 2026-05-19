@@ -483,7 +483,6 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   const [pickerOpen, setPickerOpen] = useState(false)
   // Drives the dim hint + popover that lists keyword triggers below the
   // chat input. Hover/focus on the textarea wrapper expands the popover.
-  const [keywordHintOpen, setKeywordHintOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   /** Per-message draft state: 'saving' → 'saved' → (1.5s later) cleared,
@@ -1554,11 +1553,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             }}
           />
 
-          <div
-            style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}
-            onMouseEnter={() => setKeywordHintOpen(true)}
-            onMouseLeave={() => setKeywordHintOpen(false)}
-          >
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <button
               type="button"
               onClick={(e) => {
@@ -1627,11 +1622,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               }}
               onFocus={(e) => {
                 e.currentTarget.style.borderColor = '#2563eb'
-                setKeywordHintOpen(true)
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = 'var(--theme-border-color, #e5e7eb)'
-                setKeywordHintOpen(false)
               }}
             />
             <button
@@ -1658,71 +1651,20 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             </button>
           </div>
 
-          {/* Keyword-trigger hint: dim and small, expands into a popover
-              on hover/focus of the input row. Tells the user the two magic
-              categories that load extra agent guides (scheduled tasks +
-              decks). Pure UI hint — the chat works fine without it. */}
+          {/* Static one-line tip kept as a quiet affordance. The detailed
+              hover popover (with full keyword lists for scheduled-tasks and
+              decks) was removed per request — noisy and out of place inside
+              an active chat. */}
           <div
             style={{
-              position: 'relative',
               marginTop: 4,
               fontSize: 10,
               color: '#9ca3af',
               lineHeight: 1.4,
               userSelect: 'none',
             }}
-            aria-live="polite"
           >
-            <span
-              style={{
-                cursor: 'default',
-              }}
-              onMouseEnter={() => setKeywordHintOpen(true)}
-              onMouseLeave={() => setKeywordHintOpen(false)}
-            >
-              ✨ Tip: mention “weekly”, “recurring”, “deck”, or “recap” to unlock extra guides.
-            </span>
-            {keywordHintOpen && (
-              <div
-                role="tooltip"
-                onMouseEnter={() => setKeywordHintOpen(true)}
-                onMouseLeave={() => setKeywordHintOpen(false)}
-                style={{
-                  position: 'absolute',
-                  bottom: 'calc(100% + 6px)',
-                  left: 0,
-                  right: 0,
-                  zIndex: 50,
-                  background: '#1f2937',
-                  color: '#e5e7eb',
-                  border: '1px solid #374151',
-                  borderRadius: 6,
-                  padding: '8px 10px',
-                  fontSize: 10,
-                  lineHeight: 1.5,
-                  boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
-                  maxHeight: 220,
-                  overflowY: 'auto',
-                }}
-              >
-                <div style={{ fontWeight: 600, color: '#fbbf24', marginBottom: 2 }}>
-                  Scheduled tasks
-                </div>
-                <div style={{ marginBottom: 6, color: '#d1d5db' }}>
-                  schedule, recurring, repeat, every day/Monday/…, weekly, monthly,
-                  fortnightly, daily, cron, each morning, pause/resume the…, list tasks,
-                  what reports am I getting
-                </div>
-                <div style={{ fontWeight: 600, color: '#fbbf24', marginBottom: 2 }}>
-                  Decks &amp; recaps
-                </div>
-                <div style={{ color: '#d1d5db' }}>
-                  deck, slide(s), presentation, recap, stakeholder, owner update,
-                  client update, monthly/quarterly review, what we shipped,
-                  show the owner/client
-                </div>
-              </div>
-            )}
+            ✨ Tip: mention “weekly”, “recurring”, “deck”, or “recap” to unlock extra guides.
           </div>
 
           {/* Model selector lives BELOW the input row so the typebox is the

@@ -264,29 +264,41 @@ export const Clients: CollectionConfig = {
         {
           label: "Business",
           fields: [
+            // ── Identity row (3-col) ──────────────────────────────
+            // Most-used fields kept at the top so the team can scan a client
+            // record without scrolling. Layout-only — the field bodies are
+            // identical to the previous full-width declarations.
             {
-              name: "name",
-              type: "text",
-              required: true,
-              admin: {
-                description: "Client/business name (e.g., 'Acme Corp')",
-              },
-            },
-            {
-              name: "slug",
-              type: "text",
-              required: true,
-              unique: true,
-              admin: {
-                description: "URL-friendly identifier (e.g., 'acme-corp')",
-              },
-            },
-            {
-              name: "websiteUrl",
-              type: "text",
-              admin: {
-                description: "Client website URL (e.g., 'https://acmecorp.com')",
-              },
+              type: "row",
+              fields: [
+                {
+                  name: "name",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description: "Client/business name (e.g., 'Acme Corp')",
+                    width: "33%",
+                  },
+                },
+                {
+                  name: "slug",
+                  type: "text",
+                  required: true,
+                  unique: true,
+                  admin: {
+                    description: "URL-friendly identifier (e.g., 'acme-corp')",
+                    width: "33%",
+                  },
+                },
+                {
+                  name: "websiteUrl",
+                  type: "text",
+                  admin: {
+                    description: "Client website URL (e.g., 'https://acmecorp.com')",
+                    width: "34%",
+                  },
+                },
+              ],
             },
             {
               name: "apiKey",
@@ -308,14 +320,8 @@ export const Clients: CollectionConfig = {
                 ],
               },
             },
-            {
-              name: "isActive",
-              type: "checkbox",
-              defaultValue: true,
-              admin: {
-                description: "Enable/disable content publishing for this client",
-              },
-            },
+            // isAgency stays on the sidebar — it's a meta toggle that hides
+            // sections of this tab. isActive moves into the toggles row below.
             {
               name: "isAgency",
               type: "checkbox",
@@ -325,73 +331,83 @@ export const Clients: CollectionConfig = {
                 description: "Check if this is the agency itself (hides revenue fields)",
               },
             },
+            // ── Site identity row (3-col) ─────────────────────────────
+            // clientPin moved off the sidebar into the body per the request
+            // to put PIN + websiteType + externalCms on one row.
             {
-              name: "clientPin",
-              type: "text",
-              unique: true,
-              admin: {
-                position: "sidebar",
-                description:
-                  "4-digit PIN for client hub access (auto-generated)",
-              },
-              validate: async (value: string | null | undefined, { req, id }: any) => {
-                if (!value) return true;
-                if (!/^\d{4}$/.test(value))
-                  return "PIN must be exactly 4 digits";
-                try {
-                  const existing = await req.payload.find({
-                    collection: "clients",
-                    where: {
-                      clientPin: { equals: value },
-                      ...(id ? { id: { not_equals: id } } : {}),
-                    },
-                    limit: 1,
-                  });
-                  if (existing.totalDocs > 0) {
-                    return `PIN "${value}" is already in use by another client (${existing.docs[0].name}).`;
-                  }
-                } catch { /* skip check if payload not available */ }
-                return true;
-              },
-              hooks: {
-                beforeChange: [
-                  ({ value, operation }) => {
-                    if (operation === "create" && !value) {
-                      return String(
-                        Math.floor(1000 + Math.random() * 9000)
-                      );
-                    }
-                    return value;
+              type: "row",
+              fields: [
+                {
+                  name: "clientPin",
+                  type: "text",
+                  unique: true,
+                  admin: {
+                    description:
+                      "4-digit PIN for client hub access (auto-generated)",
+                    width: "33%",
                   },
-                ],
-              },
-            },
-            {
-              name: "websiteType",
-              type: "select",
-              admin: {
-                description:
-                  "Used by the tag setup checker to determine if issues are auto-fixable (built by us) or advisory-only (external).",
-              },
-              options: [
-                { label: "Built by Us", value: "built_by_us" },
-                { label: "External CMS / Third Party", value: "external_cms" },
-              ],
-            },
-            {
-              name: "externalCms",
-              type: "select",
-              admin: {
-                description: "Which CMS platform is the website built on? Used by the tag setup checker to generate platform-specific fix instructions.",
-                condition: (data: any) => data?.websiteType === "external_cms",
-              },
-              options: [
-                { label: "WordPress", value: "wordpress" },
-                { label: "Shopify", value: "shopify" },
-                { label: "Squarespace", value: "squarespace" },
-                { label: "Wix", value: "wix" },
-                { label: "Webflow", value: "webflow" },
-                { label: "Other", value: "other" },
+                  validate: async (value: string | null | undefined, { req, id }: any) => {
+                    if (!value) return true;
+                    if (!/^\d{4}$/.test(value))
+                      return "PIN must be exactly 4 digits";
+                    try {
+                      const existing = await req.payload.find({
+                        collection: "clients",
+                        where: {
+                          clientPin: { equals: value },
+                          ...(id ? { id: { not_equals: id } } : {}),
+                        },
+                        limit: 1,
+                      });
+                      if (existing.totalDocs > 0) {
+                        return `PIN "${value}" is already in use by another client (${existing.docs[0].name}).`;
+                      }
+                    } catch { /* skip check if payload not available */ }
+                    return true;
+                  },
+                  hooks: {
+                    beforeChange: [
+                      ({ value, operation }) => {
+                        if (operation === "create" && !value) {
+                          return String(
+                            Math.floor(1000 + Math.random() * 9000)
+                          );
+                        }
+                        return value;
+                      },
+                    ],
+                  },
+                },
+                {
+                  name: "websiteType",
+                  type: "select",
+                  admin: {
+                    description:
+                      "Used by the tag setup checker to determine if issues are auto-fixable (built by us) or advisory-only (external).",
+                    width: "33%",
+                  },
+                  options: [
+                    { label: "Built by Us", value: "built_by_us" },
+                    { label: "External CMS / Third Party", value: "external_cms" },
+                  ],
+                },
+                {
+                  name: "externalCms",
+                  type: "select",
+                  admin: {
+                    description: "Which CMS platform is the website built on? Used by the tag setup checker to generate platform-specific fix instructions.",
+                    condition: (data: any) => data?.websiteType === "external_cms",
+                    width: "34%",
+                  },
+                  options: [
+                    { label: "WordPress", value: "wordpress" },
+                    { label: "Shopify", value: "shopify" },
+                    { label: "Squarespace", value: "squarespace" },
+                    { label: "Wix", value: "wix" },
+                    { label: "Webflow", value: "webflow" },
+                    { label: "Other", value: "other" },
+                  ],
+                },
               ],
             },
             {
@@ -439,15 +455,29 @@ export const Clients: CollectionConfig = {
                 },
               ],
             },
+            // ── Toggles row ────────────────────────────────────────
+            // Booleans grouped together rather than stacking vertically.
+            // numberOfLocations follows below it (conditional, so the row
+            // doesn't shift width when locations is off).
             {
               type: "row",
               fields: [
+                {
+                  name: "isActive",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description: "Enable/disable content publishing for this client",
+                    width: "33%",
+                  },
+                },
                 {
                   name: "hasPhysicalLocations",
                   type: "checkbox",
                   defaultValue: false,
                   admin: {
                     description: "Does this business have physical locations?",
+                    width: "33%",
                   },
                 },
                 {
@@ -457,6 +487,7 @@ export const Clients: CollectionConfig = {
                   admin: {
                     description: "Number of physical locations",
                     condition: (data: any) => data?.hasPhysicalLocations,
+                    width: "34%",
                   },
                 },
               ],
@@ -487,42 +518,50 @@ export const Clients: CollectionConfig = {
                 },
               ],
             },
+            // ── Conversion goals row (2-col) ────────────────────────────
             {
-              name: "conversionGoal",
-              type: "select",
-              admin: {
-                description: "Primary conversion goal. Carried over from proposal. Shown on client reports.",
-              },
-              options: [
-                { label: "Lead Generation", value: "lead generation" },
-                { label: "Phone Calls", value: "phone calls" },
-                { label: "Form Submissions", value: "form submissions" },
-                { label: "E-commerce Sales", value: "e-commerce" },
-                { label: "Bookings / Appointments", value: "bookings" },
-                { label: "Quote Requests", value: "quote requests" },
-                { label: "Email Sign-ups", value: "email sign-ups" },
-                { label: "Free Trial Sign-ups", value: "free trial" },
-                { label: "Content Downloads", value: "content downloads" },
-                { label: "Brand Awareness", value: "brand awareness" },
-              ],
-            },
-            {
-              name: "secondaryConversionGoal",
-              type: "select",
-              admin: {
-                description: "Secondary conversion goal",
-              },
-              options: [
-                { label: "Lead Generation", value: "lead generation" },
-                { label: "Phone Calls", value: "phone calls" },
-                { label: "Form Submissions", value: "form submissions" },
-                { label: "E-commerce Sales", value: "e-commerce" },
-                { label: "Bookings / Appointments", value: "bookings" },
-                { label: "Quote Requests", value: "quote requests" },
-                { label: "Email Sign-ups", value: "email sign-ups" },
-                { label: "Free Trial Sign-ups", value: "free trial" },
-                { label: "Content Downloads", value: "content downloads" },
-                { label: "Brand Awareness", value: "brand awareness" },
+              type: "row",
+              fields: [
+                {
+                  name: "conversionGoal",
+                  type: "select",
+                  admin: {
+                    description: "Primary conversion goal. Carried over from proposal. Shown on client reports.",
+                    width: "50%",
+                  },
+                  options: [
+                    { label: "Lead Generation", value: "lead generation" },
+                    { label: "Phone Calls", value: "phone calls" },
+                    { label: "Form Submissions", value: "form submissions" },
+                    { label: "E-commerce Sales", value: "e-commerce" },
+                    { label: "Bookings / Appointments", value: "bookings" },
+                    { label: "Quote Requests", value: "quote requests" },
+                    { label: "Email Sign-ups", value: "email sign-ups" },
+                    { label: "Free Trial Sign-ups", value: "free trial" },
+                    { label: "Content Downloads", value: "content downloads" },
+                    { label: "Brand Awareness", value: "brand awareness" },
+                  ],
+                },
+                {
+                  name: "secondaryConversionGoal",
+                  type: "select",
+                  admin: {
+                    description: "Secondary conversion goal",
+                    width: "50%",
+                  },
+                  options: [
+                    { label: "Lead Generation", value: "lead generation" },
+                    { label: "Phone Calls", value: "phone calls" },
+                    { label: "Form Submissions", value: "form submissions" },
+                    { label: "E-commerce Sales", value: "e-commerce" },
+                    { label: "Bookings / Appointments", value: "bookings" },
+                    { label: "Quote Requests", value: "quote requests" },
+                    { label: "Email Sign-ups", value: "email sign-ups" },
+                    { label: "Free Trial Sign-ups", value: "free trial" },
+                    { label: "Content Downloads", value: "content downloads" },
+                    { label: "Brand Awareness", value: "brand awareness" },
+                  ],
+                },
               ],
             },
             // ── Acquisition ────────────────────────────────────────
