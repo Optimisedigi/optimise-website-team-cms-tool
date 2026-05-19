@@ -206,7 +206,7 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
       new TextRun({ text: doc.contractDate ? formatDate(doc.contractDate) : "" }),
     ];
     const qualifier = doc.effectiveDateOnDeposit
-      ? " (once the deposit has been paid)"
+      ? " (the date on which Optimise Digital receives the signed Agreement and the initial 50% deposit)"
       : !doc.effectiveDateConfirmed
         ? " (to be confirmed with client)"
         : null;

@@ -546,7 +546,7 @@ export default function ContractSignPage() {
           {/* Precedence: deposit qualifier wins when ON; otherwise show the
               "to be confirmed" qualifier unless the date is confirmed. */}
           {contract.effectiveDateOnDeposit ? (
-            <> <span style={{ color: '#666', fontStyle: 'italic' }}>(once the deposit has been paid)</span></>
+            <> <span style={{ color: '#666', fontStyle: 'italic' }}>(the date on which Optimise Digital receives the signed Agreement and the initial 50% deposit)</span></>
           ) : !contract.effectiveDateConfirmed ? (
             <> <span style={{ color: '#666', fontStyle: 'italic' }}>(to be confirmed with client)</span></>
           ) : null}

@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   effectiveDate: {
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 14,
   },
   hr: {
@@ -343,7 +343,7 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
             {c.effectiveDateOnDeposit ? (
               <>
                 {" "}
-                <Text style={{ color: "#666", fontFamily: "Helvetica-Oblique" }}>(once the deposit has been paid)</Text>
+                <Text style={{ color: "#666", fontFamily: "Helvetica-Oblique" }}>(the date on which Optimise Digital receives the signed Agreement and the initial 50% deposit)</Text>
               </>
             ) : !c.effectiveDateConfirmed ? (
               <>
