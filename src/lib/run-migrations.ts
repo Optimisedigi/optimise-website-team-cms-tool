@@ -3087,6 +3087,45 @@ export async function runMigrations(
       "contracts.annual_review_tier_table_enabled",
       "ALTER TABLE `contracts` ADD `annual_review_tier_table_enabled` integer DEFAULT 1",
     );
+
+    // ── SERP Displacement / AI Visibility / GA4 / GSC carry-over fields on
+    // client_proposals (2026-05-22). Lets the Audit Results tab persist the
+    // proposal-side GA4 property + GSC URL, exposes the SERP/AI Visibility
+    // enable toggles, and tracks the latest snapshot via FK so the proposal
+    // page can link straight to it. All nullable; safe defaults for existing
+    // rows.
+    await run(
+      "client_proposals.ga4_property_id",
+      "ALTER TABLE `client_proposals` ADD `ga4_property_id` text",
+    );
+    await run(
+      "client_proposals.gsc_site_url",
+      "ALTER TABLE `client_proposals` ADD `gsc_site_url` text",
+    );
+    await run(
+      "client_proposals.serp_monitor_enabled",
+      "ALTER TABLE `client_proposals` ADD `serp_monitor_enabled` integer DEFAULT false",
+    );
+    await run(
+      "client_proposals.ai_visibility_enabled",
+      "ALTER TABLE `client_proposals` ADD `ai_visibility_enabled` integer DEFAULT false",
+    );
+    await run(
+      "client_proposals.latest_serp_displacement_snapshot_id",
+      "ALTER TABLE `client_proposals` ADD `latest_serp_displacement_snapshot_id` integer REFERENCES `serp_displacement_snapshots`(`id`) ON DELETE SET NULL",
+    );
+    await run(
+      "client_proposals_latest_serp_displacement_snapshot_idx",
+      "CREATE INDEX IF NOT EXISTS `client_proposals_latest_serp_displacement_snapshot_idx` ON `client_proposals` (`latest_serp_displacement_snapshot_id`)",
+    );
+    await run(
+      "client_proposals.latest_ai_visibility_snapshot_id",
+      "ALTER TABLE `client_proposals` ADD `latest_ai_visibility_snapshot_id` integer REFERENCES `ai_visibility_snapshots`(`id`) ON DELETE SET NULL",
+    );
+    await run(
+      "client_proposals_latest_ai_visibility_snapshot_idx",
+      "CREATE INDEX IF NOT EXISTS `client_proposals_latest_ai_visibility_snapshot_idx` ON `client_proposals` (`latest_ai_visibility_snapshot_id`)",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
