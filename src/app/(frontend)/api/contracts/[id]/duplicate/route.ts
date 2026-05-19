@@ -56,6 +56,10 @@ export async function POST(
         paymentTermsOverride: source.paymentTermsOverride || undefined,
         annualReviewEnabled: source.annualReviewEnabled || false,
         annualReviewIntro: source.annualReviewIntro || undefined,
+        // Preserve the per-table toggle so duplicating a flat-retainer
+        // contract doesn't accidentally re-introduce the tier table.
+        // Coerce to a strict boolean so the column never lands as undefined.
+        annualReviewTierTableEnabled: source.annualReviewTierTableEnabled !== false,
         annualReviewTierTableText: source.annualReviewTierTableText || undefined,
         annualReviewNotice: source.annualReviewNotice || undefined,
         annualReviewGoodFaithReview: source.annualReviewGoodFaithReview || undefined,

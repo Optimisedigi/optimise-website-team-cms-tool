@@ -3064,6 +3064,29 @@ export async function runMigrations(
       "contracts.effective_date_on_deposit",
       "ALTER TABLE `contracts` ADD `effective_date_on_deposit` integer DEFAULT 0",
     );
+
+    // ── Agent-approval bell broadcasts (2026-05-19) ─────────────────
+    // Notifications gained a `relatedApproval` field so per-user bell rows
+    // created when an agent queues a proposal can be cleared in one shot
+    // once any teammate approves or rejects the queue item.
+    await run(
+      "notifications.related_approval_id",
+      "ALTER TABLE `notifications` ADD `related_approval_id` integer REFERENCES `agent_approval_queue`(`id`) ON UPDATE no action ON DELETE set null",
+    );
+    await run(
+      "notifications_related_approval_idx",
+      "CREATE INDEX IF NOT EXISTS `notifications_related_approval_idx` ON `notifications` (`related_approval_id`)",
+    );
+
+    // ── Per-contract toggle: hide the tier table inside Annual Review (2026-05-19)
+    // Defaults to 1 (TRUE) so every existing contract keeps its table rendered.
+    // When set to 0, the contract template, PDF, HTML signing page, and DOCX
+    // export all skip just the tier-table block. The surrounding intro,
+    // notice, good-faith, and acceptance paragraphs continue to render.
+    await run(
+      "contracts.annual_review_tier_table_enabled",
+      "ALTER TABLE `contracts` ADD `annual_review_tier_table_enabled` integer DEFAULT 1",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

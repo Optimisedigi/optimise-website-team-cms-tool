@@ -99,9 +99,14 @@ export async function GET(
       annualReviewAcceptanceHtml = lexicalToHtml(doc.annualReviewAcceptance.root.children);
     }
   }
-  const annualReviewTierTable = annualReviewEnabled
-    ? parseTierTable(doc.annualReviewTierTableText)
-    : null;
+  // Tier table is gated by the section toggle AND the nested per-table
+  // toggle. Nested toggle defaults to TRUE for back-compat with contracts
+  // signed before the toggle existed.
+  const annualReviewTierTableEnabled = doc.annualReviewTierTableEnabled !== false;
+  const annualReviewTierTable =
+    annualReviewEnabled && annualReviewTierTableEnabled
+      ? parseTierTable(doc.annualReviewTierTableText)
+      : null;
 
   const agencySigUrl = await resolveMediaUrl(payload, doc.agencySignature);
 
@@ -314,6 +319,7 @@ export async function POST(
       paymentTermsOverrideNodes: updatedDoc.paymentTermsOverride?.root?.children,
       annualReviewEnabled: Boolean(updatedDoc.annualReviewEnabled),
       annualReviewIntroNodes: updatedDoc.annualReviewIntro?.root?.children,
+      annualReviewTierTableEnabled: updatedDoc.annualReviewTierTableEnabled !== false,
       annualReviewTierTableText: updatedDoc.annualReviewTierTableText,
       annualReviewNoticeNodes: updatedDoc.annualReviewNotice?.root?.children,
       annualReviewGoodFaithReviewNodes: updatedDoc.annualReviewGoodFaithReview?.root?.children,

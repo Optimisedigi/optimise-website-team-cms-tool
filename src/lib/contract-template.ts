@@ -69,6 +69,15 @@ export interface ContractData {
   annualReviewEnabled?: boolean;
   annualReviewIntro?: string;
   annualReviewIntroNodes?: any[];
+  /**
+   * Per-contract toggle for the tier table inside the Annual Review section.
+   * Defaults to `true` when omitted so existing contracts (and callers that
+   * haven't been updated yet) keep their table rendered. Set to `false` on
+   * contracts where tier-based adjustments don't apply (e.g. flat-retainer
+   * clients) and the intro / notice / good-faith / acceptance paragraphs
+   * should still render around an empty middle.
+   */
+  annualReviewTierTableEnabled?: boolean;
   annualReviewTierTableText?: string;
   annualReviewNotice?: string;
   annualReviewNoticeNodes?: any[];
@@ -293,7 +302,14 @@ export function generateContractSections(data: ContractData): ContractSection[] 
         lexicalNodes: data.annualReviewIntroNodes,
       });
     }
-    const parsedTierTable = parseTierTable(data.annualReviewTierTableText);
+    // Tier table is gated by both the section toggle (annualReviewEnabled,
+    // checked above) and a nested toggle (annualReviewTierTableEnabled).
+    // The nested toggle defaults to TRUE — explicit `false` hides the table
+    // for flat-retainer contracts while keeping the surrounding paragraphs.
+    const tierTableEnabled = data.annualReviewTierTableEnabled !== false;
+    const parsedTierTable = tierTableEnabled
+      ? parseTierTable(data.annualReviewTierTableText)
+      : null;
     if (parsedTierTable) {
       sections.push({
         type: "tierTable",
