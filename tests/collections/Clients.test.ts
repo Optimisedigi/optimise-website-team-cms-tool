@@ -37,7 +37,7 @@ function getAfterChangeHooks() {
 }
 
 /**
- * Find a field by name, searching inside tabs/rows recursively.
+ * Find a field by name, searching inside tabs / rows / collapsibles recursively.
  */
 function findField(fields: any[], name: string): any {
   for (const f of fields) {
@@ -48,7 +48,7 @@ function findField(fields: any[], name: string): any {
         if (found) return found;
       }
     }
-    if ("fields" in f && f.type === "row") {
+    if ("fields" in f && (f.type === "row" || f.type === "collapsible")) {
       const found = findField(f.fields, name);
       if (found) return found;
     }

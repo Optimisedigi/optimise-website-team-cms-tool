@@ -300,28 +300,8 @@ export const Clients: CollectionConfig = {
                 },
               ],
             },
-            {
-              name: "apiKey",
-              type: "text",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description: "API key for this client (auto-generated)",
-                readOnly: true,
-                condition: conditionRequiresFeature("clients"),
-              },
-              hooks: {
-                beforeChange: [
-                  ({ value, operation }) => {
-                    if (operation === "create" && !value) {
-                      return `key_${crypto.randomBytes(24).toString("hex")}`;
-                    }
-                    return value;
-                  },
-                ],
-              },
-            },
             // isAgency stays on the sidebar — it's a meta toggle that hides
-            // sections of this tab. isActive moves into the toggles row below.
+            // sections of this tab. apiKey moved into the Advanced section.
             {
               name: "isAgency",
               type: "checkbox",
@@ -410,6 +390,51 @@ export const Clients: CollectionConfig = {
                 },
               ],
             },
+            // ── Toggles row ────────────────────────────────────────
+            // Booleans grouped together rather than stacking vertically.
+            // numberOfLocations follows below it (conditional, so the row
+            // doesn't shift width when locations is off).
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "isActive",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description: "Enable/disable content publishing for this client",
+                    width: "33%",
+                  },
+                },
+                {
+                  name: "hasPhysicalLocations",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Does this business have physical locations?",
+                    width: "33%",
+                  },
+                },
+                {
+                  name: "numberOfLocations",
+                  type: "number",
+                  min: 1,
+                  admin: {
+                    description: "Number of physical locations",
+                    condition: (data: any) => data?.hasPhysicalLocations,
+                    width: "34%",
+                  },
+                },
+              ],
+            },
+            // ══ Details collapsible ═════════════════════════════════
+            // Contact info, account managers, locations, conversion goals —
+            // all in one scrollable section, expanded by default.
+            {
+              type: "collapsible",
+              label: "Details",
+              admin: { initCollapsed: false },
+              fields: [
             {
               type: "row",
               fields: [
@@ -455,42 +480,12 @@ export const Clients: CollectionConfig = {
                 },
               ],
             },
-            // ── Toggles row ────────────────────────────────────────
-            // Booleans grouped together rather than stacking vertically.
-            // numberOfLocations follows below it (conditional, so the row
-            // doesn't shift width when locations is off).
             {
-              type: "row",
-              fields: [
-                {
-                  name: "isActive",
-                  type: "checkbox",
-                  defaultValue: true,
-                  admin: {
-                    description: "Enable/disable content publishing for this client",
-                    width: "33%",
-                  },
-                },
-                {
-                  name: "hasPhysicalLocations",
-                  type: "checkbox",
-                  defaultValue: false,
-                  admin: {
-                    description: "Does this business have physical locations?",
-                    width: "33%",
-                  },
-                },
-                {
-                  name: "numberOfLocations",
-                  type: "number",
-                  min: 1,
-                  admin: {
-                    description: "Number of physical locations",
-                    condition: (data: any) => data?.hasPhysicalLocations,
-                    width: "34%",
-                  },
-                },
-              ],
+              name: "googleAdsCustomerId",
+              type: "text",
+              admin: {
+                description: "Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.",
+              },
             },
             {
               name: "googleMapsUrls",
@@ -564,11 +559,18 @@ export const Clients: CollectionConfig = {
                 },
               ],
             },
-            // ── Acquisition ────────────────────────────────────────
+              ],
+            },
+            // ══ Acquisition collapsible ══════════════════════════════════
             // Where did this client come from, and who referred them?
             // `referredBy` is always recorded for word-of-mouth referrals
             // — even when no commission is paid (see referralCommissions
             // below for the formal commission rows).
+            {
+              type: "collapsible",
+              label: "Acquisition",
+              admin: { initCollapsed: false },
+              fields: [
             {
               type: "row",
               fields: [
@@ -646,6 +648,15 @@ export const Clients: CollectionConfig = {
                 },
               ],
             },
+              ],
+            },
+            // ══ Billing collapsible ════════════════════════════════════
+            // Revenue, retainer, projects, historical, contracts.
+            {
+              type: "collapsible",
+              label: "Billing",
+              admin: { initCollapsed: false },
+              fields: [
             {
               name: "clientStartDate",
               type: "date",
@@ -1084,11 +1095,36 @@ export const Clients: CollectionConfig = {
                 ),
               },
             },
+              ],
+            },
+            // ══ Advanced collapsible ═══════════════════════════════════
+            // Rarely-touched system fields. Collapsed by default per the
+            // request — noisy stuff (auto-generated API key, legacy hidden
+            // textarea, read-only retainer log) lives here so the rest of
+            // the tab stays clean.
             {
-              name: "googleAdsCustomerId",
+              type: "collapsible",
+              label: "Advanced",
+              admin: { initCollapsed: true },
+              fields: [
+            {
+              name: "apiKey",
               type: "text",
+              access: sensitiveFieldAccess("clients"),
               admin: {
-                description: "Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.",
+                description: "API key for this client (auto-generated)",
+                readOnly: true,
+                condition: conditionRequiresFeature("clients"),
+              },
+              hooks: {
+                beforeChange: [
+                  ({ value, operation }) => {
+                    if (operation === "create" && !value) {
+                      return `key_${crypto.randomBytes(24).toString("hex")}`;
+                    }
+                    return value;
+                  },
+                ],
               },
             },
             {
@@ -1115,6 +1151,8 @@ export const Clients: CollectionConfig = {
                 { name: "previousAmount", type: "number" },
                 { name: "effectiveDate", type: "date" },
                 { name: "changedBy", type: "text" },
+              ],
+            },
               ],
             },
           ],
