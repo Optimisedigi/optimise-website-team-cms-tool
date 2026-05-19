@@ -56,9 +56,18 @@ interface ListResponse {
 }
 
 function resolveBaseUrl(): string {
+  // Prefer explicit overrides, then fall back to the Vercel-injected production
+  // URL (set automatically on every deploy). Without that fallback, serverless
+  // invocations in production hit `http://localhost:3004` and the self-call
+  // fails with `fetch failed` because there's nothing listening locally. Match
+  // the resolution pattern used by the contracts + meeting-scheduler routes.
+  const fromVercel = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "";
   return (
     process.env.CMS_BASE_URL ||
     process.env.NEXT_PUBLIC_SERVER_URL ||
+    fromVercel ||
     "http://localhost:3004"
   ).replace(/\/+$/, "");
 }
