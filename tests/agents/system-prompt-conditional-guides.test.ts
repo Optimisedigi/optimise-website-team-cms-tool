@@ -17,6 +17,8 @@ import type { Message } from "@/lib/agents/_shared/llm/types";
 // inclusion without relying on the full block.
 const SCHEDULED_TASKS_SIGNATURE = "Never fabricate cron expressions";
 const DECK_SIGNATURE = "you MUST have:";
+// One-off Gmail draft guide — always loaded regardless of keywords.
+const GMAIL_DRAFT_SIGNATURE = "ONE-OFF Gmail drafts";
 
 const AUDIT = {
   id: 999,
@@ -35,6 +37,29 @@ describe("buildSystemPromptForAudit conditional guide inclusion", () => {
     const prompt = buildSystemPromptForAudit(AUDIT, null);
     expect(prompt).toContain(SCHEDULED_TASKS_SIGNATURE);
     expect(prompt).toContain(DECK_SIGNATURE);
+  });
+
+  it("ALWAYS includes the one-off Gmail draft guide, regardless of recentMessages", () => {
+    // No recentMessages (back-compat path).
+    expect(buildSystemPromptForAudit(AUDIT, null)).toContain(GMAIL_DRAFT_SIGNATURE);
+    // Empty array (conditional path, no triggers).
+    expect(
+      buildSystemPromptForAudit(AUDIT, null, undefined, { recentMessages: [] }),
+    ).toContain(GMAIL_DRAFT_SIGNATURE);
+    // Generic CPA question (no triggers, no scheduled-task or deck guides).
+    expect(
+      buildSystemPromptForAudit(AUDIT, null, undefined, {
+        recentMessages: [userMsg("what is our CPA this week")],
+      }),
+    ).toContain(GMAIL_DRAFT_SIGNATURE);
+    // The exact phrasing from the regression case the user reported.
+    expect(
+      buildSystemPromptForAudit(AUDIT, null, undefined, {
+        recentMessages: [
+          userMsg("Create a Gmail draft for the budget management email, and if CPA improved last week add a note on top"),
+        ],
+      }),
+    ).toContain(GMAIL_DRAFT_SIGNATURE);
   });
 
   it("includes BOTH guides when recentMessages is omitted via the options object", () => {
@@ -100,5 +125,56 @@ describe("buildSystemPromptForAudit conditional guide inclusion", () => {
     expect(prompt).toContain("CONFIRM GATE");
     expect(prompt).toContain("Want me to restructure the campaigns for approval?");
     expect(prompt).toContain("Want me to build the campaigns for approval?");
+  });
+
+  it("includes the NO DASHES guardrail at the top of hard rules", () => {
+    const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {
+      recentMessages: [userMsg("hello")],
+    });
+    expect(prompt).toContain("NO EM DASHES OR EN DASHES");
+  });
+
+  it("includes the NO ARITHMETIC SHOWN guardrail", () => {
+    const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {
+      recentMessages: [userMsg("hello")],
+    });
+    expect(prompt).toContain("NEVER SHOW ARITHMETIC");
+  });
+});
+
+describe("buildSystemPromptForAudit dash hygiene", () => {
+  /**
+   * The user's soul rule (and the guardrail we just added) forbids em and en
+   * dashes in any user-visible output. To make sure the agent's own system
+   * prompt isn't modelling the banned punctuation, we assert that the
+   * assembled prompt contains no em/en dashes EXCEPT inside the two rules
+   * that legitimately name the chars they're banning.
+   *
+   * If this fails, look for em— or en– added to a guide block and replace
+   * with a comma, period, or rewrite. Hyphens (-) are unaffected.
+   */
+  it("contains no em or en dashes outside the rules that name them", () => {
+    const prompt = buildSystemPromptForAudit(AUDIT, null, undefined, {
+      recentMessages: [userMsg("hello")],
+    });
+    // Strip the no-dash guardrail + the OUTPUT_FORMAT line that legitimately
+    // names the banned chars. The substring "NO EM DASHES OR EN DASHES" is
+    // the start of the guardrail; "NO em or en dashes" is the OUTPUT_FORMAT
+    // mention. We blank both lines out so a real regression in any OTHER
+    // block is the only thing the assertion can trip on.
+    const lines = prompt.split("\n").map((line) => {
+      if (line.includes("NO EM DASHES OR EN DASHES")) return "";
+      if (line.includes("NO em or en dashes")) return "";
+      return line;
+    });
+    const sanitised = lines.join("\n");
+    // Note: hyphen-minus (-) is U+002D, em dash is U+2014, en dash is U+2013.
+    const offendingChar = sanitised.match(/[\u2014\u2013]/);
+    expect(
+      offendingChar,
+      offendingChar
+        ? `system prompt contains a stray em/en dash near: ${sanitised.slice(Math.max(0, (sanitised.indexOf(offendingChar[0]) - 60)), sanitised.indexOf(offendingChar[0]) + 60)}`
+        : undefined,
+    ).toBeNull();
   });
 });
