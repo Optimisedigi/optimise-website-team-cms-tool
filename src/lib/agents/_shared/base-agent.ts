@@ -69,6 +69,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
       messages,
       system: opts.systemPrompt,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
+      ...(opts.maxTokens !== undefined ? { maxTokens: opts.maxTokens } : {}),
     });
     const llmDuration = Date.now() - llmStart;
 

@@ -258,6 +258,23 @@ export function rangeToDates(rangePreset: string): { startDate: string; endDate:
       sun.setUTCDate(sun.getUTCDate() - 6);
       return { startDate: yyyymmdd(sun), endDate: yyyymmdd(sat) };
     }
+    case "LAST_WEEK":
+    case "LAST_WEEK_MON_SUN": {
+      // Agency convention: Monday to Sunday, the most recently completed pair.
+      // Mirrors lastWeekMonSun() in _date-range.ts. Kept here so legacy callers
+      // that pass the preset name (rather than an ISO span) still get correct
+      // bounds without round-tripping through resolveRange().
+      const d = startOfDay(today);
+      const dow = d.getUTCDay();
+      const daysSinceMonday = dow === 0 ? 6 : dow - 1;
+      const endOffset = daysSinceMonday + 1;
+      const startOffset = endOffset + 6;
+      const end = new Date(d);
+      end.setUTCDate(end.getUTCDate() - endOffset);
+      const start = new Date(d);
+      start.setUTCDate(start.getUTCDate() - startOffset);
+      return { startDate: yyyymmdd(start), endDate: yyyymmdd(end) };
+    }
     default:
       return { startDate: yyyymmdd(days(30)), endDate: yyyymmdd(days(1)) };
   }

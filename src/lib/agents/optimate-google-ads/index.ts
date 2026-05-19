@@ -40,12 +40,15 @@ import { listScheduledTasks } from "./tools/list-scheduled-tasks";
 import { proposeScheduledTaskUpdate } from "./tools/propose-scheduled-task-update";
 import { proposeStakeholderDeck } from "./tools/propose-stakeholder-deck";
 import { proposeDeckFromTemplateTool } from "./tools/propose-deck-from-template";
+import { requestConfirmTool } from "./tools/request-confirm";
 import { remember } from "./tools/remember";
 import { memorySearch } from "./tools/memory-search";
 import { soulSet } from "./tools/soul-set";
 import { resetProposalCounter } from "./tools/_propose-helpers";
 import { readClientConnectionFlags } from "./tools/_client-tokens";
 import { loadPinnedMemoryBlock } from "./memory-loader";
+import { checkRunForCorrection, type CorrectionRequest } from "./post-run-checks";
+import { logAgentStep } from "../_shared/activity-log";
 import { getPayload } from "payload";
 import payloadConfig from "@/payload.config";
 
@@ -84,6 +87,7 @@ export function getTools(): CanonicalTool<unknown>[] {
     proposeScheduledTaskUpdate as unknown as CanonicalTool<unknown>,
     proposeStakeholderDeck as unknown as CanonicalTool<unknown>,
     proposeDeckFromTemplateTool as unknown as CanonicalTool<unknown>,
+    requestConfirmTool as unknown as CanonicalTool<unknown>,
     remember as unknown as CanonicalTool<unknown>,
     memorySearch as unknown as CanonicalTool<unknown>,
     soulSet as unknown as CanonicalTool<unknown>,
@@ -129,6 +133,17 @@ export interface ProposalSummary {
   status: string;
 }
 
+export interface ConfirmRequestSummary {
+  /** Server-minted UUID; mirrors what the chat UI receives. */
+  confirmId: string;
+  /** Which propose tool the agent intends to call next. */
+  proposalType: "campaign-restructure" | "campaign-build";
+  /** Sentence shown next to the Yes/No buttons. */
+  wording: string;
+  /** Settings the agent would replay verbatim to the propose tool on Yes. */
+  draftSettings: Record<string, unknown>;
+}
+
 export interface RunChatTurnResult {
   reply: string;
   runId: string;
@@ -140,9 +155,22 @@ export interface RunChatTurnResult {
   source: CredentialSource;
   totalUsage: Usage;
   proposals: ProposalSummary[];
+  /** request_confirm payloads emitted during this turn, in call order. */
+  confirmRequests: ConfirmRequestSummary[];
 }
 
 const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
+
+/**
+ * Max output tokens per LLM call for chat turns. Set to 2,300 (~1,800 words)
+ * which is roughly 3× the largest legitimate OptiMate reply observed in
+ * production (the longest real reply we have is ~580 words / 2,880 chars).
+ * The cap exists to bound the blast radius of a hallucinated response — the
+ * Azores misfire produced ~3,077 words at the default 4,096-token ceiling;
+ * with 2,300 that same misfire would have been cut off around word 1,800,
+ * saving ~40% of the wasted output.
+ */
+const CHAT_MAX_TOKENS = 2300;
 
 export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnResult> {
   const { audit, client, messages, modelOverride, userId } = input;
@@ -157,26 +185,71 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   const pinnedMemory = await loadPinnedMemoryBlock(
     client?.id !== undefined && client?.id !== null ? [client.id] : [],
   );
-  const systemPrompt = buildSystemPromptForAudit(audit, client, connectionFlags, pinnedMemory.text);
+  const systemPrompt = buildSystemPromptForAudit(audit, client, connectionFlags, {
+    pinnedMemoryBlock: pinnedMemory.text,
+    recentMessages: messages,
+  });
   const conversionActions = conversionActionsForClient(client);
 
   const modelRequested = modelOverride ?? DEFAULT_CHAT_MODEL;
 
-  const result = await runAgent({
+  const agentContext = {
+    customerId: String(audit.customerId).replace(/-/g, ""),
+    clientId: client?.id,
+    auditId: audit.id,
+    conversionActions,
+    ...(userId !== undefined ? { userId } : {}),
+  };
+
+  let result = await runAgent({
     agentName: AGENT_NAME,
     systemPrompt,
     tools: getTools(),
     initialMessages: messages,
     model: modelRequested,
     fallbackModels: DEFAULT_FALLBACKS,
-    context: {
-      customerId: String(audit.customerId).replace(/-/g, ""),
-      clientId: client?.id,
-      auditId: audit.id,
-      conversionActions,
-      ...(userId !== undefined ? { userId } : {}),
-    },
+    maxTokens: CHAT_MAX_TOKENS,
+    context: agentContext,
   });
+
+  let reply = extractReplyText(result.finalMessage);
+
+  // Post-run safety net. Sonnet 4.6 occasionally returns a final text reply
+  // without making the tool call the user actually asked for ("Building the
+  // draft now" with no create_gmail_draft call) or, worse, goes fully
+  // off-topic with no tool calls at all (the Azores misfire). When that
+  // happens, replay the conversation with a corrective synthetic user
+  // message and let the agent retry once. Most retries succeed because the
+  // model now has explicit feedback about its mistake.
+  const lastUserText = extractLastUserText(messages);
+  const toolNamesCalled = extractToolNamesCalled(result.steps);
+  const correction = checkRunForCorrection(lastUserText, reply, toolNamesCalled);
+  if (correction) {
+    await logCorrectionRetry({
+      agentRunId: result.runId,
+      reason: correction.reason,
+      clientId: client?.id,
+    });
+    const retryMessages: Message[] = [
+      ...messages,
+      result.finalMessage,
+      { role: "user", content: [{ type: "text", text: correction.correctionNote }] },
+    ];
+    result = await runAgent({
+      agentName: AGENT_NAME,
+      systemPrompt,
+      tools: getTools(),
+      initialMessages: retryMessages,
+      model: modelRequested,
+      fallbackModels: DEFAULT_FALLBACKS,
+      maxTokens: CHAT_MAX_TOKENS,
+      context: agentContext,
+      // Reuse the original runId so the activity-log timeline shows the
+      // retry as a continuation, not a fresh run.
+      runId: result.runId,
+    });
+    reply = extractReplyText(result.finalMessage);
+  }
 
   // Drain the per-turn proposal counter so a long-lived process doesn't leak
   // entries. Safe even if the run threw — we always reach this point because
@@ -184,17 +257,16 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   // get here. Successful turns clear their bucket.
   resetProposalCounter(result.runId);
 
-  const reply = result.finalMessage.content
-    .filter((p): p is { type: "text"; text: string } => p.type === "text")
-    .map((p) => p.text)
-    .join("\n")
-    .trim();
-
   // Query the approval queue for rows produced during this run so the chat
   // route can show inline proposal cards. We key off agentRunId rather than
   // a timestamp window because runs can be slower than the wall-clock skew
   // between Payload’s SQLite writes and our `new Date()` capture.
   const proposals = await fetchProposalsForRun(result.runId);
+
+  // Extract any request_confirm tool calls from this run so the chat client
+  // can render Yes/No bubbles. The base agent stringifies each tool result
+  // before passing it back to the LLM; we parse it back here.
+  const confirmRequests = extractConfirmRequests(result.steps);
 
   return {
     reply,
@@ -204,7 +276,114 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     source: result.source,
     totalUsage: result.totalUsage,
     proposals,
+    confirmRequests,
   };
+}
+
+/**
+ * Pull the assistant's user-visible text out of the final Message. We
+ * filter to text parts because tool_use parts can also appear in a final
+ * message when the model wants to call a tool one more time — those
+ * shouldn't end up in the chat reply.
+ */
+function extractReplyText(finalMessage: { content: Array<{ type: string; text?: string }> }): string {
+  return finalMessage.content
+    .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
+    .map((p) => p.text)
+    .join("\n")
+    .trim();
+}
+
+/**
+ * Pull the text of the most recent user message out of the conversation
+ * history. The post-run checks need it to look for action verbs. We walk
+ * backwards so we get the latest turn even if assistant messages are
+ * interleaved.
+ */
+function extractLastUserText(messages: Message[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (!m || m.role !== "user") continue;
+    const text = m.content
+      .filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join("\n");
+    if (text.trim().length > 0) return text;
+  }
+  return "";
+}
+
+/**
+ * Enumerate tool names called this run. Used by the post-run checks to
+ * detect promised-but-not-delivered actions.
+ */
+function extractToolNamesCalled(
+  steps: Array<{ type: string; toolName?: string }>,
+): string[] {
+  const out: string[] = [];
+  for (const step of steps) {
+    if (step.type === "tool-call" && typeof step.toolName === "string") {
+      out.push(step.toolName);
+    }
+  }
+  return out;
+}
+
+/**
+ * Log a retry to the activity-log so we can audit how often the safety net
+ * fires. Best-effort — the run already succeeded by this point, we just
+ * want a forensics breadcrumb.
+ */
+async function logCorrectionRetry(opts: {
+  agentRunId: string;
+  reason: CorrectionRequest["reason"];
+  clientId?: string | number;
+}): Promise<void> {
+  try {
+    await logAgentStep({
+      agentRunId: opts.agentRunId,
+      agentName: AGENT_NAME,
+      step: 99,
+      type: "agent_error",
+      title: `optimate-google-ads retry triggered: ${opts.reason}`,
+      description: `Post-run safety net fired (${opts.reason}); replaying the conversation with a corrective system note.`,
+      clientId: opts.clientId,
+    });
+  } catch (err) {
+    console.warn("[optimate] Failed to log correction retry:", (err as Error).message);
+  }
+}
+
+function extractConfirmRequests(
+  steps: Array<{ type: string; toolName?: string; output?: unknown }>,
+): ConfirmRequestSummary[] {
+  const out: ConfirmRequestSummary[] = [];
+  for (const step of steps) {
+    if (step.type !== "tool-call" || step.toolName !== "request_confirm") continue;
+    if (typeof step.output !== "string") continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(step.output);
+    } catch {
+      continue;
+    }
+    if (!parsed || typeof parsed !== "object") continue;
+    const p = parsed as Record<string, unknown>;
+    const confirmId = typeof p.confirmId === "string" ? p.confirmId : null;
+    const proposalType = p.proposalType;
+    const wording = typeof p.wording === "string" ? p.wording : null;
+    const draftSettings = p.draftSettings;
+    if (!confirmId || !wording) continue;
+    if (proposalType !== "campaign-restructure" && proposalType !== "campaign-build") continue;
+    if (!draftSettings || typeof draftSettings !== "object" || Array.isArray(draftSettings)) continue;
+    out.push({
+      confirmId,
+      proposalType,
+      wording,
+      draftSettings: draftSettings as Record<string, unknown>,
+    });
+  }
+  return out;
 }
 
 async function fetchProposalsForRun(agentRunId: string): Promise<ProposalSummary[]> {

@@ -229,6 +229,77 @@ describe("customRangeForGrowthTools", () => {
   });
 });
 
+describe("resolveRange — LAST_WEEK_MON_SUN (agency-default 'last week')", () => {
+  // Agency convention: "last week" means the most recently-completed
+  // Monday to Sunday block, NOT Sunday to Saturday. The resolver returns a
+  // CUSTOM range with explicit bounds so Growth Tools picks it up via the
+  // comma-span pass-through (no new upstream preset required).
+
+  it("resolves the bare alias 'LAST_WEEK' to CUSTOM Mon–Sun bounds", () => {
+    // Inject Friday 2026-05-22 so "last week" is Mon 2026-05-11 to Sun 2026-05-17.
+    const now = new Date(Date.UTC(2026, 4, 22));
+    const r = resolveRange("LAST_WEEK", now);
+    expect(r.dateRange).toBe("CUSTOM");
+    expect(r.startDate).toBe("2026-05-11");
+    expect(r.endDate).toBe("2026-05-17");
+    expect(r.label).toContain("last week (Mon to Sun");
+  });
+
+  it("resolves the explicit 'LAST_WEEK_MON_SUN' preset the same way", () => {
+    const now = new Date(Date.UTC(2026, 4, 22));
+    const r = resolveRange("LAST_WEEK_MON_SUN", now);
+    expect(r.dateRange).toBe("CUSTOM");
+    expect(r.startDate).toBe("2026-05-11");
+    expect(r.endDate).toBe("2026-05-17");
+  });
+
+  it("handles a Monday correctly (last week = previous Mon–Sun, not the seven days before today)", () => {
+    // Mon 2026-05-18 → last week is Mon 2026-05-11 to Sun 2026-05-17.
+    const now = new Date(Date.UTC(2026, 4, 18));
+    const r = resolveRange("LAST_WEEK", now);
+    expect(r.startDate).toBe("2026-05-11");
+    expect(r.endDate).toBe("2026-05-17");
+  });
+
+  it("handles a Sunday correctly (last week ends YESTERDAY, not last Sunday a week ago)", () => {
+    // Sun 2026-05-24 → last week is Mon 2026-05-11 to Sun 2026-05-17.
+    // (The week-in-progress Mon 18 to today is NOT last week.)
+    const now = new Date(Date.UTC(2026, 4, 24));
+    const r = resolveRange("LAST_WEEK", now);
+    expect(r.startDate).toBe("2026-05-11");
+    expect(r.endDate).toBe("2026-05-17");
+  });
+
+  it("handles a Tuesday correctly", () => {
+    // Tue 2026-05-19 → last week is Mon 2026-05-11 to Sun 2026-05-17.
+    const now = new Date(Date.UTC(2026, 4, 19));
+    const r = resolveRange("LAST_WEEK", now);
+    expect(r.startDate).toBe("2026-05-11");
+    expect(r.endDate).toBe("2026-05-17");
+  });
+
+  it("keeps LAST_WEEK_SUN_SAT available as an explicit preset (no auto-coerce)", () => {
+    const r = resolveRange("LAST_WEEK_SUN_SAT");
+    expect(r.dateRange).toBe("LAST_WEEK_SUN_SAT");
+    expect(r.coercedFrom).toBeUndefined();
+  });
+
+  it("customRangeForGrowthTools forwards a comma-span for LAST_WEEK", () => {
+    const now = new Date(Date.UTC(2026, 4, 22));
+    const r = resolveRange("LAST_WEEK", now);
+    expect(customRangeForGrowthTools(r)).toBe("2026-05-11,2026-05-17");
+  });
+
+  it("resolveRangeWithSegment passes segment through alongside the Mon–Sun bounds", () => {
+    const now = new Date(Date.UTC(2026, 4, 22));
+    const r = resolveRangeWithSegment("LAST_WEEK", "day", now);
+    expect(r.dateRange).toBe("CUSTOM");
+    expect(r.startDate).toBe("2026-05-11");
+    expect(r.endDate).toBe("2026-05-17");
+    expect(r.segment).toBe("day");
+  });
+});
+
 describe("rangeToDates — ISO span pass-through", () => {
   it("returns the bounds verbatim for a literal 'YYYY-MM-DD..YYYY-MM-DD' input", () => {
     const r = rangeToDates("2026-05-04..2026-05-10");

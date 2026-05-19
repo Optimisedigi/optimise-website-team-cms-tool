@@ -248,6 +248,7 @@ export async function POST(
       modelUsed: result.modelUsed,
       source: result.source,
       proposals: result.proposals,
+      confirmRequests: result.confirmRequests,
       sessionId,
       persisted,
     });

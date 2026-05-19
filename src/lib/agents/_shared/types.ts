@@ -19,6 +19,14 @@ export interface AgentRunOptions {
   context: Record<string, unknown>;
   /** Hard cap on agent turns; default 20. */
   maxTurns?: number;
+  /**
+   * Max output tokens per LLM call. When omitted the transformer default
+   * (4096) applies. Chat turns lower this to ~2,300 to bound the blast
+   * radius of a hallucinated reply (Sonnet 4.6 has occasionally produced
+   * ~3,000-word off-topic responses; a 2,300-token cap caps such replies
+   * at ~1,800 words, still ~3× the largest legitimate reply observed).
+   */
+  maxTokens?: number;
   /** Optional cancellation. */
   signal?: AbortSignal;
   /** Optional pre-allocated run id; useful for chaining log entries. */
