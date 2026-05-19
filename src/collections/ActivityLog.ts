@@ -54,6 +54,9 @@ export const ActivityLog: CollectionConfig = {
         { label: "AI Visibility Snapshot Created", value: "ai_visibility_snapshot_created" },
         { label: "SERP Displacement Snapshot Created", value: "serp_displacement_snapshot_created" },
         { label: "SERP Displacement Alert Created", value: "serp_displacement_alert_created" },
+        { label: "Google Ads Budget Pushed", value: "google_ads_budget_pushed" },
+        { label: "Agent Approval — Approved", value: "agent_approval_approved" },
+        { label: "Agent Approval — Rejected", value: "agent_approval_rejected" },
         // Optimate agent step types
         { label: "Agent Tool Call", value: "agent_tool_call" },
         { label: "Agent Reasoning", value: "agent_reasoning" },

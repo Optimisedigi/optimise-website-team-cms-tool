@@ -777,6 +777,9 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
       {/* PiP portal lives outside the panel so it survives panel close. */}
       {pomo.pipPortal}
 
+      {/* Pomodoro "session complete" modal — stays open until dismissed. */}
+      {pomo.pomodoroDonePortal}
+
       {/* Pulse keyframe for the pomodoro icon when timer/tracker is active. */}
       <style>{`@keyframes optimate-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.55 } }`}</style>
     </>

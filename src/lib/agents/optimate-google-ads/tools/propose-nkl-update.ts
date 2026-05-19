@@ -135,6 +135,7 @@ export const proposeNklUpdate: CanonicalTool<ProposeNklUpdateArgs> = {
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "nkl-update",
         title: `Update NKL #${args.nklId} — ${fieldsChanged.join(", ")}`,
         clientId,

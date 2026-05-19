@@ -40,7 +40,10 @@ type ActivityType =
   | "invoice_statement_rejected"
   | "invoice_statement_send_failed"
   | "invoice_statement_cap_tripped"
-  | "invoice_statement_cooldown_override";
+  | "invoice_statement_cooldown_override"
+  | "google_ads_budget_pushed"
+  | "agent_approval_approved"
+  | "agent_approval_rejected";
 
 interface ActivityEntry {
   type: ActivityType;

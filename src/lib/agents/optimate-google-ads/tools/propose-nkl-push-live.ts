@@ -66,6 +66,7 @@ export const proposeNklPushLive: CanonicalTool<ProposeNklPushArgs> = {
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "nkl-push-live",
         title: `Push NKL #${args.nklId} to Google Ads`,
         clientId,

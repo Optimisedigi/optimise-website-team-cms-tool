@@ -156,6 +156,7 @@ export const proposeBudgetUpdate: CanonicalTool<ProposeBudgetUpdateArgs> = {
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "budget-update",
         title,
         clientId,

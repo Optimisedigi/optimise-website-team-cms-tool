@@ -448,6 +448,7 @@ export const proposeStakeholderDeck: CanonicalTool<ProposeStakeholderDeckArgs> =
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "stakeholder-deck",
         title,
         clientId,

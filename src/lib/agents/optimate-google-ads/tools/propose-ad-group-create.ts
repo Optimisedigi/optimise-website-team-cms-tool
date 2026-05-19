@@ -176,6 +176,7 @@ export const proposeAdGroupCreate: CanonicalTool<ProposeAdGroupCreateArgs> = {
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "ad-group-create",
         title: `Create ad group "${args.adGroupName}" in ${args.campaignName}`,
         clientId,

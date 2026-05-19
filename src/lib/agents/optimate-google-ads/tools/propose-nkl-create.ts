@@ -146,6 +146,7 @@ export const proposeNklCreate: CanonicalTool<ProposeNklCreateArgs> = {
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "nkl-create",
         title: `Create NKL "${args.name}" — ${args.keywords.length} keyword${args.keywords.length === 1 ? "" : "s"}`,
         clientId,

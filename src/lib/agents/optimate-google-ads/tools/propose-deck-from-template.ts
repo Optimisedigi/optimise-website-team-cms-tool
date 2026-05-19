@@ -98,6 +98,7 @@ export const proposeDeckFromTemplateTool: CanonicalTool<ProposeDeckFromTemplateA
       approvalId = await queueProposal({
         agentName: ctx.agentName,
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "deck-from-template",
         title: args.title,
         clientId: args.clientId,

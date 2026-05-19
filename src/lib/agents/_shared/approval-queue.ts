@@ -10,6 +10,10 @@
 
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import {
+  fanOutApprovalNotifications,
+  clearApprovalNotifications,
+} from "@/lib/agent-approval-notifications";
 
 const COLLECTION = "agent-approval-queue" as any;
 
@@ -28,6 +32,13 @@ export interface QueueForApprovalInput {
     clientHtml?: string;
     internalMarkdown?: string;
   };
+  /**
+   * CMS user id of the human who triggered the agent run that produced this
+   * proposal. Stamped on the row (informational — the bell fan-out separately
+   * looks the caller up via agentRunId) and used by future per-caller filters.
+   * Optional: scheduled / background runs have no triggering user.
+   */
+  triggeredByUserId?: number;
 }
 
 export interface ApprovalRow {
@@ -61,9 +72,33 @@ export async function queueForApproval(input: QueueForApprovalInput): Promise<nu
       rendered: input.rendered,
       status: "pending",
       ...(input.clientId !== undefined ? { client: input.clientId } : {}),
+      ...(input.triggeredByUserId !== undefined
+        ? { triggeredBy: input.triggeredByUserId }
+        : {}),
     },
     overrideAccess: true,
   })) as { id: number };
+
+  // Fan out a bell notification to every admin so any team-member can review.
+  // Best-effort — a fan-out failure must not block proposal creation; the
+  // helper logs internally and never throws.
+  try {
+    await fanOutApprovalNotifications(payload, {
+      approvalId: created.id,
+      agentRunId: input.agentRunId,
+      agentName: input.agentName,
+      proposalType: input.proposalType,
+      title: input.title,
+      clientId: input.clientId ?? null,
+    });
+  } catch (err) {
+    payload.logger?.error?.({
+      msg: "queueForApproval: fan-out failed",
+      approvalId: created.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   return created.id;
 }
 
@@ -98,6 +133,8 @@ export async function markApproved(id: number, reviewedById: number): Promise<vo
     },
     overrideAccess: true,
   });
+  // Clear the bell for everyone now that the queue item is actioned.
+  await clearApprovalNotifications(payload, id);
 }
 
 export async function markRejected(id: number, reviewedById: number): Promise<void> {
@@ -113,6 +150,7 @@ export async function markRejected(id: number, reviewedById: number): Promise<vo
     },
     overrideAccess: true,
   });
+  await clearApprovalNotifications(payload, id);
 }
 
 export async function markApplied(id: number): Promise<void> {

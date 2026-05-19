@@ -76,12 +76,74 @@ export async function generateMetadata({
   params,
 }: {
   params: Promise<{ clientSlug: string; deckSlug: string }>;
-}) {
+}): Promise<{ title: string; robots: { index: boolean; follow: boolean } }> {
   const { clientSlug, deckSlug } = await params;
-  return {
-    title: `${clientSlug} — ${deckSlug}`,
+  const fallback = {
+    title: "Presentation · Optimise Digital",
     robots: { index: false, follow: false },
   };
+  try {
+    const payload = await getPayload({ config: configPromise });
+    const clientsResult = await payload.find({
+      collection: "clients",
+      where: { slug: { equals: clientSlug } },
+      limit: 1,
+      depth: 0,
+    });
+    const client = clientsResult.docs[0] as
+      | { name?: string; presentations?: Presentation[] }
+      | undefined;
+    if (!client?.name) return fallback;
+
+    const presentation = (client.presentations ?? []).find((p) => {
+      const normalisedSlug = extractDeckSlug(p.deckSlug ?? "", p.deckUrl);
+      return normalisedSlug === deckSlug;
+    });
+
+    // Resolve template slug (may be id-ref or populated doc).
+    let templateSlug: string | null = null;
+    if (presentation) {
+      const { id: templateRefId, templateSlug: populatedSlug } =
+        resolveTemplateRef(presentation.templateSlug);
+      templateSlug = populatedSlug;
+      if (!templateSlug && templateRefId) {
+        try {
+          const tmplDoc = await payload.findByID({
+            collection: "deck-templates" as never,
+            id: templateRefId,
+            depth: 0,
+          });
+          templateSlug =
+            (tmplDoc as { templateSlug?: string })?.templateSlug ?? null;
+        } catch {
+          // ignore — fall through to generic title
+        }
+      }
+    }
+
+    // Special case: Google Ads audit decks get the audit-specific title.
+    if (templateSlug && templateSlug.includes("google-ads-audit")) {
+      return {
+        title: `Google Ads Audit: ${client.name} · Optimise Digital`,
+        robots: { index: false, follow: false },
+      };
+    }
+
+    // Otherwise: "{Deck Name}: {Client Name} · Optimise Digital".
+    let deckTitle = presentation?.title?.trim() || "";
+    if (!deckTitle && templateSlug) {
+      const template = getTemplate(templateSlug);
+      if (template?.name) deckTitle = template.name;
+    }
+    if (!deckTitle) deckTitle = "Presentation";
+
+    return {
+      title: `${deckTitle}: ${client.name} · Optimise Digital`,
+      robots: { index: false, follow: false },
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 export default async function PartnerDeckPage({

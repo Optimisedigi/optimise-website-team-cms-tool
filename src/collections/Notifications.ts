@@ -65,6 +65,10 @@ export const Notifications: CollectionConfig = {
           label: "Invoice statements ready for review",
           value: "invoice-statements-ready",
         },
+        {
+          label: "Agent approval pending",
+          value: "agent-approval-pending",
+        },
       ],
     },
     {
@@ -95,6 +99,15 @@ export const Notifications: CollectionConfig = {
       name: "relatedClient",
       type: "relationship",
       relationTo: "clients",
+    },
+    {
+      name: "relatedApproval",
+      type: "relationship",
+      relationTo: "agent-approval-queue" as never,
+      admin: {
+        description:
+          "Links the notification to the agent-approval row it was fanned out for. Used to bulk-clear bell rows when any admin actions the queue item.",
+      },
     },
     {
       name: "readAt",

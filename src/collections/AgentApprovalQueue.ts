@@ -99,6 +99,17 @@ export const AgentApprovalQueue: CollectionConfig = {
       ],
     },
     {
+      name: "triggeredBy",
+      type: "relationship",
+      relationTo: "users" as any,
+      hasMany: false,
+      index: true,
+      admin: {
+        description:
+          "CMS user whose chat turn / scheduled action triggered the agent run that produced this proposal. Null for background/system runs.",
+      },
+    },
+    {
       name: "reviewedBy",
       type: "relationship",
       relationTo: "users" as any,

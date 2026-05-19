@@ -140,6 +140,8 @@ export function usePomodoro() {
   const [running, setRunning] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const notifiedRef = useRef(false)
+  const [pomodoroDoneOpen, setPomodoroDoneOpen] = useState(false)
+  const [pomodoroDoneMode, setPomodoroDoneMode] = useState<Mode>('focus')
 
   /* ── Tracker state ── */
   const [taskName, setTaskName] = useState('')
@@ -240,6 +242,12 @@ export function usePomodoro() {
   useEffect(() => {
     if (timeLeft === 0 && !notifiedRef.current) {
       notifiedRef.current = true
+      // 1) Audible beep (reuses the tracker reminder sound).
+      playReminderBeep()
+      // 2) In-app modal that stays until dismissed.
+      setPomodoroDoneMode(mode)
+      setPomodoroDoneOpen(true)
+      // 3) System notification for users whose tab is backgrounded.
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification('Pomodoro Timer', {
           body: `${MODE_LABELS[mode]} session complete!`,
@@ -515,6 +523,68 @@ export function usePomodoro() {
     ? getBreathPhase(timeLeft, DURATIONS.breathwork)
     : null
 
+  /* ── Pre-rendered "pomodoro finished" modal portal. Mounted into
+   *    document.body by the host launcher so it overlays the whole app and
+   *    survives panel close. Stays open until the user explicitly dismisses. */
+  const pomodoroDonePortal: React.ReactNode = pomodoroDoneOpen && typeof document !== 'undefined'
+    ? createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pomodoro-done-title"
+          onClick={() => setPomodoroDoneOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2147483646,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#111',
+              color: '#fff',
+              padding: '28px 32px',
+              borderRadius: 14,
+              border: '1px solid rgba(255,255,255,0.12)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.45)',
+              maxWidth: 360,
+              width: '90%',
+              textAlign: 'center',
+            }}
+          >
+            <div id="pomodoro-done-title" style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
+              🍅 Pomodoro complete!
+            </div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', marginBottom: 22 }}>
+              {MODE_LABELS[pomodoroDoneMode]} session finished
+            </div>
+            <button
+              type="button"
+              onClick={() => setPomodoroDoneOpen(false)}
+              style={{
+                padding: '10px 28px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: 14,
+                background: '#22c55e',
+                color: '#fff',
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null
+
   /* ── Pre-rendered PiP portal ── */
   const pipPortal: React.ReactNode = pipWindow
     ? createPortal(
@@ -682,6 +752,8 @@ export function usePomodoro() {
     isAdmin,
     // pip
     pipSupported, pipWindow, openPip, pipPortal,
+    // pomodoro-done modal
+    pomodoroDoneOpen, setPomodoroDoneOpen, pomodoroDonePortal,
     // computed
     pillLabel,
     // formatters / constants exposed for body

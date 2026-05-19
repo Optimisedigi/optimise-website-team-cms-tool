@@ -150,6 +150,7 @@ export const proposeKeywordsAdd: CanonicalTool<ProposeKeywordsAddArgs> = {
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "keywords-add",
         title: `Add ${args.keywords.length} keyword${args.keywords.length === 1 ? "" : "s"} to "${args.adGroupName}"`,
         clientId,

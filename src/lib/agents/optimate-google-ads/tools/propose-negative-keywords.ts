@@ -98,6 +98,7 @@ export const proposeNegativeKeywords: CanonicalTool<ProposeNegativesArgs> = {
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "negative-keywords",
         title,
         clientId,

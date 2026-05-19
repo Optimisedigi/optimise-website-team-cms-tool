@@ -79,6 +79,7 @@ export const proposeAdCopyDeploy: CanonicalTool<ProposeAdCopyDeployArgs> = {
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "ad-copy-deploy",
         title: `Deploy ad copy (${adStatus}) — audit #${auditId ?? "?"}`,
         clientId,

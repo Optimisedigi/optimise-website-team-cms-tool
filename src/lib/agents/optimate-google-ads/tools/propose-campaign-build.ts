@@ -64,6 +64,7 @@ export const proposeCampaignBuild: CanonicalTool<ProposeCampaignBuildArgs> = {
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "campaign-build",
         title: `Build campaigns (PAUSED) \u2014 audit #${auditId ?? "?"}`,
         clientId,

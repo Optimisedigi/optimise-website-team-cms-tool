@@ -176,6 +176,7 @@ export const proposeCampaignRestructure: CanonicalTool<ProposeCampaignRestructur
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "campaign-restructure",
         title: `Restructure campaigns \u2014 audit #${auditId ?? "?"}`,
         clientId,

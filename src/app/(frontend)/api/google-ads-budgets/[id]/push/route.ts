@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { hasValidApiKey } from "@/collections/api-key-access";
+import { logActivity } from "@/lib/activity-log";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -69,10 +70,11 @@ export async function POST(
 
   // Prefer client account ID over audit's (which may be MCC)
   let customerId = audit.customerId;
+  let client: any = null;
   if (audit.client) {
     try {
       const clientId = typeof audit.client === 'object' ? audit.client.id : audit.client;
-      const client = typeof audit.client === 'object' ? audit.client : await payload.findByID({
+      client = typeof audit.client === 'object' ? audit.client : await payload.findByID({
         collection: "clients",
         id: clientId,
         overrideAccess: true,
@@ -174,6 +176,24 @@ export async function POST(
       }
     } catch (e: any) {
       errors.push(`Failed to update ${campaign.campaignId}: ${e.message}`);
+    }
+  }
+
+  // Log to activity feed — only on successful push (failures are surfaced in the
+  // budget management UI; we only want a record of who pushed what, where, when).
+  if (pushedCount > 0) {
+    try {
+      const userName = (user as any)?.name || (user as any)?.email || "Unknown user";
+      const clientName = client?.name || audit.clientName || "Unknown client";
+      await logActivity(payload, {
+        type: "google_ads_budget_pushed",
+        title: "Google Ads budget pushed",
+        description: `${userName} pushed budget for ${clientName} (CID ${customerId})`,
+        user: user?.id,
+        client: client?.id,
+      });
+    } catch (e: any) {
+      console.error("[GoogleAdsBudgets] Failed to log activity:", e.message);
     }
   }
 

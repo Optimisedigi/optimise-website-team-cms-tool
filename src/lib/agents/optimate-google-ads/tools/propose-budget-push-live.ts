@@ -113,6 +113,7 @@ export const proposeBudgetPushLive: CanonicalTool<ProposeBudgetPushArgs> = {
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "budget-push-live",
         title: `Push daily budgets to ${args.campaigns.length} campaign${args.campaigns.length === 1 ? "" : "s"}`,
         clientId,

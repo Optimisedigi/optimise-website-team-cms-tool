@@ -3,6 +3,7 @@ import { headers as nextHeaders } from "next/headers";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { markRejected } from "@/lib/agents/_shared/approval-queue";
+import { logActivity } from "@/lib/activity-log";
 
 export async function POST(
   _request: Request,
@@ -23,6 +24,31 @@ export async function POST(
     }
 
     await markRejected(numericId, user.id as number);
+
+    try {
+      const reviewerName =
+        (user as { name?: string; email?: string }).name ||
+        (user as { email?: string }).email ||
+        `User #${user.id}`;
+      const row = (await payload.findByID({
+        collection: "agent-approval-queue" as never,
+        id: numericId,
+        depth: 0,
+        overrideAccess: true,
+      })) as { title?: string; client?: number | string | null };
+      await logActivity(payload, {
+        type: "agent_approval_rejected",
+        title: `${reviewerName} rejected: ${row.title ?? `agent approval #${numericId}`}`,
+        description: `Agent approval #${numericId} rejected.`,
+        user: user.id as number,
+        ...(row.client !== undefined && row.client !== null
+          ? { client: row.client }
+          : {}),
+      });
+    } catch (logErr) {
+      console.error("[agent-approvals/reject] activity log failed:", logErr);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[agent-approvals/reject] error:", err);

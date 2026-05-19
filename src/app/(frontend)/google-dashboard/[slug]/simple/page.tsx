@@ -24,6 +24,37 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
+export async function generateMetadata({ params }: Props): Promise<{
+  title: string;
+  robots: { index: boolean; follow: boolean };
+}> {
+  const { slug } = await params;
+  try {
+    const payloadConfig = await config;
+    const payload = await getPayload({ config: payloadConfig });
+    const result = await payload.find({
+      collection: "clients",
+      where: { slug: { equals: slug } },
+      limit: 1,
+      overrideAccess: true,
+      select: { name: true },
+    });
+    const client = result.docs[0] as { name?: string } | undefined;
+    if (client?.name) {
+      return {
+        title: `Google Ads: ${client.name} · Optimise Digital`,
+        robots: { index: false, follow: false },
+      };
+    }
+  } catch {
+    // fall through to default
+  }
+  return {
+    title: "Google Ads · Optimise Digital",
+    robots: { index: false, follow: false },
+  };
+}
+
 async function fetchDashboardData(
   slug: string,
   customerId: string,

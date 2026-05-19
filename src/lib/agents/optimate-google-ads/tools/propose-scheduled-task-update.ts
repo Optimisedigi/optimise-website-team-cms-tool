@@ -173,6 +173,7 @@ export const proposeScheduledTaskUpdate: CanonicalTool<ProposeScheduledTaskUpdat
       approvalId = await queueProposal({
         agentName: "optimate-google-ads",
         agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "scheduled-task-update",
         title: `${action} scheduled task #${args.taskId}: ${row.title ?? ""}`,
         clientId,

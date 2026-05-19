@@ -4,6 +4,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { markApproved } from "@/lib/agents/_shared/approval-queue";
 import { isAdmin } from "@/lib/access";
+import { logActivity } from "@/lib/activity-log";
 
 export async function POST(
   _request: Request,
@@ -34,6 +35,33 @@ export async function POST(
     }
 
     await markApproved(numericId, user.id as number);
+
+    // Activity-log breadcrumb so the team timeline shows who actioned this
+    // queue item (separate from the bell-clearing fan-out side-effect).
+    try {
+      const reviewerName =
+        (user as { name?: string; email?: string }).name ||
+        (user as { email?: string }).email ||
+        `User #${user.id}`;
+      const row = (await payload.findByID({
+        collection: "agent-approval-queue" as never,
+        id: numericId,
+        depth: 0,
+        overrideAccess: true,
+      })) as { title?: string; client?: number | string | null };
+      await logActivity(payload, {
+        type: "agent_approval_approved",
+        title: `${reviewerName} approved: ${row.title ?? `agent approval #${numericId}`}`,
+        description: `Agent approval #${numericId} approved.`,
+        user: user.id as number,
+        ...(row.client !== undefined && row.client !== null
+          ? { client: row.client }
+          : {}),
+      });
+    } catch (logErr) {
+      console.error("[agent-approvals/approve] activity log failed:", logErr);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[agent-approvals/approve] error:", err);
