@@ -769,6 +769,16 @@ export async function GET(request: NextRequest) {
   await run("optimate_chat_turns_session_created_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_session_created_idx` ON `optimate_chat_turns` (`session_id`, `created_at`)");
   await run("locked_docs_rels.optimate_chat_turns_id", "ALTER TABLE `payload_locked_documents_rels` ADD `optimate_chat_turns_id` integer REFERENCES `optimate_chat_turns`(`id`) ON DELETE cascade");
 
+  // --- SERP Displacement / AI Visibility / GA4 / GSC carry-over fields on client_proposals ---
+  await run("client_proposals.ga4_property_id", "ALTER TABLE `client_proposals` ADD `ga4_property_id` text");
+  await run("client_proposals.gsc_site_url", "ALTER TABLE `client_proposals` ADD `gsc_site_url` text");
+  await run("client_proposals.serp_monitor_enabled", "ALTER TABLE `client_proposals` ADD `serp_monitor_enabled` integer DEFAULT false");
+  await run("client_proposals.ai_visibility_enabled", "ALTER TABLE `client_proposals` ADD `ai_visibility_enabled` integer DEFAULT false");
+  await run("client_proposals.latest_serp_displacement_snapshot_id", "ALTER TABLE `client_proposals` ADD `latest_serp_displacement_snapshot_id` integer REFERENCES `serp_displacement_snapshots`(`id`) ON DELETE set null");
+  await run("client_proposals_latest_serp_displacement_snapshot_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_latest_serp_displacement_snapshot_idx` ON `client_proposals` (`latest_serp_displacement_snapshot_id`)");
+  await run("client_proposals.latest_ai_visibility_snapshot_id", "ALTER TABLE `client_proposals` ADD `latest_ai_visibility_snapshot_id` integer REFERENCES `ai_visibility_snapshots`(`id`) ON DELETE set null");
+  await run("client_proposals_latest_ai_visibility_snapshot_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_latest_ai_visibility_snapshot_idx` ON `client_proposals` (`latest_ai_visibility_snapshot_id`)");
+
   let tables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
