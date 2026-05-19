@@ -40,6 +40,7 @@ import { listScheduledTasks } from "./tools/list-scheduled-tasks";
 import { proposeScheduledTaskUpdate } from "./tools/propose-scheduled-task-update";
 import { proposeStakeholderDeck } from "./tools/propose-stakeholder-deck";
 import { proposeDeckFromTemplateTool } from "./tools/propose-deck-from-template";
+import { requestConfirmTool } from "./tools/request-confirm";
 import { remember } from "./tools/remember";
 import { memorySearch } from "./tools/memory-search";
 import { soulSet } from "./tools/soul-set";
@@ -84,6 +85,7 @@ export function getTools(): CanonicalTool<unknown>[] {
     proposeScheduledTaskUpdate as unknown as CanonicalTool<unknown>,
     proposeStakeholderDeck as unknown as CanonicalTool<unknown>,
     proposeDeckFromTemplateTool as unknown as CanonicalTool<unknown>,
+    requestConfirmTool as unknown as CanonicalTool<unknown>,
     remember as unknown as CanonicalTool<unknown>,
     memorySearch as unknown as CanonicalTool<unknown>,
     soulSet as unknown as CanonicalTool<unknown>,
@@ -129,6 +131,17 @@ export interface ProposalSummary {
   status: string;
 }
 
+export interface ConfirmRequestSummary {
+  /** Server-minted UUID; mirrors what the chat UI receives. */
+  confirmId: string;
+  /** Which propose tool the agent intends to call next. */
+  proposalType: "campaign-restructure" | "campaign-build";
+  /** Sentence shown next to the Yes/No buttons. */
+  wording: string;
+  /** Settings the agent would replay verbatim to the propose tool on Yes. */
+  draftSettings: Record<string, unknown>;
+}
+
 export interface RunChatTurnResult {
   reply: string;
   runId: string;
@@ -140,6 +153,8 @@ export interface RunChatTurnResult {
   source: CredentialSource;
   totalUsage: Usage;
   proposals: ProposalSummary[];
+  /** request_confirm payloads emitted during this turn, in call order. */
+  confirmRequests: ConfirmRequestSummary[];
 }
 
 const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
@@ -157,7 +172,10 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   const pinnedMemory = await loadPinnedMemoryBlock(
     client?.id !== undefined && client?.id !== null ? [client.id] : [],
   );
-  const systemPrompt = buildSystemPromptForAudit(audit, client, connectionFlags, pinnedMemory.text);
+  const systemPrompt = buildSystemPromptForAudit(audit, client, connectionFlags, {
+    pinnedMemoryBlock: pinnedMemory.text,
+    recentMessages: messages,
+  });
   const conversionActions = conversionActionsForClient(client);
 
   const modelRequested = modelOverride ?? DEFAULT_CHAT_MODEL;
@@ -196,6 +214,11 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   // between Payload’s SQLite writes and our `new Date()` capture.
   const proposals = await fetchProposalsForRun(result.runId);
 
+  // Extract any request_confirm tool calls from this run so the chat client
+  // can render Yes/No bubbles. The base agent stringifies each tool result
+  // before passing it back to the LLM; we parse it back here.
+  const confirmRequests = extractConfirmRequests(result.steps);
+
   return {
     reply,
     runId: result.runId,
@@ -204,7 +227,40 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     source: result.source,
     totalUsage: result.totalUsage,
     proposals,
+    confirmRequests,
   };
+}
+
+function extractConfirmRequests(
+  steps: Array<{ type: string; toolName?: string; output?: unknown }>,
+): ConfirmRequestSummary[] {
+  const out: ConfirmRequestSummary[] = [];
+  for (const step of steps) {
+    if (step.type !== "tool-call" || step.toolName !== "request_confirm") continue;
+    if (typeof step.output !== "string") continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(step.output);
+    } catch {
+      continue;
+    }
+    if (!parsed || typeof parsed !== "object") continue;
+    const p = parsed as Record<string, unknown>;
+    const confirmId = typeof p.confirmId === "string" ? p.confirmId : null;
+    const proposalType = p.proposalType;
+    const wording = typeof p.wording === "string" ? p.wording : null;
+    const draftSettings = p.draftSettings;
+    if (!confirmId || !wording) continue;
+    if (proposalType !== "campaign-restructure" && proposalType !== "campaign-build") continue;
+    if (!draftSettings || typeof draftSettings !== "object" || Array.isArray(draftSettings)) continue;
+    out.push({
+      confirmId,
+      proposalType,
+      wording,
+      draftSettings: draftSettings as Record<string, unknown>,
+    });
+  }
+  return out;
 }
 
 async function fetchProposalsForRun(agentRunId: string): Promise<ProposalSummary[]> {

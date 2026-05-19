@@ -67,6 +67,10 @@ function savePersistedSessionId(auditId: string | number, sid: string): void {
 }
 
 import OptiMateProposalCard, { type OptiMateProposal } from './OptiMateProposalCard'
+import OptiMateConfirmBubble, {
+  type OptiMateConfirmRequest,
+  type ConfirmResolution,
+} from './OptiMateConfirmBubble'
 import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
 import OptiMateToolsHelp from './OptiMateToolsHelp'
 
@@ -94,6 +98,12 @@ interface ChatMessage {
    *  (e.g. Anthropic 429 → Kimi). Drives the amber failover pill. */
   modelRequested?: string
   proposals?: OptiMateProposal[]
+  /** Confirm-gate bubbles emitted by `request_confirm` during this turn.
+   *  Resolution state is held alongside so Yes/No clicks flip the buttons
+   *  to a static pill without forcing a server round-trip. */
+  confirmRequests?: OptiMateConfirmRequest[]
+  /** Per-confirmId resolution. Missing key = pending. */
+  confirmResolutions?: Record<string, ConfirmResolution>
   /** True when the server reported `persisted: false` for this turn —
    *  the chat-turns DB write failed (typically because `/api/migrate`
    *  hasn't been run after a deploy that added the table). Drives an
@@ -471,6 +481,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   const bumpPendingRefresh = useCallback(() => setPendingRefreshTick((n) => n + 1), [])
   const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // Drives the dim hint + popover that lists keyword triggers below the
+  // chat input. Hover/focus on the textarea wrapper expands the popover.
+  const [keywordHintOpen, setKeywordHintOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   /** Per-message draft state: 'saving' → 'saved' → (1.5s later) cleared,
@@ -774,6 +787,24 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             }))
             .filter((p) => Number.isFinite(p.id))
         : []
+      const confirmRequests: OptiMateConfirmRequest[] = Array.isArray(data.confirmRequests)
+        ? (data.confirmRequests as Array<Record<string, unknown>>)
+            .filter(
+              (c) =>
+                c &&
+                typeof c.confirmId === 'string' &&
+                typeof c.wording === 'string' &&
+                (c.proposalType === 'campaign-restructure' || c.proposalType === 'campaign-build') &&
+                c.draftSettings &&
+                typeof c.draftSettings === 'object',
+            )
+            .map((c) => ({
+              confirmId: String(c.confirmId),
+              proposalType: c.proposalType as 'campaign-restructure' | 'campaign-build',
+              wording: String(c.wording),
+              draftSettings: c.draftSettings as Record<string, unknown>,
+            }))
+        : []
       // `persisted` is sent by the chat route when one or both DB writes
       // (user prompt + assistant reply) failed. The reply still flows —
       // we just badge it so the user knows reload will lose it. Treat
@@ -787,6 +818,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         modelUsed: typeof data.modelUsed === 'string' ? data.modelUsed : undefined,
         modelRequested: typeof data.modelRequested === 'string' ? data.modelRequested : undefined,
         proposals: proposals.length > 0 ? proposals : undefined,
+        confirmRequests: confirmRequests.length > 0 ? confirmRequests : undefined,
+        confirmResolutions: confirmRequests.length > 0 ? {} : undefined,
         historyNotSaved: !turnPersisted,
       }
       setMessages((prev) => [...prev, assistantMsg])
@@ -825,6 +858,73 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       setLoading(false)
       inputRef.current?.focus()
     }
+  }
+
+  /**
+   * Mark a confirm bubble's resolution state on the message that owns it.
+   * The buttons disappear after this flip; the bubble keeps rendering as a
+   * static "Confirmed"/"Declined" pill so the conversation history stays
+   * legible.
+   */
+  const setConfirmResolution = (
+    confirmId: string,
+    resolution: ConfirmResolution,
+  ) => {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (!m.confirmRequests || !m.confirmRequests.some((c) => c.confirmId === confirmId)) {
+          return m
+        }
+        return {
+          ...m,
+          confirmResolutions: { ...(m.confirmResolutions ?? {}), [confirmId]: resolution },
+        }
+      }),
+    )
+  }
+
+  /**
+   * Yes handler. Fires a synthetic user message that nudges the agent to
+   * proceed with the propose call. We pass the draftSettings JSON inline so
+   * the agent can replay them verbatim — it doesn't have to re-derive them
+   * from the earlier tool call.
+   */
+  const handleConfirmYes = (
+    confirmId: string,
+    draftSettings: Record<string, unknown>,
+  ) => {
+    setConfirmResolution(confirmId, 'confirmed')
+    // Look up the proposalType so we can phrase the nudge correctly.
+    let proposalType: 'campaign-restructure' | 'campaign-build' | null = null
+    for (const m of messages) {
+      const hit = m.confirmRequests?.find((c) => c.confirmId === confirmId)
+      if (hit) {
+        proposalType = hit.proposalType
+        break
+      }
+    }
+    const typeLabel = proposalType ?? 'proposal'
+    const synthetic = `Confirmed: proceed with ${typeLabel}. Settings: ${JSON.stringify(draftSettings)}`
+    sendMessage(synthetic)
+  }
+
+  /**
+   * No handler. Tells the agent to give a plain-text answer describing what
+   * it would have proposed but explicitly NOT to call the propose tool.
+   */
+  const handleConfirmNo = (confirmId: string) => {
+    setConfirmResolution(confirmId, 'declined')
+    let proposalType: 'campaign-restructure' | 'campaign-build' | null = null
+    for (const m of messages) {
+      const hit = m.confirmRequests?.find((c) => c.confirmId === confirmId)
+      if (hit) {
+        proposalType = hit.proposalType
+        break
+      }
+    }
+    const typeLabel = proposalType ?? 'proposal'
+    const synthetic = `User declined the ${typeLabel}. Give them a plain-text answer instead — describe what you would have proposed, but do NOT call the propose tool.`
+    sendMessage(synthetic)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1186,6 +1286,19 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 ))}
               </div>
             )}
+            {msg.role === 'assistant' && msg.confirmRequests && msg.confirmRequests.length > 0 && (
+              <div style={{ width: '100%', maxWidth: '85%' }}>
+                {msg.confirmRequests.map((c) => (
+                  <OptiMateConfirmBubble
+                    key={c.confirmId}
+                    request={c}
+                    resolution={msg.confirmResolutions?.[c.confirmId] ?? 'pending'}
+                    onConfirm={handleConfirmYes}
+                    onReject={handleConfirmNo}
+                  />
+                ))}
+              </div>
+            )}
             {msg.role === 'assistant' && (
               <div
                 style={{
@@ -1441,7 +1554,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             }}
           />
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <div
+            style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}
+            onMouseEnter={() => setKeywordHintOpen(true)}
+            onMouseLeave={() => setKeywordHintOpen(false)}
+          >
             <button
               type="button"
               onClick={(e) => {
@@ -1510,9 +1627,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               }}
               onFocus={(e) => {
                 e.currentTarget.style.borderColor = '#2563eb'
+                setKeywordHintOpen(true)
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = 'var(--theme-border-color, #e5e7eb)'
+                setKeywordHintOpen(false)
               }}
             />
             <button
@@ -1537,6 +1656,73 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             >
               Send
             </button>
+          </div>
+
+          {/* Keyword-trigger hint: dim and small, expands into a popover
+              on hover/focus of the input row. Tells the user the two magic
+              categories that load extra agent guides (scheduled tasks +
+              decks). Pure UI hint — the chat works fine without it. */}
+          <div
+            style={{
+              position: 'relative',
+              marginTop: 4,
+              fontSize: 10,
+              color: '#9ca3af',
+              lineHeight: 1.4,
+              userSelect: 'none',
+            }}
+            aria-live="polite"
+          >
+            <span
+              style={{
+                cursor: 'default',
+              }}
+              onMouseEnter={() => setKeywordHintOpen(true)}
+              onMouseLeave={() => setKeywordHintOpen(false)}
+            >
+              ✨ Tip: mention “weekly”, “recurring”, “deck”, or “recap” to unlock extra guides.
+            </span>
+            {keywordHintOpen && (
+              <div
+                role="tooltip"
+                onMouseEnter={() => setKeywordHintOpen(true)}
+                onMouseLeave={() => setKeywordHintOpen(false)}
+                style={{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 6px)',
+                  left: 0,
+                  right: 0,
+                  zIndex: 50,
+                  background: '#1f2937',
+                  color: '#e5e7eb',
+                  border: '1px solid #374151',
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  fontSize: 10,
+                  lineHeight: 1.5,
+                  boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
+                  maxHeight: 220,
+                  overflowY: 'auto',
+                }}
+              >
+                <div style={{ fontWeight: 600, color: '#fbbf24', marginBottom: 2 }}>
+                  Scheduled tasks
+                </div>
+                <div style={{ marginBottom: 6, color: '#d1d5db' }}>
+                  schedule, recurring, repeat, every day/Monday/…, weekly, monthly,
+                  fortnightly, daily, cron, each morning, pause/resume the…, list tasks,
+                  what reports am I getting
+                </div>
+                <div style={{ fontWeight: 600, color: '#fbbf24', marginBottom: 2 }}>
+                  Decks &amp; recaps
+                </div>
+                <div style={{ color: '#d1d5db' }}>
+                  deck, slide(s), presentation, recap, stakeholder, owner update,
+                  client update, monthly/quarterly review, what we shipped,
+                  show the owner/client
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Model selector lives BELOW the input row so the typebox is the

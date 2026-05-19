@@ -52,6 +52,7 @@ const FIXTURE_TOOLS = [
   { name: "list_scheduled_tasks", description: "List user's tasks." },
   { name: "propose_scheduled_task_update", description: "Edit/pause a task." },
   { name: "propose_stakeholder_deck", description: "Queue a recap deck." },
+  { name: "request_confirm", description: "Confirm-gate Yes/No bubble." },
   { name: "remember", description: "Save a durable fact." },
   { name: "memory_search", description: "Search saved facts." },
   { name: "soul_set", description: "Save a soul lesson." },

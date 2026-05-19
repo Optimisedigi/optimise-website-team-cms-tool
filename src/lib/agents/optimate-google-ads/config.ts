@@ -9,6 +9,12 @@
  */
 
 import { buildSystemPrompt } from "../_shared/system-prompt-builder";
+import type { Message } from "../_shared/llm/types";
+import {
+  shouldIncludeGuide,
+  SCHEDULED_TASKS_TRIGGERS,
+  DECK_TRIGGERS,
+} from "./keyword-matcher";
 
 export const AGENT_NAME = "optimate-google-ads";
 
@@ -40,9 +46,13 @@ const GUARDRAILS = [
   "If a tool returns an error AND you have an obvious correct retry (e.g. the user said 'April' and you can switch to LAST_MONTH, or you passed an invalid preset and the right one is in the date-range guide), JUST RETRY ONCE silently — don't ask the user 'want me to try X instead?'. Only escalate to the user when there's no obvious retry, or after the retry also fails. Never fabricate fallback numbers.",
   "Cap of 5 propose_* calls per chat turn. Bundle related changes into one proposal where possible. The 6th call will hard-error.",
   "Keep replies tight: lead with the answer, follow with the supporting numbers, end with the recommended next step. No filler.",
+  "CONFIRM GATE — before calling `propose_campaign_restructure` OR `propose_campaign_build`, you MUST call `request_confirm` first with the action-specific wording AND the settings you'd pass to the propose tool. The two canonical wordings: for propose_campaign_restructure use exactly 'Want me to restructure the campaigns for approval?'; for propose_campaign_build use exactly 'Want me to build the campaigns for approval?'. Only call the actual propose tool AFTER the chat route sends a synthetic 'user confirmed' message (which the chat client emits when the user clicks Yes). If you receive a 'user declined' message instead, give the user a plain-text answer describing what you would have proposed but do NOT call the propose tool. Never skip this gate for these two tools. Other propose tools do NOT need this gate — call them directly.",
 ];
 
 const TOOL_INVENTORY = [
+  "CONFIRM TOOL (gates the two heaviest propose tools — call BEFORE those propose tools, never after):",
+  "- request_confirm(proposalType, wording, summary, draftSettings): surface a Yes/No bubble to the user before propose_campaign_restructure or propose_campaign_build. proposalType is 'campaign-restructure' or 'campaign-build'. wording is the exact sentence shown next to the buttons. draftSettings is the object you'd pass to the propose tool (so the synthetic follow-up can replay it). Returns confirmId. Only call the propose tool AFTER a synthetic 'user confirmed' message comes back. See the CONFIRM GATE rule in GUARDRAILS.",
+  "",
   "READ TOOLS:",
   "- get_account_overview(range?): total spend, conversions, avg CPA, active campaign count, and the date range it covers. Call once at the start of any diagnostic conversation. Default range LAST_30_DAYS.",
   "- get_campaign_performance(range?, segment?): per-campaign spend / clicks / impressions / conversions / CTR / CPA. Default range LAST_7_DAYS. Pass segment='month'|'week'|'day' for a per-period breakdown (one row per campaign per segment). See SEGMENTATION_GUIDE.",
@@ -356,30 +366,74 @@ function collectConversionActions(client: ClientDocLike | null): string[] {
   return Array.from(actions);
 }
 
-export function buildSystemPromptForAudit(
-  audit: AuditDocLike,
-  client: ClientDocLike | null,
-  flags?: ClientConnectionFlags,
+export interface BuildSystemPromptOptions {
   /**
    * Pre-fetched pinned-memory + soul block from memory-loader.ts. Kept as a
    * raw string so this module stays sync — the async DB lookup happens
    * once per turn in runChatTurn, not inside the prompt builder.
    */
-  pinnedMemoryBlock?: string,
+  pinnedMemoryBlock?: string;
+  /**
+   * Recent conversation messages used to decide whether to include the
+   * SCHEDULED_TASKS_GUIDE and DECK_GUIDE blocks. When omitted (older callers,
+   * tests), both guides are included for back-compat — the old behaviour. An
+   * explicitly-empty array opts INTO conditional inclusion and excludes both
+   * guides when no trigger keyword fires.
+   */
+  recentMessages?: Message[];
+}
+
+export function buildSystemPromptForAudit(
+  audit: AuditDocLike,
+  client: ClientDocLike | null,
+  flags?: ClientConnectionFlags,
+  pinnedMemoryBlockOrOptions?: string | BuildSystemPromptOptions,
 ): string {
+  // Back-compat: the 4th arg was a raw pinnedMemoryBlock string before. Accept
+  // both shapes so existing callers (and unit tests that only pass the block)
+  // don't break.
+  const options: BuildSystemPromptOptions =
+    typeof pinnedMemoryBlockOrOptions === "string"
+      ? { pinnedMemoryBlock: pinnedMemoryBlockOrOptions }
+      : pinnedMemoryBlockOrOptions ?? {};
+
   const cmsRules = buildCmsRulesBlock(audit, client, flags);
   // Append the pinned-memory block to the CMS rules section so it sits
   // before guardrails and tool inventory — the agent reads it as part of
   // the per-account context.
   const cmsRulesWithMemory =
-    pinnedMemoryBlock && pinnedMemoryBlock.trim().length > 0
-      ? `${cmsRules}\n\n${pinnedMemoryBlock}`
+    options.pinnedMemoryBlock && options.pinnedMemoryBlock.trim().length > 0
+      ? `${cmsRules}\n\n${options.pinnedMemoryBlock}`
       : cmsRules;
+
+  // Conditional guide inclusion. When recentMessages is undefined the caller
+  // didn't opt in — keep the old always-include behaviour. When it's an
+  // explicit array (even empty), include each guide only if a trigger fires.
+  const includeScheduledTasks =
+    options.recentMessages === undefined
+      ? true
+      : shouldIncludeGuide(options.recentMessages, SCHEDULED_TASKS_TRIGGERS);
+  const includeDeck =
+    options.recentMessages === undefined
+      ? true
+      : shouldIncludeGuide(options.recentMessages, DECK_TRIGGERS);
+
+  const guideBlocks: string[] = [
+    TOOL_INVENTORY,
+    DATE_RANGE_GUIDE,
+    SEGMENTATION_GUIDE,
+    GEO_WALKTHROUGH,
+  ];
+  if (includeScheduledTasks) guideBlocks.push(SCHEDULED_TASKS_GUIDE);
+  if (includeDeck) guideBlocks.push(DECK_GUIDE);
+  guideBlocks.push(ATTACHED_EMAIL_GUIDE);
+  guideBlocks.push(MEMORY_GUIDE);
+
   return buildSystemPrompt({
     agentRole: ROLE,
     cmsRulesBlock: cmsRulesWithMemory,
     guardrails: GUARDRAILS,
-    toolInventory: `${TOOL_INVENTORY}\n\n${DATE_RANGE_GUIDE}\n\n${SEGMENTATION_GUIDE}\n\n${GEO_WALKTHROUGH}\n\n${SCHEDULED_TASKS_GUIDE}\n\n${DECK_GUIDE}\n\n${ATTACHED_EMAIL_GUIDE}\n\n${MEMORY_GUIDE}`,
+    toolInventory: guideBlocks.join("\n\n"),
     outputFormat: OUTPUT_FORMAT,
   });
 }

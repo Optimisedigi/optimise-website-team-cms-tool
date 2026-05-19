@@ -23,6 +23,7 @@ export type ToolCategoryKey =
   | "read-client-info"
   | "read-scheduled"
   | "actions"
+  | "confirm-gate"
   | "propose-budget"
   | "propose-negatives"
   | "propose-structure"
@@ -85,6 +86,13 @@ export const TOOL_CATEGORIES: Record<ToolCategoryKey, CategoryMeta> = {
     blurb: "Tools that take immediate side-effecting action on your own account (Gmail drafts). No approval queue.",
     color: "#0284c7",
     order: 55,
+  },
+  "confirm-gate": {
+    key: "confirm-gate",
+    label: "Confirm gate",
+    blurb: "Pre-flight Yes/No bubble before the agent kicks off a heavy restructure or build proposal.",
+    color: "#f59e0b",
+    order: 58,
   },
   "propose-budget": {
     key: "propose-budget",
@@ -168,6 +176,9 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
 
   // Actions — do-it-now
   create_gmail_draft: "actions",
+
+  // Confirm gate (sits between read tools and propose tools)
+  request_confirm: "confirm-gate",
 
   // Propose — budgets
   propose_budget_update: "propose-budget",
