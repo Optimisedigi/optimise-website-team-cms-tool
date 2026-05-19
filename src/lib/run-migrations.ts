@@ -3126,6 +3126,14 @@ export async function runMigrations(
       "client_proposals_latest_ai_visibility_snapshot_idx",
       "CREATE INDEX IF NOT EXISTS `client_proposals_latest_ai_visibility_snapshot_idx` ON `client_proposals` (`latest_ai_visibility_snapshot_id`)",
     );
+
+    // Per-client Meta ad account ID (Tools tab — task 1.1). Optional; the
+    // shared agency Meta Business Manager uses this to scope status checks
+    // and future Meta Ads dashboard data to the right account.
+    await run(
+      "clients.meta_ad_account_id",
+      "ALTER TABLE `clients` ADD `meta_ad_account_id` text",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
