@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { GoogleAdsDashboard } from "@/components/dashboards/googleads/GoogleAdsDashboard";
 import RocketSplash from "@/components/RocketSplash";
+import PinGateLogo from "@/components/PinGateLogo";
 import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData } from "@/lib/dashboard-types";
 
 interface DashboardClientProps {
@@ -66,6 +67,7 @@ export function DashboardClient({ slug, clientId, clientName, isAuthenticated, i
           <p className="text-slate-400">Enter your 4-digit PIN access code to view the dashboard</p>
         </div>
         <PinEntry slug={slug} onSuccess={() => setVerified(true)} />
+        <PinGateLogo />
       </div>
     );
   }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
+import PinGateLogo from './PinGateLogo'
 
 interface AdCopyData {
   businessName: string
@@ -113,6 +114,7 @@ export default function AdCopyPinGate({ slug, businessName, children }: Props) {
       </div>
       {loading && <p style={{ marginTop: 24, fontSize: 14, color: '#94a3b8', textAlign: 'center' }}>Verifying...</p>}
       {error && <p style={{ marginTop: 24, fontSize: 14, color: '#f87171', textAlign: 'center' }}>{error}</p>}
+      <PinGateLogo />
     </div>
   )
 }

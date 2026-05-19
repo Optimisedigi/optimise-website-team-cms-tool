@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect, ReactNode } from 'react'
+import PinGateLogo from './PinGateLogo'
 
 export default function AuditPasswordGate({
   auditSlug,
@@ -104,6 +105,7 @@ export default function AuditPasswordGate({
       </div>
       {loading && <p style={{ marginTop: 24, fontSize: 14, color: '#94a3b8', textAlign: 'center' }}>Verifying...</p>}
       {error && <p style={{ marginTop: 24, fontSize: 14, color: '#f87171', textAlign: 'center' }}>{error}</p>}
+      <PinGateLogo />
     </div>
   )
 }

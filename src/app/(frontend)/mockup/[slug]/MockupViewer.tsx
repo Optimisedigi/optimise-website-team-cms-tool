@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import PinGateLogo from '@/components/PinGateLogo'
 
 export default function MockupViewer({
   businessName,
@@ -174,6 +175,7 @@ export default function MockupViewer({
           )}
         </div>
       </div>
+      <PinGateLogo />
     </div>
   )
 }

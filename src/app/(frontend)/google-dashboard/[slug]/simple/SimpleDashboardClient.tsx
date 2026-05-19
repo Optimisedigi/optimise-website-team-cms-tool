@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { SimpleDashboard } from "@/components/dashboards/googleads/SimpleDashboard";
 import RocketSplash from "@/components/RocketSplash";
+import PinGateLogo from "@/components/PinGateLogo";
 import type { GoogleAdsDashboardData } from "@/lib/dashboard-types";
 
 interface SimpleDashboardClientProps {
@@ -67,6 +68,7 @@ export function SimpleDashboardClient({
           </p>
         </div>
         <PinEntry slug={slug} onSuccess={() => setVerified(true)} />
+        <PinGateLogo />
       </div>
     );
   }

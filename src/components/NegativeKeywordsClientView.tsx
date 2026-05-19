@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, FormEvent } from "react";
+import PinGateLogo from "./PinGateLogo";
 
 interface Keyword {
   index: number;
@@ -186,6 +187,7 @@ export default function NegativeKeywordsClientView({
         </div>
         {pinLoading && <p style={{ marginTop: 24, fontSize: 14, color: '#94a3b8', textAlign: 'center' }}>Verifying...</p>}
         {pinError && <p style={{ marginTop: 24, fontSize: 14, color: '#f87171', textAlign: 'center' }}>{pinError}</p>}
+        <PinGateLogo />
       </div>
     );
   }

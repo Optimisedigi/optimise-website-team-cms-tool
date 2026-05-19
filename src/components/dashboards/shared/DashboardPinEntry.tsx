@@ -2,6 +2,7 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import PinGateLogo from "@/components/PinGateLogo";
 
 interface DashboardPinEntryProps {
   /** Where to redirect on success, e.g. "/dashboard/berendsen" */
@@ -140,6 +141,7 @@ export function DashboardPinEntry({
       {error && (
         <p className="mt-6 text-sm text-red-400">{error}</p>
       )}
+      <PinGateLogo />
     </div>
   );
 }
