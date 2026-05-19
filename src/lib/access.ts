@@ -170,8 +170,10 @@ export function computeAutoGrants(explicit: Set<string>): Set<string> {
   return out;
 }
 
-/** True if the request user is an admin. */
-function isAdmin(user: any): boolean {
+/** True if the request user is an admin. Exported so route handlers can
+ *  gate destructive endpoints (e.g. agent-approval apply/approve) on admin
+ *  role without re-implementing the check. */
+export function isAdmin(user: any): boolean {
   return user?.role === "admin";
 }
 

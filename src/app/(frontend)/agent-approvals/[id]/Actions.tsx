@@ -12,6 +12,10 @@ type Action = "approve" | "reject" | "apply";
 interface Props {
   approvalId: number;
   status: string;
+  /** When false, the Approve and Apply buttons are disabled (server-side
+   *  gating still applies regardless). Reject stays open to all reviewers,
+   *  per the spec: anyone can reject; only admins approve or apply. */
+  canApproveOrApply: boolean;
 }
 
 const baseBtn: React.CSSProperties = {
@@ -23,7 +27,7 @@ const baseBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export default function ApprovalActions({ approvalId, status }: Props) {
+export default function ApprovalActions({ approvalId, status, canApproveOrApply }: Props) {
   const [busy, setBusy] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,18 +55,21 @@ export default function ApprovalActions({ approvalId, status }: Props) {
 
   const isPending = status === "pending";
   const isApproved = status === "approved";
+  const approveDisabled = !isPending || busy !== null || !canApproveOrApply;
+  const applyDisabled = !isApproved || busy !== null || !canApproveOrApply;
 
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
       <button
         type="button"
-        disabled={!isPending || busy !== null}
+        disabled={approveDisabled}
         onClick={() => run("approve")}
+        title={!canApproveOrApply ? "Admin role required" : undefined}
         style={{
           ...baseBtn,
-          background: !isPending || busy !== null ? "#9ca3af" : "#16a34a",
+          background: approveDisabled ? "#9ca3af" : "#16a34a",
           color: "#fff",
-          cursor: !isPending || busy !== null ? "not-allowed" : "pointer",
+          cursor: approveDisabled ? "not-allowed" : "pointer",
         }}
       >
         {busy === "approve" ? "Approving…" : "Approve"}
@@ -82,14 +89,20 @@ export default function ApprovalActions({ approvalId, status }: Props) {
       </button>
       <button
         type="button"
-        disabled={!isApproved || busy !== null}
+        disabled={applyDisabled}
         onClick={() => run("apply")}
-        title={isApproved ? "Mark as applied (operator pushes change manually)" : "Approve before applying"}
+        title={
+          !canApproveOrApply
+            ? "Admin role required"
+            : isApproved
+              ? "Mark as applied (operator pushes change manually)"
+              : "Approve before applying"
+        }
         style={{
           ...baseBtn,
-          background: !isApproved || busy !== null ? "#9ca3af" : "#0b5394",
+          background: applyDisabled ? "#9ca3af" : "#0b5394",
           color: "#fff",
-          cursor: !isApproved || busy !== null ? "not-allowed" : "pointer",
+          cursor: applyDisabled ? "not-allowed" : "pointer",
         }}
       >
         {busy === "apply" ? "Applying…" : "Apply"}

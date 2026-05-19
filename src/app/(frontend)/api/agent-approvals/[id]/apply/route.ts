@@ -5,6 +5,7 @@ import config from "@/payload.config";
 import { markApplied, markFailed } from "@/lib/agents/_shared/approval-queue";
 import { dispatchApply } from "@/lib/agents/_shared/apply-dispatcher";
 import { registerOptimateApplyHandlers } from "@/lib/agents/optimate-google-ads/apply-handlers";
+import { isAdmin } from "@/lib/access";
 
 // Side-effect: register all Optimate apply handlers on module load.
 registerOptimateApplyHandlers();
@@ -40,6 +41,15 @@ export async function POST(
   const { user } = await payload.auth({ headers: headersList });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // Admin-only: applying an approved agent proposal mutates client Google
+  // Ads accounts (or any other destination). Non-admin team members can
+  // still view the queue but should not be able to push live changes.
+  if (!isAdmin(user)) {
+    return NextResponse.json(
+      { error: "Forbidden: admin role required to apply agent proposals." },
+      { status: 403 },
+    );
   }
 
   let row: { status?: string; proposalType?: string; proposalPayload?: unknown };

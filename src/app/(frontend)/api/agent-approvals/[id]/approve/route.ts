@@ -3,6 +3,7 @@ import { headers as nextHeaders } from "next/headers";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { markApproved } from "@/lib/agents/_shared/approval-queue";
+import { isAdmin } from "@/lib/access";
 
 export async function POST(
   _request: Request,
@@ -14,6 +15,16 @@ export async function POST(
     const { user } = await payload.auth({ headers: headersList });
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    // Admin-only: approving an agent proposal is the gate that lets the
+    // matching /apply route push live changes. Keep both behind the same
+    // role check so a non-admin can't approve and then ask an admin to
+    // "just press apply" without re-reviewing.
+    if (!isAdmin(user)) {
+      return NextResponse.json(
+        { error: "Forbidden: admin role required to approve agent proposals." },
+        { status: 403 },
+      );
     }
 
     const { id } = await params;

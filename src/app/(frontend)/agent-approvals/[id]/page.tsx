@@ -10,6 +10,7 @@ import { redirect, notFound } from "next/navigation";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import ApprovalActions from "./Actions";
+import { isAdmin } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -241,7 +242,12 @@ export default async function ApprovalReviewPage({
       </div>
 
       <div style={{ ...CARD, padding: 12 }}>
-        <ApprovalActions approvalId={doc.id} status={doc.status} />
+        <ApprovalActions approvalId={doc.id} status={doc.status} canApproveOrApply={isAdmin(user)} />
+        {!isAdmin(user) && (
+          <p style={{ marginTop: 8, fontSize: 11, color: "#6b7280" }}>
+            You can review and reject this proposal. Approving or applying requires an admin role.
+          </p>
+        )}
         {doc.status === "approved" && (
           <p style={{ marginTop: 8, fontSize: 11, color: "#6b7280" }}>
             Apply marks the proposal as applied (operator runs the change manually via the existing
