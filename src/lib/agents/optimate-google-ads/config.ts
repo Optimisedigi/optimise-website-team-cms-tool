@@ -170,7 +170,7 @@ const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plai
 Presets:
 - "today" → TODAY
 - "yesterday" → YESTERDAY
-- "last week" / "past 7 days" → LAST_7_DAYS
+- "past 7 days" → LAST_7_DAYS
 - "last 14 days" / "fortnight" → LAST_14_DAYS
 - "last 30 days" / "last month-ish" → LAST_30_DAYS (default)
 - "last 60 days" → LAST_60_DAYS
@@ -178,7 +178,9 @@ Presets:
 - "this month" / "month-to-date" / "MTD" → THIS_MONTH
 - "last month" (calendar) → LAST_MONTH
 - "this week" → THIS_WEEK_MON_TODAY
-- "last week" (calendar Sunday to Saturday) → LAST_WEEK_SUN_SAT
+- "last week" (default, agency convention is Monday to Sunday) → LAST_WEEK_MON_SUN
+- "last week Monday to Sunday" → LAST_WEEK_MON_SUN (same as default)
+- "last week Sunday to Saturday", or the explicit "Sun to Sat" calendar week → LAST_WEEK_SUN_SAT (only when the user explicitly says Sun to Sat)
 
 Quarter / year (resolved to explicit ISO span server-side, no longer coerced to LAST_90_DAYS):
 - "this quarter" → THIS_QUARTER

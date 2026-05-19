@@ -23,6 +23,7 @@
  * Resolved to CUSTOM (with computed startDate/endDate):
  *   YEAR_TO_DATE / YTD
  *   THIS_QUARTER, LAST_QUARTER, QUARTER_TO_DATE / QTD
+ *   LAST_WEEK_MON_SUN  (agency convention: "last week" means Mon–Sun)
  *   "YYYY-MM-DD..YYYY-MM-DD"  (literal span)
  *   "Q1 2026" / "Q4 2025" etc.
  */
@@ -46,9 +47,12 @@ export type RangePreset = (typeof SUPPORTED_PRESETS)[number] | "CUSTOM";
 /** Per-row segmentation granularity. */
 export type Segment = "month" | "week" | "day";
 
+// `LAST_WEEK` (bare alias) used to coerce to LAST_WEEK_SUN_SAT. The agency
+// convention is Mon–Sun, so the alias now resolves to LAST_WEEK_MON_SUN
+// (a CUSTOM range computed below). Sun–Sat is still available via the
+// explicit `LAST_WEEK_SUN_SAT` preset.
 const COERCED: Record<string, { to: Exclude<RangePreset, "CUSTOM">; reason: string }> = {
   THIS_WEEK: { to: "THIS_WEEK_MON_TODAY", reason: "using THIS_WEEK_MON_TODAY" },
-  LAST_WEEK: { to: "LAST_WEEK_SUN_SAT", reason: "using LAST_WEEK_SUN_SAT" },
   LAST_BUSINESS_WEEK: { to: "LAST_WEEK_SUN_SAT", reason: "approximated as LAST_WEEK_SUN_SAT" },
 };
 
@@ -119,6 +123,30 @@ function spanLabel(start: string, end: string): string {
     return `${sm} ${s.getUTCDate()} – ${em} ${e.getUTCDate()} ${e.getUTCFullYear()}`;
   }
   return `${sm} ${s.getUTCDate()} ${s.getUTCFullYear()} – ${em} ${e.getUTCDate()} ${e.getUTCFullYear()}`;
+}
+
+/**
+ * Compute last week's Monday to Sunday in UTC, inclusive.
+ * "Last week" = the most recently-completed Mon–Sun pair, NOT the
+ * week-in-progress. If `now` is itself a Monday, last week is the seven
+ * days ending the day before (a Sunday).
+ */
+function lastWeekMonSun(now: Date): { start: string; end: string } {
+  // getUTCDay(): Sun=0, Mon=1, ..., Sat=6. We want days back to last Monday.
+  // - If today is Sun (0): last Mon is 6 days ago, last Sun is yesterday (1 day ago).
+  // - If today is Mon (1): last Mon is 7 days ago, last Sun is 1 day ago.
+  // - If today is Tue (2): last Mon is 8 days ago, last Sun is 2 days ago.
+  // - ...
+  // - If today is Sat (6): last Mon is 12 days ago, last Sun is 6 days ago.
+  const day = now.getUTCDay();
+  const daysSinceMonday = day === 0 ? 6 : day - 1; // days since most-recent Monday
+  const endOffset = daysSinceMonday + 1; // last Sunday is one day before that Monday
+  const startOffset = endOffset + 6; // 7-day Mon–Sun window
+  const end = new Date(now);
+  end.setUTCDate(end.getUTCDate() - endOffset);
+  const start = new Date(now);
+  start.setUTCDate(start.getUTCDate() - startOffset);
+  return { start: toIso(start), end: toIso(end) };
 }
 
 /** Quarter bounds in UTC, inclusive. quarter is 1–4. */
@@ -253,6 +281,21 @@ export function resolveRange(
       startDate: start,
       endDate: end,
       label,
+    };
+  }
+
+  // Agency convention: "last week" means Mon–Sun. Resolved to a CUSTOM range
+  // with explicit bounds so Growth Tools picks it up via the comma-span
+  // pass-through (no new preset required upstream). The bare alias
+  // `LAST_WEEK` also lands here so plain English continues to work.
+  if (upper === "LAST_WEEK_MON_SUN" || upper === "LAST_WEEK") {
+    const { start, end } = lastWeekMonSun(now);
+    return {
+      dateRange: "CUSTOM",
+      requested: upper,
+      startDate: start,
+      endDate: end,
+      label: `last week (Mon to Sun, ${start} to ${end})`,
     };
   }
 
