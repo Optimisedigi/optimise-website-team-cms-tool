@@ -12,18 +12,37 @@ const denormaliseClientName: CollectionBeforeChangeHook = async ({ data, req }) 
   if (!data) return data;
   if (data.clientName) return data;
   const clientId = typeof data.client === "object" ? data.client?.id : data.client;
-  if (!clientId) return data;
-  try {
-    const client = await req.payload.findByID({
-      collection: "clients",
-      id: clientId,
-      depth: 0,
-    });
-    if (client?.name) {
-      data.clientName = client.name;
+  if (clientId) {
+    try {
+      const client = await req.payload.findByID({
+        collection: "clients",
+        id: clientId,
+        depth: 0,
+      });
+      if (client?.name) {
+        data.clientName = client.name;
+        return data;
+      }
+    } catch {
+      // Fall through to proposal lookup below.
     }
-  } catch {
-    // Non-fatal — the snapshot is still valid without the denormalised name.
+  }
+  // Pre-conversion snapshots may only have a `proposal` linkage. Use the
+  // proposal's businessName so the admin list view still shows something.
+  const proposalId = typeof data.proposal === "object" ? data.proposal?.id : data.proposal;
+  if (proposalId) {
+    try {
+      const proposal = await req.payload.findByID({
+        collection: "client-proposals",
+        id: proposalId,
+        depth: 0,
+      });
+      if (proposal?.businessName) {
+        data.clientName = proposal.businessName;
+      }
+    } catch {
+      // Non-fatal — the snapshot is still valid without the denormalised name.
+    }
   }
   return data;
 };
@@ -70,12 +89,23 @@ export const AiVisibilitySnapshots: CollectionConfig = {
   },
   fields: [
     {
+      // Either `client` or `proposal` must be set. Pre-conversion snapshots
+      // (run from a ClientProposal) only have `proposal`; the convertToClient
+      // hook back-fills `client` when the proposal becomes a Client.
       name: "client",
       type: "relationship",
       relationTo: "clients",
-      required: true,
       admin: {
-        description: "Linked client",
+        description: "Linked client (set after a proposal converts)",
+      },
+    },
+    {
+      name: "proposal",
+      type: "relationship",
+      relationTo: "client-proposals",
+      admin: {
+        description:
+          "Linked client proposal (only set for pre-conversion ad-hoc snapshots; persists after conversion so the proposal page can still link the result).",
       },
     },
     {
