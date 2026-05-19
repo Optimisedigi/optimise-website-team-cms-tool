@@ -40,6 +40,13 @@ export async function POST(
     }
 
     const { id } = await params;
+    // URL params arrive as strings, but Payload's relationship validator for a
+    // SQLite-backed numeric collection rejects string IDs with
+    // "The following field is invalid: Audit". Coerce once here so both the
+    // user + assistant persist writes (and the runChatTurn audit lookup) get a
+    // proper number. If the id isn't numeric we leave it alone — the audit
+    // load on line 126 will throw a clearer 404 below.
+    const auditIdNum = /^\d+$/.test(id) ? Number(id) : (id as unknown as number);
     const body = (await request.json()) as {
       message?: unknown;
       history?: unknown;
@@ -173,7 +180,7 @@ export async function POST(
         collection: "optimate-chat-turns" as any,
         data: {
           sessionId,
-          audit: id,
+          audit: auditIdNum,
           user: user.id,
           client: linkedClient?.id ?? undefined,
           role: "user",
@@ -212,7 +219,7 @@ export async function POST(
         collection: "optimate-chat-turns" as any,
         data: {
           sessionId,
-          audit: id,
+          audit: auditIdNum,
           user: user.id,
           client: linkedClient?.id ?? undefined,
           role: "assistant",
