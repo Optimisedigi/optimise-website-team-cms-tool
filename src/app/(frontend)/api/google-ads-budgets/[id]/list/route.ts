@@ -199,9 +199,19 @@ export async function GET(
         }
       } catch { /* no saved data */ }
 
-      // Normalize for frontend component, merging saved allocations
+      // Normalize for frontend component, merging saved allocations.
+      // `searchImpressionShare` and `searchBudgetLostIS` are pass-through from
+      // Growth Tools when present (Search/Shopping). They power the
+      // "Limited by budget" badge — absent values just hide the badge.
       const normalized = campaigns.map((c: any) => {
         const saved = savedMap.get(c.campaignId);
+        // Growth Tools may emit either snake_case or camelCase; accept both.
+        const rawSearchIS =
+          c.searchImpressionShare ?? c.search_impression_share;
+        const rawBudgetLostIS =
+          c.searchBudgetLostIS ??
+          c.search_budget_lost_impression_share ??
+          c.budgetLostImpressionShare;
         return {
           campaignId: c.campaignId,
           campaignName: c.campaignName,
@@ -224,6 +234,14 @@ export async function GET(
           mtdSpend: c.cost || 0, // Actual MTD spend from Google Ads
           campaignStatus: c.campaignStatus,
           channelType: c.channelType,
+          searchImpressionShare:
+            typeof rawSearchIS === 'number' && rawSearchIS >= 0
+              ? rawSearchIS
+              : undefined,
+          searchBudgetLostIS:
+            typeof rawBudgetLostIS === 'number' && rawBudgetLostIS >= 0
+              ? rawBudgetLostIS
+              : undefined,
         };
       });
 

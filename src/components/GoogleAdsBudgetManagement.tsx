@@ -18,6 +18,26 @@ import {
 
 type CampaignFilter = 'enabled' | 'paused' | 'all';
 
+/** Shape returned by /api/google-ads-budgets/[id]/ad-groups. Kept in sync
+ *  with the AdGroupRow type in that route handler. */
+interface AdGroupRow {
+  adGroupId: string;
+  adGroupName: string;
+  status?: string;
+  impressions: number;
+  clicks: number;
+  avgCpc: number;
+  conversions: number;
+  cost: number;
+  searchImpressionShare?: number;
+  searchBudgetLostIS?: number;
+}
+
+/** Minimum Search Budget Lost IS at which we surface the
+ *  "Limited by budget" badge. 10% is the threshold the Google Ads UI itself
+ *  uses for its column highlighting — below that, daily noise dominates. */
+const LIMITED_BY_BUDGET_THRESHOLD = 0.1;
+
 const BID_STRATEGIES = [
   { label: 'Manual CPC', value: 'manual_cpc' },
   { label: 'Maximize Conversions', value: 'maximize_conversions' },
@@ -66,6 +86,15 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     body: string;
   }>>([]);
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('enabled');
+  // "Show ad groups" toggle. Per spec, toggling on does NOT auto-expand any
+  // campaign; it just enables the ad-group sub-table inside each campaign's
+  // expanded panel. Ad groups are fetched lazily on first expand and cached.
+  const [showAdGroups, setShowAdGroups] = useState(false);
+  const [adGroupsByCampaign, setAdGroupsByCampaign] = useState<
+    Record<string, AdGroupRow[]>
+  >({});
+  const [adGroupsLoading, setAdGroupsLoading] = useState<Record<string, boolean>>({});
+  const [adGroupsError, setAdGroupsError] = useState<Record<string, string | null>>({});
   const [businessName, setBusinessName] = useState('Client');
   const [clientSlug, setClientSlug] = useState('');
   const [clientPin, setClientPin] = useState('');
@@ -104,6 +133,37 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       };
     });
   }, []);
+
+  // Lazy-fetch ad groups for a single campaign. Cached per campaignId so
+  // re-expanding doesn't re-hit Growth Tools. Called only when the user
+  // expands a campaign AND the "Show ad groups" toggle is on.
+  const fetchAdGroups = useCallback(async (campaignId: string) => {
+    if (!id) return;
+    if (adGroupsByCampaign[campaignId] || adGroupsLoading[campaignId]) return;
+    setAdGroupsLoading(prev => ({ ...prev, [campaignId]: true }));
+    setAdGroupsError(prev => ({ ...prev, [campaignId]: null }));
+    try {
+      const res = await fetch(
+        `/api/google-ads-budgets/${id}/ad-groups?campaignId=${encodeURIComponent(campaignId)}`,
+        { credentials: 'include' },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || `Failed to load ad groups (${res.status})`);
+      }
+      setAdGroupsByCampaign(prev => ({
+        ...prev,
+        [campaignId]: Array.isArray(data?.adGroups) ? data.adGroups : [],
+      }));
+    } catch (err: any) {
+      setAdGroupsError(prev => ({
+        ...prev,
+        [campaignId]: err?.message || 'Failed to load ad groups',
+      }));
+    } finally {
+      setAdGroupsLoading(prev => ({ ...prev, [campaignId]: false }));
+    }
+  }, [id, adGroupsByCampaign, adGroupsLoading]);
 
   const handleMonthlyTotalChange = useCallback((newTotal: number) => {
     setMonthlyTotal(newTotal);
@@ -1054,30 +1114,67 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
           </div>
         </div>
 
-        {/* Filter tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
-          {([
-            { key: 'enabled' as CampaignFilter, label: 'Enabled', count: campaigns.filter(c => c.enabled).length },
-            { key: 'paused' as CampaignFilter, label: 'Paused', count: campaigns.filter(c => !c.enabled).length },
-            { key: 'all' as CampaignFilter, label: 'All', count: campaigns.length },
-          ]).map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setCampaignFilter(tab.key)}
+        {/* Filter tabs + ad-groups toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([
+              { key: 'enabled' as CampaignFilter, label: 'Enabled', count: campaigns.filter(c => c.enabled).length },
+              { key: 'paused' as CampaignFilter, label: 'Paused', count: campaigns.filter(c => !c.enabled).length },
+              { key: 'all' as CampaignFilter, label: 'All', count: campaigns.length },
+            ]).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setCampaignFilter(tab.key)}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: 12,
+                  fontWeight: campaignFilter === tab.key ? 600 : 400,
+                  background: campaignFilter === tab.key ? '#1e293b' : '#f1f5f9',
+                  color: campaignFilter === tab.key ? '#fff' : '#64748b',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                {tab.label} ({tab.count})
+              </button>
+            ))}
+          </div>
+          {/* Show ad groups toggle. When ON, expanding a campaign also
+              fetches and renders its ad groups inline. Toggling on does NOT
+              auto-expand anything — the user still clicks each campaign to
+              drill in (matches spec 5.1b). */}
+          <label
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#64748b', cursor: 'pointer', marginLeft: 'auto' }}
+            title="When enabled, expanding a campaign also shows its ad groups inline"
+          >
+            <span>Show ad groups</span>
+            <div
+              onClick={() => {
+                const next = !showAdGroups;
+                setShowAdGroups(next);
+                // If a campaign is currently expanded and the toggle just
+                // flipped ON, eagerly load its ad groups so the panel
+                // populates without a second click.
+                if (next && expandedCampaign) {
+                  fetchAdGroups(expandedCampaign);
+                }
+              }}
               style={{
-                padding: '6px 14px',
-                fontSize: 12,
-                fontWeight: campaignFilter === tab.key ? 600 : 400,
-                background: campaignFilter === tab.key ? '#1e293b' : '#f1f5f9',
-                color: campaignFilter === tab.key ? '#fff' : '#64748b',
-                border: 'none',
-                borderRadius: 6,
-                cursor: 'pointer',
+                width: 32, height: 18, borderRadius: 9, position: 'relative',
+                background: showAdGroups ? '#2563eb' : '#d1d5db',
+                transition: 'background 0.2s',
               }}
             >
-              {tab.label} ({tab.count})
-            </button>
-          ))}
+              <div style={{
+                width: 14, height: 14, borderRadius: 7, background: '#fff',
+                position: 'absolute', top: 2,
+                left: showAdGroups ? 16 : 2,
+                transition: 'left 0.2s',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+              }} />
+            </div>
+          </label>
         </div>
 
         {/* Percentage bar */}
@@ -1144,7 +1241,15 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                 <div key={campaign.campaignId} style={{ borderBottom: index < filtered.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                   <div
                     style={{ display: 'grid', gridTemplateColumns: '36px 2.2fr 0.7fr 0.8fr 0.8fr 0.7fr 0.6fr 0.8fr', gap: 8, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
-                    onClick={() => setExpandedCampaign(isExpanded ? null : campaign.campaignId)}
+                    onClick={() => {
+                      const next = isExpanded ? null : campaign.campaignId;
+                      setExpandedCampaign(next);
+                      // Lazy-load ad groups for this campaign the first time
+                      // it's expanded with the toggle on. Cached per id.
+                      if (next && showAdGroups) {
+                        fetchAdGroups(next);
+                      }
+                    }}
                   >
                     {/* Toggle */}
                     <div onClick={(e) => { e.stopPropagation(); handleToggleCampaign(campaign.campaignId); }} style={{ cursor: 'pointer' }}>
@@ -1164,9 +1269,39 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                     </div>
 
                     <div style={{ minWidth: 0 }}>
-                      <div title={campaign.campaignName} style={{ fontWeight: 500, color: campaign.enabled ? '#1e293b' : '#94a3b8', display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.3 }}>
+                      <div title={campaign.campaignName} style={{ fontWeight: 500, color: campaign.enabled ? '#1e293b' : '#94a3b8', display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.3, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 10, color: '#94a3b8', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)', marginTop: 3, flexShrink: 0 }}>▶</span>
                         <span style={{ wordBreak: 'break-word' }}>{campaign.campaignName}</span>
+                        {typeof campaign.searchBudgetLostIS === 'number' &&
+                          campaign.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD && (
+                            <span
+                              title={`Search Budget Lost IS: ${(campaign.searchBudgetLostIS * 100).toFixed(0)}%. This campaign is losing impressions because its daily budget is capped.${
+                                typeof campaign.searchImpressionShare === 'number'
+                                  ? ` Current Search IS: ${(campaign.searchImpressionShare * 100).toFixed(0)}%.`
+                                  : ''
+                              }`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 8px',
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: '#b45309',
+                                background: '#fef3c7',
+                                border: '1px solid #fde68a',
+                                borderRadius: 10,
+                                whiteSpace: 'nowrap',
+                                marginTop: 1,
+                              }}
+                            >
+                              Limited by budget — {(campaign.searchBudgetLostIS * 100).toFixed(0)}%
+                              {typeof campaign.searchImpressionShare === 'number' && (
+                                <span style={{ marginLeft: 6, color: '#92400e', fontWeight: 500 }}>
+                                  (IS {(campaign.searchImpressionShare * 100).toFixed(0)}%)
+                                </span>
+                              )}
+                            </span>
+                          )}
                       </div>
                       {budgetDiff !== null && Math.abs(budgetDiff) > 0.01 && (
                         <div style={{ fontSize: 10, color: '#d97706', marginLeft: 16 }}>
@@ -1296,6 +1431,99 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                           <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 12 }}>{campaign.lastPushedAt ? new Date(campaign.lastPushedAt).toLocaleDateString() : 'Never'}</div>
                         </div>
                       </div>
+
+                      {/* Ad-groups sub-table. Only rendered when the user
+                          has flipped the "Show ad groups" toggle on. */}
+                      {showAdGroups && (() => {
+                        const rows = adGroupsByCampaign[campaign.campaignId];
+                        const loadingAg = adGroupsLoading[campaign.campaignId];
+                        const errorAg = adGroupsError[campaign.campaignId];
+                        return (
+                          <div style={{ marginTop: 4, marginBottom: 12, padding: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>Ad Groups</div>
+                              {!loadingAg && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Force a refetch by clearing the cache slot first.
+                                    setAdGroupsByCampaign(prev => {
+                                      const next = { ...prev };
+                                      delete next[campaign.campaignId];
+                                      return next;
+                                    });
+                                    fetchAdGroups(campaign.campaignId);
+                                  }}
+                                  style={{ fontSize: 11, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                                >
+                                  Refresh
+                                </button>
+                              )}
+                            </div>
+                            {loadingAg && (
+                              <div style={{ padding: 16, fontSize: 12, color: '#64748b', textAlign: 'center' }}>Loading ad groups…</div>
+                            )}
+                            {!loadingAg && errorAg && (
+                              <div style={{ padding: 12, fontSize: 12, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6 }}>
+                                {errorAg}
+                              </div>
+                            )}
+                            {!loadingAg && !errorAg && rows && rows.length === 0 && (
+                              <div style={{ padding: 12, fontSize: 12, color: '#64748b', textAlign: 'center' }}>No ad groups returned for this campaign.</div>
+                            )}
+                            {!loadingAg && !errorAg && rows && rows.length > 0 && (
+                              <div style={{ border: '1px solid #f1f5f9', borderRadius: 6, overflow: 'hidden' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.8fr 0.8fr 0.8fr 0.8fr', gap: 8, padding: '8px 12px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', fontSize: 11, fontWeight: 600, color: '#64748b' }}>
+                                  <div>Ad Group</div>
+                                  <div style={{ textAlign: 'right' }}>MTD Spend</div>
+                                  <div style={{ textAlign: 'right' }}>Impr.</div>
+                                  <div style={{ textAlign: 'right' }}>Clicks</div>
+                                  <div style={{ textAlign: 'right' }}>Conv.</div>
+                                </div>
+                                {rows.map((ag, agIdx) => (
+                                  <div
+                                    key={ag.adGroupId}
+                                    style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.8fr 0.8fr 0.8fr 0.8fr', gap: 8, padding: '8px 12px', alignItems: 'center', borderBottom: agIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: 12 }}
+                                  >
+                                    <div style={{ minWidth: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                      <span style={{ wordBreak: 'break-word' }}>{ag.adGroupName}</span>
+                                      {typeof ag.searchBudgetLostIS === 'number' &&
+                                        ag.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD && (
+                                          <span
+                                            title={`Search Budget Lost IS: ${(ag.searchBudgetLostIS * 100).toFixed(0)}%${
+                                              typeof ag.searchImpressionShare === 'number'
+                                                ? ` · Current Search IS: ${(ag.searchImpressionShare * 100).toFixed(0)}%`
+                                                : ''
+                                            }`}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              padding: '1px 6px',
+                                              fontSize: 10,
+                                              fontWeight: 600,
+                                              color: '#b45309',
+                                              background: '#fef3c7',
+                                              border: '1px solid #fde68a',
+                                              borderRadius: 8,
+                                              whiteSpace: 'nowrap',
+                                            }}
+                                          >
+                                            Limited — {(ag.searchBudgetLostIS * 100).toFixed(0)}%
+                                          </span>
+                                        )}
+                                    </div>
+                                    <div style={{ textAlign: 'right', color: '#d97706', fontWeight: 500 }}>${(ag.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                    <div style={{ textAlign: 'right', color: '#64748b' }}>{(ag.impressions || 0).toLocaleString()}</div>
+                                    <div style={{ textAlign: 'right', color: '#64748b' }}>{(ag.clicks || 0).toLocaleString()}</div>
+                                    <div style={{ textAlign: 'right', color: '#6366f1', fontWeight: 500 }}>{(ag.conversions || 0).toLocaleString()}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {campaign.standalone && (
                         <div style={{ padding: 12, background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 8, marginTop: 4 }}>

@@ -32,6 +32,20 @@ export interface BudgetCampaign {
   standaloneBudget?: number;
   standaloneStartDate?: string | null;
   standaloneEndDate?: string | null;
+  /**
+   * Search Impression Share (0–1). Share of impressions actually served vs.
+   * eligible. Sourced from Google Ads `metrics.search_impression_share`.
+   * Optional — only populated when Growth Tools returns it (Search/Shopping
+   * campaigns; Performance Max / video campaigns won't have it).
+   */
+  searchImpressionShare?: number;
+  /**
+   * Search Budget Lost IS (0–1). Share of impressions lost specifically due
+   * to insufficient budget. The Budget Management UI surfaces a
+   * "Limited by budget" badge whenever this value is meaningful (≥0.10).
+   * Sourced from `metrics.search_budget_lost_impression_share`.
+   */
+  searchBudgetLostIS?: number;
 }
 
 export interface MonthlySpend {
