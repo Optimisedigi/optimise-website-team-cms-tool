@@ -7,6 +7,7 @@ import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../co
 import { default as default_30019ca76d88f22be3a9fab3c840976c } from '../../../components/AccountTimelineTable'
 import { default as default_1a2b8d9a179321ad34f0f546c6575e98 } from '../../../components/StartProcessButton'
 import { default as default_b625d4fd2a78fb543eb54574c50e62fc } from '../../../components/LinkedProcesses'
+import { default as default_ClientToolsTab_3f8a } from '../../../components/ClientToolsTab'
 import { RscEntryLexicalCell as RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { RscEntryLexicalField as RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { LexicalDiffComponent as LexicalDiffComponent_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
@@ -267,6 +268,7 @@ export const importMap = {
   "./components/ViewportMeta#default": default_33065b9984d3bdded8a6f86ee55a36a3,
   "./components/RocketLoader#default": default_e04f18ecb5b37d25b0e6d09a3fc98708,
   "./components/FirstLoginSetup#default": default_f79b4ca75381164e95f118cd1e894463,
+  "./components/ClientToolsTab#default": default_ClientToolsTab_3f8a,
   "./components/DashboardGate#default": default_74b6b86d3385b0ec4a17d6136dd3b989,
   "./components/NavigationRecovery#default": default_30b462c31bfed4dfe63e7ef34d180475,
   "./components/MiniSidebar#default": default_47cb45239198beef21a512f6c005e728,

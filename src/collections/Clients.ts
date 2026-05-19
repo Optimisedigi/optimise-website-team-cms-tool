@@ -1906,8 +1906,98 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
-          label: "SEO Health",
+          label: "Search",
+          description:
+            "Consolidated home for search-side configuration — Search Console, SEO Health monitoring, SERP tracking, and AI Visibility. The brand keywords list below is the single source of truth used by every feature in this tab, the Google Ads dashboard's brand-vs-generic split, AI Search Erosion Detector, negative-sweep, and quality score analysis.",
           fields: [
+            {
+              name: "brandKeywords",
+              type: "textarea",
+              admin: {
+                description:
+                  "Brand terms (one per line OR comma-separated). Single source of truth used by GSC monitoring, Google Ads dashboard (brand-vs-generic spend split), AI Visibility, AI Search Erosion Detector, negative-sweep, and quality score analysis. Per-audit overrides live on each Google Ads audit's brandTerms field. Entries shorter than 3 chars are ignored.",
+              },
+            },
+            {
+              type: "tabs",
+              tabs: [
+                {
+                  label: "Search Console",
+                  fields: [
+                    {
+                      name: "gscConnected",
+                      type: "checkbox",
+                      defaultValue: false,
+                      admin: {
+                        readOnly: true,
+                        description: "Whether Google Search Console is connected",
+                      },
+                    },
+                    {
+                      name: "gscPropertyUrl",
+                      type: "text",
+                      admin: {
+                        readOnly: true,
+                        description: "The connected GSC property URL",
+                      },
+                    },
+                    {
+                      name: "gscAccessToken",
+                      type: "text",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                        disabled: true,
+                        hidden: true,
+                      },
+                    },
+                    {
+                      name: "gscRefreshToken",
+                      type: "text",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                        disabled: true,
+                        hidden: true,
+                      },
+                    },
+                    {
+                      name: "gscTokenExpiry",
+                      type: "date",
+                      access: sensitiveFieldAccess("clients"),
+                      admin: {
+                        disabled: true,
+                        hidden: true,
+                      },
+                    },
+                    {
+                      name: "gscSiteUrl",
+                      type: "text",
+                      admin: {
+                        description:
+                          "Google Search Console property URL. Use the exact GSC format — e.g. `sc-domain:example.com.au` for a domain property, or `https://www.example.com/` for a URL-prefix property (trailing slash required). Read by the AI Search Erosion Detector. Leave empty to fall back to the Business tab's Website URL.",
+                      },
+                    },
+                    {
+                      name: "gscLastSync",
+                      type: "date",
+                      admin: {
+                        readOnly: true,
+                        description: "Last successful GSC data sync",
+                      },
+                    },
+                    {
+                      name: "latestGscSnapshot",
+                      type: "relationship",
+                      relationTo: "gsc-snapshots",
+                      admin: {
+                        readOnly: true,
+                        description: "Most recent GSC data snapshot",
+                      },
+                    },
+                  ],
+                },
+                {
+                  label: "SEO Health",
+                  fields: [
             {
               name: "seoAuto",
               type: "group",
@@ -2006,6 +2096,180 @@ export const Clients: CollectionConfig = {
                 description: "Monthly site health reports for this client",
                 defaultColumns: ["healthScore", "reportDate", "issuesSummary"],
               },
+            },
+                  ],
+                },
+                {
+                  label: "SERP Monitor",
+                  fields: [
+                    {
+                      name: "serpMonitor",
+                      type: "group",
+                      admin: {
+                        description:
+                          "Daily SERP tracking. Detects AI Overview appearance and paid-displacement risk. Domain is inherited from the Business tab's Website URL by default. See the Notes tab for full setup instructions.",
+                      },
+                      fields: [
+                        {
+                          name: "enabled",
+                          type: "checkbox",
+                          defaultValue: false,
+                        },
+                        {
+                          name: "domain",
+                          type: "text",
+                          admin: {
+                            description:
+                              "Optional override. Leave empty to inherit the client's Website URL from the Business tab (recommended). Only set this when the SERP target differs from the main site (e.g. tracking a subdomain like 'shop.example.com').",
+                          },
+                        },
+                        {
+                          name: "keywords",
+                          type: "array",
+                          maxRows: 50,
+                          fields: [
+                            {
+                              name: "keyword",
+                              type: "text",
+                              required: true,
+                              maxLength: 200,
+                            },
+                            {
+                              name: "location",
+                              type: "select",
+                              required: true,
+                              defaultValue: "au:sydney",
+                              options: [
+                                { label: "🇦🇺 Australia", value: "au" },
+                                { label: "🏄 Sydney", value: "au:sydney" },
+                                { label: "☕ Melbourne", value: "au:melbourne" },
+                                { label: "🦘 Brisbane", value: "au:brisbane" },
+                                { label: "🌴 Perth", value: "au:perth" },
+                                { label: "🇺🇸 United States", value: "us" },
+                                { label: "🗽 New York", value: "us:new-york" },
+                                { label: "🌴 Los Angeles", value: "us:los-angeles" },
+                                { label: "🏙️ Chicago", value: "us:chicago" },
+                                { label: "🚀 Houston", value: "us:houston" },
+                                { label: "🏖️ Miami", value: "us:miami" },
+                                { label: "🇬🇧 United Kingdom", value: "uk" },
+                                { label: "🏛️ London", value: "uk:london" },
+                                { label: "⚽ Manchester", value: "uk:manchester" },
+                                { label: "🏭 Birmingham", value: "uk:birmingham" },
+                                { label: "🇨🇦 Canada", value: "ca" },
+                                { label: "🍁 Toronto", value: "ca:toronto" },
+                                { label: "🏔️ Vancouver", value: "ca:vancouver" },
+                                { label: "🎭 Montreal", value: "ca:montreal" },
+                                { label: "🇩🇪 Germany", value: "de" },
+                                { label: "🇫🇷 France", value: "fr" },
+                                { label: "🗼 Paris", value: "fr:paris" },
+                                { label: "🇪🇸 Spain", value: "es" },
+                                { label: "🇮🇹 Italy", value: "it" },
+                                { label: "🇯🇵 Japan", value: "jp" },
+                                { label: "🗼 Tokyo", value: "jp:tokyo" },
+                                { label: "🇮🇳 India", value: "in" },
+                                { label: "🇸🇬 Singapore", value: "sg" },
+                                { label: "🇭🇰 Hong Kong", value: "hk" },
+                                { label: "🇳🇱 Netherlands", value: "nl" },
+                              ],
+                            },
+                            {
+                              name: "device",
+                              type: "radio",
+                              defaultValue: "desktop",
+                              options: [
+                                { label: "Desktop", value: "desktop" },
+                                { label: "Mobile", value: "mobile" },
+                              ],
+                            },
+                          ],
+                        },
+                        {
+                          name: "alertRecipientEmails",
+                          type: "array",
+                          admin: {
+                            description:
+                              "Recipients of the daily SERP alert digest. Add one row per email. Leave empty to skip email delivery (snapshots still recorded). Alerts only fire when one of the keywords breaches the thresholds below.",
+                          },
+                          fields: [{ name: "email", type: "email", required: true }],
+                        },
+                        {
+                          name: "alertThresholds",
+                          type: "group",
+                          fields: [
+                            {
+                              name: "organicDropPositions",
+                              type: "number",
+                              defaultValue: 3,
+                              min: 1,
+                              max: 50,
+                              admin: {
+                                description:
+                                  "Alert when our organic position drops by this many spots day-over-day.",
+                              },
+                            },
+                            {
+                              name: "pixelOffsetDrop",
+                              type: "number",
+                              defaultValue: 400,
+                              min: 100,
+                              max: 2000,
+                              admin: {
+                                description:
+                                  "Alert when estimated vertical pixel offset increases by this much (lower = more sensitive).",
+                              },
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  label: "AI Visibility",
+                  fields: [
+                    {
+                      name: "aiVisibility",
+                      type: "group",
+                      label: "AI Visibility Tracker",
+                      admin: {
+                        description:
+                          "Configure weekly AI Visibility snapshots — traffic from ChatGPT, Gemini, Perplexity, Claude, etc. — and buyer-question probes run across those assistants.",
+                      },
+                      fields: [
+                        {
+                          name: "enabled",
+                          type: "checkbox",
+                          defaultValue: false,
+                          admin: {
+                            description:
+                              "Enable weekly AI Visibility snapshots (traffic from ChatGPT, Gemini, Perplexity, Claude, etc).",
+                          },
+                        },
+                        {
+                          name: "recipientEmails",
+                          type: "array",
+                          fields: [{ name: "email", type: "email", required: true }],
+                          admin: {
+                            description: "Who receives the weekly AI Visibility digest.",
+                          },
+                        },
+                        {
+                          name: "probePrompts",
+                          type: "array",
+                          maxRows: 20,
+                          fields: [
+                            { name: "prompt", type: "text", required: true, maxLength: 500 },
+                          ],
+                          admin: {
+                            description:
+                              "Phase 4 — buyer questions to run through ChatGPT/Gemini/Perplexity/Claude each week. Leave empty to skip probing.",
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
             },
           ],
         },
@@ -2248,176 +2512,6 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
-          label: "AI Visibility",
-          fields: [
-            {
-              name: "aiVisibility",
-              type: "group",
-              label: "AI Visibility Tracker",
-              admin: {
-                description:
-                  "Configure weekly AI Visibility snapshots — traffic from ChatGPT, Gemini, Perplexity, Claude, etc. — and buyer-question probes run across those assistants.",
-              },
-              fields: [
-                {
-                  name: "enabled",
-                  type: "checkbox",
-                  defaultValue: false,
-                  admin: {
-                    description:
-                      "Enable weekly AI Visibility snapshots (traffic from ChatGPT, Gemini, Perplexity, Claude, etc).",
-                  },
-                },
-                {
-                  name: "recipientEmails",
-                  type: "array",
-                  fields: [{ name: "email", type: "email", required: true }],
-                  admin: {
-                    description: "Who receives the weekly AI Visibility digest.",
-                  },
-                },
-                {
-                  name: "probePrompts",
-                  type: "array",
-                  maxRows: 20,
-                  fields: [
-                    { name: "prompt", type: "text", required: true, maxLength: 500 },
-                  ],
-                  admin: {
-                    description:
-                      "Phase 4 — buyer questions to run through ChatGPT/Gemini/Perplexity/Claude each week. Leave empty to skip probing.",
-                  },
-                },
-              ],
-            },
-          ],
-        },
-        {
-          label: "SERP Monitor",
-          fields: [
-            {
-              name: "serpMonitor",
-              type: "group",
-              admin: {
-                description:
-                  "Daily SERP tracking. Detects AI Overview appearance and paid-displacement risk. Domain is inherited from the Business tab's Website URL by default. See the Notes tab for full setup instructions.",
-              },
-              fields: [
-                {
-                  name: "enabled",
-                  type: "checkbox",
-                  defaultValue: false,
-                },
-                {
-                  name: "domain",
-                  type: "text",
-                  admin: {
-                    description:
-                      "Optional override. Leave empty to inherit the client's Website URL from the Business tab (recommended). Only set this when the SERP target differs from the main site (e.g. tracking a subdomain like 'shop.example.com').",
-                  },
-                },
-                {
-                  name: "keywords",
-                  type: "array",
-                  maxRows: 50,
-                  fields: [
-                    {
-                      name: "keyword",
-                      type: "text",
-                      required: true,
-                      maxLength: 200,
-                    },
-                    {
-                      name: "location",
-                      type: "select",
-                      required: true,
-                      defaultValue: "au:sydney",
-                      options: [
-                        { label: "🇦🇺 Australia", value: "au" },
-                        { label: "🏄 Sydney", value: "au:sydney" },
-                        { label: "☕ Melbourne", value: "au:melbourne" },
-                        { label: "🦘 Brisbane", value: "au:brisbane" },
-                        { label: "🌴 Perth", value: "au:perth" },
-                        { label: "🇺🇸 United States", value: "us" },
-                        { label: "🗽 New York", value: "us:new-york" },
-                        { label: "🌴 Los Angeles", value: "us:los-angeles" },
-                        { label: "🏙️ Chicago", value: "us:chicago" },
-                        { label: "🚀 Houston", value: "us:houston" },
-                        { label: "🏖️ Miami", value: "us:miami" },
-                        { label: "🇬🇧 United Kingdom", value: "uk" },
-                        { label: "🏛️ London", value: "uk:london" },
-                        { label: "⚽ Manchester", value: "uk:manchester" },
-                        { label: "🏭 Birmingham", value: "uk:birmingham" },
-                        { label: "🇨🇦 Canada", value: "ca" },
-                        { label: "🍁 Toronto", value: "ca:toronto" },
-                        { label: "🏔️ Vancouver", value: "ca:vancouver" },
-                        { label: "🎭 Montreal", value: "ca:montreal" },
-                        { label: "🇩🇪 Germany", value: "de" },
-                        { label: "🇫🇷 France", value: "fr" },
-                        { label: "🗼 Paris", value: "fr:paris" },
-                        { label: "🇪🇸 Spain", value: "es" },
-                        { label: "🇮🇹 Italy", value: "it" },
-                        { label: "🇯🇵 Japan", value: "jp" },
-                        { label: "🗼 Tokyo", value: "jp:tokyo" },
-                        { label: "🇮🇳 India", value: "in" },
-                        { label: "🇸🇬 Singapore", value: "sg" },
-                        { label: "🇭🇰 Hong Kong", value: "hk" },
-                        { label: "🇳🇱 Netherlands", value: "nl" },
-                      ],
-                    },
-                    {
-                      name: "device",
-                      type: "radio",
-                      defaultValue: "desktop",
-                      options: [
-                        { label: "Desktop", value: "desktop" },
-                        { label: "Mobile", value: "mobile" },
-                      ],
-                    },
-                  ],
-                },
-                {
-                  name: "alertRecipientEmails",
-                  type: "array",
-                  admin: {
-                    description:
-                      "Recipients of the daily SERP alert digest. Add one row per email. Leave empty to skip email delivery (snapshots still recorded). Alerts only fire when one of the keywords breaches the thresholds below.",
-                  },
-                  fields: [{ name: "email", type: "email", required: true }],
-                },
-                {
-                  name: "alertThresholds",
-                  type: "group",
-                  fields: [
-                    {
-                      name: "organicDropPositions",
-                      type: "number",
-                      defaultValue: 3,
-                      min: 1,
-                      max: 50,
-                      admin: {
-                        description:
-                          "Alert when our organic position drops by this many spots day-over-day.",
-                      },
-                    },
-                    {
-                      name: "pixelOffsetDrop",
-                      type: "number",
-                      defaultValue: 400,
-                      min: 100,
-                      max: 2000,
-                      admin: {
-                        description:
-                          "Alert when estimated vertical pixel offset increases by this much (lower = more sensitive).",
-                      },
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-        {
           label: "Proposal",
           fields: [
             {
@@ -2561,83 +2655,32 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
-          label: "Search Console",
+          label: "Tools",
+          description:
+            "Per-client integration status (GA4, GSC, Google Ads, Meta Ads). All four use a shared agency account — this tab maps the client to their property/account IDs and verifies the agency credentials can read them. Gmail is intentionally excluded (per-user OAuth).",
           fields: [
             {
-              name: "gscConnected",
-              type: "checkbox",
-              defaultValue: false,
-              admin: {
-                readOnly: true,
-                description: "Whether Google Search Console is connected",
-              },
-            },
-            {
-              name: "gscPropertyUrl",
-              type: "text",
-              admin: {
-                readOnly: true,
-                description: "The connected GSC property URL",
-              },
-            },
-            {
-              name: "gscAccessToken",
-              type: "text",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                disabled: true,
-                hidden: true,
-              },
-            },
-            {
-              name: "gscRefreshToken",
-              type: "text",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                disabled: true,
-                hidden: true,
-              },
-            },
-            {
-              name: "gscTokenExpiry",
-              type: "date",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                disabled: true,
-                hidden: true,
-              },
-            },
-            {
-              name: "gscSiteUrl",
+              name: "metaAdAccountId",
               type: "text",
               admin: {
                 description:
-                  "Google Search Console property URL. Use the exact GSC format — e.g. `sc-domain:example.com.au` for a domain property, or `https://www.example.com/` for a URL-prefix property (trailing slash required). Read by the AI Search Erosion Detector. Leave empty to fall back to the Business tab's Website URL.",
+                  "Meta Ads account ID (format: act_XXXXXXXXX). Client must grant the Optimise Digital Business Manager access. Used by the Tools panel below.",
+              },
+              validate: (value: string | null | undefined) => {
+                if (!value) return true;
+                if (!/^act_\d+$/.test(value)) {
+                  return 'Meta Ad Account ID must look like "act_XXXXXXXXX".';
+                }
+                return true;
               },
             },
             {
-              name: "brandKeywords",
-              type: "textarea",
+              name: "_toolsPanel",
+              type: "ui",
               admin: {
-                description:
-                  "Brand terms (one per line OR comma-separated). Single source of truth used by GSC monitoring, Google Ads dashboard, AI Visibility, AI Search Erosion Detector, negative-sweep, and quality score analysis. Per-audit overrides live on each Google Ads audit's brandTerms field. Entries shorter than 3 chars are ignored.",
-              },
-            },
-            {
-              name: "gscLastSync",
-              type: "date",
-              admin: {
-                readOnly: true,
-                description: "Last successful GSC data sync",
-              },
-            },
-            {
-              name: "latestGscSnapshot",
-              type: "relationship",
-              relationTo: "gsc-snapshots",
-              admin: {
-                readOnly: true,
-                description: "Most recent GSC data snapshot",
+                components: {
+                  Field: "./components/ClientToolsTab",
+                },
               },
             },
           ],
