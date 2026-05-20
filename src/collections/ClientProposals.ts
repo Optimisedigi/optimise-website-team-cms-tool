@@ -7,6 +7,7 @@ import type {
 import { proposalEditor } from "@/lib/proposalEditor";
 import { logActivity } from "../lib/activity-log";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+import { syncContractToClient } from "../lib/contract-to-client-sync";
 
 const ROADMAP_DEFAULTS = {
   buildLaunch: [
@@ -299,15 +300,21 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
       }));
 
       // Create a new Client from the proposal data
-      // Find completed contract linked to this proposal
+      // Find the most recent sent-or-completed contract linked to this proposal.
+      // We accept `sent` (not just `completed`) because the financial terms
+      // (monthlyRetainer / setupFee / contractStartDate) are captured the moment
+      // a contract is dispatched — the user may convert the proposal to a client
+      // before counter-signature, and the team still wants those numbers on the
+      // new client record.
       let completedContract: any = null;
       try {
         const contractResults = await payload.find({
           collection: "contracts",
           where: {
             proposal: { equals: doc.id },
-            status: { equals: "completed" },
+            status: { in: ["sent", "completed"] },
           },
+          sort: "-updatedAt",
           limit: 1,
           overrideAccess: true,
         });
@@ -503,7 +510,11 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         },
       });
 
-      // Link contract to the new client
+      // Link contract to the new client + sync financial terms across.
+      // syncContractToClient copies monthlyRetainer / setupFee / clientStartDate
+      // (and a few other contract→client fields) using the same conflict policy
+      // as the post-signing flow. On a freshly created client every target field
+      // is blank, so the sync populates cleanly without overwrites.
       if (completedContract) {
         await payload.update({
           collection: "contracts",
@@ -511,6 +522,28 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
           data: { client: newClient.id },
           overrideAccess: true,
         });
+        try {
+          await syncContractToClient(payload, {
+            id: completedContract.id,
+            contractTitle: completedContract.contractTitle,
+            client: newClient.id,
+            setupFee: completedContract.setupFee,
+            monthlyRetainer: completedContract.monthlyRetainer,
+            contractStartDate: completedContract.contractStartDate,
+            contractDate: completedContract.contractDate,
+            clientName: completedContract.clientName,
+            clientTradingName: completedContract.clientTradingName,
+            clientContactName: completedContract.clientContactName,
+            clientEmail: completedContract.clientEmail,
+            clientWebsite: completedContract.clientWebsite,
+            signedPdfUrl: completedContract.signedPdfUrl,
+            additionalWork: completedContract.additionalWork,
+          });
+        } catch (syncErr) {
+          payload.logger.warn(
+            `Proposal→Client conversion: contract→client sync failed for "${doc.businessName}": ${syncErr}`,
+          );
+        }
       }
 
       // Migrate proposal notes → client notes, proposal timeline → client timeline,
