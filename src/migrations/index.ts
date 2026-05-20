@@ -59,6 +59,7 @@ import * as migration_20260520_120000_add_pin_rate_limits from './20260520_12000
 import * as migration_20260521_120000_add_meta_ad_account_id_to_clients from './20260521_120000_add_meta_ad_account_id_to_clients';
 import * as migration_20260522_120000_add_proposal_serp_ai_visibility_fields from './20260522_120000_add_proposal_serp_ai_visibility_fields';
 import * as migration_20260523_120000_add_agent_approval_notifications_links from './20260523_120000_add_agent_approval_notifications_links';
+import * as migration_20260524_140000_add_clients_additional_contacts from './20260524_140000_add_clients_additional_contacts';
 
 export const migrations = [
   {
@@ -365,5 +366,10 @@ export const migrations = [
     up: migration_20260523_120000_add_agent_approval_notifications_links.up,
     down: migration_20260523_120000_add_agent_approval_notifications_links.down,
     name: '20260523_120000_add_agent_approval_notifications_links'
+  },
+  {
+    up: migration_20260524_140000_add_clients_additional_contacts.up,
+    down: migration_20260524_140000_add_clients_additional_contacts.down,
+    name: '20260524_140000_add_clients_additional_contacts'
   },
 ];

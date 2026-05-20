@@ -455,6 +455,48 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
+              name: "additionalContacts",
+              type: "array",
+              admin: {
+                description:
+                  "Secondary client-side contacts (e.g. marketing director, owner). Internal team members go in Account Managers below.",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "name",
+                      type: "text",
+                      required: true,
+                      admin: { description: "Contact name" },
+                    },
+                    {
+                      name: "email",
+                      type: "email",
+                      required: true,
+                      admin: { description: "Contact email" },
+                    },
+                  ],
+                },
+                {
+                  name: "jobTitle",
+                  type: "text",
+                  admin: {
+                    description: "e.g. Marketing Director, Owner",
+                  },
+                },
+                {
+                  name: "responsibilities",
+                  type: "textarea",
+                  admin: {
+                    description:
+                      "What this contact owns, when to loop them in — free text.",
+                  },
+                },
+              ],
+            },
+            {
               name: "accountManagers",
               type: "array",
               admin: {

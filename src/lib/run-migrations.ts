@@ -3134,6 +3134,29 @@ export async function runMigrations(
       "clients.meta_ad_account_id",
       "ALTER TABLE `clients` ADD `meta_ad_account_id` text",
     );
+
+    // ── Additional client-side contacts array (Business tab, 2026-05-24).
+    // Mirrors the clients_account_managers sub-table pattern: text PK,
+    // _order/_parent_id, FK to clients(id) cascade. No locked-docs FK needed
+    // (sub-tables don't get their own locked-docs entry).
+    await run(
+      "clients_additional_contacts",
+      `CREATE TABLE IF NOT EXISTS \`clients_additional_contacts\` (
+        \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+        \`id\` text PRIMARY KEY NOT NULL,
+        \`name\` text NOT NULL, \`email\` text NOT NULL,
+        \`job_title\` text, \`responsibilities\` text,
+        FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+      )`,
+    );
+    await run(
+      "clients_additional_contacts_order_idx",
+      "CREATE INDEX IF NOT EXISTS `clients_additional_contacts_order_idx` ON `clients_additional_contacts` (`_order`)",
+    );
+    await run(
+      "clients_additional_contacts_parent_id_idx",
+      "CREATE INDEX IF NOT EXISTS `clients_additional_contacts_parent_id_idx` ON `clients_additional_contacts` (`_parent_id`)",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
