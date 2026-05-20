@@ -137,12 +137,6 @@ export default buildConfig({
     }
   }),
   globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates],
-  globals: [
-    { ...SheetsAuth, admin: { ...SheetsAuth.admin, components: { elements: { SaveButton: './components/RocketSaveButton' } } } },
-    { ...CalendarAuth, admin: { ...CalendarAuth.admin, components: { elements: { SaveButton: './components/RocketSaveButton' } } } },
-    { ...ApiCostRates, admin: { ...ApiCostRates.admin, components: { elements: { SaveButton: './components/RocketSaveButton' } } } },
-    { ...EmailTemplates, admin: { ...EmailTemplates.admin, components: { elements: { SaveButton: './components/RocketSaveButton' } } } },
-  ],
   editor: lexicalEditor({
     features: ({ defaultFeatures }) => [...defaultFeatures, MarkdownPasteFeature()],
   }),
