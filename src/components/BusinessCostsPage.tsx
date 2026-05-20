@@ -303,18 +303,15 @@ const BusinessCostsPage = () => {
     })
   }
 
-  if (loading && !data) {
-    return <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--theme-elevation-400)' }}>Loading...</div>
-  }
+  // Compute the filtered/sorted transaction list BEFORE any early return,
+  // so the useShiftSelect hook below is reached on every render. React
+  // requires hooks to run in the same order each render (#310) — returning
+  // early on the loading/error states while a hook lives further down
+  // breaks that invariant.
+  const allTransactions: CostEntry[] = data
+    ? data.costsByCategory.flatMap((cb) => cb.items)
+    : []
 
-  if (!data) {
-    return <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--theme-elevation-400)' }}>Failed to load cost data.</div>
-  }
-
-  // Collect all current month transactions from all category breakdowns
-  const allTransactions: CostEntry[] = data.costsByCategory.flatMap((cb) => cb.items)
-
-  // Filter + sort
   const filtered = filterCategory === 'all'
     ? allTransactions
     : filterCategory === 'uncategorised'
@@ -332,13 +329,21 @@ const BusinessCostsPage = () => {
     return sortDir === 'desc' ? -cmp : cmp
   })
 
+  const sortedIds = sorted.map((t) => t.id)
+  const { onCheckboxChange: shiftSelect } = useShiftSelect(sortedIds, selectedIds, setSelectedIds)
+
+  if (loading && !data) {
+    return <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--theme-elevation-400)' }}>Loading...</div>
+  }
+
+  if (!data) {
+    return <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--theme-elevation-400)' }}>Failed to load cost data.</div>
+  }
+
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     else { setSortField(field); setSortDir('desc') }
   }
-
-  const sortedIds = sorted.map((t) => t.id)
-  const { onCheckboxChange: shiftSelect } = useShiftSelect(sortedIds, selectedIds, setSelectedIds)
 
   const toggleSelectAll = () => {
     if (selectedIds.size === sorted.length) {
