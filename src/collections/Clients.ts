@@ -2774,9 +2774,9 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
-          label: "Tools",
+          label: "Integrations",
           description:
-            "Per-client integration status (GA4, GSC, Google Ads, Meta Ads). All four use a shared agency account — this tab maps the client to their property/account IDs and verifies the agency credentials can read them. Gmail is intentionally excluded (per-user OAuth).",
+            "Per-client integration status and connect/reconnect controls (GA4, GSC, Google Ads, Meta Ads). GSC uses per-client OAuth (Connect/Reconnect/Disconnect below). GA4, Google Ads, and Meta Ads use shared agency access — use Test connection to verify. Gmail is intentionally excluded (per-user OAuth).",
           fields: [
             {
               name: "metaAdAccountId",

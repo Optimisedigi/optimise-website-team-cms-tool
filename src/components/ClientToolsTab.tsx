@@ -1,24 +1,16 @@
 'use client'
 
 /**
- * Per-client "Tools" tab — consolidated integration status for:
- *   • Google Analytics 4
- *   • Google Search Console
- *   • Google Ads
- *   • Meta Ads
+ * Per-client "Integrations" tab — consolidated status + connect/reconnect for:
+ *   • Google Analytics 4   (shared agency OAuth — test only)
+ *   • Google Search Console (per-client OAuth — Connect / Reconnect / Disconnect)
+ *   • Google Ads           (brokered via Growth Tools MCC — test only)
+ *   • Meta Ads             (API not wired yet — test validates format only)
  *
- * Auth model
- * ----------
- * All four integrations use ONE shared agency-level Google/Meta account that
- * has been granted access to each client's GA4 property, GSC site, Google Ads
- * customer (via MCC), and Meta Business Manager. The OAuth grant itself lives
- * elsewhere (admin-only Integrations page). This tab only:
- *   1. shows the client-scoped account/property ID (read-only, sourced from
- *      the canonical fields on the Clients collection),
- *   2. renders a connection-status badge,
- *   3. provides a "Test connection" button that calls a per-integration
- *      status route to verify the agency credentials can actually read this
- *      client's data.
+ * GSC is the only integration with per-client OAuth tokens stored on the
+ * Client doc (`gscAccessToken` / `gscRefreshToken` / `gscPropertyUrl` /
+ * `gscConnected`). Connect/reconnect kicks off `/api/gsc/connect`, which
+ * redirects back to the admin after Google completes the OAuth dance.
  *
  * Gmail is intentionally excluded — it remains per-user OAuth and is managed
  * elsewhere.
@@ -55,9 +47,9 @@ const INTEGRATIONS: Array<{
     key: 'gsc',
     name: 'Google Search Console',
     idLabel: 'GSC Property',
-    idFieldPath: 'gscSiteUrl',
+    idFieldPath: 'gscPropertyUrl',
     emptyHint:
-      'Set the GSC property URL on the Search Console tab to enable.',
+      'Connect this client to Google Search Console to populate the property URL.',
   },
   {
     key: 'googleAds',
@@ -81,6 +73,13 @@ function useFieldValue(path: string): string {
   return useFormFields(([fields]) => {
     const v = fields?.[path]?.value
     return typeof v === 'string' ? v : ''
+  })
+}
+
+function useBoolFieldValue(path: string): boolean {
+  return useFormFields(([fields]) => {
+    const v = fields?.[path]?.value
+    return Boolean(v)
   })
 }
 
@@ -111,20 +110,50 @@ function StatusBadge({ status }: { status: Status }) {
   )
 }
 
+type ActionButton = {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  variant?: 'primary' | 'secondary' | 'danger'
+}
+
+function buttonStyle(
+  variant: ActionButton['variant'] = 'primary',
+  disabled = false,
+): React.CSSProperties {
+  const palette: Record<NonNullable<ActionButton['variant']>, string> = {
+    primary: '#2563eb',
+    secondary: '#6b7280',
+    danger: '#dc2626',
+  }
+  const bg = disabled ? '#9ca3af' : palette[variant]
+  return {
+    padding: '6px 14px',
+    background: bg,
+    color: 'white',
+    border: 'none',
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    whiteSpace: 'nowrap',
+  }
+}
+
 function IntegrationRow({
   name,
   idLabel,
   idValue,
   emptyHint,
   result,
-  onTest,
+  actions,
 }: {
   name: string
   idLabel: string
   idValue: string
   emptyHint: string
   result: IntegrationResult
-  onTest: () => void
+  actions: ActionButton[]
 }) {
   const hasId = idValue.trim().length > 0
   return (
@@ -180,25 +209,26 @@ function IntegrationRow({
           </div>
         ) : null}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <button
-          type="button"
-          onClick={onTest}
-          disabled={!hasId || result.status === 'checking'}
-          style={{
-            padding: '6px 14px',
-            background: hasId ? '#2563eb' : '#9ca3af',
-            color: 'white',
-            border: 'none',
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: hasId && result.status !== 'checking' ? 'pointer' : 'not-allowed',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {result.status === 'checking' ? 'Testing…' : 'Test connection'}
-        </button>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end',
+        }}
+      >
+        {actions.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            onClick={action.onClick}
+            disabled={action.disabled}
+            style={buttonStyle(action.variant, action.disabled)}
+          >
+            {action.label}
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -209,7 +239,8 @@ function ClientToolsTab() {
   // Hooks must run unconditionally and in stable order — call useFieldValue
   // once per integration at the top level, not inside a map callback.
   const ga4Id = useFieldValue('ga4PropertyId')
-  const gscId = useFieldValue('gscSiteUrl')
+  const gscId = useFieldValue('gscPropertyUrl')
+  const gscConnected = useBoolFieldValue('gscConnected')
   const googleAdsId = useFieldValue('googleAdsCustomerId')
   const metaAdsId = useFieldValue('metaAdAccountId')
   const idValues: Record<IntegrationKey, string> = {
@@ -225,6 +256,7 @@ function ClientToolsTab() {
     googleAds: { status: 'idle' },
     metaAds: { status: 'idle' },
   })
+  const [gscDisconnecting, setGscDisconnecting] = useState(false)
 
   const testIntegration = useCallback(
     async (key: IntegrationKey) => {
@@ -259,6 +291,109 @@ function ClientToolsTab() {
     [clientId],
   )
 
+  const gscConnect = useCallback(() => {
+    if (!clientId) return
+    // Existing pattern: full-page navigation kicks off Google's OAuth flow,
+    // which redirects back to the admin once tokens are written. Match
+    // IntegrationsPage.tsx so behaviour is identical.
+    window.location.href = `/api/gsc/connect?clientId=${encodeURIComponent(String(clientId))}`
+  }, [clientId])
+
+  const gscDisconnect = useCallback(async () => {
+    if (!clientId || gscDisconnecting) return
+    if (typeof window !== 'undefined') {
+      const ok = window.confirm(
+        'Disconnect Google Search Console for this client? Existing snapshots are kept; new pulls will stop until you reconnect.',
+      )
+      if (!ok) return
+    }
+    setGscDisconnecting(true)
+    try {
+      const res = await fetch('/api/gsc/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      })
+      if (!res.ok) {
+        setResults((prev) => ({
+          ...prev,
+          gsc: { status: 'error', message: 'Disconnect failed — try again.' },
+        }))
+        return
+      }
+      // Reload the doc so the form picks up the cleared gscConnected /
+      // gscAccessToken / gscRefreshToken fields. Simpler than dispatching
+      // multiple form-field updates by hand and avoids drift.
+      if (typeof window !== 'undefined') window.location.reload()
+    } catch (err) {
+      setResults((prev) => ({
+        ...prev,
+        gsc: {
+          status: 'error',
+          message: err instanceof Error ? err.message : 'Network error',
+        },
+      }))
+    } finally {
+      setGscDisconnecting(false)
+    }
+  }, [clientId, gscDisconnecting])
+
+  const actionsFor = useCallback(
+    (key: IntegrationKey): ActionButton[] => {
+      const hasId = idValues[key].trim().length > 0
+      const checking = results[key].status === 'checking'
+
+      if (key === 'gsc') {
+        // GSC has per-client OAuth — Connect / Reconnect / Disconnect plus the
+        // standard Test connection probe. Connect is always enabled (the OAuth
+        // flow itself discovers the property URL). Test only runs once tokens
+        // exist (gscConnected = true) AND a property URL is set.
+        const buttons: ActionButton[] = []
+        buttons.push({
+          label: gscConnected ? 'Reconnect' : 'Connect',
+          onClick: gscConnect,
+          variant: 'primary',
+          disabled: !clientId,
+        })
+        if (gscConnected) {
+          buttons.push({
+            label: checking ? 'Testing…' : 'Test connection',
+            onClick: () => testIntegration('gsc'),
+            variant: 'secondary',
+            disabled: !hasId || checking,
+          })
+          buttons.push({
+            label: gscDisconnecting ? 'Disconnecting…' : 'Disconnect',
+            onClick: gscDisconnect,
+            variant: 'danger',
+            disabled: gscDisconnecting,
+          })
+        }
+        return buttons
+      }
+
+      // GA4 / Google Ads / Meta Ads — test only.
+      return [
+        {
+          label: checking ? 'Testing…' : 'Test connection',
+          onClick: () => testIntegration(key),
+          variant: 'primary',
+          disabled: !hasId || checking,
+        },
+      ]
+    },
+    [
+      clientId,
+      gscConnect,
+      gscConnected,
+      gscDisconnect,
+      gscDisconnecting,
+      idValues,
+      results,
+      testIntegration,
+    ],
+  )
+
   if (!clientId) {
     return (
       <div
@@ -283,11 +418,12 @@ function ClientToolsTab() {
           lineHeight: 1.5,
         }}
       >
-        All integrations below use a shared agency account that has been
-        granted access to this client's properties. Use{' '}
-        <strong>Test connection</strong> to verify the agency credentials can
-        read this client's data. To grant or revoke agency-level OAuth, use
-        the global Integrations page.
+        <strong>GSC</strong> uses per-client OAuth — Connect or Reconnect below
+        to grant access, then Test connection to verify. <strong>GA4</strong>,{' '}
+        <strong>Google Ads</strong>, and <strong>Meta Ads</strong> use a shared
+        agency account already granted access to this client's properties; Test
+        connection verifies the agency credentials can read this client's data.
+        The global Integrations page still works for cross-client management.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {INTEGRATIONS.map((cfg) => (
@@ -298,7 +434,7 @@ function ClientToolsTab() {
             idValue={idValues[cfg.key]}
             emptyHint={cfg.emptyHint}
             result={results[cfg.key]}
-            onTest={() => testIntegration(cfg.key)}
+            actions={actionsFor(cfg.key)}
           />
         ))}
       </div>
