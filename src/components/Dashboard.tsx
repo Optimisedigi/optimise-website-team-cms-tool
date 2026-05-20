@@ -185,8 +185,12 @@ function StatWithTooltip({
   const hasRows = rows.length > 0
   const hostRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
-  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null)
   const [mounted, setMounted] = useState(false)
+  // Small delay before hiding so the mouse has time to cross from the host
+  // tile into the floating tooltip without the tooltip vanishing mid-move.
+  // Cleared if the mouse re-enters either the host or the tooltip first.
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -199,15 +203,27 @@ function StatWithTooltip({
     setCoords({
       top: rect.bottom + 8,
       left: rect.left + rect.width / 2,
+      width: rect.width,
     })
+  }
+
+  const cancelHide = () => {
+    if (hideTimerRef.current != null) {
+      clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
+    }
   }
 
   const show = () => {
     if (!hasRows) return
+    cancelHide()
     updateCoords()
     setOpen(true)
   }
-  const hide = () => setOpen(false)
+  const scheduleHide = () => {
+    cancelHide()
+    hideTimerRef.current = setTimeout(() => setOpen(false), 140)
+  }
 
   // Reposition while open in case the window scrolls/resizes.
   useEffect(() => {
@@ -221,15 +237,20 @@ function StatWithTooltip({
     }
   }, [open])
 
+  // Clear any pending hide timer when the component unmounts.
+  useEffect(() => {
+    return () => cancelHide()
+  }, [])
+
   return (
     <div
       ref={hostRef}
       className="od-box__stat od-box__stat--hoverable"
       tabIndex={hasRows ? 0 : -1}
       onMouseEnter={show}
-      onMouseLeave={hide}
+      onMouseLeave={scheduleHide}
       onFocus={show}
-      onBlur={hide}
+      onBlur={scheduleHide}
     >
       <span className="od-box__stat-value">{value}</span>
       <span className="od-box__stat-label">{label}</span>
@@ -239,7 +260,13 @@ function StatWithTooltip({
           <div
             className="od-stat-tooltip od-stat-tooltip--portal"
             role="tooltip"
-            style={{ top: coords.top, left: coords.left }}
+            // Keep the tooltip visible while the cursor is over it, so users
+            // can scroll inside long lists. The host's onMouseLeave fires when
+            // the cursor crosses into the tooltip — cancelling the hide here
+            // (and on the host re-enter) is what makes the bridge work.
+            onMouseEnter={cancelHide}
+            onMouseLeave={scheduleHide}
+            style={{ top: coords.top, left: coords.left, minWidth: coords.width }}
           >
             <div className="od-stat-tooltip__head">{label}</div>
             <div className="od-stat-tooltip__body">{rows}</div>
