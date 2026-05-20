@@ -3185,6 +3185,31 @@ export async function runMigrations(
       "ALTER TABLE `contracts` ADD `contract_end_date` text",
     );
 
+    // ── Optional client ACN/ABN and business address on contracts (2026-05-25).
+    // Both render on the cover page only when set, and can be filled in by
+    // the client on the e-contract signing form.
+    await run(
+      "contracts.client_acn",
+      "ALTER TABLE `contracts` ADD `client_acn` text",
+    );
+    await run(
+      "contracts.client_business_address",
+      "ALTER TABLE `contracts` ADD `client_business_address` text",
+    );
+
+    // ── Optional trading / operating name on contracts + clients (2026-05-26).
+    // `contracts.client_trading_name` renders on the cover page and signing
+    // page when set. `clients.trading_name` receives the value via the
+    // contract→client sync on signature so it persists in the client record.
+    await run(
+      "contracts.client_trading_name",
+      "ALTER TABLE `contracts` ADD `client_trading_name` text",
+    );
+    await run(
+      "clients.trading_name",
+      "ALTER TABLE `clients` ADD `trading_name` text",
+    );
+
     // ── Relax `deck_slug NOT NULL` on the two presentations sub-tables
     // (2026-05-25). The admin field is read-only and derived from `deck_url`
     // via the `derivePresentationDeckSlugs` beforeChange hook — if any code
