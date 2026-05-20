@@ -65,6 +65,7 @@ import * as migration_20260524_120000_make_presentations_deck_slug_nullable from
 import * as migration_20260525_120000_add_contract_end_date from './20260525_120000_add_contract_end_date';
 import * as migration_20260525_140000_add_contract_client_acn_and_address from './20260525_140000_add_contract_client_acn_and_address';
 import * as migration_20260526_120000_add_trading_names from './20260526_120000_add_trading_names';
+import * as migration_20260527_120000_add_proposal_id_to_visibility_snapshots from './20260527_120000_add_proposal_id_to_visibility_snapshots';
 
 export const migrations = [
   {
@@ -401,5 +402,10 @@ export const migrations = [
     up: migration_20260526_120000_add_trading_names.up,
     down: migration_20260526_120000_add_trading_names.down,
     name: '20260526_120000_add_trading_names'
+  },
+  {
+    up: migration_20260527_120000_add_proposal_id_to_visibility_snapshots.up,
+    down: migration_20260527_120000_add_proposal_id_to_visibility_snapshots.down,
+    name: '20260527_120000_add_proposal_id_to_visibility_snapshots'
   },
 ];

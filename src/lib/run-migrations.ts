@@ -2194,7 +2194,30 @@ export async function runMigrations(
     await run("ai_visibility_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `ai_visibility_snapshots_created_at_idx` ON `ai_visibility_snapshots` (`created_at`)");
     await run("ai_visibility_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `ai_visibility_snapshots_updated_at_idx` ON `ai_visibility_snapshots` (`updated_at`)");
     await run("locked_docs_rels.ai_visibility_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `ai_visibility_snapshots_id` integer REFERENCES `ai_visibility_snapshots`(`id`) ON DELETE CASCADE");
-  
+
+    // ── proposal_id on ai_visibility_snapshots / serp_displacement_snapshots ──
+    // Both collections declare a `proposal` relationship in their Payload
+    // config but the create-table migrations never added the matching column.
+    // The convert-to-client hook filters these tables by `proposal`, so the
+    // missing column 500s the toggle. Idempotent — `run()` wraps the ALTER in
+    // try/catch via the runner helper.
+    await run(
+      "ai_visibility_snapshots.proposal_id",
+      "ALTER TABLE `ai_visibility_snapshots` ADD `proposal_id` integer REFERENCES `client_proposals`(`id`) ON DELETE set null",
+    );
+    await run(
+      "ai_visibility_snapshots_proposal_idx",
+      "CREATE INDEX IF NOT EXISTS `ai_visibility_snapshots_proposal_idx` ON `ai_visibility_snapshots` (`proposal_id`)",
+    );
+    await run(
+      "serp_displacement_snapshots.proposal_id",
+      "ALTER TABLE `serp_displacement_snapshots` ADD `proposal_id` integer REFERENCES `client_proposals`(`id`) ON DELETE set null",
+    );
+    await run(
+      "serp_displacement_snapshots_proposal_idx",
+      "CREATE INDEX IF NOT EXISTS `serp_displacement_snapshots_proposal_idx` ON `serp_displacement_snapshots` (`proposal_id`)",
+    );
+
     // ── Negative Keyword Lists: source column (2026-04-29) ──
     // Tracks where the list originated: 'nlb' (Negative List Builder) or
     // 'deep_dive' (Keyword Deep Dive). Added to the collection config but the

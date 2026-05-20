@@ -238,6 +238,41 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
 }) => {
   if (doc.convertToClient && !previousDoc?.convertToClient) {
     const payload = req.payload;
+    const targetSlug = `${doc.slug}-client`;
+
+    // Pre-flight: if a client with the target slug already exists, surface a
+    // clear error instead of attempting the create and hitting a generic
+    // UNIQUE constraint failure mid-hook (which would also leave audit
+    // re-links half-applied). This catches both genuine slug collisions and
+    // orphans left behind by a previous attempt that failed after
+    // `payload.create` committed but before the proposal→client link step.
+    try {
+      const existing = await payload.find({
+        collection: "clients",
+        where: { slug: { equals: targetSlug } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      });
+      if (existing.totalDocs > 0) {
+        await payload.update({
+          collection: "client-proposals",
+          id: doc.id,
+          data: { convertToClient: false },
+          overrideAccess: true,
+        });
+        const existingClient = existing.docs[0] as { id: number | string; name?: string };
+        throw new Error(
+          `A client with slug "${targetSlug}" already exists (id ${existingClient.id}, name "${existingClient.name ?? ""}"). ` +
+            `If this is an orphan from a previous failed convert, delete that client first, then retry the toggle.`,
+        );
+      }
+    } catch (preflightErr) {
+      // If the find itself failed (rare), let the main try/catch surface it.
+      if (preflightErr instanceof Error && preflightErr.message.startsWith("A client with slug")) {
+        throw preflightErr;
+      }
+    }
 
     try {
       // Flatten keywordCategories into a single newline-separated string
@@ -604,11 +639,20 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         id: doc.id,
         data: { convertToClient: false },
       });
+      const anyErr = error as { message?: string; cause?: { message?: string } };
+      const causeMsg = anyErr?.cause?.message;
       req.payload.logger.error(
         `Failed to convert proposal "${doc.businessName}" to client: ${error}`,
       );
+      if (causeMsg) {
+        req.payload.logger.error(`  underlying cause: ${causeMsg}`);
+      }
+      // Surface the most informative message the user can act on. Prefer the
+      // SQLite-level cause (e.g. "no such column: x.proposal_id") over the
+      // wrapper text, since the wrapper hides what actually failed.
+      const surface = causeMsg || anyErr?.message || "unknown error";
       throw new Error(
-        `Failed to create client: a client with slug "${doc.slug}-client" may already exist.`,
+        `Failed to convert proposal "${doc.businessName}" to client: ${surface}`,
       );
     }
   }
@@ -777,6 +821,20 @@ export const ClientProposals: CollectionConfig = {
     group: "Clients",
     description: "Proposals for prospective clients",
     hidden: hideUnlessFeature("client-proposals"),
+    // Hide converted proposals from the default list view — once a proposal
+    // becomes a client, it stays accessible from the linked Client record but
+    // shouldn't clutter the prospects pipeline. Escape hatch: append
+    // `?showConverted=1` to the list URL to see everything.
+    baseListFilter: ({ req }) => {
+      const showConverted = req?.query?.showConverted;
+      if (showConverted === "1" || showConverted === "true") return null;
+      return {
+        or: [
+          { proposalStatus: { not_equals: "client" } },
+          { proposalStatus: { exists: false } },
+        ],
+      };
+    },
   },
   access: {
     read: canAccess("client-proposals"),

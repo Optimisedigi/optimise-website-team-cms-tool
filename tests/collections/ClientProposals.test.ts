@@ -562,6 +562,37 @@ describe("ClientProposals: convertToClient hook", () => {
     expect(mockPayload.create).not.toHaveBeenCalled();
   });
 
+  it("should abort before creating when a client with the target slug already exists", async () => {
+    // Pre-flight find returns 1 hit — hook should bail before touching create.
+    mockPayload.find.mockResolvedValueOnce({
+      totalDocs: 1,
+      docs: [{ id: 7, name: "EPG" }],
+    });
+    mockPayload.update.mockResolvedValue({});
+
+    const doc = {
+      id: "prop-1",
+      convertToClient: true,
+      businessName: "EPG",
+      slug: "epg",
+    };
+
+    await expect(
+      convertToClientHook({
+        doc,
+        req: mockReq(),
+        previousDoc: { convertToClient: false },
+      }),
+    ).rejects.toThrow(/A client with slug "epg-client" already exists/);
+
+    expect(mockPayload.create).not.toHaveBeenCalled();
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { convertToClient: false },
+      }),
+    );
+  });
+
   it("should reset toggle and rethrow on error", async () => {
     mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
     mockPayload.create.mockRejectedValueOnce(new Error("Duplicate slug"));
@@ -580,7 +611,7 @@ describe("ClientProposals: convertToClient hook", () => {
         req: mockReq(),
         previousDoc: { convertToClient: false },
       }),
-    ).rejects.toThrow("Failed to create client");
+    ).rejects.toThrow(/Failed to convert proposal "Test" to client: Duplicate slug/);
 
     // Toggle should be reset
     expect(mockPayload.update).toHaveBeenCalledWith(
