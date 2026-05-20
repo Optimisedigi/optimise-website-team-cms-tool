@@ -1,139 +1,152 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React from 'react'
 
 /**
- * Global save loader and toast notifications.
- * Monitors document saves and shows rocket animation + toast feedback.
+ * Global save loader CSS injection.
+ * Injects styles that detect Payload's save button loading state via CSS
+ * and show rocket animation + toast automatically.
+ * 
+ * Note: Full toast notification requires JS detection which is done
+ * via a MutationObserver injected here.
  */
-export const SaveLoaderToast: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isSaving, setIsSaving] = useState(false)
-  const [showToast, setShowToast] = useState<'success' | 'error' | null>(null)
-
-  // Check if any form is being submitted
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null
-    let wasSaving = false
-
-    const checkSaving = () => {
-      // Look for Payload's submit button with loading state
-      const submitBtn = document.querySelector('[id="action-save"]')
-      if (submitBtn) {
-        const btn = submitBtn as HTMLButtonElement
-        const isLoading = btn.disabled || btn.getAttribute('aria-disabled') === 'true' || btn.classList.contains('loading')
-        
-        if (isLoading && !wasSaving) {
-          wasSaving = true
-          setIsSaving(true)
-          setShowToast(null)
-        } else if (!isLoading && wasSaving) {
-          wasSaving = false
-          setIsSaving(false)
-          setShowToast('success')
-        }
-      }
-    }
-
-    intervalId = setInterval(checkSaving, 200)
-
-    return () => {
-      if (intervalId) clearInterval(intervalId)
-    }
-  }, [])
-
-  // Auto-dismiss toast
-  useEffect(() => {
-    if (showToast) {
-      const timeout = setTimeout(() => setShowToast(null), 3000)
-      return () => clearTimeout(timeout)
-    }
-  }, [showToast])
-
-  const dismissToast = useCallback(() => setShowToast(null), [])
-
+const SaveLoaderToast: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <>
       {children}
-
-      {/* Rocket animation during save */}
-      {isSaving && (
-        <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-        }}>
-          <div style={{ animation: 'od-rocket-pulse 0.8s ease-in-out infinite' }}>
-            <img src="/optimise-rocket-logo-black.png" alt="" width={32} height={32} />
-          </div>
-          <style>{`
-            @keyframes od-rocket-pulse {
-              0%, 100% { transform: scale(1); opacity: 1; }
-              50% { transform: scale(1.15); opacity: 0.8; }
-            }
-          `}</style>
-        </div>
-      )}
-
-      {/* Toast notification */}
-      {showToast && (
-        <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          zIndex: 99999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          padding: '12px 16px',
-          background: showToast === 'success' ? '#059669' : '#DC2626',
-          color: 'white',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          fontSize: '14px',
-          fontWeight: 500,
-          animation: 'od-toast-in 0.2s ease-out',
-        }}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            {showToast === 'success' ? (
-              <path d="M16.667 5L7.5 14.167 3.333 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            ) : (
-              <path d="M10 6.667v3.333M10 13.333h.008M17.5 10a7.5 7.5 0 11-15 0 7.5 7.5 0 0115 0z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            )}
-          </svg>
-          <span>{showToast === 'success' ? 'Saved successfully' : 'Error saving'}</span>
-          <button
-            onClick={dismissToast}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginLeft: '4px',
-              padding: '4px',
-              background: 'transparent',
-              border: 'none',
-              color: 'white',
-              opacity: 0.7,
-              cursor: 'pointer',
-              borderRadius: '4px',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </button>
-          <style>{`
-            @keyframes od-toast-in {
-              from { transform: translateY(20px); opacity: 0; }
-              to { transform: translateY(0); opacity: 1; }
-            }
-          `}</style>
-        </div>
-      )}
+      <SaveLoaderScript />
     </>
   )
 }
+
+const SaveLoaderScript: React.FC = () => {
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `
+          (function() {
+            // Inject styles
+            var style = document.createElement('style');
+            style.textContent = \`
+              /* Rocket animation when save button is loading */
+              .od-save-overlay {
+                position: fixed;
+                bottom: 24px;
+                right: 24px;
+                z-index: 9999;
+                pointer-events: none;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              }
+              .od-save-overlay img {
+                animation: od-rocket-pulse 0.8s ease-in-out infinite;
+              }
+              @keyframes od-rocket-pulse {
+                0%, 100% { transform: scale(1); opacity: 1; }
+                50% { transform: scale(1.15); opacity: 0.8; }
+              }
+              
+              /* Toast styles */
+              .od-save-toast {
+                position: fixed;
+                bottom: 24px;
+                right: 24px;
+                z-index: 99999;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 12px 16px;
+                color: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                font-size: 14px;
+                font-weight: 500;
+                animation: od-toast-in 0.2s ease-out;
+              }
+              .od-save-toast.od-toast-success { background: #059669; }
+              .od-save-toast.od-toast-error { background: #DC2626; }
+              @keyframes od-toast-in {
+                from { transform: translateY(20px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+              }
+              .od-save-toast-close {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-left: 4px;
+                padding: 4px;
+                background: transparent;
+                border: none;
+                color: white;
+                opacity: 0.7;
+                cursor: pointer;
+                border-radius: 4px;
+              }
+              .od-save-toast-close:hover { opacity: 1; }
+            \`;
+            document.head.appendChild(style);
+            
+            // Rocket image HTML
+            var rocketHTML = '<div class="od-save-overlay"><img src="/optimise-rocket-logo-black.png" alt="" width="32" height="32"></div>';
+            
+            // Toast container
+            var toastContainer = null;
+            
+            function showToast(type, message) {
+              if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.className = 'od-save-toast od-toast-' + type;
+                toastContainer.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16.667 5L7.5 14.167 3.333 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg><span>' + message + '</span><button class="od-save-toast-close" onclick="this.parentElement.remove()"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg></button>';
+                document.body.appendChild(toastContainer);
+              }
+              
+              // Auto-dismiss after 3 seconds
+              setTimeout(function() {
+                if (toastContainer && toastContainer.parentElement) {
+                  toastContainer.remove();
+                  toastContainer = null;
+                }
+              }, 3000);
+            }
+            
+            // Monitor save button state
+            var wasLoading = false;
+            var overlay = null;
+            
+            function checkSaveState() {
+              var saveBtn = document.querySelector('[id="action-save"]');
+              if (saveBtn) {
+                var btn = saveBtn;
+                var isLoading = btn.disabled || btn.getAttribute('aria-disabled') === 'true' || btn.classList.contains('loading');
+                
+                if (isLoading && !wasLoading) {
+                  // Started saving
+                  wasLoading = true;
+                  if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.innerHTML = rocketHTML;
+                    document.body.appendChild(overlay);
+                  }
+                } else if (!isLoading && wasLoading) {
+                  // Finished saving
+                  wasLoading = false;
+                  if (overlay) {
+                    overlay.remove();
+                    overlay = null;
+                  }
+                  showToast('success', 'Saved successfully');
+                }
+              }
+            }
+            
+            // Check every 200ms
+            setInterval(checkSaveState, 200);
+          })();
+        `
+      }}
+    />
+  )
+}
+
+export default SaveLoaderToast
