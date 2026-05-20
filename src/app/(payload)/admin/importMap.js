@@ -7,7 +7,6 @@ import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../co
 import { default as default_30019ca76d88f22be3a9fab3c840976c } from '../../../components/AccountTimelineTable'
 import { default as default_1a2b8d9a179321ad34f0f546c6575e98 } from '../../../components/StartProcessButton'
 import { default as default_b625d4fd2a78fb543eb54574c50e62fc } from '../../../components/LinkedProcesses'
-import { default as default_ClientToolsTab_3f8a } from '../../../components/ClientToolsTab'
 import { RscEntryLexicalCell as RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { RscEntryLexicalField as RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
 import { LexicalDiffComponent as LexicalDiffComponent_44fe37237e0ebf4470c9990d8cb7b07e } from '@payloadcms/richtext-lexical/rsc'
@@ -42,15 +41,19 @@ import { default as default_522f40213ad4b7c13dfb4e9b8621e85b } from '../../../co
 import { default as default_b0745460f96744dbbe5a3465bced6bcf } from '../../../components/ClientBlogPostsList'
 import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
+import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_da47157ebc74588a3650c3de3faf920e } from '../../../components/MockupUpload'
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
 import { default as default_5e310d3006558ed2b01fcb80fcc2b97e } from '../../../components/ViewProposalReportLink'
 import { default as default_524269742a06f6b5480b96a4c642a8de } from '../../../components/RunGoogleAdsAuditFromProposalButton'
+import { default as default_6fd4378acdcb6cb05df32bae3ab16a5b } from '../../../components/RunSerpDisplacementFromProposalButton'
+import { default as default_6f9f267498ebf96dc66363123e90c687 } from '../../../components/RunAiVisibilityFromProposalButton'
 import { default as default_00f2f68e89ac94a9115ac79e7355850c } from '../../../components/CompetitorExcluder'
 import { default as default_ee85e12563a2c76fb90347c827ce2e2c } from '../../../components/KeywordCategoryExcluder'
 import { default as default_0f5835a1721ce9d158589c56d0c0fb9d } from '../../../components/CreateContractButton'
 import { default as default_370a80b2909b592994cb28c05355bc3c } from '../../../components/ClientProposalPresentationLink'
+import { default as default_738341866dd8b4c979498c49c4000ba9 } from '../../../components/ProposalsShowConvertedToggle'
 import { default as default_94eaeab32c437efb583ff77d2696f2b2 } from '../../../components/TierTableGridEditor'
 import { default as default_dc498ed93a93c18e4342ff8a50ddd9ec } from '../../../components/AgencySignButton'
 import { default as default_f67cf31d207033ac38b6ce6f5f074fb6 } from '../../../components/SendContractButton'
@@ -182,15 +185,19 @@ export const importMap = {
   "./components/ClientBlogPostsList#default": default_b0745460f96744dbbe5a3465bced6bcf,
   "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
+  "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/MockupUpload#default": default_da47157ebc74588a3650c3de3faf920e,
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
   "./components/ViewProposalReportLink#default": default_5e310d3006558ed2b01fcb80fcc2b97e,
   "./components/RunGoogleAdsAuditFromProposalButton#default": default_524269742a06f6b5480b96a4c642a8de,
+  "./components/RunSerpDisplacementFromProposalButton#default": default_6fd4378acdcb6cb05df32bae3ab16a5b,
+  "./components/RunAiVisibilityFromProposalButton#default": default_6f9f267498ebf96dc66363123e90c687,
   "./components/CompetitorExcluder#default": default_00f2f68e89ac94a9115ac79e7355850c,
   "./components/KeywordCategoryExcluder#default": default_ee85e12563a2c76fb90347c827ce2e2c,
   "./components/CreateContractButton#default": default_0f5835a1721ce9d158589c56d0c0fb9d,
   "/components/ClientProposalPresentationLink#default": default_370a80b2909b592994cb28c05355bc3c,
+  "./components/ProposalsShowConvertedToggle#default": default_738341866dd8b4c979498c49c4000ba9,
   "./components/TierTableGridEditor#default": default_94eaeab32c437efb583ff77d2696f2b2,
   "./components/AgencySignButton#default": default_dc498ed93a93c18e4342ff8a50ddd9ec,
   "./components/SendContractButton#default": default_f67cf31d207033ac38b6ce6f5f074fb6,
@@ -268,7 +275,6 @@ export const importMap = {
   "./components/ViewportMeta#default": default_33065b9984d3bdded8a6f86ee55a36a3,
   "./components/RocketLoader#default": default_e04f18ecb5b37d25b0e6d09a3fc98708,
   "./components/FirstLoginSetup#default": default_f79b4ca75381164e95f118cd1e894463,
-  "./components/ClientToolsTab#default": default_ClientToolsTab_3f8a,
   "./components/DashboardGate#default": default_74b6b86d3385b0ec4a17d6136dd3b989,
   "./components/NavigationRecovery#default": default_30b462c31bfed4dfe63e7ef34d180475,
   "./components/MiniSidebar#default": default_47cb45239198beef21a512f6c005e728,

@@ -854,10 +854,16 @@ export const ClientProposals: CollectionConfig = {
     group: "Clients",
     description: "Proposals for prospective clients",
     hidden: hideUnlessFeature("client-proposals"),
+    components: {
+      // Renders the Prospects-only / Include-converted toggle above the
+      // list table. The toggle flips ?showConverted on the URL which the
+      // baseListFilter below already reads.
+      beforeListTable: ["./components/ProposalsShowConvertedToggle"],
+    },
     // Hide converted proposals from the default list view — once a proposal
     // becomes a client, it stays accessible from the linked Client record but
-    // shouldn't clutter the prospects pipeline. Escape hatch: append
-    // `?showConverted=1` to the list URL to see everything.
+    // shouldn't clutter the prospects pipeline. Escape hatch: the toggle above
+    // (or `?showConverted=1` directly) reveals them again.
     baseListFilter: ({ req }) => {
       const showConverted = req?.query?.showConverted;
       if (showConverted === "1" || showConverted === "true") return null;
