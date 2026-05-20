@@ -267,14 +267,6 @@ export interface Client {
    */
   websiteUrl?: string | null;
   /**
-   * API key for this client (auto-generated)
-   */
-  apiKey?: string | null;
-  /**
-   * Enable/disable content publishing for this client
-   */
-  isActive?: boolean | null;
-  /**
    * Check if this is the agency itself (hides revenue fields)
    */
   isAgency?: boolean | null;
@@ -291,6 +283,18 @@ export interface Client {
    */
   externalCms?: ('wordpress' | 'shopify' | 'squarespace' | 'wix' | 'webflow' | 'other') | null;
   /**
+   * Enable/disable content publishing for this client
+   */
+  isActive?: boolean | null;
+  /**
+   * Does this business have physical locations?
+   */
+  hasPhysicalLocations?: boolean | null;
+  /**
+   * Number of physical locations
+   */
+  numberOfLocations?: number | null;
+  /**
    * Primary contact name
    */
   contactName?: string | null;
@@ -298,6 +302,30 @@ export interface Client {
    * Primary contact email
    */
   contactEmail?: string | null;
+  /**
+   * Secondary client-side contacts (e.g. marketing director, owner). Internal team members go in Account Managers below.
+   */
+  additionalContacts?:
+    | {
+        /**
+         * Contact name
+         */
+        name: string;
+        /**
+         * Contact email
+         */
+        email: string;
+        /**
+         * e.g. Marketing Director, Owner
+         */
+        jobTitle?: string | null;
+        /**
+         * What this contact owns, when to loop them in — free text.
+         */
+        responsibilities?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Team members managing this client. They receive notifications for ad copy approvals, audits, etc.
    */
@@ -315,13 +343,9 @@ export interface Client {
       }[]
     | null;
   /**
-   * Does this business have physical locations?
+   * Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.
    */
-  hasPhysicalLocations?: boolean | null;
-  /**
-   * Number of physical locations
-   */
-  numberOfLocations?: number | null;
+  googleAdsCustomerId?: string | null;
   /**
    * Google Maps listing URLs for GBP analysis
    */
@@ -530,9 +554,9 @@ export interface Client {
    */
   signedContract?: (number | null) | Contract;
   /**
-   * Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.
+   * API key for this client (auto-generated)
    */
-  googleAdsCustomerId?: string | null;
+  apiKey?: string | null;
   legacyNotes?: string | null;
   /**
    * Automatic log of revenue changes
@@ -863,10 +887,6 @@ export interface Client {
   gscRefreshToken?: string | null;
   gscTokenExpiry?: string | null;
   /**
-   * Google Search Console property URL. Use the exact GSC format — e.g. `sc-domain:example.com.au` for a domain property, or `https://www.example.com/` for a URL-prefix property (trailing slash required). Read by the AI Search Erosion Detector. Leave empty to fall back to the Business tab's Website URL.
-   */
-  gscSiteUrl?: string | null;
-  /**
    * Last successful GSC data sync
    */
   gscLastSync?: string | null;
@@ -887,7 +907,7 @@ export interface Client {
      */
     siteUrl?: string | null;
     /**
-     * Google Search Console property URL (if different from site URL). Leave empty to skip GSC checks.
+     * Override the GSC property URL used by the monthly site-health monitor only — leave empty to fall back to the OAuth-derived `gscPropertyUrl` on the Search Console tab.
      */
     gscSiteUrl?: string | null;
     /**
@@ -5890,6 +5910,9 @@ export interface ActivityLog {
     | 'ai_visibility_snapshot_created'
     | 'serp_displacement_snapshot_created'
     | 'serp_displacement_alert_created'
+    | 'google_ads_budget_pushed'
+    | 'agent_approval_approved'
+    | 'agent_approval_rejected'
     | 'agent_tool_call'
     | 'agent_reasoning'
     | 'agent_final_output'
@@ -6015,6 +6038,10 @@ export interface AgentApprovalQueue {
     internalMarkdown?: string | null;
   };
   status: 'pending' | 'approved' | 'rejected' | 'applied' | 'failed';
+  /**
+   * CMS user whose chat turn / scheduled action triggered the agent run that produced this proposal. Null for background/system runs.
+   */
+  triggeredBy?: (number | null) | User;
   reviewedBy?: (number | null) | User;
   reviewedAt?: string | null;
   appliedAt?: string | null;
@@ -6591,7 +6618,11 @@ export interface ContractReminder {
 export interface Notification {
   id: number;
   recipient: number | User;
-  kind: 'contract-annual-review-11mo' | 'contract-annual-review-11.5mo' | 'invoice-statements-ready';
+  kind:
+    | 'contract-annual-review-11mo'
+    | 'contract-annual-review-11.5mo'
+    | 'invoice-statements-ready'
+    | 'agent-approval-pending';
   title: string;
   /**
    * Short summary line.
@@ -6603,6 +6634,10 @@ export interface Notification {
   url?: string | null;
   relatedContract?: (number | null) | Contract;
   relatedClient?: (number | null) | Client;
+  /**
+   * Links the notification to the agent-approval row it was fanned out for. Used to bulk-clear bell rows when any admin actions the queue item.
+   */
+  relatedApproval?: (number | null) | AgentApprovalQueue;
   /**
    * When the recipient dismissed or clicked the notification. Null until then.
    */
@@ -6918,14 +6953,24 @@ export interface ClientsSelect<T extends boolean = true> {
   name?: T;
   slug?: T;
   websiteUrl?: T;
-  apiKey?: T;
-  isActive?: T;
   isAgency?: T;
   clientPin?: T;
   websiteType?: T;
   externalCms?: T;
+  isActive?: T;
+  hasPhysicalLocations?: T;
+  numberOfLocations?: T;
   contactName?: T;
   contactEmail?: T;
+  additionalContacts?:
+    | T
+    | {
+        name?: T;
+        email?: T;
+        jobTitle?: T;
+        responsibilities?: T;
+        id?: T;
+      };
   accountManagers?:
     | T
     | {
@@ -6933,8 +6978,7 @@ export interface ClientsSelect<T extends boolean = true> {
         email?: T;
         id?: T;
       };
-  hasPhysicalLocations?: T;
-  numberOfLocations?: T;
+  googleAdsCustomerId?: T;
   googleMapsUrls?:
     | T
     | {
@@ -6993,7 +7037,7 @@ export interface ClientsSelect<T extends boolean = true> {
   contract?: T;
   signedContractUrl?: T;
   signedContract?: T;
-  googleAdsCustomerId?: T;
+  apiKey?: T;
   legacyNotes?: T;
   retainerHistory?:
     | T
@@ -7108,7 +7152,6 @@ export interface ClientsSelect<T extends boolean = true> {
   gscAccessToken?: T;
   gscRefreshToken?: T;
   gscTokenExpiry?: T;
-  gscSiteUrl?: T;
   gscLastSync?: T;
   latestGscSnapshot?: T;
   seoAuto?:
@@ -8698,6 +8741,7 @@ export interface AgentApprovalQueueSelect<T extends boolean = true> {
         internalMarkdown?: T;
       };
   status?: T;
+  triggeredBy?: T;
   reviewedBy?: T;
   reviewedAt?: T;
   appliedAt?: T;
@@ -8970,6 +9014,7 @@ export interface NotificationsSelect<T extends boolean = true> {
   url?: T;
   relatedContract?: T;
   relatedClient?: T;
+  relatedApproval?: T;
   readAt?: T;
   updatedAt?: T;
   createdAt?: T;
