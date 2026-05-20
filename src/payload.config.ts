@@ -4,6 +4,7 @@ import { MarkdownPasteFeature } from "./lib/markdown-paste-feature";
 import { vercelBlobStorage } from "@payloadcms/storage-vercel-blob";
 import path from "path";
 import { buildConfig } from "payload";
+import type { CollectionConfig } from "payload";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
 
@@ -122,17 +123,32 @@ export default buildConfig({
     AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, OptimateChatTurns,
     // Hidden (no group impact)
     GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials, ContractReminders, Notifications, PinRateLimits,
-  ].map((c) => ({
-    ...c,
-    admin: {
-      ...c.admin,
-      pagination: {
-        ...c.admin?.pagination,
-        defaultLimit: c.admin?.pagination?.defaultLimit ?? 25,
+  ].map((c) => {
+    const collection = c as CollectionConfig
+    return {
+      ...collection,
+      admin: {
+        ...collection.admin,
+        pagination: {
+          ...collection.admin?.pagination,
+          defaultLimit: collection.admin?.pagination?.defaultLimit ?? 25,
+        },
+        components: {
+          ...collection.admin?.components,
+          edit: {
+            ...collection.admin?.components?.edit,
+            SaveButton: './components/RocketSaveButton',
+          },
+        },
       },
-    },
-  })),
-  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates],
+    }
+  }),
+  globals: [
+    { ...SheetsAuth, admin: { ...SheetsAuth.admin, components: { elements: { SaveButton: './components/RocketSaveButton' } } } },
+    { ...CalendarAuth, admin: { ...CalendarAuth.admin, components: { elements: { SaveButton: './components/RocketSaveButton' } } } },
+    { ...ApiCostRates, admin: { ...ApiCostRates.admin, components: { elements: { SaveButton: './components/RocketSaveButton' } } } },
+    { ...EmailTemplates, admin: { ...EmailTemplates.admin, components: { elements: { SaveButton: './components/RocketSaveButton' } } } },
+  ],
   editor: lexicalEditor({
     features: ({ defaultFeatures }) => [...defaultFeatures, MarkdownPasteFeature()],
   }),
