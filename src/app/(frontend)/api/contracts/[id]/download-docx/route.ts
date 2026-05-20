@@ -129,6 +129,14 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     textPara("And", 26),
     textPara(doc.clientName, 30, true),
   );
+  if (doc.clientTradingName) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: `Trading as: ${doc.clientTradingName}`, size: 18, color: "555555" })],
+        spacing: { before: -100, after: 180 },
+      }),
+    );
+  }
 
   children.push(thickRule());
 
@@ -148,13 +156,24 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
   );
 
   // Client details
+  if (doc.clientTradingName) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: "Trading name: ", bold: true }),
+          new TextRun({ text: doc.clientTradingName as string }),
+        ],
+        spacing: { after: 50 },
+      }),
+    );
+  }
   if (doc.clientContactName || doc.clientTitle || doc.clientEmail) {
     children.push(
       new Paragraph({
         children: [
-          new TextRun({ text: "Name: ", bold: true }),
+          new TextRun({ text: "Contact name: ", bold: true }),
           new TextRun({ text: `${doc.clientContactName || ""}    ` }),
-          new TextRun({ text: "Title: ", bold: true }),
+          new TextRun({ text: "Position / Title: ", bold: true }),
           new TextRun({ text: `${doc.clientTitle || ""}    ` }),
           new TextRun({ text: "Email: ", bold: true }),
           new TextRun({ text: getPrimaryClientEmail(doc.clientEmail) }),
@@ -164,6 +183,10 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
     );
   }
   if (doc.clientPhone || doc.clientWebsite) {
+    // Tighten the gap after this line when an ACN/ABN or business-address
+    // line is going to follow; otherwise keep the original 200 twip pad so
+    // the Service Provider block doesn't sit on top of the website row.
+    const hasFollowOn = Boolean(doc.clientAcn || doc.clientBusinessAddress);
     children.push(
       new Paragraph({
         children: [
@@ -171,6 +194,30 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
           new TextRun({ text: `${doc.clientPhone || ""}    ` }),
           new TextRun({ text: "Website: ", bold: true }),
           new TextRun({ text: doc.clientWebsite || "" }),
+        ],
+        spacing: { after: hasFollowOn ? 50 : 200 },
+      }),
+    );
+  }
+  // Optional ACN / ABN — rendered only when supplied.
+  if (doc.clientAcn) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: "ACN / ABN: ", bold: true }),
+          new TextRun({ text: doc.clientAcn as string }),
+        ],
+        spacing: { after: doc.clientBusinessAddress ? 50 : 200 },
+      }),
+    );
+  }
+  // Optional business address — rendered only when supplied.
+  if (doc.clientBusinessAddress) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: "Business address: ", bold: true }),
+          new TextRun({ text: doc.clientBusinessAddress as string }),
         ],
         spacing: { after: 200 },
       }),

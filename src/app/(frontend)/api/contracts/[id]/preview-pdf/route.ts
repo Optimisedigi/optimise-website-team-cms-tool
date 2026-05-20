@@ -54,12 +54,15 @@ export async function GET(
     const contractData: ContractData = {
       contractTitle: doc.contractTitle,
       clientName: doc.clientName,
+      clientTradingName: doc.clientTradingName,
       clientContactName: doc.clientContactName,
       // Only the primary (first) email is shown on the contract.
       clientEmail: getPrimaryClientEmail(doc.clientEmail),
       clientTitle: doc.clientTitle,
       clientPhone: doc.clientPhone,
       clientWebsite: doc.clientWebsite,
+      clientAcn: doc.clientAcn,
+      clientBusinessAddress: doc.clientBusinessAddress,
       contractDate: doc.contractDate,
       contractStartDate: doc.contractStartDate,
       contractEndDate: doc.contractEndDate,

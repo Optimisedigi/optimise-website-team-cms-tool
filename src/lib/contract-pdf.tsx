@@ -274,6 +274,11 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
           <Text style={styles.coverNameBold}>Optimise Digital Pty Ltd</Text>
           <Text style={[styles.coverText, { marginTop: 4 }]}>And</Text>
           <Text style={styles.coverNameBold}>{c.clientName}</Text>
+          {c.clientTradingName ? (
+            <Text style={{ fontSize: 10, marginTop: -12, marginBottom: 16, color: "#555" }}>
+              Trading as: {c.clientTradingName}
+            </Text>
+          ) : null}
 
           <View style={styles.hrThick} />
 
@@ -286,10 +291,17 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
             <Text style={{ fontSize: 10 }}>{c.clientName}</Text>
           </View>
 
+          {/* Optional Trading name — only rendered when the client supplied it. */}
+          {c.clientTradingName ? (
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>Trading name: </Text>
+              <Text style={styles.fieldValue}>{c.clientTradingName}</Text>
+            </View>
+          ) : null}
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Name: </Text>
+            <Text style={styles.fieldLabel}>Contact name: </Text>
             <Text style={styles.fieldValue}>{c.clientContactName || ""}    </Text>
-            <Text style={styles.fieldLabel}>Title: </Text>
+            <Text style={styles.fieldLabel}>Position / Title: </Text>
             <Text style={styles.fieldValue}>{c.clientTitle || ""}    </Text>
             <Text style={styles.fieldLabel}>Email</Text>
             <Text style={styles.fieldValue}>: {getPrimaryClientEmail(c.clientEmail)}</Text>
@@ -300,6 +312,20 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
             <Text style={styles.fieldLabel}>Website </Text>
             <Text style={{ fontSize: 10 }}>{c.clientWebsite || ""}</Text>
           </View>
+          {/* Optional ACN / ABN — only rendered when the client supplied it. */}
+          {c.clientAcn ? (
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>ACN / ABN</Text>
+              <Text style={styles.fieldValue}>: {c.clientAcn}</Text>
+            </View>
+          ) : null}
+          {/* Optional business address — only rendered when supplied. */}
+          {c.clientBusinessAddress ? (
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>Business address</Text>
+              <Text style={styles.fieldValue}>: {c.clientBusinessAddress}</Text>
+            </View>
+          ) : null}
 
           {/* Service Provider - clearly separated */}
           <View style={{ marginTop: 24, marginBottom: 6 }}>

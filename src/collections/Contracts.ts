@@ -223,6 +223,7 @@ export const Contracts: CollectionConfig = {
               contractStartDate: doc.contractStartDate,
               contractDate: doc.contractDate,
               clientName: doc.clientName,
+              clientTradingName: doc.clientTradingName,
               clientContactName: doc.clientContactName,
               clientEmail: doc.clientEmail,
               clientWebsite: doc.clientWebsite,
@@ -289,6 +290,14 @@ export const Contracts: CollectionConfig = {
               ],
             },
             {
+              name: "clientTradingName",
+              type: "text",
+              admin: {
+                description:
+                  "Trading / operating name if different from the legal entity name (e.g. 'Berendsen Fluid Power' when the legal name is 'Berendsen Fluid Power Pty Ltd'). The client can also fill this in themselves on the signing page.",
+              },
+            },
+            {
               type: "row",
               fields: [
                 {
@@ -302,7 +311,8 @@ export const Contracts: CollectionConfig = {
                   name: "clientContactName",
                   type: "text",
                   admin: {
-                    description: "Client contact person name",
+                    description:
+                      "Client contact name — labelled 'Contact name' on the rendered contract and signing form.",
                   },
                 },
               ],
@@ -323,23 +333,46 @@ export const Contracts: CollectionConfig = {
                   name: "clientTitle",
                   type: "text",
                   admin: {
-                    description: "Client job title (e.g. 'Managing Director')",
+                    description:
+                      "Client position / job title (e.g. 'Managing Director') — labelled 'Position / Title' on the rendered contract and signing form.",
                   },
                 },
               ],
             },
             {
-              name: "clientPhone",
-              type: "text",
-              admin: {
-                description: "Client phone number",
-              },
+              type: "row",
+              fields: [
+                {
+                  name: "clientPhone",
+                  type: "text",
+                  admin: {
+                    description: "Client phone number",
+                  },
+                },
+                {
+                  name: "clientAcn",
+                  type: "text",
+                  admin: {
+                    description:
+                      "Client ACN or ABN. Optional — when set, an 'ACN / ABN' line renders on the contract cover page. The client can fill this in themselves on the signing page.",
+                  },
+                },
+              ],
             },
             {
               name: "clientWebsite",
               type: "text",
               admin: {
                 description: "Client website URL (auto-populated from proposal)",
+              },
+            },
+            {
+              name: "clientBusinessAddress",
+              type: "textarea",
+              admin: {
+                description:
+                  "Client business address. Optional — when set, a 'Business address' line renders on the contract cover page. The client can fill this in themselves on the signing page.",
+                rows: 2,
               },
             },
             {

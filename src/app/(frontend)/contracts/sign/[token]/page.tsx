@@ -16,6 +16,8 @@ interface ContractInfo {
   contractEndDate?: string
   effectiveDateConfirmed?: boolean
   effectiveDateOnDeposit?: boolean
+  clientAcn?: string
+  clientBusinessAddress?: string
   monthlyRetainer?: number
   setupFee?: number
   hideSetupFee?: boolean
@@ -93,11 +95,14 @@ export default function ContractSignPage() {
 
   // Editable client fields
   const [clientDisplayName, setClientDisplayName] = useState('')
+  const [clientTradingName, setClientTradingName] = useState('')
   const [signerName, setSignerName] = useState('')
   const [signerTitle, setSignerTitle] = useState('')
   const [clientEmail, setClientEmail] = useState('')
   const [clientPhone, setClientPhone] = useState('')
   const [clientWebsite, setClientWebsite] = useState('')
+  const [clientAcn, setClientAcn] = useState('')
+  const [clientBusinessAddress, setClientBusinessAddress] = useState('')
 
   // Signature
   const [signatureMode, setSignatureMode] = useState<'draw' | 'type'>('draw')
@@ -136,11 +141,14 @@ export default function ContractSignPage() {
         }
         setContract(data)
         setClientDisplayName(data.clientName || '')
+        setClientTradingName(data.clientTradingName || '')
         setSignerName(data.clientContactName || '')
         setSignerTitle(data.clientTitle || '')
         setClientEmail(data.clientEmail || '')
         setClientPhone(data.clientPhone || '')
         setClientWebsite(data.clientWebsite || '')
+        setClientAcn(data.clientAcn || '')
+        setClientBusinessAddress(data.clientBusinessAddress || '')
       })
       .catch(() => setError('Failed to load contract'))
       .finally(() => setLoading(false))
@@ -237,11 +245,15 @@ export default function ContractSignPage() {
         body: JSON.stringify({
           signature,
           signatureType,
+          clientName: clientDisplayName,
+          clientTradingName,
           signerName,
           signerTitle,
           clientEmail,
           clientPhone,
           clientWebsite,
+          clientAcn,
+          clientBusinessAddress,
           signingDate,
         }),
       })
@@ -425,30 +437,53 @@ export default function ContractSignPage() {
           borderRadius: 6,
           marginBottom: 20,
         }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#f97316', margin: '0 0 12px' }}>
-            Please check and update your details below
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#f97316', margin: '0 0 6px' }}>
+            Please review your details below before signing
+          </p>
+          <p style={{ fontSize: 12, color: '#666', margin: '0 0 14px' }}>
+            Any edits you make here will be saved and reflected in the final signed contract.
           </p>
           {/* Two-column grid on tablet/desktop, single column on mobile.
               Each cell stacks label above input so long labels/values never
               get cut off. Mobile breakpoint defined in the <style> block below. */}
           <div className="signing-fields-grid">
             <label className="signing-field">
-              <span style={fieldLabelStyle}>Company Name</span>
+              <span style={fieldLabelStyle}>Company Name (Legal Entity)</span>
               <input
                 type="text"
                 value={clientDisplayName}
                 onChange={(e) => setClientDisplayName(e.target.value)}
-                placeholder="Enter business name"
+                placeholder="Enter legal business name"
                 style={inputStyle}
               />
             </label>
             <label className="signing-field">
-              <span style={fieldLabelStyle}>Name</span>
+              <span style={fieldLabelStyle}>Trading Name (if different)</span>
+              <input
+                type="text"
+                value={clientTradingName}
+                onChange={(e) => setClientTradingName(e.target.value)}
+                placeholder="e.g. 'Berendsen Fluid Power'"
+                style={inputStyle}
+              />
+            </label>
+            <label className="signing-field">
+              <span style={fieldLabelStyle}>Contact Name</span>
               <input
                 type="text"
                 value={signerName}
                 onChange={(e) => setSignerName(e.target.value)}
                 placeholder="Enter your name"
+                style={inputStyle}
+              />
+            </label>
+            <label className="signing-field">
+              <span style={fieldLabelStyle}>Position / Title</span>
+              <input
+                type="text"
+                value={signerTitle}
+                onChange={(e) => setSignerTitle(e.target.value)}
+                placeholder="e.g. Managing Director"
                 style={inputStyle}
               />
             </label>
@@ -459,16 +494,6 @@ export default function ContractSignPage() {
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
                 placeholder="Enter phone"
-                style={inputStyle}
-              />
-            </label>
-            <label className="signing-field">
-              <span style={fieldLabelStyle}>Title</span>
-              <input
-                type="text"
-                value={signerTitle}
-                onChange={(e) => setSignerTitle(e.target.value)}
-                placeholder="Enter your title"
                 style={inputStyle}
               />
             </label>
@@ -490,6 +515,34 @@ export default function ContractSignPage() {
                 onChange={(e) => setClientWebsite(e.target.value)}
                 placeholder="Enter website"
                 style={inputStyle}
+              />
+            </label>
+            <label className="signing-field">
+              <span style={fieldLabelStyle}>ACN / ABN</span>
+              <input
+                type="text"
+                value={clientAcn}
+                onChange={(e) => setClientAcn(e.target.value)}
+                placeholder="Enter ACN or ABN"
+                style={inputStyle}
+              />
+            </label>
+            {/* Business address spans both columns on desktop — it's a
+                multiline textarea so it needs more room than the single-line
+                inputs. The grid-column override below pairs with the
+                .signing-fields-grid CSS in the <style> block. */}
+            <label className="signing-field signing-field--wide">
+              <span style={fieldLabelStyle}>Business address</span>
+              <textarea
+                value={clientBusinessAddress}
+                onChange={(e) => setClientBusinessAddress(e.target.value)}
+                placeholder="Enter business address"
+                rows={2}
+                style={{
+                  ...inputStyle,
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                }}
               />
             </label>
           </div>
@@ -1037,6 +1090,10 @@ export default function ContractSignPage() {
           gap: 12px 16px;
         }
         .signing-field { display: block; }
+        /* Wide variant — spans both columns so the business-address textarea
+           gets the full width on tablet+; falls back to single column on
+           mobile via the grid template below. */
+        .signing-field--wide { grid-column: 1 / -1; }
         @media (max-width: 599px) {
           .signing-fields-grid { grid-template-columns: 1fr; }
           /* Tighter page padding on phones so the contract content uses

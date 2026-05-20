@@ -113,6 +113,7 @@ export async function GET(
   return NextResponse.json({
     contractTitle: doc.contractTitle,
     clientName: doc.clientName,
+    clientTradingName: doc.clientTradingName,
     clientContactName: doc.clientContactName,
     // Only expose the primary signer email to the sign page — any CC
     // addresses are kept server-side for receipt delivery only.
@@ -120,6 +121,8 @@ export async function GET(
     clientTitle: doc.clientTitle,
     clientPhone: doc.clientPhone,
     clientWebsite: doc.clientWebsite,
+    clientAcn: doc.clientAcn,
+    clientBusinessAddress: doc.clientBusinessAddress,
     contractDate: doc.contractDate,
     contractStartDate: doc.contractStartDate,
     contractEndDate: doc.contractEndDate,
@@ -201,7 +204,19 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { signature, signerName, signerTitle, clientEmail, clientPhone, clientWebsite, signingDate } = body;
+  const {
+    signature,
+    clientName,
+    clientTradingName,
+    signerName,
+    signerTitle,
+    clientEmail,
+    clientPhone,
+    clientWebsite,
+    clientAcn,
+    clientBusinessAddress,
+    signingDate,
+  } = body;
 
   if (!signature || !signerName) {
     return NextResponse.json(
@@ -228,6 +243,12 @@ export async function POST(
     if (clientEmail) updateData.clientEmail = clientEmail;
     if (clientPhone !== undefined) updateData.clientPhone = clientPhone;
     if (clientWebsite !== undefined) updateData.clientWebsite = clientWebsite;
+    if (clientAcn !== undefined) updateData.clientAcn = clientAcn;
+    if (clientName !== undefined) updateData.clientName = clientName;
+    if (clientTradingName !== undefined)
+      updateData.clientTradingName = clientTradingName;
+    if (clientBusinessAddress !== undefined)
+      updateData.clientBusinessAddress = clientBusinessAddress;
 
     await payload.update({
       collection: "contracts",
@@ -255,6 +276,7 @@ export async function POST(
       contractStartDate: updatedDoc.contractStartDate,
       contractDate: updatedDoc.contractDate,
       clientName: updatedDoc.clientName,
+      clientTradingName: updatedDoc.clientTradingName,
       clientContactName: updatedDoc.clientContactName,
       clientEmail: updatedDoc.clientEmail,
       clientWebsite: updatedDoc.clientWebsite,
@@ -292,11 +314,14 @@ export async function POST(
     const contractData: ContractData = {
       contractTitle: updatedDoc.contractTitle,
       clientName: updatedDoc.clientName,
+      clientTradingName: updatedDoc.clientTradingName,
       clientContactName: updatedDoc.clientContactName,
       clientEmail: updatedDoc.clientEmail,
       clientTitle: updatedDoc.clientTitle,
       clientPhone: updatedDoc.clientPhone,
       clientWebsite: updatedDoc.clientWebsite,
+      clientAcn: updatedDoc.clientAcn,
+      clientBusinessAddress: updatedDoc.clientBusinessAddress,
       contractDate: updatedDoc.contractDate,
       contractStartDate: updatedDoc.contractStartDate,
       contractEndDate: updatedDoc.contractEndDate,

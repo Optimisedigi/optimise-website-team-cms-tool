@@ -19,11 +19,18 @@ const CURRENCY_LOCALE: Record<CurrencyCode, string> = {
 export interface ContractData {
   contractTitle: string;
   clientName: string;
+  /** Trading / operating name when different from the legal entity name. Optional —
+   *  cover-page renderers must hide the row entirely when this is undefined. */
+  clientTradingName?: string;
   clientContactName?: string;
   clientEmail: string;
   clientTitle?: string;
   clientPhone?: string;
   clientWebsite?: string;
+  /** Client ACN or ABN. Optional — cover-page renderers must hide the row entirely when this is undefined. */
+  clientAcn?: string;
+  /** Client business address. Optional — cover-page renderers must hide the row entirely when this is undefined. */
+  clientBusinessAddress?: string;
   contractDate: string;
   contractStartDate?: string;
   /** Optional engagement end date. When set, the cover page renders an "End Date:" line below the effective date. When undefined the line is omitted entirely. */
@@ -141,11 +148,14 @@ export interface ContractSection {
     title: string;
     subtitle: string;
     clientName: string;
+    clientTradingName?: string;
     clientContactName?: string;
     clientEmail: string;
     clientTitle?: string;
     clientPhone?: string;
     clientWebsite?: string;
+    clientAcn?: string;
+    clientBusinessAddress?: string;
     agencyName: string;
     agencyContactName?: string;
     agencyContactEmail?: string;
@@ -195,11 +205,21 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       title: "Contract Agreement",
       subtitle: `Between ${agencyName} And ${data.clientName}`,
       clientName: data.clientName,
+      clientTradingName: data.clientTradingName,
       clientContactName: data.clientContactName,
       clientEmail: data.clientEmail,
       clientTitle: data.clientTitle,
       clientPhone: data.clientPhone,
       clientWebsite: data.clientWebsite,
+      // Only forward when the operator (or client) provided a value. Empty
+      // strings would otherwise cause the cover renderers to print a label
+      // with no value next to it.
+      ...(data.clientAcn && data.clientAcn.trim() !== ""
+        ? { clientAcn: data.clientAcn.trim() }
+        : {}),
+      ...(data.clientBusinessAddress && data.clientBusinessAddress.trim() !== ""
+        ? { clientBusinessAddress: data.clientBusinessAddress.trim() }
+        : {}),
       agencyName,
       agencyContactName: data.agencyContactName || "Peter Tu",
       agencyContactEmail: data.agencyContactEmail || "peter@optimisedigital.online",

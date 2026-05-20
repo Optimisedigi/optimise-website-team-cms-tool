@@ -19,6 +19,8 @@ export interface ContractSyncSource {
   contractDate?: string | null;
   /** Business / company name on the contract — copied to client.name when missing. */
   clientName?: string | null;
+  /** Trading / operating name on the contract — copied to client.tradingName when missing. */
+  clientTradingName?: string | null;
   /** Primary contact person — copied to client.contactName when missing. */
   clientContactName?: string | null;
   /** Comma-separated email list on the contract; the first address is copied to client.contactEmail when missing. */
@@ -46,6 +48,7 @@ export interface ContractSyncResult {
     clientStartDate: boolean;
     additionalWorkAppended: number;
     name: boolean;
+    tradingName: boolean;
     contactName: boolean;
     contactEmail: boolean;
     websiteUrl: boolean;
@@ -101,6 +104,7 @@ export async function syncContractToClient(
       additionalWorkAppended: 0,
       name: false,
       contactName: false,
+      tradingName: false,
       contactEmail: false,
       websiteUrl: false,
       signedContract: false,
@@ -185,6 +189,14 @@ export async function syncContractToClient(
     if (contractClientName && !existingClientName) {
       updates.name = contractClientName;
       result.applied.name = true;
+    }
+
+    // Trading name ─────────────────────────────────────────────────────────
+    const contractTradingName = (contract.clientTradingName ?? "").trim();
+    const existingTradingName = ((client.tradingName as string | null) ?? "").trim();
+    if (contractTradingName && !existingTradingName) {
+      updates.tradingName = contractTradingName;
+      result.applied.tradingName = true;
     }
 
     // Contact name ──────────────────────────────────────────────────────────

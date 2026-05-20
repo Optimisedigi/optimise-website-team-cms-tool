@@ -288,6 +288,14 @@ export const Clients: CollectionConfig = {
                   },
                 },
                 {
+                  name: "tradingName",
+                  type: "text",
+                  admin: {
+                    description: "Trading / operating name if different from the legal entity name (e.g., 'Acme Corp' when the legal name is 'Acme Corp Pty Ltd'). Auto-populated from signed contracts.",
+                    width: "33%",
+                  },
+                },
+                {
                   name: "slug",
                   type: "text",
                   required: true,
