@@ -152,6 +152,82 @@ describe("syncContractToClient", () => {
     });
   });
 
+  it("does not duplicate additionalWork rows that already exist on the client", async () => {
+    // Re-running the sync (e.g. signing then a later contract update, or the
+    // convert-to-client hook firing it again) must not double-write rows.
+    const existing = [
+      {
+        projectName: "Website + CRM build",
+        amount: 16000,
+        date: "2026-05-19T00:00:00.000Z",
+        countTowardsRetainer: false,
+      },
+    ];
+    const payload = createMockPayload({
+      id: 9,
+      monthlyRetainer: 4600,
+      setupFee: 0,
+      clientStartDate: "2026-05-19",
+      oneOffProjects: existing,
+    });
+
+    const result = await syncContractToClient(payload as any, {
+      id: 12,
+      client: 9,
+      contractStartDate: "2026-05-19",
+      additionalWork: [
+        { projectName: "Website + CRM build", amount: 16000, countTowardsRetainer: false },
+      ],
+    });
+
+    // The sync may still update other fields (e.g. signedContract), but the
+    // oneOffProjects payload must not be touched when every row is already
+    // present.
+    expect(result.applied.additionalWorkAppended).toBe(0);
+    if (payload.update.mock.calls.length > 0) {
+      const call = payload.update.mock.calls[0][0];
+      expect("oneOffProjects" in call.data).toBe(false);
+    }
+  });
+
+  it("dedupes case-insensitively and ignores leading/trailing whitespace", async () => {
+    const existing = [
+      {
+        projectName: "Website + CRM build",
+        amount: 16000,
+        date: "2026-05-19T00:00:00.000Z",
+        countTowardsRetainer: false,
+      },
+    ];
+    const payload = createMockPayload({
+      id: 9,
+      monthlyRetainer: 0,
+      setupFee: 0,
+      clientStartDate: null,
+      oneOffProjects: existing,
+    });
+
+    await syncContractToClient(payload as any, {
+      id: 12,
+      client: 9,
+      contractStartDate: "2026-05-19",
+      additionalWork: [
+        // Same project as existing, just with a different casing / whitespace.
+        { projectName: "  website + crm BUILD ", amount: 16000, countTowardsRetainer: false },
+        // Genuinely new row — must still come through.
+        { projectName: "SEO sprint", amount: 3000, countTowardsRetainer: false },
+      ],
+    });
+
+    const call = payload.update.mock.calls[0][0];
+    expect(call.data.oneOffProjects).toHaveLength(2);
+    expect(call.data.oneOffProjects[0]).toEqual(existing[0]);
+    expect(call.data.oneOffProjects[1]).toMatchObject({
+      projectName: "SEO sprint",
+      amount: 3000,
+    });
+  });
+
   it("falls back to current ISO date for additionalWork when contractStartDate missing", async () => {
     const payload = createMockPayload({
       id: 42,

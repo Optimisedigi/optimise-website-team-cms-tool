@@ -84,8 +84,10 @@ function resolveClientId(
  *   - `client.setupFee` already set & non-zero -> do not overwrite;
  *     record a warning.
  *   - `client.clientStartDate` already set -> do not overwrite.
- *   - `additionalWork[]` rows always append to `oneOffProjects[]` with
- *     `date` defaulting to `contractStartDate` or `now`.
+ *   - `additionalWork[]` rows append to `oneOffProjects[]` if they're not
+ *     already present (matched by name + amount + countTowardsRetainer), so
+ *     re-running the sync after a contract update doesn't produce duplicates.
+ *     `date` defaults to `contractStartDate` or `now`.
  *
  * Never throws. Catches its own errors and surfaces them in the result.
  */
@@ -261,6 +263,12 @@ export async function syncContractToClient(
       ? contract.additionalWork
       : [];
     if (additionalWork.length > 0) {
+      // Sync can fire multiple times for the same contract (e.g. once on
+      // signing, once when the convert-to-client hook links the contract to a
+      // freshly created client). Append-only would double-write each row, so
+      // dedupe against what's already on the client. Match on projectName +
+      // amount + countTowardsRetainer; the name is trimmed and lower-cased so
+      // a whitespace edit doesn't trip the dedupe.
       const existingOneOffs = Array.isArray(client.oneOffProjects)
         ? (client.oneOffProjects as Array<Record<string, unknown>>)
         : [];
@@ -268,8 +276,25 @@ export async function syncContractToClient(
         (contract.contractStartDate as string | null) ||
         (contract.contractDate as string | null) ||
         new Date().toISOString();
+      const fingerprint = (
+        name: unknown,
+        amount: unknown,
+        countTowardsRetainer: unknown,
+      ): string =>
+        `${String(name ?? "").trim().toLowerCase()}|${Number(amount) || 0}|${Boolean(countTowardsRetainer)}`;
+      const existingFingerprints = new Set(
+        existingOneOffs.map((p) =>
+          fingerprint(p.projectName, p.amount, p.countTowardsRetainer),
+        ),
+      );
       const appended = additionalWork
         .filter((row) => row && row.projectName && row.amount != null)
+        .filter(
+          (row) =>
+            !existingFingerprints.has(
+              fingerprint(row.projectName, row.amount, row.countTowardsRetainer),
+            ),
+        )
         .map((row) => ({
           projectName: row.projectName,
           amount: Number(row.amount) || 0,
