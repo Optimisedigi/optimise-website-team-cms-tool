@@ -54,6 +54,10 @@ export async function runMigrations(
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("already exists") || msg.includes("duplicate column")) {
         r = { label, status: "skip", message: "already exists" };
+      } else if (msg.includes("no such column") || msg.includes("no column named")) {
+        // Idempotent DROP COLUMN / UPDATE on a column that's already gone.
+        // Treat as a successful no-op so re-runs don't spam errors.
+        r = { label, status: "skip", message: "column already removed" };
       } else {
         r = { label, status: "error", message: msg };
       }
@@ -3133,6 +3137,21 @@ export async function runMigrations(
     await run(
       "clients.meta_ad_account_id",
       "ALTER TABLE `clients` ADD `meta_ad_account_id` text",
+    );
+
+    // ── Drop orphan top-level clients.gsc_site_url (2026-05-24).
+    // gsc_property_url is the OAuth-derived source of truth used by every
+    // real GSC consumer. The orphan column had no readers (only fallbacks).
+    // Backfill any operator-typed URL into gsc_property_url first so nothing
+    // is lost, then drop the column. SQLite 3.35+ / recent libSQL support
+    // ALTER TABLE ... DROP COLUMN.
+    await run(
+      "clients.gsc_site_url_backfill",
+      "UPDATE `clients` SET `gsc_property_url` = `gsc_site_url` WHERE (`gsc_property_url` IS NULL OR `gsc_property_url` = '') AND `gsc_site_url` IS NOT NULL AND `gsc_site_url` != ''",
+    );
+    await run(
+      "clients.gsc_site_url_drop",
+      "ALTER TABLE `clients` DROP COLUMN `gsc_site_url`",
     );
 
     // ── Additional client-side contacts array (Business tab, 2026-05-24).

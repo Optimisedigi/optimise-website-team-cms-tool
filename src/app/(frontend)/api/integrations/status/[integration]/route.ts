@@ -74,7 +74,7 @@ async function checkGa4(client: Record<string, unknown>): Promise<StatusResult> 
 }
 
 async function checkGsc(client: Record<string, unknown>): Promise<StatusResult> {
-  const siteUrl = ((client.gscSiteUrl as string) || (client.gscPropertyUrl as string) || "").trim();
+  const siteUrl = ((client.gscPropertyUrl as string) || "").trim();
   const refreshToken = (client.gscRefreshToken as string) || "";
   if (!siteUrl) {
     return { ok: false, status: "missing", message: "No GSC property URL set." };

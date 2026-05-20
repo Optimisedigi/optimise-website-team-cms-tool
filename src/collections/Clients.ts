@@ -2088,14 +2088,6 @@ export const Clients: CollectionConfig = {
                       },
                     },
                     {
-                      name: "gscSiteUrl",
-                      type: "text",
-                      admin: {
-                        description:
-                          "Google Search Console property URL. Use the exact GSC format — e.g. `sc-domain:example.com.au` for a domain property, or `https://www.example.com/` for a URL-prefix property (trailing slash required). Read by the AI Search Erosion Detector. Leave empty to fall back to the Business tab's Website URL.",
-                      },
-                    },
-                    {
                       name: "gscLastSync",
                       type: "date",
                       admin: {
@@ -2145,7 +2137,8 @@ export const Clients: CollectionConfig = {
                   name: "gscSiteUrl",
                   type: "text",
                   admin: {
-                    description: "Google Search Console property URL (if different from site URL). Leave empty to skip GSC checks.",
+                    description:
+                      "Override the GSC property URL used by the monthly site-health monitor only — leave empty to fall back to the OAuth-derived `gscPropertyUrl` on the Search Console tab.",
                     condition: (data: any) => data?.seoAuto?.monthlyHealthEnabled,
                   },
                 },

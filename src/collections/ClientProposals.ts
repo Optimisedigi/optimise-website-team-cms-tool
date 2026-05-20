@@ -364,7 +364,10 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
           newCustomersLast12Months: doc.newCustomersLast12Months,
           googleAdsCustomerId: doc.googleAdsCustomerId,
           ga4PropertyId: doc.ga4PropertyId,
-          gscSiteUrl: doc.gscSiteUrl,
+          // Proposal's free-text GSC URL becomes the client's property URL
+          // placeholder. The real OAuth flow will overwrite gscPropertyUrl
+          // with the canonical value once the team connects GSC for the client.
+          gscPropertyUrl: doc.gscSiteUrl,
           ...(presentations && presentations.length > 0 ? { presentations } : {}),
           ...(serpMonitor ? { serpMonitor } : {}),
           ...(aiVisibility ? { aiVisibility } : {}),
