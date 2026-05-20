@@ -1294,6 +1294,10 @@ export interface Contract {
    */
   contractStartDate?: string | null;
   /**
+   * Optional engagement end date. When set, an ‘End Date’ line is rendered on the contract cover page below the effective date. Leave blank to hide the line entirely.
+   */
+  contractEndDate?: string | null;
+  /**
    * Toggle ON once the effective date is confirmed with the client. When OFF, the cover page shows '(to be confirmed with client)' next to the date; when ON, the qualifier is hidden. The deposit toggle below overrides this.
    */
   effectiveDateConfirmed?: boolean | null;
@@ -7514,6 +7518,7 @@ export interface ContractsSelect<T extends boolean = true> {
   clientWebsite?: T;
   contractDate?: T;
   contractStartDate?: T;
+  contractEndDate?: T;
   effectiveDateConfirmed?: T;
   effectiveDateOnDeposit?: T;
   currency?: T;

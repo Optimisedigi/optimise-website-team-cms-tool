@@ -13,6 +13,7 @@ interface ContractInfo {
   clientWebsite?: string
   contractDate: string
   contractStartDate?: string
+  contractEndDate?: string
   effectiveDateConfirmed?: boolean
   effectiveDateOnDeposit?: boolean
   monthlyRetainer?: number
@@ -551,6 +552,13 @@ export default function ContractSignPage() {
             <> <span style={{ color: '#666', fontStyle: 'italic' }}>(to be confirmed with client)</span></>
           ) : null}
         </p>
+
+        {/* Optional end date — rendered only when the operator entered one. */}
+        {contract.contractEndDate ? (
+          <p style={{ fontSize: 15, margin: '6px 0 0' }}>
+            <strong>End Date:</strong> {formatDate(contract.contractEndDate)}
+          </p>
+        ) : null}
 
         <hr style={hrThickStyle} />
 

@@ -352,6 +352,13 @@ function renderSection(section: ContractSection, index: number, logoUri: string 
               </>
             ) : null}
           </Text>
+          {/* Optional end date — rendered only when the operator entered one. */}
+          {c.endDate ? (
+            <Text style={styles.effectiveDate}>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>End Date:</Text>
+              {" "}{c.endDate}
+            </Text>
+          ) : null}
           <View style={styles.hrThick} />
         </View>
       );

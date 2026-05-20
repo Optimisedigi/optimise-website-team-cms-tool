@@ -215,7 +215,20 @@ async function generateContractDocx(doc: any, sigBuffer: Buffer | null): Promise
         new TextRun({ text: qualifier, italics: true, color: "666666" }),
       );
     }
-    children.push(new Paragraph({ children: effectiveDateRuns, spacing: { after: 200 } }));
+    children.push(new Paragraph({ children: effectiveDateRuns, spacing: { after: doc.contractEndDate ? 60 : 200 } }));
+  }
+
+  // Optional end date — rendered only when the operator entered one.
+  if (doc.contractEndDate) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: "End Date: ", bold: true }),
+          new TextRun({ text: formatDate(doc.contractEndDate) }),
+        ],
+        spacing: { after: 200 },
+      }),
+    );
   }
 
   children.push(thickRule());

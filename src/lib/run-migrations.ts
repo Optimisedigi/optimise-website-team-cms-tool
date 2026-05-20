@@ -3176,6 +3176,14 @@ export async function runMigrations(
       "clients_additional_contacts_parent_id_idx",
       "CREATE INDEX IF NOT EXISTS `clients_additional_contacts_parent_id_idx` ON `clients_additional_contacts` (`_parent_id`)",
     );
+
+    // ── Optional engagement end date on contracts (2026-05-25). When set, the
+    // cover page renders an "End Date:" line below the effective date on the
+    // PDF / signing page / DOCX. When null the line is omitted entirely.
+    await run(
+      "contracts.contract_end_date",
+      "ALTER TABLE `contracts` ADD `contract_end_date` text",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

@@ -62,6 +62,7 @@ export async function GET(
       clientWebsite: doc.clientWebsite,
       contractDate: doc.contractDate,
       contractStartDate: doc.contractStartDate,
+      contractEndDate: doc.contractEndDate,
       monthlyRetainer: doc.monthlyRetainer,
       setupFee: doc.setupFee,
       hideSetupFee: doc.hideSetupFee === true,

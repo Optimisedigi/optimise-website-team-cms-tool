@@ -359,6 +359,14 @@ export const Contracts: CollectionConfig = {
               },
             },
             {
+              name: "contractEndDate",
+              type: "date",
+              admin: {
+                description:
+                  "Optional engagement end date. When set, an ‘End Date’ line is rendered on the contract cover page below the effective date. Leave blank to hide the line entirely.",
+              },
+            },
+            {
               type: "row",
               fields: [
                 {

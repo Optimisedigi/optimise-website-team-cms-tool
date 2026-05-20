@@ -26,6 +26,8 @@ export interface ContractData {
   clientWebsite?: string;
   contractDate: string;
   contractStartDate?: string;
+  /** Optional engagement end date. When set, the cover page renders an "End Date:" line below the effective date. When undefined the line is omitted entirely. */
+  contractEndDate?: string;
   monthlyRetainer?: number;
   setupFee?: number;
   /** When true the setup-fee row is omitted from the pricing table and the matching default Payment Terms bullet is removed. */
@@ -155,6 +157,8 @@ export interface ContractSection {
     effectiveDate: string;
     effectiveDateConfirmed?: boolean;
     effectiveDateOnDeposit?: boolean;
+    /** Pre-formatted end date string. Undefined when no contractEndDate was supplied — the cover page must hide the line in that case. */
+    endDate?: string;
   };
 }
 
@@ -204,6 +208,12 @@ export function generateContractSections(data: ContractData): ContractSection[] 
       effectiveDate: formatDate(data.contractDate),
       effectiveDateConfirmed: data.effectiveDateConfirmed === true,
       effectiveDateOnDeposit: data.effectiveDateOnDeposit === true,
+      // Only set endDate when the operator entered one. The cover-page
+      // renderers check for undefined and skip the line entirely otherwise
+      // — contracts without an end date show no change from before.
+      ...(data.contractEndDate && data.contractEndDate.trim() !== ""
+        ? { endDate: formatDate(data.contractEndDate) }
+        : {}),
     },
   });
 
