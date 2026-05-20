@@ -139,6 +139,54 @@ const seedLaunch: CollectionAfterReadHook = async ({ doc }) => {
   return doc;
 };
 
+/**
+ * Extract the deck-slug segment from a full deck URL.
+ * Mirrors the helper used by the Clients collection — supports
+ *   https://cms.optimisedigital.online/partners/<proposal>/<deck>/
+ *   /partners/<proposal>/<deck>/
+ *   <bare-slug>
+ * For URLs that don't match the /partners/ shape (e.g. /proposals/<slug>)
+ * it returns the trimmed path so the derived value is still non-empty.
+ */
+function extractDeckSlugFromUrl(deckUrl: string): string {
+  const trimmed = deckUrl.trim();
+  if (!trimmed) return "";
+  try {
+    const href = trimmed.startsWith("http")
+      ? trimmed
+      : `https://example.com${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+    const { pathname } = new URL(href);
+    const parts = pathname
+      .replace(/^\/partners\//, "")
+      .split("/")
+      .filter(Boolean);
+    if (parts.length >= 2) return parts[1];
+  } catch {
+    // fall through
+  }
+  return trimmed.replace(/[#?].*$/, "").replace(/\/+$/, "");
+}
+
+/**
+ * Mirror of the Clients-side hook: keep `deckSlug` derived from `deckUrl`
+ * so the readonly admin field stays in sync, and guarantee a non-empty
+ * value so the legacy NOT NULL DB constraint (pre-2026-05-24 migration)
+ * doesn't fail the insert when an empty row is submitted.
+ */
+const deriveProposalPresentationDeckSlugs: CollectionBeforeChangeHook = ({ data }) => {
+  if (!data || !Array.isArray(data.presentations)) return data;
+  data.presentations = data.presentations.map(
+    (p: { deckUrl?: string | null; deckSlug?: string | null } & Record<string, unknown>) => {
+      const url = typeof p.deckUrl === "string" ? p.deckUrl : "";
+      const derived = extractDeckSlugFromUrl(url);
+      const slug =
+        derived || p.deckSlug || `pending-${Date.now().toString(36)}`;
+      return { ...p, deckSlug: slug };
+    },
+  );
+  return data;
+};
+
 const generateUniqueSlug: CollectionBeforeChangeHook = async ({
   data,
   operation,
@@ -328,6 +376,45 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         }),
       );
 
+      // Auto-port the proposal-report deck link. When the proposal's audit
+      // pipeline finished and a slug exists, the report at /proposals/<slug>
+      // is publicly viewable behind the proposal PIN — mirror that link onto
+      // the new client's Presentations tab so the team can hand a returning
+      // client the same report from the client record. Skip if a presentation
+      // with the same URL was already added manually to the proposal.
+      const presentationsWithReport = (() => {
+        const list = presentations ? [...presentations] : [];
+        const auditCompleted = doc.auditStatus === "completed";
+        const slug = typeof doc.slug === "string" ? doc.slug : "";
+        if (!auditCompleted || !slug) return list;
+        const baseUrl =
+          process.env.NEXT_PUBLIC_SERVER_URL ||
+          "https://cms.optimisedigital.online";
+        const reportUrl = `${baseUrl.replace(/\/+$/, "")}/proposals/${slug}`;
+        const alreadyPresent = list.some((p: any) => {
+          const u = typeof p?.deckUrl === "string" ? p.deckUrl.trim() : "";
+          return u === reportUrl || u.endsWith(`/proposals/${slug}`);
+        });
+        if (alreadyPresent) return list;
+        list.unshift({
+          title: "Proposal Report",
+          deckUrl: reportUrl,
+          // deckSlug derived by the Clients beforeChange hook. Set explicitly
+          // so legacy NOT NULL DBs still accept the insert if the hook is
+          // bypassed for any reason.
+          deckSlug: `proposal-${slug}`,
+          presentedOn:
+            (doc as any).auditCompletedAt || new Date().toISOString(),
+          kind: "other",
+          isPublic: true,
+          notes:
+            "Auto-ported from the original sales proposal on client conversion.",
+          templateSlug: null,
+          deckPayload: null,
+        });
+        return list;
+      })();
+
       // Carry the SERP Displacement / AI Visibility enable toggles so the
       // converted client opens with the same UI state. The proposal only
       // exposes `enabled`; the rest of the config is set on the Client
@@ -368,7 +455,9 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
           // placeholder. The real OAuth flow will overwrite gscPropertyUrl
           // with the canonical value once the team connects GSC for the client.
           gscPropertyUrl: doc.gscSiteUrl,
-          ...(presentations && presentations.length > 0 ? { presentations } : {}),
+          ...(presentationsWithReport && presentationsWithReport.length > 0
+            ? { presentations: presentationsWithReport }
+            : {}),
           ...(serpMonitor ? { serpMonitor } : {}),
           ...(aiVisibility ? { aiVisibility } : {}),
           isActive: true,
@@ -2301,7 +2390,7 @@ export const ClientProposals: CollectionConfig = {
         }
       },
     ],
-    beforeChange: [generateUniqueSlug],
+    beforeChange: [generateUniqueSlug, deriveProposalPresentationDeckSlugs],
     afterRead: [seedFlightPlanRecs, seedRoadmap, seedCommercial, seedLaunch],
   },
 };

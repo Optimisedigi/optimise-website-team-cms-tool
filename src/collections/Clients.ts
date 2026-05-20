@@ -89,7 +89,14 @@ const derivePresentationDeckSlugs: CollectionBeforeChangeHook = ({ data }) => {
     (p: { deckUrl?: string | null; deckSlug?: string | null } & Record<string, unknown>) => {
       const url = typeof p.deckUrl === "string" ? p.deckUrl : "";
       const derived = extractDeckSlugFromUrl(url);
-      return { ...p, deckSlug: derived || p.deckSlug || "" };
+      // Guarantee a non-empty deckSlug. The DB column is now nullable (see
+      // 20260524_120000_make_presentations_deck_slug_nullable), but legacy
+      // schemas that haven't been migrated yet still enforce NOT NULL — so
+      // emit a `pending-<timestamp>` placeholder when nothing usable is
+      // available rather than letting an empty string reach the insert.
+      const slug =
+        derived || p.deckSlug || `pending-${Date.now().toString(36)}`;
+      return { ...p, deckSlug: slug };
     },
   );
   return data;

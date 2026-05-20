@@ -61,6 +61,7 @@ import * as migration_20260522_120000_add_proposal_serp_ai_visibility_fields fro
 import * as migration_20260523_120000_add_agent_approval_notifications_links from './20260523_120000_add_agent_approval_notifications_links';
 import * as migration_20260524_130000_drop_clients_gsc_site_url from './20260524_130000_drop_clients_gsc_site_url';
 import * as migration_20260524_140000_add_clients_additional_contacts from './20260524_140000_add_clients_additional_contacts';
+import * as migration_20260524_120000_make_presentations_deck_slug_nullable from './20260524_120000_make_presentations_deck_slug_nullable';
 import * as migration_20260525_120000_add_contract_end_date from './20260525_120000_add_contract_end_date';
 
 export const migrations = [
@@ -378,6 +379,11 @@ export const migrations = [
     up: migration_20260524_140000_add_clients_additional_contacts.up,
     down: migration_20260524_140000_add_clients_additional_contacts.down,
     name: '20260524_140000_add_clients_additional_contacts'
+  },
+  {
+    up: migration_20260524_120000_make_presentations_deck_slug_nullable.up,
+    down: migration_20260524_120000_make_presentations_deck_slug_nullable.down,
+    name: '20260524_120000_make_presentations_deck_slug_nullable'
   },
   {
     up: migration_20260525_120000_add_contract_end_date.up,

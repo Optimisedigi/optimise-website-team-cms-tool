@@ -3184,6 +3184,111 @@ export async function runMigrations(
       "contracts.contract_end_date",
       "ALTER TABLE `contracts` ADD `contract_end_date` text",
     );
+
+    // ── Relax `deck_slug NOT NULL` on the two presentations sub-tables
+    // (2026-05-25). The admin field is read-only and derived from `deck_url`
+    // via the `derivePresentationDeckSlugs` beforeChange hook — if any code
+    // path bypasses the hook (or the hook returns an empty derived slug for a
+    // non-/partners/ URL with an empty path), the insert fails the NOT NULL
+    // check and the save returns 500. SQLite has no ALTER COLUMN, so we have
+    // to rebuild each table. Gate the rebuild on a PRAGMA check so a cold
+    // start that hits an already-nullable column is a fast no-op.
+    async function relaxDeckSlugNotNull(
+      table: string,
+      parentTable: string,
+      extraColumns: string,
+      extraColumnNames: string,
+    ): Promise<void> {
+      const label = `${table}.deck_slug_nullable`;
+      try {
+        const info = (await client!.execute(
+          `PRAGMA table_info(\`${table}\`)`,
+        )) as { rows: Array<{ name?: string; notnull?: number } | unknown[]> };
+        const deckSlugRow = info.rows.find((r: any) => {
+          const name = r?.name ?? r?.[1];
+          return name === "deck_slug";
+        }) as { notnull?: number } | undefined;
+        if (!deckSlugRow) {
+          // Table or column missing — the CREATE TABLE step above will have
+          // built the latest shape on a fresh DB, so nothing to do.
+          const r: MigrationResult = { label, status: "skip", message: "column absent" };
+          opts?.onProgress?.(r);
+          results.push(r);
+          return;
+        }
+        if (Number(deckSlugRow.notnull) === 0) {
+          const r: MigrationResult = { label, status: "skip", message: "already nullable" };
+          opts?.onProgress?.(r);
+          results.push(r);
+          return;
+        }
+
+        // Rebuild the table with deck_slug nullable. Foreign keys off during
+        // the swap so the rename doesn't trip child-table constraints.
+        await client!.execute(`PRAGMA foreign_keys = OFF`);
+        try {
+          await client!.execute(
+            `ALTER TABLE \`${table}\` RENAME TO \`_${table}_old\``,
+          );
+          await client!.execute(
+            `CREATE TABLE \`${table}\` (
+              \`_order\` integer NOT NULL,
+              \`_parent_id\` integer NOT NULL,
+              \`id\` text PRIMARY KEY NOT NULL,
+              \`title\` text NOT NULL,
+              \`deck_slug\` text,
+              \`deck_url\` text,
+              \`presented_on\` text,
+              \`kind\` text DEFAULT 'deck',
+              \`is_public\` integer DEFAULT true,
+              \`notes\` text${extraColumns ? ",\n              " + extraColumns : ""},
+              FOREIGN KEY (\`_parent_id\`) REFERENCES \`${parentTable}\`(\`id\`) ON UPDATE no action ON DELETE cascade
+            )`,
+          );
+          const cols = `\`_order\`, \`_parent_id\`, \`id\`, \`title\`, \`deck_slug\`, \`deck_url\`, \`presented_on\`, \`kind\`, \`is_public\`, \`notes\`${extraColumnNames ? ", " + extraColumnNames : ""}`;
+          await client!.execute(
+            `INSERT INTO \`${table}\` (${cols}) SELECT ${cols} FROM \`_${table}_old\``,
+          );
+          await client!.execute(`DROP TABLE \`_${table}_old\``);
+          await client!.execute(
+            `CREATE INDEX IF NOT EXISTS \`${table}_order_idx\` ON \`${table}\` (\`_order\`)`,
+          );
+          await client!.execute(
+            `CREATE INDEX IF NOT EXISTS \`${table}_parent_id_idx\` ON \`${table}\` (\`_parent_id\`)`,
+          );
+          if (table === "clients_presentations") {
+            await client!.execute(
+              "CREATE INDEX IF NOT EXISTS `clients_presentations_template_slug_idx` ON `clients_presentations` (`template_slug_id`)",
+            );
+          }
+        } finally {
+          await client!.execute(`PRAGMA foreign_keys = ON`);
+        }
+
+        const r: MigrationResult = { label, status: "ok" };
+        opts?.onProgress?.(r);
+        results.push(r);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const r: MigrationResult = { label, status: "error", message: msg };
+        opts?.onProgress?.(r);
+        results.push(r);
+      }
+    }
+    // clients_presentations carries deck-template fields too — the rebuild
+    // must preserve them or the post-copy schema would lose data.
+    await relaxDeckSlugNotNull(
+      "clients_presentations",
+      "clients",
+      "`template_slug_id` integer REFERENCES `deck_templates`(`id`) ON DELETE set null,\n              `deck_payload` text",
+      "`template_slug_id`, `deck_payload`",
+    );
+    await relaxDeckSlugNotNull(
+      "client_proposals_presentations",
+      "client_proposals",
+      "",
+      "",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
