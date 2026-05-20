@@ -99,7 +99,7 @@ export default buildConfig({
       actions: ["./components/NotificationsBell", "./components/UserDisplayName"],
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
-      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/SaveLoaderToast", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass"],
+      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass"],
       beforeDashboard: ["./components/Dashboard"],
     },
   },
@@ -133,16 +133,10 @@ export default buildConfig({
           ...collection.admin?.pagination,
           defaultLimit: collection.admin?.pagination?.defaultLimit ?? 25,
         },
-        components: {
-          ...collection.admin?.components,
-          edit: {
-            ...collection.admin?.components?.edit,
-            SaveButton: './components/RocketSaveButton',
-          },
-        },
       },
     }
   }),
+  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates],
   globals: [
     { ...SheetsAuth, admin: { ...SheetsAuth.admin, components: { elements: { SaveButton: './components/RocketSaveButton' } } } },
     { ...CalendarAuth, admin: { ...CalendarAuth.admin, components: { elements: { SaveButton: './components/RocketSaveButton' } } } },

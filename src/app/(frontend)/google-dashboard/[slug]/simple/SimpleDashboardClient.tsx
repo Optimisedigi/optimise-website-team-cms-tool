@@ -60,14 +60,14 @@ export function SimpleDashboardClient({
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-white mb-1">{clientName}</h1>
-          <h2 className="text-lg font-medium text-slate-400 mb-2">
+          <h2 className="text-lg font-medium text-slate-400">
             Performance Overview
           </h2>
-          <p className="text-slate-400">
-            Enter your 4-digit PIN access code to view the dashboard
-          </p>
         </div>
         <PinEntry slug={slug} onSuccess={() => setVerified(true)} />
+        <p className="text-slate-400 text-center mt-6">
+          Enter your 4-digit PIN access code to view the dashboard
+        </p>
         <PinGateLogo />
       </div>
     );

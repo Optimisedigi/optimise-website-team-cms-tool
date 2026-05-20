@@ -259,6 +259,10 @@ export interface Client {
    */
   name: string;
   /**
+   * Trading / operating name if different from the legal entity name (e.g., 'Acme Corp' when the legal name is 'Acme Corp Pty Ltd'). Auto-populated from signed contracts.
+   */
+  tradingName?: string | null;
+  /**
    * URL-friendly identifier (e.g., 'acme-corp')
    */
   slug: string;
@@ -1262,11 +1266,15 @@ export interface Contract {
    */
   client?: (number | null) | Client;
   /**
+   * Trading / operating name if different from the legal entity name (e.g. 'Berendsen Fluid Power' when the legal name is 'Berendsen Fluid Power Pty Ltd'). The client can also fill this in themselves on the signing page.
+   */
+  clientTradingName?: string | null;
+  /**
    * Business/company name (e.g. 'Berendsen Fluid Power Pty Ltd')
    */
   clientName?: string | null;
   /**
-   * Client contact person name
+   * Client contact name — labelled 'Contact name' on the rendered contract and signing form.
    */
   clientContactName?: string | null;
   /**
@@ -1274,7 +1282,7 @@ export interface Contract {
    */
   clientEmail?: string | null;
   /**
-   * Client job title (e.g. 'Managing Director')
+   * Client position / job title (e.g. 'Managing Director') — labelled 'Position / Title' on the rendered contract and signing form.
    */
   clientTitle?: string | null;
   /**
@@ -1282,9 +1290,17 @@ export interface Contract {
    */
   clientPhone?: string | null;
   /**
+   * Client ACN or ABN. Optional — when set, an 'ACN / ABN' line renders on the contract cover page. The client can fill this in themselves on the signing page.
+   */
+  clientAcn?: string | null;
+  /**
    * Client website URL (auto-populated from proposal)
    */
   clientWebsite?: string | null;
+  /**
+   * Client business address. Optional — when set, a 'Business address' line renders on the contract cover page. The client can fill this in themselves on the signing page.
+   */
+  clientBusinessAddress?: string | null;
   /**
    * Date of contract
    */
@@ -6955,6 +6971,7 @@ export interface PayloadMigration {
 export interface ClientsSelect<T extends boolean = true> {
   billingSummary?: T;
   name?: T;
+  tradingName?: T;
   slug?: T;
   websiteUrl?: T;
   isAgency?: T;
@@ -7510,12 +7527,15 @@ export interface ContractsSelect<T extends boolean = true> {
   contractTitle?: T;
   proposal?: T;
   client?: T;
+  clientTradingName?: T;
   clientName?: T;
   clientContactName?: T;
   clientEmail?: T;
   clientTitle?: T;
   clientPhone?: T;
+  clientAcn?: T;
   clientWebsite?: T;
+  clientBusinessAddress?: T;
   contractDate?: T;
   contractStartDate?: T;
   contractEndDate?: T;

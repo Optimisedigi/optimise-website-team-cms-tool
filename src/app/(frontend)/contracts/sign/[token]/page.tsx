@@ -463,7 +463,7 @@ export default function ContractSignPage() {
                 type="text"
                 value={clientTradingName}
                 onChange={(e) => setClientTradingName(e.target.value)}
-                placeholder="e.g. 'Berendsen Fluid Power'"
+                placeholder=""
                 style={inputStyle}
               />
             </label>
