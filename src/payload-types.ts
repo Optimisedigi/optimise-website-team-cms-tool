@@ -125,6 +125,7 @@ export interface Config {
     'pin-rate-limits': PinRateLimit;
     'match-type-violation-candidates': MatchTypeViolationCandidate;
     'match-type-sync-state': MatchTypeSyncState;
+    'consolidation-candidates': ConsolidationCandidate;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -202,6 +203,7 @@ export interface Config {
     'pin-rate-limits': PinRateLimitsSelect<false> | PinRateLimitsSelect<true>;
     'match-type-violation-candidates': MatchTypeViolationCandidatesSelect<false> | MatchTypeViolationCandidatesSelect<true>;
     'match-type-sync-state': MatchTypeSyncStateSelect<false> | MatchTypeSyncStateSelect<true>;
+    'consolidation-candidates': ConsolidationCandidatesSelect<false> | ConsolidationCandidatesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -6695,7 +6697,8 @@ export interface Notification {
     | 'contract-annual-review-11mo'
     | 'contract-annual-review-11.5mo'
     | 'invoice-statements-ready'
-    | 'agent-approval-pending';
+    | 'agent-approval-pending'
+    | 'consolidation-pending';
   title: string;
   /**
    * Short summary line.
@@ -6712,9 +6715,63 @@ export interface Notification {
    */
   relatedApproval?: (number | null) | AgentApprovalQueue;
   /**
+   * Links the notification to a consolidation-candidate row. Used to bulk-clear bell rows when any admin actions the candidate.
+   */
+  relatedConsolidationCandidate?: (number | null) | ConsolidationCandidate;
+  /**
    * When the recipient dismissed or clicked the notification. Null until then.
    */
   readAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Proposed phrase negatives to consolidate multiple exact negatives when a negative keyword list approaches the 5,000 limit. Created automatically by the cron; approved/rejected by the team.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "consolidation-candidates".
+ */
+export interface ConsolidationCandidate {
+  id: number;
+  /**
+   * Client this consolidation belongs to.
+   */
+  client: number | Client;
+  /**
+   * Negative keyword list being consolidated.
+   */
+  nkl: number | NegativeKeywordList;
+  /**
+   * Snapshot of the NKL name at time of creation.
+   */
+  nklName?: string | null;
+  /**
+   * Proposed phrase negative. Will be added to the NKL and the exact negatives below will be removed.
+   */
+  phraseCandidate: string;
+  /**
+   * Exact negatives that will be removed from the NKL when this consolidation is approved.
+   */
+  exactNegativesToRemove: {
+    keyword: string;
+    id?: string | null;
+  }[];
+  /**
+   * Number of exact negatives being replaced.
+   */
+  exactCount?: number | null;
+  /**
+   * If true, the phrase overlaps with at least one active keyword being bid on in the account. Review overlapDetails before approving.
+   */
+  overlapRisk?: boolean | null;
+  /**
+   * Details of active keywords in the account that overlap with the proposed phrase. Present when overlapRisk is true.
+   */
+  overlapDetails?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  approvedBy?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
 }
@@ -7050,6 +7107,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'match-type-sync-state';
         value: number | MatchTypeSyncState;
+      } | null)
+    | ({
+        relationTo: 'consolidation-candidates';
+        value: number | ConsolidationCandidate;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -9183,6 +9244,7 @@ export interface NotificationsSelect<T extends boolean = true> {
   relatedContract?: T;
   relatedClient?: T;
   relatedApproval?: T;
+  relatedConsolidationCandidate?: T;
   readAt?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -9231,6 +9293,31 @@ export interface MatchTypeViolationCandidatesSelect<T extends boolean = true> {
 export interface MatchTypeSyncStateSelect<T extends boolean = true> {
   client?: T;
   lastRunAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "consolidation-candidates_select".
+ */
+export interface ConsolidationCandidatesSelect<T extends boolean = true> {
+  client?: T;
+  nkl?: T;
+  nklName?: T;
+  phraseCandidate?: T;
+  exactNegativesToRemove?:
+    | T
+    | {
+        keyword?: T;
+        id?: T;
+      };
+  exactCount?: T;
+  overlapRisk?: T;
+  overlapDetails?: T;
+  status?: T;
+  approvedAt?: T;
+  rejectedAt?: T;
+  approvedBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }

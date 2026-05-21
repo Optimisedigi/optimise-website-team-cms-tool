@@ -2717,6 +2717,29 @@ export async function runMigrations(
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
     )`);
 
+    // ── ConsolidationCandidates collection (2026-05-21) ──
+    await run("consolidation_candidates", `CREATE TABLE IF NOT EXISTS \`consolidation_candidates\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`client\` integer NOT NULL,
+      \`nkl\` integer NOT NULL,
+      \`nkl_name\` text,
+      \`phrase_candidate\` text NOT NULL,
+      \`exact_negatives_to_remove\` text NOT NULL,
+      \`exact_count\` numeric,
+      \`overlap_risk\` integer DEFAULT false,
+      \`overlap_details\` text,
+      \`status\` text DEFAULT 'pending' NOT NULL,
+      \`approved_at\` text,
+      \`rejected_at\` text,
+      \`approved_by\` integer,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+    )`);
+    await run("consolidation_candidates_client_idx", "CREATE INDEX IF NOT EXISTS \`consolidation_candidates_client_idx\` ON \`consolidation_candidates\` (\`client\`)");
+    await run("consolidation_candidates_nkl_idx", "CREATE INDEX IF NOT EXISTS \`consolidation_candidates_nkl_idx\` ON \`consolidation_candidates\` (\`nkl\`)");
+    await run("consolidation_candidates_status_idx", "CREATE INDEX IF NOT EXISTS \`consolidation_candidates_status_idx\` ON \`consolidation_candidates\` (\`status\`)");
+    await run("consolidation_candidates_client_status_idx", "CREATE INDEX IF NOT EXISTS \`consolidation_candidates_client_status_idx\` ON \`consolidation_candidates\` (\`client\`, \`status\`)");
+
     // ── client_proposals_cro_key_findings (2026-05-13) ──
     await run("client_proposals_cro_key_findings", `CREATE TABLE IF NOT EXISTS \`client_proposals_cro_key_findings\` (
       \`_order\` integer NOT NULL,

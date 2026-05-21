@@ -10,6 +10,167 @@ const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 const CRON_SECRET = process.env.CRON_SECRET;
 const IDEMPOTENCY_GUARD_MS = 25 * 60 * 1000; // 25 minutes
+const CONSOLIDATION_THRESHOLD = 400; // NKL exact negatives before flagging for consolidation
+
+interface ConsolidationCandidate {
+  phrase: string;
+  exacts: string[];
+  overlapRisk: boolean;
+  overlapDetails: string;
+}
+
+interface GrowthToolsConsolidationResponse {
+  candidates: ConsolidationCandidate[];
+}
+
+interface ConsolidationResult {
+  created: number;
+}
+
+/**
+ * For each monitored client, checks if any NKL has ≥ 400 exact negatives.
+ * If so, calls Growth Tools to get phrase consolidation candidates, de-dups
+ * against existing pending/approved candidates, creates new ones, and notifies admins.
+ */
+async function checkConsolidation(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  clientDocs: any[],
+  clientIdMap: Map<string | number, any>,
+): Promise<ConsolidationResult> {
+  let created = 0;
+
+  for (const clientDoc of clientDocs) {
+    const clientId =
+      typeof clientDoc.id === "object" ? (clientDoc.id as any).id : clientDoc.id;
+    const clientData = clientIdMap.get(clientId);
+    const customerId = clientData?.googleAdsCustomerId as string | null;
+    if (!customerId) continue;
+
+    // Fetch all active NKLs for this client
+    const nklResult = await (payload.find as any)({
+      collection: "negative-keyword-lists",
+      where: {
+        and: [
+          { client: { equals: clientId } },
+          { isActive: { equals: true } },
+        ],
+      },
+      depth: 1,
+      limit: 500,
+      overrideAccess: true,
+    });
+
+    for (const nkl of nklResult.docs) {
+      const nklId = typeof nkl.id === "object" ? (nkl.id as any).id : nkl.id;
+      const keywords: Array<{ keyword?: string; matchType?: string }> = Array.isArray(nkl.keywords) ? nkl.keywords : [];
+      const exactNegatives = keywords
+        .filter((k) => (k.matchType ?? "").toLowerCase() === "exact")
+        .map((k) => k.keyword ?? "")
+        .filter(Boolean);
+
+      if (exactNegatives.length < CONSOLIDATION_THRESHOLD) continue;
+
+      // Call Growth Tools to get consolidation candidates
+      const res = await fetch(
+        `${GROWTH_TOOLS_URL}/api/google-ads/consolidation-candidates`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-internal-key": INTERNAL_API_KEY!,
+          },
+          body: JSON.stringify({
+            customerId: customerId.replace(/-/g, ""),
+            exactNegatives,
+          }),
+          signal: AbortSignal.timeout(60_000),
+        },
+      );
+
+      if (!res.ok) {
+        console.warn(
+          `[consolidation] Growth Tools returned ${res.status} for client ${clientId} NKL ${nklId}`,
+        );
+        continue;
+      }
+
+      const data: GrowthToolsConsolidationResponse = await res.json();
+      const candidates: ConsolidationCandidate[] = Array.isArray(data?.candidates) ? data.candidates : [];
+      const now = new Date().toISOString();
+
+      for (const c of candidates) {
+        // Skip if a pending or approved candidate for this NKL already exists
+        const existing = await (payload.find as any)({
+          collection: "consolidation-candidates",
+          where: {
+            and: [
+              { nkl: { equals: nklId } },
+              { phraseCandidate: { equals: c.phrase } },
+              { status: { in: ["pending", "approved"] } },
+            ],
+          },
+          limit: 1,
+          depth: 0,
+          overrideAccess: true,
+        });
+
+        if (existing.totalDocs > 0) continue;
+
+        // Create the consolidation candidate
+        const candidateDoc = await (payload.create as any)({
+          collection: "consolidation-candidates",
+          data: {
+            client: clientId,
+            nkl: nklId,
+            nklName: nkl.name ?? "",
+            phraseCandidate: c.phrase,
+            exactNegativesToRemove: c.exacts.map((kw) => ({ keyword: kw })),
+            exactCount: c.exacts.length,
+            overlapRisk: c.overlapRisk ?? false,
+            overlapDetails: c.overlapDetails ?? "",
+            status: "pending",
+            createdAt: now,
+            updatedAt: now,
+          },
+          overrideAccess: true,
+        });
+        created++;
+
+        const candidateId = typeof candidateDoc.id === "object" ? (candidateDoc.id as any).id : candidateDoc.id;
+
+        // Notify all admins
+        const admins = await (payload.find as any)({
+          collection: "users",
+          where: { role: { equals: "admin" } },
+          depth: 0,
+          limit: 100,
+          overrideAccess: true,
+        });
+
+        for (const admin of admins.docs) {
+          const adminId = typeof admin.id === "object" ? (admin.id as any).id : admin.id;
+          await (payload.create as any)({
+            collection: "notifications" as never,
+            data: {
+              recipient: adminId,
+              kind: "consolidation-pending",
+              title: `NKL consolidation needed: "${nkl.name ?? nklId}"`,
+              body:
+                c.overlapRisk
+                  ? `Phrase "${c.phrase}" flagged with overlap risk — review required.`
+                  : `Phrase "${c.phrase}" can replace ${c.exacts.length} exact negatives.`,
+              url: `/admin/collections/consolidation-candidates`,
+              relatedConsolidationCandidate: candidateId,
+            },
+            overrideAccess: true,
+          });
+        }
+      }
+    }
+  }
+
+  return { created };
+}
 
 interface Violation {
   searchTerm: string;
@@ -281,6 +442,13 @@ export async function GET(req: NextRequest) {
   let skipped = 0;
   const now = new Date().toISOString();
 
+  // Build lookup map so checkConsolidation can access client data without re-fetching
+  const clientIdMap = new Map<string | number, any>();
+  for (const doc of clientsResult.docs) {
+    const id = typeof doc.id === "object" ? (doc.id as any).id : doc.id;
+    clientIdMap.set(id, doc);
+  }
+
   for (const clientDoc of clientsResult.docs) {
     const clientId =
       typeof clientDoc.id === "object" ? (clientDoc.id as any).id : clientDoc.id;
@@ -345,6 +513,13 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ── Consolidation check: flag NKLs approaching the 5,000 limit ───────────────
+  let consolidationCandidatesCreated = 0;
+  if (doSync) {
+    const consolidationResult = await checkConsolidation(payload, clientsResult.docs, clientIdMap);
+    consolidationCandidatesCreated = consolidationResult.created;
+  }
+
   return NextResponse.json({
     ok: true,
     agencyTimezone,
@@ -354,6 +529,7 @@ export async function GET(req: NextRequest) {
     processed,
     errors,
     skipped,
+    consolidationCandidatesCreated,
     totalMonitoredClients: clientsResult.totalDocs,
   });
 }

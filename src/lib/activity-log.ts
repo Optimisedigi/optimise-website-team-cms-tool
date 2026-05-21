@@ -46,7 +46,9 @@ type ActivityType =
   | "agent_approval_rejected"
   | "match_type_violation_sync"
   | "match_type_violation_approved"
-  | "match_type_violation_rejected";
+  | "match_type_violation_rejected"
+  | "consolidation_approved"
+  | "consolidation_rejected";
 
 interface ActivityEntry {
   type: ActivityType;

@@ -69,6 +69,10 @@ export const Notifications: CollectionConfig = {
           label: "Agent approval pending",
           value: "agent-approval-pending",
         },
+        {
+          label: "Negative keyword consolidation needed",
+          value: "consolidation-pending",
+        },
       ],
     },
     {
@@ -107,6 +111,15 @@ export const Notifications: CollectionConfig = {
       admin: {
         description:
           "Links the notification to the agent-approval row it was fanned out for. Used to bulk-clear bell rows when any admin actions the queue item.",
+      },
+    },
+    {
+      name: "relatedConsolidationCandidate",
+      type: "relationship",
+      relationTo: "consolidation-candidates" as never,
+      admin: {
+        description:
+          "Links the notification to a consolidation-candidate row. Used to bulk-clear bell rows when any admin actions the candidate.",
       },
     },
     {
