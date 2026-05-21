@@ -842,6 +842,7 @@ export async function GET(request: NextRequest) {
   await run("consolidation_candidates_nkl_idx", "CREATE INDEX IF NOT EXISTS \`consolidation_candidates_nkl_idx\` ON \`consolidation_candidates\` (\`nkl\`)");
   await run("consolidation_candidates_status_idx", "CREATE INDEX IF NOT EXISTS \`consolidation_candidates_status_idx\` ON \`consolidation_candidates\` (\`status\`)");
   await run("consolidation_candidates_client_status_idx", "CREATE INDEX IF NOT EXISTS \`consolidation_candidates_client_status_idx\` ON \`consolidation_candidates\` (\`client\`, \`status\`)");
+  await run("locked_docs_rels.consolidation_candidates_id", "ALTER TABLE \`payload_locked_documents_rels\` ADD \`consolidation_candidates_id\` integer REFERENCES \`consolidation_candidates\`(\`id\`) ON DELETE cascade");
 
   let tables: string[] = [];
   try {
