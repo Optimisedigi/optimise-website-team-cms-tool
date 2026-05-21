@@ -945,32 +945,40 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               {scope === "proposal" ? "Proposal" : "Client"} discovery briefing —
               everything saves to the CMS as you type.
             </p>
-            {/* marginLeft: "auto" pushes the meta + button pair to the far
-             * right of the flex row; the button stays last so the meta sits
-             * to its left as requested. transform shifts both an extra 90px
-             * further right (visual nudge — doesn't affect surrounding layout). */}
-            <span
-              className={styles.meta}
-              style={{ marginLeft: "auto", transform: "translateX(90px)" }}
-            >
+            <span className={styles.meta}>
               {filledCount}/{totalKeys} sections completed · saved
             </span>
-            <button
-              type="button"
-              className={`${styles.btn} ${styles.btnPrimary}`}
-              onClick={downloadMarkdown}
-              style={{ fontSize: 9, padding: "4px 8px", transform: "translateX(90px)" }}
-            >
-              Download / Copy Markdown
-            </button>
           </div>
         </div>
-        <div className={styles.logoArea} style={{ marginTop: 30, marginLeft: -30 }}>
+        {/* Right-anchored stack: logo on top, Download / Copy Markdown
+         * below it. Lives as a sibling of `headerText` so the parent
+         * `.header` flex `justify-content: space-between` pins it to the
+         * right edge of the centred max-width:1000px header at any
+         * viewport width. On mobile (<=600px) the .header rule switches
+         * to `flex-direction: column`, which stacks logo+button under
+         * the title block naturally — no extra logic needed here. */}
+        <div
+          className={styles.logoArea}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 8,
+          }}
+        >
           <img
             src="/optimise-digital-logo-black.webp"
             alt="Optimise Digital"
             style={{ height: 18, width: "auto" }}
           />
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            onClick={downloadMarkdown}
+            style={{ fontSize: 9, padding: "4px 8px" }}
+          >
+            Download / Copy Markdown
+          </button>
         </div>
       </header>
 
