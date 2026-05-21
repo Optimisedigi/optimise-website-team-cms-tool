@@ -4,7 +4,7 @@
  * model override picked by the user.
  */
 
-import { runAgent } from "../_shared/base-agent";
+import { runAgent, MAX_TOKENS_TRUNCATION_MARKER } from "../_shared/base-agent";
 import type { CanonicalTool } from "../_shared/tool";
 import type { CredentialSource, Message, Usage } from "../_shared/llm/types";
 import { DEFAULT_CHAT_MODEL } from "../_shared/llm/registry";
@@ -162,15 +162,28 @@ export interface RunChatTurnResult {
 const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
 
 /**
- * Max output tokens per LLM call for chat turns. Set to 2,300 (~1,800 words)
- * which is roughly 3× the largest legitimate OptiMate reply observed in
- * production (the longest real reply we have is ~580 words / 2,880 chars).
- * The cap exists to bound the blast radius of a hallucinated response — the
- * Azores misfire produced ~3,077 words at the default 4,096-token ceiling;
- * with 2,300 that same misfire would have been cut off around word 1,800,
- * saving ~40% of the wasted output.
+ * Max output tokens per LLM call for chat turns.
+ *
+ * Raised from 2,300 to 8,192 after the "push to Gmail" silent-failure
+ * incident (May 2026): 2,300 was clobbering legitimate tool-heavy turns
+ * mid-emission, producing assistant messages with truncated tool_use
+ * blocks. The corrective-retry path then 400'd with "tool_use ids were
+ * found without tool_result blocks immediately after" and the user saw
+ * the model promise an action it never delivered.
+ *
+ * 8,192 matches the upper end of what Sonnet 4.6 + adaptive thinking
+ * needs to emit a Gmail draft tool call containing the full budget email
+ * HTML plus a comparison callout, without forcing truncation recovery to
+ * run on the hot path. Worst-case extra spend per turn vs. 2,300 is
+ * ~$0.09 at Sonnet 4.6 output pricing, and only on turns the model
+ * actually wants to fill — most stay well below 2,300.
+ *
+ * Hallucination blast-radius bounding (the original reason for 2,300)
+ * moves to post-run-checks, which is the right layer: that detector
+ * catches the Azores-style misfire after the fact and replays a
+ * corrective turn, without breaking legitimate large emissions.
  */
-const CHAT_MAX_TOKENS = 2300;
+const CHAT_MAX_TOKENS = 8192;
 
 export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnResult> {
   const { audit, client, messages, modelOverride, userId } = input;
@@ -230,9 +243,28 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
       reason: correction.reason,
       clientId: client?.id,
     });
+    // Fix A: scrub any tool_use blocks out of the prior assistant message
+    // before splicing a plain-text user message after it. Without this,
+    // any orphan or truncated tool_use that snuck through (e.g. from a
+    // model that emitted tool_use AND text but base-agent's max_tokens
+    // recovery missed it) would cause Anthropic to 400 the retry with
+    // "tool_use ids were found without tool_result blocks immediately
+    // after". base-agent already handles the canonical max_tokens case;
+    // this is the belt-and-braces second layer.
+    const sanitizedFinal: Message = {
+      role: result.finalMessage.role,
+      content: result.finalMessage.content
+        .filter((p) => p.type !== "tool_use")
+        .map((p) => p),
+    };
+    if (sanitizedFinal.content.length === 0) {
+      sanitizedFinal.content = [
+        { type: "text", text: MAX_TOKENS_TRUNCATION_MARKER },
+      ];
+    }
     const retryMessages: Message[] = [
       ...messages,
-      result.finalMessage,
+      sanitizedFinal,
       { role: "user", content: [{ type: "text", text: correction.correctionNote }] },
     ];
     result = await runAgent({

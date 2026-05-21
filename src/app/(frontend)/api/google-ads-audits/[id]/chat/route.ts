@@ -7,6 +7,7 @@ import type { Message } from "@/lib/agents/_shared/llm/types";
 import { isCanonicalModel } from "@/lib/agents/_shared/llm/registry";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { fetchMessageBody } from "@/lib/gmail-search";
+import { translateAgentError } from "@/lib/agents/optimate-google-ads/error-translator";
 
 interface IncomingHistoryEntry {
   role: "user" | "assistant";
@@ -254,6 +255,28 @@ export async function POST(
     });
   } catch (err) {
     console.error("[google-ads-chat] error:", err);
+    // Translate known agent-loop / provider failures into a plain-English
+    // explanation the user can act on. Returning HTTP 200 with the
+    // explanation as `reply` makes the chat UI render it as a normal
+    // assistant turn (visible in-context with the rest of the
+    // conversation) instead of a toast that disappears. The error_kind
+    // field is for telemetry and for clients that want to render the
+    // bubble differently — today it's informational only.
+    const translated = translateAgentError(err);
+    if (translated) {
+      return NextResponse.json({
+        reply: translated.userMessage,
+        runId: "",
+        modelRequested: "",
+        modelUsed: "",
+        source: "api-key",
+        proposals: [],
+        confirmRequests: [],
+        sessionId: "",
+        persisted: false,
+        error_kind: translated.kind,
+      });
+    }
     return NextResponse.json(
       { error: (err as Error).message || "Failed to process chat request" },
       { status: 500 },

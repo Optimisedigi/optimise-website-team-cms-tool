@@ -26,6 +26,31 @@ import type { ContentPart, Message, Usage } from "./llm/types";
 
 const DEFAULT_MAX_TURNS = 20;
 
+/**
+ * Hard ceiling on the auto-expanded max_tokens budget when we retry a
+ * truncated tool-use turn. We double the original budget each truncation,
+ * but never go above this — 16,384 is generous (~12,000 words of output)
+ * and well below every supported model's context window.
+ */
+const MAX_TOKENS_RETRY_CEILING = 16384;
+
+/**
+ * Sentinel string we use as text content when a max_tokens-truncated
+ * assistant message is returned to the caller. The original message had
+ * an orphan tool_use block that cannot be paired with a tool_result
+ * (the model never finished emitting it), so we replace the entire
+ * content with this single text part. Callers that splice a synthetic
+ * user message after the final message (e.g. the OptiMate corrective-
+ * retry path) are therefore safe by construction — no orphan tool_use
+ * can leak into the next Anthropic request.
+ *
+ * The text is user-readable on purpose: if the chat route surfaces the
+ * final reply verbatim, the user sees a clear explanation instead of
+ * the run going silent.
+ */
+export const MAX_TOKENS_TRUNCATION_MARKER =
+  "[OptiMate hit the output token limit mid-tool-call and could not complete this turn. Try asking again, or break the request into smaller steps.]";
+
 function newRunId(): string {
   // Compact, sortable, no external uuid dep needed. Format: agent-<unix-ms>-<rand>
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -57,6 +82,17 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
   let modelUsed = opts.model;
   let lastSource: AgentRunResult["source"] = "api-key";
 
+  // Tracks the current per-call output cap. Starts at opts.maxTokens (or
+  // undefined = provider default). Fix B(b1): when a turn hits stopReason
+  // 'max_tokens' WITH an unfinished tool_use block, we double this and
+  // replay the same turn once, giving the model room to finish emitting
+  // the tool call. Resets back to the caller's value after the recovered
+  // turn so a single oversize prompt doesn't permanently inflate every
+  // subsequent turn's budget.
+  const baseMaxTokens = opts.maxTokens;
+  let currentMaxTokens = baseMaxTokens;
+  let truncationRetriesUsed = 0;
+
   for (let turn = 1; turn <= maxTurns; turn++) {
     if (opts.signal?.aborted) {
       throw new Error("Agent run aborted");
@@ -69,7 +105,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
       messages,
       system: opts.systemPrompt,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
-      ...(opts.maxTokens !== undefined ? { maxTokens: opts.maxTokens } : {}),
+      ...(currentMaxTokens !== undefined ? { maxTokens: currentMaxTokens } : {}),
     });
     const llmDuration = Date.now() - llmStart;
 
@@ -132,11 +168,72 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
     }
 
     if (response.stopReason !== "tool_use") {
-      // Model decided it's done. Log the final output and return.
+      // Fix B(b1): max_tokens with an unfinished tool_use block means the
+      // model ran out of room while emitting a tool call. Returning this
+      // message as-is poisons the conversation — the next request would
+      // contain an assistant tool_use with no matching tool_result and
+      // Anthropic 400s with "tool_use ids were found without tool_result
+      // blocks immediately after". Try once with a doubled budget; if
+      // even that truncates, strip the orphan tool_use blocks and
+      // surface a clear message via the truncation marker.
+      const truncatedMidToolUse =
+        response.stopReason === "max_tokens" &&
+        response.message.content.some((p) => p.type === "tool_use");
+
+      if (truncatedMidToolUse && truncationRetriesUsed === 0) {
+        const nextBudget = Math.min(
+          (currentMaxTokens ?? 4096) * 2,
+          MAX_TOKENS_RETRY_CEILING,
+        );
+        await logAgentStep({
+          agentRunId: runId,
+          agentName: opts.agentName,
+          step: turn,
+          type: "agent_error",
+          title: `${opts.agentName} truncated mid-tool-use, retrying turn ${turn} with maxTokens=${nextBudget}`,
+          output: `stopReason=max_tokens, tool_use present, budget ${currentMaxTokens ?? "default"} -> ${nextBudget}`,
+          clientId: opts.context.clientId as string | number | undefined,
+        });
+        // Drop the truncated assistant message we just pushed (line above
+        // in this loop) — we're going to replace it by replaying the
+        // exact same input with a larger budget. Without this pop the
+        // replay would see its own truncated output as history.
+        messages.pop();
+        currentMaxTokens = nextBudget;
+        truncationRetriesUsed += 1;
+        continue;
+      }
+
+      // Either we didn't truncate, or we already retried once and
+      // truncated again. Either way this run is over.
+      let finalMessage = response.message;
+      if (truncatedMidToolUse) {
+        // Belt-and-braces: replace the message content with a single text
+        // part so no caller (e.g. the OptiMate corrective-retry path) can
+        // accidentally replay an orphan tool_use to Anthropic.
+        finalMessage = {
+          role: "assistant",
+          content: [{ type: "text", text: MAX_TOKENS_TRUNCATION_MARKER }],
+        };
+        // Replace the entry we pushed at line 99 so `messages` stays
+        // consistent with what we're returning — useful for callers that
+        // inspect the final state.
+        messages[messages.length - 1] = finalMessage;
+      }
+
+      // Reset the per-call budget for any future runAgent() invocation
+      // that reuses this options object (defensive — currently each call
+      // builds its own opts, but explicit is cheap).
+      currentMaxTokens = baseMaxTokens;
+
+      const finalText = truncatedMidToolUse
+        ? MAX_TOKENS_TRUNCATION_MARKER
+        : assistantText;
+
       const finalStep: AgentStep = {
         step: turn,
         type: "final-output",
-        output: assistantText,
+        output: finalText,
         model: response.model,
         source: response.source,
         timestamp: new Date().toISOString(),
@@ -147,14 +244,14 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
         agentName: opts.agentName,
         step: turn,
         type: "agent_final_output",
-        title: `${opts.agentName} final output`,
-        output: assistantText,
+        title: `${opts.agentName} final output${truncatedMidToolUse ? " (truncated mid-tool-use, marker substituted)" : ""}`,
+        output: finalText,
         model: response.model,
         source: response.source,
         clientId: opts.context.clientId as string | number | undefined,
       });
       return {
-        finalMessage: response.message,
+        finalMessage,
         steps,
         totalUsage,
         modelUsed,
