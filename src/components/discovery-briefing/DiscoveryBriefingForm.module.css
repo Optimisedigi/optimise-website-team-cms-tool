@@ -675,3 +675,97 @@
   .nurtureItem input:nth-of-type(2) { grid-column: 2 / span 2; }
   .pillarRow { grid-template-columns: 1fr auto; }
 }
+
+/* ── v3 additions ─────────────────────────────────────────────── */
+
+/* Audience-segments grid: columns grow with segment count (max 4 before wrap). */
+.audienceGrid { display: grid; gap: 12px; }
+.audienceGrid.cols1 { grid-template-columns: 1fr; }
+.audienceGrid.cols2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.audienceGrid.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.audienceGrid.cols4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.audienceCol {
+  background: #fafaf9;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.audienceColHead { display: flex; align-items: center; gap: 6px; }
+.audienceColHead input { font-weight: 700; }
+.audienceAddBtn { margin-left: auto; }
+
+/* Tools & Access — 2-per-row outer grid. */
+.toolsTableTwoCol {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (max-width: 900px) {
+  .toolsTableTwoCol { grid-template-columns: 1fr; }
+}
+
+/* Section header right-side controls (hide checkbox). */
+.sectionHeadControls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hideSectionToggle {
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.5);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.sectionHidden { opacity: 0.55; }
+.numHidden { background: #fee2e2 !important; color: #b91c1c !important; }
+
+/* RACI table-like rows. */
+.raciHead,
+.raciRow {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(4, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.raciHead {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 4px;
+  margin-bottom: 4px;
+}
+.raciRow {
+  background: #fafaf9;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+}
+@media (max-width: 768px) {
+  .raciHead { display: none; }
+  .raciRow { grid-template-columns: 1fr; }
+}
+
+/* Lead magnet row — name | description | cta | remove. */
+.leadMagnetRow {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+  background: #fafaf9;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+@media (max-width: 768px) {
+  .leadMagnetRow { grid-template-columns: 1fr; }
+}

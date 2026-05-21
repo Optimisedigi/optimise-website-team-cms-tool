@@ -172,6 +172,19 @@ export function buildDiscoveryBriefingMarkdown(
         .join(", ");
       lines.push(`**Industries:** ${industryList}`);
     }
+    // Audience types
+    const audienceTypes = state.targetAudienceTypes ?? [];
+    const filledTypes = audienceTypes.filter(
+      (t) => (t.name ?? "").trim() !== "",
+    );
+    if (filledTypes.length > 0) {
+      lines.push("", "### Audience Types", "");
+      filledTypes.forEach((t) => {
+        const desc = (t.description ?? "").trim();
+        const line = desc ? `**${t.name}** — ${desc}` : `**${t.name}**`;
+        lines.push(`- ${line}`);
+      });
+    }
   });
 
   emitSection("commercials", () => {

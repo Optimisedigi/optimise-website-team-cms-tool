@@ -27,6 +27,7 @@ import styles from "./DiscoveryBriefingForm.module.css";
 import {
   defaultDiscoveryBriefingState,
   type DiscoveryBriefingAudienceSegment,
+  type DiscoveryBriefingAudienceType,
   type DiscoveryBriefingFaq,
   type DiscoveryBriefingLeadMagnet,
   type DiscoveryBriefingNurtureStep,
@@ -224,6 +225,54 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
     });
   }, []);
 
+  // ── Target audience types (synced to commercial audienceSegments) ──────
+  const updateTargetAudienceType = useCallback(
+    (index: number, patch: Partial<DiscoveryBriefingAudienceType>) => {
+      setState((prev) => {
+        const rows = (prev.targetAudienceTypes ?? []).slice();
+        rows[index] = { ...rows[index], ...patch };
+        // Sync names to audienceSegments
+        const syncedSegments: DiscoveryBriefingAudienceSegment[] = rows.map((t) => {
+          const existing = (prev.audienceSegments ?? [])[index];
+          return {
+            name: t.name,
+            averageOrderValue: existing?.averageOrderValue ?? "",
+            purchaseFrequency: existing?.purchaseFrequency ?? "",
+            newLeadsPerMonth: existing?.newLeadsPerMonth ?? "",
+            idealLeadVolume: existing?.idealLeadVolume ?? "",
+          };
+        });
+        return { ...prev, targetAudienceTypes: rows, audienceSegments: syncedSegments };
+      });
+    },
+    [],
+  );
+  const addTargetAudienceType = useCallback(() => {
+    setState((prev) => {
+      const newType: DiscoveryBriefingAudienceType = { name: "", description: "" };
+      const newTypes = [...(prev.targetAudienceTypes ?? []), newType];
+      // Also add a new empty segment to audienceSegments
+      const newSegment: DiscoveryBriefingAudienceSegment = {
+        name: "",
+        averageOrderValue: "",
+        purchaseFrequency: "",
+        newLeadsPerMonth: "",
+        idealLeadVolume: "",
+      };
+      const newSegments = [...(prev.audienceSegments ?? []), newSegment];
+      return { ...prev, targetAudienceTypes: newTypes, audienceSegments: newSegments };
+    });
+  }, []);
+  const removeTargetAudienceType = useCallback((index: number) => {
+    setState((prev) => {
+      const rows = (prev.targetAudienceTypes ?? []).slice();
+      rows.splice(index, 1);
+      const segments = (prev.audienceSegments ?? []).slice();
+      segments.splice(index, 1);
+      return { ...prev, targetAudienceTypes: rows, audienceSegments: segments };
+    });
+  }, []);
+
   const updateService = useCallback(
     (index: number, patch: Partial<DiscoveryBriefingService>) => {
       setState((prev) => {
@@ -399,6 +448,136 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
   // ── Additional details (collapsible) ────────────────────────
   // Always starts collapsed on every page open — deliberately not persisted.
   const [additionalDetailsOpen, setAdditionalDetailsOpen] = useState(false);
+
+  // Audience segments (multi-audience commercials)
+  const updateAudienceSegment = useCallback(
+    (index: number, patch: Partial<DiscoveryBriefingAudienceSegment>) => {
+      setState((prev) => {
+        const rows = (prev.audienceSegments ?? []).slice();
+        rows[index] = { ...rows[index], ...patch };
+        // Sync name back to targetAudienceTypes
+        let syncedTypes = prev.targetAudienceTypes ?? [];
+        if (patch.name !== undefined) {
+          syncedTypes = syncedTypes.slice();
+          syncedTypes[index] = { ...syncedTypes[index], name: patch.name };
+        }
+        return { ...prev, audienceSegments: rows, targetAudienceTypes: syncedTypes };
+      });
+    },
+    [],
+  );
+  const addAudienceSegment = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      audienceSegments: [
+        ...(prev.audienceSegments ?? []),
+        {
+          name: "",
+          averageOrderValue: "",
+          purchaseFrequency: "",
+          newLeadsPerMonth: "",
+          idealLeadVolume: "",
+        },
+      ],
+      targetAudienceTypes: [
+        ...(prev.targetAudienceTypes ?? []),
+        { name: "", description: "" },
+      ],
+    }));
+  }, []);
+  const removeAudienceSegment = useCallback((index: number) => {
+    setState((prev) => {
+      const rows = (prev.audienceSegments ?? []).slice();
+      rows.splice(index, 1);
+      const types = (prev.targetAudienceTypes ?? []).slice();
+      types.splice(index, 1);
+      return { ...prev, audienceSegments: rows, targetAudienceTypes: types };
+    });
+  }, []);
+
+  // Lead magnets
+  const updateLeadMagnet = useCallback(
+    (index: number, patch: Partial<DiscoveryBriefingLeadMagnet>) => {
+      setState((prev) => {
+        const rows = (prev.leadMagnets ?? []).slice();
+        rows[index] = { ...rows[index], ...patch };
+        return { ...prev, leadMagnets: rows };
+      });
+    },
+    [],
+  );
+  const addLeadMagnet = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      leadMagnets: [
+        ...(prev.leadMagnets ?? []),
+        { name: "", description: "", cta: "" },
+      ],
+    }));
+  }, []);
+  const removeLeadMagnet = useCallback((index: number) => {
+    setState((prev) => {
+      const rows = (prev.leadMagnets ?? []).slice();
+      rows.splice(index, 1);
+      return { ...prev, leadMagnets: rows };
+    });
+  }, []);
+
+  // RACI rows
+  const updateRaciRow = useCallback(
+    (index: number, patch: Partial<DiscoveryBriefingRaciRow>) => {
+      setState((prev) => {
+        const rows = (prev.raciRows ?? []).slice();
+        rows[index] = { ...rows[index], ...patch };
+        return { ...prev, raciRows: rows };
+      });
+    },
+    [],
+  );
+  const addRaciRow = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      raciRows: [
+        ...(prev.raciRows ?? []),
+        {
+          task: "",
+          responsible: "",
+          accountable: "",
+          consulted: "",
+          informed: "",
+        },
+      ],
+    }));
+  }, []);
+  const removeRaciRow = useCallback((index: number) => {
+    setState((prev) => {
+      const rows = (prev.raciRows ?? []).slice();
+      rows.splice(index, 1);
+      return { ...prev, raciRows: rows };
+    });
+  }, []);
+
+  // Section visibility toggles
+  const isSectionHidden = useCallback(
+    (id: DiscoveryBriefingSectionId): boolean =>
+      (state.hiddenSections ?? []).includes(id),
+    [state.hiddenSections],
+  );
+  const toggleSectionHidden = useCallback(
+    (id: DiscoveryBriefingSectionId) => {
+      setState((prev) => {
+        const list = prev.hiddenSections ?? [];
+        const idx = list.indexOf(id);
+        if (idx > -1) {
+          const next = list.slice();
+          next.splice(idx, 1);
+          return { ...prev, hiddenSections: next };
+        }
+        return { ...prev, hiddenSections: [...list, id] };
+      });
+    },
+    [],
+  );
 
   // ── Meta count ───────────────────────────────────────────────────
   const filledCount = useMemo(() => {
@@ -635,19 +814,94 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
     </label>
   );
 
+  /**
+   * Shared section header with title, subtitle pill, optional extra
+   * controls (e.g. an "+ Add" button), and a "Hide section" checkbox.
+   * Hidden sections collapse their body — the body is rendered with
+   * `renderSection` which returns null when the id is hidden.
+   */
+  const SectionHead = (props: {
+    id: DiscoveryBriefingSectionId;
+    num: string;
+    title: React.ReactNode;
+    subtitle: React.ReactNode;
+    rightControls?: React.ReactNode;
+  }) => {
+    const hidden = isSectionHidden(props.id);
+    return (
+      <div className={styles.sectionHead}>
+        <h2>
+          {props.num} · {props.title}
+        </h2>
+        <span className={hidden ? `${styles.num} ${styles.numHidden}` : styles.num}>
+          {hidden ? "Hidden" : props.subtitle}
+        </span>
+        <div className={styles.sectionHeadControls}>
+          {props.rightControls}
+          <label
+            className={styles.hideSectionToggle}
+            title="Hide this section from the rendered markdown"
+          >
+            <input
+              type="checkbox"
+              checked={hidden}
+              onChange={() => toggleSectionHidden(props.id)}
+            />
+            Hide section
+          </label>
+        </div>
+      </div>
+    );
+  };
+
+  /**
+   * Wrap a section's `<section>` block so hidden sections still show
+   * their header (so the team can re-enable) but never render the body.
+   */
+  const renderSection = (
+    id: DiscoveryBriefingSectionId,
+    head: React.ReactNode,
+    body: React.ReactNode,
+  ) => {
+    const hidden = isSectionHidden(id);
+    return (
+      <section
+        className={`${styles.section} ${hidden ? styles.sectionHidden : ""}`}
+      >
+        {head}
+        {hidden ? null : body}
+      </section>
+    );
+  };
+
   // ── Render ───────────────────────────────────────────────────────
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <div className={styles.headerText}>
           <p className={styles.eyebrow}>Client Discovery Briefing</p>
-          <h1>{scopeLabel}</h1>
-          <p className={styles.lede}>
-            {scope === "proposal" ? "Proposal" : "Client"} discovery briefing —
-            everything saves to the CMS as you type.
-          </p>
+          <h1 style={{ fontSize: "clamp(18px, 2.5vw, 24px)", fontWeight: 900, margin: "0 0 6px 0" }}>
+            {scopeLabel}
+          </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <p className={styles.lede}>
+              {scope === "proposal" ? "Proposal" : "Client"} discovery briefing —
+              everything saves to the CMS as you type.
+            </p>
+            <span className={styles.meta}>
+              {filledCount}/{totalKeys} sections completed · saved
+            </span>
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              onClick={downloadMarkdown}
+              style={{ fontSize: 9, padding: "4px 8px" }}
+            >
+              Download / Copy Markdown
+            </button>
+          </div>
         </div>
-        <div className={styles.logoArea} style={{ marginTop: 90, marginLeft: -30 }}>
+        <div className={styles.logoArea} style={{ marginTop: 10, marginLeft: -30 }}>
           <img
             src="/optimise-digital-logo-black.webp"
             alt="Optimise Digital"
@@ -657,106 +911,33 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
       </header>
 
       <main className={styles.main}>
-        <div className={styles.toolbar}>
-          <button
-            type="button"
-            className={`${styles.btn} ${styles.btnPrimary}`}
-            onClick={downloadMarkdown}
-          >
-            Download / Copy Markdown
-          </button>
-          <span className={styles.meta}>
-            {filledCount}/{totalKeys} sections completed · saved
-          </span>
-        </div>
-
         {/* 1 · Business Overview */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>1 · Business Overview</h2>
-            <span className={styles.num}>One sentence summary</span>
-          </div>
+        {renderSection(
+          "businessOverview",
+          <SectionHead
+            id="businessOverview"
+            num="1"
+            title="Business Overview"
+            subtitle="One sentence summary"
+          />,
           <div className={styles.field}>
             {textareaField(
               "oneLiner",
               "What does your business do in one sentence?",
               "We help [target audience] achieve [outcome] through [service]...",
             )}
-          </div>
-        </section>
-
-        {/* 1.5 · Commercials & Growth */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>1.5 · Commercials &amp; Growth</h2>
-            <span className={styles.num}>Revenue economics & lead flow</span>
-          </div>
-          <div className={styles.grid2}>
-            {textField(
-              "averageOrderValue",
-              "Average order / client value",
-              "e.g. $3,500 per project",
-            )}
-            {textField(
-              "purchaseFrequency",
-              "Purchases per client per year",
-              "e.g. 2.5",
-            )}
-          </div>
-          <div className={styles.grid2} style={{ marginTop: 10 }}>
-            {textField(
-              "newLeadsPerMonth",
-              "Current new leads per month",
-              "e.g. 25",
-            )}
-            {textField(
-              "idealLeadVolume",
-              "Ideal new leads per month",
-              "e.g. 60",
-            )}
-          </div>
-          <div className={styles.field} style={{ marginTop: 10 }}>
-            <label>Top growth channels today</label>
-            <p className={styles.fieldHint}>
-              Pick all that apply — the order you click determines the ranking.
-            </p>
-            <div className={styles.chips}>
-              {GROWTH_CHANNELS.map((ch) => {
-                const rank = growthChannelRank(ch.value);
-                const selected = rank !== null;
-                return (
-                  <button
-                    type="button"
-                    key={ch.value}
-                    className={`${styles.chip} ${selected ? styles.chipSelected : ""}`}
-                    onClick={() => toggleGrowthChannel(ch.value)}
-                    aria-pressed={selected}
-                  >
-                    {selected ? <span className={styles.chipRank}>{rank}</span> : null}
-                    {ch.label}
-                  </button>
-                );
-              })}
-            </div>
-            {showGrowthChannelOther && (
-              <input
-                type="text"
-                className={styles.subFieldInput}
-                value={state.topGrowthChannelOther}
-                placeholder="Specify other growth channel..."
-                style={{ marginTop: 6 }}
-                onChange={(e) => setField("topGrowthChannelOther", e.target.value)}
-              />
-            )}
-          </div>
-        </section>
+          </div>,
+        )}
 
         {/* 2 · Core Services */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>2 · Core Services</h2>
-            <span className={styles.num}>List services with priority</span>
-          </div>
+        {renderSection(
+          "coreServices",
+          <SectionHead
+            id="coreServices"
+            num="2"
+            title="Core Services"
+            subtitle="List services with priority"
+          />,
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
               <div>
@@ -829,101 +1010,339 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
                 )}
               </div>
             </div>
-          </div>
-        </section>
+          </div>,
+        )}
 
         {/* 3 · Target Audience */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>3 · Target Audience</h2>
-            <span className={styles.num}>Who are your ideal clients?</span>
-          </div>
-          {textareaField(
-            "idealClient",
-            "Describe your ideal client in detail",
-            "Include: industry, company size, revenue, location, pain points, decision-maker role...",
-          )}
-          <div className={styles.grid2} style={{ marginTop: 12 }}>
-            {textField(
-              "locations",
-              "Primary location(s) you serve",
-              "e.g. Sydney CBD, NSW, Australia / Remote worldwide",
-            )}
-            <div className={styles.field}>
-              <label>Geographic focus for SEO</label>
-              {selectField("geoFocus", "Geographic focus for SEO", [
-                { value: "local", label: "Local (single city/region)" },
-                { value: "regional", label: "Regional (state/country)" },
-                { value: "national", label: "National" },
-                { value: "international", label: "International" },
-              ])}
-            </div>
-          </div>
-
-          <div className={styles.field} style={{ marginTop: 12 }}>
-            <label>Any specific industries you specialise in?</label>
-            <div className={styles.chips}>
-              {INDUSTRIES.map((ind) => {
-                const selected = state.industries.includes(ind.value);
-                return (
-                  <button
-                    type="button"
-                    key={ind.value}
-                    className={`${styles.chip} ${selected ? styles.chipSelected : ""}`}
-                    onClick={() => toggleIndustry(ind.value)}
-                    aria-pressed={selected}
-                  >
-                    {ind.label}
-                  </button>
-                );
-              })}
-            </div>
-            {showIndustryOther && (
-              <input
-                type="text"
-                className={styles.subFieldInput}
-                value={state.industryOther}
-                placeholder="Specify other industry..."
-                style={{ marginTop: 6 }}
-                onChange={(e) => setField("industryOther", e.target.value)}
-              />
-            )}
-          </div>
-        </section>
-
-        {/* 4 · USP & Differentiation */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>4 · USP &amp; Differentiation</h2>
-            <span className={styles.num}>What sets you apart?</span>
-          </div>
-          {textareaField(
-            "usp",
-            "What is your unique selling proposition (USP)?",
-            "Why should clients choose you over competitors?",
-          )}
-          <div style={{ marginTop: 12 }}>
+        {renderSection(
+          "targetAudience",
+          <SectionHead
+            id="targetAudience"
+            num="3"
+            title="Target Audience"
+            subtitle="Who are your ideal clients?"
+            rightControls={
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.audienceAddBtn}`}
+                style={{ fontSize: 10, padding: "4px 8px" }}
+                onClick={addTargetAudienceType}
+              >
+                + Audience type
+              </button>
+            }
+          />,
+          <>
             {textareaField(
-              "competitorsAdmire",
-              "Which competitors do you admire or want to mimic?",
-              "List any competitors you respect, or that you feel are doing something well you'd like to replicate.",
+              "idealClient",
+              "Describe your ideal client in detail",
+              "Include: industry, company size, revenue, location, pain points, decision-maker role...",
             )}
-          </div>
-          <div style={{ marginTop: 12 }}>
-            {textareaField(
-              "differentiators",
-              "What are your main differentiators vs competitors?",
-              "e.g. faster turnaround, better support, proprietary process, certifications...",
+            <div className={styles.grid2} style={{ marginTop: 12 }}>
+              {textField(
+                "locations",
+                "Primary location(s) you serve",
+                "e.g. Sydney CBD, NSW, Australia / Remote worldwide",
+              )}
+              <div className={styles.field}>
+                <label>Geographic focus for SEO</label>
+                {selectField("geoFocus", "Geographic focus for SEO", [
+                  { value: "local", label: "Local (single city/region)" },
+                  { value: "regional", label: "Regional (state/country)" },
+                  { value: "national", label: "National" },
+                  { value: "international", label: "International" },
+                ])}
+              </div>
+            </div>
+            <div className={styles.field} style={{ marginTop: 12 }}>
+              <label>Any specific industries you specialise in?</label>
+              <div className={styles.chips}>
+                {INDUSTRIES.map((ind) => {
+                  const selected = state.industries.includes(ind.value);
+                  return (
+                    <button
+                      type="button"
+                      key={ind.value}
+                      className={`${styles.chip} ${selected ? styles.chipSelected : ""}`}
+                      onClick={() => toggleIndustry(ind.value)}
+                      aria-pressed={selected}
+                    >
+                      {ind.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {showIndustryOther && (
+                <input
+                  type="text"
+                  className={styles.subFieldInput}
+                  value={state.industryOther}
+                  placeholder="Specify other industry..."
+                  style={{ marginTop: 6 }}
+                  onChange={(e) => setField("industryOther", e.target.value)}
+                />
+              )}
+            </div>
+            {/* Audience types list — synced to Commercials & Growth */}
+            {state.targetAudienceTypes && state.targetAudienceTypes.length > 0 && (
+              <div className={styles.field} style={{ marginTop: 12 }}>
+                <label>Audience types</label>
+                <p className={styles.fieldHint}>
+                  Define different customer types. Names sync to Commercials &amp; Growth for economic data.
+                </p>
+                <div
+                  className={`${styles.audienceGrid} ${
+                    styles[
+                      `cols${Math.min(4, state.targetAudienceTypes.length)}` as keyof typeof styles
+                    ] ?? ""
+                  }`}
+                >
+                  {state.targetAudienceTypes.map((type, i) => (
+                    <div key={i} className={styles.audienceCol}>
+                      <div className={styles.audienceColHead}>
+                        <input
+                          type="text"
+                          value={type.name}
+                          placeholder={`Audience type ${i + 1}`}
+                          onChange={(e) =>
+                            updateTargetAudienceType(i, { name: e.target.value })
+                          }
+                        />
+                        <button
+                          type="button"
+                          className={`${styles.btn} ${styles.btnGhost}`}
+                          style={{ fontSize: 10, padding: "4px 8px" }}
+                          onClick={() => removeTargetAudienceType(i)}
+                          aria-label={`Remove audience type ${i + 1}`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className={styles.field}>
+                        <label>Description</label>
+                        <textarea
+                          value={type.description}
+                          placeholder="Brief description of this audience..."
+                          rows={2}
+                          onChange={(e) =>
+                            updateTargetAudienceType(i, { description: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
-          </div>
-        </section>
+          </>,
+        )}
 
-        {/* 4.5 · Brand Assets & Voice */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>4.5 · Brand Assets &amp; Voice</h2>
-            <span className={styles.num}>Logos, colours, fonts and tone</span>
-          </div>
+        {/* 4 · Commercials & Growth (multi-audience) */}
+        {renderSection(
+          "commercials",
+          <SectionHead
+            id="commercials"
+            num="4"
+            title={<>Commercials &amp; Growth</>}
+            subtitle="Revenue economics & lead flow"
+            rightControls={
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.audienceAddBtn}`}
+                style={{ fontSize: 10, padding: "4px 8px" }}
+                onClick={addAudienceSegment}
+              >
+                + Add audience type
+              </button>
+            }
+          />,
+          <>
+            {state.audienceSegments && state.audienceSegments.length > 0 ? (
+              <div
+                className={`${styles.audienceGrid} ${
+                  styles[
+                    `cols${Math.min(4, state.audienceSegments.length)}` as keyof typeof styles
+                  ] ?? ""
+                }`}
+              >
+                {state.audienceSegments.map((seg, i) => (
+                  <div key={i} className={styles.audienceCol}>
+                    <div className={styles.audienceColHead}>
+                      <input
+                        type="text"
+                        value={seg.name}
+                        placeholder={`Audience ${i + 1}`}
+                        onChange={(e) =>
+                          updateAudienceSegment(i, { name: e.target.value })
+                        }
+                      />
+                      <button
+                        type="button"
+                        className={`${styles.btn} ${styles.btnGhost}`}
+                        style={{ fontSize: 10, padding: "4px 8px" }}
+                        onClick={() => removeAudienceSegment(i)}
+                        aria-label={`Remove audience ${i + 1}`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className={styles.field}>
+                      <label>Average order / client value</label>
+                      <input
+                        type="text"
+                        value={seg.averageOrderValue}
+                        placeholder="e.g. $3,500"
+                        onChange={(e) =>
+                          updateAudienceSegment(i, {
+                            averageOrderValue: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label>Purchases per client / year</label>
+                      <input
+                        type="text"
+                        value={seg.purchaseFrequency}
+                        placeholder="e.g. 2.5"
+                        onChange={(e) =>
+                          updateAudienceSegment(i, {
+                            purchaseFrequency: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label>Current new leads / month</label>
+                      <input
+                        type="text"
+                        value={seg.newLeadsPerMonth}
+                        placeholder="e.g. 25"
+                        onChange={(e) =>
+                          updateAudienceSegment(i, {
+                            newLeadsPerMonth: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label>Ideal new leads / month</label>
+                      <input
+                        type="text"
+                        value={seg.idealLeadVolume}
+                        placeholder="e.g. 60"
+                        onChange={(e) =>
+                          updateAudienceSegment(i, {
+                            idealLeadVolume: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className={styles.grid2}>
+                  {textField(
+                    "averageOrderValue",
+                    "Average order / client value",
+                    "e.g. $3,500 per project",
+                  )}
+                  {textField(
+                    "purchaseFrequency",
+                    "Purchases per client per year",
+                    "e.g. 2.5",
+                  )}
+                </div>
+                <div className={styles.grid2} style={{ marginTop: 10 }}>
+                  {textField(
+                    "newLeadsPerMonth",
+                    "Current new leads per month",
+                    "e.g. 25",
+                  )}
+                  {textField(
+                    "idealLeadVolume",
+                    "Ideal new leads per month",
+                    "e.g. 60",
+                  )}
+                </div>
+              </>
+            )}
+            <div className={styles.field} style={{ marginTop: 10 }}>
+              <label>Top growth channels today</label>
+              <p className={styles.fieldHint}>
+                Pick all that apply — the order you click determines the ranking.
+              </p>
+              <div className={styles.chips}>
+                {GROWTH_CHANNELS.map((ch) => {
+                  const rank = growthChannelRank(ch.value);
+                  const selected = rank !== null;
+                  return (
+                    <button
+                      type="button"
+                      key={ch.value}
+                      className={`${styles.chip} ${selected ? styles.chipSelected : ""}`}
+                      onClick={() => toggleGrowthChannel(ch.value)}
+                      aria-pressed={selected}
+                    >
+                      {selected ? <span className={styles.chipRank}>{rank}</span> : null}
+                      {ch.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {showGrowthChannelOther && (
+                <input
+                  type="text"
+                  className={styles.subFieldInput}
+                  value={state.topGrowthChannelOther}
+                  placeholder="Specify other growth channel..."
+                  style={{ marginTop: 6 }}
+                  onChange={(e) => setField("topGrowthChannelOther", e.target.value)}
+                />
+              )}
+            </div>
+          </>,
+        )}
+
+
+
+        {/* 5 · USP & Differentiation */}
+        {renderSection(
+          "usp",
+          <SectionHead
+            id="usp"
+            num="5"
+            title={<>USP &amp; Differentiation</>}
+            subtitle="What sets you apart?"
+          />,
+          <>
+            {textareaField(
+              "usp",
+              "What is your unique selling proposition (USP)?",
+              "Why should clients choose you?",
+            )}
+            <div style={{ marginTop: 12 }}>
+              {textareaField(
+                "differentiators",
+                "What are your main differentiators vs competitors?",
+                "e.g. faster turnaround, better support, proprietary process, certifications...",
+              )}
+            </div>
+          </>,
+        )}
+
+        {/* 6 · Brand Assets & Voice */}
+        {renderSection(
+          "brand",
+          <SectionHead
+            id="brand"
+            num="6"
+            title={<>Brand Assets &amp; Voice</>}
+            subtitle="Logos, colours, fonts and tone"
+          />,
+          <>
           <div className={styles.grid2}>
             {textField(
               "brandLogoNotes",
@@ -992,15 +1411,19 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               "List any websites, blogs, or brands whose tone or visual style resonates.",
             )}
           </div>
-        </section>
+          </>,
+        )}
 
-        {/* 5 · Tech Stack & Tools */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>5 · Tech Stack &amp; Tools</h2>
-            <span className={styles.num}>What systems are you currently using?</span>
-          </div>
-
+        {/* 7 · Tech Stack & Tools */}
+        {renderSection(
+          "techStack",
+          <SectionHead
+            id="techStack"
+            num="7"
+            title={<>Tech Stack &amp; Tools</>}
+            subtitle="What systems are you currently using?"
+          />,
+          <>
           <div className={styles.grid3}>
             <div className={styles.field}>
               <label>CRM</label>
@@ -1181,7 +1604,7 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               </div>
             )}
 
-            <div className={styles.toolsTable}>
+            <div className={styles.toolsTableTwoCol}>
               <ToolAccessRow
                 label="Google Search Console"
                 statusKey="toolSearchConsoleStatus"
@@ -1241,48 +1664,6 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               />
             </div>
 
-            <div className={styles.field} style={{ marginTop: 14 }}>
-              <label>Have you done any PR?</label>
-              <div className={styles.checkGroup}>
-                {(
-                  [
-                    ["yes", "Yes"],
-                    ["no", "No"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <label key={value} className={styles.checkItem}>
-                    <input
-                      type="radio"
-                      name="prDone"
-                      value={value}
-                      checked={state.prDone === value}
-                      onChange={(e) =>
-                        e.target.checked && setField("prDone", value)
-                      }
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              {state.prDone === "yes" && (
-                <div style={{ marginTop: 8 }}>
-                  {textareaField(
-                    "prDetails",
-                    "PR details",
-                    "Where, when, and what was covered.",
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div style={{ marginTop: 12 }}>
-              {textareaField(
-                "existingBacklinksNotes",
-                "Any existing backlinks worth protecting?",
-                "List notable inbound links we should preserve during any migration.",
-              )}
-            </div>
-
             {proposalHref && (
               <div style={{ marginTop: 14 }}>
                 <a
@@ -1296,15 +1677,19 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               </div>
             )}
           </div>
-        </section>
+          </>,
+        )}
 
-        {/* 6 · Current SEO & Online Presence */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>6 · Current SEO &amp; Online Presence</h2>
-            <span className={styles.num}>We handle keyword &amp; competitor research</span>
-          </div>
-
+        {/* 8 · Current SEO & Online Presence */}
+        {renderSection(
+          "seoPresence",
+          <SectionHead
+            id="seoPresence"
+            num="8"
+            title={<>Current SEO &amp; Online Presence</>}
+            subtitle={<>We handle keyword &amp; competitor research</>}
+          />,
+          <>
           <div className={styles.field}>
             <label>Google Business Profile (My Business)</label>
             <div className={styles.checkGroup}>
@@ -1368,14 +1753,19 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               </div>
             </div>
           </div>
-        </section>
+          </>,
+        )}
 
-        {/* 7 · Social Proof */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>7 · Social Proof &amp; Case Studies</h2>
-            <span className={styles.num}>Who have you worked with?</span>
-          </div>
+        {/* 9 · Social Proof */}
+        {renderSection(
+          "socialProof",
+          <SectionHead
+            id="socialProof"
+            num="9"
+            title={<>Social Proof &amp; Case Studies</>}
+            subtitle="Who have you worked with?"
+          />,
+          <>
           <p className={styles.sectionIntro}>
             List notable clients, case studies, or testimonials.
           </p>
@@ -1452,14 +1842,130 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               {checkbox("reviewsNone", "None yet")}
             </div>
           </div>
-        </section>
 
-        {/* 8 · Content Strategy */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>8 · Content Strategy</h2>
-            <span className={styles.num}>What will resonate with your audience?</span>
+          <div className={styles.field} style={{ marginTop: 14 }}>
+            <label>Have you done any PR?</label>
+            <div className={styles.checkGroup}>
+              {(
+                [
+                  ["yes", "Yes"],
+                  ["no", "No"],
+                ] as const
+              ).map(([value, label]) => (
+                <label key={value} className={styles.checkItem}>
+                  <input
+                    type="radio"
+                    name="prDone"
+                    value={value}
+                    checked={state.prDone === value}
+                    onChange={(e) =>
+                      e.target.checked && setField("prDone", value)
+                    }
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            {state.prDone === "yes" && (
+              <div style={{ marginTop: 8 }}>
+                {textareaField(
+                  "prDetails",
+                  "PR details",
+                  "Where, when, and what was covered.",
+                )}
+              </div>
+            )}
           </div>
+
+          <div style={{ marginTop: 12 }}>
+            {textareaField(
+              "existingBacklinksNotes",
+              "Any existing backlinks worth protecting?",
+              "List notable inbound links we should preserve during any migration.",
+            )}
+          </div>
+          </>,
+        )}
+
+        {/* 10 · Lead Magnets */}
+        {renderSection(
+          "leadMagnets",
+          <SectionHead
+            id="leadMagnets"
+            num="10"
+            title="Lead Magnets"
+            subtitle="Free assets that capture leads"
+            rightControls={
+              <button
+                type="button"
+                className={styles.btn}
+                style={{ fontSize: 10, padding: "4px 8px" }}
+                onClick={addLeadMagnet}
+              >
+                + Add lead magnet
+              </button>
+            }
+          />,
+          <>
+            <div>
+              {(state.leadMagnets ?? []).map((m, i) => (
+                <div key={i} className={styles.leadMagnetRow}>
+                  <input
+                    type="text"
+                    value={m.name}
+                    placeholder="Name (e.g. Free SEO audit)"
+                    onChange={(e) =>
+                      updateLeadMagnet(i, { name: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    value={m.description}
+                    placeholder="Short description"
+                    onChange={(e) =>
+                      updateLeadMagnet(i, { description: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    value={m.cta}
+                    placeholder="CTA / destination"
+                    onChange={(e) =>
+                      updateLeadMagnet(i, { cta: e.target.value })
+                    }
+                  />
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnGhost}`}
+                    style={{ fontSize: 10, padding: "4px 8px" }}
+                    onClick={() => removeLeadMagnet(i)}
+                    aria-label={`Remove lead magnet ${i + 1}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              {textareaField(
+                "leadMagnetsNotes",
+                "Lead magnet strategy notes",
+                "How will these be promoted, sequenced, and measured?",
+              )}
+            </div>
+          </>,
+        )}
+
+        {/* 11 · Content Strategy */}
+        {renderSection(
+          "contentStrategy",
+          <SectionHead
+            id="contentStrategy"
+            num="11"
+            title="Content Strategy"
+            subtitle="What will resonate with your audience?"
+          />,
+          <>
           <div className={styles.field}>
             <label>Content types you think will work best</label>
             <p className={styles.fieldHint}>
@@ -1567,14 +2073,19 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               + Add FAQ
             </button>
           </div>
-        </section>
+          </>,
+        )}
 
-        {/* 9 · Google Ads */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>9 · Google Ads</h2>
-            <span className={styles.num}>Paid search strategy</span>
-          </div>
+        {/* 12 · Google Ads */}
+        {renderSection(
+          "googleAds",
+          <SectionHead
+            id="googleAds"
+            num="12"
+            title="Google Ads"
+            subtitle="Paid search strategy"
+          />,
+          <>
           <div className={styles.field}>
             <label>Current Google Ads status</label>
             <div className={styles.checkGroup}>
@@ -1648,14 +2159,19 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               )}
             </div>
           </div>
-        </section>
+          </>,
+        )}
 
-        {/* 10 · Timeline */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>10 · Timeline</h2>
-            <span className={styles.num}>Launch dates and hard deadlines</span>
-          </div>
+        {/* 13 · Timeline */}
+        {renderSection(
+          "timeline",
+          <SectionHead
+            id="timeline"
+            num="13"
+            title="Timeline"
+            subtitle="Launch dates and hard deadlines"
+          />,
+          <>
           <div className={styles.field}>
             {textField(
               "launchDate",
@@ -1670,14 +2186,18 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               "Trade shows, product launches, busy seasons, renewal dates...",
             )}
           </div>
-        </section>
+          </>,
+        )}
 
-        {/* 10.5 · Working Relationship */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>10.5 · Working Relationship</h2>
-            <span className={styles.num}>How we operate together</span>
-          </div>
+        {/* 14 · Working Relationship */}
+        {renderSection(
+          "workingRelationship",
+          <SectionHead
+            id="workingRelationship"
+            num="14"
+            title="Working Relationship"
+            subtitle="How we operate together"
+          />,
           <div className={styles.field}>
             {textareaField(
               "pointOfContact",
@@ -1685,15 +2205,114 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               "Name, role, email/phone — who do we go to for content sign-off, logos & asset requests?",
               { minHeight: 80 },
             )}
-          </div>
-        </section>
+          </div>,
+        )}
 
-        {/* 10.7 · Lead Nurturing */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>10.7 · Lead Nurturing</h2>
-            <span className={styles.num}>How leads flow today and where they should</span>
-          </div>
+        {/* 15 · RACI & Approvals */}
+        {renderSection(
+          "raci",
+          <SectionHead
+            id="raci"
+            num="15"
+            title={<>RACI &amp; Approvals</>}
+            subtitle="Who's Responsible, Accountable, Consulted, Informed?"
+            rightControls={
+              <button
+                type="button"
+                className={styles.btn}
+                style={{ fontSize: 10, padding: "4px 8px" }}
+                onClick={addRaciRow}
+              >
+                + Add task
+              </button>
+            }
+          />,
+          <>
+            {(state.raciRows ?? []).length > 0 && (
+              <div className={styles.raciHead}>
+                <span>Task</span>
+                <span>R</span>
+                <span>A</span>
+                <span>C</span>
+                <span>I</span>
+                <span />
+              </div>
+            )}
+            <div>
+              {(state.raciRows ?? []).map((r, i) => (
+                <div key={i} className={styles.raciRow}>
+                  <input
+                    type="text"
+                    value={r.task}
+                    placeholder="Task / deliverable"
+                    onChange={(e) =>
+                      updateRaciRow(i, { task: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    value={r.responsible}
+                    placeholder="Responsible"
+                    onChange={(e) =>
+                      updateRaciRow(i, { responsible: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    value={r.accountable}
+                    placeholder="Accountable"
+                    onChange={(e) =>
+                      updateRaciRow(i, { accountable: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    value={r.consulted}
+                    placeholder="Consulted"
+                    onChange={(e) =>
+                      updateRaciRow(i, { consulted: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    value={r.informed}
+                    placeholder="Informed"
+                    onChange={(e) =>
+                      updateRaciRow(i, { informed: e.target.value })
+                    }
+                  />
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnGhost}`}
+                    style={{ fontSize: 10, padding: "4px 8px" }}
+                    onClick={() => removeRaciRow(i)}
+                    aria-label={`Remove RACI row ${i + 1}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              {textareaField(
+                "approvalsNotes",
+                "Who approves what?",
+                "Note who signs off on creative, copy, ad spend, contracts, etc.",
+              )}
+            </div>
+          </>,
+        )}
+
+        {/* 16 · Lead Nurturing */}
+        {renderSection(
+          "leadNurturing",
+          <SectionHead
+            id="leadNurturing"
+            num="16"
+            title="Lead Nurturing"
+            subtitle="How leads flow today and where they should"
+          />,
+          <>
           <p className={styles.sectionIntro}>
             Walk us through the current process — each step and who manages
             it — then describe what the future-state should look like.
@@ -1742,14 +2361,19 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               { minHeight: 100 },
             )}
           </div>
-        </section>
+          </>,
+        )}
 
-        {/* 11 · Discovery Notes */}
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <h2>11 · Discovery Notes</h2>
-            <span className={styles.num}>Free-form notes for the meeting</span>
-          </div>
+        {/* 17 · Discovery Notes */}
+        {renderSection(
+          "discoveryNotes",
+          <SectionHead
+            id="discoveryNotes"
+            num="17"
+            title="Discovery Notes"
+            subtitle="Free-form notes for the meeting"
+          />,
+          <>
           {textareaField(
             "additionalNotes",
             "Anything else we should know about your business?",
@@ -1772,52 +2396,50 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               { minHeight: 60 },
             )}
           </div>
-        </section>
+          </>,
+        )}
 
-        {/* 12 · Additional details (collapsed by default) */}
-        <section
-          className={`${styles.section} ${styles.collapsibleSection}`}
-        >
-          <button
-            type="button"
-            className={styles.collapsibleHead}
-            onClick={() => setAdditionalDetailsOpen((v) => !v)}
-            aria-expanded={additionalDetailsOpen}
+        {/* 18 · Additional details (compliance only) */}
+        {isSectionHidden("additionalDetails") ? (
+          <section className={`${styles.section} ${styles.sectionHidden}`}>
+            <SectionHead
+              id="additionalDetails"
+              num="18"
+              title="Additional details"
+              subtitle="Optional compliance notes"
+            />
+          </section>
+        ) : (
+          <section
+            className={`${styles.section} ${styles.collapsibleSection}`}
           >
-            <div className={styles.sectionHead} style={{ margin: 0 }}>
-              <h2>12 · Additional details</h2>
-              <span className={styles.num}>
-                Optional context — compliance, approvals, hosting
+            <button
+              type="button"
+              className={styles.collapsibleHead}
+              onClick={() => setAdditionalDetailsOpen((v) => !v)}
+              aria-expanded={additionalDetailsOpen}
+            >
+              <SectionHead
+                id="additionalDetails"
+                num="18"
+                title="Additional details"
+                subtitle="Optional compliance notes"
+              />
+              <span className={styles.chevron} aria-hidden="true">
+                {additionalDetailsOpen ? "▾" : "▸"}
               </span>
-            </div>
-            <span className={styles.chevron} aria-hidden="true">
-              {additionalDetailsOpen ? "▾" : "▸"}
-            </span>
-          </button>
-          {additionalDetailsOpen && (
-            <div className={styles.collapsibleBody}>
-              {textareaField(
-                "complianceNotes",
-                "Compliance notes",
-                "Regulated industry constraints, copy review requirements, etc.",
-              )}
-              <div style={{ marginTop: 12 }}>
+            </button>
+            {additionalDetailsOpen && (
+              <div className={styles.collapsibleBody}>
                 {textareaField(
-                  "decisionMakerNotes",
-                  "Decision-makers & approval cycle",
-                  "Who approves what, and roughly how long sign-off takes.",
+                  "complianceNotes",
+                  "Compliance notes",
+                  "Regulated industry constraints, copy review requirements, etc.",
                 )}
               </div>
-              <div style={{ marginTop: 12 }}>
-                {textareaField(
-                  "hostingDnsNotes",
-                  "Hosting / DNS extra notes",
-                  "Anything beyond the tools checklist we should know.",
-                )}
-              </div>
-            </div>
-          )}
-        </section>
+            )}
+          </section>
+        )}
 
         <div className={styles.toolbar} style={{ marginTop: 20 }}>
           <button

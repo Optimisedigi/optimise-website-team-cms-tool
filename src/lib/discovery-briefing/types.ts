@@ -51,10 +51,21 @@ export interface DiscoveryBriefingFaq {
   answer: string;
 }
 
+/** A simple audience type defined in the Target Audience section.
+ * Contains just a name/description — the economic data lives in
+ * `DiscoveryBriefingAudienceSegment`.
+ */
+export interface DiscoveryBriefingAudienceType {
+  /** Display label, e.g. "Small Business", "Enterprise", "Personal". */
+  name: string;
+  /** Optional description or notes about this audience type. */
+  description: string;
+}
+
 /**
  * A single audience-type column under Commercials & Growth. Each segment
  * captures the four economic inputs for one customer type (e.g.
- * "Personal", "Business customers").
+ * "Personal", "Business customers"). Names are synced from `targetAudienceTypes`.
  */
 export interface DiscoveryBriefingAudienceSegment {
   /** Display label, e.g. "Personal", "Business customers". */
@@ -156,6 +167,8 @@ export interface DiscoveryBriefingState {
   geoFocus: string;
   industries: string[];
   industryOther: string;
+  /** Audience types defined here and synced to audienceSegments in Commercials. */
+  targetAudienceTypes: DiscoveryBriefingAudienceType[];
 
   // ── Section 4 · USP & differentiation ─────────────────────────────
   usp: string;
@@ -331,6 +344,7 @@ export interface DiscoveryBriefingState {
    * Per-audience-type economic inputs. When empty, the form/markdown fall
    * back to the legacy top-level `averageOrderValue` / `purchaseFrequency`
    * / `newLeadsPerMonth` / `idealLeadVolume` fields for backwards compat.
+   * Names are synced from `targetAudienceTypes` on the client side.
    */
   audienceSegments: DiscoveryBriefingAudienceSegment[];
 
@@ -378,6 +392,7 @@ export function defaultDiscoveryBriefingState(): DiscoveryBriefingState {
     geoFocus: "",
     industries: [],
     industryOther: "",
+    targetAudienceTypes: [],
     usp: "",
     competitorsAdmire: "",
     differentiators: "",
