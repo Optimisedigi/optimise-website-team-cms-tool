@@ -12,6 +12,10 @@ interface Props {
  * Client-side wrapper for the standalone Optimate window. Renders the
  * multi-chat full-window with light chrome (header strip + close button)
  * but no admin sidebar.
+ *
+ * Uses `position: fixed; inset: 0` to fill the entire window viewport,
+ * and lives under the (frontend) route group so no ancestor in the
+ * Payload admin layout traps the fixed positioning or injects a sidebar.
  */
 export default function OptimatePopoutClient({ targets }: Props) {
   return (

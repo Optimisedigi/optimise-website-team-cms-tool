@@ -136,7 +136,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   // renders the chat directly, no launcher needed.
   if (
     typeof window !== 'undefined' &&
-    window.location.pathname.startsWith('/admin/optimate-popout')
+    window.location.pathname.startsWith('/optimate-popout')
   ) {
     return <>{children}</>
   }
@@ -443,8 +443,13 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   const sessionIds = selectedAudits
                     .map((a) => sessionMap[String(a.id)] ?? '')
                     .join(',')
+                  // Popout lives under (frontend), NOT (payload), so the
+                  // Payload admin layout doesn't wrap it with a sidebar +
+                  // floating launcher and doesn't trap our `position:
+                  // fixed` container — the chat fills the whole window
+                  // and resizes with it.
                   const url =
-                    `/admin/optimate-popout?audits=${encodeURIComponent(ids)}` +
+                    `/optimate-popout?audits=${encodeURIComponent(ids)}` +
                     `&sessionIds=${encodeURIComponent(sessionIds)}`
                   const features = [
                     'popup=yes',

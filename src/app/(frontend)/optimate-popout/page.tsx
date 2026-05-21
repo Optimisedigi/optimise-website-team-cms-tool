@@ -15,10 +15,15 @@ interface PageProps {
  * the user can chat with Optimate independently of the CMS — useful when
  * they want to keep the chat visible while navigating other pages.
  *
- * Bypasses the Payload admin chrome (no sidebar / nav) so the chat takes
- * the whole window. Auth is still required.
+ * Lives under (frontend) — not (payload) — so the Payload admin chrome
+ * (sidebar, nav, floating launcher) doesn't wrap the window. Previously
+ * this page rendered inside Payload's RootLayout which (a) showed the
+ * admin sidebar on the left and (b) trapped our `position: fixed` chat
+ * container inside an ancestor with a transform, causing the content to
+ * clip on the left and not expand when the window was resized. Auth is
+ * still enforced via the shared Payload session cookie.
  *
- * URL: /admin/optimate-popout?audits=12,34&sessionIds=abc,def
+ * URL: /optimate-popout?audits=12,34&sessionIds=abc,def
  *   - audits = comma-separated google-ads-audit ids.
  *   - sessionIds = optional, parallel list of chat sessionIds (one per
  *     audit, by position). Empty entries mean "start a fresh thread for
@@ -30,7 +35,7 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
   const headers = await getHeaders()
   const { user } = await payload.auth({ headers })
   if (!user) {
-    redirect('/admin/login?redirect=/admin/optimate-popout')
+    redirect('/admin/login?redirect=/optimate-popout')
   }
 
   const { audits, sessionIds: sessionIdsParam } = await searchParams
