@@ -7,10 +7,11 @@ import {
 } from "@/lib/discovery-briefing/types";
 
 /**
- * Walk through the HTML form's exportMarkdown() function with an empty
- * DEFAULT_STATE and write the exact string it would produce. This is the
- * canonical byte-for-byte reference: if the extracted renderer ever
- * drifts, this test must fail.
+ * Canonical empty-state output for the v3 discovery briefing renderer.
+ *
+ * Generated once by running the renderer against `defaultDiscoveryBriefingState()`
+ * and copied verbatim. If you change the renderer's ordering or default
+ * fallbacks, regenerate this constant and update it in lockstep.
  */
 const EMPTY_STATE_MARKDOWN = [
   "# Client Discovery Briefing",
@@ -21,16 +22,6 @@ const EMPTY_STATE_MARKDOWN = [
   "## Business Overview",
   "",
   "Not provided",
-  "",
-  "---",
-  "",
-  "## Commercials & Growth",
-  "",
-  "**Average order value:** Not provided",
-  "**Purchase frequency (per client per year):** Not provided",
-  "**Current new leads / month:** Not provided",
-  "**Ideal lead volume / month:** Not provided",
-  "**Top growth channel:** Not provided",
   "",
   "---",
   "",
@@ -50,11 +41,19 @@ const EMPTY_STATE_MARKDOWN = [
   "",
   "---",
   "",
+  "## Commercials & Growth",
+  "",
+  "**Average order value:** Not provided",
+  "**Purchase frequency (per client per year):** Not provided",
+  "**Current new leads / month:** Not provided",
+  "**Ideal lead volume / month:** Not provided",
+  "**Top growth channel:** Not provided",
+  "",
+  "---",
+  "",
   "## USP & Differentiation",
   "",
   "**USP:** Not provided",
-  "",
-  "**Competitors you admire or want to mimic:** Not provided",
   "",
   "**Differentiation:** Not provided",
   "",
@@ -93,8 +92,6 @@ const EMPTY_STATE_MARKDOWN = [
   "- **DNS:** Has it: not provided — Access: not provided",
   "- **Backlinks tool:** Has it: not provided — Access: not provided",
   "- **Review platforms:** Has it: not provided — Access: not provided",
-  "- **PR done:** not provided",
-  "- **Existing backlinks to protect:** Not provided",
   "",
   "---",
   "",
@@ -282,6 +279,49 @@ function filledState(): DiscoveryBriefingState {
     complianceNotes: "TGA-regulated copy review required.",
     decisionMakerNotes: "Jane (CEO) approves; cycle ~2 weeks.",
     hostingDnsNotes: "DNS managed via GoDaddy; hosting via Cloudflare.",
+    audienceSegments: [
+      {
+        name: "Personal",
+        averageOrderValue: "$120",
+        purchaseFrequency: "4",
+        newLeadsPerMonth: "30",
+        idealLeadVolume: "80",
+      },
+      {
+        name: "Business customers",
+        averageOrderValue: "$4,500",
+        purchaseFrequency: "2",
+        newLeadsPerMonth: "5",
+        idealLeadVolume: "20",
+      },
+    ],
+    leadMagnets: [
+      {
+        name: "Free SEO audit",
+        description: "Personalised audit PDF",
+        cta: "/audit",
+      },
+      { name: "Pricing guide", description: "", cta: "" },
+    ],
+    leadMagnetsNotes: "Run paid social to push the audit magnet first.",
+    raciRows: [
+      {
+        task: "Ad creative",
+        responsible: "Designer",
+        accountable: "Marketing lead",
+        consulted: "Sales",
+        informed: "CEO",
+      },
+      {
+        task: "Approve copy",
+        responsible: "Copywriter",
+        accountable: "Marketing lead",
+        consulted: "",
+        informed: "",
+      },
+    ],
+    approvalsNotes: "CEO signs off on monthly ad spend > $10k.",
+    hiddenSections: [],
   };
 }
 
@@ -305,22 +345,24 @@ describe("buildDiscoveryBriefingMarkdown", () => {
     const expectedHeadings = [
       "# Client Discovery Briefing",
       "## Business Overview",
-      "## Commercials & Growth",
       "## Core Services",
       "## Target Audience",
+      "## Commercials & Growth",
       "## USP & Differentiation",
       "## Brand Assets & Voice",
       "## Tech Stack",
       "### Tools & Access",
       "## Current SEO & Online Presence",
       "## Social Proof",
+      "## Lead Magnets",
       "## Content Strategy",
       "## Google Ads",
       "## Timeline",
       "## Working Relationship",
+      "## RACI & Approvals",
       "## Lead Nurturing",
-      "## Additional Details",
       "## Discovery Notes",
+      "## Additional Details",
     ];
     let lastIdx = -1;
     for (const heading of expectedHeadings) {
@@ -397,7 +439,7 @@ describe("buildDiscoveryBriefingMarkdown", () => {
     expect(md).not.toContain("**Email:** mailchimp — ");
   });
 
-  it("renders the Commercials & Growth section with all filled values", () => {
+  it("renders the Commercials & Growth section with all filled legacy values when no audience segments", () => {
     const state: DiscoveryBriefingState = {
       ...defaultDiscoveryBriefingState(),
       averageOrderValue: "$2,500",
@@ -414,6 +456,30 @@ describe("buildDiscoveryBriefingMarkdown", () => {
     expect(md).toContain("**Ideal lead volume / month:** 60");
     // Legacy single-string field still renders when topGrowthChannels is empty
     expect(md).toContain("**Top growth channel:** referrals");
+  });
+
+  it("renders multi-audience subsections under Commercials when audienceSegments is populated", () => {
+    const md = buildDiscoveryBriefingMarkdown(filledState());
+    expect(md).toContain("## Commercials & Growth");
+    expect(md).toContain("### Personal");
+    expect(md).toContain("### Business customers");
+    // Each segment's values render
+    expect(md).toContain("**Average order value:** $120");
+    expect(md).toContain("**Average order value:** $4,500");
+    expect(md).toContain("**Current new leads / month:** 30");
+    expect(md).toContain("**Ideal lead volume / month:** 20");
+  });
+
+  it("falls back to legacy 4-line layout when audienceSegments is empty", () => {
+    const state: DiscoveryBriefingState = {
+      ...defaultDiscoveryBriefingState(),
+      averageOrderValue: "$1,000",
+      audienceSegments: [],
+    };
+    const md = buildDiscoveryBriefingMarkdown(state);
+    expect(md).toContain("**Average order value:** $1,000");
+    // No segment subsections
+    expect(md).not.toMatch(/^### [^#\n]+\n\*\*Average order value:\*\*/m);
   });
 
   it("renders ranked topGrowthChannels list with selection-order numbering", () => {
@@ -524,7 +590,7 @@ describe("buildDiscoveryBriefingMarkdown", () => {
     );
   });
 
-  it("renders the Tools & Access subsection with status, access, and provider extras", () => {
+  it("renders the Tools & Access subsection with status, access, and provider extras but no PR/backlinks bullets", () => {
     const md = buildDiscoveryBriefingMarkdown(filledState());
     expect(md).toContain("### Tools & Access");
     expect(md).toContain(
@@ -544,10 +610,26 @@ describe("buildDiscoveryBriefingMarkdown", () => {
     expect(md).toContain(
       "- **Review platforms:** Has it: yes — Access: granted — Platforms: Trustpilot, ProductReview.com.au",
     );
-    expect(md).toContain("- **PR done:** yes — AFR feature, March 2025");
-    expect(md).toContain(
-      "- **Existing backlinks to protect:** forbes.com link from 2022",
+    // PR + backlinks should NOT appear inside Tools & Access anymore
+    const toolsBlock = md.split("### Tools & Access")[1]?.split("---")[0] ?? "";
+    expect(toolsBlock).not.toContain("- **PR done:**");
+    expect(toolsBlock).not.toContain("- **Existing backlinks to protect:**");
+  });
+
+  it("renders PR done + backlinks lines inside Social Proof when populated", () => {
+    const md = buildDiscoveryBriefingMarkdown(filledState());
+    const socialProofBlock =
+      md.split("## Social Proof")[1]?.split("\n## ")[0] ?? "";
+    expect(socialProofBlock).toContain("**PR done:** yes — AFR feature, March 2025");
+    expect(socialProofBlock).toContain(
+      "**Existing backlinks to protect:** forbes.com link from 2022",
     );
+  });
+
+  it("omits PR done + backlinks lines from Social Proof when empty", () => {
+    const md = buildDiscoveryBriefingMarkdown(defaultDiscoveryBriefingState());
+    expect(md).not.toContain("**PR done:**");
+    expect(md).not.toContain("**Existing backlinks to protect:**");
   });
 
   it("renders the Pillar Topics numbered list, skipping empty rows", () => {
@@ -593,35 +675,108 @@ describe("buildDiscoveryBriefingMarkdown", () => {
     expect(empty).not.toContain("**Linked proposal deck:**");
   });
 
-  it("renders the Additional Details section only when at least one field is non-empty", () => {
+  it("renders the Additional Details section only when complianceNotes is non-empty", () => {
     const filled = buildDiscoveryBriefingMarkdown(filledState());
     expect(filled).toContain("## Additional Details");
     expect(filled).toContain(
       "**Compliance notes:** TGA-regulated copy review required.",
     );
-    expect(filled).toContain(
-      "**Decision-maker / approval cycle:** Jane (CEO) approves; cycle ~2 weeks.",
-    );
-    expect(filled).toContain(
-      "**Hosting / DNS notes:** DNS managed via GoDaddy; hosting via Cloudflare.",
-    );
+    // Legacy decision-maker / hosting-DNS notes are no longer rendered
+    expect(filled).not.toContain("**Decision-maker");
+    expect(filled).not.toContain("**Hosting / DNS notes:**");
   });
 
-  it("omits the Additional Details section when every field is empty", () => {
-    const md = buildDiscoveryBriefingMarkdown(defaultDiscoveryBriefingState());
+  it("omits the Additional Details section when complianceNotes is empty", () => {
+    const state: DiscoveryBriefingState = {
+      ...defaultDiscoveryBriefingState(),
+      decisionMakerNotes: "Jane (CEO)",
+      hostingDnsNotes: "GoDaddy",
+    };
+    const md = buildDiscoveryBriefingMarkdown(state);
     expect(md).not.toContain("## Additional Details");
   });
 
-  it("renders Additional Details when only one field is non-empty", () => {
+  it("renders Lead Magnets only when at least one row or notes is populated", () => {
+    const filled = buildDiscoveryBriefingMarkdown(filledState());
+    expect(filled).toContain("## Lead Magnets");
+    expect(filled).toContain(
+      "- **Free SEO audit** — Personalised audit PDF (CTA: /audit)",
+    );
+    // Row with only a name still renders
+    expect(filled).toContain("- **Pricing guide**");
+    expect(filled).toContain(
+      "**Notes:** Run paid social to push the audit magnet first.",
+    );
+
+    const empty = buildDiscoveryBriefingMarkdown(defaultDiscoveryBriefingState());
+    expect(empty).not.toContain("## Lead Magnets");
+  });
+
+  it("renders Lead Magnets notes-only when there are no rows", () => {
     const state: DiscoveryBriefingState = {
       ...defaultDiscoveryBriefingState(),
-      complianceNotes: "GDPR-only.",
+      leadMagnetsNotes: "Just a strategy note, no concrete magnets yet.",
     };
     const md = buildDiscoveryBriefingMarkdown(state);
-    expect(md).toContain("## Additional Details");
-    expect(md).toContain("**Compliance notes:** GDPR-only.");
-    expect(md).not.toContain("**Decision-maker");
-    expect(md).not.toContain("**Hosting / DNS notes:**");
+    expect(md).toContain("## Lead Magnets");
+    expect(md).toContain(
+      "**Notes:** Just a strategy note, no concrete magnets yet.",
+    );
+  });
+
+  it("renders RACI & Approvals only when at least one row or notes is populated", () => {
+    const filled = buildDiscoveryBriefingMarkdown(filledState());
+    expect(filled).toContain("## RACI & Approvals");
+    expect(filled).toContain(
+      "- **Ad creative:** R: Designer; A: Marketing lead; C: Sales; I: CEO",
+    );
+    // Row with blanks omits empty pieces
+    expect(filled).toContain(
+      "- **Approve copy:** R: Copywriter; A: Marketing lead",
+    );
+    expect(filled).toContain(
+      "**Approvals:** CEO signs off on monthly ad spend > $10k.",
+    );
+
+    const empty = buildDiscoveryBriefingMarkdown(defaultDiscoveryBriefingState());
+    expect(empty).not.toContain("## RACI & Approvals");
+  });
+
+  it("renders RACI notes-only when there are no task rows", () => {
+    const state: DiscoveryBriefingState = {
+      ...defaultDiscoveryBriefingState(),
+      approvalsNotes: "Just notes.",
+    };
+    const md = buildDiscoveryBriefingMarkdown(state);
+    expect(md).toContain("## RACI & Approvals");
+    expect(md).toContain("**Approvals:** Just notes.");
+  });
+
+  it("hiddenSections drops a section heading and its preceding rule", () => {
+    const state: DiscoveryBriefingState = {
+      ...defaultDiscoveryBriefingState(),
+      adsStatus: "active",
+      hiddenSections: ["googleAds"],
+    };
+    const md = buildDiscoveryBriefingMarkdown(state);
+    expect(md).not.toContain("## Google Ads");
+    expect(md).not.toContain("**Status:** active");
+    // No double horizontal rule artifact left where Google Ads used to be
+    expect(md).not.toMatch(/---\n\n---/);
+  });
+
+  it("omits the competitorsAdmire line when empty but renders it when populated", () => {
+    const empty = buildDiscoveryBriefingMarkdown(defaultDiscoveryBriefingState());
+    expect(empty).not.toContain("**Competitors you admire or want to mimic:**");
+
+    const state: DiscoveryBriefingState = {
+      ...defaultDiscoveryBriefingState(),
+      competitorsAdmire: "Acme, Globex",
+    };
+    const md = buildDiscoveryBriefingMarkdown(state);
+    expect(md).toContain(
+      "**Competitors you admire or want to mimic:** Acme, Globex",
+    );
   });
 
   it("renders every filled scalar field verbatim", () => {

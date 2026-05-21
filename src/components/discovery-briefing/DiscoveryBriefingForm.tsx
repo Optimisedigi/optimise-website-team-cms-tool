@@ -26,12 +26,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./DiscoveryBriefingForm.module.css";
 import {
   defaultDiscoveryBriefingState,
-  type DiscoveryBriefingState,
-  type DiscoveryBriefingService,
-  type DiscoveryBriefingProof,
+  type DiscoveryBriefingAudienceSegment,
+  type DiscoveryBriefingFaq,
+  type DiscoveryBriefingLeadMagnet,
   type DiscoveryBriefingNurtureStep,
   type DiscoveryBriefingPillarTopic,
-  type DiscoveryBriefingFaq,
+  type DiscoveryBriefingProof,
+  type DiscoveryBriefingRaciRow,
+  type DiscoveryBriefingService,
+  type DiscoveryBriefingSectionId,
+  type DiscoveryBriefingState,
 } from "@/lib/discovery-briefing/types";
 
 type Scope = "client" | "proposal";

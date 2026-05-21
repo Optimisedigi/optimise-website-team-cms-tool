@@ -52,6 +52,65 @@ export interface DiscoveryBriefingFaq {
 }
 
 /**
+ * A single audience-type column under Commercials & Growth. Each segment
+ * captures the four economic inputs for one customer type (e.g.
+ * "Personal", "Business customers").
+ */
+export interface DiscoveryBriefingAudienceSegment {
+  /** Display label, e.g. "Personal", "Business customers". */
+  name: string;
+  averageOrderValue: string;
+  purchaseFrequency: string;
+  newLeadsPerMonth: string;
+  idealLeadVolume: string;
+}
+
+/** A single lead magnet row. */
+export interface DiscoveryBriefingLeadMagnet {
+  /** Label, e.g. "Free SEO audit". */
+  name: string;
+  /** Optional one-line description / what the prospect gets. */
+  description: string;
+  /** Optional CTA destination, free-form. */
+  cta: string;
+}
+
+/** A single RACI matrix row. */
+export interface DiscoveryBriefingRaciRow {
+  task: string;
+  responsible: string;
+  accountable: string;
+  consulted: string;
+  informed: string;
+}
+
+/**
+ * Stable section ids used by the form's per-section visibility toggles
+ * and the markdown renderer's hidden-section guards.
+ */
+export const DISCOVERY_BRIEFING_SECTIONS = [
+  "businessOverview",
+  "coreServices",
+  "targetAudience",
+  "commercials",
+  "usp",
+  "brand",
+  "techStack",
+  "seoPresence",
+  "socialProof",
+  "leadMagnets",
+  "contentStrategy",
+  "googleAds",
+  "timeline",
+  "workingRelationship",
+  "raci",
+  "leadNurturing",
+  "discoveryNotes",
+  "additionalDetails",
+] as const;
+export type DiscoveryBriefingSectionId = (typeof DISCOVERY_BRIEFING_SECTIONS)[number];
+
+/**
  * Full shape of the discovery briefing state — mirrors the HTML form's
  * `DEFAULT_STATE` object plus the `specialisms` field that the HTML
  * binds via `data-key` but omits from `DEFAULT_STATE`.
@@ -262,10 +321,35 @@ export interface DiscoveryBriefingState {
   // ── Section 12 · Additional details (collapsed by default) ────────
   /** Compliance notes (regulated industry constraints, etc.). */
   complianceNotes: string;
-  /** Decision-maker notes — who approves work, length of decision cycle. */
+  /** Legacy — no longer surfaced in the form, retained for old payloads. */
   decisionMakerNotes: string;
-  /** Extra context for hosting/DNS beyond the tools checklist. */
+  /** Legacy — no longer surfaced in the form, retained for old payloads. */
   hostingDnsNotes: string;
+
+  // ── Multi-audience commercials ────────────────────────────────────
+  /**
+   * Per-audience-type economic inputs. When empty, the form/markdown fall
+   * back to the legacy top-level `averageOrderValue` / `purchaseFrequency`
+   * / `newLeadsPerMonth` / `idealLeadVolume` fields for backwards compat.
+   */
+  audienceSegments: DiscoveryBriefingAudienceSegment[];
+
+  // ── Lead magnets ──────────────────────────────────────────────────
+  leadMagnets: DiscoveryBriefingLeadMagnet[];
+  leadMagnetsNotes: string;
+
+  // ── RACI & approvals ──────────────────────────────────────────────
+  raciRows: DiscoveryBriefingRaciRow[];
+  /** Free-form "who approves what" notes. */
+  approvalsNotes: string;
+
+  // ── Per-section visibility ────────────────────────────────────────
+  /**
+   * Section ids (see `DISCOVERY_BRIEFING_SECTIONS`) that should be hidden
+   * from the rendered markdown and shown as a collapsed header in the
+   * form. Always treat missing as empty.
+   */
+  hiddenSections: string[];
 }
 
 /**
@@ -400,5 +484,11 @@ export function defaultDiscoveryBriefingState(): DiscoveryBriefingState {
     complianceNotes: "",
     decisionMakerNotes: "",
     hostingDnsNotes: "",
+    audienceSegments: [],
+    leadMagnets: [],
+    leadMagnetsNotes: "",
+    raciRows: [],
+    approvalsNotes: "",
+    hiddenSections: [],
   };
 }
