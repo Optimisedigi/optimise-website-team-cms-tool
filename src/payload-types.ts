@@ -115,6 +115,7 @@ export interface Config {
     'optimate-chat-turns': OptimateChatTurn;
     'gsc-snapshots': GscSnapshot;
     'gsc-daily': GscDaily;
+    'google-ads-snapshots': GoogleAdsSnapshot;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudget;
     'google-ads-ad-extensions': GoogleAdsAdExtension;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCache;
@@ -193,6 +194,7 @@ export interface Config {
     'optimate-chat-turns': OptimateChatTurnsSelect<false> | OptimateChatTurnsSelect<true>;
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
+    'google-ads-snapshots': GoogleAdsSnapshotsSelect<false> | GoogleAdsSnapshotsSelect<true>;
     'google-ads-campaign-budgets': GoogleAdsCampaignBudgetsSelect<false> | GoogleAdsCampaignBudgetsSelect<true>;
     'google-ads-ad-extensions': GoogleAdsAdExtensionsSelect<false> | GoogleAdsAdExtensionsSelect<true>;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCacheSelect<false> | NegativeKeywordAvoidedSpendCacheSelect<true>;
@@ -6329,6 +6331,73 @@ export interface GscDaily {
   createdAt: string;
 }
 /**
+ * Latest Google Ads metrics snapshot per (client, level) — populated by the daily cron. Unique on (client, level) — cron upserts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-snapshots".
+ */
+export interface GoogleAdsSnapshot {
+  id: number;
+  /**
+   * Client this snapshot belongs to
+   */
+  client: number | Client;
+  /**
+   * Reporting granularity for the rows in this snapshot
+   */
+  level: 'campaign' | 'ad_group' | 'keyword' | 'search_term';
+  /**
+   * When this snapshot was written (ISO timestamp)
+   */
+  capturedAt: string;
+  /**
+   * Window the rows cover, e.g. "LAST_7_DAYS", "LAST_30_DAYS", "THIS_MONTH"
+   */
+  dateRangeLabel?: string | null;
+  /**
+   * Window start (YYYY-MM-DD), optional
+   */
+  dateRangeStart?: string | null;
+  /**
+   * Window end (YYYY-MM-DD), optional
+   */
+  dateRangeEnd?: string | null;
+  /**
+   * Google Ads customerId at capture time, undashed (matches the format used by Growth Tools)
+   */
+  customerId: string;
+  /**
+   * Number of rows in `rows`, for cheap UI display
+   */
+  rowCount?: number | null;
+  /**
+   * Array of typed rows; shape varies per level — see collection-level docs.
+   */
+  rows?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Growth Tools path that produced this snapshot, e.g. "/api/google-ads/campaign-budgets/get-metrics"
+   */
+  sourceEndpoint?: string | null;
+  /**
+   * Time taken by the upstream fetch, for observability
+   */
+  fetchDurationMs?: number | null;
+  /**
+   * Populated only if this level's fetch failed on the last cron run. Previously successful `rows` are preserved.
+   */
+  error?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Campaign budget allocation. Set monthly budget total and percentages, CMS calculates daily budget.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -7067,6 +7136,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'gsc-daily';
         value: number | GscDaily;
+      } | null)
+    | ({
+        relationTo: 'google-ads-snapshots';
+        value: number | GoogleAdsSnapshot;
       } | null)
     | ({
         relationTo: 'google-ads-campaign-budgets';
@@ -9087,6 +9160,26 @@ export interface GscDailySelect<T extends boolean = true> {
   impressions?: T;
   ctr?: T;
   position?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-ads-snapshots_select".
+ */
+export interface GoogleAdsSnapshotsSelect<T extends boolean = true> {
+  client?: T;
+  level?: T;
+  capturedAt?: T;
+  dateRangeLabel?: T;
+  dateRangeStart?: T;
+  dateRangeEnd?: T;
+  customerId?: T;
+  rowCount?: T;
+  rows?: T;
+  sourceEndpoint?: T;
+  fetchDurationMs?: T;
+  error?: T;
   updatedAt?: T;
   createdAt?: T;
 }
