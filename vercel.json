@@ -23,6 +23,10 @@
     {
       "path": "/api/contracts/trash-sweep",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/match-type-violations/cron",
+      "schedule": "*/15 * * * *"
     }
   ],
   "functions": {
@@ -73,6 +77,9 @@
     },
     "src/app/(frontend)/api/contracts/trash-sweep/route.ts": {
       "maxDuration": 120
+    },
+    "src/app/(frontend)/api/match-type-violations/cron/route.ts": {
+      "maxDuration": 180
     }
   }
 }

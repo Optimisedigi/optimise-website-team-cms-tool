@@ -769,6 +769,57 @@ export async function GET(request: NextRequest) {
   await run("optimate_chat_turns_session_created_idx", "CREATE INDEX IF NOT EXISTS `optimate_chat_turns_session_created_idx` ON `optimate_chat_turns` (`session_id`, `created_at`)");
   await run("locked_docs_rels.optimate_chat_turns_id", "ALTER TABLE `payload_locked_documents_rels` ADD `optimate_chat_turns_id` integer REFERENCES `optimate_chat_turns`(`id`) ON DELETE cascade");
 
+  // ── Match Type Violation Candidates (2026-05-20) ──
+  await run("match_type_violation_candidates", `CREATE TABLE IF NOT EXISTS \`match_type_violation_candidates\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`client_id\` integer NOT NULL REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    \`search_term\` text NOT NULL,
+    \`triggering_keyword\` text NOT NULL,
+    \`campaign_name\` text,
+    \`ad_group_name\` text,
+    \`match_type\` text NOT NULL,
+    \`violation_type\` text NOT NULL,
+    \`impressions\` numeric DEFAULT 0,
+    \`clicks\` numeric DEFAULT 0,
+    \`cost\` numeric DEFAULT 0,
+    \`status\` text DEFAULT 'pending',
+    \`assigned_list_id\` integer,
+    \`approved_at\` text,
+    \`rejected_at\` text,
+    \`approved_by_id\` integer REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null,
+    \`last_seen_at\` text NOT NULL,
+    \`first_seen_at\` text NOT NULL,
+    \`run_date\` text NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("mtvc_client_idx", "CREATE INDEX IF NOT EXISTS `match_type_violation_candidates_client_idx` ON `match_type_violation_candidates` (`client_id`)");
+  await run("mtvc_status_idx", "CREATE INDEX IF NOT EXISTS `match_type_violation_candidates_status_idx` ON `match_type_violation_candidates` (`status`)");
+  await run("mtvc_dedup_unique", "CREATE UNIQUE INDEX IF NOT EXISTS `match_type_violation_candidates_dedup_unique` ON `match_type_violation_candidates` (`client_id`, `search_term`, `triggering_keyword`)");
+  await run("locked_docs_rels.match_type_violation_candidates_id", "ALTER TABLE `payload_locked_documents_rels` ADD `match_type_violation_candidates_id` integer REFERENCES `match_type_violation_candidates`(`id`) ON DELETE cascade");
+
+  // ── Match Type Sync State (2026-05-20) ──
+  await run("match_type_sync_state", `CREATE TABLE IF NOT EXISTS \`match_type_sync_state\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`client_id\` integer NOT NULL UNIQUE REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    \`last_run_at\` text NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+  await run("locked_docs_rels.match_type_sync_state_id", "ALTER TABLE `payload_locked_documents_rels` ADD `match_type_sync_state_id` integer REFERENCES `match_type_sync_state`(`id`) ON DELETE cascade");
+
+  // ── Client toggle: match type monitor (2026-05-21) ──
+  await run("clients.gadsAuto_matchTypeMonitorEnabled", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_enabled` integer DEFAULT false");
+
+  // ── CronSettings global (2026-05-21) ──
+  await run("cron_settings", `CREATE TABLE IF NOT EXISTS \`cron_settings\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`timezone\` text DEFAULT 'Australia/Sydney' NOT NULL,
+    \`match_type_monitor_sync_hour\` numeric DEFAULT 9 NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+  )`);
+
   let tables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");

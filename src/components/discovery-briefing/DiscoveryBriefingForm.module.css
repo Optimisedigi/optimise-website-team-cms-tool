@@ -1,0 +1,677 @@
+/*
+ * Styles for the CMS-bound Client Discovery Briefing form.
+ *
+ * Mirrors the <style> block in public/client-discovery-briefing.html (lines
+ * ~8–419), trimmed to the rules the React form actually uses. The standalone
+ * HTML form retains its own copy of these rules — they are deliberately
+ * duplicated rather than imported because the standalone form must work
+ * with zero build tooling.
+ */
+
+.page {
+  font-family: "Inter", -apple-system, sans-serif;
+  background: #f7f7f5;
+  color: #1a1a1a;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding: 24px 3% 80px;
+  font-size: 12px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+.header {
+  max-width: 1000px;
+  margin: 0 auto 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.logoArea { flex-shrink: 0; }
+
+.headerText { text-align: left; flex: 1; min-width: 0; }
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #2563eb;
+  margin-bottom: 4px;
+}
+
+.headerText h1 {
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  margin: 0 0 6px 0;
+}
+
+.lede {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.6);
+  max-width: 700px;
+  margin: 0;
+}
+
+.main { max-width: 1000px; margin: 0 auto; }
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.btn {
+  appearance: none;
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:hover { border-color: rgba(0, 0, 0, 0.18); background: #fafafa; }
+.btnPrimary { background: #2563eb; color: #fff; border-color: #2563eb; }
+.btnPrimary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+.btnGhost { background: transparent; color: rgba(0, 0, 0, 0.6); border-color: transparent; }
+.btnGhost:hover { background: rgba(0, 0, 0, 0.04); color: #1a1a1a; }
+
+.meta {
+  margin-left: auto;
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.section {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sectionHead h2 {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #2563eb;
+  margin: 0;
+}
+
+.num {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.4);
+  background: #f5f5f4;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.sectionIntro {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.6);
+  margin: -4px 0 8px;
+}
+
+.field { margin-bottom: 10px; }
+.field:last-child { margin-bottom: 0; }
+
+.field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.labelHint {
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.6);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.field input[type="text"],
+.field input[type="email"],
+.field input[type="url"],
+.field input[type="tel"],
+.field textarea,
+.field select,
+.subFieldInput {
+  width: 100%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: #1a1a1a;
+  transition: border-color 0.15s;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus,
+.subFieldInput:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.field input::placeholder,
+.field textarea::placeholder { color: rgba(0, 0, 0, 0.4); }
+
+.field textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.otherInline {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.otherInline input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: #1a1a1a;
+  transition: border-color 0.15s;
+}
+.otherInline input[type="text"]:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+.otherInlineReset {
+  flex-shrink: 0;
+  appearance: none;
+  background: #f5f5f4;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 14px;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+.otherInlineReset:hover { background: #ecebe7; color: #1a1a1a; }
+
+.checkGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+}
+
+/* Override the section-wide `.field label` uppercase/bold/block rule so
+   that checkbox & radio rows render inline, vertically centred, and in
+   regular sentence-case copy. Higher-specificity selectors keep the rule
+   robust regardless of nesting. */
+.checkItem,
+.field .checkItem,
+.field label.checkItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.3;
+  margin-bottom: 0;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.checkItem input[type="checkbox"],
+.checkItem input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid rgba(0, 0, 0, 0.18);
+  border-radius: 4px;
+  appearance: none;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.checkItem input[type="radio"] {
+  border-radius: 50%;
+}
+
+.checkItem input[type="checkbox"]:checked,
+.checkItem input[type="radio"]:checked {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.checkItem input[type="checkbox"]:checked::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.checkItem input[type="radio"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #f5f5f4;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.chip:hover { border-color: #2563eb; }
+.chipSelected { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+.serviceItem {
+  background: #fafaf9;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+
+.serviceItem:last-child { margin-bottom: 0; }
+
+.serviceRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.proofItem {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto auto;
+  gap: 8px;
+  align-items: center;
+  background: #fafaf9;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+}
+
+/* Small descriptive copy that sits under a `.field label` — used to give
+   sub-fields like the growth-channel chips or the ads calculator a short
+   instructional line without re-using the uppercase label rule. */
+.fieldHint {
+  font-size: 11px;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.6);
+  margin: -2px 0 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Ranked-chip indicator on the top-growth-channels multi-select. */
+.chipRank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 800;
+  margin-right: 2px;
+}
+
+/* Three-column grid of visible social handles inside the GBP/social
+   sub-box. Collapses gracefully on narrow viewports. */
+.socialHandlesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+.socialHandleItem {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.socialHandleLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.6);
+  margin-bottom: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Lead-estimator readout under the ads calculator grid. */
+.leadEstimate {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #eef4ff;
+  border: 1px solid #c7d8ff;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #1a1a1a;
+  line-height: 1.4;
+}
+.leadEstimateValue {
+  font-size: 14px;
+  font-weight: 800;
+  color: #1d4ed8;
+  margin-left: 4px;
+}
+.leadEstimateMuted {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+/* Lead-nurturing step row (number + step text + owner text + remove btn). */
+.nurtureItem {
+  display: grid;
+  grid-template-columns: 28px 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+  background: #fafaf9;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+.nurtureStepNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.subBox {
+  display: none;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #f5f5f4;
+  border-radius: 8px;
+}
+
+.subBoxVisible {
+  display: block;
+}
+
+.subBoxHint {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.6);
+  margin-bottom: 8px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: #1a1a1a;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.toastShow { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.toastError { background: #b91c1c; }
+
+/* Sub-section heading used inside a parent .section for inner blocks like
+   "Tools & access" and "Pillar topics". */
+.subHead {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #1a1a1a;
+  margin: 6px 0 4px;
+}
+
+/* Tone-of-voice chip variant — same hover/selected as growth chips, no rank. */
+.toneChip { /* no extra rules; chipRank simply not rendered for tone chips */ }
+
+/* Tools & Access subsection block inside the Tech Stack section. */
+.toolsBlock {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
+/* Grid of tool-access rows. Each row: label | status select | access select |
+   provider text (or spacer when no provider key). */
+.toolsTable {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.toolsRow {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 0.8fr 1.2fr;
+  gap: 8px;
+  align-items: center;
+  background: #fafaf9;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.toolsLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+.toolsSelect,
+.toolsProvider {
+  width: 100%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: #1a1a1a;
+  min-width: 0;
+}
+.toolsSelect:focus,
+.toolsProvider:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+.toolsProviderSpacer { /* keeps the 4-col grid clean when no provider field */ }
+
+/* Proposal-deck CTA at the bottom of Tools & Access. */
+.proposalLink {
+  font-weight: 700;
+}
+
+/* Pillar topic single-input row. */
+.pillarRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  background: #fafaf9;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+
+/* FAQ item — Q/A textareas stacked. */
+.faqItem {
+  background: #fafaf9;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.faqRowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.faqIndex {
+  font-size: 11px;
+  font-weight: 800;
+  color: #2563eb;
+  letter-spacing: 0.5px;
+}
+.faqItem textarea {
+  width: 100%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: #1a1a1a;
+  resize: vertical;
+  min-height: 50px;
+}
+.faqItem textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+/* Collapsible Additional Details section. */
+.collapsibleSection { padding: 0; overflow: hidden; }
+.collapsibleHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  background: #fff;
+  border: none;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+.collapsibleHead:hover { background: #fafaf9; }
+.chevron {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.4);
+  flex-shrink: 0;
+}
+.collapsibleBody {
+  padding: 4px 16px 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 768px) {
+  .grid3 { grid-template-columns: 1fr; }
+  .socialHandlesGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toolsRow {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "label label"
+      "status access"
+      "provider provider";
+  }
+  .toolsLabel { grid-area: label; }
+  .toolsRow .toolsSelect:nth-of-type(1) { grid-area: status; }
+  .toolsRow .toolsSelect:nth-of-type(2) { grid-area: access; }
+  .toolsRow .toolsProvider,
+  .toolsRow .toolsProviderSpacer { grid-area: provider; }
+  .toolsProviderSpacer { display: none; }
+}
+
+@media (max-width: 600px) {
+  .page { padding: 20px 12px 80px; font-size: 12px; }
+  .header { flex-direction: column; }
+  .headerText { text-align: left; }
+  .grid2 { grid-template-columns: 1fr; }
+  .proofItem { grid-template-columns: 1fr; gap: 6px; }
+  .serviceRow { grid-template-columns: 1fr; gap: 6px; }
+  .socialHandlesGrid { grid-template-columns: 1fr; }
+  .nurtureItem { grid-template-columns: 28px 1fr auto; }
+  .nurtureItem input:nth-of-type(2) { grid-column: 2 / span 2; }
+  .pillarRow { grid-template-columns: 1fr auto; }
+}

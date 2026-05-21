@@ -69,6 +69,7 @@ export interface Config {
   collections: {
     clients: Client;
     'client-proposals': ClientProposal;
+    'client-discovery-briefings': ClientDiscoveryBriefing;
     contracts: Contract;
     'sales-leads': SalesLead;
     'process-templates': ProcessTemplate;
@@ -122,6 +123,8 @@ export interface Config {
     'contract-reminders': ContractReminder;
     notifications: Notification;
     'pin-rate-limits': PinRateLimit;
+    'match-type-violation-candidates': MatchTypeViolationCandidate;
+    'match-type-sync-state': MatchTypeSyncState;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -143,6 +146,7 @@ export interface Config {
   collectionsSelect: {
     clients: ClientsSelect<false> | ClientsSelect<true>;
     'client-proposals': ClientProposalsSelect<false> | ClientProposalsSelect<true>;
+    'client-discovery-briefings': ClientDiscoveryBriefingsSelect<false> | ClientDiscoveryBriefingsSelect<true>;
     contracts: ContractsSelect<false> | ContractsSelect<true>;
     'sales-leads': SalesLeadsSelect<false> | SalesLeadsSelect<true>;
     'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
@@ -196,6 +200,8 @@ export interface Config {
     'contract-reminders': ContractRemindersSelect<false> | ContractRemindersSelect<true>;
     notifications: NotificationsSelect<false> | NotificationsSelect<true>;
     'pin-rate-limits': PinRateLimitsSelect<false> | PinRateLimitsSelect<true>;
+    'match-type-violation-candidates': MatchTypeViolationCandidatesSelect<false> | MatchTypeViolationCandidatesSelect<true>;
+    'match-type-sync-state': MatchTypeSyncStateSelect<false> | MatchTypeSyncStateSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -210,12 +216,14 @@ export interface Config {
     'calendar-auth': CalendarAuth;
     'api-cost-rates': ApiCostRate;
     'email-templates': EmailTemplate;
+    'cron-settings': CronSetting;
   };
   globalsSelect: {
     'sheets-auth': SheetsAuthSelect<false> | SheetsAuthSelect<true>;
     'calendar-auth': CalendarAuthSelect<false> | CalendarAuthSelect<true>;
     'api-cost-rates': ApiCostRatesSelect<false> | ApiCostRatesSelect<true>;
     'email-templates': EmailTemplatesSelect<false> | EmailTemplatesSelect<true>;
+    'cron-settings': CronSettingsSelect<false> | CronSettingsSelect<true>;
   };
   locale: null;
   widgets: {
@@ -796,6 +804,10 @@ export interface Client {
      * Google Sheet URL for this client's negative keywords (must have a neg_kws_lists tab)
      */
     negativeSweepSheetUrl?: string | null;
+    /**
+     * Enable match type violation monitoring — flags exact/phrase keywords that served non-conforming search terms
+     */
+    matchTypeMonitorEnabled?: boolean | null;
     /**
      * Enable scheduled monthly re-audits
      */
@@ -2316,10 +2328,6 @@ export interface ClientProposal {
         id?: string | null;
       }[]
     | null;
-  /**
-   * Free-form discovery notes from pre-sale checks (manual GSC review, AI visibility spot-checks, cert/health observations, etc.). Carries over to the new client's notes on conversion.
-   */
-  discoveryNotes?: string | null;
   /**
    * Contracts linked to this proposal
    */
@@ -4006,6 +4014,7 @@ export interface User {
         | 'nav:indexing-helper'
         | 'sheets-auth'
         | 'calendar-auth'
+        | 'cron-settings'
         | 'nav:dashboard'
         | 'usage-reports'
       )[]
@@ -4111,6 +4120,7 @@ export interface PermissionProfile {
         | 'nav:indexing-helper'
         | 'sheets-auth'
         | 'calendar-auth'
+        | 'cron-settings'
         | 'nav:dashboard'
         | 'usage-reports'
       )[]
@@ -4674,6 +4684,45 @@ export interface DeckTemplate {
    * Internal-only notes about this template
    */
   notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Pre-meeting client discovery questionnaire (website & SEO strategy). Stores the structured answers plus a canonical rendered markdown blob.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-discovery-briefings".
+ */
+export interface ClientDiscoveryBriefing {
+  id: number;
+  /**
+   * Auto-derived from `data.businessName` on save (or set manually).
+   */
+  title?: string | null;
+  /**
+   * Structured questionnaire state — matches DEFAULT_STATE shape from public/client-discovery-briefing.html (sections 1–11). On save, `markdown` is regenerated from this object.
+   */
+  data?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Canonical rendered markdown. Auto-generated from `data` on every save by a beforeChange hook — edits made here will be overwritten the next time the briefing is saved.
+   */
+  markdown?: string | null;
+  /**
+   * Link to existing client (optional).
+   */
+  client?: (number | null) | Client;
+  /**
+   * Link to client proposal (optional).
+   */
+  clientProposal?: (number | null) | ClientProposal;
   updatedAt: string;
   createdAt: string;
 }
@@ -6680,6 +6729,70 @@ export interface PinRateLimit {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "match-type-violation-candidates".
+ */
+export interface MatchTypeViolationCandidate {
+  id: number;
+  client: number | Client;
+  /**
+   * The actual search query that triggered the ad
+   */
+  searchTerm: string;
+  /**
+   * The keyword Google matched to the search term
+   */
+  triggeringKeyword: string;
+  campaignName?: string | null;
+  adGroupName?: string | null;
+  /**
+   * The match type of the triggering keyword
+   */
+  matchType: 'EXACT' | 'PHRASE';
+  /**
+   * exact_close_variant: EXACT keyword served a non-identical term. phrase_missing_word: PHRASE keyword is missing a required word.
+   */
+  violationType: 'exact_close_variant' | 'phrase_missing_word';
+  impressions?: number | null;
+  clicks?: number | null;
+  status: 'pending' | 'approved' | 'rejected';
+  /**
+   * The negative keyword list this candidate was approved into
+   */
+  assignedListId?: (number | null) | NegativeKeywordList;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  approvedBy?: (number | null) | User;
+  /**
+   * Most recent cron run that flagged this term
+   */
+  lastSeenAt: string;
+  /**
+   * First time this term was flagged
+   */
+  firstSeenAt: string;
+  /**
+   * The cron run date this row belongs to
+   */
+  runDate: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "match-type-sync-state".
+ */
+export interface MatchTypeSyncState {
+  id: number;
+  client: number | Client;
+  /**
+   * ISO timestamp of last successful cron run
+   */
+  lastRunAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -6709,6 +6822,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'client-proposals';
         value: number | ClientProposal;
+      } | null)
+    | ({
+        relationTo: 'client-discovery-briefings';
+        value: number | ClientDiscoveryBriefing;
       } | null)
     | ({
         relationTo: 'contracts';
@@ -6921,6 +7038,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'pin-rate-limits';
         value: number | PinRateLimit;
+      } | null)
+    | ({
+        relationTo: 'match-type-violation-candidates';
+        value: number | MatchTypeViolationCandidate;
+      } | null)
+    | ({
+        relationTo: 'match-type-sync-state';
+        value: number | MatchTypeSyncState;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -7129,6 +7254,7 @@ export interface ClientsSelect<T extends boolean = true> {
         negativeSweepMinSpendThreshold?: T;
         negativeSweepExcludeTerms?: T;
         negativeSweepSheetUrl?: T;
+        matchTypeMonitorEnabled?: T;
         reauditEnabled?: T;
         reauditDayOfMonth?: T;
         performanceReportEnabled?: T;
@@ -7478,7 +7604,6 @@ export interface ClientProposalsSelect<T extends boolean = true> {
         body?: T;
         id?: T;
       };
-  discoveryNotes?: T;
   contracts?: T;
   presentations?:
     | T
@@ -7516,6 +7641,19 @@ export interface ClientProposalsSelect<T extends boolean = true> {
   convertToClient?: T;
   client?: T;
   proposalPin?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-discovery-briefings_select".
+ */
+export interface ClientDiscoveryBriefingsSelect<T extends boolean = true> {
+  title?: T;
+  data?: T;
+  markdown?: T;
+  client?: T;
+  clientProposal?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -9058,6 +9196,41 @@ export interface PinRateLimitsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "match-type-violation-candidates_select".
+ */
+export interface MatchTypeViolationCandidatesSelect<T extends boolean = true> {
+  client?: T;
+  searchTerm?: T;
+  triggeringKeyword?: T;
+  campaignName?: T;
+  adGroupName?: T;
+  matchType?: T;
+  violationType?: T;
+  impressions?: T;
+  clicks?: T;
+  status?: T;
+  assignedListId?: T;
+  approvedAt?: T;
+  rejectedAt?: T;
+  approvedBy?: T;
+  lastSeenAt?: T;
+  firstSeenAt?: T;
+  runDate?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "match-type-sync-state_select".
+ */
+export interface MatchTypeSyncStateSelect<T extends boolean = true> {
+  client?: T;
+  lastRunAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
@@ -9320,6 +9493,25 @@ export interface EmailTemplate {
   createdAt?: string | null;
 }
 /**
+ * Timezone and scheduling for automated cron jobs. Times are evaluated in the agency's timezone, including DST.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cron-settings".
+ */
+export interface CronSetting {
+  id: number;
+  /**
+   * IANA timezone for all agency cron jobs, e.g. Australia/Sydney, Europe/London, America/New_York. Handles DST automatically.
+   */
+  timezone: string;
+  /**
+   * Hour (0–23, in agency timezone) when match type violations are synced from Google Ads. Defaults to 9 (9am).
+   */
+  matchTypeMonitorSyncHour: number;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "sheets-auth_select".
  */
@@ -9438,6 +9630,17 @@ export interface EmailTemplatesSelect<T extends boolean = true> {
   statementClosingLine?: T;
   statementSignOff?: T;
   statementSenderName?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cron-settings_select".
+ */
+export interface CronSettingsSelect<T extends boolean = true> {
+  timezone?: T;
+  matchTypeMonitorSyncHour?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

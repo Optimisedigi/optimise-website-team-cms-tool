@@ -546,10 +546,9 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
         }
       }
 
-      // Migrate proposal notes → client notes, proposal timeline → client timeline,
-      // and roll discoveryNotes into a single client note at the top.
-      // Done in a separate update so a malformed sub-row doesn't tank the entire
-      // client creation — we log and continue if any step fails.
+      // Migrate proposal notes → client notes and proposal timeline → client
+      // timeline. Done in a separate update so a malformed sub-row doesn't tank
+      // the entire client creation — we log and continue if any step fails.
       try {
         const proposalNotes =
           (doc.proposalNotes as Array<Record<string, any>> | undefined) ?? [];
@@ -557,7 +556,6 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
           (doc.proposalAccountTimeline as
             | Array<Record<string, any>>
             | undefined) ?? [];
-        const discoveryNotes = (doc.discoveryNotes as string | undefined)?.trim();
         // The Prospect-tab `notes` textarea is internal team notes that the
         // user flagged as redundant with the Notes-tab spreadsheet. Fold it
         // into clientNotes on conversion so nothing is lost.
@@ -580,14 +578,6 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
             date: new Date().toISOString(),
             author: "Prospect notes",
             content: prospectNotes,
-          });
-        }
-        if (discoveryNotes) {
-          clientNotes.unshift({
-            category: "general",
-            date: new Date().toISOString(),
-            author: "Pre-sale discovery",
-            content: `Pre-sale discovery notes: ${discoveryNotes}`,
           });
         }
 
@@ -654,6 +644,34 @@ const convertToClientHook: CollectionAfterChangeHook = async ({
           );
         }),
       );
+
+      // Re-point the discovery briefing from this proposal to the new client.
+      // The briefing relation field is `clientProposal` (not `proposal`), so it
+      // gets its own block rather than joining `collectionsToRelink`. We null
+      // out `clientProposal` so the briefing lives solely on the client post-
+      // conversion (single source of truth, edits flow to one record).
+      try {
+        const briefings = await payload.find({
+          collection: "client-discovery-briefings",
+          where: { clientProposal: { equals: doc.id } },
+          limit: 10,
+          overrideAccess: true,
+        });
+        await Promise.all(
+          briefings.docs.map((b: { id: number | string }) =>
+            payload.update({
+              collection: "client-discovery-briefings",
+              id: b.id,
+              data: { client: newClient.id, clientProposal: null },
+              overrideAccess: true,
+            }),
+          ),
+        );
+      } catch (briefingErr) {
+        req.payload.logger.warn(
+          `Proposal→Client conversion: failed to re-point discovery briefing for "${doc.businessName}": ${briefingErr}`,
+        );
+      }
 
       // Link the proposal to the new client (keep it for reference)
       await payload.update({
@@ -730,7 +748,7 @@ function mapProposalBusinessTypeToLead(
  * Field mapping (proposal → lead):
  *   businessName, websiteUrl, contactName, contactEmail → verbatim
  *   businessType                                       → mapped (may be "other")
- *   discoveryNotes / notes                             → notes
+ *   proposalNotes (rolled up)                          → notes
  *   stage                                              → "proposal_sent"
  *   channel                                            → "website_other" (admin can edit)
  *   leadSource                                         → "manual"
@@ -759,17 +777,13 @@ const startAsLeadHook: CollectionAfterChangeHook = async ({
       // Already linked — just surface it on the proposal side.
       leadId = (existing.docs[0] as { id: number | string }).id;
     } else {
-      // Roll up any discovery / general notes the team captured pre-sale
-      // into the lead's `notes` field so context isn't lost.
-      const discoveryNotes = (
-        doc.discoveryNotes as string | undefined
-      )?.trim();
+      // Roll up any proposal notes the team captured pre-sale into the
+      // lead's `notes` field so context isn't lost.
       const proposalNotes =
         (doc.proposalNotes as
           | Array<{ content?: string; category?: string }>
           | undefined) ?? [];
       const noteParts: string[] = [];
-      if (discoveryNotes) noteParts.push(`Discovery: ${discoveryNotes}`);
       for (const n of proposalNotes) {
         if (n.content) noteParts.push(n.content);
       }
@@ -2041,17 +2055,17 @@ export const ClientProposals: CollectionConfig = {
           ],
         },
         {
-          label: "Pre-sale Discovery",
+          label: "Discovery Briefing",
           description:
-            "Lightweight pre-sale workspace for one-off discovery checks before the prospect becomes a client. One-shot GSC / AI visibility checks coming soon — for now, use the notes field below to capture findings from any manual checks you run.",
+            "Structured 11-section client discovery questionnaire (business overview, services, target audience, USP, tech stack, SEO, Google Ads, budget, etc.). Saves both structured data and a canonical markdown export that feeds the website build, SEO content plan, and Google Ads strategy.",
           fields: [
             {
-              name: "discoveryNotes",
-              type: "textarea",
+              name: "_discoveryBriefingPanel",
+              type: "ui",
               admin: {
-                description:
-                  "Free-form discovery notes from pre-sale checks (manual GSC review, AI visibility spot-checks, cert/health observations, etc.). Carries over to the new client's notes on conversion.",
-                rows: 8,
+                components: {
+                  Field: "./components/admin/DiscoveryBriefingPanel",
+                },
               },
             },
           ],

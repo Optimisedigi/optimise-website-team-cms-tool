@@ -66,6 +66,8 @@ import * as migration_20260525_120000_add_contract_end_date from './20260525_120
 import * as migration_20260525_140000_add_contract_client_acn_and_address from './20260525_140000_add_contract_client_acn_and_address';
 import * as migration_20260526_120000_add_trading_names from './20260526_120000_add_trading_names';
 import * as migration_20260527_120000_add_proposal_id_to_visibility_snapshots from './20260527_120000_add_proposal_id_to_visibility_snapshots';
+import * as migration_20260528_120000_add_client_discovery_briefings from './20260528_120000_add_client_discovery_briefings';
+import * as migration_20260529_120000_drop_proposal_discovery_notes from './20260529_120000_drop_proposal_discovery_notes';
 
 export const migrations = [
   {
@@ -407,5 +409,15 @@ export const migrations = [
     up: migration_20260527_120000_add_proposal_id_to_visibility_snapshots.up,
     down: migration_20260527_120000_add_proposal_id_to_visibility_snapshots.down,
     name: '20260527_120000_add_proposal_id_to_visibility_snapshots'
+  },
+  {
+    up: migration_20260528_120000_add_client_discovery_briefings.up,
+    down: migration_20260528_120000_add_client_discovery_briefings.down,
+    name: '20260528_120000_add_client_discovery_briefings'
+  },
+  {
+    up: migration_20260529_120000_drop_proposal_discovery_notes.up,
+    down: migration_20260529_120000_drop_proposal_discovery_notes.down,
+    name: '20260529_120000_drop_proposal_discovery_notes'
   },
 ];

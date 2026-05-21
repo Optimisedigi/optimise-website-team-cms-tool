@@ -1,0 +1,1483 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Client Discovery Briefing — Optimise Digital</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      :root {
+        --bg: #f7f7f5;
+        --surface: #ffffff;
+        --border: rgba(0, 0, 0, 0.1);
+        --border-strong: rgba(0, 0, 0, 0.18);
+        --text: #1a1a1a;
+        --muted: rgba(0, 0, 0, 0.6);
+        --faint: rgba(0, 0, 0, 0.4);
+        --accent: #2563eb;
+        --accent-soft: #3b82f6;
+        --good: #059669;
+        --good-soft: rgba(5, 150, 105, 0.08);
+        --info: #2563eb;
+        --info-soft: rgba(37, 99, 235, 0.08);
+      }
+
+      body {
+        font-family: "Inter", -apple-system, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        padding: 24px 3% 80px;
+        font-size: 12px;
+      }
+
+      header {
+        max-width: 1000px;
+        margin: 0 auto 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+
+      .logo-area { flex-shrink: 0; }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .logo-mark {
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 900;
+        font-size: 16px;
+      }
+
+      .header-text { text-align: right; }
+
+      .eyebrow {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 4px;
+      }
+
+      h1 {
+        font-size: clamp(22px, 3vw, 30px);
+        font-weight: 900;
+        line-height: 1.1;
+        letter-spacing: -0.5px;
+        margin-bottom: 6px;
+      }
+
+      .lede { font-size: 12px; color: var(--muted); max-width: 700px; }
+
+      main { max-width: 1000px; margin: 0 auto; }
+
+      /* Toolbar */
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      .btn {
+        appearance: none;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .btn:hover { border-color: var(--border-strong); background: #fafafa; }
+      .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+      .btn-primary:hover { background: #b8620a; border-color: #b8620a; }
+      .btn-ghost { background: transparent; color: var(--muted); border-color: transparent; }
+      .btn-ghost:hover { background: rgba(0, 0, 0, 0.04); color: var(--text); }
+
+      .meta { margin-left: auto; font-size: 11px; color: var(--faint); }
+
+      /* Sections */
+      .section {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 10px;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .section-head h2 {
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      .section-head .num {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--faint);
+        background: #f5f5f4;
+        padding: 2px 8px;
+        border-radius: 999px;
+      }
+
+      .section-intro {
+        font-size: 11px;
+        color: var(--muted);
+        margin: -4px 0 8px;
+      }
+
+      /* Form fields */
+      .field {
+        margin-bottom: 10px;
+      }
+
+      .field:last-child { margin-bottom: 0; }
+
+      label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .label-hint {
+        font-weight: 400;
+        color: var(--muted);
+        text-transform: none;
+        letter-spacing: 0;
+      }
+
+      input[type="text"],
+      input[type="email"],
+      input[type="url"],
+      input[type="tel"],
+      textarea,
+      select {
+        width: 100%;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 9px 12px;
+        font-family: inherit;
+        font-size: 13px;
+        color: var(--text);
+        transition: border-color 0.15s;
+      }
+
+      input:focus,
+      textarea:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      input::placeholder,
+      textarea::placeholder { color: var(--faint); }
+
+      textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+
+      /* Grid layouts */
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 12px;
+      }
+
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+      }
+
+      /* Checkboxes */
+      .check-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .check-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .check-item input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        border: 1.5px solid var(--border-strong);
+        border-radius: 4px;
+        appearance: none;
+        cursor: pointer;
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .check-item input[type="checkbox"]:checked {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+
+      .check-item input[type="checkbox"]:checked::after {
+        content: "✓";
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      /* Tags/chips */
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        background: #f5f5f4;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 11px;
+        color: var(--text);
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+
+      .chip:hover { border-color: var(--accent); }
+      .chip.selected { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+      .chip input { display: none; }
+
+      /* Priority rating */
+      .priority-row {
+        display: flex;
+        gap: 6px;
+        margin-top: 6px;
+      }
+
+      .priority-btn {
+        flex: 1;
+        padding: 6px 10px;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+        text-align: center;
+      }
+
+      .priority-btn:hover { border-color: var(--accent); }
+      .priority-btn.selected { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+      /* Services list */
+      .service-item {
+        background: #fafaf9;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+      }
+
+      .service-item:last-child { margin-bottom: 0; }
+
+      .service-row {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+
+      .service-row input { margin: 0; }
+
+      /* Social proof entries */
+      .proof-item {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 8px;
+        align-items: center;
+        background: #fafaf9;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 6px;
+      }
+
+      .proof-item input { margin: 0; }
+
+      /* Comments section */
+      .comments-section {
+        background: #eff6ff;
+        border: 1px solid #3b82f640;
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-top: 12px;
+      }
+
+      .comments-section label {
+        color: var(--accent);
+      }
+
+      /* Notes section */
+      .notes-section {
+        background: #f5f5f4;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-top: 12px;
+      }
+
+      .notes-section label {
+        color: var(--muted);
+      }
+
+      /* Toast */
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: #1a1a1a;
+        color: #fff;
+        padding: 10px 18px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 500;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s, transform 0.2s;
+        z-index: 100;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      }
+      .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+      /* Responsive */
+      @media (max-width: 600px) {
+        body { padding: 20px 12px 80px; font-size: 12px; }
+        header { flex-direction: column; }
+        .header-text { text-align: left; }
+        .grid-2 { grid-template-columns: 1fr; }
+        .grid-3 { grid-template-columns: 1fr; }
+        .proof-item { grid-template-columns: 1fr; gap: 6px; }
+        .service-row { grid-template-columns: 1fr; gap: 6px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo-area">
+        <img src="/optimise-digital-logo-white.png" alt="Optimise Digital" style="height:48px;width:auto;" />
+      </div>
+      <div class="header-text">
+        <p class="eyebrow">Client Discovery Briefing</p>
+        <h1>Website &amp; SEO Strategy Session</h1>
+        <p class="lede">Complete this document before our meeting. Your responses shape our strategy for building your website and SEO. Everything saves automatically.</p>
+      </div>
+    </header>
+
+    <main>
+      <div class="toolbar">
+        <button class="btn btn-primary" id="downloadBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Markdown
+        </button>
+        <button class="btn btn-ghost" id="resetBtn">Reset to defaults</button>
+        <span class="meta" id="meta"></span>
+      </div>
+
+      <!-- Business Overview -->
+      <section class="section">
+        <div class="section-head">
+          <h2>1 · Business Overview</h2>
+          <span class="num">2 fields</span>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>Business Name <span class="label-hint">(as you'd like it on the website)</span></label>
+            <input type="text" id="businessName" placeholder="e.g. Smith & Co. Accountants" data-key="businessName" />
+          </div>
+          <div class="field">
+            <label>Website URL (if existing)</label>
+            <input type="url" id="websiteUrl" placeholder="https://www.example.com" data-key="websiteUrl" />
+          </div>
+        </div>
+
+        <div class="field" style="margin-top: 10px;">
+          <label>What does your business do in one sentence?</label>
+          <textarea id="oneLiner" placeholder="We help [target audience] achieve [outcome] through [service]..." data-key="oneLiner"></textarea>
+        </div>
+      </section>
+
+      <!-- Core Services -->
+      <section class="section">
+        <div class="section-head">
+          <h2>2 · Core Services</h2>
+          <span class="num">List services with priority</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div>
+            <div id="servicesList"></div>
+            <button class="btn" id="addServiceBtn" style="margin-top: 8px;">+ Add Service</button>
+          </div>
+          <div>
+            <div class="field">
+              <label>Revenue split (top 3 services)</label>
+              <textarea id="revenueSplit" placeholder="e.g. Service A (40%), Service B (25%), Service C (20%)" data-key="revenueSplit" style="min-height: 80px;"></textarea>
+            </div>
+            <div class="field" style="margin-top: 10px;">
+              <label>Specialisms / niches</label>
+              <textarea id="specialisms" placeholder="Any specialist areas or niche markets..." data-key="specialisms"></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Target Audience -->
+      <section class="section">
+        <div class="section-head">
+          <h2>3 · Target Audience</h2>
+          <span class="num">Who are your ideal clients?</span>
+        </div>
+
+        <div class="field">
+          <label>Describe your ideal client in detail</label>
+          <textarea id="idealClient" placeholder="Include: industry, company size, revenue, location, pain points, decision-maker role..." data-key="idealClient"></textarea>
+        </div>
+
+        <div class="grid-2" style="margin-top: 12px;">
+          <div class="field">
+            <label>Primary location(s) you serve</label>
+            <input type="text" id="locations" placeholder="e.g. Sydney CBD, NSW, Australia / Remote worldwide" data-key="locations" />
+          </div>
+          <div class="field">
+            <label>Geographic focus for SEO</label>
+            <select id="geoFocus" data-key="geoFocus">
+              <option value="">Select...</option>
+              <option value="local">Local (single city/region)</option>
+              <option value="regional">Regional (state/country)</option>
+              <option value="national">National</option>
+              <option value="international">International</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Any specific industries you specialise in?</label>
+          <div class="chips" id="industryChips">
+            <label class="chip" data-value="healthcare"><input type="checkbox" />Healthcare</label>
+            <label class="chip" data-value="legal"><input type="checkbox" />Legal</label>
+            <label class="chip" data-value="finance"><input type="checkbox" />Finance</label>
+            <label class="chip" data-value="realestate"><input type="checkbox" />Real estate</label>
+            <label class="chip" data-value="hospitality"><input type="checkbox" />Hospitality</label>
+            <label class="chip" data-value="retail"><input type="checkbox" />Retail / e-commerce</label>
+            <label class="chip" data-value="construction"><input type="checkbox" />Construction</label>
+            <label class="chip" data-value="education"><input type="checkbox" />Education</label>
+            <label class="chip" data-value="tech"><input type="checkbox" />Technology</label>
+            <label class="chip" data-value="entertainment"><input type="checkbox" />Entertainment / events</label>
+            <label class="chip" data-value="other"><input type="checkbox" />Other</label>
+          </div>
+          <input type="text" id="industryOther" data-key="industryOther" placeholder="Specify other industry..." style="margin-top: 6px; display: none;" />
+        </div>
+      </section>
+
+      <!-- USP & Differentiation -->
+      <section class="section">
+        <div class="section-head">
+          <h2>4 · USP &amp; Differentiation</h2>
+          <span class="num">What sets you apart?</span>
+        </div>
+
+        <div class="field">
+          <label>What is your unique selling proposition (USP)?</label>
+          <textarea id="usp" placeholder="Why should clients choose you over competitors?" data-key="usp"></textarea>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Which competitors do you admire or want to mimic?</label>
+          <textarea id="competitorsAdmire" placeholder="List any competitors you respect, or that you feel are doing something well you'd like to replicate. (If none, just say so — that's fine!)" data-key="competitorsAdmire"></textarea>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>What are your main differentiators vs competitors?</label>
+          <textarea id="differentiators" placeholder="e.g. faster turnaround, better support, proprietary process, certifications..." data-key="differentiators"></textarea>
+        </div>
+      </section>
+
+      <!-- Tech Stack & Tools -->
+      <section class="section">
+        <div class="section-head">
+          <h2>5 · Tech Stack &amp; Tools</h2>
+          <span class="num">What systems are you currently using?</span>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>CRM</label>
+            <select id="crm" data-key="crm">
+              <option value="">Select...</option>
+              <option value="hubspot">HubSpot</option>
+              <option value="salesforce">Salesforce</option>
+              <option value="pipedrive">Pipedrive</option>
+              <option value="zoho">Zoho CRM</option>
+              <option value="none">None / Spreadsheets</option>
+              <option value="other">Other</option>
+            </select>
+            <input type="text" id="crmOther" data-key="crmOther" placeholder="Please specify your CRM..." style="margin-top: 6px; display: none;" />
+          </div>
+          <div class="field">
+            <label>Email Marketing</label>
+            <select id="emailMarketing" data-key="emailMarketing">
+              <option value="">Select...</option>
+              <option value="mailchimp">MailChimp</option>
+              <option value="klaviyo">Klaviyo</option>
+              <option value="activecampaign">ActiveCampaign</option>
+              <option value="convertkit">ConvertKit</option>
+              <option value="brevo">Brevo / Sendinblue</option>
+              <option value="none">None</option>
+              <option value="other">Other</option>
+            </select>
+            <input type="text" id="emailMarketingOther" data-key="emailMarketingOther" placeholder="Please specify your email platform..." style="margin-top: 6px; display: none;" />
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top: 12px;">
+          <div class="field">
+            <label>Calendar / Scheduling</label>
+            <select id="calendarScheduling" data-key="calendarScheduling">
+              <option value="">Select...</option>
+              <option value="calendly">Calendly</option>
+              <option value="acuity">Acuity Scheduling</option>
+              <option value="squareappointments">Square Appointments</option>
+              <option value="squarespace">Squarespace (bookings)</option>
+              <option value="doodle">Doodle</option>
+              <option value="none">None</option>
+              <option value="other">Other</option>
+            </select>
+            <input type="text" id="calendarSchedulingOther" data-key="calendarSchedulingOther" placeholder="Please specify..." style="margin-top: 6px; display: none;" />
+          </div>
+          <div class="field">
+            <label>Project Management</label>
+            <select id="projectManagement" data-key="projectManagement">
+              <option value="">Select...</option>
+              <option value="asana">Asana</option>
+              <option value="monday">Monday.com</option>
+              <option value="trello">Trello</option>
+              <option value="jira">Jira</option>
+              <option value="clickup">ClickUp</option>
+              <option value="notion">Notion</option>
+              <option value="none">None</option>
+              <option value="other">Other</option>
+            </select>
+            <input type="text" id="projectManagementOther" data-key="projectManagementOther" placeholder="Please specify..." style="margin-top: 6px; display: none;" />
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top: 12px;">
+          <div class="field">
+            <label>Payment Processor</label>
+            <select id="paymentProcessor" data-key="paymentProcessor">
+              <option value="">Select...</option>
+              <option value="stripe">Stripe</option>
+              <option value="square">Square</option>
+              <option value="paypal">PayPal</option>
+              <option value="braintree">Braintree</option>
+              <option value="other">Other</option>
+            </select>
+            <input type="text" id="paymentProcessorOther" data-key="paymentProcessorOther" placeholder="Please specify..." style="margin-top: 6px; display: none;" />
+          </div>
+          <div class="field">
+            <label>Communication / Phone</label>
+            <select id="communication" data-key="communication">
+              <option value="">Select...</option>
+              <option value="slack">Slack</option>
+              <option value="zoom">Zoom</option>
+              <option value="teams">Microsoft Teams</option>
+              <option value="ringcentral">RingCentral</option>
+              <option value="googlevoice">Google Voice</option>
+              <option value="none">None</option>
+              <option value="other">Other</option>
+            </select>
+            <input type="text" id="communicationOther" data-key="communicationOther" placeholder="Please specify..." style="margin-top: 6px; display: none;" />
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top: 12px;">
+          <div class="field">
+            <label>CMS (Content Management)</label>
+            <select id="cms" data-key="cms">
+              <option value="">Select...</option>
+              <option value="wordpress">WordPress</option>
+              <option value="shopify">Shopify</option>
+              <option value="webflow">Webflow</option>
+              <option value="squarespace">Squarespace</option>
+              <option value="drupal">Drupal</option>
+              <option value="wix">Wix</option>
+              <option value="joomla">Joomla</option>
+              <option value="custom">Custom built</option>
+              <option value="none">None</option>
+              <option value="other">Other</option>
+            </select>
+            <input type="text" id="cmsOther" data-key="cmsOther" placeholder="Please specify..." style="margin-top: 6px; display: none;" />
+          </div>
+          <div class="field">
+            <label>Analytics</label>
+            <select id="analytics" data-key="analytics">
+              <option value="">Select...</option>
+              <option value="ga4">Google Analytics 4</option>
+              <option value="ga3">Google Analytics 3 (Universal)</option>
+              <option value="meta">Meta Analytics</option>
+              <option value="mixpanel">Mixpanel</option>
+              <option value="plausible">Plausible</option>
+              <option value="none">None</option>
+              <option value="other">Other</option>
+            </select>
+            <input type="text" id="analyticsOther" data-key="analyticsOther" placeholder="Please specify your analytics tool..." style="margin-top: 6px; display: none;" />
+          </div>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Any other tools or software integral to your business?</label>
+          <textarea id="otherTools" placeholder="e.g. accounting software, HR tools, fulfilment systems..." data-key="otherTools"></textarea>
+        </div>
+      </section>
+
+      <!-- Current SEO & Online Presence -->
+      <section class="section">
+        <div class="section-head">
+          <h2>6 · Current SEO &amp; Online Presence</h2>
+          <span class="num">We handle keyword &amp; competitor research</span>
+        </div>
+
+        <div class="field">
+          <label>Google Business Profile (My Business)</label>
+          <div class="check-group">
+            <label class="check-item"><input type="checkbox" id="gbpExists" /> Claimed and optimised</label>
+            <label class="check-item"><input type="checkbox" id="gbpPartial" /> Claimed but needs work</label>
+            <label class="check-item"><input type="checkbox" id="gbpNone" /> Not claimed / don't have one</label>
+          </div>
+          <div id="gbpFollowup" style="display: none; margin-top: 10px; padding: 10px 12px; background: #f5f5f4; border-radius: 8px;">
+            <p style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 8px;">If you have a Google Business Profile, do you:</p>
+            <div class="check-group">
+              <label class="check-item"><input type="checkbox" id="gbpUpdateDetails" class="gbp-followup" /> Keep your business details up to date (hours, address, services)</label>
+              <label class="check-item"><input type="checkbox" id="gbpRespondReviews" class="gbp-followup" /> Respond to reviews (positive and negative)</label>
+              <label class="check-item"><input type="checkbox" id="gbpPostRegularly" class="gbp-followup" /> Post regularly (updates, offers, photos)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Social media presence</label>
+          <div class="check-group">
+            <label class="check-item"><input type="checkbox" id="socialLinkedin" /> LinkedIn</label>
+            <label class="check-item"><input type="checkbox" id="socialFacebook" /> Facebook</label>
+            <label class="check-item"><input type="checkbox" id="socialInstagram" /> Instagram</label>
+            <label class="check-item"><input type="checkbox" id="socialTwitter" /> Twitter / X</label>
+            <label class="check-item"><input type="checkbox" id="socialTikTok" /> TikTok</label>
+            <label class="check-item"><input type="checkbox" id="socialYoutube" /> YouTube</label>
+          </div>
+          <div id="socialHandles" style="display: none; margin-top: 10px; padding: 10px 12px; background: #f5f5f4; border-radius: 8px;"></div>
+        </div>
+      </section>
+
+      <!-- Social Proof -->
+      <section class="section">
+        <div class="section-head">
+          <h2>7 · Social Proof &amp; Case Studies</h2>
+          <span class="num">Who have you worked with?</span>
+        </div>
+        <p class="section-intro">List notable clients, case studies, or testimonials. These become key content for SEO and Google Ads.</p>
+
+        <div class="field">
+          <label>Notable clients or brands you've worked with</label>
+          <textarea id="notableClients" placeholder="Company names, logos we can use (with permission)..." data-key="notableClients"></textarea>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Key entertainers, speakers, or high-profile individuals (if applicable)</label>
+          <textarea id="notableIndividuals" placeholder="Names of recognisable people or brands associated with your business..." data-key="notableIndividuals"></textarea>
+        </div>
+
+        <div id="proofList"></div>
+        <button class="btn" id="addProofBtn" style="margin-top: 10px;">+ Add Case Study / Testimonial</button>
+
+        <div class="field" style="margin-top: 14px;">
+          <label>Do you have testimonials or reviews online?</label>
+          <div class="check-group">
+            <label class="check-item"><input type="checkbox" id="reviewsGoogle" /> Google reviews</label>
+            <label class="check-item"><input type="checkbox" id="reviewsFacebook" /> Facebook reviews</label>
+            <label class="check-item"><input type="checkbox" id="reviewsClutch" /> Clutch / industry sites</label>
+            <label class="check-item"><input type="checkbox" id="reviewsNone" /> None yet</label>
+          </div>
+        </div>
+      </section>
+
+      <!-- SEO Strategy -->
+      <section class="section">
+        <div class="section-head">
+          <h2>8 · SEO Strategy Focus</h2>
+          <span class="num">Where should we concentrate efforts?</span>
+        </div>
+
+        <div class="field">
+          <label>Primary SEO goal</label>
+          <select id="seoGoal" data-key="seoGoal">
+            <option value="">Select...</option>
+            <option value="leads">Generate more leads / enquiries</option>
+            <option value="brand">Build brand awareness</option>
+            <option value="ecommerce">E-commerce sales</option>
+            <option value="local">Dominate local search</option>
+            <option value="thoughtleadership">Thought leadership / authority</option>
+          </select>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Target keywords (your top 5-10)</label>
+          <textarea id="targetKeywords" placeholder="Keywords you want to rank for (e.g. 'Sydney accountants for medical practices', 'wedding photography Melbourne'...)" data-key="targetKeywords"></textarea>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Content types to focus on</label>
+          <div class="check-group">
+            <label class="check-item"><input type="checkbox" id="contentBlog" /> Blog posts / articles</label>
+            <label class="check-item"><input type="checkbox" id="contentCaseStudies" /> Case studies</label>
+            <label class="check-item"><input type="checkbox" id="contentGuides" /> How-to guides / tutorials</label>
+            <label class="check-item"><input type="checkbox" id="contentVideos" /> Video content</label>
+            <label class="check-item"><input type="checkbox" id="contentInfographics" /> Infographics</label>
+            <label class="check-item"><input type="checkbox" id="contentServicePages" /> Service page optimisation</label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Google Ads -->
+      <section class="section">
+        <div class="section-head">
+          <h2>9 · Google Ads</h2>
+          <span class="num">Paid search strategy</span>
+        </div>
+
+        <div class="field">
+          <label>Current Google Ads status</label>
+          <div class="check-group">
+            <label class="check-item"><input type="radio" name="adsStatus" value="active" id="adsActive" /> Running now</label>
+            <label class="check-item"><input type="radio" name="adsStatus" value="paused" id="adsPaused" /> Paused / Had before</label>
+            <label class="check-item"><input type="radio" name="adsStatus" value="never" id="adsNever" /> Never run</label>
+            <label class="check-item"><input type="radio" name="adsStatus" value="managed" id="adsManaged" /> Agency-managed</label>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Monthly Google Ads budget (if applicable)</label>
+          <input type="text" id="adsBudget" placeholder="e.g. $2,000 - $5,000 / month" data-key="adsBudget" />
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Key campaigns or services for Google Ads</label>
+          <textarea id="adsCampaigns" placeholder="Which services should we drive traffic to? What's the typical customer value?" data-key="adsCampaigns"></textarea>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Any negative keywords to avoid?</label>
+          <textarea id="negativeKeywords" placeholder="Terms you don't want to appear for (e.g. 'free', 'cheap', 'jobs'...)" data-key="negativeKeywords"></textarea>
+        </div>
+      </section>
+
+      <!-- Budget & Timeline -->
+      <section class="section">
+        <div class="section-head">
+          <h2>10 · Budget &amp; Timeline</h2>
+          <span class="num">Practical details</span>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>Budget for website project</label>
+            <select id="websiteBudget" data-key="websiteBudget">
+              <option value="">Select range...</option>
+              <option value="under5k">Under $5,000</option>
+              <option value="5k-10k">$5,000 - $10,000</option>
+              <option value="10k-20k">$10,000 - $20,000</option>
+              <option value="20k-50k">$20,000 - $50,000</option>
+              <option value="50k+">$50,000+</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Monthly SEO budget (ongoing)</label>
+            <select id="seoBudget" data-key="seoBudget">
+              <option value="">Select range...</option>
+              <option value="under1k">Under $1,000/month</option>
+              <option value="1k-3k">$1,000 - $3,000/month</option>
+              <option value="3k-5k">$3,000 - $5,000/month</option>
+              <option value="5k+">$5,000+/month</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Ideal launch date</label>
+          <input type="text" id="launchDate" placeholder="e.g. 3 months from now, before Q4 busy season..." data-key="launchDate" />
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Any hard deadlines or events to work around?</label>
+          <textarea id="deadlines" placeholder="Trade shows, product launches, busy seasons, renewal dates..." data-key="deadlines"></textarea>
+        </div>
+      </section>
+
+      <!-- Discovery Notes -->
+      <section class="section">
+        <div class="section-head">
+          <h2>11 · Discovery Notes</h2>
+          <span class="num">Free-form notes for the meeting</span>
+        </div>
+
+        <div class="field">
+          <label>Anything else we should know about your business?</label>
+          <textarea id="additionalNotes" placeholder="Processes, pain points, goals, concerns..." data-key="additionalNotes" style="min-height: 100px;"></textarea>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Questions for us?</label>
+          <textarea id="questionsForUs" placeholder="What do you want to ask during our meeting?" data-key="questionsForUs" style="min-height: 80px;"></textarea>
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+          <label>Internal notes (for your team, not us)</label>
+          <textarea id="internalNotes" placeholder="Any context your team needs to align on before the meeting..." data-key="internalNotes" style="min-height: 60px;"></textarea>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <div class="toolbar" style="margin-top: 20px;">
+        <button class="btn btn-primary" id="downloadBtnBottom">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Markdown
+        </button>
+        <span class="meta" style="margin-left: 0;">Generated by Optimise Digital</span>
+      </div>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      // Storage key
+      const STORAGE_KEY = "optimise.discovery.v1";
+
+      // Default state
+      const DEFAULT_STATE = {
+        businessName: "",
+        websiteUrl: "",
+        oneLiner: "",
+        services: [],
+        revenueSplit: "",
+        idealClient: "",
+        locations: "",
+        geoFocus: "",
+        industries: [],
+        industryOther: "",
+        usp: "",
+        competitorsAdmire: "",
+        differentiators: "",
+        crm: "",
+        crmOther: "",
+        emailMarketing: "",
+        emailMarketingOther: "",
+        calendarScheduling: "",
+        calendarSchedulingOther: "",
+        currentPlatform: "",
+        currentPlatformOther: "",
+        projectManagement: "",
+        projectManagementOther: "",
+        paymentProcessor: "",
+        paymentProcessorOther: "",
+        communication: "",
+        communicationOther: "",
+        analytics: "",
+        analyticsOther: "",
+        cms: "",
+        cmsOther: "",
+        otherTools: "",
+        gbpExists: false,
+        gbpPartial: false,
+        gbpNone: false,
+        gbpUpdateDetails: false,
+        gbpRespondReviews: false,
+        gbpPostRegularly: false,
+        socialLinkedin: false,
+        socialLinkedinHandle: "",
+        socialFacebook: false,
+        socialFacebookHandle: "",
+        socialInstagram: false,
+        socialInstagramHandle: "",
+        socialTwitter: false,
+        socialTwitterHandle: "",
+        socialTikTok: false,
+        socialTikTokHandle: "",
+        socialYoutube: false,
+        socialYoutubeHandle: "",
+        notableClients: "",
+        notableIndividuals: "",
+        proof: [],
+        reviewsGoogle: false,
+        reviewsFacebook: false,
+        reviewsClutch: false,
+        reviewsNone: false,
+        seoGoal: "",
+        targetKeywords: "",
+        contentBlog: false,
+        contentCaseStudies: false,
+        contentGuides: false,
+        contentVideos: false,
+        contentInfographics: false,
+        contentServicePages: false,
+        adsStatus: "",
+        adsBudget: "",
+        adsCampaigns: "",
+        negativeKeywords: "",
+        websiteBudget: "",
+        seoBudget: "",
+        launchDate: "",
+        deadlines: "",
+        additionalNotes: "",
+        questionsForUs: "",
+        internalNotes: "",
+      };
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return structuredClone(DEFAULT_STATE);
+          return { ...structuredClone(DEFAULT_STATE), ...JSON.parse(raw) };
+        } catch (e) {
+          return structuredClone(DEFAULT_STATE);
+        }
+      }
+
+      function saveState() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        updateMeta();
+      }
+
+      let state = loadState();
+
+      // Bind all inputs
+      function bindInputs() {
+        document.querySelectorAll("[data-key]").forEach((el) => {
+          const key = el.dataset.key;
+          const type = el.type;
+
+          if (type === "checkbox") {
+            el.checked = !!state[key];
+            el.addEventListener("change", () => {
+              state[key] = el.checked;
+              saveState();
+            });
+          } else if (type === "radio") {
+            el.addEventListener("change", () => {
+              if (el.checked) state[key] = el.value;
+              saveState();
+            });
+          } else {
+            el.value = state[key] || "";
+            el.addEventListener("input", () => {
+              state[key] = el.value;
+              saveState();
+            });
+          }
+        });
+      }
+
+      // Industry chips
+      function bindChips() {
+        document.querySelectorAll("#industryChips .chip").forEach((chip) => {
+          const value = chip.dataset.value;
+          if (state.industries.includes(value)) chip.classList.add("selected");
+          chip.querySelector("input").checked = state.industries.includes(value);
+
+          chip.addEventListener("click", () => {
+            const idx = state.industries.indexOf(value);
+            if (idx > -1) {
+              state.industries.splice(idx, 1);
+              chip.classList.remove("selected");
+              chip.querySelector("input").checked = false;
+            } else {
+              state.industries.push(value);
+              chip.classList.add("selected");
+              chip.querySelector("input").checked = true;
+            }
+            saveState();
+          });
+        });
+      }
+
+      // Services list
+      function renderServices() {
+        const container = document.getElementById("servicesList");
+        container.innerHTML = state.services.map((s, i) => `
+          <div class="service-item" data-index="${i}">
+            <div class="service-row">
+              <input type="text" value="${escapeHtml(s.name)}" placeholder="Service name" data-service="name" />
+              <button class="btn" data-action="toggleMargin" data-index="${i}" style="font-size: 10px; padding: 4px 8px;">
+                ${s.highMargin ? "✓ High margin" : "High margin?"}
+              </button>
+              <label class="check-item" style="font-size: 10px; white-space: nowrap;">
+                <input type="checkbox" ${s.focus ? "checked" : ""} data-service="focus" data-index="${i}" />
+                Priority focus
+              </label>
+              <button class="btn btn-ghost" data-action="removeService" data-index="${i}" style="font-size: 10px; padding: 4px 8px;">×</button>
+            </div>
+          </div>
+        `).join("");
+
+        container.querySelectorAll("[data-service]").forEach((el) => {
+          el.addEventListener("input", () => {
+            const idx = parseInt(el.dataset.index);
+            const field = el.dataset.service;
+            state.services[idx][field] = el.type === "checkbox" ? el.checked : el.value;
+            saveState();
+            if (field === "name") renderServices();
+          });
+        });
+
+        container.querySelectorAll("[data-action]").forEach((btn) => {
+          const action = btn.dataset.action;
+          const idx = parseInt(btn.dataset.index);
+          btn.addEventListener("click", () => {
+            if (action === "removeService") {
+              state.services.splice(idx, 1);
+              saveState();
+              renderServices();
+            } else if (action === "toggleMargin") {
+              state.services[idx].highMargin = !state.services[idx].highMargin;
+              saveState();
+              renderServices();
+            }
+          });
+        });
+      }
+
+      document.getElementById("addServiceBtn").addEventListener("click", () => {
+        state.services.push({ name: "", highMargin: false, focus: false });
+        saveState();
+        renderServices();
+        document.getElementById("servicesList").lastElementChild?.querySelector("input")?.focus();
+      });
+
+      // Proof / testimonials list
+      function renderProof() {
+        const container = document.getElementById("proofList");
+        container.innerHTML = state.proof.map((p, i) => `
+          <div class="proof-item" data-index="${i}">
+            <input type="text" value="${escapeHtml(p.client)}" placeholder="Client name" data-proof="client" />
+            <input type="text" value="${escapeHtml(p.testimonial)}" placeholder="Testimonial excerpt..." data-proof="testimonial" />
+            <button class="btn btn-ghost" data-action="removeProof" data-index="${i}" style="font-size: 10px; padding: 4px 8px;">×</button>
+          </div>
+        `).join("");
+
+        container.querySelectorAll("[data-proof]").forEach((el) => {
+          el.addEventListener("input", () => {
+            const idx = parseInt(el.dataset.index);
+            const field = el.dataset.proof;
+            state.proof[idx][field] = el.value;
+            saveState();
+          });
+        });
+
+        container.querySelectorAll("[data-action]").forEach((btn) => {
+          const action = btn.dataset.action;
+          const idx = parseInt(btn.dataset.index);
+          btn.addEventListener("click", () => {
+            if (action === "removeProof") {
+              state.proof.splice(idx, 1);
+              saveState();
+              renderProof();
+            }
+          });
+        });
+      }
+
+      document.getElementById("addProofBtn").addEventListener("click", () => {
+        state.proof.push({ client: "", testimonial: "" });
+        saveState();
+        renderProof();
+        document.getElementById("proofList").lastElementChild?.querySelector("input")?.focus();
+      });
+
+      // Social media handles — show input fields for selected platforms
+      function renderSocialHandles() {
+        const container = document.getElementById("socialHandles");
+        const hasSocial = state.socialLinkedin || state.socialFacebook || state.socialInstagram || state.socialTwitter || state.socialTikTok || state.socialYoutube;
+        container.style.display = hasSocial ? "block" : "none";
+
+        const platformMap = [
+          { key: "socialLinkedin", handleKey: "socialLinkedinHandle", label: "LinkedIn" },
+          { key: "socialFacebook", handleKey: "socialFacebookHandle", label: "Facebook" },
+          { key: "socialInstagram", handleKey: "socialInstagramHandle", label: "Instagram" },
+          { key: "socialTwitter", handleKey: "socialTwitterHandle", label: "Twitter / X" },
+          { key: "socialTikTok", handleKey: "socialTikTokHandle", label: "TikTok" },
+          { key: "socialYoutube", handleKey: "socialYoutubeHandle", label: "YouTube" },
+        ];
+
+        container.innerHTML = platformMap
+          .filter(({ key }) => state[key])
+          .map(({ handleKey, label }) => `
+            <div style="margin-bottom: 8px;">
+              <label style="font-size: 11px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 4px;">${label} handle</label>
+              <input type="text" value="${escapeHtml(state[handleKey] || "")}" placeholder="e.g. @yourbusiness or full URL" style="font-size: 12px;" data-social-handle="${handleKey}" />
+            </div>
+          `).join("");
+
+        container.querySelectorAll("input").forEach((el) => {
+          el.addEventListener("input", () => {
+            const key = el.dataset.socialHandle;
+            if (key) {
+              state[key] = el.value;
+              saveState();
+            }
+          });
+        });
+      }
+
+      // GBP follow-up — show questions when any GBP option is selected
+      function renderGbpFollowup() {
+        const container = document.getElementById("gbpFollowup");
+        const hasGbp = state.gbpExists || state.gbpPartial || state.gbpNone;
+        container.style.display = hasGbp ? "block" : "none";
+        // Sync checked state from localStorage
+        ["gbpUpdateDetails", "gbpRespondReviews", "gbpPostRegularly"].forEach((key) => {
+          const el = document.getElementById(key);
+          if (el) el.checked = !!state[key];
+        });
+      }
+
+      // Escape HTML
+      function escapeHtml(s) {
+        if (!s) return "";
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
+      // Update meta
+      function updateMeta() {
+        const filled = Object.values(state).filter((v) => {
+          if (Array.isArray(v)) return v.length > 0;
+          if (typeof v === "boolean") return v;
+          return !!v;
+        }).length;
+        const total = Object.keys(DEFAULT_STATE).length;
+        document.getElementById("meta").textContent = `${filled}/${total} sections completed · saved locally`;
+      }
+
+      // Reset
+      document.getElementById("resetBtn").addEventListener("click", () => {
+        if (!confirm("Reset all fields to defaults? This will clear all your answers.")) return;
+        state = structuredClone(DEFAULT_STATE);
+        saveState();
+        location.reload();
+      });
+
+      // Export to markdown
+      function exportMarkdown() {
+        const lines = [
+          "# Client Discovery Briefing",
+          "",
+          `**Business:** ${state.businessName || "Not provided"}`,
+          `**Website:** ${state.websiteUrl || "Not provided"}`,
+          "",
+          "## Business Overview",
+          "",
+          state.oneLiner || "Not provided",
+          "",
+          "---",
+          "",
+          "## Core Services",
+          "",
+        ];
+
+        if (state.services.length > 0) {
+          state.services.forEach((s) => {
+            const margin = s.highMargin ? " (high margin)" : "";
+            const focus = s.focus ? " — priority focus" : "";
+            lines.push(`- ${s.name || "Unnamed"}${margin}${focus}`);
+          });
+        } else {
+          lines.push("Not provided");
+        }
+
+        lines.push("", `**Revenue split:** ${state.revenueSplit || "Not provided"}`);
+        lines.push("", "---", "", "## Target Audience", "");
+        lines.push(`**Ideal client:** ${state.idealClient || "Not provided"}`);
+        lines.push(`**Locations:** ${state.locations || "Not provided"}`);
+        lines.push(`**Geographic focus:** ${state.geoFocus || "Not provided"}`);
+        if (state.industries.length > 0) {
+          const industryList = state.industries.map(i => i === "other" && state.industryOther ? "Other: " + state.industryOther : i).join(", ");
+          lines.push(`**Industries:** ${industryList}`);
+        }
+
+        lines.push("", "---", "", "## USP & Differentiation", "");
+        lines.push(`**USP:** ${state.usp || "Not provided"}`);
+        lines.push("", `**Competitors you admire or want to mimic:** ${state.competitorsAdmire || "Not provided"}`);
+        lines.push("", `**Differentiation:** ${state.differentiators || "Not provided"}`);
+
+        lines.push("", "---", "", "## Tech Stack", "");
+        lines.push(`**CRM:** ${state.crm || "Not provided"}${state.crm === "other" && state.crmOther ? " — " + state.crmOther : ""}`);
+        lines.push(`**Email:** ${state.emailMarketing || "Not provided"}${state.emailMarketing === "other" && state.emailMarketingOther ? " — " + state.emailMarketingOther : ""}`);
+        lines.push(`**Calendar / scheduling:** ${state.calendarScheduling || "Not provided"}${state.calendarScheduling === "other" && state.calendarSchedulingOther ? " — " + state.calendarSchedulingOther : ""}`);
+        lines.push(`**Project management:** ${state.projectManagement || "Not provided"}${state.projectManagement === "other" && state.projectManagementOther ? " — " + state.projectManagementOther : ""}`);
+        lines.push(`**Payment processor:** ${state.paymentProcessor || "Not provided"}${state.paymentProcessor === "other" && state.paymentProcessorOther ? " — " + state.paymentProcessorOther : ""}`);
+        lines.push(`**Communication / phone:** ${state.communication || "Not provided"}${state.communication === "other" && state.communicationOther ? " — " + state.communicationOther : ""}`);
+        lines.push(`**CMS:** ${state.cms || "Not provided"}${state.cms === "other" && state.cmsOther ? " — " + state.cmsOther : ""}`);
+        lines.push(`**Analytics:** ${state.analytics || "Not provided"}${state.analytics === "other" && state.analyticsOther ? " — " + state.analyticsOther : ""}`);
+        lines.push("", `**Other tools:** ${state.otherTools || "Not provided"}`);
+
+        lines.push("", "---", "", "## Current SEO & Online Presence", "");
+        const gbp = [];
+        if (state.gbpExists) gbp.push("Claimed and optimised");
+        if (state.gbpPartial) gbp.push("Claimed but needs work");
+        if (state.gbpNone) gbp.push("Not claimed");
+        lines.push(`**Google Business Profile:** ${gbp.join(", ") || "Not specified"}`);
+        if (state.gbpExists || state.gbpPartial || state.gbpNone) {
+          if (state.gbpUpdateDetails) lines.push("  - Keeps business details up to date");
+          if (state.gbpRespondReviews) lines.push("  - Responds to reviews");
+          if (state.gbpPostRegularly) lines.push("  - Posts regularly (updates, offers, photos)");
+        }
+
+        const social = [];
+        if (state.socialLinkedin) social.push("LinkedIn");
+        if (state.socialFacebook) social.push("Facebook");
+        if (state.socialInstagram) social.push("Instagram");
+        if (state.socialTwitter) social.push("Twitter/X");
+        if (state.socialTikTok) social.push("TikTok");
+        if (state.socialYoutube) social.push("YouTube");
+        lines.push(`**Social media:** ${social.join(", ") || "None specified"}`);
+        const handles = [];
+        if (state.socialLinkedin && state.socialLinkedinHandle) handles.push(`LinkedIn: ${state.socialLinkedinHandle}`);
+        if (state.socialFacebook && state.socialFacebookHandle) handles.push(`Facebook: ${state.socialFacebookHandle}`);
+        if (state.socialInstagram && state.socialInstagramHandle) handles.push(`Instagram: ${state.socialInstagramHandle}`);
+        if (state.socialTwitter && state.socialTwitterHandle) handles.push(`Twitter/X: ${state.socialTwitterHandle}`);
+        if (state.socialTikTok && state.socialTikTokHandle) handles.push(`TikTok: ${state.socialTikTokHandle}`);
+        if (state.socialYoutube && state.socialYoutubeHandle) handles.push(`YouTube: ${state.socialYoutubeHandle}`);
+        if (handles.length > 0) lines.push("", `**Social handles:** ${handles.join(" · ")}`);
+
+        lines.push("", "---", "", "## Social Proof", "");
+        lines.push(`**Notable clients:** ${state.notableClients || "Not provided"}`);
+        lines.push("", `**Notable individuals:** ${state.notableIndividuals || "Not provided"}`);
+
+        if (state.proof.length > 0) {
+          lines.push("", "### Testimonials / Case Studies");
+          state.proof.forEach((p) => {
+            if (p.client || p.testimonial) {
+              lines.push(`- **${p.client || "Client"}:** ${p.testimonial || ""}`);
+            }
+          });
+        }
+
+        const reviews = [];
+        if (state.reviewsGoogle) reviews.push("Google Reviews");
+        if (state.reviewsFacebook) reviews.push("Facebook Reviews");
+        if (state.reviewsClutch) reviews.push("Clutch/Industry");
+        if (state.reviewsNone) reviews.push("None yet");
+        lines.push("", `**Reviews:** ${reviews.join(", ") || "Not specified"}`);
+
+        lines.push("", "---", "", "## SEO Strategy", "");
+        lines.push(`**Primary goal:** ${state.seoGoal || "Not provided"}`);
+        lines.push("", `**Target keywords:** ${state.targetKeywords || "Not provided"}`);
+
+        const content = [];
+        if (state.contentBlog) content.push("Blog posts");
+        if (state.contentCaseStudies) content.push("Case studies");
+        if (state.contentGuides) content.push("How-to guides");
+        if (state.contentVideos) content.push("Videos");
+        if (state.contentInfographics) content.push("Infographics");
+        if (state.contentServicePages) content.push("Service pages");
+        lines.push("", `**Content focus:** ${content.join(", ") || "Not specified"}`);
+
+        lines.push("", "---", "", "## Google Ads", "");
+        lines.push(`**Status:** ${state.adsStatus || "Not provided"}`);
+        lines.push(`**Budget:** ${state.adsBudget || "Not provided"}`);
+        lines.push("", `**Campaigns:** ${state.adsCampaigns || "Not provided"}`);
+        lines.push("", `**Negative keywords:** ${state.negativeKeywords || "Not provided"}`);
+
+        lines.push("", "---", "", "## Budget & Timeline", "");
+        lines.push(`**Website budget:** ${state.websiteBudget || "Not provided"}`);
+        lines.push(`**SEO budget:** ${state.seoBudget || "Not provided"}`);
+        lines.push(`**Launch date:** ${state.launchDate || "Not provided"}`);
+        lines.push("", `**Deadlines:** ${state.deadlines || "Not provided"}`);
+
+        lines.push("", "---", "", "## Discovery Notes", "");
+        lines.push(`**Additional notes:** ${state.additionalNotes || "Not provided"}`);
+        lines.push("", `**Questions for us:** ${state.questionsForUs || "Not provided"}`);
+        lines.push("", `**Internal notes:** ${state.internalNotes || "Not provided"}`);
+
+        lines.push("", "", "---", "", "*Generated by Optimise Digital — Client Discovery Briefing*");
+
+        const md = lines.join("\n");
+
+        // Try clipboard first
+        navigator.clipboard.writeText(md)
+          .then(() => toast("Markdown copied to clipboard!"))
+          .catch(() => {
+            // Fallback: download as file
+            const blob = new Blob([md], { type: "text/markdown" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `client-discovery-${state.businessName?.replace(/\s+/g, "-").toLowerCase() || "briefing"}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast("Markdown downloaded!");
+          });
+      }
+
+      document.getElementById("downloadBtn").addEventListener("click", exportMarkdown);
+      document.getElementById("downloadBtnBottom").addEventListener("click", exportMarkdown);
+
+      // Toast
+      function toast(msg) {
+        const el = document.getElementById("toast");
+        el.textContent = msg;
+        el.classList.add("show");
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.remove("show"), 2200);
+      }
+
+      // Init
+      bindInputs();
+      bindChips();
+      renderServices();
+      renderProof();
+      renderSocialHandles();
+      renderGbpFollowup();
+      updateMeta();
+
+      // Show/hide "Other" text fields when dropdown changes
+      const otherPairs = [
+        { select: "crm", other: "crmOther" },
+        { select: "emailMarketing", other: "emailMarketingOther" },
+        { select: "calendarScheduling", other: "calendarSchedulingOther" },
+        { select: "projectManagement", other: "projectManagementOther" },
+        { select: "paymentProcessor", other: "paymentProcessorOther" },
+        { select: "communication", other: "communicationOther" },
+        { select: "cms", other: "cmsOther" },
+        { select: "currentPlatform", other: "currentPlatformOther" },
+        { select: "analytics", other: "analyticsOther" },
+      ];
+
+      otherPairs.forEach(({ select, other }) => {
+        const selectEl = document.getElementById(select);
+        const otherEl = document.getElementById(other);
+        if (!selectEl || !otherEl) return;
+        function updateOther() {
+          otherEl.style.display = selectEl.value === "other" ? "block" : "none";
+        }
+        selectEl.addEventListener("change", updateOther);
+        updateOther();
+      });
+
+      // Social media — re-render handles when checkboxes change
+      const socialKeys = ["socialLinkedin", "socialFacebook", "socialInstagram", "socialTwitter", "socialTikTok", "socialYoutube"];
+      socialKeys.forEach((key) => {
+        const el = document.getElementById(key);
+        if (el) {
+          el.addEventListener("change", () => {
+            state[key] = el.checked;
+            saveState();
+            renderSocialHandles();
+          });
+        }
+      });
+
+      // GBP — re-render follow-up when checkboxes change
+      const gbpKeys = ["gbpExists", "gbpPartial", "gbpNone"];
+      gbpKeys.forEach((key) => {
+        const el = document.getElementById(key);
+        if (el) {
+          el.addEventListener("change", () => {
+            state[key] = el.checked;
+            saveState();
+            renderGbpFollowup();
+          });
+        }
+      });
+
+      // GBP follow-up checkboxes
+      ["gbpUpdateDetails", "gbpRespondReviews", "gbpPostRegularly"].forEach((key) => {
+        const el = document.getElementById(key);
+        if (el) {
+          el.addEventListener("change", () => {
+            state[key] = el.checked;
+            saveState();
+          });
+        }
+      });
+
+      // Industry chips — show "Other" text field
+      const industryOtherEl = document.getElementById("industryOther");
+      document.querySelectorAll("#industryChips .chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const value = chip.dataset.value;
+          if (value === "other") {
+            setTimeout(() => {
+              industryOtherEl.style.display = state.industries.includes("other") ? "block" : "none";
+            }, 0);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

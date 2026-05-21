@@ -183,10 +183,8 @@ describe("ClientProposals Collection", () => {
     expect(description.required).toBe(true);
   });
 
-  it("should have discoveryNotes textarea field on the Pre-sale Discovery tab", () => {
-    const field = findField(ClientProposals.fields, "discoveryNotes");
-    expect(field).toBeDefined();
-    expect(field.type).toBe("textarea");
+  it("should not expose the legacy discoveryNotes field (superseded by Discovery Briefing collection)", () => {
+    expect(findField(ClientProposals.fields, "discoveryNotes")).toBeUndefined();
   });
 });
 
@@ -779,48 +777,47 @@ describe("ClientProposals: convertToClient hook", () => {
     expect(timeline[0].addedBy).toBe("Alice");
   });
 
-  it("should prepend discoveryNotes as the first client note on conversion", async () => {
+  it("should re-point a discovery briefing from the proposal to the new client on conversion", async () => {
+    // find() is called for sales-leads check, salesLead lookup, each
+    // collectionsToRelink iteration, and finally the discovery briefing
+    // re-point. Default to empty, then override the briefing lookup.
     mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
+    mockPayload.find.mockImplementation(async (args: any) => {
+      if (args.collection === "client-discovery-briefings") {
+        return {
+          totalDocs: 1,
+          docs: [{ id: "briefing-9" }],
+        };
+      }
+      return { totalDocs: 0, docs: [] };
+    });
     mockPayload.create.mockResolvedValueOnce({ id: "new-client-id" });
     mockPayload.update.mockResolvedValue({});
 
-    const doc = {
-      id: "prop-1",
-      convertToClient: true,
-      businessName: "Discovery Test",
-      slug: "discovery-test",
-      discoveryNotes: "GSC shows brand traffic decline; AI visibility weak on key terms.",
-      proposalNotes: [
-        {
-          id: "note-row-1",
-          category: "general",
-          date: "2026-05-10T10:00:00.000Z",
-          author: "Alice",
-          content: "Existing note.",
-        },
-      ],
-    };
-
     await convertToClientHook({
-      doc,
+      doc: {
+        id: "prop-1",
+        convertToClient: true,
+        businessName: "Briefing Repoint",
+        slug: "briefing-repoint",
+      },
       req: mockReq(),
       previousDoc: { convertToClient: false },
     });
 
-    const clientUpdate = mockPayload.update.mock.calls.find(
+    const briefingUpdate = mockPayload.update.mock.calls.find(
       ([args]: any[]) =>
-        args.collection === "clients" && args.id === "new-client-id",
+        args.collection === "client-discovery-briefings" &&
+        args.id === "briefing-9",
     );
-    expect(clientUpdate).toBeDefined();
-    const clientNotes = clientUpdate![0].data.clientNotes;
-    expect(clientNotes).toHaveLength(2);
-    expect(clientNotes[0].content).toContain("Pre-sale discovery notes:");
-    expect(clientNotes[0].content).toContain("brand traffic decline");
-    expect(clientNotes[0].author).toBe("Pre-sale discovery");
-    expect(clientNotes[1].content).toBe("Existing note.");
+    expect(briefingUpdate).toBeDefined();
+    expect(briefingUpdate![0].data).toEqual({
+      client: "new-client-id",
+      clientProposal: null,
+    });
   });
 
-  it("should not perform notes/timeline migration when both arrays are empty and no discoveryNotes", async () => {
+  it("should not perform notes/timeline migration when both arrays are empty", async () => {
     mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] });
     mockPayload.create.mockResolvedValueOnce({ id: "new-client-id" });
     mockPayload.update.mockResolvedValue({});
@@ -943,7 +940,6 @@ describe("ClientProposals: startAsLead hook", () => {
         contactName: "Jane Smith",
         contactEmail: "jane@acme.example",
         businessType: "services",
-        discoveryNotes: "Wants more leads",
       },
       previousDoc: { startAsLead: false },
       req: mockReq(),

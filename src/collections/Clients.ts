@@ -1275,6 +1275,22 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Discovery Briefing",
+          description:
+            "Structured 11-section client discovery questionnaire (business overview, services, target audience, USP, tech stack, SEO, Google Ads, budget, etc.). Saves both structured data and a canonical markdown export that feeds the website build, SEO content plan, and Google Ads strategy.",
+          fields: [
+            {
+              name: "_discoveryBriefingPanel",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/admin/DiscoveryBriefingPanel",
+                },
+              },
+            },
+          ],
+        },
+        {
           label: "Account Timeline",
           fields: [
             {
@@ -1800,6 +1816,17 @@ export const Clients: CollectionConfig = {
                   type: "ui",
                   admin: {
                     components: { Field: "./components/RunNegativeSweepButton" },
+                  },
+                },
+
+                // Match Type Monitor
+                {
+                  name: "matchTypeMonitorEnabled",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description:
+                      "Enable match type violation monitoring — flags exact/phrase keywords that served non-conforming search terms",
                   },
                 },
 

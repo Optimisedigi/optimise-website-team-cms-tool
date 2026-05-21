@@ -12,6 +12,7 @@ import { Users } from "./collections/Users";
 import { Media } from "./collections/Media";
 import { Clients } from "./collections/Clients";
 import { ClientProposals } from "./collections/ClientProposals";
+import { ClientDiscoveryBriefings } from "./collections/ClientDiscoveryBriefings";
 import { BlogPosts } from "./collections/BlogPosts";
 import { SeoAudits } from "./collections/SeoAudits";
 import { CroAudits } from "./collections/CroAudits";
@@ -37,6 +38,8 @@ import { GscDaily } from "./collections/GscDaily";
 import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
 import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
+import { MatchTypeViolationCandidates } from "./collections/MatchTypeViolationCandidates";
+import { MatchTypeSyncState } from "./collections/MatchTypeSyncState";
 import { NegativeKeywordLists } from "./collections/NegativeKeywordLists";
 import { NegativeKeywordAvoidedSpendCache } from "./collections/NegativeKeywordAvoidedSpendCache";
 import { NegativeKeywordMonthlyWasteRelevancyCache } from "./collections/NegativeKeywordMonthlyWasteRelevancyCache";
@@ -55,6 +58,7 @@ import { ApiCostRates } from "./globals/ApiCostRates";
 import { SheetsAuth } from "./globals/SheetsAuth";
 import { EmailTemplates } from "./globals/EmailTemplates";
 import { CalendarAuth } from "./globals/CalendarAuth";
+import { CronSettings } from "./globals/CronSettings";
 import { MeetingSchedulers } from "./collections/MeetingSchedulers";
 import { PermissionProfiles } from "./collections/PermissionProfiles";
 import { AgentApprovalQueue } from "./collections/AgentApprovalQueue";
@@ -105,7 +109,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientProposals, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, ClientProcesses, MeetingSchedulers,
+    Clients, ClientProposals, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, ClientProcesses, MeetingSchedulers,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO
@@ -122,7 +126,7 @@ export default buildConfig({
     // Optimate agents
     AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, OptimateChatTurns,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials, ContractReminders, Notifications, PinRateLimits,
+    GscSnapshots, GscDaily, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSyncState,
   ].map((c) => {
     const collection = c as CollectionConfig
     return {
@@ -136,7 +140,7 @@ export default buildConfig({
       },
     }
   }),
-  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates],
+  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates, CronSettings],
   editor: lexicalEditor({
     features: ({ defaultFeatures }) => [...defaultFeatures, MarkdownPasteFeature()],
   }),

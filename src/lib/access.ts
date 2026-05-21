@@ -87,6 +87,7 @@ export const FEATURE_KEYS = [
   { label: "Indexing Helper", value: "nav:indexing-helper" },
   { label: "Google Sheets Auth (Global)", value: "sheets-auth" },
   { label: "Google Calendar Auth (Global)", value: "calendar-auth" },
+  { label: "Cron Settings (Global)", value: "cron-settings" },
   // Admin
   { label: "Dashboard (Agency)", value: "nav:dashboard" },
   { label: "Usage Reports", value: "usage-reports" },
