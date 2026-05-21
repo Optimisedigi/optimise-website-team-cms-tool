@@ -3432,6 +3432,40 @@ export async function runMigrations(
       "client_discovery_briefings.require_pin",
       "ALTER TABLE `client_discovery_briefings` ADD `require_pin` integer DEFAULT 0",
     );
+
+    // ── google_ads_snapshots (2026-06-01) ─────────────────────────────────────────
+    // Daily-cron snapshot of Google Ads metrics per (client, level). One row
+    // per (client, level) — the cron upserts on the UNIQUE index. Powers
+    // OptiMate read tools and Goal Agents so they don't hammer Growth Tools
+    // on every page load. `rows` is JSON text; shape varies per level (see
+    // src/collections/GoogleAdsSnapshots.ts for the per-level row schema).
+    await run("google_ads_snapshots", `CREATE TABLE IF NOT EXISTS \`google_ads_snapshots\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`level\` text NOT NULL,
+      \`captured_at\` text NOT NULL,
+      \`date_range_label\` text,
+      \`date_range_start\` text,
+      \`date_range_end\` text,
+      \`customer_id\` text NOT NULL,
+      \`row_count\` numeric,
+      \`rows\` text,
+      \`source_endpoint\` text,
+      \`fetch_duration_ms\` numeric,
+      \`error\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("google_ads_snapshots_client_idx", "CREATE INDEX IF NOT EXISTS `google_ads_snapshots_client_idx` ON `google_ads_snapshots` (`client_id`)");
+    await run("google_ads_snapshots_level_idx", "CREATE INDEX IF NOT EXISTS `google_ads_snapshots_level_idx` ON `google_ads_snapshots` (`level`)");
+    await run("google_ads_snapshots_captured_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_snapshots_captured_at_idx` ON `google_ads_snapshots` (`captured_at`)");
+    await run("google_ads_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_snapshots_created_at_idx` ON `google_ads_snapshots` (`created_at`)");
+    await run("google_ads_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_snapshots_updated_at_idx` ON `google_ads_snapshots` (`updated_at`)");
+    // One row per (client, level) — the daily cron upserts on this unique key.
+    await run("google_ads_snapshots_client_level_unq", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_snapshots_client_level_unq` ON `google_ads_snapshots` (`client_id`, `level`)");
+    await run("locked_docs_rels.google_ads_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_snapshots_id` integer REFERENCES `google_ads_snapshots`(`id`) ON DELETE cascade");
+    await run("payload_locked_documents_rels_google_ads_snapshots_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_google_ads_snapshots_id_idx` ON `payload_locked_documents_rels` (`google_ads_snapshots_id`)");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
