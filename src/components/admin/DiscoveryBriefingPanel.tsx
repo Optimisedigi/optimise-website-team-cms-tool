@@ -29,6 +29,14 @@ interface BriefingSummary {
   updatedAt: string | null
   parentSlug: string | null
   briefingIdPadded: string
+  /** Whether the briefing's public link requires the parent PIN to view. */
+  requirePin: boolean
+  /**
+   * The PIN the public route will compare against when `requirePin` is on.
+   * Empty string when no PIN is configured on the parent — in that case the
+   * panel renders a warning instead of the "Share PIN" hint.
+   */
+  parentPin: string
 }
 
 const PREVIEW_LINE_LIMIT = 60
@@ -73,6 +81,9 @@ function DiscoveryBriefingPanel() {
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<BriefingSummary | null>(null)
   const [expanded, setExpanded] = useState<boolean>(false)
+  /** Optimistic in-flight value for the Require-PIN toggle. */
+  const [togglingPin, setTogglingPin] = useState<boolean>(false)
+  const [pinToggleError, setPinToggleError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -128,6 +139,10 @@ function DiscoveryBriefingPanel() {
         }
 
         if (cancelled) return
+        const jsonExtra = json as unknown as {
+          requirePin?: unknown
+          parentPin?: unknown
+        }
         setSummary({
           id: json.id ?? null,
           markdown: typeof json.markdown === 'string' ? json.markdown : null,
@@ -140,6 +155,9 @@ function DiscoveryBriefingPanel() {
             typeof json.briefingIdPadded === 'string' && json.briefingIdPadded
               ? json.briefingIdPadded
               : '000',
+          requirePin: jsonExtra.requirePin === true,
+          parentPin:
+            typeof jsonExtra.parentPin === 'string' ? jsonExtra.parentPin : '',
         })
       } catch (err) {
         if (cancelled) return
@@ -159,6 +177,66 @@ function DiscoveryBriefingPanel() {
     // Should never happen because the field is only mounted on the two
     // supported collections, but bail safely if it does.
     return null
+  }
+
+  // PATCH the briefing's requirePin without touching `data`. Optimistically
+  // updates local state; reverts on error.
+  const togglePin = async (next: boolean) => {
+    if (!id || !scope) return
+    setTogglingPin(true)
+    setPinToggleError(null)
+    const prev = summary?.requirePin ?? false
+    // Optimistic UI update
+    setSummary((s) =>
+      s
+        ? { ...s, requirePin: next }
+        : {
+            id: null,
+            markdown: null,
+            updatedAt: null,
+            parentSlug: null,
+            briefingIdPadded: '000',
+            requirePin: next,
+            parentPin: '',
+          },
+    )
+    try {
+      const res = await fetch(
+        `/api/client-discovery-briefings/by-scope?scope=${scope}&id=${encodeURIComponent(
+          String(id),
+        )}`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requirePin: next }),
+        },
+      )
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = (await res.json()) as {
+        id?: number | string | null
+        requirePin?: boolean
+        parentPin?: string
+      }
+      // Reconcile from the server response so a freshly-created briefing's
+      // id surfaces in the panel.
+      setSummary((s) => ({
+        id: json.id ?? s?.id ?? null,
+        markdown: s?.markdown ?? null,
+        updatedAt: s?.updatedAt ?? null,
+        parentSlug: s?.parentSlug ?? null,
+        briefingIdPadded: s?.briefingIdPadded ?? '000',
+        requirePin: json.requirePin === true,
+        parentPin:
+          typeof json.parentPin === 'string' ? json.parentPin : s?.parentPin ?? '',
+      }))
+    } catch (err) {
+      // Revert optimistic update on failure.
+      setSummary((s) => (s ? { ...s, requirePin: prev } : s))
+      setPinToggleError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setTogglingPin(false)
+    }
   }
 
   if (!id) {
@@ -200,6 +278,34 @@ function DiscoveryBriefingPanel() {
           Open Discovery Briefing &rarr;
         </a>
       </div>
+
+      {!loading && !error ? (
+        <div style={pinRowStyle}>
+          <label style={pinLabelStyle}>
+            <input
+              type="checkbox"
+              checked={summary?.requirePin === true}
+              disabled={togglingPin}
+              onChange={(e) => togglePin(e.currentTarget.checked)}
+            />
+            <span>Require PIN to view public link</span>
+          </label>
+          {summary?.requirePin ? (
+            summary.parentPin ? (
+              <span style={pinHintStyle}>
+                Share this PIN with the client: <strong>{summary.parentPin}</strong>
+              </span>
+            ) : (
+              <span style={errorStyle}>
+                No PIN configured on this {scope === 'client' ? 'client' : 'proposal'} — set one before sharing the link, or the gate will reject all attempts.
+              </span>
+            )
+          ) : null}
+          {pinToggleError ? (
+            <span style={errorStyle}>Could not save toggle: {pinToggleError}</span>
+          ) : null}
+        </div>
+      ) : null}
 
       {loading ? (
         <p style={hintStyle}>Loading…</p>
@@ -311,6 +417,32 @@ const toggleStyle: React.CSSProperties = {
   fontWeight: 500,
   cursor: 'pointer',
   color: 'var(--theme-text, #18181b)',
+}
+
+const pinRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+  margin: '0 0 12px',
+  padding: '10px 12px',
+  background: 'var(--theme-input-bg, #ffffff)',
+  border: '1px solid var(--theme-elevation-150, #e4e4e7)',
+  borderRadius: 6,
+}
+
+const pinLabelStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  fontSize: 13,
+  fontWeight: 600,
+  color: 'var(--theme-text, #18181b)',
+  cursor: 'pointer',
+}
+
+const pinHintStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: 'var(--theme-elevation-500, #6b7280)',
 }
 
 const previewStyle: React.CSSProperties = {

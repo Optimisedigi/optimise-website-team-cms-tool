@@ -4716,6 +4716,10 @@ export interface ClientDiscoveryBriefing {
    */
   markdown?: string | null;
   /**
+   * When ON, the public discovery briefing link requires the parent's PIN before rendering. Proposal scope uses the proposal's PIN (falls back to the linked client's PIN if absent); client scope uses the client's PIN. Admin sessions bypass the PIN.
+   */
+  requirePin?: boolean | null;
+  /**
    * Link to existing client (optional).
    */
   client?: (number | null) | Client;
@@ -7652,6 +7656,7 @@ export interface ClientDiscoveryBriefingsSelect<T extends boolean = true> {
   title?: T;
   data?: T;
   markdown?: T;
+  requirePin?: T;
   client?: T;
   clientProposal?: T;
   updatedAt?: T;

@@ -69,6 +69,16 @@ interface ResolveResultOk {
   scopeLabel: string;
   /** Slide decks declared on the parent (`presentations[]`) with a non-empty slug. */
   availableDecks: AvailableDeck[];
+  /** Whether the public route should gate entry on the parent's PIN. */
+  requirePin: boolean;
+  /**
+   * The PIN to compare against when `requirePin` is true. Proposal scope uses
+   * `clientProposal.proposalPin` and falls back to the linked client's
+   * `clientPin` when absent; client scope uses `clients.clientPin`. Empty
+   * string when no PIN is configured on the parent (in which case the gate
+   * should refuse all attempts rather than silently unlock).
+   */
+  pinToMatch: string;
 }
 
 interface ResolveResultRedirect {
@@ -218,6 +228,46 @@ export async function resolveScopedBriefing(
         .filter((d: AvailableDeck | null): d is AvailableDeck => d !== null)
     : [];
 
+  // ── PIN gate config ──────────────────────────────────────────────
+  // requirePin lives on the briefing record (per-record opt-in). When the
+  // briefing hasn't been created yet, treat the gate as off so the form is
+  // still openable. When ON, resolve the PIN: client scope uses the client's
+  // PIN; proposal scope prefers the proposal's own PIN and falls back to the
+  // linked client's PIN when the proposal hasn't set one.
+  const requirePin = !!briefing?.requirePin;
+
+  let pinToMatch = "";
+  if (requirePin) {
+    if (scope === "client") {
+      pinToMatch =
+        typeof parent.clientPin === "string" ? parent.clientPin : "";
+    } else {
+      const proposalPin =
+        typeof parent.proposalPin === "string" ? parent.proposalPin : "";
+      if (proposalPin) {
+        pinToMatch = proposalPin;
+      } else if (parent.client != null) {
+        // Proposal didn't set its own PIN — fall back to the linked client's
+        // PIN. `parent.client` is a relationship; depth=0 means it's a
+        // numeric id, so fetch the client to read its `clientPin`.
+        try {
+          const linkedClient = await (payload.findByID as any)({
+            collection: "clients",
+            id: typeof parent.client === "object" ? parent.client.id : parent.client,
+            depth: 0,
+            overrideAccess: true,
+          });
+          pinToMatch =
+            typeof linkedClient?.clientPin === "string"
+              ? linkedClient.clientPin
+              : "";
+        } catch {
+          pinToMatch = "";
+        }
+      }
+    }
+  }
+
   return {
     ok: true,
     parent,
@@ -227,5 +277,7 @@ export async function resolveScopedBriefing(
     canonicalUrl,
     scopeLabel,
     availableDecks,
+    requirePin,
+    pinToMatch,
   };
 }

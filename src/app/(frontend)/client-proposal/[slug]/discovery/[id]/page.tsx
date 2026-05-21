@@ -1,11 +1,20 @@
 /**
- * CMS-bound Client Discovery Briefing form page (scoped by proposal slug).
+ * Public Client Discovery Briefing form page (scoped by proposal slug).
  *
  * Route: /client-proposal/<slug>/discovery/<paddedId>
  *
- * Auth-gated (admin login). Server-renders the briefing state from Payload,
- * then mounts the client component. Pre-fills `businessName` from the parent
- * proposal record when the saved state has none.
+ * Access model
+ * ------------
+ * Public by default. When the briefing record has `requirePin: true`, the
+ * form is wrapped in a PIN gate that checks the proposal's `proposalPin`
+ * (falling back to the linked client's `clientPin` if the proposal hasn't
+ * set its own) via `/api/discovery-auth`. Admin sessions bypass the gate.
+ *
+ * Rendering details
+ * -----------------
+ * - Admin viewers get the full form with Hide section controls.
+ * - Public viewers get `viewerRole="client"` — Hide checkboxes are removed
+ *   and hidden sections are not rendered at all.
  */
 
 import { headers as nextHeaders } from "next/headers";
@@ -13,6 +22,7 @@ import { notFound, redirect } from "next/navigation";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { DiscoveryBriefingForm } from "@/components/discovery-briefing/DiscoveryBriefingForm";
+import DiscoveryPinGate from "@/components/DiscoveryPinGate";
 import {
   parseBriefingId,
   resolveScopedBriefing,
@@ -36,11 +46,7 @@ export default async function ProposalDiscoveryBriefingPage({
 
   const headersList = await nextHeaders();
   const { user } = await payload.auth({ headers: headersList });
-  if (!user) {
-    redirect(
-      `/admin/login?redirect=${encodeURIComponent(`/client-proposal/${slug}/discovery/${id}`)}`,
-    );
-  }
+  const isAdmin = !!user;
 
   const result = await resolveScopedBriefing({
     payload,
@@ -54,7 +60,7 @@ export default async function ProposalDiscoveryBriefingPage({
     notFound();
   }
 
-  return (
+  const form = (
     <DiscoveryBriefingForm
       scope="proposal"
       scopeId={Number(result.parent.id)}
@@ -62,6 +68,22 @@ export default async function ProposalDiscoveryBriefingPage({
       initialState={result.initialState}
       parentSlug={String(result.parent.slug ?? slug)}
       availableDecks={result.availableDecks}
+      viewerRole={isAdmin ? "admin" : "client"}
     />
   );
+
+  if (result.requirePin && !isAdmin) {
+    return (
+      <DiscoveryPinGate
+        scope="proposal"
+        slug={slug}
+        briefingId={id}
+        businessName={result.scopeLabel}
+      >
+        {form}
+      </DiscoveryPinGate>
+    );
+  }
+
+  return form;
 }

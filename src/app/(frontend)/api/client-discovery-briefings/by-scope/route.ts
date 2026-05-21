@@ -86,6 +86,57 @@ async function loadParentSlug(
   }
 }
 
+/**
+ * Resolve the PIN to surface as the "share this PIN" hint in the admin
+ * panel. Mirrors the lookup used by `resolveScopedBriefing`:
+ *   - client scope → `clients.clientPin`
+ *   - proposal scope → `client_proposals.proposalPin` falling back to the
+ *     linked client's `clientPin` if the proposal has none.
+ * Returns an empty string when no PIN is configured.
+ */
+async function loadParentPin(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  scope: Scope,
+  id: number,
+): Promise<string> {
+  try {
+    if (scope === "client") {
+      const parent = await (payload.findByID as any)({
+        collection: "clients",
+        id,
+        depth: 0,
+        overrideAccess: true,
+      });
+      return typeof parent?.clientPin === "string" ? parent.clientPin : "";
+    }
+    const parent = await (payload.findByID as any)({
+      collection: "client-proposals",
+      id,
+      depth: 0,
+      overrideAccess: true,
+    });
+    const proposalPin =
+      typeof parent?.proposalPin === "string" ? parent.proposalPin : "";
+    if (proposalPin) return proposalPin;
+    if (parent?.client != null) {
+      const linkedId =
+        typeof parent.client === "object" ? parent.client.id : parent.client;
+      const linkedClient = await (payload.findByID as any)({
+        collection: "clients",
+        id: linkedId,
+        depth: 0,
+        overrideAccess: true,
+      });
+      return typeof linkedClient?.clientPin === "string"
+        ? linkedClient.clientPin
+        : "";
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 export async function GET(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
@@ -105,6 +156,7 @@ export async function GET(req: NextRequest) {
       findBriefingByScope(payload, parsed.relationField, parsed.id),
       loadParentSlug(payload, parsed.scope, parsed.id),
     ]);
+    const parentPin = await loadParentPin(payload, parsed.scope, parsed.id);
     if (!doc) {
       return NextResponse.json({
         id: null,
@@ -114,6 +166,8 @@ export async function GET(req: NextRequest) {
         scopeId: parsed.id,
         parentSlug,
         briefingIdPadded: padBriefingId(null),
+        requirePin: false,
+        parentPin,
       });
     }
     return NextResponse.json({
@@ -124,11 +178,93 @@ export async function GET(req: NextRequest) {
       scopeId: parsed.id,
       parentSlug,
       briefingIdPadded: padBriefingId(doc.id ?? null),
+      requirePin: !!doc.requirePin,
+      parentPin,
     });
   } catch (err) {
     return NextResponse.json(
       {
         error: "Failed to load discovery briefing",
+        detail: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * PATCH { requirePin: boolean } — toggle the PIN gate on the briefing
+ * without touching the questionnaire `data`. Creates the briefing row if it
+ * doesn't exist yet (so the toggle can be flipped before any answers have
+ * been saved).
+ */
+export async function PATCH(req: NextRequest) {
+  const payloadConfig = await config;
+  const payload = await getPayload({ config: payloadConfig });
+
+  const { user } = await payload.auth({ headers: req.headers });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const parsed = parseScope(req);
+  if ("error" in parsed) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body must be valid JSON" }, { status: 400 });
+  }
+
+  const requirePinRaw = (body as { requirePin?: unknown } | null)?.requirePin;
+  if (typeof requirePinRaw !== "boolean") {
+    return NextResponse.json(
+      { error: "Body must be { requirePin: boolean }" },
+      { status: 400 },
+    );
+  }
+  const requirePin = requirePinRaw;
+
+  try {
+    const existing = await findBriefingByScope(
+      payload,
+      parsed.relationField,
+      parsed.id,
+    );
+    let saved: any;
+    if (existing) {
+      saved = await (payload.update as any)({
+        collection: "client-discovery-briefings",
+        id: existing.id,
+        data: { requirePin },
+        depth: 0,
+        overrideAccess: true,
+      });
+    } else {
+      saved = await (payload.create as any)({
+        collection: "client-discovery-briefings",
+        data: {
+          requirePin,
+          [parsed.relationField]: parsed.id,
+        },
+        depth: 0,
+        overrideAccess: true,
+      });
+    }
+
+    const parentPin = await loadParentPin(payload, parsed.scope, parsed.id);
+    return NextResponse.json({
+      id: saved.id,
+      requirePin: !!saved.requirePin,
+      parentPin,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error: "Failed to update discovery briefing",
         detail: err instanceof Error ? err.message : String(err),
       },
       { status: 500 },

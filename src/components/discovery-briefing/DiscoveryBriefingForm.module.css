@@ -181,6 +181,13 @@
   transition: border-color 0.15s;
 }
 
+/* Native autosize where supported (Chrome 123+, falls back to JS resize via
+ * AutoTextarea in browsers that ignore this property). */
+.field textarea,
+.faqItem textarea {
+  field-sizing: content;
+}
+
 .field input:focus,
 .field textarea:focus,
 .field select:focus,
@@ -192,7 +199,7 @@
 .field input::placeholder,
 .field textarea::placeholder { color: rgba(0, 0, 0, 0.4); }
 
-.field textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+.field textarea { resize: none; min-height: 60px; line-height: 1.5; overflow: hidden; }
 
 .grid2 {
   display: grid;
@@ -610,8 +617,9 @@
   font-family: inherit;
   font-size: 12px;
   color: #1a1a1a;
-  resize: vertical;
+  resize: none;
   min-height: 50px;
+  overflow: hidden;
 }
 .faqItem textarea:focus {
   outline: none;

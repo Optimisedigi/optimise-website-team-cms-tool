@@ -3399,6 +3399,15 @@ export async function runMigrations(
       "client_proposals.discovery_notes_drop",
       "ALTER TABLE `client_proposals` DROP COLUMN `discovery_notes`",
     );
+
+    // ── Add require_pin to client_discovery_briefings (2026-05-30).
+    // Surfaced as a per-briefing toggle on the Discovery Briefing admin tab
+    // — when ON, the public route gates entry on the parent's PIN (proposal
+    // PIN with linked-client PIN fallback, or client PIN).
+    await run(
+      "client_discovery_briefings.require_pin",
+      "ALTER TABLE `client_discovery_briefings` ADD `require_pin` integer DEFAULT 0",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

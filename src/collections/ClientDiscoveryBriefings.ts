@@ -100,6 +100,15 @@ export const ClientDiscoveryBriefings: CollectionConfig = {
         rows: 30,
       },
     },
+    {
+      name: "requirePin",
+      type: "checkbox",
+      defaultValue: false,
+      admin: {
+        description:
+          "When ON, the public discovery briefing link requires the parent's PIN before rendering. Proposal scope uses the proposal's PIN (falls back to the linked client's PIN if absent); client scope uses the client's PIN. Admin sessions bypass the PIN.",
+      },
+    },
     // ── Sidebar ──
     {
       name: "client",

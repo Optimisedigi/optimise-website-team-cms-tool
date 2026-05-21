@@ -58,6 +58,46 @@ export interface DiscoveryBriefingFormProps {
   parentSlug?: string;
   /** Slide decks declared on the parent (`presentations[]`). */
   availableDecks?: AvailableDeckOption[];
+  /**
+   * Who is viewing this form.
+   *
+   * - `"admin"` (default): full editor surface — Hide section checkboxes
+   *   render, hidden sections still show their collapsed header so the team
+   *   can re-enable, and the "Hidden" subtitle pill is visible.
+   * - `"client"`: the public-facing surface. Hide controls are removed, the
+   *   "Hidden" pill never renders, and hidden sections are dropped entirely
+   *   (no collapsed header, no placeholder) so the client never sees what
+   *   the team chose to exclude.
+   */
+  viewerRole?: "admin" | "client";
+}
+
+/**
+ * Textarea that grows to fit its content automatically.
+ *
+ * Two layers of autosize so the form never traps text behind a scrollbar:
+ *  1. CSS `field-sizing: content` handles this natively on modern Chromium.
+ *  2. The effect below re-measures on every value change for browsers that
+ *     don't yet support the CSS property (Safari/Firefox at time of writing).
+ *
+ * We reset `height` to `auto` first so shrinking back down works when the
+ * user deletes text — otherwise `scrollHeight` would stay at the previous
+ * tall measurement.
+ */
+function AutoTextarea(
+  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>,
+): React.ReactElement {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  const value = props.value;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
+  return <textarea ref={ref} {...props} />;
 }
 
 const TONE_OF_VOICE_OPTIONS: Array<{ value: string; label: string }> = [
@@ -143,7 +183,12 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
     initialState,
     parentSlug,
     availableDecks = [],
+    viewerRole = "admin",
   } = props;
+
+  // Admin-only surfaces (Hide section controls, hidden-section placeholder)
+  // are gated on this flag throughout the rest of the component.
+  const isAdminViewer = viewerRole === "admin";
 
   // Merge initial state with defaults defensively in case the persisted
   // object pre-dates a newer field. defaultDiscoveryBriefingState is the
@@ -727,7 +772,7 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
   ) => (
     <div className={styles.field}>
       <label>{label}</label>
-      <textarea
+      <AutoTextarea
         value={String(state[key] ?? "")}
         placeholder={placeholder}
         style={style}
@@ -828,35 +873,46 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
     rightControls?: React.ReactNode;
   }) => {
     const hidden = isSectionHidden(props.id);
+    // Client viewers never see the "Hidden" pill or the Hide checkbox —
+    // hidden sections don't render at all for them (see renderSection).
+    const showHiddenPill = hidden && isAdminViewer;
     return (
       <div className={styles.sectionHead}>
         <h2>
           {props.num} · {props.title}
         </h2>
-        <span className={hidden ? `${styles.num} ${styles.numHidden}` : styles.num}>
-          {hidden ? "Hidden" : props.subtitle}
+        <span
+          className={
+            showHiddenPill ? `${styles.num} ${styles.numHidden}` : styles.num
+          }
+        >
+          {showHiddenPill ? "Hidden" : props.subtitle}
         </span>
         <div className={styles.sectionHeadControls}>
           {props.rightControls}
-          <label
-            className={styles.hideSectionToggle}
-            title="Hide this section from the rendered markdown"
-          >
-            <input
-              type="checkbox"
-              checked={hidden}
-              onChange={() => toggleSectionHidden(props.id)}
-            />
-            Hide section
-          </label>
+          {isAdminViewer ? (
+            <label
+              className={styles.hideSectionToggle}
+              title="Hide this section from the rendered markdown and the public client view"
+            >
+              <input
+                type="checkbox"
+                checked={hidden}
+                onChange={() => toggleSectionHidden(props.id)}
+              />
+              Hide section
+            </label>
+          ) : null}
         </div>
       </div>
     );
   };
 
   /**
-   * Wrap a section's `<section>` block so hidden sections still show
-   * their header (so the team can re-enable) but never render the body.
+   * Wrap a section's `<section>` block. Admin viewers still see hidden
+   * sections as a collapsed header (so the team can re-enable in place);
+   * client viewers see nothing at all for hidden sections — not even a
+   * placeholder — so the absence is visually clean.
    */
   const renderSection = (
     id: DiscoveryBriefingSectionId,
@@ -864,6 +920,7 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
     body: React.ReactNode,
   ) => {
     const hidden = isSectionHidden(id);
+    if (hidden && !isAdminViewer) return null;
     return (
       <section
         className={`${styles.section} ${hidden ? styles.sectionHidden : ""}`}
@@ -888,20 +945,27 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
               {scope === "proposal" ? "Proposal" : "Client"} discovery briefing —
               everything saves to the CMS as you type.
             </p>
-            <span className={styles.meta}>
+            {/* marginLeft: "auto" pushes the meta + button pair to the far
+             * right of the flex row; the button stays last so the meta sits
+             * to its left as requested. transform shifts both an extra 90px
+             * further right (visual nudge — doesn't affect surrounding layout). */}
+            <span
+              className={styles.meta}
+              style={{ marginLeft: "auto", transform: "translateX(90px)" }}
+            >
               {filledCount}/{totalKeys} sections completed · saved
             </span>
             <button
               type="button"
               className={`${styles.btn} ${styles.btnPrimary}`}
               onClick={downloadMarkdown}
-              style={{ fontSize: 9, padding: "4px 8px" }}
+              style={{ fontSize: 9, padding: "4px 8px", transform: "translateX(90px)" }}
             >
               Download / Copy Markdown
             </button>
           </div>
         </div>
-        <div className={styles.logoArea} style={{ marginTop: 10, marginLeft: -30 }}>
+        <div className={styles.logoArea} style={{ marginTop: 30, marginLeft: -30 }}>
           <img
             src="/optimise-digital-logo-black.webp"
             alt="Optimise Digital"
@@ -1120,7 +1184,7 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
                       </div>
                       <div className={styles.field}>
                         <label>Description</label>
-                        <textarea
+                        <AutoTextarea
                           value={type.description}
                           placeholder="Brief description of this audience..."
                           rows={2}
@@ -2047,14 +2111,14 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
                       ×
                     </button>
                   </div>
-                  <textarea
+                  <AutoTextarea
                     value={f.question}
                     placeholder="Question"
                     onChange={(e) =>
                       updateFaq(i, { question: e.target.value })
                     }
                   />
-                  <textarea
+                  <AutoTextarea
                     value={f.answer}
                     placeholder="Answer"
                     onChange={(e) =>

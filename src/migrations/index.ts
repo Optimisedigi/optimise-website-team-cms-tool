@@ -68,6 +68,7 @@ import * as migration_20260526_120000_add_trading_names from './20260526_120000_
 import * as migration_20260527_120000_add_proposal_id_to_visibility_snapshots from './20260527_120000_add_proposal_id_to_visibility_snapshots';
 import * as migration_20260528_120000_add_client_discovery_briefings from './20260528_120000_add_client_discovery_briefings';
 import * as migration_20260529_120000_drop_proposal_discovery_notes from './20260529_120000_drop_proposal_discovery_notes';
+import * as migration_20260530_120000_add_discovery_briefing_require_pin from './20260530_120000_add_discovery_briefing_require_pin';
 
 export const migrations = [
   {
@@ -419,5 +420,10 @@ export const migrations = [
     up: migration_20260529_120000_drop_proposal_discovery_notes.up,
     down: migration_20260529_120000_drop_proposal_discovery_notes.down,
     name: '20260529_120000_drop_proposal_discovery_notes'
+  },
+  {
+    up: migration_20260530_120000_add_discovery_briefing_require_pin.up,
+    down: migration_20260530_120000_add_discovery_briefing_require_pin.down,
+    name: '20260530_120000_add_discovery_briefing_require_pin'
   },
 ];
