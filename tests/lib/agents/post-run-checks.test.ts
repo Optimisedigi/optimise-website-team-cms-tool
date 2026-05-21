@@ -105,6 +105,42 @@ describe("detectPromisedButNotDelivered", () => {
     }
   });
 
+  it("fires on future-tense narrations (the real chat-log failure case)", () => {
+    // Verbatim from a production OptiMate run that returned text twice in a
+    // row without ever calling create_gmail_draft. The user said "push it
+    // to Gmail for me" and the agent replied with these phrases instead
+    // of just calling the tool. The earlier phrase list only matched
+    // present-continuous / mid-action verbs and missed every future-tense
+    // narration like this one.
+    for (const phrase of [
+      "Now I'll build the callout and push to Gmail.",
+      "Now I'll build the callout with the four-week trend and push to Gmail.",
+      "I'll push it to Gmail for you.",
+      "I will push to Gmail once I have the HTML.",
+      "I'll save it as a draft in Gmail.",
+      "I'll save to Gmail now.",
+      "Now I'll create the draft.",
+      "Now I'll draft the email.",
+      "I'll build the email and save it.",
+    ]) {
+      const result = detectPromisedButNotDelivered(phrase, [
+        "get_budget_management_email",
+        "get_campaign_performance",
+      ]);
+      expect(result, `Expected '${phrase}' to fire`).not.toBeNull();
+      expect(result!.correctionNote).toContain("create_gmail_draft");
+    }
+  });
+
+  it("does NOT fire future-tense narrations when create_gmail_draft was actually called", () => {
+    expect(
+      detectPromisedButNotDelivered(
+        "Now I'll build the callout and push to Gmail.",
+        ["get_budget_management_email", "create_gmail_draft"],
+      ),
+    ).toBeNull();
+  });
+
   it("fires when reply says 'queueing the proposal' but no propose_* tool was called", () => {
     const result = detectPromisedButNotDelivered(
       "Got it. Queueing the proposal now.",

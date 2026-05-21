@@ -113,6 +113,44 @@ const ACTION_CLAIMS: ReadonlyArray<{
       "i will create the draft",
       "i'm building the draft",
       "i am building the draft",
+      // Future-tense "about to do it" narrations. These are the canonical
+      // Sonnet-4.6 lie: the model agrees to the action, narrates the next
+      // step, then returns text instead of calling the tool. Real example
+      // from the chat log: "Now I'll build the callout with the four-week
+      // trend and push to Gmail." Without these the safety net misses any
+      // future-tense claim because every existing phrase above is either
+      // present-continuous ("building the draft") or already mid-action
+      // ("i'm building").
+      "i'll push to gmail",
+      "i will push to gmail",
+      "i'll push it to gmail",
+      "i will push it to gmail",
+      "i'll save to gmail",
+      "i will save to gmail",
+      "i'll save it to gmail",
+      "i will save it to gmail",
+      "i'll save as a draft",
+      "i will save as a draft",
+      "i'll save it as a draft",
+      "i will save it as a draft",
+      "i'll drop it into gmail",
+      "i will drop it into gmail",
+      "i'll drop it in gmail",
+      "i will drop it in gmail",
+      "i'll build the callout",
+      "i will build the callout",
+      "i'll build the email",
+      "i will build the email",
+      "now i'll build",
+      "now i will build",
+      "now i'll push",
+      "now i will push",
+      "now i'll save",
+      "now i will save",
+      "now i'll draft",
+      "now i will draft",
+      "now i'll create",
+      "now i will create",
     ],
     tools: ["create_gmail_draft"],
     expectedToolHint:
