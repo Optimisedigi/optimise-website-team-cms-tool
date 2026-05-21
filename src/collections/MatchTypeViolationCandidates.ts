@@ -1,5 +1,4 @@
 import type { CollectionConfig } from "payload";
-import { adminOnlyDelete } from "../lib/access";
 
 export const MatchTypeViolationCandidates: CollectionConfig = {
   slug: "match-type-violation-candidates",
@@ -34,7 +33,7 @@ export const MatchTypeViolationCandidates: CollectionConfig = {
     read: ({ req }) => !!req.user,
     create: ({ req }) => !!req.user,
     update: ({ req }) => !!req.user,
-    delete: adminOnlyDelete,
+    delete: ({ req }) => (req.user as { role?: string } | null)?.role === "admin",
   },
   fields: [
     {
