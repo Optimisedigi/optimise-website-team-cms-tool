@@ -141,6 +141,7 @@ import { default as default_2e2d792095b9faaa93311c4bd3638e8e } from '../../../co
 import { default as default_8c91d6ed757c0622a0f1976e63b1d36b } from '../../../components/PayloadShiftSelect'
 import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
 import { default as default_54545d17487007f83f65ecb3f857577d } from '../../../components/RoleBodyClass'
+import { default as default_a1b2c3d4e5f678901234567890123456 } from '../../../components/AdminNavSetup'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
@@ -288,6 +289,7 @@ export const importMap = {
   "./components/PayloadShiftSelect#default": default_8c91d6ed757c0622a0f1976e63b1d36b,
   "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
   "./components/RoleBodyClass#default": default_54545d17487007f83f65ecb3f857577d,
+  "./components/AdminNavSetup#default": default_a1b2c3d4e5f678901234567890123456,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }
