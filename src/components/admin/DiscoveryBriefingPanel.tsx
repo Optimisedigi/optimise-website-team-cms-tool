@@ -37,7 +37,39 @@ interface BriefingSummary {
    * panel renders a warning instead of the "Share PIN" hint.
    */
   parentPin: string
+  /**
+   * Section ids the team has hidden. Same shape as the form's
+   * `state.hiddenSections` and the markdown renderer's skip list —
+   * editing here also drives what the public link shows.
+   */
+  hiddenSections: string[]
 }
+
+/**
+ * Display rows for the section-visibility checklist. Order + labels match
+ * the form's `<SectionHead num="..." title="..." />` order; ids are the
+ * stable `DISCOVERY_BRIEFING_SECTIONS` strings shared with the form.
+ */
+const SECTION_VISIBILITY_ROWS: Array<{ id: string; label: string }> = [
+  { id: 'businessOverview', label: '1 · Business Overview' },
+  { id: 'coreServices', label: '2 · Core Services' },
+  { id: 'targetAudience', label: '3 · Target Audience' },
+  { id: 'commercials', label: '4 · Commercials & Growth' },
+  { id: 'usp', label: '5 · USP & Differentiation' },
+  { id: 'brand', label: '6 · Brand Assets & Voice' },
+  { id: 'techStack', label: '7 · Tech Stack & Tools' },
+  { id: 'seoPresence', label: '8 · Current SEO & Online Presence' },
+  { id: 'socialProof', label: '9 · Social Proof & Case Studies' },
+  { id: 'leadMagnets', label: '10 · Lead Magnets' },
+  { id: 'contentStrategy', label: '11 · Content Strategy' },
+  { id: 'googleAds', label: '12 · Google Ads' },
+  { id: 'timeline', label: '13 · Timeline' },
+  { id: 'workingRelationship', label: '14 · Working Relationship' },
+  { id: 'raci', label: '15 · RACI & Approvals' },
+  { id: 'leadNurturing', label: '16 · Lead Nurturing' },
+  { id: 'discoveryNotes', label: '17 · Discovery Notes' },
+  { id: 'additionalDetails', label: '18 · Additional details' },
+]
 
 const PREVIEW_LINE_LIMIT = 60
 
@@ -84,6 +116,15 @@ function DiscoveryBriefingPanel() {
   /** Optimistic in-flight value for the Require-PIN toggle. */
   const [togglingPin, setTogglingPin] = useState<boolean>(false)
   const [pinToggleError, setPinToggleError] = useState<string | null>(null)
+  /**
+   * Which section ids have an in-flight visibility PATCH. Tracked per id so
+   * the user can tick multiple checkboxes in quick succession without one
+   * disabling the others. Reverted on error via the catch branch.
+   */
+  const [pendingSectionIds, setPendingSectionIds] = useState<Set<string>>(
+    new Set(),
+  )
+  const [sectionsError, setSectionsError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -142,7 +183,13 @@ function DiscoveryBriefingPanel() {
         const jsonExtra = json as unknown as {
           requirePin?: unknown
           parentPin?: unknown
+          hiddenSections?: unknown
         }
+        const hiddenSections = Array.isArray(jsonExtra.hiddenSections)
+          ? jsonExtra.hiddenSections.filter(
+              (v): v is string => typeof v === 'string',
+            )
+          : []
         setSummary({
           id: json.id ?? null,
           markdown: typeof json.markdown === 'string' ? json.markdown : null,
@@ -158,6 +205,7 @@ function DiscoveryBriefingPanel() {
           requirePin: jsonExtra.requirePin === true,
           parentPin:
             typeof jsonExtra.parentPin === 'string' ? jsonExtra.parentPin : '',
+          hiddenSections,
         })
       } catch (err) {
         if (cancelled) return
@@ -179,6 +227,22 @@ function DiscoveryBriefingPanel() {
     return null
   }
 
+  /**
+   * Empty-summary shape returned when an optimistic update fires before the
+   * initial GET resolves — keeps every key populated so subsequent updates
+   * don't have to null-check.
+   */
+  const emptySummary = (): BriefingSummary => ({
+    id: null,
+    markdown: null,
+    updatedAt: null,
+    parentSlug: null,
+    briefingIdPadded: '000',
+    requirePin: false,
+    parentPin: '',
+    hiddenSections: [],
+  })
+
   // PATCH the briefing's requirePin without touching `data`. Optimistically
   // updates local state; reverts on error.
   const togglePin = async (next: boolean) => {
@@ -188,17 +252,7 @@ function DiscoveryBriefingPanel() {
     const prev = summary?.requirePin ?? false
     // Optimistic UI update
     setSummary((s) =>
-      s
-        ? { ...s, requirePin: next }
-        : {
-            id: null,
-            markdown: null,
-            updatedAt: null,
-            parentSlug: null,
-            briefingIdPadded: '000',
-            requirePin: next,
-            parentPin: '',
-          },
+      s ? { ...s, requirePin: next } : { ...emptySummary(), requirePin: next },
     )
     try {
       const res = await fetch(
@@ -221,14 +275,13 @@ function DiscoveryBriefingPanel() {
       // Reconcile from the server response so a freshly-created briefing's
       // id surfaces in the panel.
       setSummary((s) => ({
+        ...(s ?? emptySummary()),
         id: json.id ?? s?.id ?? null,
-        markdown: s?.markdown ?? null,
-        updatedAt: s?.updatedAt ?? null,
-        parentSlug: s?.parentSlug ?? null,
-        briefingIdPadded: s?.briefingIdPadded ?? '000',
         requirePin: json.requirePin === true,
         parentPin:
-          typeof json.parentPin === 'string' ? json.parentPin : s?.parentPin ?? '',
+          typeof json.parentPin === 'string'
+            ? json.parentPin
+            : s?.parentPin ?? '',
       }))
     } catch (err) {
       // Revert optimistic update on failure.
@@ -236,6 +289,70 @@ function DiscoveryBriefingPanel() {
       setPinToggleError(err instanceof Error ? err.message : String(err))
     } finally {
       setTogglingPin(false)
+    }
+  }
+
+  /**
+   * Toggle a single section's hidden state via PATCH. Sends the FULL
+   * resulting array (server replaces, not merges) so the local UI and the
+   * persisted `data.hiddenSections` stay in lock-step. Reverts the local
+   * change if the request fails.
+   */
+  const toggleSectionHidden = async (sectionId: string, nextHidden: boolean) => {
+    if (!id || !scope) return
+    const previous = summary?.hiddenSections ?? []
+    const next = nextHidden
+      ? previous.includes(sectionId)
+        ? previous
+        : [...previous, sectionId]
+      : previous.filter((v) => v !== sectionId)
+
+    setSectionsError(null)
+    setPendingSectionIds((s) => {
+      const copy = new Set(s)
+      copy.add(sectionId)
+      return copy
+    })
+    setSummary((s) =>
+      s
+        ? { ...s, hiddenSections: next }
+        : { ...emptySummary(), hiddenSections: next },
+    )
+
+    try {
+      const res = await fetch(
+        `/api/client-discovery-briefings/by-scope?scope=${scope}&id=${encodeURIComponent(
+          String(id),
+        )}`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hiddenSections: next }),
+        },
+      )
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = (await res.json()) as {
+        id?: number | string | null
+        hiddenSections?: string[]
+      }
+      const persisted = Array.isArray(json.hiddenSections)
+        ? json.hiddenSections.filter((v): v is string => typeof v === 'string')
+        : next
+      setSummary((s) => ({
+        ...(s ?? emptySummary()),
+        id: json.id ?? s?.id ?? null,
+        hiddenSections: persisted,
+      }))
+    } catch (err) {
+      setSummary((s) => (s ? { ...s, hiddenSections: previous } : s))
+      setSectionsError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPendingSectionIds((s) => {
+        const copy = new Set(s)
+        copy.delete(sectionId)
+        return copy
+      })
     }
   }
 
@@ -303,6 +420,50 @@ function DiscoveryBriefingPanel() {
           ) : null}
           {pinToggleError ? (
             <span style={errorStyle}>Could not save toggle: {pinToggleError}</span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!loading && !error ? (
+        <div style={sectionsBlockStyle}>
+          <div style={sectionsHeaderRowStyle}>
+            <strong style={sectionsHeaderStyle}>Section visibility</strong>
+            <span style={pinHintStyle}>
+              Tick to hide that section from the public discovery link. Admins
+              still see it in the form.
+            </span>
+          </div>
+          <div
+            data-testid="section-visibility-grid"
+            style={sectionsGridStyle}
+          >
+            {SECTION_VISIBILITY_ROWS.map((row) => {
+              const hidden =
+                summary?.hiddenSections?.includes(row.id) ?? false
+              const pending = pendingSectionIds.has(row.id)
+              return (
+                <label
+                  key={row.id}
+                  style={sectionRowStyle}
+                  data-section-id={row.id}
+                >
+                  <input
+                    type="checkbox"
+                    checked={hidden}
+                    disabled={pending}
+                    onChange={(e) =>
+                      toggleSectionHidden(row.id, e.currentTarget.checked)
+                    }
+                  />
+                  <span style={{ opacity: hidden ? 0.6 : 1 }}>{row.label}</span>
+                </label>
+              )
+            })}
+          </div>
+          {sectionsError ? (
+            <span style={errorStyle}>
+              Could not update section visibility: {sectionsError}
+            </span>
           ) : null}
         </div>
       ) : null}
@@ -443,6 +604,46 @@ const pinLabelStyle: React.CSSProperties = {
 const pinHintStyle: React.CSSProperties = {
   fontSize: 12,
   color: 'var(--theme-elevation-500, #6b7280)',
+}
+
+const sectionsBlockStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  margin: '0 0 12px',
+  padding: '10px 12px',
+  background: 'var(--theme-input-bg, #ffffff)',
+  border: '1px solid var(--theme-elevation-150, #e4e4e7)',
+  borderRadius: 6,
+}
+
+const sectionsHeaderRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+}
+
+const sectionsHeaderStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 700,
+  color: 'var(--theme-text, #18181b)',
+}
+
+const sectionsGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  gap: '4px 16px',
+  marginTop: 4,
+}
+
+const sectionRowStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  fontSize: 12,
+  color: 'var(--theme-text, #18181b)',
+  cursor: 'pointer',
+  minHeight: 28,
 }
 
 const previewStyle: React.CSSProperties = {

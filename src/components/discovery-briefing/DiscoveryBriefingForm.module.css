@@ -10,7 +10,9 @@
 
 .page {
   font-family: "Inter", -apple-system, sans-serif;
-  background: #f7f7f5;
+  /* Slightly darker than the original #f7f7f5 so sections separate more
+   * clearly from the page chrome on both light + dark browser UIs. */
+  background: #eceef1;
   color: #1a1a1a;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -676,12 +678,57 @@
   .header { flex-direction: column; }
   .headerText { text-align: left; }
   .grid2 { grid-template-columns: 1fr; }
+  .grid3 { grid-template-columns: 1fr; }
   .proofItem { grid-template-columns: 1fr; gap: 6px; }
   .serviceRow { grid-template-columns: 1fr; gap: 6px; }
   .socialHandlesGrid { grid-template-columns: 1fr; }
   .nurtureItem { grid-template-columns: 28px 1fr auto; }
   .nurtureItem input:nth-of-type(2) { grid-column: 2 / span 2; }
   .pillarRow { grid-template-columns: 1fr auto; }
+
+  /* Per-audience commercials columns: stack on phones regardless of
+   * configured column count so each segment owns the full width. */
+  .audienceGrid.cols2,
+  .audienceGrid.cols3,
+  .audienceGrid.cols4 {
+    grid-template-columns: 1fr;
+  }
+
+  /* Tools & access checklist: drop the secondary two-column layout that
+   * the desktop view uses inside each tool row. */
+  .toolsTableTwoCol { grid-template-columns: 1fr; }
+
+  /* RACI table collapses earlier on phones — the 768px breakpoint already
+   * covers it but force here for consistency on very narrow viewports. */
+  .raciHead { display: none; }
+  .raciRow { grid-template-columns: 1fr; }
+  .leadMagnetRow { grid-template-columns: 1fr; }
+
+  /* Bigger tap targets for the per-section chevron + control buttons. */
+  .hideSectionToggle { min-height: 32px; }
+
+  /* Inputs sized so iOS doesn't zoom on focus (anything <16px triggers it).
+   * Applied only at this breakpoint so the desktop layout keeps its compact
+   * 13px sizing. */
+  .field input[type="text"],
+  .field input[type="email"],
+  .field input[type="url"],
+  .field input[type="tel"],
+  .field textarea,
+  .field select,
+  .subFieldInput {
+    font-size: 16px;
+    padding: 10px 12px;
+  }
+  .faqItem textarea {
+    font-size: 16px;
+  }
+
+  /* Section padding compresses on phones so the body uses more of the
+   * narrow viewport. */
+  .section {
+    padding: 14px 14px 18px;
+  }
 }
 
 /* ── v3 additions ─────────────────────────────────────────────── */

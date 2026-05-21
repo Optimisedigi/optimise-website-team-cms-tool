@@ -167,18 +167,25 @@ export async function GET(req: NextRequest) {
         parentSlug,
         briefingIdPadded: padBriefingId(null),
         requirePin: false,
+        hiddenSections: [],
         parentPin,
       });
     }
+    const docData =
+      (doc.data as DiscoveryBriefingState | undefined) ??
+      defaultDiscoveryBriefingState();
     return NextResponse.json({
       id: doc.id,
-      data: (doc.data as DiscoveryBriefingState | undefined) ?? defaultDiscoveryBriefingState(),
+      data: docData,
       markdown: typeof doc.markdown === "string" ? doc.markdown : null,
       scope: parsed.scope,
       scopeId: parsed.id,
       parentSlug,
       briefingIdPadded: padBriefingId(doc.id ?? null),
       requirePin: !!doc.requirePin,
+      hiddenSections: Array.isArray(docData.hiddenSections)
+        ? docData.hiddenSections
+        : [],
       parentPin,
     });
   } catch (err) {
@@ -193,10 +200,16 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * PATCH { requirePin: boolean } — toggle the PIN gate on the briefing
- * without touching the questionnaire `data`. Creates the briefing row if it
- * doesn't exist yet (so the toggle can be flipped before any answers have
- * been saved).
+ * Partial-update endpoint. Accepts one or both of:
+ *   - `{ requirePin: boolean }` — toggles the PIN gate on the briefing.
+ *   - `{ hiddenSections: string[] }` — replaces the embedded
+ *     `data.hiddenSections` array (the rest of `data` is preserved).
+ *
+ * Creates the briefing row if it doesn't exist yet so the admin tab can
+ * flip toggles before any answers have been saved. The same field is also
+ * edited inline from the public form via PUT (full `data`) — callers race
+ * naturally; last writer wins, which matches the form's existing autosave
+ * semantics.
  */
 export async function PATCH(req: NextRequest) {
   const payloadConfig = await config;
@@ -220,13 +233,28 @@ export async function PATCH(req: NextRequest) {
   }
 
   const requirePinRaw = (body as { requirePin?: unknown } | null)?.requirePin;
-  if (typeof requirePinRaw !== "boolean") {
+  const hiddenSectionsRaw = (body as { hiddenSections?: unknown } | null)
+    ?.hiddenSections;
+
+  const hasRequirePin = typeof requirePinRaw === "boolean";
+  const hasHiddenSections =
+    Array.isArray(hiddenSectionsRaw) &&
+    hiddenSectionsRaw.every((v) => typeof v === "string");
+
+  if (!hasRequirePin && !hasHiddenSections) {
     return NextResponse.json(
-      { error: "Body must be { requirePin: boolean }" },
+      {
+        error:
+          "Body must contain at least one of { requirePin: boolean } or { hiddenSections: string[] }",
+      },
       { status: 400 },
     );
   }
-  const requirePin = requirePinRaw;
+
+  const requirePin = hasRequirePin ? (requirePinRaw as boolean) : undefined;
+  const hiddenSections = hasHiddenSections
+    ? (hiddenSectionsRaw as string[])
+    : undefined;
 
   try {
     const existing = await findBriefingByScope(
@@ -234,12 +262,33 @@ export async function PATCH(req: NextRequest) {
       parsed.relationField,
       parsed.id,
     );
+
+    // Build the update payload. When hiddenSections is being changed we
+    // merge it into the existing `data` so the rest of the questionnaire
+    // state isn't clobbered. When the briefing is being created from scratch
+    // we seed `data` with the default state and only overwrite
+    // hiddenSections — mirrors the GET fallback shape.
+    const updateData: Record<string, unknown> = {};
+    if (requirePin !== undefined) {
+      updateData.requirePin = requirePin;
+    }
+    if (hiddenSections !== undefined) {
+      const baseData =
+        existing && typeof existing.data === "object" && existing.data !== null
+          ? (existing.data as Record<string, unknown>)
+          : (defaultDiscoveryBriefingState() as unknown as Record<
+              string,
+              unknown
+            >);
+      updateData.data = { ...baseData, hiddenSections };
+    }
+
     let saved: any;
     if (existing) {
       saved = await (payload.update as any)({
         collection: "client-discovery-briefings",
         id: existing.id,
-        data: { requirePin },
+        data: updateData,
         depth: 0,
         overrideAccess: true,
       });
@@ -247,7 +296,7 @@ export async function PATCH(req: NextRequest) {
       saved = await (payload.create as any)({
         collection: "client-discovery-briefings",
         data: {
-          requirePin,
+          ...updateData,
           [parsed.relationField]: parsed.id,
         },
         depth: 0,
@@ -256,9 +305,13 @@ export async function PATCH(req: NextRequest) {
     }
 
     const parentPin = await loadParentPin(payload, parsed.scope, parsed.id);
+    const savedData = (saved.data ?? {}) as { hiddenSections?: unknown };
     return NextResponse.json({
       id: saved.id,
       requirePin: !!saved.requirePin,
+      hiddenSections: Array.isArray(savedData.hiddenSections)
+        ? (savedData.hiddenSections as string[])
+        : [],
       parentPin,
     });
   } catch (err) {
