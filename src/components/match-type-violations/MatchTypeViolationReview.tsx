@@ -159,6 +159,7 @@ export default function MatchTypeViolationReview() {
   const [totalDocs, setTotalDocs] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [syncRunCount, setSyncRunCount] = useState<number | null>(null)
 
   // Filters
   const [filterClient, setFilterClient] = useState('')
@@ -176,6 +177,19 @@ export default function MatchTypeViolationReview() {
 
   // Per-row action loading
   const [actionLoading, setActionLoading] = useState<Set<string | number>>(new Set())
+
+  // Fetch total sync run count from activity log
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await fetch('/api/activity-log?where[type][equals]=match_type_violation_sync&limit=1&depth=0')
+        if (res.ok) {
+          const data = await res.json()
+          setSyncRunCount(data.totalDocs ?? 0)
+        }
+      } catch { /* non-critical */ }
+    })()
+  }, [])
 
   const fetchCandidates = useCallback(async () => {
     setLoading(true)
@@ -297,7 +311,7 @@ export default function MatchTypeViolationReview() {
   return (
     <div style={{ padding: '0 24px 32px' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Match Type Violations</h2>
           <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>
@@ -312,6 +326,24 @@ export default function MatchTypeViolationReview() {
             Approve {pendingSelected.length} Selected
           </button>
         )}
+      </div>
+
+      {/* How it works info box */}
+      <div style={{
+        marginBottom: 20, padding: '12px 16px', background: '#eff6ff',
+        border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 13, color: '#1e40af',
+      }}>
+        <strong>How it works —</strong> runs daily (~17:00 UTC) · {syncRunCount !== null ? (
+          <span title="Number of times the monitor has run">{syncRunCount} sync{syncRunCount !== 1 ? 's' : ''} to date</span>
+        ) : '…'} · {totalDocs} candidate{totalDocs !== 1 ? 's' : ''} total
+        <br />
+        The monitor flags Exact and Phrase keywords that served search terms with different intent:
+        <ul style={{ margin: '6px 0 0 18px', padding: 0, lineHeight: 1.7 }}>
+          <li><strong>Exact close variant</strong> — Google's close variant expanded your exact keyword to a semantically similar but distinct term (e.g. "ppc services" triggered "pay per click management")</li>
+          <li><strong>Phrase missing word</strong> — A phrase keyword triggered a search missing one of its words, changing intent (e.g. "search ads agency" triggered "ppc agency")</li>
+        </ul>
+        Approve a violation to add it as a negative keyword in the linked NKL. Reject to dismiss it.
+        Only terms with ≥2 impressions in the past 90 days are flagged.
       </div>
 
       {/* Filters */}

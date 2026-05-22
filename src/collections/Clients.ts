@@ -1826,7 +1826,7 @@ export const Clients: CollectionConfig = {
                   defaultValue: false,
                   admin: {
                     description:
-                      "Enable match type violation monitoring — flags exact/phrase keywords that served non-conforming search terms",
+                      "Enable daily match type violation monitoring (runs ~17:00 UTC). Flags Exact/Phrase keywords that served non-conforming search terms. Review candidates in Growth Tools → Match Type Violations.",
                   },
                 },
 
