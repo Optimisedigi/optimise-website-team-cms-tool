@@ -8,7 +8,6 @@ export const MatchTypeViolationCandidates: CollectionConfig = {
     plural: "Match Type Violation Candidates",
   },
   admin: {
-    hidden: true,
     group: "Growth Tools",
     defaultColumns: [
       "client",

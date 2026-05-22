@@ -1827,6 +1827,9 @@ export const Clients: CollectionConfig = {
                   admin: {
                     description:
                       "Enable daily match type violation monitoring (runs ~17:00 UTC). Flags Exact/Phrase keywords that served non-conforming search terms. Review candidates in Growth Tools → Match Type Violations.",
+                    components: {
+                      Field: "./components/match-type-violations/MatchTypeMonitorToggle",
+                    },
                   },
                 },
 
