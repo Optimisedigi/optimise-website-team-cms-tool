@@ -321,7 +321,7 @@ async function syncClient(
     },
     body: JSON.stringify({
       customerId: customerId.replace(/-/g, ""),
-      minImpressions: 1,
+      minImpressions: 50,
       lookbackDays: 7,
     }),
     signal: AbortSignal.timeout(60_000),
@@ -422,7 +422,7 @@ export async function GET(req: NextRequest) {
       hour12: false,
     }).format(new Date());
 
-    const doSync = Number(localHour) === syncHour;
+    const doSync = Number(localHour) === syncHour || req.nextUrl.searchParams.get("forceSync") === "true";
 
     // Only process clients that have the monitor enabled
     const clientsResult = await (payload.find as any)({
