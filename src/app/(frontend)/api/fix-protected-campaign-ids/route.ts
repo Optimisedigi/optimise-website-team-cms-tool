@@ -13,39 +13,40 @@ export async function POST() {
   const stmts = [
     // match_type_sync_state — required by the match-type-violations cron
     `CREATE TABLE IF NOT EXISTS \`match_type_sync_state\` (
-      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-      \`client\` integer NOT NULL,
-      \`last_run_at\` text,
-      \`created_at\` text,
-      \`updated_at\` text,
-      FOREIGN KEY (\`client\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`client_id\` integer NOT NULL UNIQUE,
+      \`last_run_at\` text NOT NULL,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
     )`,
-    `CREATE INDEX IF NOT EXISTS \`mts_client_idx\` ON \`match_type_sync_state\` (\`client\`)`,
+    `CREATE INDEX IF NOT EXISTS \`mts_client_idx\` ON \`match_type_sync_state\` (\`client_id\`)`,
     // match_type_violation_candidates — required by the match-type-violations cron
     `CREATE TABLE IF NOT EXISTS \`match_type_violation_candidates\` (
-      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-      \`client\` integer NOT NULL,
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`client_id\` integer NOT NULL,
       \`search_term\` text NOT NULL,
       \`triggering_keyword\` text NOT NULL,
       \`campaign_name\` text,
       \`ad_group_name\` text,
       \`match_type\` text NOT NULL,
       \`violation_type\` text NOT NULL,
-      \`impressions\` real DEFAULT 0,
-      \`clicks\` real DEFAULT 0,
+      \`impressions\` numeric DEFAULT 0,
+      \`clicks\` numeric DEFAULT 0,
+      \`cost\` numeric DEFAULT 0,
       \`status\` text DEFAULT 'pending',
       \`assigned_list_id\` integer,
       \`approved_at\` text,
       \`rejected_at\` text,
-      \`approved_by\` integer,
+      \`approved_by_id\` integer,
       \`last_seen_at\` text NOT NULL,
       \`first_seen_at\` text NOT NULL,
       \`run_date\` text NOT NULL,
-      \`created_at\` text,
-      \`updated_at\` text,
-      FOREIGN KEY (\`client\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
     )`,
-    `CREATE INDEX IF NOT EXISTS \`mtvc_client_idx\` ON \`match_type_violation_candidates\` (\`client\`)`,
+    `CREATE INDEX IF NOT EXISTS \`mtvc_client_idx\` ON \`match_type_violation_candidates\` (\`client_id\`)`,
     `CREATE INDEX IF NOT EXISTS \`mtvc_status_idx\` ON \`match_type_violation_candidates\` (\`status\`)`,
     // Protected campaign IDs array table for clients (goal agent guard-rail)
     `CREATE TABLE IF NOT EXISTS \`clients_protected_campaign_ids\` (
