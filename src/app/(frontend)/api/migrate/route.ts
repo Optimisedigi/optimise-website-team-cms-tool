@@ -510,6 +510,28 @@ export async function GET(request: NextRequest) {
     }
   } catch { /* non-fatal */ }
 
+  // Protected campaign IDs array table for clients (goal agent guard-rail)
+  await run("clients_protected_campaign_ids", `CREATE TABLE IF NOT EXISTS \`clients_protected_campaign_ids\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`campaign_id\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_protected_campaign_ids_order_idx", "CREATE INDEX IF NOT EXISTS \`clients_protected_campaign_ids_order_idx\` ON \`clients_protected_campaign_ids\` (\`_order\`)");
+  await run("clients_protected_campaign_ids_parent_idx", "CREATE INDEX IF NOT EXISTS \`clients_protected_campaign_ids_parent_idx\` ON \`clients_protected_campaign_ids\` (\`_parent_id\`)");
+
+  // Brand campaign IDs array table for clients (spend pacer brand vs non-brand)
+  await run("clients_brand_campaign_ids", `CREATE TABLE IF NOT EXISTS \`clients_brand_campaign_ids\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`campaign_id\` text NOT NULL,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("clients_brand_campaign_ids_order_idx", "CREATE INDEX IF NOT EXISTS \`clients_brand_campaign_ids_order_idx\` ON \`clients_brand_campaign_ids\` (\`_order\`)");
+  await run("clients_brand_campaign_ids_parent_idx", "CREATE INDEX IF NOT EXISTS \`clients_brand_campaign_ids_parent_idx\` ON \`clients_brand_campaign_ids\` (\`_parent_id\`)");
+
   // Account managers array table for clients
   await run("clients_account_managers", `CREATE TABLE IF NOT EXISTS \`clients_account_managers\` (
     \`_order\` integer NOT NULL,
