@@ -424,6 +424,15 @@ export async function GET(req: NextRequest) {
 
     const doSync = Number(localHour) === syncHour || req.nextUrl.searchParams.get("forceSync") === "true";
 
+    // ?resetSync=true clears all sync state so the idempotency guard doesn't block the run
+    if (req.nextUrl.searchParams.get("resetSync") === "true") {
+      await (payload.deleteMany as any)({
+        collection: "match-type-sync-state",
+        where: {},
+        overrideAccess: true,
+      });
+    }
+
     // Only process clients that have the monitor enabled
     const clientsResult = await (payload.find as any)({
     collection: "clients",
