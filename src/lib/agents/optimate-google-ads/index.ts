@@ -12,7 +12,10 @@ import { AGENT_NAME, buildSystemPromptForAudit, conversionActionsForClient } fro
 import { getAccountOverview } from "./tools/get-account-overview";
 import { getCampaignPerformance } from "./tools/get-campaign-performance";
 import { getSearchTerms } from "./tools/get-search-terms";
+import { getAdAssetPerformance } from "./tools/get-ad-asset-performance";
 import { getBudgetManagementEmail } from "./tools/get-budget-management-email";
+import { getWeeklyTrendNote } from "./tools/get-weekly-trend-note";
+import { getWeeklyMetricTable } from "./tools/get-weekly-metric-table";
 import { createGmailDraftTool } from "./tools/create-gmail-draft";
 import { proposeNegativeKeywords } from "./tools/propose-negative-keywords";
 import { proposeNklCreate } from "./tools/propose-nkl-create";
@@ -59,7 +62,10 @@ export function getTools(): CanonicalTool<unknown>[] {
     getAccountOverview as unknown as CanonicalTool<unknown>,
     getCampaignPerformance as unknown as CanonicalTool<unknown>,
     getSearchTerms as unknown as CanonicalTool<unknown>,
+    getAdAssetPerformance as unknown as CanonicalTool<unknown>,
     getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
+    getWeeklyMetricTable as unknown as CanonicalTool<unknown>,
+    getWeeklyTrendNote as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
     proposeNegativeKeywords as unknown as CanonicalTool<unknown>,
     proposeNklCreate as unknown as CanonicalTool<unknown>,

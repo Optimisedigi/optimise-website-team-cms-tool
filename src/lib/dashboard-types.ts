@@ -43,17 +43,18 @@ export interface GoogleAdsDashboardKpis {
   avgCpc: number;
   conversions: number;
   cpa: number | null;
-  // Previous month comparison
-  prevSpend: number;
-  prevClicks: number;
-  prevAvgCpc: number;
-  prevConversions: number;
+  // Previous month comparison — null when the active range is a custom
+  // day span (period-over-period is semantically ambiguous there).
+  prevSpend: number | null;
+  prevClicks: number | null;
+  prevAvgCpc: number | null;
+  prevConversions: number | null;
   prevCpa: number | null;
-  // Year-ago month comparison
-  yoySpend: number;
-  yoyClicks: number;
-  yoyAvgCpc: number;
-  yoyConversions: number;
+  // Year-ago month comparison — null for custom ranges (see prev*).
+  yoySpend: number | null;
+  yoyClicks: number | null;
+  yoyAvgCpc: number | null;
+  yoyConversions: number | null;
   yoyCpa: number | null;
   /** Per-conversion-action totals for the active range. Drives the
    *  "Conversions broken down" mini cards under the main Conversions

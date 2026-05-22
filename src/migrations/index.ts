@@ -69,6 +69,7 @@ import * as migration_20260527_120000_add_proposal_id_to_visibility_snapshots fr
 import * as migration_20260528_120000_add_client_discovery_briefings from './20260528_120000_add_client_discovery_briefings';
 import * as migration_20260529_120000_drop_proposal_discovery_notes from './20260529_120000_drop_proposal_discovery_notes';
 import * as migration_20260530_120000_add_discovery_briefing_require_pin from './20260530_120000_add_discovery_briefing_require_pin';
+import * as migration_20260531_120000_sync_locked_docs_rels from './20260531_120000_sync_locked_docs_rels';
 
 export const migrations = [
   {
@@ -425,5 +426,10 @@ export const migrations = [
     up: migration_20260530_120000_add_discovery_briefing_require_pin.up,
     down: migration_20260530_120000_add_discovery_briefing_require_pin.down,
     name: '20260530_120000_add_discovery_briefing_require_pin'
+  },
+  {
+    up: migration_20260531_120000_sync_locked_docs_rels.up,
+    down: migration_20260531_120000_sync_locked_docs_rels.down,
+    name: '20260531_120000_sync_locked_docs_rels'
   },
 ];

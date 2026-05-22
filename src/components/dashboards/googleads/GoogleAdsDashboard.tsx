@@ -720,8 +720,9 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
               <span />
             )}
 
-            {/* Row 1, Col 3: vs Last Month/Year toggle (Overview only) */}
-            {activeTab === "overview" ? (
+            {/* Row 1, Col 3: vs Last Month/Year toggle (Overview only,
+                hidden for custom ranges — period-over-period is ambiguous). */}
+            {activeTab === "overview" && !isCustomRange ? (
               <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
                 <button
                   onClick={() => setCompareMode("month")}

@@ -127,6 +127,8 @@ export interface Config {
     'match-type-violation-candidates': MatchTypeViolationCandidate;
     'match-type-sync-state': MatchTypeSyncState;
     'consolidation-candidates': ConsolidationCandidate;
+    'goal-runs': GoalRun;
+    'goal-run-snapshots': GoalRunSnapshot;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -206,6 +208,8 @@ export interface Config {
     'match-type-violation-candidates': MatchTypeViolationCandidatesSelect<false> | MatchTypeViolationCandidatesSelect<true>;
     'match-type-sync-state': MatchTypeSyncStateSelect<false> | MatchTypeSyncStateSelect<true>;
     'consolidation-candidates': ConsolidationCandidatesSelect<false> | ConsolidationCandidatesSelect<true>;
+    'goal-runs': GoalRunsSelect<false> | GoalRunsSelect<true>;
+    'goal-run-snapshots': GoalRunSnapshotsSelect<false> | GoalRunSnapshotsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -891,6 +895,60 @@ export interface Client {
     scoreChange?: number | null;
     trend?: ('improving' | 'stable' | 'declining') | null;
   };
+  /**
+   * Account Health Contract — per-client invariants that goal agents respect. Set once at onboarding.
+   */
+  spendPolicy?: {
+    /**
+     * How this client's spend is paced. See architecture doc §Layer 3.
+     */
+    pacingMode?: ('fixed_monthly' | 'performance_cap' | 'roas_target' | 'seasonal') | null;
+    /**
+     * Window used by the spend pacer. Only calendar month supported today; enum is open for future modes.
+     */
+    pacingWindow?: 'calendar_month' | null;
+    /**
+     * Target monthly spend in account currency (AUD typical). Used by the pacer to compute daily pace target.
+     */
+    monthlyBudgetTarget?: number | null;
+    /**
+     * Lower bound of the acceptable spend band, percent of target. Default 90.
+     */
+    acceptableVariancePercentLow?: number | null;
+    /**
+     * Upper bound of the acceptable spend band, percent of target. Default 105.
+     */
+    acceptableVariancePercentHigh?: number | null;
+    /**
+     * Optional. Goal agents must NEVER let monthly spend fall below this.
+     */
+    hardFloor?: number | null;
+    /**
+     * Optional. Goal agents must NEVER let monthly spend exceed this.
+     */
+    hardCeiling?: number | null;
+  };
+  /**
+   * Google Ads campaign IDs that goal agents must never modify. Brand campaigns, must-not-touch evergreen builds, etc.
+   */
+  protectedCampaignIds?:
+    | {
+        /**
+         * Numeric Google Ads campaign ID (e.g. 1234567890).
+         */
+        campaignId: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Google Ads campaign IDs flagged as BRAND. Used by the spend pacer to distinguish brand vs non-brand pacing.
+   */
+  brandCampaignIds?:
+    | {
+        campaignId: string;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Brand terms (one per line OR comma-separated). Single source of truth used by GSC monitoring, Google Ads dashboard (brand-vs-generic spend split), AI Visibility, AI Search Erosion Detector, negative-sweep, and quality score analysis. Per-audit overrides live on each Google Ads audit's brandTerms field. Entries shorter than 3 chars are ignored.
    */
@@ -6922,6 +6980,144 @@ export interface MatchTypeSyncState {
   createdAt: string;
 }
 /**
+ * One execution of a goal agent against a client — individual decisions stored in goal-run-snapshots.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "goal-runs".
+ */
+export interface GoalRun {
+  id: number;
+  /**
+   * Client this goal run is targeting
+   */
+  client: number | Client;
+  /**
+   * Goal identifier, e.g. "search-term-waste-reducer", "ad-ctr-improver"
+   */
+  goal: string;
+  /**
+   * Current state in the goal-run lifecycle
+   */
+  status:
+    | 'awaiting_data'
+    | 'analysing'
+    | 'pending_approval'
+    | 'executing'
+    | 'measuring'
+    | 'complete'
+    | 'failed'
+    | 'blocked';
+  /**
+   * Highest risk tier encountered in this run — set as decisions are recorded
+   */
+  tier?: ('green' | 'yellow' | 'red') | null;
+  /**
+   * When the run reached complete / failed / blocked
+   */
+  completedAt?: string | null;
+  /**
+   * Populated when status = failed. Top-level error from the goal runtime.
+   */
+  error?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * One decision step within a goal run — proposed, blocked, approved, or applied.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "goal-run-snapshots".
+ */
+export interface GoalRunSnapshot {
+  id: number;
+  /**
+   * Parent goal run this snapshot belongs to
+   */
+  goalRun: number | GoalRun;
+  /**
+   * 1-based sequence number — steps execute in order
+   */
+  step: number;
+  /**
+   * Handler key that was (or would be) invoked, e.g. "nkl-push-live", "budget-reallocate"
+   */
+  action: string;
+  /**
+   * Risk classification of this action
+   */
+  riskTier: 'green' | 'yellow' | 'red' | 'black';
+  /**
+   * Outcome of this step
+   */
+  status:
+    | 'proposed'
+    | 'approved'
+    | 'blocked_by_contract'
+    | 'blocked_by_pacer'
+    | 'blocked_by_scope'
+    | 'applied'
+    | 'rejected';
+  /**
+   * Campaign IDs this step operates on
+   */
+  campaignIds?:
+    | {
+        campaignId: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * What the goal agent proposed — full action payload
+   */
+  proposedPayload:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * What the guardrails actually allowed through. Null if fully blocked.
+   */
+  modifiedPayload?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Which guardrail blocked the action, and why. Null unless status begins with blocked_
+   */
+  blockReason?: string | null;
+  /**
+   * Links to the agent-approval-queue row for yellow/red/black tiers awaiting human sign-off
+   */
+  approval?: (number | null) | AgentApprovalQueue;
+  /**
+   * When the measurement window closed and results were recorded
+   */
+  measuredAt?: string | null;
+  /**
+   * Outcome of the action, e.g. { "wastedSpendReduction": -0.31 }
+   */
+  measuredResult?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -7184,6 +7380,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'consolidation-candidates';
         value: number | ConsolidationCandidate;
+      } | null)
+    | ({
+        relationTo: 'goal-runs';
+        value: number | GoalRun;
+      } | null)
+    | ({
+        relationTo: 'goal-run-snapshots';
+        value: number | GoalRunSnapshot;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -7430,6 +7634,29 @@ export interface ClientsSelect<T extends boolean = true> {
         previousScore?: T;
         scoreChange?: T;
         trend?: T;
+      };
+  spendPolicy?:
+    | T
+    | {
+        pacingMode?: T;
+        pacingWindow?: T;
+        monthlyBudgetTarget?: T;
+        acceptableVariancePercentLow?: T;
+        acceptableVariancePercentHigh?: T;
+        hardFloor?: T;
+        hardCeiling?: T;
+      };
+  protectedCampaignIds?:
+    | T
+    | {
+        campaignId?: T;
+        id?: T;
+      };
+  brandCampaignIds?:
+    | T
+    | {
+        campaignId?: T;
+        id?: T;
       };
   brandKeywords?: T;
   gscConnected?: T;
@@ -9411,6 +9638,45 @@ export interface ConsolidationCandidatesSelect<T extends boolean = true> {
   approvedAt?: T;
   rejectedAt?: T;
   approvedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "goal-runs_select".
+ */
+export interface GoalRunsSelect<T extends boolean = true> {
+  client?: T;
+  goal?: T;
+  status?: T;
+  tier?: T;
+  completedAt?: T;
+  error?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "goal-run-snapshots_select".
+ */
+export interface GoalRunSnapshotsSelect<T extends boolean = true> {
+  goalRun?: T;
+  step?: T;
+  action?: T;
+  riskTier?: T;
+  status?: T;
+  campaignIds?:
+    | T
+    | {
+        campaignId?: T;
+        id?: T;
+      };
+  proposedPayload?: T;
+  modifiedPayload?: T;
+  blockReason?: T;
+  approval?: T;
+  measuredAt?: T;
+  measuredResult?: T;
   updatedAt?: T;
   createdAt?: T;
 }

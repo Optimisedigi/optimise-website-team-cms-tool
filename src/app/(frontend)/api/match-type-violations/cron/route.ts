@@ -321,7 +321,7 @@ async function syncClient(
     },
     body: JSON.stringify({
       customerId: customerId.replace(/-/g, ""),
-      minImpressions: 50,
+      minImpressions: 1,
       lookbackDays: 7,
     }),
     signal: AbortSignal.timeout(60_000),

@@ -60,6 +60,8 @@ const TOOL_INVENTORY = [
   "- get_campaign_performance(range?, segment?): per-campaign spend / clicks / impressions / conversions / CTR / CPA. Default range LAST_7_DAYS. Pass segment='month'|'week'|'day' for a per-period breakdown (one row per campaign per segment). See SEGMENTATION_GUIDE.",
   "- get_search_terms(range?, minImpressions?, limit?, segment?): user search queries that triggered ads, with metrics. Default range LAST_30_DAYS. Pass segment='month'|'week'|'day' for a per-period breakdown. Use to find waste before proposing negatives. See SEGMENTATION_GUIDE.",
   "- get_budget_management_email(mode): returns the EXACT Gmail-ready HTML the CMS Budget Management 'Copy for Gmail' button produces. mode='this_month' for the current MTD budget update, mode='last_month' for the previous-month recap. Returns the html string, the subject line, and the month label. Use whenever the user asks for a budget update email, a draft for client comms, or as the body of a scheduled weekly report.",
+  "- get_weekly_metric_table(weeks?, endDate?, metrics, compare?, title?, summary?): canonical Gmail-ready weekly account-level table for any of spend / clicks / impressions / conversions / cpa / cpc / ctr / conv_rate with optional WoW % deltas (compare=\"wow\"). Default weeks=4, endDate=today. Use this WHENEVER the user asks for 'by week', 'weekly', 'week-on-week', a trend, or a multi-week summary of any metric. Example: 'CPC by week with WoW change' -> metrics=[\"cpc\"], compare=\"wow\". Classic three-column trend: metrics=[\"spend\",\"conversions\",\"cpa\"]. NEVER hand-write trend HTML.",
+  "- get_weekly_trend_note(weeks?, endDate?, summary?): [Deprecated] Use get_weekly_metric_table with metrics=[\"spend\",\"conversions\",\"cpa\"]. Kept for one release for scheduled-task compatibility; output is byte-identical via a thin wrapper.",
   "- create_gmail_draft(subject, htmlBody, to?): create a ONE-OFF draft in the proposing user's own Gmail Drafts, right now (never sends mail). Use IMMEDIATELY after get_budget_management_email when the user asks for a Gmail draft. Pass the returned `subject` and `html` straight through. The user reviews, picks a recipient, and hits Send. Use propose_scheduled_task instead for RECURRING drafts. Requires Gmail connected on the user's account; the tool returns a clear error if not.",
   "",
   "PROPOSE TOOLS (queue for approval; never apply directly):",
@@ -128,18 +130,18 @@ const GMAIL_DRAFT_GUIDE = `ONE-OFF Gmail drafts (the user wants it NOW, not on a
 
 When the user says "create a Gmail draft for the budget email", "send me a draft of X", "drop this into Gmail Drafts now", "draft me the budget management email", or any one-off draft request, DO NOT use propose_scheduled_task (that is for recurring drafts and will not fire until the next cron tick). DO NOT paste the HTML in chat and hope the user clicks 'Save as draft'. Use create_gmail_draft directly.
 
-WORKED EXAMPLE. One-off budget management email with a CPA comparison note on top.
+NEVER hand-write trend HTML or coloured callouts. NEVER wrap Gmail content in coloured \`<div>\`s. Do NOT set \`background\`, \`border\`, or \`border-radius\` anywhere in the HTML you send to create_gmail_draft. Any colour, emphasis, or trend block comes from a canonical renderer tool (today that's get_weekly_metric_table). The renderer enforces the Gmail house style; your job is to call the tool and concatenate its HTML, never to style it yourself.
 
-User: "Create a Gmail draft for the budget management email, and if CPA improved last week add a note on top."
+WORKED EXAMPLE. One-off budget management email with a weekly trend on top.
 
-1. Pull get_campaign_performance for last week (LAST_WEEK_SUN_SAT) and the week before it (custom ISO span, e.g. range="2026-05-04..2026-05-10") so you can compute the CPA delta. Reference SEGMENTATION_GUIDE for the right shape.
-2. Compute CPA = spend / conversions for each window. Do the maths silently. Never show the arithmetic in chat.
-3. Call get_budget_management_email with mode='this_month' to get the branded budget HTML, subject, and monthLabel.
-4. If CPA improved, build a small callout block (e.g. <div style="background:#ecfdf5;border:1px solid #a7f3d0;padding:10px 12px;border-radius:6px;margin:0 0 12px;color:#065f46">). 2 short sentences max, plain English, no dashes. State last week's date range, conversions and CPA, then this week's, then the percent change. Concatenate this callout BEFORE the budget HTML. If CPA worsened or was flat, skip the callout (do not add a negative one unless the user asked for it).
-5. Call create_gmail_draft with the budget email subject + the combined HTML (your callout, then the budget HTML verbatim). Leave the \`to\` field blank. The user picks the recipient in Gmail.
-6. Reply in chat with a SHORT confirmation. Two short sentences, plain English. Lead with whether CPA improved and by how much. Include the [Open in Gmail](gmailUrl) link returned by create_gmail_draft. NEVER paste the budget HTML in chat, the draft IS the deliverable. NEVER show the arithmetic. Example reply: "Draft saved to Gmail. CPA improved from $177 last week to $150 this week, down 15 percent. [Open in Gmail](gmailUrl)."
+User: "Create a Gmail draft for the budget management email with a 4 week trend on top."
 
-This workflow applies to ANY one-off Gmail draft request, not just budget management. The order is always: pull the data you need, do the maths silently, call get_budget_management_email (or the relevant content tool) to get the HTML, build any small comparison callout, call create_gmail_draft, reply tight.`;
+1. If the user asks for a trend, a CPA comparison, a review on top, or a multi-week summary, call get_weekly_metric_table with metrics=["spend","conversions","cpa"] and the requested weeks (default 4). If the user named one, pass an \`endDate\` (e.g. "trend ending last Sunday"). Pass an optional 1 to 3 sentence \`summary\` to render under the table when you want to point out what changed. Otherwise omit it. For other metric requests (e.g. "CPC by week with WoW change"), pick the right metrics and add compare="wow".
+2. Call get_budget_management_email with mode='this_month' to get the branded budget HTML, subject, and monthLabel.
+3. Call create_gmail_draft with the budget email subject and combined HTML in this order: the trend html FIRST (verbatim from get_weekly_metric_table.data.html), then the budget HTML verbatim. Leave the \`to\` field blank. The user picks the recipient in Gmail.
+4. Reply in chat with a SHORT confirmation. Two short sentences, plain English. Lead with the headline trend (e.g. "CPA improved this week"). Include the [Open in Gmail](gmailUrl) link returned by create_gmail_draft. NEVER paste any of the HTML in chat, the draft IS the deliverable. Example reply: "Draft saved with the 4-week trend on top. CPA improved from $177 to $150 this week, down 15 percent. [Open in Gmail](gmailUrl)."
+
+This workflow applies to ANY one-off Gmail draft request, not just budget management. The order is always: call the canonical *_note tool(s) for any analysis or callouts, call get_budget_management_email (or the relevant content tool) for the body, concatenate verbatim, call create_gmail_draft, reply tight.`;
 
 const SCHEDULED_TASKS_GUIDE = `When the user asks for a RECURRING report (e.g. "send me a weekly summary every Monday at 9am", "every fortnight email me the search-term waste"):
 
@@ -155,15 +157,15 @@ const SCHEDULED_TASKS_GUIDE = `When the user asks for a RECURRING report (e.g. "
 
 Never fabricate cron expressions you're unsure of. The schedule field is validated against cron-parser and an invalid expression will reject the proposal.
 
-WORKED EXAMPLE. Weekly recurring budget management email with optional CPA note up top.
+WORKED EXAMPLE. Weekly recurring budget management email with a 4-week trend on top.
 
-User: "Every Monday at 9am draft me the budget management email. If cost per lead is up week on week, add a two-sentence note up top explaining it."
+User: "Every Monday at 9am draft me the budget management email with a 4-week trend on top."
 
 The right recurring \`prompt\` to save (it runs with NO chat history) is something like:
 
-  "Pull get_campaign_performance with range=LAST_14_DAYS and segment='week' so you have this-week vs last-week per-campaign CPL. Then call get_budget_management_email with mode='this_month' to get the budget update HTML. Build the reply as: (1) if account-level CPL this week is higher than last week, write a 2-sentence note explaining which campaigns drove the increase, otherwise omit this note entirely; (2) on a new line, paste the html field from get_budget_management_email verbatim, do not summarise or modify it. Keep the optional note under 50 words."
+  "Call get_weekly_metric_table with metrics=[\"spend\",\"conversions\",\"cpa\"] and weeks=4 to get the canonical Weekly Performance Trend HTML. Then call get_budget_management_email with mode='this_month' to get the budget update HTML. Build the reply as: the trend html field verbatim, then on a new line the budget html field verbatim. Do not summarise or modify either, do not wrap them in any coloured div, do not add a custom callout. The canonical renderer already enforces the styling."
 
-Then call propose_scheduled_task with title="Weekly budget management email", that prompt, schedule="0 9 * * 1", and a 1-sentence summary. On each Monday firing, the agent runs that prompt, the reply is wrapped by the scheduled-task tick into a Gmail Draft on the proposing user's account. The full branded budget table renders inline. The user reviews, edits the To: address, and hits Send.`;
+Then call propose_scheduled_task with title="Weekly budget management email", that prompt, schedule="0 9 * * 1", and a 1-sentence summary. On each Monday firing, the agent runs that prompt, the reply is wrapped by the scheduled-task tick into a Gmail Draft on the proposing user's account. The trend table + budget table both render inline. The user reviews, edits the To: address, and hits Send.`;
 
 const DATE_RANGE_GUIDE = `When the user asks about a time window, translate plain English into one of these range inputs and pass it as the \`range\` arg:
 
