@@ -87,6 +87,13 @@ async function checkConsolidation(
         },
       );
 
+      if (!isEndpointReady(res)) {
+        console.warn(
+          `[consolidation] Growth Tools endpoint not ready (status=${res.status}, content-type=${res.headers.get("content-type") ?? "none"}) for client ${clientId} NKL ${nklId} — skipping`,
+        );
+        continue;
+      }
+
       if (!res.ok) {
         console.warn(
           `[consolidation] Growth Tools returned ${res.status} for client ${clientId} NKL ${nklId}`,
@@ -170,6 +177,21 @@ async function checkConsolidation(
   }
 
   return { created };
+}
+
+/**
+ * Returns true if the response looks like a real JSON payload from the
+ * Growth Tools service. Returns false for 404 or for any response whose
+ * Content-Type is not JSON (e.g. Railway's HTML fallback page when the
+ * endpoint hasn't been deployed yet, gateway error pages, etc.). These
+ * cases are treated as "endpoint not ready" — skipped, not counted as
+ * errors — so transient build/deploy windows don't pollute the run.
+ */
+function isEndpointReady(res: Response): boolean {
+  if (res.status === 404) return false;
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) return false;
+  return true;
 }
 
 interface Violation {
@@ -327,8 +349,14 @@ async function syncClient(
     signal: AbortSignal.timeout(60_000),
   });
 
-  if (res.status === 404) {
-    return { processed: false, violationCount: 0, skippedNegated: 0, error: "endpoint not found" };
+  if (!isEndpointReady(res)) {
+    console.log(`[match-type-violations/cron] Growth Tools responded with non-JSON or 404 — status=${res.status}, ct=${res.headers.get("content-type") ?? "none"}`);
+    return {
+      processed: false,
+      violationCount: 0,
+      skippedNegated: 0,
+      error: "endpoint not ready",
+    };
   }
 
   if (!res.ok) {
@@ -336,7 +364,9 @@ async function syncClient(
     throw new Error(`Growth Tools returned ${res.status}: ${text}`);
   }
 
-  const data: GrowthToolsResponse = await res.json();
+  const data: GrowthToolsResponse = await res.json().catch((err) => {
+    throw new Error(`Failed to parse Growth Tools response as JSON: ${err?.message ?? err}`);
+  });
   const violations: Violation[] = Array.isArray(data?.violations) ? data.violations : [];
   const now = new Date().toISOString();
 
@@ -481,16 +511,18 @@ export async function GET(req: NextRequest) {
 
       try {
         const result = await syncClient(payload, clientDoc);
-        if (result.error === "endpoint not found") {
+        if (result.error === "endpoint not ready") {
           console.warn(
-            `[match-type-violations/cron] Growth Tools endpoint not found for client ${clientId} — skipping`
+            `[match-type-violations/cron] Growth Tools endpoint not ready for client ${clientId} — skipping`
           );
+          skipped++;
           continue;
         }
         if (result.processed) processed++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[match-type-violations/cron] Client ${clientId} error:`, msg);
+        const cause = (err as any)?.cause?.message ?? '';
+        console.error(`[match-type-violations/cron] Client ${clientId} error:`, msg, cause ? `Cause: ${cause}` : '');
         errors++;
       }
     } else {
