@@ -8,7 +8,7 @@ export async function POST() {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
-  const db = (payload as any).db;
+  const client = ((payload as any).db as { client?: { execute: (sql: string) => Promise<unknown> } }).client;
 
   const stmts = [
     `CREATE TABLE IF NOT EXISTS \`clients_protected_campaign_ids\` (
@@ -35,7 +35,7 @@ export async function POST() {
 
   for (const sql of stmts) {
     try {
-      await db.run({ sql, args: [] });
+      await client!.execute(sql);
       results.push({ stmt: sql.split(" ")[2], ok: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
