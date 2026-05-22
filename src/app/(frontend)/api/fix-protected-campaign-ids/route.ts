@@ -67,6 +67,29 @@ export async function POST() {
     )`,
     `CREATE INDEX IF NOT EXISTS \`clients_brand_campaign_ids_order_idx\` ON \`clients_brand_campaign_ids\` (\`_order\`)`,
     `CREATE INDEX IF NOT EXISTS \`clients_brand_campaign_ids_parent_idx\` ON \`clients_brand_campaign_ids\` (\`_parent_id\`)`,
+    // goal_risk_tiers — required by goal agents Phase 2
+    `CREATE TABLE IF NOT EXISTS \`goal_risk_tiers\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`name\` text NOT NULL,
+      \`tier\` text NOT NULL,
+      \`max_budget_impact_dollars\` numeric,
+      \`requires_approval\` integer DEFAULT 1,
+      \`auto_execute\` integer DEFAULT 0,
+      \`description\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS \`grt_tier_idx\` ON \`goal_risk_tiers\` (\`tier\`)`,
+    // allowed_action_types array table
+    `CREATE TABLE IF NOT EXISTS \`goal_risk_tiers_allowed_action_types\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`action_type\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`goal_risk_tiers\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`,
+    `CREATE INDEX IF NOT EXISTS \`grat_order_idx\` ON \`goal_risk_tiers_allowed_action_types\` (\`_order\`)`,
+    `CREATE INDEX IF NOT EXISTS \`grat_parent_idx\` ON \`goal_risk_tiers_allowed_action_types\` (\`_parent_id\`)`,
   ];
 
   const results: { stmt: string; ok: boolean; error?: string }[] = [];
