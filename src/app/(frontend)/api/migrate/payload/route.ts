@@ -12,16 +12,30 @@ import { migrations } from '@/migrations'
  * `migrateOnInit` never fires, so registered migrations would never run
  * without this endpoint.
  *
- * POST /api/migrate/payload  with header  x-api-key: <AUDIT_API_KEY>
+ * POST /api/migrate/payload
+ *   - header x-api-key: <AUDIT_API_KEY>  (CI/script access)
+ *   - OR a valid admin session cookie (logged-in browser access)
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const apiKey = request.headers.get('x-api-key')
-  if (!apiKey || apiKey !== process.env.AUDIT_API_KEY) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const hasApiKey = apiKey && apiKey === process.env.AUDIT_API_KEY
 
-  const payloadConfig = await config
-  const payload = await getPayload({ config: payloadConfig })
+  let payload: Awaited<ReturnType<typeof getPayload>>
+
+  if (hasApiKey) {
+    // API key auth — used by CI scripts
+    const payloadConfig = await config
+    payload = await getPayload({ config: payloadConfig })
+  } else {
+    // Require an active admin session as fallback — used by logged-in browser
+    const payloadConfig = await config
+    payload = await getPayload({ config: payloadConfig })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { user } = await payload.auth({ headers: (request as any).headers })
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+  }
 
   try {
     // Pass migrations explicitly: on Vercel the source `src/migrations/*.ts`
