@@ -426,11 +426,8 @@ export async function GET(req: NextRequest) {
 
     // ?resetSync=true clears all sync state so the idempotency guard doesn't block the run
     if (req.nextUrl.searchParams.get("resetSync") === "true") {
-      await (payload.deleteMany as any)({
-        collection: "match-type-sync-state",
-        where: {},
-        overrideAccess: true,
-      });
+      const dbClient = ((payload as any).db as { client?: { execute: (sql: string) => Promise<unknown> } }).client;
+      if (dbClient) await dbClient.execute("DELETE FROM `match_type_sync_state`");
     }
 
     // Only process clients that have the monitor enabled
