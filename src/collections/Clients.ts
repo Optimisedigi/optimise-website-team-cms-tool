@@ -2064,6 +2064,138 @@ export const Clients: CollectionConfig = {
                 },
               ],
             },
+
+            // ─ Account Health Contract ─
+            // Per-client invariants that goal agents respect. Set once at
+            // onboarding. Reference: docs/goal-agents-architecture-and-
+            // build-plan.md §Layer 2 & §Layer 3.
+            {
+              name: "spendPolicy",
+              type: "group",
+              admin: {
+                description:
+                  "Account Health Contract — per-client invariants that goal agents respect. Set once at onboarding.",
+              },
+              fields: [
+                {
+                  name: "pacingMode",
+                  type: "select",
+                  admin: {
+                    description:
+                      "How this client's spend is paced. See architecture doc §Layer 3.",
+                  },
+                  options: [
+                    {
+                      label: "Fixed monthly budget (must spend 90–105%)",
+                      value: "fixed_monthly",
+                    },
+                    {
+                      label: "Performance cap (ceiling, may underspend)",
+                      value: "performance_cap",
+                    },
+                    {
+                      label: "ROAS target (spend scales with ROAS)",
+                      value: "roas_target",
+                    },
+                    { label: "Seasonal / launch (predefined curve)", value: "seasonal" },
+                  ],
+                },
+                {
+                  name: "pacingWindow",
+                  type: "select",
+                  defaultValue: "calendar_month",
+                  admin: {
+                    description:
+                      "Window used by the spend pacer. Only calendar month supported today; enum is open for future modes.",
+                  },
+                  options: [{ label: "Calendar month", value: "calendar_month" }],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "monthlyBudgetTarget",
+                      type: "number",
+                      admin: {
+                        description:
+                          "Target monthly spend in account currency (AUD typical). Used by the pacer to compute daily pace target.",
+                      },
+                    },
+                    {
+                      name: "acceptableVariancePercentLow",
+                      type: "number",
+                      defaultValue: 90,
+                      admin: {
+                        description:
+                          "Lower bound of the acceptable spend band, percent of target. Default 90.",
+                      },
+                    },
+                    {
+                      name: "acceptableVariancePercentHigh",
+                      type: "number",
+                      defaultValue: 105,
+                      admin: {
+                        description:
+                          "Upper bound of the acceptable spend band, percent of target. Default 105.",
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "hardFloor",
+                      type: "number",
+                      admin: {
+                        description:
+                          "Optional. Goal agents must NEVER let monthly spend fall below this.",
+                      },
+                    },
+                    {
+                      name: "hardCeiling",
+                      type: "number",
+                      admin: {
+                        description:
+                          "Optional. Goal agents must NEVER let monthly spend exceed this.",
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              name: "protectedCampaignIds",
+              type: "array",
+              admin: {
+                description:
+                  "Google Ads campaign IDs that goal agents must never modify. Brand campaigns, must-not-touch evergreen builds, etc.",
+                initCollapsed: true,
+              },
+              fields: [
+                {
+                  name: "campaignId",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description:
+                      "Numeric Google Ads campaign ID (e.g. 1234567890).",
+                  },
+                },
+              ],
+            },
+            {
+              name: "brandCampaignIds",
+              type: "array",
+              admin: {
+                description:
+                  "Google Ads campaign IDs flagged as BRAND. Used by the spend pacer to distinguish brand vs non-brand pacing.",
+                initCollapsed: true,
+              },
+              fields: [
+                { name: "campaignId", type: "text", required: true },
+              ],
+            },
           ],
         },
         {
