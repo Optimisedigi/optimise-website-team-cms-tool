@@ -294,10 +294,23 @@ Verifier:
 ### Goal 2: Ad CTR Improver
 
 ```yaml
-Use case: Restructure underperforming campaigns until CTR > target
-Cadence: 7d observation, 1d action, 10d measurement (~3 weeks/loop)
-Actions: ad copy generate, ad copy deploy, pause low-CTR ads
+Use case: Improve CTR on underperforming ad groups by refreshing weak RSA headlines
+Cadence: 30d observation, 1d action (brief Kimi), 14d measurement (~7 weeks/loop)
+Actions: get_ad_asset_performance → propose_ad_copy_generate → propose_ad_copy_deploy
 ```
+
+**Google Ads RSA learning phase: does NOT exist.** Unlike Meta's learning phase, Google does not enter a locked exploration window when headlines are changed. Google uses a multi-armed bandit across all headlines on every single auction — it can show headline A to user 1 and headline B to user 2 simultaneously. New headlines accumulate impressions within hours, not days. Do not withhold ad copy changes out of learning-phase fear.
+
+**Constraint rules for `propose_ad_copy_generate` — non-negotiable:**
+
+1. **Maximum 5 headlines per RSA** — tighter set means faster learning, more controlled rotation, meaningful CTR data within days rather than weeks.
+2. **Always retain at least 3 existing headlines** — those carry accumulated conversion signals Google has already learned. Replacing all 5 wastes weeks of data unnecessarily.
+3. **Replace the worst 1–2 performers only** — never a clean swap. Compare headline CTRs within the same ad group over the same window; replace the outliers, keep the median.
+4. **Brief Kimi with the specific reason, not just a topic** — include which headline is underperforming, what CTR it has vs. the group average, and what the replacement should focus on based on search-term waste data.
+
+**Threshold approach:** do not use a hard CTR cutoff (e.g. "<2%"). Use relative spread — if one headline is clearly dragging below the group median, it is the candidate. If all 5 are within a narrow band, no change is needed.
+
+**Prerequisite tool: `get_ad_asset_performance`** — see §8 Gap Analysis.
 
 ### Goal 3: Ad Group Restructure (Proposal Only)
 
@@ -489,6 +502,7 @@ Plenty of headroom. Will likely sustain 3–5× current scale on Basic before ne
 | Account snapshot (spend, MTD pacing) | `get_account_overview` | ✅ Spend pacer foundation |
 | Campaign-level performance | `get_campaign_performance` | ✅ ROAS, CTR goals |
 | Search terms with spend/conversions | `get_search_terms` | ✅ Waste reducer |
+| Per-headline RSA metrics (CTR, impressions) | `get_ad_asset_performance` | ❌ MISSING — required for Goal 2 (Ad CTR Improver) |
 | Budget management context | `get_budget_management_email` | ✅ Budget redeployment |
 | Pipeline status | `get_campaign_proposal_status` | ✅ Conflict detection |
 | Client metadata | `get_client_details` | ✅ Customer ID resolution |
@@ -511,6 +525,8 @@ Plenty of headroom. Will likely sustain 3–5× current scale on Basic before ne
 
 | Gap | Blocks | Needed handler |
 |---|---|---|
+| No headline-level asset metrics | Goal 2 (Ad CTR Improver) | `get_ad_asset_performance` — per-headline impressions, CTR, conversions from Google Ads asset API or Growth Tools |
+| No goal run audit trail | All goals (visibility, approval UI, path replay) | `goal-runs` collection + `goal-run-snapshots` sub-table — see §New: Goal Run Audit Trail |
 | No pause/enable controls | CTR improver, CPA reducer | `propose_ad_status_change`, `propose_ad_group_status_change`, `propose_keyword_status_change` |
 | No bid adjustments | ROAS goals, CPA goals, bid-tuning | `propose_keyword_bid_update`, `propose_bid_modifier_update`, `propose_bidding_strategy_target_update` |
 | No snapshot/caching layer | All goals (quota risk) | `google-ads-snapshots` collection + cron |
@@ -526,6 +542,55 @@ Plenty of headroom. Will likely sustain 3–5× current scale on Basic before ne
 - Conversion tracking inspection
 - Quality Score retrieval
 - Geo/location targeting
+
+---
+
+## New: Goal Run Audit Trail
+
+Every goal run must produce a persistent, reviewable record of what it decided to do and why — not just for team visibility, but so the approval UI can show the human the exact path the agent took before asking for approval on 🔴 actions.
+
+**Why now, not later:** retrofitting an audit trail into an existing goal runtime is painful. It belongs in the foundation, before the first goal type is built.
+
+### Collections
+
+```
+goal-runs
+  clientId         → clients
+  goal             string         // e.g. "search-term-waste-reducer"
+  status           select         // awaiting_data | analysing | pending_approval |
+                               //   executing | measuring | complete | failed | blocked
+  tier             select         // green | yellow | red (highest risk tier in the run)
+  createdAt        timestamp
+  completedAt      timestamp | null
+  snapshots        relationship → goal-run-snapshots[]
+  error           text | null
+
+goal-run-snapshots (sub-table of goal-runs)
+  _order, _parent_id, id
+  step             integer        // sequence number, 1-based
+  action          string         // handler key, e.g. "nkl-push-live"
+  riskTier         select         // green | yellow | red | black
+  status           select         // proposed | approved | blocked_by_contract |
+                               //   blocked_by_pacer | blocked_by_scope | applied | rejected
+  campaignIds     text[]         // campaign IDs this step operates on
+  proposedPayload  json          // what the goal agent proposed
+  modifiedPayload  json | null   // what the guardrails actually let through
+  blockReason      text | null   // which guardrail, which rule
+  approvalId       integer | null // links to agent-approvals row if tier ≥ yellow
+  measuredAt       timestamp | null // when the measurement period closed
+  measuredResult   json | null   // e.g. { wastedSpendReduction: -0.31 }
+```
+
+### Behaviour
+
+- Every goal agent decision creates a `goal-run-snapshot` row before calling any handler.
+- If a guardrail blocks the action, `status = blocked_by_*` + `blockReason` is set; `modifiedPayload` is null.
+- If the guardrail modifies the action (e.g. removes a protected campaign), both `proposedPayload` and `modifiedPayload` are recorded.
+- The approval UI reads from `goal-runs` + `goal-run-snapshots` to render the agent's proposed path.
+
+### Phase 3: Goal Runtime (updated)
+
+> Goal run audit trail (item 7 of Phase 2) must land before item 8 (spend pacer) and item 9 (scheduler/executor) — the snapshot table is the persistence layer the scheduler depends on.
 
 ---
 
@@ -547,11 +612,15 @@ Plenty of headroom. Will likely sustain 3–5× current scale on Basic before ne
    - Snapshot freshness timestamp on every record
    - Read helpers in `src/lib/google-ads-snapshots/`
 
-5. **Account health contract** — extend `clients` collection with `spendPolicy`, protected campaigns, brand campaign IDs
+5. **Account health contract** — extend `clients` collection with `spendPolicy`, protected campaigns, brand campaign IDs. Helper module: `src/lib/goal-agents/account-health-contract.ts`.
 
-6. **Spend pacer service** — hourly cron + `canReduceSpend()` / `canIncreaseSpend()` API reading from snapshots
+6. **`get_ad_asset_performance` tool** — per-headline RSA metrics (impressions, CTR, conversions per asset) from Growth Tools or Google Ads API. Required for Goal 2 to work. See §8 Gap Analysis.
 
-7. **Risk tier metadata + preflight gate** — annotate existing handlers, wrap with policy check
+7. **Goal Run Audit Trail collection** — `goal-runs` + `goal-run-snapshots`. Tracks goal selection, action sequence, guardrail blocks, tier classification, and approval state. Required for Phase 3 goal runtime + approval UI. See §New: Goal Run Audit Trail below.
+
+8. **Spend pacer service** — hourly cron + `canReduceSpend()` / `canIncreaseSpend()` API reading from snapshots
+
+9. **Risk tier metadata + preflight gate** — annotate existing handlers, wrap with policy check
 
 ### Phase 3: Goal Runtime
 
