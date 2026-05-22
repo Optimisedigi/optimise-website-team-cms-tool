@@ -3505,6 +3505,69 @@ export async function runMigrations(
     )`);
     await run("clients_brand_campaign_ids_order_idx", "CREATE INDEX IF NOT EXISTS `clients_brand_campaign_ids_order_idx` ON `clients_brand_campaign_ids` (`_order`)");
     await run("clients_brand_campaign_ids_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_brand_campaign_ids_parent_idx` ON `clients_brand_campaign_ids` (`_parent_id`)");
+
+    // ── goal_runs (2026-06-05) ─────────────────────────────────────────────
+    // Parent record for one execution of a goal agent against one client.
+    // Individual decisions stored as goal_run_snapshots rows linked here.
+    // Required for Phase 3 goal runtime + approval UI.
+    await run("goal_runs", `CREATE TABLE IF NOT EXISTS \`goal_runs\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`goal\` text NOT NULL,
+      \`status\` text NOT NULL,
+      \`tier\` text,
+      \`completed_at\` text,
+      \`error\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("goal_runs_client_idx", "CREATE INDEX IF NOT EXISTS `goal_runs_client_idx` ON `goal_runs` (`client_id`)");
+    await run("goal_runs_status_idx", "CREATE INDEX IF NOT EXISTS `goal_runs_status_idx` ON `goal_runs` (`status`)");
+    await run("goal_runs_tier_idx", "CREATE INDEX IF NOT EXISTS `goal_runs_tier_idx` ON `goal_runs` (`tier`)");
+    await run("goal_runs_created_at_idx", "CREATE INDEX IF NOT EXISTS `goal_runs_created_at_idx` ON `goal_runs` (`created_at`)");
+    await run("goal_runs_updated_at_idx", "CREATE INDEX IF NOT EXISTS `goal_runs_updated_at_idx` ON `goal_runs` (`updated_at`)");
+
+    // ── goal_run_snapshots (2026-06-05) ────────────────────────────────────
+    // One decision step within a goal run. Written before calling any handler.
+    // Stores proposed payload, modified payload (post-guardrail), block reason,
+    // approval linkage, and post-action measurement results.
+    await run("goal_run_snapshots", `CREATE TABLE IF NOT EXISTS \`goal_run_snapshots\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`goal_run_id\` integer NOT NULL,
+      \`step\` numeric NOT NULL,
+      \`action\` text NOT NULL,
+      \`risk_tier\` text NOT NULL,
+      \`status\` text NOT NULL,
+      \`proposed_payload\` text,
+      \`modified_payload\` text,
+      \`block_reason\` text,
+      \`approval_id\` integer,
+      \`measured_at\` text,
+      \`measured_result\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`goal_run_id\`) REFERENCES \`goal_runs\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("goal_run_snapshots_goal_run_idx", "CREATE INDEX IF NOT EXISTS `goal_run_snapshots_goal_run_idx` ON `goal_run_snapshots` (`goal_run_id`)");
+    await run("goal_run_snapshots_status_idx", "CREATE INDEX IF NOT EXISTS `goal_run_snapshots_status_idx` ON `goal_run_snapshots` (`status`)");
+    await run("goal_run_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `goal_run_snapshots_created_at_idx` ON `goal_run_snapshots` (`created_at`)");
+    await run("goal_run_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `goal_run_snapshots_updated_at_idx` ON `goal_run_snapshots` (`updated_at`)");
+
+    // Sub-table for campaignIds array — follows Payload's _order / _parent_id convention.
+    await run("goal_run_snapshots_campaign_ids", `CREATE TABLE IF NOT EXISTS \`goal_run_snapshots_campaign_ids\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL, \`campaign_id\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`goal_run_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("goal_run_snapshots_campaign_ids_order_idx", "CREATE INDEX IF NOT EXISTS `goal_run_snapshots_campaign_ids_order_idx` ON `goal_run_snapshots_campaign_ids` (`_order`)");
+    await run("goal_run_snapshots_campaign_ids_parent_idx", "CREATE INDEX IF NOT EXISTS `goal_run_snapshots_campaign_ids_parent_idx` ON `goal_run_snapshots_campaign_ids` (`_parent_id`)");
+
+    // locked_docs_rels FK columns — required or admin record views crash on Vercel.
+    await run("locked_docs_rels.goal_runs_id", "ALTER TABLE `payload_locked_documents_rels` ADD `goal_runs_id` integer REFERENCES `goal_runs`(`id`) ON DELETE cascade");
+    await run("payload_locked_documents_rels_goal_runs_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_goal_runs_id_idx` ON `payload_locked_documents_rels` (`goal_runs_id`)");
+    await run("locked_docs_rels.goal_run_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `goal_run_snapshots_id` integer REFERENCES `goal_run_snapshots`(`id`) ON DELETE cascade");
+    await run("payload_locked_documents_rels_goal_run_snapshots_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_goal_run_snapshots_id_idx` ON `payload_locked_documents_rels` (`goal_run_snapshots_id`)");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

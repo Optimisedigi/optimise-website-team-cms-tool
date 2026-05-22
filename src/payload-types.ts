@@ -127,6 +127,8 @@ export interface Config {
     'match-type-violation-candidates': MatchTypeViolationCandidate;
     'match-type-sync-state': MatchTypeSyncState;
     'consolidation-candidates': ConsolidationCandidate;
+    'goal-runs': GoalRun;
+    'goal-run-snapshots': GoalRunSnapshot;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -206,6 +208,8 @@ export interface Config {
     'match-type-violation-candidates': MatchTypeViolationCandidatesSelect<false> | MatchTypeViolationCandidatesSelect<true>;
     'match-type-sync-state': MatchTypeSyncStateSelect<false> | MatchTypeSyncStateSelect<true>;
     'consolidation-candidates': ConsolidationCandidatesSelect<false> | ConsolidationCandidatesSelect<true>;
+    'goal-runs': GoalRunsSelect<false> | GoalRunsSelect<true>;
+    'goal-run-snapshots': GoalRunSnapshotsSelect<false> | GoalRunSnapshotsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -6976,6 +6980,144 @@ export interface MatchTypeSyncState {
   createdAt: string;
 }
 /**
+ * One execution of a goal agent against a client — individual decisions stored in goal-run-snapshots.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "goal-runs".
+ */
+export interface GoalRun {
+  id: number;
+  /**
+   * Client this goal run is targeting
+   */
+  client: number | Client;
+  /**
+   * Goal identifier, e.g. "search-term-waste-reducer", "ad-ctr-improver"
+   */
+  goal: string;
+  /**
+   * Current state in the goal-run lifecycle
+   */
+  status:
+    | 'awaiting_data'
+    | 'analysing'
+    | 'pending_approval'
+    | 'executing'
+    | 'measuring'
+    | 'complete'
+    | 'failed'
+    | 'blocked';
+  /**
+   * Highest risk tier encountered in this run — set as decisions are recorded
+   */
+  tier?: ('green' | 'yellow' | 'red') | null;
+  /**
+   * When the run reached complete / failed / blocked
+   */
+  completedAt?: string | null;
+  /**
+   * Populated when status = failed. Top-level error from the goal runtime.
+   */
+  error?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * One decision step within a goal run — proposed, blocked, approved, or applied.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "goal-run-snapshots".
+ */
+export interface GoalRunSnapshot {
+  id: number;
+  /**
+   * Parent goal run this snapshot belongs to
+   */
+  goalRun: number | GoalRun;
+  /**
+   * 1-based sequence number — steps execute in order
+   */
+  step: number;
+  /**
+   * Handler key that was (or would be) invoked, e.g. "nkl-push-live", "budget-reallocate"
+   */
+  action: string;
+  /**
+   * Risk classification of this action
+   */
+  riskTier: 'green' | 'yellow' | 'red' | 'black';
+  /**
+   * Outcome of this step
+   */
+  status:
+    | 'proposed'
+    | 'approved'
+    | 'blocked_by_contract'
+    | 'blocked_by_pacer'
+    | 'blocked_by_scope'
+    | 'applied'
+    | 'rejected';
+  /**
+   * Campaign IDs this step operates on
+   */
+  campaignIds?:
+    | {
+        campaignId: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * What the goal agent proposed — full action payload
+   */
+  proposedPayload:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * What the guardrails actually allowed through. Null if fully blocked.
+   */
+  modifiedPayload?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Which guardrail blocked the action, and why. Null unless status begins with blocked_
+   */
+  blockReason?: string | null;
+  /**
+   * Links to the agent-approval-queue row for yellow/red/black tiers awaiting human sign-off
+   */
+  approval?: (number | null) | AgentApprovalQueue;
+  /**
+   * When the measurement window closed and results were recorded
+   */
+  measuredAt?: string | null;
+  /**
+   * Outcome of the action, e.g. { "wastedSpendReduction": -0.31 }
+   */
+  measuredResult?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -7238,6 +7380,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'consolidation-candidates';
         value: number | ConsolidationCandidate;
+      } | null)
+    | ({
+        relationTo: 'goal-runs';
+        value: number | GoalRun;
+      } | null)
+    | ({
+        relationTo: 'goal-run-snapshots';
+        value: number | GoalRunSnapshot;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -9488,6 +9638,45 @@ export interface ConsolidationCandidatesSelect<T extends boolean = true> {
   approvedAt?: T;
   rejectedAt?: T;
   approvedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "goal-runs_select".
+ */
+export interface GoalRunsSelect<T extends boolean = true> {
+  client?: T;
+  goal?: T;
+  status?: T;
+  tier?: T;
+  completedAt?: T;
+  error?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "goal-run-snapshots_select".
+ */
+export interface GoalRunSnapshotsSelect<T extends boolean = true> {
+  goalRun?: T;
+  step?: T;
+  action?: T;
+  riskTier?: T;
+  status?: T;
+  campaignIds?:
+    | T
+    | {
+        campaignId?: T;
+        id?: T;
+      };
+  proposedPayload?: T;
+  modifiedPayload?: T;
+  blockReason?: T;
+  approval?: T;
+  measuredAt?: T;
+  measuredResult?: T;
   updatedAt?: T;
   createdAt?: T;
 }
