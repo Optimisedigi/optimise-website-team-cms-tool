@@ -394,37 +394,38 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payloadConfig = await config;
-  const payload = await getPayload({ config: payloadConfig });
+  try {
+    const payloadConfig = await config;
+    const payload = await getPayload({ config: payloadConfig });
 
-  if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) {
-    return NextResponse.json(
-      { error: "Server misconfigured: missing GROWTH_TOOLS_URL or INTERNAL_API_KEY" },
-      { status: 500 }
-    );
-  }
+    if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) {
+      return NextResponse.json(
+        { error: "Server misconfigured: missing GROWTH_TOOLS_URL or INTERNAL_API_KEY" },
+        { status: 500 }
+      );
+    }
 
-  // Fetch agency's timezone and sync hour from CronSettings global
-  const cronSettings = await (payload.findGlobal as any)({
+    // Fetch agency's timezone and sync hour from CronSettings global
+    const cronSettings = await (payload.findGlobal as any)({
     slug: "cron-settings",
     depth: 0,
     overrideAccess: true,
   });
 
-  const agencyTimezone = cronSettings?.timezone ?? "Australia/Sydney";
-  const syncHour = cronSettings?.matchTypeMonitorSyncHour ?? 9;
+    const agencyTimezone = cronSettings?.timezone ?? "Australia/Sydney";
+    const syncHour = cronSettings?.matchTypeMonitorSyncHour ?? 9;
 
-  // Get the current hour in the agency's timezone (handles DST automatically)
-  const localHour = new Intl.DateTimeFormat("en-US", {
-    timeZone: agencyTimezone,
-    hour: "numeric",
-    hour12: false,
-  }).format(new Date());
+    // Get the current hour in the agency's timezone (handles DST automatically)
+    const localHour = new Intl.DateTimeFormat("en-US", {
+      timeZone: agencyTimezone,
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date());
 
-  const doSync = Number(localHour) === syncHour;
+    const doSync = Number(localHour) === syncHour;
 
-  // Only process clients that have the monitor enabled
-  const clientsResult = await (payload.find as any)({
+    // Only process clients that have the monitor enabled
+    const clientsResult = await (payload.find as any)({
     collection: "clients",
     where: {
       and: [
@@ -437,23 +438,23 @@ export async function GET(req: NextRequest) {
     overrideAccess: true,
   });
 
-  let processed = 0;
-  let errors = 0;
-  let skipped = 0;
-  const now = new Date().toISOString();
+    let processed = 0;
+    let errors = 0;
+    let skipped = 0;
+    const now = new Date().toISOString();
 
-  // Build lookup map so checkConsolidation can access client data without re-fetching
-  const clientIdMap = new Map<string | number, any>();
-  for (const doc of clientsResult.docs) {
-    const id = typeof doc.id === "object" ? (doc.id as any).id : doc.id;
-    clientIdMap.set(id, doc);
-  }
+    // Build lookup map so checkConsolidation can access client data without re-fetching
+    const clientIdMap = new Map<string | number, any>();
+    for (const doc of clientsResult.docs) {
+      const id = typeof doc.id === "object" ? (doc.id as any).id : doc.id;
+      clientIdMap.set(id, doc);
+    }
 
-  for (const clientDoc of clientsResult.docs) {
-    const clientId =
-      typeof clientDoc.id === "object" ? (clientDoc.id as any).id : clientDoc.id;
+    for (const clientDoc of clientsResult.docs) {
+      const clientId =
+        typeof clientDoc.id === "object" ? (clientDoc.id as any).id : clientDoc.id;
 
-    if (doSync) {
+      if (doSync) {
       // Full sync — check idempotency guard
       const syncStateResult = await (payload.find as any)({
         collection: "match-type-sync-state",
@@ -532,4 +533,10 @@ export async function GET(req: NextRequest) {
     consolidationCandidatesCreated,
     totalMonitoredClients: clientsResult.totalDocs,
   });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const cause = (err as any)?.cause?.message ?? '';
+    console.error(`[match-type-violations/cron] Unhandled error:`, msg, cause ? `Cause: ${cause}` : '');
+    return NextResponse.json({ ok: false, error: msg, cause }, { status: 500 });
+  }
 }
