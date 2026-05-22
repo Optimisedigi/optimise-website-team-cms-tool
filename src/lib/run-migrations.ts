@@ -3466,6 +3466,45 @@ export async function runMigrations(
     await run("google_ads_snapshots_client_level_unq", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_snapshots_client_level_unq` ON `google_ads_snapshots` (`client_id`, `level`)");
     await run("locked_docs_rels.google_ads_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_snapshots_id` integer REFERENCES `google_ads_snapshots`(`id`) ON DELETE cascade");
     await run("payload_locked_documents_rels_google_ads_snapshots_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_google_ads_snapshots_id_idx` ON `payload_locked_documents_rels` (`google_ads_snapshots_id`)");
+
+    // ── Account Health Contract on clients (2026-06-02) ─────────────────
+    // Per-client invariants goal agents respect. Reference:
+    // docs/goal-agents-architecture-and-build-plan.md §Layer 2.
+    // All columns optional — clients without a contract simply have no
+    // active goals. Pacing window enum left open for future modes.
+    const spendPolicyAdds: Array<[string, string]> = [
+      ["spend_policy_pacing_mode", "text"],
+      ["spend_policy_pacing_window", "text"],
+      ["spend_policy_monthly_budget_target", "numeric"],
+      ["spend_policy_acceptable_variance_percent_low", "numeric"],
+      ["spend_policy_acceptable_variance_percent_high", "numeric"],
+      ["spend_policy_hard_floor", "numeric"],
+      ["spend_policy_hard_ceiling", "numeric"],
+    ];
+    for (const [col, type] of spendPolicyAdds) {
+      await run(
+        `clients.${col}`,
+        `ALTER TABLE \`clients\` ADD \`${col}\` ${type}`,
+      );
+    }
+
+    // Array sub-tables — match the existing clients_* pattern
+    // (e.g. clients_one_off_projects at line ~666).
+    await run("clients_protected_campaign_ids", `CREATE TABLE IF NOT EXISTS \`clients_protected_campaign_ids\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL, \`campaign_id\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_protected_campaign_ids_order_idx", "CREATE INDEX IF NOT EXISTS `clients_protected_campaign_ids_order_idx` ON `clients_protected_campaign_ids` (`_order`)");
+    await run("clients_protected_campaign_ids_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_protected_campaign_ids_parent_idx` ON `clients_protected_campaign_ids` (`_parent_id`)");
+
+    await run("clients_brand_campaign_ids", `CREATE TABLE IF NOT EXISTS \`clients_brand_campaign_ids\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL, \`campaign_id\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_brand_campaign_ids_order_idx", "CREATE INDEX IF NOT EXISTS `clients_brand_campaign_ids_order_idx` ON `clients_brand_campaign_ids` (`_order`)");
+    await run("clients_brand_campaign_ids_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_brand_campaign_ids_parent_idx` ON `clients_brand_campaign_ids` (`_parent_id`)");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

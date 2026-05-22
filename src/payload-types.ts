@@ -892,6 +892,60 @@ export interface Client {
     trend?: ('improving' | 'stable' | 'declining') | null;
   };
   /**
+   * Account Health Contract — per-client invariants that goal agents respect. Set once at onboarding.
+   */
+  spendPolicy?: {
+    /**
+     * How this client's spend is paced. See architecture doc §Layer 3.
+     */
+    pacingMode?: ('fixed_monthly' | 'performance_cap' | 'roas_target' | 'seasonal') | null;
+    /**
+     * Window used by the spend pacer. Only calendar month supported today; enum is open for future modes.
+     */
+    pacingWindow?: 'calendar_month' | null;
+    /**
+     * Target monthly spend in account currency (AUD typical). Used by the pacer to compute daily pace target.
+     */
+    monthlyBudgetTarget?: number | null;
+    /**
+     * Lower bound of the acceptable spend band, percent of target. Default 90.
+     */
+    acceptableVariancePercentLow?: number | null;
+    /**
+     * Upper bound of the acceptable spend band, percent of target. Default 105.
+     */
+    acceptableVariancePercentHigh?: number | null;
+    /**
+     * Optional. Goal agents must NEVER let monthly spend fall below this.
+     */
+    hardFloor?: number | null;
+    /**
+     * Optional. Goal agents must NEVER let monthly spend exceed this.
+     */
+    hardCeiling?: number | null;
+  };
+  /**
+   * Google Ads campaign IDs that goal agents must never modify. Brand campaigns, must-not-touch evergreen builds, etc.
+   */
+  protectedCampaignIds?:
+    | {
+        /**
+         * Numeric Google Ads campaign ID (e.g. 1234567890).
+         */
+        campaignId: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Google Ads campaign IDs flagged as BRAND. Used by the spend pacer to distinguish brand vs non-brand pacing.
+   */
+  brandCampaignIds?:
+    | {
+        campaignId: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Brand terms (one per line OR comma-separated). Single source of truth used by GSC monitoring, Google Ads dashboard (brand-vs-generic spend split), AI Visibility, AI Search Erosion Detector, negative-sweep, and quality score analysis. Per-audit overrides live on each Google Ads audit's brandTerms field. Entries shorter than 3 chars are ignored.
    */
   brandKeywords?: string | null;
@@ -7430,6 +7484,29 @@ export interface ClientsSelect<T extends boolean = true> {
         previousScore?: T;
         scoreChange?: T;
         trend?: T;
+      };
+  spendPolicy?:
+    | T
+    | {
+        pacingMode?: T;
+        pacingWindow?: T;
+        monthlyBudgetTarget?: T;
+        acceptableVariancePercentLow?: T;
+        acceptableVariancePercentHigh?: T;
+        hardFloor?: T;
+        hardCeiling?: T;
+      };
+  protectedCampaignIds?:
+    | T
+    | {
+        campaignId?: T;
+        id?: T;
+      };
+  brandCampaignIds?:
+    | T
+    | {
+        campaignId?: T;
+        id?: T;
       };
   brandKeywords?: T;
   gscConnected?: T;
