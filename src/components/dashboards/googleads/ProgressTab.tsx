@@ -771,8 +771,8 @@ export function ProgressTab({
   const currentEfficiency = currentSpend > 0 ? (currentConversions / currentSpend) * 1000 : 0;
   const prevEfficiency = prevSpend > 0 ? (prevConversions / prevSpend) * 1000 : 0;
 
-  // YoY from kpis
-  const yoyConvChange = kpis.yoyConversions > 0
+  // YoY from kpis — null when custom range (no comparable prior period).
+  const yoyConvChange = kpis.yoyConversions != null && kpis.yoyConversions > 0
     ? changeLabel(kpis.conversions, kpis.yoyConversions)
     : null;
 
@@ -960,8 +960,8 @@ export function ProgressTab({
         </div>
       )}
 
-      {/* Year-over-Year */}
-      {kpis.yoyConversions > 0 && (
+      {/* Year-over-Year — hidden when custom range (yoy* are null). */}
+      {kpis.yoyConversions != null && kpis.yoyConversions > 0 && (
         <div className="rounded-xl bg-white border border-slate-200 shadow-sm p-5">
           <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-4">
             Year-over-Year
@@ -984,14 +984,14 @@ export function ProgressTab({
             <YoyCard
               label="Clicks"
               current={kpis.clicks}
-              yoy={kpis.yoyClicks}
+              yoy={kpis.yoyClicks ?? 0}
               format={(v) => v.toLocaleString()}
               higherIsBetter
             />
             <YoyCard
               label="Avg CPC"
               current={kpis.avgCpc}
-              yoy={kpis.yoyAvgCpc}
+              yoy={kpis.yoyAvgCpc ?? 0}
               format={(v) => `$${v.toFixed(2)}`}
               higherIsBetter={false}
             />
