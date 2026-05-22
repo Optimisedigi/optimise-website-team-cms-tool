@@ -227,35 +227,32 @@ async function authCron(req: NextRequest): Promise<boolean> {
 /**
  * Returns true if the search term is already negated (as any match type)
  * in any active negative keyword list for this client.
+ *
+ * Uses the raw DB client to avoid Payload ORM id=null insert bug on
+ * match_type_violation_candidates (SQLite NOT NULL constraint).
  */
 async function isAlreadyNegated(
   payload: Awaited<ReturnType<typeof getPayload>>,
   clientId: number,
   searchTerm: string,
 ): Promise<boolean> {
-  const nklResult = await (payload.find as any)({
-    collection: "negative-keyword-lists",
-    where: {
-      and: [
-        { client: { equals: clientId } },
-        { isActive: { equals: true } },
-      ],
-    },
-    limit: 500,
-    depth: 0,
-    overrideAccess: true,
-  });
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = ((payload as any).db as { client: { execute: (sql: string) => Promise<unknown> } }).client;
   const term = searchTerm.trim().toLowerCase();
-  for (const nkl of nklResult.docs as any[]) {
-    const keywords = Array.isArray(nkl.keywords) ? nkl.keywords : [];
-    for (const kw of keywords) {
-      if ((kw.keyword ?? "").trim().toLowerCase() === term) {
-        return true;
-      }
-    }
-  }
-  return false;
+  const result = await db.execute(
+    `SELECT nkl.id FROM negative_keyword_lists nkl
+     JOIN negative_keyword_lists_keywords nklkw ON nklkw._parent_id = nkl.id
+     WHERE nkl.client_id = ${Number(clientId)}
+       AND (nkl.is_active = 1 OR nkl.is_active = 1)
+       AND LOWER(TRIM(nklkw.keyword)) = '${term.replace(/'/g, "''")}'
+     LIMIT 1;`,
+  ) as { rows: unknown[] };
+  return result.rows.length > 0;
+}
+
+function esc(s: unknown): string {
+  if (s === null || s === undefined) return 'NULL';
+  return `'${String(s).replace(/'/g, "''")}'`;
 }
 
 async function upsertViolation(
@@ -264,64 +261,63 @@ async function upsertViolation(
   v: Violation,
   now: string,
 ): Promise<boolean> {
-  // Skip if already negated in any active NKL for this client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = ((payload as any).db as { client: { execute: (sql: string) => Promise<unknown> } }).client;
+  const today = now.split('T')[0];
+
+  // Skip if already negated in any active NKL
   if (await isAlreadyNegated(payload, clientId, v.searchTerm)) {
     return false;
   }
 
-  const existing = await (payload.find as any)({
-    collection: "match-type-violation-candidates",
-    where: {
-      and: [
-        { client: { equals: clientId } },
-        { searchTerm: { equals: v.searchTerm } },
-        { triggeringKeyword: { equals: v.triggeringKeyword } },
-      ],
-    },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  });
+  // Check for existing candidate
+  const existing = await db.execute(
+    `SELECT id, status FROM match_type_violation_candidates
+     WHERE client_id = ${Number(clientId)}
+       AND search_term = ${esc(v.searchTerm)}
+       AND triggering_keyword = ${esc(v.triggeringKeyword)}
+     LIMIT 1;`,
+  ) as { rows: Array<{ id: number; status: string }> };
 
-  const base = {
-    client: clientId,
-    searchTerm: v.searchTerm,
-    triggeringKeyword: v.triggeringKeyword,
-    campaignName: v.campaignName ?? "",
-    adGroupName: v.adGroupName ?? "",
-    matchType: v.matchType,
-    violationType: v.violationType,
-    impressions: v.impressions ?? 0,
-    clicks: v.clicks ?? 0,
-    lastSeenAt: now,
-    runDate: now.split("T")[0],
-  };
-
-  if (existing.docs.length > 0) {
-    const doc = existing.docs[0] as any;
-    // Preserve existing approved/rejected status — only update pending candidates
-    if (doc.status === "pending") {
-      await (payload.update as any)({
-        collection: "match-type-violation-candidates",
-        id: doc.id,
-        data: base,
-        overrideAccess: true,
-      });
+  if (existing.rows.length > 0) {
+    const doc = existing.rows[0];
+    if (doc.status === 'pending') {
+      await db.execute(
+        `UPDATE match_type_violation_candidates SET
+           campaign_name = ${esc(v.campaignName ?? '')},
+           ad_group_name = ${esc(v.adGroupName ?? '')},
+           match_type = ${esc(v.matchType)},
+           violation_type = ${esc(v.violationType)},
+           impressions = ${v.impressions ?? 0},
+           clicks = ${v.clicks ?? 0},
+           last_seen_at = ${esc(now)},
+           run_date = ${esc(today)}
+         WHERE id = ${doc.id};`,
+      );
     } else {
-      // Still update metrics on approved/rejected rows for visibility
-      await (payload.update as any)({
-        collection: "match-type-violation-candidates",
-        id: doc.id,
-        data: { impressions: v.impressions ?? 0, clicks: v.clicks ?? 0, lastSeenAt: now },
-        overrideAccess: true,
-      });
+      await db.execute(
+        `UPDATE match_type_violation_candidates SET
+           impressions = ${v.impressions ?? 0},
+           clicks = ${v.clicks ?? 0},
+           last_seen_at = ${esc(now)}
+         WHERE id = ${doc.id};`,
+      );
     }
   } else {
-    await (payload.create as any)({
-      collection: "match-type-violation-candidates",
-      data: { ...base, firstSeenAt: now, status: "pending" },
-      overrideAccess: true,
-    });
+    // Insert new candidate — use raw SQL to bypass Payload ORM id=null bug
+    await db.execute(
+      `INSERT INTO match_type_violation_candidates
+         (client_id, search_term, triggering_keyword, campaign_name, ad_group_name,
+          match_type, violation_type, impressions, clicks, status,
+          last_seen_at, first_seen_at, run_date, created_at, updated_at)
+       VALUES (
+         ${Number(clientId)}, ${esc(v.searchTerm)}, ${esc(v.triggeringKeyword)},
+         ${esc(v.campaignName ?? '')}, ${esc(v.adGroupName ?? '')},
+         ${esc(v.matchType)}, ${esc(v.violationType)},
+         ${v.impressions ?? 0}, ${v.clicks ?? 0}, 'pending',
+         ${esc(now)}, ${esc(now)}, ${esc(today)}, ${esc(now)}, ${esc(now)}
+       );`,
+    );
   }
 
   return true;
