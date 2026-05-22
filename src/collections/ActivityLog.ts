@@ -55,6 +55,7 @@ export const ActivityLog: CollectionConfig = {
         { label: "SERP Displacement Snapshot Created", value: "serp_displacement_snapshot_created" },
         { label: "SERP Displacement Alert Created", value: "serp_displacement_alert_created" },
         { label: "Google Ads Budget Pushed", value: "google_ads_budget_pushed" },
+        { label: "Google Ads Anomaly Detected", value: "google_ads_anomaly_detected" },
         { label: "Agent Approval — Approved", value: "agent_approval_approved" },
         { label: "Agent Approval — Rejected", value: "agent_approval_rejected" },
         // Optimate agent step types
@@ -63,6 +64,10 @@ export const ActivityLog: CollectionConfig = {
         { label: "Agent Final Output", value: "agent_final_output" },
         { label: "Agent Error", value: "agent_error" },
         { label: "Agent Auth Event", value: "agent_auth_event" },
+        // Match Type Violation activity types
+        { label: "Match Type Violation Sync", value: "match_type_violation_sync" },
+        { label: "Match Type Violation Approved", value: "match_type_violation_approved" },
+        { label: "Match Type Violation Rejected", value: "match_type_violation_rejected" },
       ],
     },
     {
