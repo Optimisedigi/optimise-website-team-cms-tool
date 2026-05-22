@@ -70,7 +70,7 @@ describe("back-dated week-long custom span (the bug)", () => {
     const url = captured.url ?? "";
     expect(url).toContain("/api/google-ads/campaign-budgets/get-metrics");
     // Comma is URL-encoded as %2C by URLSearchParams.
-    expect(url).toContain("dateRange=2026-05-04%2C2026-05-10");
+    expect(url).toContain("dateRange=custom%3A2026-05-04%2C2026-05-10");
     expect(url).not.toContain("dateRange=LAST_");
     expect(url).not.toContain("startDate=");
     expect(url).not.toContain("endDate=");
@@ -97,7 +97,7 @@ describe("back-dated week-long custom span (the bug)", () => {
     expect(res.ok).toBe(true);
     const url = captured.url ?? "";
     expect(url).toContain("/api/google-ads/search-terms");
-    expect(url).toContain("dateRange=2026-05-04%2C2026-05-10");
+    expect(url).toContain("dateRange=custom%3A2026-05-04%2C2026-05-10");
     expect(url).not.toContain("dateRange=LAST_");
     expect(url).not.toContain("startDate=");
     expect(url).not.toContain("endDate=");
@@ -116,7 +116,7 @@ describe("back-dated week-long custom span (the bug)", () => {
     expect(res.ok).toBe(true);
     const url = captured.url ?? "";
     expect(url).toContain("/api/google-ads/campaign-budgets/get-metrics");
-    expect(url).toContain("dateRange=2026-05-04%2C2026-05-10");
+    expect(url).toContain("dateRange=custom%3A2026-05-04%2C2026-05-10");
     expect(url).not.toContain("dateRange=LAST_");
     expect(url).not.toContain("startDate=");
     expect(url).not.toContain("endDate=");
@@ -156,6 +156,6 @@ describe("quarter literals ride the pass-through path", () => {
     const captured = mockFetchOnce({ metrics: [] });
     const args = getCampaignPerformance.validate!({ range: "Q1 2026" });
     await getCampaignPerformance.execute(args, makeCtx());
-    expect(captured.url ?? "").toContain("dateRange=2026-01-01%2C2026-03-31");
+    expect(captured.url ?? "").toContain("dateRange=custom%3A2026-01-01%2C2026-03-31");
   });
 });

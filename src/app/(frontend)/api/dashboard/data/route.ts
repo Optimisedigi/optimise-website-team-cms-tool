@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateDashboardToken } from "../verify/route";
+import { resolveRange, customRangeForGrowthTools } from "@/lib/agents/optimate-google-ads/tools/_date-range";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
 
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
-  const range = req.nextUrl.searchParams.get("range") || "last_month";
+  const rawRange = req.nextUrl.searchParams.get("range") || "last_month";
   const customerId = req.nextUrl.searchParams.get("customerId") || "";
   const clientName = req.nextUrl.searchParams.get("clientName") || "";
   const brandKeywords = req.nextUrl.searchParams.get("brandKeywords") || "";
@@ -33,6 +34,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Normalise the CMS snake_case range values (e.g. "last_30_days",
+    // "last_week", "custom:2026-05-01,2026-05-10") into the formats Growth
+    // Tools understands: uppercase preset enums or "YYYY-MM-DD..YYYY-MM-DD".
+    const resolved = resolveRange(rawRange);
+    const range = customRangeForGrowthTools(resolved);
+
     // Strip dashes from customerId — Google Ads API uses dashless format (e.g. 9554935739)
     const cleanCustomerId = customerId.replace(/-/g, "");
     const params = new URLSearchParams({ range });

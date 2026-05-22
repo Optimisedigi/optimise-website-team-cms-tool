@@ -187,7 +187,7 @@ export function generateBudgetEmailHtml(
   const percentUsed = spend.maxBudget > 0 ? (spend.totalSpend / spend.maxBudget) * 100 : 0;
   const onTrackPercent = (spend.daysElapsed / 30.4) * 100;
   const statusColor = percentUsed <= 90 ? '#059669' : percentUsed <= 100 ? '#d97706' : '#dc2626';
-  const statusBg = percentUsed <= 90 ? '#f0fdf4' : percentUsed <= 100 ? '#fffbeb' : '#fef2f2';
+  const statusBg = '#ffffff';
   const isUnderBudget = percentUsed < onTrackPercent;
   const statusText = percentUsed > 100 ? 'Over Budget' : percentUsed > 90 ? 'On Track' : isUnderBudget ? 'Under Budget' : 'On Track';
   // Show enabled campaigns that either have a non-zero % split OR are standalone
@@ -221,30 +221,41 @@ export function generateBudgetEmailHtml(
   <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
     <tr>
       <td style="width:55%;vertical-align:top;padding-right:8px">
-        <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};height:100%">
+        <div style="padding:20px;background:${statusBg};border-radius:12px;border:1px solid #e5e7eb;height:100%">
           <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
             <tr>
-              <td style="text-align:left;font-size:14px;font-weight:600;color:#374151">${statusText}</td>
-              <td style="text-align:right;font-size:22px;font-weight:700;color:${statusColor}">${percentUsed.toFixed(0)}%</td>
+              <td style="text-align:left;font-size:14px;font-weight:600;color:#1e293b">${statusText}</td>
+              <td style="text-align:right;font-size:22px;font-weight:700;color:#1e293b">${percentUsed.toFixed(0)}%</td>
             </tr>
           </table>
-          <!-- Progress bar (Gmail-safe: table-based) -->
-          <table style="width:100%;border-collapse:collapse;margin-bottom:8px" cellpadding="0" cellspacing="0">
-            <tr>${(() => {
-              const pct = Math.min(percentUsed, 100);
-              const marker = Math.min(onTrackPercent, 100);
-              const markerTd = `<td style="width:3px;min-width:3px;max-width:3px;height:24px;background:#1e293b;font-size:1px;line-height:1px;padding:0">&#8203;</td>`;
-              if (pct < marker) {
-                const gap = marker - pct;
-                const rest = 100 - marker;
-                return `<td style="width:${pct}%;height:24px;background:${statusColor};border-radius:12px 0 0 12px;font-size:1px">&nbsp;</td><td style="width:${gap}%;height:24px;background:#e5e7eb;font-size:1px">&nbsp;</td>${markerTd}<td style="width:${rest}%;height:24px;background:#e5e7eb;border-radius:0 12px 12px 0;font-size:1px">&nbsp;</td>`;
-              } else {
-                const rest = 100 - pct;
-                return `<td style="width:${marker}%;height:24px;background:${statusColor};border-radius:12px 0 0 12px;font-size:1px">&nbsp;</td>${markerTd}<td style="width:${pct - marker}%;height:24px;background:${statusColor};font-size:1px">&nbsp;</td><td style="width:${rest}%;height:24px;background:#e5e7eb;border-radius:0 12px 12px 0;font-size:1px">&nbsp;</td>`;
-              }
-            })()}
-            </tr>
-          </table>
+          <!-- Progress bar (Gmail-safe: nested-table technique — border-radius on td not supported in Gmail) -->
+          ${(() => {
+            const pct = Math.min(percentUsed, 100);
+            const marker = Math.min(onTrackPercent, 100);
+            // Build 5 segments: leftCap | leftFill | marker | rightFill | rightCap
+            // Each non-marker cell is a nested table so we can apply border-radius to the
+            // outer <table> (Gmail-safe) rather than to <td> (unsupported).
+            const mk = `<td style="width:3px;min-width:3px;max-width:3px;padding:0"><table style="width:3px;height:24px;border-collapse:collapse;margin:0" cellpadding="0" cellspacing="0"><tr><td style="background:#1e293b;font-size:1px;line-height:1px;padding:0;overflow:hidden">&#8203;</td></tr></table></td>`;
+
+            const seg = (wPct: number, color: string, leftRound: boolean, rightRound: boolean) => {
+              if (wPct <= 0) return `<td style="width:0;padding:0;border:none"></td>`;
+              const tl = leftRound ? "12px" : "0";
+              const tr = rightRound ? "12px" : "0";
+              const br = rightRound ? "12px" : "0";
+              const bl = leftRound ? "12px" : "0";
+              const rStyle = `border-radius:${tl} ${tr} ${br} ${bl}`;
+              return `<td style="width:${wPct}%;padding:0"><table style="width:${wPct}%;height:24px;border-collapse:collapse;margin:0;border-radius:${rStyle}" cellpadding="0" cellspacing="0"><tr><td style="background:${color};font-size:1px;line-height:1px;padding:0;overflow:hidden">&#8203;</td></tr></table></td>`;
+            };
+
+            if (pct < marker) {
+              const gap = marker - pct;
+              const rest = 100 - marker;
+              return `<table style="width:100%;border-collapse:collapse;margin-bottom:8px" cellpadding="0" cellspacing="0"><tr>${seg(pct, statusColor, true, false)}${seg(gap, "#e5e7eb", false, false)}${mk}${seg(rest, "#e5e7eb", false, true)}</tr></table>`;
+            } else {
+              const rest = 100 - pct;
+              return `<table style="width:100%;border-collapse:collapse;margin-bottom:8px" cellpadding="0" cellspacing="0"><tr>${seg(marker, statusColor, true, false)}${seg(pct - marker, statusColor, false, false)}${seg(rest, "#e5e7eb", false, true)}</tr></table>`;
+            }
+          })()}
           <table style="width:100%;border-collapse:collapse;margin-bottom:2px">
             <tr>
               <td style="text-align:left;font-size:11px;color:#64748b">$0</td>
@@ -256,7 +267,7 @@ export function generateBudgetEmailHtml(
           <table style="width:100%;border-collapse:collapse;margin-top:12px">
             <tr>
               <td style="text-align:center;width:50%">
-                <div style="font-size:18px;font-weight:700;color:${statusColor}">$${spend.totalSpend.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+                <div style="font-size:18px;font-weight:700;color:#1e293b">$${spend.totalSpend.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
                 <div style="font-size:11px;color:#64748b">Month-to-Date Spend</div>
               </td>
               <td style="text-align:center;width:50%">
@@ -272,14 +283,18 @@ export function generateBudgetEmailHtml(
           <div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:14px">Time Tracking</div>
           <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
             <tr>
-              <td style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
-                <div style="font-size:10px;color:#64748b;margin-bottom:2px">Days Elapsed</div>
-                <div style="font-size:22px;font-weight:700;color:#1e293b">${spend.daysElapsed}</div>
+              <td style="padding:0;text-align:center">
+                <div style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
+                  <div style="font-size:10px;color:#64748b;margin-bottom:2px">Days Elapsed</div>
+                  <div style="font-size:22px;font-weight:700;color:#1e293b">${spend.daysElapsed}</div>
+                </div>
               </td>
               <td style="width:6px"></td>
-              <td style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
-                <div style="font-size:10px;color:#64748b;margin-bottom:2px">Days Remaining</div>
-                <div style="font-size:22px;font-weight:700;color:#1e293b">${spend.daysRemaining}</div>
+              <td style="padding:0;text-align:center">
+                <div style="padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-align:center">
+                  <div style="font-size:10px;color:#64748b;margin-bottom:2px">Days Remaining</div>
+                  <div style="font-size:22px;font-weight:700;color:#1e293b">${spend.daysRemaining}</div>
+                </div>
               </td>
             </tr>
           </table>
@@ -410,22 +425,25 @@ export function generateLastMonthRecapEmailHtml(
   const isOver = percentUsed > 100;
   const isUnder = percentUsed < 95;
   const statusColor = isOver ? '#dc2626' : isUnder ? '#059669' : '#d97706';
-  const statusBg = isOver ? '#fef2f2' : isUnder ? '#f0fdf4' : '#fffbeb';
+  const statusBg = '#ffffff';
   const statusText = isOver ? 'Over Budget' : isUnder ? 'Under Budget' : 'On Target';
 
   const budgetBlock = budget > 0 ? `
-  <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};margin-bottom:20px">
+  <div style="padding:20px;background:${statusBg};border-radius:12px;border:1px solid #e5e7eb;margin-bottom:20px">
     <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
       <tr>
-        <td style="text-align:left;font-size:14px;font-weight:600;color:#374151">${statusText} — ${recap.monthLabel}</td>
-        <td style="text-align:right;font-size:22px;font-weight:700;color:${statusColor}">${percentUsed.toFixed(0)}%</td>
+        <td style="text-align:left;font-size:14px;font-weight:600;color:#1e293b">${statusText} — ${recap.monthLabel}</td>
+        <td style="text-align:right;font-size:22px;font-weight:700;color:#1e293b">${percentUsed.toFixed(0)}%</td>
       </tr>
     </table>
     <table style="width:100%;border-collapse:collapse;margin-bottom:8px" cellpadding="0" cellspacing="0">
       <tr>${(() => {
         const pct = Math.min(percentUsed, 100);
         const rest = 100 - pct;
-        return `<td style="width:${pct}%;height:24px;background:${statusColor};border-radius:12px 0 0 12px;font-size:1px">&nbsp;</td><td style="width:${rest}%;height:24px;background:#e5e7eb;border-radius:0 12px 12px 0;font-size:1px">&nbsp;</td>`;
+        // Gmail-safe: border-radius on <td> is unsupported; use nested <table> for the rounded ends
+        const leftCap = `<td style="width:${pct}%;padding:0"><table style="width:${pct}%;height:24px;border-collapse:collapse;border-radius:12px 0 0 12px" cellpadding="0" cellspacing="0"><tr><td style="background:${statusColor};font-size:1px;line-height:1px;padding:0;overflow:hidden">&#8203;</td></tr></table></td>`;
+        const rightCap = `<td style="width:${rest}%;padding:0"><table style="width:${rest}%;height:24px;border-collapse:collapse;border-radius:0 12px 12px 0" cellpadding="0" cellspacing="0"><tr><td style="background:#e5e7eb;font-size:1px;line-height:1px;padding:0;overflow:hidden">&#8203;</td></tr></table></td>`;
+        return leftCap + rightCap;
       })()}
       </tr>
     </table>
@@ -438,7 +456,7 @@ export function generateLastMonthRecapEmailHtml(
     <table style="width:100%;border-collapse:collapse;margin-top:12px">
       <tr>
         <td style="text-align:center;width:33%">
-          <div style="font-size:18px;font-weight:700;color:${statusColor}">$${t.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+          <div style="font-size:18px;font-weight:700;color:#1e293b">$${t.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
           <div style="font-size:11px;color:#64748b">Spent</div>
         </td>
         <td style="text-align:center;width:33%">
@@ -462,21 +480,29 @@ export function generateLastMonthRecapEmailHtml(
   <!-- Headline metrics -->
   <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
     <tr>
-      <td style="width:25%;padding:14px;background:#f8fafc;border-radius:8px 0 0 8px;border:1px solid #e2e8f0;text-align:center">
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">Total Spend</div>
-        <div style="font-size:20px;font-weight:700;color:#1e293b">$${t.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+      <td style="width:25%;padding:0;text-align:center">
+        <div style="padding:14px;background:#f8fafc;border-radius:8px 0 0 8px;border:1px solid #e2e8f0">
+          <div style="font-size:11px;color:#64748b;margin-bottom:4px">Total Spend</div>
+          <div style="font-size:20px;font-weight:700;color:#1e293b">$${t.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+        </div>
       </td>
-      <td style="width:25%;padding:14px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:center">
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">Conversions</div>
-        <div style="font-size:20px;font-weight:700;color:#059669">${t.conversions.toLocaleString()}</div>
+      <td style="width:25%;padding:0;text-align:center">
+        <div style="padding:14px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0">
+          <div style="font-size:11px;color:#64748b;margin-bottom:4px">Conversions</div>
+          <div style="font-size:20px;font-weight:700;color:#059669">${t.conversions.toLocaleString()}</div>
+        </div>
       </td>
-      <td style="width:25%;padding:14px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:center">
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">Cost / Lead</div>
-        <div style="font-size:20px;font-weight:700;color:#1e293b">${t.cpl > 0 ? `$${t.cpl.toFixed(0)}` : '—'}</div>
+      <td style="width:25%;padding:0;text-align:center">
+        <div style="padding:14px;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0">
+          <div style="font-size:11px;color:#64748b;margin-bottom:4px">Cost / Lead</div>
+          <div style="font-size:20px;font-weight:700;color:#1e293b">${t.cpl > 0 ? `$${t.cpl.toFixed(0)}` : '—'}</div>
+        </div>
       </td>
-      <td style="width:25%;padding:14px;background:#f8fafc;border-radius:0 8px 8px 0;border:1px solid #e2e8f0;text-align:center">
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">CTR</div>
-        <div style="font-size:20px;font-weight:700;color:#1e293b">${t.ctr.toFixed(2)}%</div>
+      <td style="width:25%;padding:0;text-align:center">
+        <div style="padding:14px;background:#f8fafc;border-radius:0 8px 8px 0;border:1px solid #e2e8f0">
+          <div style="font-size:11px;color:#64748b;margin-bottom:4px">CTR</div>
+          <div style="font-size:20px;font-weight:700;color:#1e293b">${t.ctr.toFixed(2)}%</div>
+        </div>
       </td>
     </tr>
   </table>

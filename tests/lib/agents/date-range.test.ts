@@ -210,7 +210,7 @@ describe("snapCustomToPreset", () => {
 describe("customRangeForGrowthTools", () => {
   it("returns a 'YYYY-MM-DD,YYYY-MM-DD' span for CUSTOM ranges", () => {
     const r = resolveRange("2026-05-04..2026-05-10");
-    expect(customRangeForGrowthTools(r)).toBe("2026-05-04,2026-05-10");
+    expect(customRangeForGrowthTools(r)).toBe("custom:2026-05-04,2026-05-10");
   });
 
   it("passes through preset names unchanged", () => {
@@ -225,7 +225,7 @@ describe("customRangeForGrowthTools", () => {
 
   it("works for quarter literals (resolved to CUSTOM)", () => {
     const q1 = resolveRange("Q1 2026");
-    expect(customRangeForGrowthTools(q1)).toBe("2026-01-01,2026-03-31");
+    expect(customRangeForGrowthTools(q1)).toBe("custom:2026-01-01,2026-03-31");
   });
 });
 
@@ -287,7 +287,7 @@ describe("resolveRange — LAST_WEEK_MON_SUN (agency-default 'last week')", () =
   it("customRangeForGrowthTools forwards a comma-span for LAST_WEEK", () => {
     const now = new Date(Date.UTC(2026, 4, 22));
     const r = resolveRange("LAST_WEEK", now);
-    expect(customRangeForGrowthTools(r)).toBe("2026-05-11,2026-05-17");
+    expect(customRangeForGrowthTools(r)).toBe("custom:2026-05-11,2026-05-17");
   });
 
   it("resolveRangeWithSegment passes segment through alongside the Mon–Sun bounds", () => {

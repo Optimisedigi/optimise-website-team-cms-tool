@@ -60,7 +60,7 @@ describe("get_search_terms tool", () => {
     expect(url).not.toContain("startDate=");
     expect(url).not.toContain("endDate=");
     // The forwarded dateRange must be the comma-span. URLSearchParams URL-encodes ',' as '%2C'.
-    expect(url).toContain("dateRange=2026-01-01%2C2026-03-31");
+    expect(url).toContain("dateRange=custom%3A2026-01-01%2C2026-03-31");
   });
 
   it("returns one row per (term, segment) sorted by term then segment when segmenting", async () => {

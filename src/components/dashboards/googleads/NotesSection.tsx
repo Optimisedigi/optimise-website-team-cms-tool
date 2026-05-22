@@ -11,7 +11,9 @@ interface NotesSectionProps {
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
-  return d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+  const day = d.getDate().toString();
+  const month = d.toLocaleDateString("en-AU", { month: "short" });
+  return `${day} ${month}`;
 }
 
 export function NotesSection({ notes: initialNotes, workDone, slug }: NotesSectionProps) {

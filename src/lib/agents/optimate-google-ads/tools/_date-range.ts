@@ -475,7 +475,7 @@ export function snapCustomToPreset(
 
 export function customRangeForGrowthTools(resolved: ResolvedRange): string {
   if (resolved.dateRange === "CUSTOM" && resolved.startDate && resolved.endDate) {
-    return `${resolved.startDate},${resolved.endDate}`;
+    return `custom:${resolved.startDate},${resolved.endDate}`;
   }
   return resolved.dateRange;
 }
