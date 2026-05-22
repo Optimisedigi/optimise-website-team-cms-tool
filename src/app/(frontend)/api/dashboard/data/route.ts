@@ -1,13 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateDashboardToken } from "../verify/route";
-import { resolveRange, customRangeForGrowthTools } from "@/lib/agents/optimate-google-ads/tools/_date-range";
+
+/**
+ * Dashboard data proxy.
+ *
+ * The Growth Tools `/api/google-ads/dashboard/:slug` endpoint speaks the CMS
+ * dashboard's own range vocabulary natively: snake_case preset slugs
+ * (`this_month`, `last_month`, `last_30_days`, `last_60_days`, `last_3_months`,
+ * `last_6_months`, `this_year`, `last_year`, `all_time`) plus a literal
+ * `custom:YYYY-MM-DD,YYYY-MM-DD` span. See Growth Tools' `parseCustomRange` /
+ * `dashboardRangeToGaql` in server/routes.ts.
+ *
+ * This route forwards the user's `range` query-string param through verbatim
+ * — NO normalisation, NO uppercasing, NO conversion to the agent-side
+ * resolver's vocabulary (which uses uppercase enums and `YYYY-MM-DD..YYYY-MM-DD`
+ * with two dots). It only validates the shape and falls back to `last_month`
+ * (the route's documented default) for unrecognised input, so malformed values
+ * never reach Growth Tools.
+ */
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
 const GROWTH_TOOLS_API_KEY = process.env.INTERNAL_API_KEY;
 
+const DEFAULT_RANGE = "last_month";
+
+const VALID_PRESETS = new Set<string>([
+  "this_month",
+  "last_month",
+  "last_30_days",
+  "last_60_days",
+  "last_3_months",
+  "last_6_months",
+  "this_year",
+  "last_year",
+  "all_time",
+]);
+
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Validate a CMS dashboard range string. Accepts the known preset slugs and
+ * `custom:YYYY-MM-DD,YYYY-MM-DD` where both dates are well-formed ISO dates
+ * and `end >= start`. Returns `DEFAULT_RANGE` for anything else, matching the
+ * existing fallback behaviour on the empty path.
+ */
+function validateRange(raw: string): string {
+  if (!raw) return DEFAULT_RANGE;
+  if (VALID_PRESETS.has(raw)) return raw;
+  if (raw.startsWith("custom:")) {
+    const body = raw.slice("custom:".length);
+    const parts = body.split(",");
+    if (parts.length !== 2) return DEFAULT_RANGE;
+    const start = parts[0].trim();
+    const end = parts[1].trim();
+    if (!YMD.test(start) || !YMD.test(end)) return DEFAULT_RANGE;
+    // Ensure the dates actually parse (rejects things like 2026-13-40).
+    const startMs = Date.parse(start);
+    const endMs = Date.parse(end);
+    if (Number.isNaN(startMs) || Number.isNaN(endMs)) return DEFAULT_RANGE;
+    if (end < start) return DEFAULT_RANGE;
+    return `custom:${start},${end}`;
+  }
+  return DEFAULT_RANGE;
+}
+
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
-  const rawRange = req.nextUrl.searchParams.get("range") || "last_month";
+  const rawRange = req.nextUrl.searchParams.get("range") || DEFAULT_RANGE;
   const customerId = req.nextUrl.searchParams.get("customerId") || "";
   const clientName = req.nextUrl.searchParams.get("clientName") || "";
   const brandKeywords = req.nextUrl.searchParams.get("brandKeywords") || "";
@@ -34,11 +93,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Normalise the CMS snake_case range values (e.g. "last_30_days",
-    // "last_week", "custom:2026-05-01,2026-05-10") into the formats Growth
-    // Tools understands: uppercase preset enums or "YYYY-MM-DD..YYYY-MM-DD".
-    const resolved = resolveRange(rawRange);
-    const range = customRangeForGrowthTools(resolved);
+    // Forward the CMS range vocabulary through verbatim to Growth Tools'
+    // `dashboardRangeToGaql`. Only validate shape; do NOT translate.
+    const range = validateRange(rawRange);
 
     // Strip dashes from customerId — Google Ads API uses dashless format (e.g. 9554935739)
     const cleanCustomerId = customerId.replace(/-/g, "");
