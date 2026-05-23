@@ -34,10 +34,13 @@ import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_f27ec21ed5917413961c1954b63a7552 } from '../../../components/GoogleAdsConversionActionPicker'
 import { default as default_fb5d37b90851b3851c29f4b754a04aca } from '../../../components/RunGoogleAdsAuditFromClientButton'
+import { default as default_f8ff81df36cdd226fcc591df68ba8486 } from '../../../components/ViewAccountStructureButton'
 import { default as default_1bf9b6022af35fb04791a726c14020b8 } from '../../../components/ClientBudgetManagementInline'
 import { default as default_6dfadcdca189a18cf07afd7b4bca75a0 } from '../../../components/OpenNegativeListBuilderButton'
+import { default as default_9a6fa17f5e805092dba3f3e2a06a6122 } from '../../../components/GoogleAdsMatchTypeVariants'
 import { default as default_d4ebfcd7dcd43ec537c0f248f26cef22 } from '../../../components/ViewGoogleDashboardButton'
 import { default as default_c48582730ce567b18023caac0e161ded } from '../../../components/RunNegativeSweepButton'
+import { default as default_27f33631b35cbfcb8b72da4ae6fd1e41 } from '../../../components/match-type-violations/MatchTypeMonitorToggle'
 import { default as default_522f40213ad4b7c13dfb4e9b8621e85b } from '../../../components/RunPerformanceReportButton'
 import { default as default_b0745460f96744dbbe5a3465bced6bcf } from '../../../components/ClientBlogPostsList'
 import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
@@ -119,7 +122,6 @@ import { default as default_b058368eb7c5859811170004e5dd59a8 } from '../../../co
 import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
 import { default as default_0a0f3b40e58f63623cf710a9f1c57a57 } from '../../../components/FeatureAccessPicker'
 import { default as default_3c9d8edcf144f9e259759d2b0c9c8270 } from '../../../components/match-type-violations/MatchTypeViolationReviewList'
-import { default as default_91bc4e1a7c6d25f5e9f8a3b2d1e7c4a } from '../../../components/match-type-violations/MatchTypeViolationReview'
 import { default as default_d7691cd6896b18804e19a29368edb888 } from '../../../components/ConnectSheetsButton'
 import { default as default_f7ce8484c2a04dac97a85c29cde49f11 } from '../../../components/ConnectCalendarButton'
 import { default as default_bdbf091e4ee4c8ba764b4f4e25a35525 } from '../../../components/SignaturePreviewField'
@@ -130,6 +132,7 @@ import { default as default_2539ed3128925d1e4131db1b637125cd } from '../../../co
 import { default as default_4a8985253bad55ee72042259cf28f1d7 } from '../../../components/UserDisplayName'
 import { default as default_5c16f7aa63b8992f2b26b1a5603015ac } from '../../../components/SidebarNavExtras'
 import { default as default_c22c6ded068ed0e94e9b6d1c50d7f3ee } from '../../../components/Dashboard'
+import { default as default_eb5cd6f7cefec95c7290c89d29030474 } from '../../../components/AdminNavSetup'
 import { default as default_cc474ecbeaf676f497427d66a0f4dd38 } from '../../../components/SidebarLogo'
 import { default as default_33065b9984d3bdded8a6f86ee55a36a3 } from '../../../components/ViewportMeta'
 import { default as default_e04f18ecb5b37d25b0e6d09a3fc98708 } from '../../../components/RocketLoader'
@@ -141,7 +144,6 @@ import { default as default_2e2d792095b9faaa93311c4bd3638e8e } from '../../../co
 import { default as default_8c91d6ed757c0622a0f1976e63b1d36b } from '../../../components/PayloadShiftSelect'
 import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
 import { default as default_54545d17487007f83f65ecb3f857577d } from '../../../components/RoleBodyClass'
-import { default as default_a1b2c3d4e5f678901234567890123456 } from '../../../components/AdminNavSetup'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
@@ -182,10 +184,13 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/GoogleAdsConversionActionPicker#default": default_f27ec21ed5917413961c1954b63a7552,
   "./components/RunGoogleAdsAuditFromClientButton#default": default_fb5d37b90851b3851c29f4b754a04aca,
+  "./components/ViewAccountStructureButton#default": default_f8ff81df36cdd226fcc591df68ba8486,
   "./components/ClientBudgetManagementInline#default": default_1bf9b6022af35fb04791a726c14020b8,
   "./components/OpenNegativeListBuilderButton#default": default_6dfadcdca189a18cf07afd7b4bca75a0,
+  "./components/GoogleAdsMatchTypeVariants#default": default_9a6fa17f5e805092dba3f3e2a06a6122,
   "./components/ViewGoogleDashboardButton#default": default_d4ebfcd7dcd43ec537c0f248f26cef22,
   "./components/RunNegativeSweepButton#default": default_c48582730ce567b18023caac0e161ded,
+  "./components/match-type-violations/MatchTypeMonitorToggle#default": default_27f33631b35cbfcb8b72da4ae6fd1e41,
   "./components/RunPerformanceReportButton#default": default_522f40213ad4b7c13dfb4e9b8621e85b,
   "./components/ClientBlogPostsList#default": default_b0745460f96744dbbe5a3465bced6bcf,
   "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
@@ -267,7 +272,6 @@ export const importMap = {
   "./components/BusinessCostsListView#default": default_6f9be25dea842550674d5a5331ed4ffe,
   "./components/FeatureAccessPicker#default": default_0a0f3b40e58f63623cf710a9f1c57a57,
   "./components/match-type-violations/MatchTypeViolationReviewList#default": default_3c9d8edcf144f9e259759d2b0c9c8270,
-  "./components/match-type-violations/MatchTypeViolationReview#default": default_91bc4e1a7c6d25f5e9f8a3b2d1e7c4a,
   "./components/ConnectSheetsButton#default": default_d7691cd6896b18804e19a29368edb888,
   "./components/ConnectCalendarButton#default": default_f7ce8484c2a04dac97a85c29cde49f11,
   "/components/SignaturePreviewField#default": default_bdbf091e4ee4c8ba764b4f4e25a35525,
@@ -278,6 +282,7 @@ export const importMap = {
   "./components/UserDisplayName#default": default_4a8985253bad55ee72042259cf28f1d7,
   "./components/SidebarNavExtras#default": default_5c16f7aa63b8992f2b26b1a5603015ac,
   "./components/Dashboard#default": default_c22c6ded068ed0e94e9b6d1c50d7f3ee,
+  "./components/AdminNavSetup#default": default_eb5cd6f7cefec95c7290c89d29030474,
   "./components/SidebarLogo#default": default_cc474ecbeaf676f497427d66a0f4dd38,
   "./components/ViewportMeta#default": default_33065b9984d3bdded8a6f86ee55a36a3,
   "./components/RocketLoader#default": default_e04f18ecb5b37d25b0e6d09a3fc98708,
@@ -289,7 +294,6 @@ export const importMap = {
   "./components/PayloadShiftSelect#default": default_8c91d6ed757c0622a0f1976e63b1d36b,
   "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
   "./components/RoleBodyClass#default": default_54545d17487007f83f65ecb3f857577d,
-  "./components/AdminNavSetup#default": default_a1b2c3d4e5f678901234567890123456,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

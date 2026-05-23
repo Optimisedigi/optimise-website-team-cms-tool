@@ -6,20 +6,12 @@ export const ConsolidationCandidates: CollectionConfig = {
   labels: { singular: "Consolidation Candidate", plural: "Consolidation Candidates" },
   admin: {
     group: "Growth Tools",
-    hidden: false,
+    hidden: true,
     useAsTitle: "phraseCandidate",
     description:
       "Proposed phrase negatives to consolidate multiple exact negatives when a negative keyword list approaches the 5,000 limit. Created automatically by the cron; approved/rejected by the team.",
     listSearchableFields: ["phraseCandidate", "nklName"],
-    defaultColumns: [
-      "phraseCandidate",
-      "client",
-      "nkl",
-      "exactCount",
-      "overlapRisk",
-      "status",
-      "createdAt",
-    ],
+    defaultColumns: ["phraseCandidate", "exactCount", "overlapRisk", "status"],
   },
   access: {
     ...globalAccess("clients"),

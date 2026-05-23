@@ -9,6 +9,7 @@ export const MatchTypeViolationCandidates: CollectionConfig = {
   },
   admin: {
     group: "Growth Tools",
+    hidden: true,
     defaultColumns: [
       "client",
       "searchTerm",

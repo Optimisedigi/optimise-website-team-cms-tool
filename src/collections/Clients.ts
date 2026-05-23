@@ -1713,6 +1713,18 @@ export const Clients: CollectionConfig = {
               },
             },
 
+            // ─ Match Type Variants + Consolidation Review ─
+            {
+              name: "googleAdsMatchTypeVariants",
+              type: "ui",
+              admin: {
+                condition: (data: any) => !!data?.googleAdsCustomerId,
+                components: {
+                  Field: "./components/GoogleAdsMatchTypeVariants",
+                },
+              },
+            },
+
             // ─ Negative Keyword Submits ─
             // Created from the dashboard's Keyword Deep Dive tool when a
             // client clicks "Save for Review". Reviewed by the team and

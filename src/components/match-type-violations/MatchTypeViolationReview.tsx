@@ -154,7 +154,11 @@ function btnStyle(variant: 'primary' | 'ghost', disabled?: boolean): React.CSSPr
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function MatchTypeViolationReview() {
+export default function MatchTypeViolationReview({
+  initialClientId,
+}: {
+  initialClientId?: string
+}) {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [totalDocs, setTotalDocs] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -162,7 +166,7 @@ export default function MatchTypeViolationReview() {
   const [syncRunCount, setSyncRunCount] = useState<number | null>(null)
 
   // Filters
-  const [filterClient, setFilterClient] = useState('')
+  const [filterClient, setFilterClient] = useState(initialClientId ?? '')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterMatchType, setFilterMatchType] = useState('')
   const [filterViolationType, setFilterViolationType] = useState('')
@@ -351,10 +355,12 @@ export default function MatchTypeViolationReview() {
         display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap',
         padding: '12px 16px', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb',
       }}>
-        <select value={filterClient} onChange={(e) => { setFilterClient(e.target.value); setPage(1) }}
-          style={filterStyle()}>
-          <option value="">All Clients</option>
-        </select>
+        {!initialClientId && (
+          <select value={filterClient} onChange={(e) => { setFilterClient(e.target.value); setPage(1) }}
+            style={filterStyle()}>
+            <option value="">All Clients</option>
+          </select>
+        )}
         <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }}
           style={filterStyle()}>
           <option value="">All Statuses</option>
@@ -374,9 +380,10 @@ export default function MatchTypeViolationReview() {
           <option value="exact_close_variant">Exact Close Variant</option>
           <option value="phrase_missing_word">Phrase Missing Word</option>
         </select>
-        {(filterClient || filterStatus || filterMatchType || filterViolationType) && (
+        {((!initialClientId && filterClient) || filterStatus || filterMatchType || filterViolationType) && (
           <button onClick={() => {
-            setFilterClient(''); setFilterStatus(''); setFilterMatchType('')
+            if (!initialClientId) setFilterClient('')
+            setFilterStatus(''); setFilterMatchType('')
             setFilterViolationType(''); setPage(1)
           }} style={{ ...btnStyle('ghost'), fontSize: 12 }}>
             Clear Filters
