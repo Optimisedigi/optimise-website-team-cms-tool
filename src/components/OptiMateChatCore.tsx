@@ -1019,7 +1019,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           />
           {authStatus.label}
         </a>
-        <OptiMateToolsHelp compact={compact} />
+        {!compact && <OptiMateToolsHelp compact={compact} />}
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <button
             type="button"

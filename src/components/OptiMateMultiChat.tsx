@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react'
 import OptiMateChatCore, { type OptiMateChatCoreHandle } from './OptiMateChatCore'
 import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
+import OptiMateToolsHelp from './OptiMateToolsHelp'
 
 export interface OptiMateChatTarget {
   id: string | number
@@ -164,6 +165,9 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
           >
             {t.businessName || t.customerId}
           </div>
+          <div style={{ marginLeft: 'auto', padding: '3px 2px 0 8px', flexShrink: 0 }}>
+            <OptiMateToolsHelp compact={compact} />
+          </div>
         </div>
         <div style={{ flex: 1, minHeight: 0 }}>
           <OptiMateChatCore
@@ -219,6 +223,9 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
             </button>
           )
         })}
+        <div style={{ marginLeft: 'auto', padding: '3px 2px 0 8px', flexShrink: 0 }}>
+          <OptiMateToolsHelp compact={compact} />
+        </div>
       </div>
 
       {/* Render every ChatCore but show only the active one. Mounting all of
