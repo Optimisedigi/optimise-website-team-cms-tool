@@ -28,10 +28,20 @@ interface CatalogCategory {
   tools: CatalogTool[]
 }
 
+interface GoalCatalogItem {
+  key: string
+  label: string
+  status: 'available' | 'paused' | 'limited'
+  description: string
+  caveat: string
+}
+
 interface CatalogResponse {
   agent: string
   toolCount: number
+  goalCount?: number
   categories: CatalogCategory[]
+  goals?: GoalCatalogItem[]
 }
 
 interface OptiMateToolsHelpProps {
@@ -95,26 +105,28 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
           if (!open) load()
           setOpen((v) => !v)
         }}
-        title="What can OptiMate do?"
-        aria-label="Tool capabilities"
+        title="What goals and tools can OptiMate use?"
+        aria-label="Goal and tool capabilities"
         style={{
-          width: 22,
           height: 22,
-          padding: 0,
-          fontSize: 12,
+          padding: compact ? '0 7px' : '0 9px',
+          fontSize: 11,
           lineHeight: 1,
           background: open ? '#e0e7ff' : '#f3f4f6',
           border: '1px solid #e5e7eb',
-          borderRadius: '50%',
+          borderRadius: 999,
           cursor: 'pointer',
           color: '#374151',
-          fontWeight: 600,
+          fontWeight: 700,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
+          gap: 4,
+          whiteSpace: 'nowrap',
         }}
       >
-        ?
+        <span aria-hidden="true">⚑</span>
+        <span>{compact ? 'Goals' : 'Goals & tools'}</span>
       </button>
       {open && (
         <div
@@ -139,7 +151,7 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
             </div>
             {data && (
               <div style={{ fontSize: 11, color: '#6b7280' }}>
-                {data.toolCount} tool{data.toolCount === 1 ? '' : 's'}
+                {data.toolCount} tool{data.toolCount === 1 ? '' : 's'} · {data.goalCount ?? data.goals?.length ?? 0} goal{(data.goalCount ?? data.goals?.length ?? 0) === 1 ? '' : 's'}
               </div>
             )}
           </div>
@@ -149,6 +161,71 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
           )}
           {error && (
             <div style={{ padding: 8, fontSize: 12, color: '#b91c1c' }}>{error}</div>
+          )}
+
+          {data && data.goals && data.goals.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: '#4f46e5',
+                    display: 'inline-block',
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#1f2937' }}>Registered goal agents</div>
+                <div style={{ fontSize: 10, color: '#9ca3af' }}>· {data.goals.length}</div>
+              </div>
+              <div style={{ fontSize: 10.5, color: '#6b7280', marginBottom: 6, marginLeft: 16, lineHeight: 1.4 }}>
+                Autonomous optimisation loops OptiMate can queue or report on.
+              </div>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                {data.goals.map((goal) => {
+                  const tone = goal.status === 'available'
+                    ? { bg: '#dcfce7', color: '#166534', label: 'AVAILABLE' }
+                    : goal.status === 'limited'
+                      ? { bg: '#fef3c7', color: '#92400e', label: 'LIMITED' }
+                      : { bg: '#fee2e2', color: '#991b1b', label: 'PAUSED' }
+                  return (
+                    <li
+                      key={goal.key}
+                      style={{
+                        padding: '7px 8px',
+                        borderRadius: 6,
+                        background: '#f8fafc',
+                        marginBottom: 4,
+                        border: '1px solid #eef2ff',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{goal.label}</span>
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            color: tone.color,
+                            background: tone.bg,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            letterSpacing: 0.3,
+                          }}
+                        >
+                          {tone.label}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.45 }}>{goal.description}</div>
+                      <div style={{ fontSize: 10.5, color: '#6b7280', marginTop: 3, lineHeight: 1.4 }}>{goal.caveat}</div>
+                      <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                        {goal.key}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
           )}
 
           {data && data.categories.map((cat) => (
