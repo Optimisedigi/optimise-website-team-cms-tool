@@ -134,17 +134,17 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
       {open && (
         <div
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 6px)',
-            right: 0,
-            width: compact ? 320 : 420,
-            maxHeight: 480,
+            position: compact ? 'fixed' : 'absolute',
+            top: compact ? 96 : 'calc(100% + 6px)',
+            right: compact ? 18 : 0,
+            width: compact ? 'min(340px, calc(100vw - 36px))' : 420,
+            maxHeight: compact ? 'min(520px, calc(100vh - 128px))' : 480,
             overflowY: 'auto',
             background: '#fff',
             border: '1px solid #e5e7eb',
             borderRadius: 10,
-            boxShadow: '0 10px 30px rgba(0,0,0,0.14)',
-            zIndex: 60,
+            boxShadow: '0 18px 50px rgba(0,0,0,0.24)',
+            zIndex: 2147483647,
             padding: 14,
           }}
         >
