@@ -51,6 +51,11 @@ interface OptiMateToolsHelpProps {
   compact?: boolean
 }
 
+function plainSentence(text: string): string {
+  const firstSentence = text.split(/(?<=[.!?])\s+/)[0]?.trim()
+  return firstSentence || text.trim()
+}
+
 const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: OptiMateToolsHelpProps) => {
   const [open, setOpen] = useState(false)
   const [data, setData] = useState<CatalogResponse | null>(null)
@@ -179,9 +184,6 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#1f2937' }}>Registered goal agents</div>
                 <div style={{ fontSize: 10, color: '#9ca3af' }}>· {data.goals.length}</div>
               </div>
-              <div style={{ fontSize: 10.5, color: '#6b7280', marginBottom: 6, marginLeft: 16, lineHeight: 1.4 }}>
-                Autonomous optimisation loops OptiMate can queue or report on.
-              </div>
               <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
                 {data.goals.map((goal) => {
                   const tone = goal.status === 'available'
@@ -216,10 +218,8 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
                           {tone.label}
                         </span>
                       </div>
-                      <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.45 }}>{goal.description}</div>
-                      <div style={{ fontSize: 10.5, color: '#6b7280', marginTop: 3, lineHeight: 1.4 }}>{goal.caveat}</div>
-                      <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
-                        {goal.key}
+                      <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.45 }}>
+                        {plainSentence(goal.description)}
                       </div>
                     </li>
                   )
@@ -243,9 +243,6 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
                 />
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#1f2937' }}>{cat.label}</div>
                 <div style={{ fontSize: 10, color: '#9ca3af' }}>·  {cat.tools.length}</div>
-              </div>
-              <div style={{ fontSize: 10.5, color: '#6b7280', marginBottom: 6, marginLeft: 16, lineHeight: 1.4 }}>
-                {cat.blurb}
               </div>
               <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
                 {cat.tools.map((t) => (
@@ -281,9 +278,8 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.45 }}>{t.description}</div>
-                      <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
-                        {t.name}
+                      <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.45 }}>
+                        {plainSentence(t.description)}
                       </div>
                     </div>
                   </li>
@@ -293,7 +289,7 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
           ))}
 
           <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 8, marginTop: 4, fontSize: 10, color: '#9ca3af', lineHeight: 1.5 }}>
-            <strong style={{ color: '#6b7280' }}>PROPOSE</strong> tools never apply changes directly — they queue a row in the approval queue for human review.
+            Approval-gated capabilities queue a review item before anything changes live.
           </div>
         </div>
       )}
