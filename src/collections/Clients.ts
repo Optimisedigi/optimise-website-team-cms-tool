@@ -1650,6 +1650,22 @@ export const Clients: CollectionConfig = {
                 },
               },
             },
+
+            // ─ View Account Structure (Figma-style live visual) ─
+            // Opens /client/<slug>/google-ads/account-structure in a new tab.
+            // The button only renders when both slug and googleAdsCustomerId
+            // exist (destination page 404s otherwise).
+            {
+              name: "viewAccountStructure",
+              type: "ui",
+              admin: {
+                condition: (data: any) => !!data?.googleAdsCustomerId,
+                components: {
+                  Field: "./components/ViewAccountStructureButton",
+                },
+              },
+            },
+
             {
               name: "googleAdsAudits",
               type: "join",

@@ -14,6 +14,7 @@ import { CompetitorAnalysis } from "./CompetitorAnalysis";
 import { ActivityStats } from "./ActivityStats";
 import { QualityScoreTab } from "./QualityScoreTab";
 import { ProgressTab } from "./ProgressTab";
+import { AccountStructureTab } from "./AccountStructureTab";
 
 interface GoogleAdsDashboardProps {
   data: GoogleAdsDashboardData;
@@ -63,7 +64,7 @@ const DEEP_DIVE_RANGE_OPTIONS = [
   { value: "last_6_months", label: "Last 6 months" },
 ] as const;
 
-type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress";
+type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress" | "accountStructure";
 
 export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions, phoneCallActions, formSubmitActions, conversionActionCategories, clientId, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
@@ -771,6 +772,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
             { key: "competitors" as Tab, label: "Competitor Analysis" },
             { key: "keywords" as Tab, label: "Keyword Deep Dive" },
             { key: "quality" as Tab, label: "Quality Score" },
+            { key: "accountStructure" as Tab, label: "Account Structure View" },
           ]).map((tab) => (
             <button
               key={tab.key}
@@ -935,6 +937,14 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 Quality score data is not available yet.
               </p>
             )
+          )}
+
+          {activeTab === "accountStructure" && data.slug && (
+            <AccountStructureTab
+              slug={data.slug}
+              clientName={data.clientName ?? data.slug}
+              googleAdsCustomerId={data.customerId ?? null}
+            />
           )}
         </div>
 
