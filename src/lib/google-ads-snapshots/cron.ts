@@ -26,6 +26,7 @@ import { getPayload, type Payload, type Where } from "payload";
 
 import config from "@/payload.config";
 
+import type { BidStrategyType } from "../dashboard-types";
 import type {
   AdGroupSnapshotRow,
   CampaignSnapshotRow,
@@ -175,6 +176,39 @@ function normaliseMatchType(raw: unknown): MatchType {
   return "UNKNOWN";
 }
 
+/**
+ * Map a Growth Tools `biddingStrategyType` (Google Ads enum name) to the
+ * CMS-internal BidStrategyType union. Mirrors the mapper in
+ * src/app/(frontend)/api/google-ads-budgets/[id]/list/route.ts:116 so the
+ * snapshot and the budget collection agree on the strategy spelling.
+ *
+ * Returns null when the input is missing or unrecognised — callers leave
+ * `bidStrategy` undefined on the snapshot row in that case so downstream
+ * agents can stand down rather than guess.
+ */
+function mapBidStrategy(raw: unknown): BidStrategyType | null {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  const upper = raw.trim().toUpperCase();
+  const map: Record<string, BidStrategyType> = {
+    MANUAL_CPC: "manual_cpc",
+    MAXIMIZE_CONVERSIONS: "maximize_conversions",
+    MAXIMIZE_CONVERSION_VALUE: "maximize_conversion_value",
+    TARGET_CPA: "target_cpa",
+    TARGET_ROAS: "target_roas",
+    TARGET_IMPRESSION_SHARE: "target_impressions",
+    MAXIMIZE_CLICKS: "maximize_clicks",
+  };
+  return map[upper] ?? null;
+}
+
+/** Numeric coercion that returns undefined for non-finite values — used for
+ * optional snapshot fields where 0 is meaningfully different from "missing". */
+function optionalNumber(v: unknown): number | undefined {
+  if (v === null || v === undefined || v === "") return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -208,6 +242,23 @@ interface RawCampaignMetric {
   impressions?: unknown;
   clicks?: unknown;
   conversions?: unknown;
+  // Impression-share fields (Growth Tools campaign-metrics endpoint).
+  searchImpressionShare?: unknown;
+  searchBudgetLostIS?: unknown;
+  searchBudgetLostImpressionShare?: unknown;
+  searchRankLostIS?: unknown;
+  searchRankLostImpressionShare?: unknown;
+  // Bid-strategy fields (mirror campaign-list response shape).
+  biddingStrategyType?: unknown;
+  bidStrategy?: unknown;
+  biddingStrategyId?: unknown;
+  bidStrategyId?: unknown;
+  targetCpaMicros?: unknown;
+  targetCpa?: unknown;
+  targetRoas?: unknown;
+  targetImpressionShare?: unknown;
+  maxCpcCeilingMicros?: unknown;
+  maxCpcCeilingBidMicros?: unknown;
 }
 
 interface RawCampaignEnvelope extends GrowthEnvelope {
@@ -243,7 +294,8 @@ export async function fetchCampaignLevel(
     const clicks = numberOr(m.clicks);
     const impressions = numberOr(m.impressions);
     const conversions = numberOr(m.conversions);
-    rows.push({
+
+    const row: CampaignSnapshotRow = {
       campaignId,
       name: stringOr(m.campaignName, campaignId),
       status: stringOr(m.status, "UNKNOWN"),
@@ -253,7 +305,41 @@ export async function fetchCampaignLevel(
       conversions: round2(conversions),
       ctr: impressions > 0 ? round2((clicks / impressions) * 100) : 0,
       cpa: conversions > 0 ? round2(spend / conversions) : null,
-    });
+    };
+
+    // Impression-share (Gap 1). Growth Tools exposes both short and verbose
+    // field names; accept either. All values are 0-100 percentages.
+    const sis = optionalNumber(m.searchImpressionShare);
+    if (sis !== undefined) row.searchImpressionShare = round2(sis);
+    const sbls = optionalNumber(
+      m.searchBudgetLostIS ?? m.searchBudgetLostImpressionShare,
+    );
+    if (sbls !== undefined) row.searchBudgetLostIS = round2(sbls);
+    const srls = optionalNumber(
+      m.searchRankLostIS ?? m.searchRankLostImpressionShare,
+    );
+    if (srls !== undefined) row.searchRankLostIS = round2(srls);
+
+    // Bid strategy (Gap 2).
+    const strategy = mapBidStrategy(m.biddingStrategyType ?? m.bidStrategy);
+    if (strategy) row.bidStrategy = strategy;
+    const bidStrategyId = stringOr(m.biddingStrategyId ?? m.bidStrategyId);
+    if (bidStrategyId) row.bidStrategyId = bidStrategyId;
+    const targetCpaMicros = optionalNumber(m.targetCpaMicros);
+    if (targetCpaMicros !== undefined) row.targetCpaMicros = targetCpaMicros;
+    else {
+      // Some Growth Tools responses report targetCpa as dollars; convert.
+      const targetCpa = optionalNumber(m.targetCpa);
+      if (targetCpa !== undefined) row.targetCpaMicros = Math.round(targetCpa * 1_000_000);
+    }
+    const targetRoas = optionalNumber(m.targetRoas);
+    if (targetRoas !== undefined) row.targetRoas = targetRoas;
+    const targetImpressionShare = optionalNumber(m.targetImpressionShare);
+    if (targetImpressionShare !== undefined) row.targetImpressionShare = round2(targetImpressionShare);
+    const maxCpcCeilingMicros = optionalNumber(m.maxCpcCeilingMicros ?? m.maxCpcCeilingBidMicros);
+    if (maxCpcCeilingMicros !== undefined) row.maxCpcCeilingMicros = maxCpcCeilingMicros;
+
+    rows.push(row);
   }
 
   return {
@@ -348,6 +434,11 @@ interface RawAdGroup {
   conversions?: unknown;
   cost?: unknown;
   spend?: unknown;
+  searchImpressionShare?: unknown;
+  searchBudgetLostIS?: unknown;
+  searchBudgetLostImpressionShare?: unknown;
+  searchRankLostIS?: unknown;
+  searchRankLostImpressionShare?: unknown;
 }
 
 interface RawAdGroupEnvelope extends GrowthEnvelope {
@@ -384,7 +475,7 @@ export async function fetchAdGroupLevel(
     const ag = item as RawAdGroup;
     const adGroupId = stringOr(ag.adGroupId ?? ag.id);
     if (!adGroupId) continue;
-    rows.push({
+    const row: AdGroupSnapshotRow = {
       adGroupId,
       campaignId: stringOr(ag.campaignId),
       name: stringOr(ag.adGroupName ?? ag.name, adGroupId),
@@ -393,7 +484,18 @@ export async function fetchAdGroupLevel(
       clicks: numberOr(ag.clicks),
       impressions: numberOr(ag.impressions),
       conversions: round2(numberOr(ag.conversions)),
-    });
+    };
+    const sis = optionalNumber(ag.searchImpressionShare);
+    if (sis !== undefined) row.searchImpressionShare = round2(sis);
+    const sbls = optionalNumber(
+      ag.searchBudgetLostIS ?? ag.searchBudgetLostImpressionShare,
+    );
+    if (sbls !== undefined) row.searchBudgetLostIS = round2(sbls);
+    const srls = optionalNumber(
+      ag.searchRankLostIS ?? ag.searchRankLostImpressionShare,
+    );
+    if (srls !== undefined) row.searchRankLostIS = round2(srls);
+    rows.push(row);
   }
 
   return {

@@ -45,6 +45,7 @@ export interface SpendPolicy {
   acceptableVariancePercentHigh: number;
   hardFloor: number | null;
   hardCeiling: number | null;
+  conversionTrackingEnabledFrom: string | null;
 }
 
 export interface AccountHealthContract {
@@ -100,6 +101,8 @@ function buildSpendPolicy(raw: Client["spendPolicy"]): SpendPolicy {
     typeof sp.hardFloor === "number" ? sp.hardFloor : null;
   const hardCeiling: number | null =
     typeof sp.hardCeiling === "number" ? sp.hardCeiling : null;
+  const conversionTrackingEnabledFrom: string | null =
+    typeof sp.conversionTrackingEnabledFrom === "string" ? sp.conversionTrackingEnabledFrom : null;
   return {
     pacingMode,
     pacingWindow,
@@ -108,6 +111,7 @@ function buildSpendPolicy(raw: Client["spendPolicy"]): SpendPolicy {
     acceptableVariancePercentHigh,
     hardFloor,
     hardCeiling,
+    conversionTrackingEnabledFrom,
   };
 }
 

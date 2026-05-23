@@ -70,6 +70,12 @@ import * as migration_20260528_120000_add_client_discovery_briefings from './202
 import * as migration_20260529_120000_drop_proposal_discovery_notes from './20260529_120000_drop_proposal_discovery_notes';
 import * as migration_20260530_120000_add_discovery_briefing_require_pin from './20260530_120000_add_discovery_briefing_require_pin';
 import * as migration_20260531_120000_sync_locked_docs_rels from './20260531_120000_sync_locked_docs_rels';
+import * as migration_20260601_120000_add_goal_runs_scheduler_fields from './20260601_120000_add_goal_runs_scheduler_fields';
+import * as migration_20260602_120000_add_match_type_violation_tables from './20260602_120000_add_match_type_violation_tables';
+import * as migration_20260603_120000_add_goal_runs_parameters from './20260603_120000_add_goal_runs_parameters';
+import * as migration_20260604_120000_add_goal_risk_tiers_and_seed from './20260604_120000_add_goal_risk_tiers_and_seed';
+import * as migration_20260605_120000_add_conversion_tracking_enabled_from from './20260605_120000_add_conversion_tracking_enabled_from';
+import * as migration_20260605_130000_seed_account_efficiency_pause_risk_tiers from './20260605_130000_seed_account_efficiency_pause_risk_tiers';
 
 export const migrations = [
   {
@@ -431,5 +437,35 @@ export const migrations = [
     up: migration_20260531_120000_sync_locked_docs_rels.up,
     down: migration_20260531_120000_sync_locked_docs_rels.down,
     name: '20260531_120000_sync_locked_docs_rels'
+  },
+  {
+    up: migration_20260601_120000_add_goal_runs_scheduler_fields.up,
+    down: migration_20260601_120000_add_goal_runs_scheduler_fields.down,
+    name: '20260601_120000_add_goal_runs_scheduler_fields'
+  },
+  {
+    up: migration_20260602_120000_add_match_type_violation_tables.up,
+    down: migration_20260602_120000_add_match_type_violation_tables.down,
+    name: '20260602_120000_add_match_type_violation_tables'
+  },
+  {
+    up: migration_20260603_120000_add_goal_runs_parameters.up,
+    down: migration_20260603_120000_add_goal_runs_parameters.down,
+    name: '20260603_120000_add_goal_runs_parameters'
+  },
+  {
+    up: migration_20260604_120000_add_goal_risk_tiers_and_seed.up,
+    down: migration_20260604_120000_add_goal_risk_tiers_and_seed.down,
+    name: '20260604_120000_add_goal_risk_tiers_and_seed'
+  },
+  {
+    up: migration_20260605_120000_add_conversion_tracking_enabled_from.up,
+    down: migration_20260605_120000_add_conversion_tracking_enabled_from.down,
+    name: '20260605_120000_add_conversion_tracking_enabled_from'
+  },
+  {
+    up: migration_20260605_130000_seed_account_efficiency_pause_risk_tiers.up,
+    down: migration_20260605_130000_seed_account_efficiency_pause_risk_tiers.down,
+    name: '20260605_130000_seed_account_efficiency_pause_risk_tiers'
   },
 ];

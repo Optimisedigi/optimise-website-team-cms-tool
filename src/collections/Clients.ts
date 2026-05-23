@@ -2193,6 +2193,17 @@ export const Clients: CollectionConfig = {
                     },
                   ],
                 },
+                {
+                  name: "conversionTrackingEnabledFrom",
+                  type: "date",
+                  admin: {
+                    date: {
+                      pickerAppearance: "dayOnly",
+                    },
+                    description:
+                      "Date conversion tracking became reliable for this account. Zero-conversion pause detectors stand down when this is blank or too recent.",
+                  },
+                },
               ],
             },
             {

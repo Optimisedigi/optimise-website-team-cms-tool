@@ -35,6 +35,7 @@ const fullPolicyClient = {
     acceptableVariancePercentHigh: 110,
     hardFloor: 40000,
     hardCeiling: 60000,
+    conversionTrackingEnabledFrom: "2026-04-01T00:00:00.000Z",
   },
   protectedCampaignIds: [
     { campaignId: " 111 " },
@@ -126,6 +127,7 @@ describe("getAccountHealthContract", () => {
       acceptableVariancePercentHigh: 110,
       hardFloor: 40000,
       hardCeiling: 60000,
+      conversionTrackingEnabledFrom: "2026-04-01T00:00:00.000Z",
     });
     expect(result!.hasPolicy).toBe(true);
   });

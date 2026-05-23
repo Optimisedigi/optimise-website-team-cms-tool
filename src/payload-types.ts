@@ -813,7 +813,7 @@ export interface Client {
      */
     negativeSweepSheetUrl?: string | null;
     /**
-     * Enable match type violation monitoring — flags exact/phrase keywords that served non-conforming search terms
+     * Enable daily match type violation monitoring (runs ~17:00 UTC). Flags Exact/Phrase keywords that served non-conforming search terms. Review candidates in Growth Tools → Match Type Violations.
      */
     matchTypeMonitorEnabled?: boolean | null;
     /**
@@ -927,6 +927,10 @@ export interface Client {
      * Optional. Goal agents must NEVER let monthly spend exceed this.
      */
     hardCeiling?: number | null;
+    /**
+     * Date conversion tracking became reliable for this account. Zero-conversion pause detectors stand down when this is blank or too recent.
+     */
+    conversionTrackingEnabledFrom?: string | null;
   };
   /**
    * Google Ads campaign IDs that goal agents must never modify. Brand campaigns, must-not-touch evergreen builds, etc.
@@ -6046,13 +6050,17 @@ export interface ActivityLog {
     | 'serp_displacement_snapshot_created'
     | 'serp_displacement_alert_created'
     | 'google_ads_budget_pushed'
+    | 'google_ads_anomaly_detected'
     | 'agent_approval_approved'
     | 'agent_approval_rejected'
     | 'agent_tool_call'
     | 'agent_reasoning'
     | 'agent_final_output'
     | 'agent_error'
-    | 'agent_auth_event';
+    | 'agent_auth_event'
+    | 'match_type_violation_sync'
+    | 'match_type_violation_approved'
+    | 'match_type_violation_rejected';
   title: string;
   description?: string | null;
   /**
@@ -6825,7 +6833,8 @@ export interface Notification {
     | 'contract-annual-review-11.5mo'
     | 'invoice-statements-ready'
     | 'agent-approval-pending'
-    | 'consolidation-pending';
+    | 'consolidation-pending'
+    | 'goal-run-escalation';
   title: string;
   /**
    * Short summary line.
@@ -6842,6 +6851,10 @@ export interface Notification {
    */
   relatedApproval?: (number | null) | AgentApprovalQueue;
   /**
+   * Links the notification to the goal-runs row that triggered the escalation.
+   */
+  relatedGoalRun?: (number | null) | GoalRun;
+  /**
    * Links the notification to a consolidation-candidate row. Used to bulk-clear bell rows when any admin actions the candidate.
    */
   relatedConsolidationCandidate?: (number | null) | ConsolidationCandidate;
@@ -6849,6 +6862,73 @@ export interface Notification {
    * When the recipient dismissed or clicked the notification. Null until then.
    */
   readAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * One execution of a goal agent against a client — individual decisions stored in goal-run-snapshots.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "goal-runs".
+ */
+export interface GoalRun {
+  id: number;
+  /**
+   * Client this goal run is targeting
+   */
+  client: number | Client;
+  /**
+   * Goal identifier, e.g. "search-term-waste-reducer", "ad-ctr-improver"
+   */
+  goal: string;
+  /**
+   * Current state in the goal-run lifecycle
+   */
+  status:
+    | 'awaiting_data'
+    | 'analysing'
+    | 'pending_approval'
+    | 'executing'
+    | 'measuring'
+    | 'complete'
+    | 'failed'
+    | 'blocked';
+  /**
+   * Highest risk tier encountered in this run — set as decisions are recorded
+   */
+  tier?: ('green' | 'yellow' | 'red') | null;
+  /**
+   * When the scheduler should next process this run. Null means no scheduled check.
+   */
+  nextCheckAt?: string | null;
+  /**
+   * Earliest time the next mutation is allowed after the most recent action. Used by the scheduler to enforce cadence cooldowns.
+   */
+  coolingOffUntil?: string | null;
+  /**
+   * How many full observe→act→measure cycles this run has completed.
+   */
+  iterationsCount: number;
+  /**
+   * When the run reached complete / failed / blocked
+   */
+  completedAt?: string | null;
+  /**
+   * Populated when status = failed. Top-level error from the goal runtime.
+   */
+  error?: string | null;
+  /**
+   * Per-run knobs supplied at create time (e.g. targetImprovementPercent, enabledLevers, observationDays). Read by the goal-type handler each tick; never mutated by the runtime. JSON-serialisable.
+   */
+  parameters?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -6976,49 +7056,6 @@ export interface MatchTypeSyncState {
    * ISO timestamp of last successful cron run
    */
   lastRunAt: string;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * One execution of a goal agent against a client — individual decisions stored in goal-run-snapshots.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "goal-runs".
- */
-export interface GoalRun {
-  id: number;
-  /**
-   * Client this goal run is targeting
-   */
-  client: number | Client;
-  /**
-   * Goal identifier, e.g. "search-term-waste-reducer", "ad-ctr-improver"
-   */
-  goal: string;
-  /**
-   * Current state in the goal-run lifecycle
-   */
-  status:
-    | 'awaiting_data'
-    | 'analysing'
-    | 'pending_approval'
-    | 'executing'
-    | 'measuring'
-    | 'complete'
-    | 'failed'
-    | 'blocked';
-  /**
-   * Highest risk tier encountered in this run — set as decisions are recorded
-   */
-  tier?: ('green' | 'yellow' | 'red') | null;
-  /**
-   * When the run reached complete / failed / blocked
-   */
-  completedAt?: string | null;
-  /**
-   * Populated when status = failed. Top-level error from the goal runtime.
-   */
-  error?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -9564,6 +9601,7 @@ export interface NotificationsSelect<T extends boolean = true> {
   relatedContract?: T;
   relatedClient?: T;
   relatedApproval?: T;
+  relatedGoalRun?: T;
   relatedConsolidationCandidate?: T;
   readAt?: T;
   updatedAt?: T;
@@ -9650,8 +9688,12 @@ export interface GoalRunsSelect<T extends boolean = true> {
   goal?: T;
   status?: T;
   tier?: T;
+  nextCheckAt?: T;
+  coolingOffUntil?: T;
+  iterationsCount?: T;
   completedAt?: T;
   error?: T;
+  parameters?: T;
   updatedAt?: T;
   createdAt?: T;
 }

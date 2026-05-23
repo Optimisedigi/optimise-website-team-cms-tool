@@ -22,6 +22,7 @@ export type ToolCategoryKey =
   | "read-pipeline"
   | "read-client-info"
   | "read-scheduled"
+  | "read-goals"
   | "actions"
   | "confirm-gate"
   | "propose-budget"
@@ -79,6 +80,13 @@ export const TOOL_CATEGORIES: Record<ToolCategoryKey, CategoryMeta> = {
     blurb: "Lists the recurring agent reports you've set up.",
     color: "#475569",
     order: 50,
+  },
+  "read-goals": {
+    key: "read-goals",
+    label: "Read \u2014 Goal agents",
+    blurb: "Status of autonomous goal-agent runs for this client.",
+    color: "#6366f1",
+    order: 45,
   },
   actions: {
     key: "actions",
@@ -177,8 +185,14 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   // Read — scheduled
   list_scheduled_tasks: "read-scheduled",
 
+  // Read — goal agents
+  list_goal_runs: "read-goals",
+  get_goal_run: "read-goals",
+
   // Actions — do-it-now
   create_gmail_draft: "actions",
+  create_goal_run: "actions",
+  create_account_efficiency_goal_run: "actions",
 
   // Confirm gate (sits between read tools and propose tools)
   request_confirm: "confirm-gate",
@@ -228,6 +242,24 @@ export interface CatalogTool {
 export interface CatalogCategory extends CategoryMeta {
   tools: CatalogTool[];
 }
+
+export interface GoalCatalogItem {
+  key: string;
+  label: string;
+  status: "available" | "paused" | "limited";
+  description: string;
+  caveat: string;
+}
+
+const GOAL_CATALOG: readonly GoalCatalogItem[] = Object.freeze([
+  {
+    key: "account-efficiency",
+    label: "Account Efficiency",
+    status: "available",
+    description: "Improves account-wide CPA through staged efficiency levers, starting with budget shifts and approval-gated waste controls.",
+    caveat: "CPA mode, staged rollout. ROAS mode remains disabled until conversion-value snapshots are wired.",
+  },
+]);
 
 /**
  * Convert snake_case tool names into a human-friendly label by stripping the
@@ -301,6 +333,11 @@ export function buildToolCatalog(): CatalogCategory[] {
   // Final sort by category order.
   out.sort((a, b) => a.order - b.order);
   return out;
+}
+
+/** Registered autonomous goal-agent types shown in the OptiMate help popover. */
+export function buildGoalCatalog(): GoalCatalogItem[] {
+  return [...GOAL_CATALOG].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 /** Total tool count — handy for the popover header ("OptiMate has access to N tools"). */
