@@ -113,25 +113,23 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
         title="What goals and tools can OptiMate use?"
         aria-label="Goal and tool capabilities"
         style={{
+          width: 22,
           height: 22,
-          padding: compact ? '0 7px' : '0 9px',
-          fontSize: 11,
+          padding: 0,
+          fontSize: 12,
           lineHeight: 1,
           background: open ? '#e0e7ff' : '#f3f4f6',
           border: '1px solid #e5e7eb',
-          borderRadius: 999,
+          borderRadius: '50%',
           cursor: 'pointer',
           color: '#374151',
           fontWeight: 700,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 4,
-          whiteSpace: 'nowrap',
         }}
       >
-        <span aria-hidden="true">⚑</span>
-        <span>{compact ? 'Goals' : 'Goals & tools'}</span>
+        ?
       </button>
       {open && (
         <div
@@ -181,8 +179,11 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
                     flexShrink: 0,
                   }}
                 />
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#1f2937' }}>Registered goal agents</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#1f2937' }}>Goal agents you can set</div>
                 <div style={{ fontSize: 10, color: '#9ca3af' }}>· {data.goals.length}</div>
+              </div>
+              <div style={{ fontSize: 10.5, color: '#6b7280', marginBottom: 6, marginLeft: 16, lineHeight: 1.4 }}>
+                Ask OptiMate to start one of these ongoing optimisation goals for this account.
               </div>
               <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
                 {data.goals.map((goal) => {
@@ -220,6 +221,9 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
                       </div>
                       <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.45 }}>
                         {plainSentence(goal.description)}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#6b7280', marginTop: 3, lineHeight: 1.4 }}>
+                        Say: “Start the {goal.label} goal.”
                       </div>
                     </li>
                   )
