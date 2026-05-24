@@ -13,6 +13,7 @@ interface FieldSnapshot {
   googleAdsStarterBudgetFragments: Array<{ slug?: string; copy?: string }>
   googleAdsStarterQuestionsIntro: string
   googleAdsStarterClosing: string
+  signatureHtml: string
 }
 
 function asString(value: unknown): string {
@@ -33,6 +34,7 @@ const GoogleAdsStarterEmailPreviewField = () => {
     googleAdsStarterBudgetFragments: asFragments(fields?.googleAdsStarterBudgetFragments?.value),
     googleAdsStarterQuestionsIntro: asString(fields?.googleAdsStarterQuestionsIntro?.value),
     googleAdsStarterClosing: asString(fields?.googleAdsStarterClosing?.value),
+    signatureHtml: asString(fields?.signatureHtml?.value),
   }))
 
   const [debounced, setDebounced] = useState<FieldSnapshot>(fieldMap)
@@ -76,7 +78,7 @@ const GoogleAdsStarterEmailPreviewField = () => {
             gap: 8,
           }}
         >
-          <span>Live preview (sample: new Google Ads lead)</span>
+          <span>Live preview only — edit the fields below. Shared signature is pulled from the Signature tab.</span>
           <span style={{ fontWeight: 400, color: 'var(--theme-elevation-500)' }}>Subject: {result.subject}</span>
         </div>
         <iframe
