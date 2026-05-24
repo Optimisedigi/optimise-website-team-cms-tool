@@ -76,6 +76,7 @@ import * as migration_20260603_120000_add_goal_runs_parameters from './20260603_
 import * as migration_20260604_120000_add_goal_risk_tiers_and_seed from './20260604_120000_add_goal_risk_tiers_and_seed';
 import * as migration_20260605_120000_add_conversion_tracking_enabled_from from './20260605_120000_add_conversion_tracking_enabled_from';
 import * as migration_20260605_130000_seed_account_efficiency_pause_risk_tiers from './20260605_130000_seed_account_efficiency_pause_risk_tiers';
+import * as migration_20260606_120000_add_google_ads_starter_email_templates from './20260606_120000_add_google_ads_starter_email_templates';
 
 export const migrations = [
   {
@@ -467,5 +468,10 @@ export const migrations = [
     up: migration_20260605_130000_seed_account_efficiency_pause_risk_tiers.up,
     down: migration_20260605_130000_seed_account_efficiency_pause_risk_tiers.down,
     name: '20260605_130000_seed_account_efficiency_pause_risk_tiers'
+  },
+  {
+    up: migration_20260606_120000_add_google_ads_starter_email_templates.up,
+    down: migration_20260606_120000_add_google_ads_starter_email_templates.down,
+    name: '20260606_120000_add_google_ads_starter_email_templates'
   },
 ];
