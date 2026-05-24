@@ -1,0 +1,9 @@
+/* Tailwind CSS for the Account Structure pages.
+ *
+ * The (frontend) root layout does NOT import Tailwind globally — see the
+ * comment in src/app/(frontend)/styles.css. Routes that need Tailwind
+ * utilities (e.g. /google-dashboard/*) explicitly import their own CSS
+ * file that pulls in `@import "tailwindcss"`. The Account Structure
+ * Explorer follows the same pattern.
+ */
+@import "tailwindcss";
