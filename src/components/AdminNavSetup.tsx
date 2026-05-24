@@ -22,10 +22,10 @@ export function AdminNavSetup(): null {
           | undefined;
         const groups = navPrefs?.groups ?? {};
 
-        if (groups["Clients"] === undefined) {
+        if (groups["Clients"]?.open !== true) {
           await setPreference(
             "nav",
-            { groups: { ...groups, Clients: { open: true } } },
+            { groups: { ...groups, Clients: { ...groups["Clients"], open: true } } },
             true,
           );
         }
