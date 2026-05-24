@@ -124,6 +124,7 @@ import { default as default_0a0f3b40e58f63623cf710a9f1c57a57 } from '../../../co
 import { default as default_3c9d8edcf144f9e259759d2b0c9c8270 } from '../../../components/match-type-violations/MatchTypeViolationReviewList'
 import { default as default_d7691cd6896b18804e19a29368edb888 } from '../../../components/ConnectSheetsButton'
 import { default as default_f7ce8484c2a04dac97a85c29cde49f11 } from '../../../components/ConnectCalendarButton'
+import { default as default_991ab0e2ad7231624c88bf3879cc97a8 } from '../../../components/GoogleAdsStarterEmailPreviewField'
 import { default as default_bdbf091e4ee4c8ba764b4f4e25a35525 } from '../../../components/SignaturePreviewField'
 import { default as default_77e619a924b976ecf037ef3b071568ba } from '../../../components/InvoiceStatementPreviewField'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
@@ -274,6 +275,7 @@ export const importMap = {
   "./components/match-type-violations/MatchTypeViolationReviewList#default": default_3c9d8edcf144f9e259759d2b0c9c8270,
   "./components/ConnectSheetsButton#default": default_d7691cd6896b18804e19a29368edb888,
   "./components/ConnectCalendarButton#default": default_f7ce8484c2a04dac97a85c29cde49f11,
+  "/components/GoogleAdsStarterEmailPreviewField#default": default_991ab0e2ad7231624c88bf3879cc97a8,
   "/components/SignaturePreviewField#default": default_bdbf091e4ee4c8ba764b4f4e25a35525,
   "/components/InvoiceStatementPreviewField#default": default_77e619a924b976ecf037ef3b071568ba,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,

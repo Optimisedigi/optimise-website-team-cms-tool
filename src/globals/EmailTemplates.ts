@@ -400,6 +400,124 @@ export const EmailTemplates: GlobalConfig = {
                     },
                   ],
                 },
+                {
+                  label: "Google Ads Starter",
+                  description:
+                    "Dedicated auto-reply for the Ready to get started with Google Ads? form.",
+                  fields: [
+                    {
+                      name: "googleAdsStarterPreview",
+                      type: "ui",
+                      admin: {
+                        components: {
+                          Field: "/components/GoogleAdsStarterEmailPreviewField",
+                        },
+                      },
+                    },
+                    {
+                      name: "googleAdsStarterSubjectTemplate",
+                      label: "Subject Line",
+                      type: "text",
+                      admin: {
+                        description:
+                          "Use {firstName}, {name}, or {website} as placeholders.",
+                      },
+                      defaultValue: `{firstName}, next steps for your Google Ads setup`,
+                    },
+                    {
+                      name: "googleAdsStarterOpening",
+                      label: "Opening Paragraph",
+                      type: "textarea",
+                      defaultValue: `Thanks for reaching out about Google Ads. We can see you're looking at getting campaigns started or relaunched properly, so the first thing we'll do is review your website before recommending any spend, setup, or campaign structure.`,
+                    },
+                    {
+                      name: "googleAdsStarterReadinessFragments",
+                      label: "Readiness / Stage Fragments",
+                      type: "array",
+                      defaultValue: [
+                        {
+                          slug: "never-run-ads",
+                          copy: `Because you haven't run Google Ads before, the priority is getting the foundations right before any budget goes live. That means clear offers, sensible campaign structure, conversion tracking, and a starting budget that matches the opportunity.`,
+                        },
+                        {
+                          slug: "tried-before",
+                          copy: `Because Google Ads has been tried before without the result you wanted, we'll look closely at whether the issue was the website, tracking, search terms, budget, or account structure before recommending the next move.`,
+                        },
+                        {
+                          slug: "starting-soon",
+                          copy: `Because you're planning to start soon, we'll help you avoid the common early mistakes: sending paid traffic to weak pages, launching without conversion tracking, or spreading the budget too thin.`,
+                        },
+                        {
+                          slug: "relaunching",
+                          copy: `Because you're looking at a relaunch, we'll treat this as a chance to rebuild the account around what should actually drive enquiries rather than simply switching old campaigns back on.`,
+                        },
+                      ],
+                      fields: [
+                        { name: "slug", label: "Answer Slug", type: "text", required: true },
+                        { name: "copy", label: "Copy", type: "textarea", required: true },
+                      ],
+                    },
+                    {
+                      name: "googleAdsStarterGoalFragments",
+                      label: "Lead Goal Fragments",
+                      type: "array",
+                      defaultValue: [
+                        { slug: "more-phone-calls", copy: `We'll keep phone call quality front and centre when thinking through keywords, landing pages, and tracking.` },
+                        { slug: "more-form-enquiries", copy: `We'll look at whether the website makes it easy enough for the right people to enquire after they click.` },
+                        { slug: "bookings-or-appointments", copy: `We'll consider how the campaign and landing page can move people smoothly from search to booking.` },
+                        { slug: "local-service-leads", copy: `We'll pay close attention to service areas, intent, and location targeting so spend is focused where it can realistically create leads.` },
+                        { slug: "sales-or-quotes", copy: `We'll think through the path from search intent to quote, demo, or sale so the campaign is built around commercial outcomes rather than just clicks.` },
+                      ],
+                      fields: [
+                        { name: "slug", label: "Answer Slug", type: "text", required: true },
+                        { name: "copy", label: "Copy", type: "textarea", required: true },
+                      ],
+                    },
+                    {
+                      name: "googleAdsStarterWebsiteFragments",
+                      label: "Website / Landing Page Fragments",
+                      type: "array",
+                      defaultValue: [
+                        { slug: "converts-well", copy: `If the site is already converting well, we'll look for the highest intent traffic and make sure tracking captures the enquiries that matter.` },
+                        { slug: "needs-improvement", copy: `If the website needs improvement first, we'll flag the changes most likely to lift conversion before you commit more budget to traffic.` },
+                        { slug: "not-sure", copy: `If you're not sure how ready the site is, we'll review the conversion path and give you a practical view on whether it can support paid traffic now.` },
+                        { slug: "need-landing-page", copy: `If a landing page is needed, we'll outline what that page should cover before campaigns are launched.` },
+                      ],
+                      fields: [
+                        { name: "slug", label: "Answer Slug", type: "text", required: true },
+                        { name: "copy", label: "Copy", type: "textarea", required: true },
+                      ],
+                    },
+                    {
+                      name: "googleAdsStarterBudgetFragments",
+                      label: "Budget Fragments",
+                      type: "array",
+                      defaultValue: [
+                        { slug: "under-1k", copy: `With a smaller starting budget, the structure needs to be tight and focused so the spend is not diluted across too many campaigns.` },
+                        { slug: "1k-2k", copy: `At that budget range, the best approach is usually a focused launch around the highest intent services and locations first.` },
+                        { slug: "2k-5k", copy: `At that budget range, there is room to test properly while still keeping the account structured around clear priorities.` },
+                        { slug: "5k-plus", copy: `With that level of budget, we'll want tracking, landing pages, and campaign structure in place from day one so scaling decisions are based on clean data.` },
+                        { slug: "not-sure", copy: `If the budget is still open, we'll recommend a realistic starting range after reviewing demand, competition, and website readiness.` },
+                      ],
+                      fields: [
+                        { name: "slug", label: "Answer Slug", type: "text", required: true },
+                        { name: "copy", label: "Copy", type: "textarea", required: true },
+                      ],
+                    },
+                    {
+                      name: "googleAdsStarterQuestionsIntro",
+                      label: "Questions Intro",
+                      type: "textarea",
+                      defaultValue: `Two quick questions that would help us come back with a sharper recommendation:`,
+                    },
+                    {
+                      name: "googleAdsStarterClosing",
+                      label: "Closing",
+                      type: "textarea",
+                      defaultValue: `We'll review what you've shared and come back with practical next steps for your Google Ads setup. In the meantime, just reply to this email if there's anything else we should know.\n\nPeter\nOptimise Digital`,
+                    },
+                  ],
+                },
               ],
             },
           ],
