@@ -111,6 +111,7 @@ interface AuditDocLike {
 interface ClientDocLike {
   id?: string | number;
   name?: string | null;
+  dashboardConversionActions?: string | null;
   conversionActionCategories?: Array<{ label?: string; actions?: string }> | null;
   phoneCallConversionActions?: string | null;
   formSubmitConversionActions?: string | null;

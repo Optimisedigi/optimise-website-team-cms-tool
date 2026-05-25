@@ -30,6 +30,7 @@ interface AuditDocLike {
 interface ClientDocLike {
   id?: string | number;
   name?: string | null;
+  dashboardConversionActions?: string | null;
   conversionActionCategories?: Array<{ label?: string; actions?: string }> | null;
   phoneCallConversionActions?: string | null;
   formSubmitConversionActions?: string | null;
@@ -367,7 +368,11 @@ function collectConversionActions(client: ClientDocLike | null): string[] {
       .filter(Boolean)
       .forEach((a) => actions.add(a));
   }
-  for (const field of [client.phoneCallConversionActions, client.formSubmitConversionActions]) {
+  for (const field of [
+    client.dashboardConversionActions,
+    client.phoneCallConversionActions,
+    client.formSubmitConversionActions,
+  ]) {
     String(field ?? "")
       .split(/[\r\n,]+/)
       .map((s) => s.trim())
