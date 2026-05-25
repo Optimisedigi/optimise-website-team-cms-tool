@@ -15,22 +15,6 @@ export function AdminNavSetup(): null {
   const { getPreference, setPreference } = usePreferences();
 
   useEffect(() => {
-    const openClientsGroupInDom = () => {
-      const group = document.getElementById("nav-group-Clients");
-      if (!group) return;
-
-      group.classList.remove("nav-group--collapsed");
-      const toggle = group.querySelector(".nav-group__toggle");
-      toggle?.classList.remove("nav-group__toggle--collapsed");
-      toggle?.classList.add("nav-group__toggle--open");
-
-      const animatedWrapper = group.querySelector<HTMLElement>(".nav-group__content")?.parentElement;
-      if (animatedWrapper) {
-        animatedWrapper.style.height = "auto";
-        animatedWrapper.style.overflow = "visible";
-      }
-    };
-
     const ensureClientsOpen = async () => {
       try {
         const navPrefs = (await getPreference("nav")) as
@@ -38,26 +22,20 @@ export function AdminNavSetup(): null {
           | undefined;
         const groups = navPrefs?.groups ?? {};
 
-        if (groups["Clients"]?.open !== true) {
+        if (groups["Clients"] === undefined) {
           await setPreference(
             "nav",
-            { groups: { ...groups, Clients: { ...groups["Clients"], open: true } } },
+            { groups: { ...groups, Clients: { open: true } } },
             true,
           );
         }
       } catch {
         // Silently ignore — must not break the admin if preferences fail.
-      } finally {
-        openClientsGroupInDom();
       }
     };
 
     void ensureClientsOpen();
-    const interval = window.setInterval(openClientsGroupInDom, 250);
-    return () => window.clearInterval(interval);
   }, [getPreference, setPreference]);
 
   return null;
 }
-
-export default AdminNavSetup;

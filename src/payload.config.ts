@@ -37,7 +37,6 @@ import { GoogleAdsAdExtensions } from "./collections/GoogleAdsAdExtensions";
 import { GscDaily } from "./collections/GscDaily";
 import { GoalRuns } from "./collections/GoalRuns";
 import { GoalRunSnapshots } from "./collections/GoalRunSnapshots";
-import { GoalRiskTiers } from "./collections/GoalRiskTiers";
 import { GoogleAdsSnapshots } from "./collections/GoogleAdsSnapshots";
 import { GscIndexingAudits } from "./collections/GscIndexingAudits";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
@@ -81,7 +80,7 @@ import { PinRateLimits } from "./collections/PinRateLimits";
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
-const config = buildConfig({
+export default buildConfig({
   i18n: {
     translations: {
       en: {
@@ -106,9 +105,10 @@ const config = buildConfig({
         Icon: "./components/Icon",
       },
       actions: ["./components/NotificationsBell", "./components/UserDisplayName"],
+      beforeNav: ["./components/AdminNavSetup"],
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
-      providers: ["./components/ViewportMeta", "./components/FirstLoginSetup", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/AdminNavSetup", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass"],
+      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass"],
       beforeDashboard: ["./components/Dashboard"],
     },
   },
@@ -131,15 +131,11 @@ const config = buildConfig({
     // Optimate agents
     AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, OptimateChatTurns,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots, GoalRiskTiers,
+    GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots,
   ].map((c) => {
     const collection = c as CollectionConfig
     return {
       ...collection,
-      // Temporarily disable Payload document locks. The local/prod schema has a
-      // drifted `payload_locked_documents` timestamp mapping, and admin/global
-      // lock-status queries are blocking otherwise healthy screens.
-      lockDocuments: false,
       admin: {
         ...collection.admin,
         pagination: {
@@ -149,10 +145,7 @@ const config = buildConfig({
       },
     }
   }),
-  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates, CronSettings].map((global) => ({
-    ...global,
-    lockDocuments: false,
-  })),
+  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates, CronSettings],
   editor: lexicalEditor({
     features: ({ defaultFeatures }) => [...defaultFeatures, MarkdownPasteFeature()],
   }),
@@ -201,5 +194,3 @@ const config = buildConfig({
       : []),
   ],
 });
-
-export default config;
