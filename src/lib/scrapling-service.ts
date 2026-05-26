@@ -34,7 +34,7 @@ export async function captureScreenshotViaScrapling(
   }
 
   const fullUrl = url.startsWith('http') ? url : `https://${url}`
-  const timeout = opts?.timeout ?? 15
+  const timeout = opts?.timeout ?? 30
 
   try {
     const res = await fetch(`${SCRAPLING_SERVICE_URL}/screenshot`, {
@@ -84,7 +84,7 @@ export async function extractSocialLinks(
   }
 
   const fullUrl = url.startsWith('http') ? url : `https://${url}`
-  const timeout = opts?.timeout ?? 15
+  const timeout = opts?.timeout ?? 30
 
   try {
     const res = await fetch(`${SCRAPLING_SERVICE_URL}/social-links`, {
@@ -129,7 +129,7 @@ export async function checkMetaAdsViaScrapling(
     return META_ADS_FALLBACK
   }
 
-  const timeout = opts?.timeout ?? 20
+  const timeout = opts?.timeout ?? 45
 
   try {
     const res = await fetch(`${SCRAPLING_SERVICE_URL}/meta-ads`, {

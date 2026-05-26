@@ -36,6 +36,7 @@ describe("syncContractToClient", () => {
       clientStartDate: true,
       additionalWorkAppended: 1,
       name: false,
+      tradingName: false,
       contactName: false,
       contactEmail: false,
       websiteUrl: false,

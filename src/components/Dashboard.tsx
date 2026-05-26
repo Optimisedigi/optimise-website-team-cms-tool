@@ -102,6 +102,7 @@ interface DashboardData {
   totalRetainer: number
   ytdRevenue: number
   monthlyRetainerNet: number
+  annualisedAgencyRevenue: number
   oneOffYTD: number
   retainerYTD: number
   activity: ActivityEntry[]
@@ -132,6 +133,7 @@ interface DashboardData {
   }
   costHistory: CostHistoryEntry[]
   totalLeads?: number
+  activeLeads?: number
   businessCosts?: {
     totalThisMonth: number
     uncategorisedCount: number
@@ -479,12 +481,12 @@ const Dashboard = () => {
                 <span className="od-box__stat-label">Active Clients</span>
               </div>
               <div className="od-box__stat">
-                <span className="od-box__stat-value">{data.totalLeads ?? 0}</span>
-                <span className="od-box__stat-label">Total Leads</span>
+                <span className="od-box__stat-value">{data.activeLeads ?? data.totalLeads ?? 0}</span>
+                <span className="od-box__stat-label">Active Total Leads</span>
               </div>
               <div className="od-box__stat">
-                <span className="od-box__stat-value">{data.proposals.active}</span>
-                <span className="od-box__stat-label">Active Client Proposals</span>
+                <span className="od-box__stat-value">${fmt0(data.annualisedAgencyRevenue ?? 0)}</span>
+                <span className="od-box__stat-label">AAR</span>
               </div>
               <StatWithTooltip
                 value={`$${fmt0(data.monthlyRetainerNet ?? 0)}`}

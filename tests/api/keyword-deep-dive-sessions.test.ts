@@ -6,6 +6,7 @@ vi.mock("next/headers", () => ({
 }));
 
 const mockPayload = {
+  auth: vi.fn(),
   findByID: vi.fn(),
   find: vi.fn(),
   create: vi.fn(),
@@ -57,6 +58,7 @@ const mockSession = {
 describe("POST /api/keyword-deep-dive-sessions/[id]/apply-to-nkl", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, role: "admin" } });
   });
 
   it("returns 400 when nklId is missing", async () => {

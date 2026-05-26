@@ -8,8 +8,8 @@ import { usePreferences } from "@payloadcms/ui";
  * on every page load inside the admin shell (where PreferencesProvider is active).
  *
  * Payload stores nav group open/closed state under PREFERENCE_KEYS.NAV → groups.
- * If "Clients" has never been persisted (undefined), it defaults to open.
- * Once the user toggles it, their preference takes over.
+ * The Clients group is mission-critical, so every admin-shell load resets it
+ * to open. This intentionally overrides stale collapsed preferences.
  */
 export function AdminNavSetup(): null {
   const { getPreference, setPreference } = usePreferences();
@@ -22,12 +22,8 @@ export function AdminNavSetup(): null {
           | undefined;
         const groups = navPrefs?.groups ?? {};
 
-        if (groups["Clients"] === undefined) {
-          await setPreference(
-            "nav",
-            { groups: { ...groups, Clients: { open: true } } },
-            true,
-          );
+        if (groups["Clients"]?.open !== true) {
+          await setPreference("nav", { groups: { Clients: { open: true } } }, true);
         }
       } catch {
         // Silently ignore — must not break the admin if preferences fail.

@@ -60,14 +60,16 @@ describe('GET /api/dashboard', () => {
     expect(res.status).toBe(401)
   })
 
-  it('exposes monthlyRetainerNet, oneOffYTD, retainerYTD in the response', async () => {
+  it('exposes monthlyRetainerNet, AAR, oneOffYTD, retainerYTD in the response', async () => {
     const res = await GET()
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json).toHaveProperty('monthlyRetainerNet')
+    expect(json).toHaveProperty('annualisedAgencyRevenue')
     expect(json).toHaveProperty('oneOffYTD')
     expect(json).toHaveProperty('retainerYTD')
     expect(json.monthlyRetainerNet).toBe(0)
+    expect(json.annualisedAgencyRevenue).toBe(0)
     expect(json.oneOffYTD).toBe(0)
     expect(json.retainerYTD).toBe(0)
   })
@@ -189,12 +191,29 @@ describe('GET /api/dashboard', () => {
     const json = await res.json()
     // $2,000 × 50% share = $1,000
     expect(json.monthlyRetainerNet).toBe(1000)
+    expect(json.annualisedAgencyRevenue).toBe(12000)
     // Breakdown row reflects the post-share net + carries the share %
     expect(json.breakdowns.monthlyRetainer[0]).toMatchObject({
       clientName: 'Partner Co',
       gross: 1000,
       net: 1000,
       revenueSharePercent: 50,
+    })
+  })
+
+  it('counts active total leads by excluding lost and client stages', async () => {
+    const res = await GET()
+    expect(res.status).toBe(200)
+    await res.json()
+
+    expect(mockPayload.count).toHaveBeenCalledWith({
+      collection: 'sales-leads',
+      where: {
+        and: [
+          { stage: { not_equals: 'lost' } },
+          { stage: { not_equals: 'client' } },
+        ],
+      },
     })
   })
 

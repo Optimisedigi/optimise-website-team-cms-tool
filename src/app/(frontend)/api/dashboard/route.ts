@@ -135,7 +135,7 @@ export async function GET() {
     activeProposals,
     convertedProposals,
     totalProposals,
-    totalLeadsCount,
+    activeLeadsCount,
     processesData,
     ...historicalCounts
   ] = await Promise.all([
@@ -333,8 +333,16 @@ export async function GET() {
     // Total proposals ever
     payload.count({ collection: "client-proposals" }).catch(() => ({ totalDocs: 0 })),
 
-    // Total sales leads
-    payload.count({ collection: "sales-leads" as any }).catch(() => ({ totalDocs: 0 })),
+    // Active sales leads — excludes lost and confirmed/client outcomes.
+    payload.count({
+      collection: "sales-leads" as any,
+      where: {
+        and: [
+          { stage: { not_equals: "lost" } },
+          { stage: { not_equals: "client" } },
+        ],
+      },
+    } as any).catch(() => ({ totalDocs: 0 })),
 
     // Client processes counts by status
     (async () => {
@@ -638,6 +646,7 @@ export async function GET() {
   // are already folded into `retainerYTD` above — do not double-count here.
   const totalMonthlyRevenue = monthlyRetainerNet;
   const totalRetainer = round(monthlyRetainerNet + oneOffTotal);
+  const annualisedAgencyRevenue = round(monthlyRetainerNet * 12);
   const ytdRevenue = round(retainerYTD + oneOffYTD);
 
   const usage = {
@@ -697,8 +706,8 @@ export async function GET() {
     });
     convertedLeadsCount = cl.totalDocs;
   } catch {}
-  const conversionRate = totalLeadsCount.totalDocs > 0
-    ? round((convertedLeadsCount / totalLeadsCount.totalDocs) * 100)
+  const conversionRate = activeLeadsCount.totalDocs > 0
+    ? round((convertedLeadsCount / activeLeadsCount.totalDocs) * 100)
     : 0;
 
   return NextResponse.json({
@@ -710,6 +719,7 @@ export async function GET() {
     oneOffTotal,
     ytdRevenue,
     monthlyRetainerNet,
+    annualisedAgencyRevenue,
     oneOffYTD,
     retainerYTD,
     activity: activityResult.docs,
@@ -732,7 +742,8 @@ export async function GET() {
       total: totalCost,
     },
     costHistory: historicalCounts,
-    totalLeads: totalLeadsCount.totalDocs,
+    totalLeads: activeLeadsCount.totalDocs,
+    activeLeads: activeLeadsCount.totalDocs,
     businessCosts: businessCostsSummary,
     processes: processesData || null,
     salesTarget,
