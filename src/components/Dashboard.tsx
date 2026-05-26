@@ -486,7 +486,7 @@ const Dashboard = () => {
               </div>
               <div className="od-box__stat">
                 <span className="od-box__stat-value">${fmt0(data.annualisedAgencyRevenue ?? 0)}</span>
-                <span className="od-box__stat-label">AAR</span>
+                <span className="od-box__stat-label">ARR</span>
               </div>
               <StatWithTooltip
                 value={`$${fmt0(data.monthlyRetainerNet ?? 0)}`}
