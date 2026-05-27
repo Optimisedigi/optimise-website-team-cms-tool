@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { resolveTrustedMediaUrl } from "@/lib/trusted-media-url";
 import {
   Document,
   Packer,
@@ -850,15 +851,9 @@ async function resolveMediaBuffer(
   if (!url) return null;
 
   try {
-    let fetchUrl = url;
-    if (url.startsWith("/")) {
-      const baseUrl =
-        process.env.NEXT_PUBLIC_SERVER_URL ||
-        (process.env.VERCEL_PROJECT_PRODUCTION_URL
-          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-          : "http://localhost:3004");
-      fetchUrl = `${baseUrl}${url}`;
-    }
+    const fetchUrl = resolveTrustedMediaUrl(url);
+    if (!fetchUrl) return null;
+
     const res = await fetch(fetchUrl);
     if (!res.ok) return null;
     return Buffer.from(await res.arrayBuffer());

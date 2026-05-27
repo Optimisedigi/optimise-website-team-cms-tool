@@ -49,7 +49,7 @@ describe('POST /api/costs/categorise', () => {
   })
 
   it('returns 400 when transactionId is missing', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, featureAccess: ['business-costs'] } })
 
     const res = await POST(makeRequest({ categoryId: '2' }))
     const json = await res.json()
@@ -59,7 +59,7 @@ describe('POST /api/costs/categorise', () => {
   })
 
   it('returns 400 when categoryId is missing', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, featureAccess: ['business-costs'] } })
 
     const res = await POST(makeRequest({ transactionId: '1' }))
     const json = await res.json()
@@ -69,7 +69,7 @@ describe('POST /api/costs/categorise', () => {
   })
 
   it('returns 400 when both transactionId and categoryId are missing', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, featureAccess: ['business-costs'] } })
 
     const res = await POST(makeRequest({}))
     const json = await res.json()
@@ -79,7 +79,7 @@ describe('POST /api/costs/categorise', () => {
   })
 
   it('updates transaction category and returns ok', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, featureAccess: ['business-costs'] } })
     mockPayload.update.mockResolvedValue({ id: '1', description: 'Amazon Purchase' })
 
     const res = await POST(makeRequest({ transactionId: '1', categoryId: '5' }))
@@ -98,7 +98,7 @@ describe('POST /api/costs/categorise', () => {
   })
 
   it('creates a cost-rule when saveRule is true and no existing rule', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, featureAccess: ['business-costs'] } })
     mockPayload.update.mockResolvedValue({ id: '1', description: 'Monthly hosting' })
     mockPayload.find.mockResolvedValue({ totalDocs: 0, docs: [] })
     mockPayload.create.mockResolvedValue({ id: 'rule-1' })
@@ -124,7 +124,7 @@ describe('POST /api/costs/categorise', () => {
   })
 
   it('does not create a duplicate cost-rule when one already exists', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, featureAccess: ['business-costs'] } })
     mockPayload.update.mockResolvedValue({ id: '1', description: 'Existing pattern' })
     mockPayload.find.mockResolvedValue({ totalDocs: 1, docs: [{ id: 'r1' }] })
 
@@ -137,7 +137,7 @@ describe('POST /api/costs/categorise', () => {
   })
 
   it('does not save rule when saveRule is true but description is empty', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, featureAccess: ['business-costs'] } })
     mockPayload.update.mockResolvedValue({ id: '1', description: '' })
 
     const res = await POST(makeRequest({ transactionId: '1', categoryId: '5', saveRule: true }))
@@ -149,7 +149,7 @@ describe('POST /api/costs/categorise', () => {
   })
 
   it('does not save rule when saveRule is false', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, featureAccess: ['business-costs'] } })
     mockPayload.update.mockResolvedValue({ id: '1', description: 'Something' })
 
     const res = await POST(makeRequest({ transactionId: '1', categoryId: '5', saveRule: false }))
@@ -161,7 +161,7 @@ describe('POST /api/costs/categorise', () => {
   })
 
   it('returns 500 when update throws an error', async () => {
-    mockPayload.auth.mockResolvedValue({ user: { id: 1 } })
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, featureAccess: ['business-costs'] } })
     mockPayload.update.mockRejectedValue(new Error('DB connection lost'))
 
     const res = await POST(makeRequest({ transactionId: '1', categoryId: '5' }))

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { resolveTrustedMediaUrl } from "@/lib/trusted-media-url";
 import { generateContractPdf } from "@/lib/contract-pdf";
 import type { ContractData } from "@/lib/contract-template";
 import { getPrimaryClientEmail } from "@/lib/contract-emails";
@@ -152,16 +153,9 @@ async function resolveMediaToDataUri(payload: any, agencySignature: any): Promis
 
   // Convert to data URI so react-pdf can render it
   try {
-    let fetchUrl = url;
-    if (url.startsWith("/")) {
-      // Relative URL — resolve to absolute for fetching from the running server
-      const baseUrl =
-        process.env.NEXT_PUBLIC_SERVER_URL ||
-        (process.env.VERCEL_PROJECT_PRODUCTION_URL
-          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-          : "http://localhost:3004");
-      fetchUrl = `${baseUrl}${url}`;
-    }
+    const fetchUrl = resolveTrustedMediaUrl(url);
+    if (!fetchUrl) return null;
+
     const res = await fetch(fetchUrl);
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());

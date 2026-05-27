@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
+import { userHasFeature } from "@/lib/access";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,6 +11,9 @@ export async function GET(request: NextRequest) {
     const { user } = await payload.auth({ headers: headersList });
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!userHasFeature(user, "business-costs")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const url = new URL(request.url);

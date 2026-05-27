@@ -120,7 +120,7 @@ beforeEach(() => {
   process.env.STATEMENT_MAX_PER_HOUR = "50";
   process.env.STATEMENT_MIN_DAYS_BETWEEN_SENDS = "20";
 
-  mockPayload.auth.mockResolvedValue({ user: { id: 99 } });
+  mockPayload.auth.mockResolvedValue({ user: { id: 99, featureAccess: ["nav:invoices"] } });
   mockPayload.findByID.mockResolvedValue(DRAFT_ROW);
   mockPayload.findGlobal.mockResolvedValue(TEMPLATES_GLOBAL);
   mockPayload.find.mockResolvedValue({ docs: [], totalDocs: 0 });

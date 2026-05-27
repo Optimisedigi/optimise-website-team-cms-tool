@@ -9,6 +9,7 @@ import {
 import { loadStatementTemplates } from "@/lib/invoice-statement-templates";
 import { runCaps, validateCcList } from "@/lib/invoice-statement-caps";
 import { logActivity } from "@/lib/activity-log";
+import { userHasFeature } from "@/lib/access";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -58,6 +59,9 @@ export async function POST(
   const { user } = await payload.auth({ headers: reqHeaders });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!userHasFeature(user, "nav:invoices")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const brevoKey = process.env.BREVO_API_KEY;

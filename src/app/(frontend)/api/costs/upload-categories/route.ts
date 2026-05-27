@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
+import { userHasFeature } from "@/lib/access";
 
 /**
  * Bulk import cost categories from CSV.
@@ -21,6 +22,9 @@ export async function POST(request: NextRequest) {
     const { user } = await payload.auth({ headers: headersList });
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!userHasFeature(user, "cost-categories")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const formData = await request.formData();

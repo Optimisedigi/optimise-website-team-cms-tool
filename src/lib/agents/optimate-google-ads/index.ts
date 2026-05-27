@@ -57,8 +57,32 @@ import payloadConfig from "@/payload.config";
 
 export { AGENT_NAME, buildSystemPromptForAudit };
 
-export function getTools(): CanonicalTool<unknown>[] {
-  return [
+const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
+  "create_gmail_draft",
+  "remember",
+  "soul_set",
+  "propose_negative_keywords",
+  "propose_nkl_create",
+  "propose_nkl_update",
+  "propose_nkl_push_live",
+  "propose_budget_update",
+  "propose_budget_push_live",
+  "propose_ad_copy_generate",
+  "propose_ad_copy_deploy",
+  "propose_campaign_restructure",
+  "propose_campaign_build",
+  "propose_ad_group_create",
+  "propose_keywords_add",
+  "create_goal_run",
+  "create_account_efficiency_goal_run",
+  "propose_scheduled_task",
+  "propose_scheduled_task_update",
+  "propose_stakeholder_deck",
+  "propose_deck_from_template",
+]);
+
+export function getTools(options?: { restrictExternalContextActions?: boolean }): CanonicalTool<unknown>[] {
+  const tools = [
     getAccountOverview as unknown as CanonicalTool<unknown>,
     getCampaignPerformance as unknown as CanonicalTool<unknown>,
     getSearchTerms as unknown as CanonicalTool<unknown>,
@@ -98,6 +122,12 @@ export function getTools(): CanonicalTool<unknown>[] {
     memorySearch as unknown as CanonicalTool<unknown>,
     soulSet as unknown as CanonicalTool<unknown>,
   ];
+
+  if (!options?.restrictExternalContextActions) {
+    return tools;
+  }
+
+  return tools.filter((tool) => !EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES.has(tool.name));
 }
 
 interface AuditDocLike {
@@ -131,6 +161,8 @@ export interface RunChatTurnInput {
    * Required for scheduled-task tools; optional for everything else.
    */
   userId?: number;
+  /** True when the latest user message includes untrusted external content, e.g. a fetched Gmail body. */
+  restrictExternalContextActions?: boolean;
 }
 
 export interface ProposalSummary {
@@ -193,7 +225,7 @@ const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
 const CHAT_MAX_TOKENS = 8192;
 
 export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnResult> {
-  const { audit, client, messages, modelOverride, userId } = input;
+  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions } = input;
   if (!audit.customerId || !String(audit.customerId).trim()) {
     throw new Error("Audit has no Customer ID; cannot run agent.");
   }
@@ -224,7 +256,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   let result = await runAgent({
     agentName: AGENT_NAME,
     systemPrompt,
-    tools: getTools(),
+    tools: getTools({ restrictExternalContextActions }),
     initialMessages: messages,
     model: modelRequested,
     fallbackModels: DEFAULT_FALLBACKS,
@@ -277,7 +309,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     result = await runAgent({
       agentName: AGENT_NAME,
       systemPrompt,
-      tools: getTools(),
+      tools: getTools({ restrictExternalContextActions }),
       initialMessages: retryMessages,
       model: modelRequested,
       fallbackModels: DEFAULT_FALLBACKS,
