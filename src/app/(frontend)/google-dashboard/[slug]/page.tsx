@@ -105,6 +105,9 @@ export default async function GoogleDashboardPage({ params }: Props) {
       googleAdsCustomerId: true,
       brandKeywords: true,
       dashboardConversionActions: true,
+      conversionActionCategories: true,
+      phoneCallConversionActions: true,
+      formSubmitConversionActions: true,
     },
   });
 

@@ -818,7 +818,11 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
         <div className={(loading || (deepDiveLoading && activeTab === "keywords")) ? "opacity-50 pointer-events-none" : ""}>
           {activeTab === "overview" && (
             <>
-              <KpiRow kpis={data.kpis} compareMode={compareMode} />
+              <KpiRow
+                kpis={data.kpis}
+                compareMode={compareMode}
+                selectedConversionActions={selectedConversions}
+              />
               <div className="mt-6">
                 <MonthlyChart data={chart14Months} />
               </div>

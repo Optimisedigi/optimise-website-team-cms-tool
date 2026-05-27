@@ -6,20 +6,27 @@ import type { GoogleAdsDashboardKpis } from "@/lib/dashboard-types";
 interface KpiRowProps {
   kpis: GoogleAdsDashboardKpis;
   compareMode: "month" | "year";
+  selectedConversionActions?: string[];
 }
 
-export function KpiRow({ kpis, compareMode }: KpiRowProps) {
+export function KpiRow({ kpis, compareMode, selectedConversionActions = [] }: KpiRowProps) {
   const isYear = compareMode === "year";
   const label = isYear ? "vs last year" : "vs prev month";
 
-  // Per-action breakdown for the conversions tile. Sorted by count desc so
-  // the most-fired action surfaces first. Only renders when the filter is
-  // active and at least one selected action contributed conversions.
-  const breakdown = kpis.conversionsByAction
-    ? Object.entries(kpis.conversionsByAction)
-        .filter(([, n]) => n > 0)
-        .sort((a, b) => b[1] - a[1])
-    : [];
+  // Per-action breakdown for the conversions tile. Keep the selected CMS/default
+  // actions visible even when one has zero conversions in the active period, so
+  // the count matches the conversion selector and makes missing activity clear.
+  const conversionCounts = kpis.conversionsByAction ?? {};
+  const selectedBreakdown = selectedConversionActions.map((action) => [
+    action,
+    conversionCounts[action] ?? 0,
+  ] as const);
+  const unselectedBreakdown = Object.entries(conversionCounts)
+    .filter(([action, count]) => count > 0 && !selectedConversionActions.includes(action))
+    .sort((a, b) => b[1] - a[1]);
+  const breakdown = selectedBreakdown.length > 0
+    ? selectedBreakdown
+    : unselectedBreakdown;
 
   return (
     <div>
