@@ -683,6 +683,88 @@ export const GoogleAdsAudits: CollectionConfig = {
                     { label: "Equal", value: "equal" },
                   ],
                 },
+                {
+                  name: "proposalGeoIsolationMode",
+                  type: "select",
+                  defaultValue: "off",
+                  admin: {
+                    description: "Controls geo campaign proposal behaviour. Existing campaigns stay live; new geo splits are built paused.",
+                  },
+                  options: [
+                    { label: "Off", value: "off" },
+                    { label: "State campaigns", value: "state_campaigns" },
+                    { label: "City campaigns", value: "city_campaigns" },
+                    { label: "State + priority city campaigns", value: "state_plus_city_priority" },
+                    { label: "Auto-detect", value: "auto" },
+                  ],
+                },
+                {
+                  name: "proposalNearMeStrategy",
+                  type: "select",
+                  defaultValue: "include_in_local_only",
+                  admin: {
+                    description: "How to treat 'near me' local-intent searches in geo proposals.",
+                  },
+                  options: [
+                    { label: "Exclude", value: "exclude" },
+                    { label: "Include in local/city only", value: "include_in_local_only" },
+                    { label: "Include everywhere", value: "include_everywhere" },
+                    { label: "Auto", value: "auto" },
+                  ],
+                },
+                {
+                  name: "proposalGeoNegativeStrategy",
+                  type: "select",
+                  defaultValue: "keyword_and_location",
+                  admin: {
+                    description: "How parent campaigns are isolated when child geo campaigns are proposed.",
+                  },
+                  options: [
+                    { label: "Keyword only", value: "keyword_only" },
+                    { label: "Location only", value: "location_only" },
+                    { label: "Keyword + location", value: "keyword_and_location" },
+                  ],
+                },
+                {
+                  name: "proposalPreserveKeywordCpc",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description: "Preserve source keyword-level Max CPC when cloning keywords into geo campaigns.",
+                  },
+                },
+                {
+                  name: "proposalPhraseMatchRequiresApproval",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description: "Exact match is allowed by default; phrase match requires explicit review approval. Broad match is never proposed.",
+                  },
+                },
+                {
+                  name: "proposalCreatedByLabel",
+                  type: "text",
+                  defaultValue: "Created by Optimise Digital",
+                  admin: {
+                    description: "Google Ads label applied to entities created by Optimise Digital tooling.",
+                  },
+                },
+                {
+                  name: "proposalPendingActivationLabel",
+                  type: "text",
+                  defaultValue: "Pending activation - Optimise Digital",
+                  admin: {
+                    description: "Temporary Google Ads label for paused entities awaiting CMS activation.",
+                  },
+                },
+                {
+                  name: "proposalActivatedLabel",
+                  type: "text",
+                  defaultValue: "Activated by Optimise Digital",
+                  admin: {
+                    description: "Optional label to apply after a human activates a build batch.",
+                  },
+                },
               ],
             },
             {

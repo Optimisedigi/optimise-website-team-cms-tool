@@ -35,6 +35,7 @@ import { getAiVisibility } from "./tools/get-ai-visibility";
 import { getClientDetails } from "./tools/get-client-details";
 import { proposeCampaignRestructure } from "./tools/propose-campaign-restructure";
 import { proposeCampaignBuild } from "./tools/propose-campaign-build";
+import { proposeGeoCampaignSplit } from "./tools/propose-geo-campaign-split";
 import { proposeAdGroupCreate } from "./tools/propose-ad-group-create";
 import { proposeKeywordsAdd } from "./tools/propose-keywords-add";
 import { getCampaignProposalStatus } from "./tools/get-campaign-proposal-status";
@@ -71,6 +72,7 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "propose_ad_copy_deploy",
   "propose_campaign_restructure",
   "propose_campaign_build",
+  "propose_geo_campaign_split",
   "propose_ad_group_create",
   "propose_keywords_add",
   "create_goal_run",
@@ -109,6 +111,7 @@ export function getTools(options?: { restrictExternalContextActions?: boolean })
     getClientDetails as unknown as CanonicalTool<unknown>,
     proposeCampaignRestructure as unknown as CanonicalTool<unknown>,
     proposeCampaignBuild as unknown as CanonicalTool<unknown>,
+    proposeGeoCampaignSplit as unknown as CanonicalTool<unknown>,
     proposeAdGroupCreate as unknown as CanonicalTool<unknown>,
     proposeKeywordsAdd as unknown as CanonicalTool<unknown>,
     getCampaignProposalStatus as unknown as CanonicalTool<unknown>,

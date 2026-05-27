@@ -210,6 +210,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   // Propose — structure
   propose_campaign_restructure: "propose-structure",
   propose_campaign_build: "propose-structure",
+  propose_geo_campaign_split: "propose-structure",
   propose_ad_group_create: "propose-structure",
   propose_keywords_add: "propose-structure",
 

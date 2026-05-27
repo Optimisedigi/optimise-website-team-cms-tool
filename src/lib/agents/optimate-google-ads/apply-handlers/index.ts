@@ -14,6 +14,7 @@
  *   - "ad-copy-deploy"       → push approved RSAs to Google Ads (PAUSED)
  *   - "ad-group-create"      → create ONE ad group in an existing campaign (PAUSED), optionally cloning a source
  *   - "keywords-add"         → bulk-add positive keywords to an existing ad group (PAUSED)
+ *   - "geo-campaign-split"   → create a labelled geo campaign batch PAUSED + reviewed parent isolation
  *   - "stakeholder-deck"     → write a 5-slide deck (page.tsx + globals.css) to disk
  */
 
@@ -34,6 +35,7 @@ import { applyKeywordsAdd } from "./keywords-add";
 import { applyKeywordPause } from "./keyword-pause";
 import { applyCampaignRestructure } from "./campaign-restructure";
 import { applyCampaignBuild } from "./campaign-build";
+import { applyGeoCampaignSplit } from "./geo-campaign-split";
 import { applyScheduledTaskCreate } from "./scheduled-task-create";
 import { applyScheduledTaskUpdate } from "./scheduled-task-update";
 import { applyStakeholderDeck } from "./stakeholder-deck";
@@ -66,6 +68,7 @@ export function registerOptimateApplyHandlers(): void {
   registerApplyHandler("keyword-pause", applyKeywordPause);
   registerApplyHandler("campaign-restructure", applyCampaignRestructure);
   registerApplyHandler("campaign-build", applyCampaignBuild);
+  registerApplyHandler("geo-campaign-split", applyGeoCampaignSplit);
   registerApplyHandler("scheduled-task-create", applyScheduledTaskCreate);
   registerApplyHandler("scheduled-task-update", applyScheduledTaskUpdate);
   registerApplyHandler("stakeholder-deck", applyStakeholderDeck);

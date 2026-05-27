@@ -92,6 +92,7 @@ const TOOL_INVENTORY = [
   "CAMPAIGN STRUCTURE PIPELINE:",
   "- propose_campaign_restructure(proposalSettings, summary, supportingNumbers?): queue a fresh campaign-structure proposal. Settings: proposalBusinessType (distributor/ecommerce/service/other), proposalConversionGoal (leads/sales/bookings/signups), proposalServiceRadius (local/metro/state/national), proposalServiceSplit (auto/single), proposalPrimaryFocus (services/products/equal), proposalEnabledCampaigns ([brand, brand-product, products, services, services-geo, industry]), and various caps. On Apply, audit settings are saved and Growth Tools generates the structure (5 to 10 minute run).",
   "- propose_campaign_build(summary, supportingNumbers?): once the audit's campaignProposalStatus='approved', queue building the structure into Google Ads PAUSED.",
+  "- propose_geo_campaign_split(batchId, sourceCampaignId, sourceCampaignName, newCampaignName, dailyBudgetMicros, geoTargetIds, negativeLocationGeoTargetIds?, negativeKeywordsForSource?, adGroups, labels?, summary, supportingNumbers?): queue a safe existing-account geo split. Existing campaigns/ad groups are never paused. New geo campaign/ad groups/ads/keywords ship PAUSED with Created by Optimise Digital + pending activation labels. Use for city/state carve-outs from a live parent campaign.",
   "- propose_ad_group_create(campaignId, campaignName, adGroupName, keywords, cloneFromAdGroupId?, cloneFromAdGroupName?, summary, supportingNumbers?): create ONE new ad group in an existing campaign, PAUSED. Each keyword needs text + matchType (exact/phrase/broad), optional cpcBidMicros. Optionally clone the top RSA + default Max CPC + target_cpa/target_roas overrides + audience signals + bid modifiers + ad-group negatives from a source ad group (same customer). Use when an existing ad group is working well and you want to spin up a similar one for new keywords without rebuilding the whole campaign.",
   "- propose_keywords_add(adGroupId, adGroupName, keywords, campaignName?, summary, supportingNumbers?): bulk-add positive keywords to an existing ad group, PAUSED. Each keyword needs text + matchType (exact/phrase/broad), optional cpcBidMicros. Duplicates are skipped server-side.",
   "- get_campaign_proposal_status(): read the audit's pipeline statuses to answer 'is the proposal ready yet?' / 'did the build finish?'",
@@ -114,7 +115,7 @@ const GEO_WALKTHROUGH = `When the user describes a problem like "near-me searche
 
 1. Pull search-term + campaign data with get_search_terms / get_campaign_performance over a window that has enough volume (LAST_30_DAYS minimum).
 2. Surface the waste numbers in your reply.
-3. Call propose_campaign_restructure with proposalSettings that match what the user asked (e.g. proposalEnabledCampaigns: ["services-geo", "brand"], proposalServiceRadius: "metro", proposalServiceSplit: "auto", proposalPrimaryFocus: "services"). Reviewer hits Approve+Apply, Growth Tools runs (5 to 10 minutes), and audit.campaignProposalStatus flips to ready_for_review.
+3. For a full new structure, call propose_campaign_restructure with proposalSettings that match what the user asked (e.g. proposalEnabledCampaigns: ["services-geo", "brand"], proposalServiceRadius: "metro", proposalServiceSplit: "auto", proposalPrimaryFocus: "services"). For an existing live parent campaign that should be preserved and carved into a smaller city/state campaign, prefer propose_geo_campaign_split: existing campaigns stay live, new geo entities ship PAUSED, and reviewed parent isolation (negative locations/keywords) is applied only after approval.
 4. The user reviews the proposed structure in the audit doc and approves it (UI, not chat).
 5. Once campaignProposalStatus=approved, propose_campaign_build queues the live build (PAUSED).
 6. After build is approved + applied, propose_ad_copy_generate stamps the audit; the user clicks Generate in the audit UI; once adCopyStatus=approved, propose_ad_copy_deploy ships RSAs PAUSED.
@@ -125,7 +126,7 @@ Use get_campaign_proposal_status whenever the user asks 'is it ready?'. Don't gu
 INCREMENTAL ADDITIONS (no full rebuild): when the user wants to extend a working campaign with a new ad group or new keywords, PREFER propose_ad_group_create / propose_keywords_add over propose_campaign_restructure. The restructure pipeline regenerates the WHOLE structure (5 to 10 minute run) and is overkill for one new ad group. Use the targeted tools instead:
 - "Ad group X is working, spin up a similar one for these new keywords" → propose_ad_group_create with cloneFromAdGroupId set so the new group reuses the proven ad copy, default CPC, audience signals, and ad-group negatives.
 - "Add these new keywords to ad group X" → propose_keywords_add. No clone, no new ad group.
-Both tools ship PAUSED so the team can flip them on in Google Ads after approval.`;
+All new entities ship PAUSED so the team can flip them on after review. Never propose pausing existing campaigns/ad groups as part of geo isolation; use negative locations/keywords on the live parent instead.`;
 
 const GMAIL_DRAFT_GUIDE = `ONE-OFF Gmail drafts (the user wants it NOW, not on a schedule):
 
