@@ -14,16 +14,54 @@ import { useEffect, useMemo, useState } from 'react'
  *
  * Used in: Clients collection > Google Ads tab.
  */
+type ConversionActionCategory = {
+  label?: string | null
+  color?: string | null
+  actions?: string | null
+}
+
+const COLOR_OPTIONS = [
+  { label: 'Sky', value: 'sky' },
+  { label: 'Violet', value: 'violet' },
+  { label: 'Emerald', value: 'emerald' },
+  { label: 'Amber', value: 'amber' },
+  { label: 'Rose', value: 'rose' },
+  { label: 'Slate', value: 'slate' },
+]
+
 const GoogleAdsConversionActionPicker = () => {
   const { id } = useDocumentInfo()
   const { value, setValue } = useField<string | null>({
     path: 'dashboardConversionActions',
+  })
+  const { value: categoryValue, setValue: setCategoryValue } = useField<
+    ConversionActionCategory[] | null
+  >({
+    path: 'conversionActionCategories',
   })
 
   const [available, setAvailable] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
+
+  const categoryByAction = useMemo(() => {
+    const map = new Map<string, { label: string; color: string }>()
+    if (!Array.isArray(categoryValue)) return map
+    for (const category of categoryValue) {
+      const actions = String(category?.actions || '')
+        .split(/\r?\n/)
+        .map((action) => action.trim())
+        .filter(Boolean)
+      for (const action of actions) {
+        map.set(action, {
+          label: String(category?.label || '').trim(),
+          color: String(category?.color || 'sky'),
+        })
+      }
+    }
+    return map
+  }, [categoryValue])
 
   // Parse newline-separated stored value -> Set
   const selected = useMemo(() => {
@@ -78,6 +116,28 @@ const GoogleAdsConversionActionPicker = () => {
   // Persist as newline-separated string (back-compat).
   // Keep the saved order stable: existing-saved-first, then newly-checked items
   // in the order the user clicked them.
+  const selectedActionsInOrder = useMemo(() => {
+    const currentOrder: string[] = (typeof value === 'string' ? value : '')
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const kept = currentOrder.filter((name) => selected.has(name))
+    const additions = Array.from(selected).filter((name) => !kept.includes(name))
+    return [...kept, ...additions]
+  }, [selected, value])
+
+  const syncCategories = (actions: string[]) => {
+    const rows = actions
+      .map((action) => {
+        const existing = categoryByAction.get(action)
+        const label = existing?.label || action
+        const color = existing?.color || 'sky'
+        return { label, color, actions: action }
+      })
+      .filter((row) => row.label && row.actions)
+    setCategoryValue(rows.length > 0 ? rows : null)
+  }
+
   const writeSelection = (next: Set<string>) => {
     // Preserve current order from stored value where possible
     const currentOrder: string[] = (typeof value === 'string' ? value : '')
@@ -88,6 +148,29 @@ const GoogleAdsConversionActionPicker = () => {
     const additions = Array.from(next).filter((name) => !kept.includes(name))
     const final = [...kept, ...additions]
     setValue(final.length > 0 ? final.join('\n') : '')
+    syncCategories(final)
+  }
+
+  const updateCategory = (
+    action: string,
+    updates: Partial<{ label: string; color: string }>,
+  ) => {
+    const rows = selectedActionsInOrder
+      .map((selectedAction) => {
+        const existing = categoryByAction.get(selectedAction)
+        const current = {
+          label: existing?.label || selectedAction,
+          color: existing?.color || 'sky',
+        }
+        const next = selectedAction === action ? { ...current, ...updates } : current
+        return {
+          label: next.label.trim() || selectedAction,
+          color: next.color || 'sky',
+          actions: selectedAction,
+        }
+      })
+      .filter((row) => row.actions)
+    setCategoryValue(rows.length > 0 ? rows : null)
   }
 
   const toggle = (name: string) => {
@@ -275,10 +358,30 @@ const GoogleAdsConversionActionPicker = () => {
             </button>
           </div>
 
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(320px, 1fr) 120px minmax(180px, 260px)',
+              gap: 12,
+              padding: '8px 12px',
+              borderBottom: '1px solid var(--theme-elevation-150)',
+              background: 'var(--theme-elevation-50)',
+              fontSize: 11,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: 0.4,
+              color: 'var(--theme-elevation-500)',
+            }}
+          >
+            <span>Conversion action</span>
+            <span>Color</span>
+            <span>Dashboard label</span>
+          </div>
+
           {/* Scrollable list */}
           <div
             style={{
-              maxHeight: 280,
+              maxHeight: 320,
               overflowY: 'auto',
               padding: '4px 0',
             }}
@@ -299,56 +402,137 @@ const GoogleAdsConversionActionPicker = () => {
                 Saved (no longer in last 2 years of data)
               </div>
             )}
-            {orphaned.map((name) => (
-              <label
-                key={`orphan-${name}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 12px',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  color: 'var(--theme-elevation-600)',
-                  fontStyle: 'italic',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={true}
-                  onChange={() => toggle(name)}
-                />
-                <span>{name}</span>
-              </label>
-            ))}
-            {filtered.map((name) => (
-              <label
-                key={name}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 12px',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  color: 'var(--theme-elevation-800)',
-                }}
-                onMouseEnter={(e) => {
-                  ;(e.currentTarget as HTMLElement).style.background =
-                    'var(--theme-elevation-50)'
-                }}
-                onMouseLeave={(e) => {
-                  ;(e.currentTarget as HTMLElement).style.background = ''
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.has(name)}
-                  onChange={() => toggle(name)}
-                />
-                <span>{name}</span>
-              </label>
-            ))}
+            {orphaned.map((name) => {
+              const category = categoryByAction.get(name)
+              return (
+                <div
+                  key={`orphan-${name}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'minmax(320px, 1fr) 120px minmax(180px, 260px)',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '6px 12px',
+                    fontSize: 13,
+                    color: 'var(--theme-elevation-600)',
+                    fontStyle: 'italic',
+                  }}
+                >
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={true}
+                      onChange={() => toggle(name)}
+                    />
+                    <span>{name}</span>
+                  </label>
+                  <select
+                    value={category?.color || 'sky'}
+                    onChange={(e) =>
+                      updateCategory(name, { color: e.target.value })
+                    }
+                    style={{ width: '100%', fontSize: 12, padding: '4px 6px' }}
+                  >
+                    {COLOR_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={category?.label || name}
+                    onChange={(e) =>
+                      updateCategory(name, { label: e.target.value })
+                    }
+                    style={{ width: '100%', fontSize: 12, padding: '4px 6px' }}
+                  />
+                </div>
+              )
+            })}
+            {filtered.map((name) => {
+              const isSelected = selected.has(name)
+              const category = categoryByAction.get(name)
+              return (
+                <div
+                  key={name}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'minmax(320px, 1fr) 120px minmax(180px, 260px)',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '6px 12px',
+                    fontSize: 13,
+                    color: 'var(--theme-elevation-800)',
+                  }}
+                  onMouseEnter={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.background =
+                      'var(--theme-elevation-50)'
+                  }}
+                  onMouseLeave={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.background = ''
+                  }}
+                >
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggle(name)}
+                    />
+                    <span>{name}</span>
+                  </label>
+                  <select
+                    value={category?.color || 'sky'}
+                    disabled={!isSelected}
+                    onChange={(e) =>
+                      updateCategory(name, { color: e.target.value })
+                    }
+                    style={{
+                      width: '100%',
+                      fontSize: 12,
+                      padding: '4px 6px',
+                      opacity: isSelected ? 1 : 0.35,
+                    }}
+                  >
+                    {COLOR_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={category?.label || name}
+                    disabled={!isSelected}
+                    onChange={(e) =>
+                      updateCategory(name, { label: e.target.value })
+                    }
+                    style={{
+                      width: '100%',
+                      fontSize: 12,
+                      padding: '4px 6px',
+                      opacity: isSelected ? 1 : 0.35,
+                    }}
+                  />
+                </div>
+              )
+            })}
             {filtered.length === 0 && filter.trim() && (
               <div
                 style={{

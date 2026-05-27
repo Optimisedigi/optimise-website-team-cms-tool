@@ -1588,9 +1588,10 @@ export const Clients: CollectionConfig = {
               type: "array",
               labels: { singular: "Category", plural: "Categories" },
               admin: {
+                hidden: true,
                 condition: (data: any) => !!data?.googleAdsCustomerId,
                 description:
-                  'Group conversion actions into named categories. Each appears as its own column / tile on the dashboard.',
+                  'Managed by the Default Conversion Actions picker above. Each selected action is stored as a category row for dashboard columns / tiles.',
                 initCollapsed: false,
               },
               fields: [
