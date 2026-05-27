@@ -106,6 +106,11 @@ const GoogleAdsConversionActionPicker = () => {
     return available.filter((a) => a.toLowerCase().includes(f))
   }, [available, filter])
 
+  const availableSelectedCount = useMemo(
+    () => available.filter((name) => selected.has(name)).length,
+    [available, selected],
+  )
+
   // Handle "saved-but-no-longer-available" — show those at the top so the user
   // doesn't lose track of historic selections that fell outside the 730d window
   // or were renamed in Google Ads.
@@ -236,7 +241,7 @@ const GoogleAdsConversionActionPicker = () => {
                 whiteSpace: 'nowrap',
               }}
             >
-              {selected.size} of {available.length} selected
+              {availableSelectedCount} of {available.length} selected
             </span>
             <button
               type="button"
