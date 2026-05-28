@@ -166,6 +166,8 @@ export interface RunChatTurnInput {
   userId?: number;
   /** True when the latest user message includes untrusted external content, e.g. a fetched Gmail body. */
   restrictExternalContextActions?: boolean;
+  /** True when this turn includes image parts that only Anthropic Claude currently supports. */
+  disableNonVisionFallbacks?: boolean;
 }
 
 export interface ProposalSummary {
@@ -228,7 +230,7 @@ const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
 const CHAT_MAX_TOKENS = 8192;
 
 export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnResult> {
-  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions } = input;
+  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, disableNonVisionFallbacks } = input;
   if (!audit.customerId || !String(audit.customerId).trim()) {
     throw new Error("Audit has no Customer ID; cannot run agent.");
   }
@@ -262,7 +264,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     tools: getTools({ restrictExternalContextActions }),
     initialMessages: messages,
     model: modelRequested,
-    fallbackModels: DEFAULT_FALLBACKS,
+    fallbackModels: disableNonVisionFallbacks ? [] : DEFAULT_FALLBACKS,
     maxTokens: CHAT_MAX_TOKENS,
     context: agentContext,
   });
@@ -315,7 +317,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
       tools: getTools({ restrictExternalContextActions }),
       initialMessages: retryMessages,
       model: modelRequested,
-      fallbackModels: DEFAULT_FALLBACKS,
+      fallbackModels: disableNonVisionFallbacks ? [] : DEFAULT_FALLBACKS,
       maxTokens: CHAT_MAX_TOKENS,
       context: agentContext,
       // Reuse the original runId so the activity-log timeline shows the

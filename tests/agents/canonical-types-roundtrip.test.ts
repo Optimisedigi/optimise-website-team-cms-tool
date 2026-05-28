@@ -88,6 +88,36 @@ describe("Anthropic transformer", () => {
     });
   });
 
+  it("converts image attachments to Anthropic vision blocks", () => {
+    const opts: CallLLMOptions = {
+      ...baseOpts,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", mediaType: "image/png", data: "iVBORw0KGgo=" },
+            { type: "text", text: "Read this Google Ads screenshot." },
+          ],
+        },
+      ],
+      tools: undefined,
+    };
+
+    const body = toAnthropic(opts, "claude-sonnet-4-6");
+
+    expect(body.messages[0].content).toEqual([
+      {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: "image/png",
+          data: "iVBORw0KGgo=",
+        },
+      },
+      { type: "text", text: "Read this Google Ads screenshot." },
+    ]);
+  });
+
   it("OAuth: prepends Claude Code identity prefix as a separate UNCACHED system block", () => {
     // Anthropic's OAuth anti-abuse gate 429s requests that don't carry the
     // Claude Code identity prefix as its own block. Verified against gg-ai's
@@ -176,6 +206,25 @@ describe("OpenAI-compatible transformer", () => {
         parameters: baseOpts.tools![0].inputSchema,
       },
     });
+  });
+
+  it("blocks image attachments for OpenAI-compatible providers until model-specific vision support is added", () => {
+    const opts: CallLLMOptions = {
+      ...baseOpts,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", mediaType: "image/png", data: "iVBORw0KGgo=" },
+            { type: "text", text: "Read this screenshot." },
+          ],
+        },
+      ],
+    };
+
+    expect(() => toOpenAI(opts, "kimi-k2.6")).toThrow(
+      "Image attachments are only supported on Anthropic Claude models in OptiMate",
+    );
   });
 
   it("converts OpenAI response to canonical LLMResponse", () => {

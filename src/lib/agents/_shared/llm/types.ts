@@ -11,6 +11,7 @@ export type Role = "system" | "user" | "assistant" | "tool";
 
 export type ContentPart =
   | { type: "text"; text: string }
+  | { type: "image"; mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp"; data: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; toolUseId: string; content: string; isError?: boolean };
 

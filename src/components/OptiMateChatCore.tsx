@@ -89,6 +89,13 @@ export interface OptiMateChatCoreHandle {
   getSessionId: () => string | undefined
 }
 
+interface ImageAttachment {
+  name: string
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+  data: string
+  size: number
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
@@ -134,6 +141,10 @@ interface ChatSession {
   lastMessageAt: string
   turnCount: number
 }
+
+const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+const MAX_IMAGE_ATTACHMENTS = 3
+const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 const SUGGESTED_QUESTIONS = [
   'How is my budget pacing this month?',
@@ -443,6 +454,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   /* Auto-grow the textarea as the user types. Caps at 8 lines so the
    * chat panel never gets crowded; past that the textarea scrolls. */
@@ -480,6 +492,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   const [pendingRefreshTick, setPendingRefreshTick] = useState(0)
   const bumpPendingRefresh = useCallback(() => setPendingRefreshTick((n) => n + 1), [])
   const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
+  const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
   // Drives the dim hint + popover that lists keyword triggers below the
   // chat input. Hover/focus on the textarea wrapper expands the popover.
@@ -741,9 +754,14 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   }, [])
 
   const sendMessage = async (text: string) => {
-    if (!text.trim() || loading) return
+    const trimmedText = text.trim()
+    const currentImages = imageAttachments
+    if ((!trimmedText && currentImages.length === 0) || loading) return
 
-    const userMsg: ChatMessage = { role: 'user', content: text.trim() }
+    const imageSummary = currentImages.length > 0
+      ? `\n\n[Attached image${currentImages.length === 1 ? '' : 's'}: ${currentImages.map((img) => img.name).join(', ')}]`
+      : ''
+    const userMsg: ChatMessage = { role: 'user', content: `${trimmedText || 'Please review the attached image.'}${imageSummary}` }
     setMessages((prev) => [...prev, userMsg])
     setInput('')
     setLoading(true)
@@ -755,10 +773,15 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: text.trim(),
+          message: trimmedText || 'Please review the attached image.',
           sessionId: sessionIdRef.current,
           history: messages.slice(-20).map(({ role, content }) => ({ role, content })),
           model: selectedModel,
+          imageAttachments: currentImages.map((image) => ({
+            name: image.name,
+            mediaType: image.mediaType,
+            data: image.data,
+          })),
           attachedEmail: attachedEmail
             ? {
                 messageId: attachedEmail.messageId,
@@ -833,9 +856,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         savePersistedSessionId(auditId, sessionIdRef.current)
       }
 
-      // Email attachment is per-turn context only — clear after a successful
-      // send so the next unrelated question doesn't accidentally reuse it.
+      // Attachments are per-turn context only — clear after a successful
+      // send so the next unrelated question doesn't accidentally reuse them.
       setAttachedEmail(null)
+      setImageAttachments([])
+      if (imageInputRef.current) imageInputRef.current.value = ''
 
       // Refresh the pending strip and (when tab is hidden) fire a browser
       // notification so the user notices the proposal landed.
@@ -924,6 +949,49 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     const typeLabel = proposalType ?? 'proposal'
     const synthetic = `User declined the ${typeLabel}. Give them a plain-text answer instead — describe what you would have proposed, but do NOT call the propose tool.`
     sendMessage(synthetic)
+  }
+
+  const readImageAttachment = (file: File): Promise<ImageAttachment> => new Promise((resolve, reject) => {
+    if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
+      reject(new Error(`${file.name} is not a supported image type. Use PNG, JPEG, GIF, or WebP.`))
+      return
+    }
+    if (file.size > MAX_IMAGE_ATTACHMENT_BYTES) {
+      reject(new Error(`${file.name} is too large. Use images up to 5 MB.`))
+      return
+    }
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}`))
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      const comma = result.indexOf(',')
+      const data = comma >= 0 ? result.slice(comma + 1) : result
+      resolve({
+        name: file.name,
+        mediaType: file.type as ImageAttachment['mediaType'],
+        data,
+        size: file.size,
+      })
+    }
+    reader.readAsDataURL(file)
+  })
+
+  const handleImageFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const nextFiles = Array.from(files).slice(0, MAX_IMAGE_ATTACHMENTS - imageAttachments.length)
+    if (nextFiles.length === 0) {
+      setError(`Attach up to ${MAX_IMAGE_ATTACHMENTS} images per message.`)
+      return
+    }
+    try {
+      const next = await Promise.all(nextFiles.map(readImageAttachment))
+      setImageAttachments((prev) => [...prev, ...next].slice(0, MAX_IMAGE_ATTACHMENTS))
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not attach image')
+    } finally {
+      if (imageInputRef.current) imageInputRef.current.value = ''
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1544,6 +1612,53 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             </div>
           )}
 
+          {imageAttachments.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {imageAttachments.map((image, idx) => (
+                <div
+                  key={`${image.name}-${idx}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 8px',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: 12,
+                    fontSize: 11,
+                    color: '#166534',
+                    maxWidth: '100%',
+                  }}
+                  title={`${image.name} · ${Math.round(image.size / 1024)} KB`}
+                >
+                  <span style={{ flexShrink: 0 }}>🖼️</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
+                    {image.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setImageAttachments((prev) => prev.filter((_, i) => i !== idx))
+                    }}
+                    aria-label={`Remove ${image.name}`}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      color: '#166534',
+                      padding: 0,
+                      lineHeight: 1,
+                      fontSize: 12,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <EmailAttachPicker
             open={pickerOpen}
             onClose={() => setPickerOpen(false)}
@@ -1554,6 +1669,14 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           />
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              multiple
+              onChange={(e) => handleImageFiles(e.target.files)}
+              style={{ display: 'none' }}
+            />
             <button
               type="button"
               onClick={(e) => {
@@ -1597,6 +1720,30 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
               </svg>
             </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                imageInputRef.current?.click()
+              }}
+              disabled={loading || imageAttachments.length >= MAX_IMAGE_ATTACHMENTS}
+              title="Attach screenshots for Claude to read"
+              style={{
+                padding: '10px 12px',
+                background: '#f3f4f6',
+                color: '#374151',
+                border: '1px solid var(--theme-border-color, #e5e7eb)',
+                borderRadius: 8,
+                fontSize: 14,
+                cursor: loading || imageAttachments.length >= MAX_IMAGE_ATTACHMENTS ? 'not-allowed' : 'pointer',
+                flexShrink: 0,
+                lineHeight: 1,
+              }}
+              aria-label="Attach image screenshot"
+            >
+              🖼️
+            </button>
             <textarea
               ref={inputRef}
               rows={1}
@@ -1634,16 +1781,16 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 e.stopPropagation()
                 sendMessage(input)
               }}
-              disabled={loading || !input.trim()}
+              disabled={loading || (!input.trim() && imageAttachments.length === 0)}
               style={{
                 padding: '10px 18px',
-                background: loading || !input.trim() ? '#9ca3af' : '#2563eb',
+                background: loading || (!input.trim() && imageAttachments.length === 0) ? '#9ca3af' : '#2563eb',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 8,
                 fontWeight: 600,
                 fontSize: 13,
-                cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+                cursor: loading || (!input.trim() && imageAttachments.length === 0) ? 'not-allowed' : 'pointer',
                 transition: 'background 0.15s',
               }}
             >
@@ -1664,7 +1811,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               userSelect: 'none',
             }}
           >
-            ✨ Tip: mention “weekly”, “recurring”, “deck”, or “recap” to unlock extra guides.
+            ✨ Tip: attach screenshots with Claude selected; Kimi/MiniMax are text-only in this chat.
           </div>
 
           {/* Model selector lives BELOW the input row so the typebox is the

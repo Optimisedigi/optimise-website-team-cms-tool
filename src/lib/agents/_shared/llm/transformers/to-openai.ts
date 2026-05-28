@@ -8,6 +8,15 @@
 
 import type { CallLLMOptions } from "../types";
 
+export class UnsupportedOpenAIImageInputError extends Error {
+  constructor() {
+    super(
+      "Image attachments are only supported on Anthropic Claude models in OptiMate. Select a Claude model, or add provider-specific image-part support for the selected OpenAI-compatible provider/model before sending screenshots.",
+    );
+    this.name = "UnsupportedOpenAIImageInputError";
+  }
+}
+
 interface OpenAIMessage {
   role: "system" | "user" | "assistant" | "tool";
   content?: string | null;
@@ -96,7 +105,9 @@ export function toOpenAI(opts: CallLLMOptions, providerModel: string): OpenAIReq
     const userToolResults: OpenAIMessage[] = [];
     for (const part of m.content) {
       if (part.type === "text") userTextParts.push(part.text);
-      else if (part.type === "tool_result") {
+      else if (part.type === "image") {
+        throw new UnsupportedOpenAIImageInputError();
+      } else if (part.type === "tool_result") {
         // tool_result on a user message: emit as separate role:'tool' message
         userToolResults.push({
           role: "tool",

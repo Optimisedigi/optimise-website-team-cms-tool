@@ -28,6 +28,7 @@ interface AnthropicMessage {
   role: "user" | "assistant";
   content: Array<
     | { type: "text"; text: string }
+    | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp"; data: string } }
     | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
     | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
   >;
@@ -87,6 +88,16 @@ export function toAnthropic(
       role: m.role === "assistant" ? "assistant" : "user",
       content: m.content.map((part) => {
         if (part.type === "text") return { type: "text", text: part.text };
+        if (part.type === "image") {
+          return {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: part.mediaType,
+              data: part.data,
+            },
+          };
+        }
         if (part.type === "tool_use") {
           return { type: "tool_use", id: sanitizeToolUseId(part.id), name: part.name, input: part.input };
         }

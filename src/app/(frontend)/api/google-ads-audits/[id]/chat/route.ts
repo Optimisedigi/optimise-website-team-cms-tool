@@ -4,7 +4,7 @@ import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import { runChatTurn } from "@/lib/agents/optimate-google-ads";
 import type { Message } from "@/lib/agents/_shared/llm/types";
-import { isCanonicalModel } from "@/lib/agents/_shared/llm/registry";
+import { MODEL_REGISTRY, isCanonicalModel, type CanonicalModelName } from "@/lib/agents/_shared/llm/registry";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { fetchMessageBody } from "@/lib/gmail-search";
 import { translateAgentError } from "@/lib/agents/optimate-google-ads/error-translator";
@@ -13,6 +13,23 @@ interface IncomingHistoryEntry {
   role: "user" | "assistant";
   content: string;
 }
+
+type SupportedImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+interface IncomingImageAttachment {
+  mediaType: SupportedImageMediaType;
+  data: string;
+  name?: string;
+}
+
+const SUPPORTED_IMAGE_MEDIA_TYPES = new Set<SupportedImageMediaType>([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_ATTACHMENTS = 3;
 
 /**
  * POST /api/google-ads-audits/[id]/chat
@@ -53,6 +70,7 @@ export async function POST(
       history?: unknown;
       model?: unknown;
       attachedEmail?: unknown;
+      imageAttachments?: unknown;
       sessionId?: unknown;
     };
     // Stable thread id. If the client didn't send one, mint a fresh UUID so
@@ -75,7 +93,12 @@ export async function POST(
         )
       : [];
 
-    let modelOverride: string | undefined;
+    const imageAttachments = parseImageAttachments(body.imageAttachments);
+    if (!imageAttachments.ok) {
+      return NextResponse.json({ error: imageAttachments.error }, { status: 400 });
+    }
+
+    let modelOverride: CanonicalModelName | undefined;
     if (typeof body.model === "string" && body.model.trim().length > 0) {
       if (!isCanonicalModel(body.model)) {
         return NextResponse.json(
@@ -84,6 +107,14 @@ export async function POST(
         );
       }
       modelOverride = body.model;
+    }
+
+    const requestedModel = modelOverride ?? "claude-sonnet-4.6";
+    if (imageAttachments.value.length > 0 && MODEL_REGISTRY[requestedModel].provider !== "anthropic") {
+      return NextResponse.json(
+        { error: "Image attachments are currently supported only with Claude models. Select Claude Sonnet/Opus/Haiku before sending screenshots." },
+        { status: 400 },
+      );
     }
 
     // Optional attached-email context. Client only forwards metadata; we
@@ -201,7 +232,17 @@ export async function POST(
         role: h.role,
         content: [{ type: "text", text: h.content }],
       })),
-      { role: "user", content: [{ type: "text", text: decoratedMessage }] },
+      {
+        role: "user",
+        content: [
+          ...imageAttachments.value.map((image) => ({
+            type: "image" as const,
+            mediaType: image.mediaType,
+            data: image.data,
+          })),
+          { type: "text" as const, text: decoratedMessage },
+        ],
+      },
     ];
 
     const result = await runChatTurn({
@@ -211,6 +252,7 @@ export async function POST(
       modelOverride,
       userId: typeof user.id === "number" ? user.id : Number(user.id),
       restrictExternalContextActions: hasUntrustedAttachedEmail,
+      disableNonVisionFallbacks: imageAttachments.value.length > 0,
     });
 
     // Persist the assistant turn. Same best-effort treatment as the user row.
@@ -286,6 +328,46 @@ export async function POST(
       { status: 500 },
     );
   }
+}
+
+function parseImageAttachments(input: unknown):
+  | { ok: true; value: IncomingImageAttachment[] }
+  | { ok: false; error: string } {
+  if (input === undefined || input === null) return { ok: true, value: [] };
+  if (!Array.isArray(input)) return { ok: false, error: "imageAttachments must be an array" };
+  if (input.length > MAX_IMAGE_ATTACHMENTS) {
+    return { ok: false, error: `Attach up to ${MAX_IMAGE_ATTACHMENTS} images per message` };
+  }
+
+  const parsed: IncomingImageAttachment[] = [];
+  for (const raw of input) {
+    if (!raw || typeof raw !== "object") {
+      return { ok: false, error: "Each image attachment must be an object" };
+    }
+    const item = raw as Record<string, unknown>;
+    const mediaType = item.mediaType;
+    const data = item.data;
+    const name = item.name;
+    if (typeof mediaType !== "string" || !SUPPORTED_IMAGE_MEDIA_TYPES.has(mediaType as SupportedImageMediaType)) {
+      return { ok: false, error: "Unsupported image type. Use PNG, JPEG, GIF, or WebP." };
+    }
+    if (typeof data !== "string" || data.length === 0) {
+      return { ok: false, error: "Image attachment data is required" };
+    }
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) {
+      return { ok: false, error: "Image attachment data must be base64" };
+    }
+    const estimatedBytes = Math.floor((data.length * 3) / 4);
+    if (estimatedBytes > MAX_IMAGE_ATTACHMENT_BYTES) {
+      return { ok: false, error: "Each image attachment must be 5 MB or smaller" };
+    }
+    parsed.push({
+      mediaType: mediaType as SupportedImageMediaType,
+      data,
+      ...(typeof name === "string" && name.trim().length > 0 ? { name: name.trim().slice(0, 120) } : {}),
+    });
+  }
+  return { ok: true, value: parsed };
 }
 
 async function resolveLinkedClient(
