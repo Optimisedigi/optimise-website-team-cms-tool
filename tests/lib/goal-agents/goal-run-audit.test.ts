@@ -6,17 +6,20 @@ import {
   markGoalRunStatus,
   attachMeasurement,
 } from "@/lib/goal-agents/goal-run-audit";
+import { IllegalTransitionError } from "@/lib/goal-agents/state-machine";
 
 // ─── Mock payload ───────────────────────────────────────────────────────────
 interface MockPayload {
   create: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
+  findByID: ReturnType<typeof vi.fn>;
 }
 
 function makePayload(): MockPayload {
   return {
     create: vi.fn(),
     update: vi.fn(),
+    findByID: vi.fn(),
   };
 }
 
@@ -225,6 +228,7 @@ describe("markGoalRunStatus", () => {
   });
 
   it("updates the goal-runs row to the new status", async () => {
+    payload.findByID.mockResolvedValue({ id: 5, status: "analysing" });
     payload.update.mockResolvedValue({ id: 5, status: "pending_approval" });
 
     const result = await markGoalRunStatus(payload as never, {
@@ -232,6 +236,14 @@ describe("markGoalRunStatus", () => {
       status: "pending_approval",
     });
 
+    expect(payload.findByID).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "goal-runs",
+        id: 5,
+        depth: 0,
+        overrideAccess: true,
+      }),
+    );
     expect(payload.update).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: "goal-runs",
@@ -244,6 +256,7 @@ describe("markGoalRunStatus", () => {
   });
 
   it("sets completedAt when provided", async () => {
+    payload.findByID.mockResolvedValue({ id: 5, status: "measuring" });
     payload.update.mockResolvedValue({ id: 5, status: "complete", completedAt: "2026-06-01T12:00:00Z" });
 
     await markGoalRunStatus(payload as never, {
@@ -257,6 +270,7 @@ describe("markGoalRunStatus", () => {
   });
 
   it("sets error when provided (failed status)", async () => {
+    payload.findByID.mockResolvedValue({ id: 5, status: "executing" });
     payload.update.mockResolvedValue({ id: 5, status: "failed", error: "Growth Tools timeout" });
 
     await markGoalRunStatus(payload as never, {
@@ -270,6 +284,7 @@ describe("markGoalRunStatus", () => {
   });
 
   it("sets both completedAt and error when transitioning to failed", async () => {
+    payload.findByID.mockResolvedValue({ id: 5, status: "executing" });
     payload.update.mockResolvedValue({ id: 5, status: "failed" });
 
     await markGoalRunStatus(payload as never, {
@@ -283,6 +298,76 @@ describe("markGoalRunStatus", () => {
     expect(callData.status).toBe("failed");
     expect(callData.error).toBe("oops");
     expect(callData.completedAt).toBe("2026-06-01T10:00:00Z");
+  });
+
+  it("rejects illegal transitions before writing", async () => {
+    payload.findByID.mockResolvedValue({ id: 5, status: "complete" });
+
+    await expect(
+      markGoalRunStatus(payload as never, {
+        goalRunId: 5,
+        status: "analysing",
+      }),
+    ).rejects.toBeInstanceOf(IllegalTransitionError);
+
+    expect(payload.update).not.toHaveBeenCalled();
+  });
+
+  it("does not persist terminal-state failure metadata for an illegal failed → failed escape attempt", async () => {
+    payload.findByID.mockResolvedValue({ id: 5, status: "complete" });
+
+    await expect(
+      markGoalRunStatus(payload as never, {
+        goalRunId: 5,
+        status: "failed",
+        error: "late scheduler failure",
+        completedAt: "2026-06-01T10:00:00Z",
+      }),
+    ).rejects.toMatchObject({
+      from: "complete",
+      to: "failed",
+    });
+
+    expect(payload.update).not.toHaveBeenCalled();
+  });
+
+  it("allows identity re-save (status === current)", async () => {
+    payload.findByID.mockResolvedValue({ id: 5, status: "analysing" });
+    payload.update.mockResolvedValue({ id: 5, status: "analysing" });
+
+    await expect(
+      markGoalRunStatus(payload as never, { goalRunId: 5, status: "analysing" }),
+    ).resolves.toEqual({ id: 5, status: "analysing" });
+  });
+
+  it("propagates the underlying error when the row is missing", async () => {
+    const notFound = new Error("NotFound: goal-runs id=5");
+    payload.findByID.mockRejectedValue(notFound);
+
+    await expect(
+      markGoalRunStatus(payload as never, { goalRunId: 5, status: "failed" }),
+    ).rejects.toBe(notFound);
+
+    expect(payload.update).not.toHaveBeenCalled();
+  });
+
+  it("allows the full happy-path sequence analysing → pending_approval → executing → measuring → complete", async () => {
+    const steps: Array<{ from: "analysing" | "pending_approval" | "executing" | "measuring"; to: "pending_approval" | "executing" | "measuring" | "complete" }> = [
+      { from: "analysing", to: "pending_approval" },
+      { from: "pending_approval", to: "executing" },
+      { from: "executing", to: "measuring" },
+      { from: "measuring", to: "complete" },
+    ];
+    for (const step of steps) {
+      payload.findByID.mockResolvedValueOnce({ id: 5, status: step.from });
+      payload.update.mockResolvedValueOnce({ id: 5, status: step.to });
+      const result = await markGoalRunStatus(payload as never, {
+        goalRunId: 5,
+        status: step.to,
+      });
+      expect(result.status).toBe(step.to);
+    }
+    expect(payload.update).toHaveBeenCalledTimes(steps.length);
   });
 });
 

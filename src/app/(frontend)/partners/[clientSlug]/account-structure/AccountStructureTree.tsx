@@ -913,7 +913,10 @@ export default function AccountStructureTree({
   const totalAdGroups = data?.campaigns.reduce((s, c) => s + c.adGroups.length, 0) ?? 0;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: PALETTE.pageBg }}>
+    <div
+      className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] min-h-screen w-screen"
+      style={{ backgroundColor: PALETTE.pageBg }}
+    >
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="px-6 py-3 flex items-center justify-between gap-4 flex-wrap">

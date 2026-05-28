@@ -200,4 +200,203 @@ describe("critical agency flows — E2E route contracts", () => {
       }),
     );
   });
+
+  it("rejects proposal audit runs for missing users, unknown proposals, and incomplete proposal inputs", async () => {
+    const { POST } = await import("@/app/(frontend)/api/proposals/[id]/run-audits/route");
+
+    mockPayload.auth.mockResolvedValueOnce({ user: null });
+    const unauthorized = await POST(
+      new NextRequest("http://localhost/api/proposals/99/run-audits", { method: "POST" }),
+      { params: Promise.resolve({ id: "99" }) },
+    );
+    expect(unauthorized.status).toBe(401);
+    await expect(unauthorized.json()).resolves.toEqual({ error: "Unauthorized" });
+
+    mockPayload.auth.mockResolvedValueOnce({ user: { id: 1, role: "admin" } });
+    mockPayload.findByID.mockRejectedValueOnce(new Error("not found"));
+    const notFound = await POST(
+      new NextRequest("http://localhost/api/proposals/not-a-real-id/run-audits", { method: "POST" }),
+      { params: Promise.resolve({ id: "not-a-real-id" }) },
+    );
+    expect(notFound.status).toBe(404);
+    await expect(notFound.json()).resolves.toEqual({ error: "Proposal not found", detail: "not found" });
+
+    mockPayload.auth.mockResolvedValueOnce({ user: { id: 1, role: "admin" } });
+    mockPayload.findByID.mockResolvedValueOnce({
+      id: 100,
+      websiteUrl: "https://example.com",
+      businessType: "Dental clinic",
+      keywords: "   ",
+    });
+    const incomplete = await POST(
+      new NextRequest("http://localhost/api/proposals/100/run-audits", { method: "POST" }),
+      { params: Promise.resolve({ id: "100" }) },
+    );
+    expect(incomplete.status).toBe(400);
+    await expect(incomplete.json()).resolves.toEqual({
+      error: "Missing required fields: websiteUrl, businessType, keywords",
+    });
+    expect(afterCallbacks).toHaveLength(0);
+  });
+
+  it("marks proposal audit runs failed when all Growth Tools calls fail", async () => {
+    const { POST } = await import("@/app/(frontend)/api/proposals/[id]/run-audits/route");
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, role: "admin" } });
+    mockPayload.findByID.mockResolvedValue({
+      id: 101,
+      websiteUrl: "https://example.com",
+      businessType: "Dental clinic",
+      conversionGoal: "bookings",
+      targetLocation: "au:Sydney",
+      keywords: "dentist sydney",
+      competitors: [],
+    });
+    mockPayload.update.mockResolvedValue({});
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: "upstream down" }, { status: 503 })));
+
+    const res = await POST(
+      new NextRequest("http://localhost/api/proposals/101/run-audits", { method: "POST" }),
+      { params: Promise.resolve({ id: "101" }) },
+    );
+
+    expect(res.status).toBe(200);
+    await runAfterCallbacks();
+    expect(mockPayload.create).not.toHaveBeenCalled();
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "client-proposals",
+        id: "101",
+        data: expect.objectContaining({
+          auditStatus: "failed",
+          auditProgress: "Failed|100",
+          auditCompletedAt: expect.any(String),
+          auditError: expect.stringContaining("SEO audit failed: 503"),
+        }),
+      }),
+    );
+  });
+
+  it("triggers Google Ads audits, normalizes inputs, and persists running-to-completed transitions", async () => {
+    const { POST } = await import("@/app/(frontend)/api/google-ads-audits/[id]/run-audit/route");
+    mockPayload.auth.mockResolvedValue({ user: { id: 1, role: "admin" } });
+    mockPayload.findByID.mockImplementation(async ({ collection }: { collection: string }) => {
+      if (collection === "clients") return { id: 7, brandKeywords: "Acme\nAcme Dental" };
+      return {
+        id: 222,
+        customerId: "123-456-7890",
+        businessName: "Acme Dental",
+        monthlySpend: 5000,
+        conversionObjectives: "Calls\nForms",
+        client: 7,
+        actionItems: [],
+      };
+    });
+    mockPayload.update.mockResolvedValue({});
+    const fetchMock = vi.fn(async () => Response.json({
+      raw: { account: "raw" },
+      scored: {
+        overallScore: 88,
+        steps: [{ step: 1, name: "Tracking", score: 90, findings: ["Good"], recommendations: ["Improve"] }],
+        quickWins: ["Add negatives"],
+      },
+      emailHtml: "<p>Audit</p>",
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await POST(
+      new NextRequest("http://localhost/api/google-ads-audits/222/run-audit", { method: "POST" }),
+      { params: Promise.resolve({ id: "222" }) },
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true, status: "running" });
+    await runAfterCallbacks();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://growth-tools.test/api/google-ads/comprehensive-audit",
+      expect.objectContaining({ method: "POST" }),
+    );
+    const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(requestInit.body))).toEqual(expect.objectContaining({
+      customerId: "1234567890",
+      brandTerms: ["Acme", "Acme Dental"],
+      conversionObjectives: ["Calls", "Forms"],
+      monthlySpend: 5000,
+    }));
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "google-ads-audits",
+        id: "222",
+        data: expect.objectContaining({ auditStatus: "running", auditProgress: "Starting audit|0" }),
+      }),
+    );
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "google-ads-audits",
+        id: "222",
+        data: expect.objectContaining({
+          rawData: { account: "raw" },
+          overallScore: 88,
+          auditProgress: "Storing results|90",
+        }),
+      }),
+    );
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "google-ads-audits",
+        id: "222",
+        data: expect.objectContaining({
+          auditStatus: "completed",
+          auditProgress: "Complete|100",
+          auditCompletedAt: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("rejects invalid Google Ads audit triggers and marks upstream failures on the audit", async () => {
+    const { POST } = await import("@/app/(frontend)/api/google-ads-audits/[id]/run-audit/route");
+
+    mockPayload.auth.mockResolvedValueOnce({ user: { id: 1, role: "admin" } });
+    mockPayload.findByID.mockRejectedValueOnce(new Error("missing"));
+    const missing = await POST(
+      new NextRequest("http://localhost/api/google-ads-audits/missing/run-audit", { method: "POST" }),
+      { params: Promise.resolve({ id: "missing" }) },
+    );
+    expect(missing.status).toBe(404);
+
+    mockPayload.auth.mockResolvedValueOnce({ user: { id: 1, role: "admin" } });
+    mockPayload.findByID.mockResolvedValueOnce({ id: 223, customerId: "" });
+    const invalid = await POST(
+      new NextRequest("http://localhost/api/google-ads-audits/223/run-audit", { method: "POST" }),
+      { params: Promise.resolve({ id: "223" }) },
+    );
+    expect(invalid.status).toBe(400);
+    await expect(invalid.json()).resolves.toEqual({ error: "Missing required field: customerId" });
+
+    mockPayload.auth.mockResolvedValueOnce({ user: { id: 1, role: "admin" } });
+    mockPayload.findByID.mockResolvedValueOnce({
+      id: 224,
+      customerId: "123-456-7890",
+      actionItems: [],
+    });
+    mockPayload.update.mockResolvedValue({});
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("bad gateway", { status: 502 })));
+    const upstreamFailure = await POST(
+      new NextRequest("http://localhost/api/google-ads-audits/224/run-audit", { method: "POST" }),
+      { params: Promise.resolve({ id: "224" }) },
+    );
+    expect(upstreamFailure.status).toBe(200);
+    await runAfterCallbacks();
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "google-ads-audits",
+        id: "224",
+        data: expect.objectContaining({
+          auditStatus: "failed",
+          auditProgress: "Failed|100",
+          auditError: "Growth tools audit failed (502): bad gateway",
+        }),
+      }),
+    );
+  });
 });

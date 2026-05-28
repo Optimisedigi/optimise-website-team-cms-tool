@@ -129,8 +129,8 @@ export interface Config {
     'consolidation-candidates': ConsolidationCandidate;
     'goal-runs': GoalRun;
     'goal-run-snapshots': GoalRunSnapshot;
-    'goal-risk-tiers': GoalRiskTier;
     'payload-kv': PayloadKv;
+    'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
@@ -210,8 +210,8 @@ export interface Config {
     'consolidation-candidates': ConsolidationCandidatesSelect<false> | ConsolidationCandidatesSelect<true>;
     'goal-runs': GoalRunsSelect<false> | GoalRunsSelect<true>;
     'goal-run-snapshots': GoalRunSnapshotsSelect<false> | GoalRunSnapshotsSelect<true>;
-    'goal-risk-tiers': GoalRiskTiersSelect<false> | GoalRiskTiersSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
+    'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
   };
@@ -741,7 +741,7 @@ export interface Client {
     | null;
   dashboardConversionActions?: string | null;
   /**
-   * Group conversion actions into named categories. Each appears as its own column / tile on the dashboard.
+   * Managed by the Default Conversion Actions picker above. Each selected action is stored as a category row for dashboard columns / tiles.
    */
   conversionActionCategories?:
     | {
@@ -3164,6 +3164,40 @@ export interface GoogleAdsAudit {
    * Which side to prioritise in the proposal. Default: services.
    */
   proposalPrimaryFocus?: ('services' | 'products' | 'equal') | null;
+  /**
+   * Controls geo campaign proposal behaviour. Existing campaigns stay live; new geo splits are built paused.
+   */
+  proposalGeoIsolationMode?:
+    | ('off' | 'state_campaigns' | 'city_campaigns' | 'state_plus_city_priority' | 'auto')
+    | null;
+  /**
+   * How to treat 'near me' local-intent searches in geo proposals.
+   */
+  proposalNearMeStrategy?: ('exclude' | 'include_in_local_only' | 'include_everywhere' | 'auto') | null;
+  /**
+   * How parent campaigns are isolated when child geo campaigns are proposed.
+   */
+  proposalGeoNegativeStrategy?: ('keyword_only' | 'location_only' | 'keyword_and_location') | null;
+  /**
+   * Preserve source keyword-level Max CPC when cloning keywords into geo campaigns.
+   */
+  proposalPreserveKeywordCpc?: boolean | null;
+  /**
+   * Exact match is allowed by default; phrase match requires explicit review approval. Broad match is never proposed.
+   */
+  proposalPhraseMatchRequiresApproval?: boolean | null;
+  /**
+   * Google Ads label applied to entities created by Optimise Digital tooling.
+   */
+  proposalCreatedByLabel?: string | null;
+  /**
+   * Temporary Google Ads label for paused entities awaiting CMS activation.
+   */
+  proposalPendingActivationLabel?: string | null;
+  /**
+   * Optional label to apply after a human activates a build batch.
+   */
+  proposalActivatedLabel?: string | null;
   /**
    * Keywords to exclude from specific categories or globally. Set these BEFORE running the proposal.
    */
@@ -7155,50 +7189,6 @@ export interface GoalRunSnapshot {
   createdAt: string;
 }
 /**
- * Defines spend/action thresholds per risk tier. checkRiskTier() reads these at runtime.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "goal-risk-tiers".
- */
-export interface GoalRiskTier {
-  id: number;
-  /**
-   * Human-readable name, e.g. 'Green — Low-Risk, Reversible'
-   */
-  name: string;
-  /**
-   * Risk classification. Black is forbidden — no handler will execute it.
-   */
-  tier: 'green' | 'yellow' | 'red' | 'black';
-  /**
-   * Maximum budget change (absolute $) this tier allows. Null = no limit. Used to gate yellow auto-execute.
-   */
-  maxBudgetImpactDollars?: number | null;
-  /**
-   * Optional: constrain this tier to specific handler keys. Leave blank (no rows) to apply this tier to all action types. Each row = one permitted handler key, e.g. 'nkl-push-live'. When no rows are added, this tier is skipped (action falls through to the next tier or defaults to red.)
-   */
-  allowedActionTypes?:
-    | {
-        actionType: string;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * When true, this tier always escalates to the approval queue before execution.
-   */
-  requiresApproval?: boolean | null;
-  /**
-   * When true, the goal runtime may auto-execute this tier without waiting for human approval. Only safe for green-tier actions.
-   */
-  autoExecute?: boolean | null;
-  /**
-   * Internal note: why this tier is classified this way, examples, constraints.
-   */
-  description?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -7214,6 +7204,269 @@ export interface PayloadKv {
     | number
     | boolean
     | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-locked-documents".
+ */
+export interface PayloadLockedDocument {
+  id: number;
+  document?:
+    | ({
+        relationTo: 'clients';
+        value: number | Client;
+      } | null)
+    | ({
+        relationTo: 'client-proposals';
+        value: number | ClientProposal;
+      } | null)
+    | ({
+        relationTo: 'client-discovery-briefings';
+        value: number | ClientDiscoveryBriefing;
+      } | null)
+    | ({
+        relationTo: 'contracts';
+        value: number | Contract;
+      } | null)
+    | ({
+        relationTo: 'sales-leads';
+        value: number | SalesLead;
+      } | null)
+    | ({
+        relationTo: 'process-templates';
+        value: number | ProcessTemplate;
+      } | null)
+    | ({
+        relationTo: 'deck-templates';
+        value: number | DeckTemplate;
+      } | null)
+    | ({
+        relationTo: 'client-processes';
+        value: number | ClientProcess;
+      } | null)
+    | ({
+        relationTo: 'meeting-schedulers';
+        value: number | MeetingScheduler;
+      } | null)
+    | ({
+        relationTo: 'blog-posts';
+        value: number | BlogPost;
+      } | null)
+    | ({
+        relationTo: 'blog-prompts';
+        value: number | BlogPrompt;
+      } | null)
+    | ({
+        relationTo: 'job-posts';
+        value: number | JobPost;
+      } | null)
+    | ({
+        relationTo: 'media';
+        value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'internal-link-suggestions';
+        value: number | InternalLinkSuggestion;
+      } | null)
+    | ({
+        relationTo: 'seo-audits';
+        value: number | SeoAudit;
+      } | null)
+    | ({
+        relationTo: 'cro-audits';
+        value: number | CroAudit;
+      } | null)
+    | ({
+        relationTo: 'google-ads-audits';
+        value: number | GoogleAdsAudit;
+      } | null)
+    | ({
+        relationTo: 'tag-setup-audits';
+        value: number | TagSetupAudit;
+      } | null)
+    | ({
+        relationTo: 'keyword-snapshots';
+        value: number | KeywordSnapshot;
+      } | null)
+    | ({
+        relationTo: 'competitor-analyses';
+        value: number | CompetitorAnalysis;
+      } | null)
+    | ({
+        relationTo: 'content-researches';
+        value: number | ContentResearch;
+      } | null)
+    | ({
+        relationTo: 'gsc-alerts';
+        value: number | GscAlert;
+      } | null)
+    | ({
+        relationTo: 'gsc-indexing-audits';
+        value: number | GscIndexingAudit;
+      } | null)
+    | ({
+        relationTo: 'negative-sweep-candidates';
+        value: number | NegativeSweepCandidate;
+      } | null)
+    | ({
+        relationTo: 'negative-keyword-lists';
+        value: number | NegativeKeywordList;
+      } | null)
+    | ({
+        relationTo: 'keyword-deep-dive-sessions';
+        value: number | KeywordDeepDiveSession;
+      } | null)
+    | ({
+        relationTo: 'site-health-reports';
+        value: number | SiteHealthReport;
+      } | null)
+    | ({
+        relationTo: 'ai-visibility-snapshots';
+        value: number | AiVisibilitySnapshot;
+      } | null)
+    | ({
+        relationTo: 'serp-displacement-snapshots';
+        value: number | SerpDisplacementSnapshot;
+      } | null)
+    | ({
+        relationTo: 'serp-displacement-alerts';
+        value: number | SerpDisplacementAlert;
+      } | null)
+    | ({
+        relationTo: 'business-costs';
+        value: number | BusinessCost;
+      } | null)
+    | ({
+        relationTo: 'cost-categories';
+        value: number | CostCategory;
+      } | null)
+    | ({
+        relationTo: 'cost-rules';
+        value: number | CostRule;
+      } | null)
+    | ({
+        relationTo: 'invoice-statement-drafts';
+        value: number | InvoiceStatementDraft;
+      } | null)
+    | ({
+        relationTo: 'contractors';
+        value: number | Contractor;
+      } | null)
+    | ({
+        relationTo: 'contractor-time-entries';
+        value: number | ContractorTimeEntry;
+      } | null)
+    | ({
+        relationTo: 'contractor-payments';
+        value: number | ContractorPayment;
+      } | null)
+    | ({
+        relationTo: 'users';
+        value: number | User;
+      } | null)
+    | ({
+        relationTo: 'permission-profiles';
+        value: number | PermissionProfile;
+      } | null)
+    | ({
+        relationTo: 'usage-reports';
+        value: number | UsageReport;
+      } | null)
+    | ({
+        relationTo: 'activity-log';
+        value: number | ActivityLog;
+      } | null)
+    | ({
+        relationTo: 'agent-approval-queue';
+        value: number | AgentApprovalQueue;
+      } | null)
+    | ({
+        relationTo: 'scheduled-agent-tasks';
+        value: number | ScheduledAgentTask;
+      } | null)
+    | ({
+        relationTo: 'agent-memory';
+        value: number | AgentMemory;
+      } | null)
+    | ({
+        relationTo: 'agent-soul';
+        value: number | AgentSoul;
+      } | null)
+    | ({
+        relationTo: 'optimate-chat-turns';
+        value: number | OptimateChatTurn;
+      } | null)
+    | ({
+        relationTo: 'gsc-snapshots';
+        value: number | GscSnapshot;
+      } | null)
+    | ({
+        relationTo: 'gsc-daily';
+        value: number | GscDaily;
+      } | null)
+    | ({
+        relationTo: 'google-ads-snapshots';
+        value: number | GoogleAdsSnapshot;
+      } | null)
+    | ({
+        relationTo: 'google-ads-campaign-budgets';
+        value: number | GoogleAdsCampaignBudget;
+      } | null)
+    | ({
+        relationTo: 'google-ads-ad-extensions';
+        value: number | GoogleAdsAdExtension;
+      } | null)
+    | ({
+        relationTo: 'negative-keyword-avoided-spend-cache';
+        value: number | NegativeKeywordAvoidedSpendCache;
+      } | null)
+    | ({
+        relationTo: 'negative-keyword-monthly-waste-relevancy-cache';
+        value: number | NegativeKeywordMonthlyWasteRelevancyCache;
+      } | null)
+    | ({
+        relationTo: 'agent-credentials';
+        value: number | AgentCredential;
+      } | null)
+    | ({
+        relationTo: 'contract-reminders';
+        value: number | ContractReminder;
+      } | null)
+    | ({
+        relationTo: 'notifications';
+        value: number | Notification;
+      } | null)
+    | ({
+        relationTo: 'pin-rate-limits';
+        value: number | PinRateLimit;
+      } | null)
+    | ({
+        relationTo: 'match-type-violation-candidates';
+        value: number | MatchTypeViolationCandidate;
+      } | null)
+    | ({
+        relationTo: 'match-type-sync-state';
+        value: number | MatchTypeSyncState;
+      } | null)
+    | ({
+        relationTo: 'consolidation-candidates';
+        value: number | ConsolidationCandidate;
+      } | null)
+    | ({
+        relationTo: 'goal-runs';
+        value: number | GoalRun;
+      } | null)
+    | ({
+        relationTo: 'goal-run-snapshots';
+        value: number | GoalRunSnapshot;
+      } | null);
+  globalSlug?: string | null;
+  user: {
+    relationTo: 'users';
+    value: number | User;
+  };
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -8372,6 +8625,14 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   proposalMaxIndustryVerticals?: T;
   proposalMaxAdGroupsPerCampaign?: T;
   proposalPrimaryFocus?: T;
+  proposalGeoIsolationMode?: T;
+  proposalNearMeStrategy?: T;
+  proposalGeoNegativeStrategy?: T;
+  proposalPreserveKeywordCpc?: T;
+  proposalPhraseMatchRequiresApproval?: T;
+  proposalCreatedByLabel?: T;
+  proposalPendingActivationLabel?: T;
+  proposalActivatedLabel?: T;
   campaignProposalNegativeKeywords?:
     | T
     | {
@@ -9506,31 +9767,22 @@ export interface GoalRunSnapshotsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "goal-risk-tiers_select".
- */
-export interface GoalRiskTiersSelect<T extends boolean = true> {
-  name?: T;
-  tier?: T;
-  maxBudgetImpactDollars?: T;
-  allowedActionTypes?:
-    | T
-    | {
-        actionType?: T;
-        id?: T;
-      };
-  requiresApproval?: T;
-  autoExecute?: T;
-  description?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
   key?: T;
   data?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-locked-documents_select".
+ */
+export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
+  document?: T;
+  globalSlug?: T;
+  user?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -9771,6 +10023,9 @@ export interface EmailTemplate {
       }[]
     | null;
   googleAdsStarterQuestionsIntro?: string | null;
+  /**
+   * Keep this to the final sentence only. The shared Signature tab is appended automatically.
+   */
   googleAdsStarterClosing?: string | null;
   /**
    * Raw HTML block. Brand-only — no name, no contact details. Rendered below the per-template sign-off + sender name.

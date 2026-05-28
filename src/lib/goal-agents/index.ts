@@ -40,3 +40,15 @@ export {
   type MarkStatusArgs,
   type AttachMeasurementArgs,
 } from "./goal-run-audit";
+
+export {
+  LEGAL_TRANSITIONS,
+  IllegalTransitionError,
+  assertLegalTransition,
+} from "./state-machine";
+
+export {
+  fanOutGoalRunEscalation,
+  clearGoalRunEscalations,
+  type EscalationInput,
+} from "./escalations";

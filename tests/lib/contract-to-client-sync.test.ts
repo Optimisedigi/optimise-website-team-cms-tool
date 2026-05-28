@@ -400,6 +400,127 @@ describe("syncContractToClient", () => {
     );
   });
 
+  it("does not overwrite an existing signedContract relationship with a different contract", async () => {
+    const payload = createMockPayload({
+      id: 42,
+      signedContract: { id: 88 },
+      signedContractUrl: "",
+      monthlyRetainer: 0,
+      setupFee: 0,
+      clientStartDate: null,
+      oneOffProjects: [],
+    });
+
+    const result = await syncContractToClient(payload as any, {
+      id: 99,
+      client: 42,
+      signedPdfUrl: "https://blob/signed-99.pdf",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.applied.signedContract).toBe(false);
+    expect(result.applied.signedContractUrl).toBe(true);
+    const call = payload.update.mock.calls[0][0];
+    expect(call.data).toEqual({ signedContractUrl: "https://blob/signed-99.pdf" });
+  });
+
+  it("is idempotent when all contract-derived client fields already match", async () => {
+    const payload = createMockPayload({
+      id: 42,
+      name: "Acme Corp",
+      tradingName: "Acme",
+      contactName: "Jane Doe",
+      contactEmail: "jane@acme.com",
+      websiteUrl: "https://acme.com",
+      monthlyRetainer: 1500,
+      setupFee: 1000,
+      clientStartDate: "2026-06-01",
+      signedContract: 1,
+      signedContractUrl: "https://blob/signed-1.pdf",
+      oneOffProjects: [
+        {
+          projectName: "Website build",
+          amount: 5000,
+          date: "2026-06-01",
+          countTowardsRetainer: false,
+        },
+      ],
+    });
+
+    const result = await syncContractToClient(payload as any, {
+      id: 1,
+      client: 42,
+      clientName: "Acme Corp",
+      clientTradingName: "Acme",
+      clientContactName: "Jane Doe",
+      clientEmail: "jane@acme.com, ops@acme.com",
+      clientWebsite: "https://acme.com",
+      monthlyRetainer: 1500,
+      setupFee: 1000,
+      contractStartDate: "2026-06-01",
+      signedPdfUrl: "https://blob/signed-1.pdf",
+      additionalWork: [
+        { projectName: "Website build", amount: 5000, countTowardsRetainer: false },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.applied).toEqual({
+      monthlyRetainer: false,
+      setupFee: false,
+      clientStartDate: false,
+      additionalWorkAppended: 0,
+      name: false,
+      tradingName: false,
+      contactName: false,
+      contactEmail: false,
+      websiteUrl: false,
+      signedContract: false,
+      signedContractUrl: false,
+    });
+    expect(payload.update).not.toHaveBeenCalled();
+  });
+
+  it("does not update any client when the linked client cannot be found", async () => {
+    const payload = createMockPayload(null);
+
+    const result = await syncContractToClient(payload as any, {
+      id: 1,
+      client: 404,
+      monthlyRetainer: 1000,
+      setupFee: 500,
+      additionalWork: [{ projectName: "Audit", amount: 250 }],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.warnings).toContain("Client 404 not found.");
+    expect(payload.update).not.toHaveBeenCalled();
+  });
+
+  it("ignores malformed additionalWork rows without writing empty client updates", async () => {
+    const payload = createMockPayload({
+      id: 42,
+      monthlyRetainer: 0,
+      setupFee: 0,
+      clientStartDate: null,
+      signedContract: 1,
+      oneOffProjects: [],
+    });
+
+    const result = await syncContractToClient(payload as any, {
+      id: 1,
+      client: 42,
+      additionalWork: [
+        { projectName: "", amount: 100 },
+        { projectName: "Missing amount", amount: null },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.applied.additionalWorkAppended).toBe(0);
+    expect(payload.update).not.toHaveBeenCalled();
+  });
+
   it("catches errors and returns ok=false", async () => {
     const payload = {
       findByID: vi.fn().mockRejectedValue(new Error("db down")),

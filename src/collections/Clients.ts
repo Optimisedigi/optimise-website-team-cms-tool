@@ -114,7 +114,7 @@ export const Clients: CollectionConfig = {
     useAsTitle: "name",
     group: "Clients",
     description: "Manage client websites",
-    defaultColumns: ["name", "monthlyRetainer", "billingSummary", "clientPin", "isActive"],
+    defaultColumns: ["name", "slug", "websiteUrl", "isActive"],
     hidden: hideUnlessFeature("clients"),
   },
   access: {

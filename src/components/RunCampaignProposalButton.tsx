@@ -221,6 +221,38 @@ const RunCampaignProposalButtonInner = () => {
               </ol>
             </div>
 
+            {/* Geo campaign splits */}
+            <div style={{ marginBottom: 16 }}>
+              <h4 style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: '#111827' }}>Geo Campaign Splits</h4>
+              <p style={{ margin: '0 0 8px' }}>
+                Use geo splits when an existing account has state or city intent that should be isolated, e.g. a live NSW campaign that should keep running while a new Sydney campaign is created for Sydney-specific searches.
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                <li><strong>Existing campaigns stay live</strong> — we do not pause existing campaigns or ad groups because they hold account history and learning.</li>
+                <li><strong>New geo campaigns start paused</strong> — OptiMate/CMS-created campaigns, ad groups, ads, and keywords are built paused for review.</li>
+                <li><strong>Parent isolation is reviewed</strong> — parent campaigns can receive negative locations and negative keywords, such as excluding Sydney from NSW and adding phrase negative &quot;sydney&quot;.</li>
+                <li><strong>Labels are mandatory</strong> — new entities should carry <code>Created by Optimise Digital</code> plus a pending activation/batch label so they can be reviewed and activated safely later.</li>
+                <li><strong>Match types stay controlled</strong> — exact match is the default; phrase match requires review; broad match is not used in these builds.</li>
+              </ul>
+            </div>
+
+            {/* OptiMate prompt guidance */}
+            <div style={{ marginBottom: 16, padding: 12, background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8 }}>
+              <h4 style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: '#312e81' }}>Prompting OptiMate for Geo Reviews</h4>
+              <p style={{ margin: '0 0 8px' }}>
+                Ask OptiMate to review the account first, then queue a proposal only if there is evidence. Do not ask it to activate geo splits directly yet.
+              </p>
+              <div style={{ marginBottom: 8 }}>
+                <strong>Example prompt:</strong>
+                <pre style={{ margin: '6px 0 0', whiteSpace: 'pre-wrap', background: '#fff', border: '1px solid #c7d2fe', borderRadius: 6, padding: 10, fontSize: 12, lineHeight: 1.5 }}>
+{`Review this account for deeper geo-targeting opportunities over the last 30-90 days. Look for city/state search terms, near-me searches, overlapping geo campaigns, missing negative locations, and missing negative keywords. If there is a clear opportunity, propose a geo campaign split for human review only. Keep existing campaigns live, create any new geo campaign paused, preserve keyword-level CPCs, use exact match by default, and include Created by Optimise Digital plus pending activation labels.`}
+                </pre>
+              </div>
+              <p style={{ margin: 0, color: '#4338ca' }}>
+                After the proposal is approved, Growth Tools can build the new geo campaign batch paused. A separate activation workflow should enable only the labelled batch after human review.
+              </p>
+            </div>
+
             {/* Automated vs Manual */}
             <div style={{ marginBottom: 16 }}>
               <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#111827' }}>Automated vs Manual</h4>

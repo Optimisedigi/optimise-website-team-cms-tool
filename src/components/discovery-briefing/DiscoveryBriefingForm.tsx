@@ -23,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildDiscoveryBriefingMarkdown } from "@/lib/discovery-briefing/markdown";
 import styles from "./DiscoveryBriefingForm.module.css";
 import {
   defaultDiscoveryBriefingState,
@@ -634,26 +635,36 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
   }, [state]);
   const totalKeys = Object.keys(defaultDiscoveryBriefingState()).length;
 
-  // ── Download/copy markdown (always pull from server) ─────────────
+  // ── Download/copy markdown ───────────────────────────────────────
   const downloadMarkdown = useCallback(async () => {
     try {
-      // Ensure any in-flight debounced save lands first.
+      // For admins, flush the debounced CMS save before exporting so the stored
+      // server-rendered markdown stays in sync. Public/client viewers cannot use
+      // the authenticated CMS API, so their export is generated locally from the
+      // already-rendered, PIN-gated form state without exposing a write endpoint.
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
-      const putRes = await fetch(apiUrl, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ data: latestStateRef.current }),
-      });
-      if (!putRes.ok) {
-        showToast("Save failed before download", true);
-        return;
+
+      let md = "";
+      if (isAdminViewer) {
+        const putRes = await fetch(apiUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ data: latestStateRef.current }),
+        });
+        if (!putRes.ok) {
+          showToast("Save failed before download", true);
+          return;
+        }
+        const saved = (await putRes.json()) as { markdown?: string | null };
+        md = saved.markdown ?? "";
+      } else {
+        md = buildDiscoveryBriefingMarkdown(latestStateRef.current);
       }
-      const saved = (await putRes.json()) as { markdown?: string | null };
-      const md = saved.markdown ?? "";
+
       if (!md) {
         showToast("No markdown available yet", true);
         return;
@@ -682,7 +693,7 @@ export function DiscoveryBriefingForm(props: DiscoveryBriefingFormProps) {
     } catch {
       showToast("Could not fetch markdown", true);
     }
-  }, [apiUrl, showToast]);
+  }, [apiUrl, isAdminViewer, showToast]);
 
   // ── Visibility helpers ───────────────────────────────────────────
   const hasGbp = state.gbpExists || state.gbpPartial || state.gbpNone;

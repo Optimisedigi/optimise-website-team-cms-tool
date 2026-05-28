@@ -73,6 +73,10 @@ export const Notifications: CollectionConfig = {
           label: "Negative keyword consolidation needed",
           value: "consolidation-pending",
         },
+        {
+          label: "Goal run escalation",
+          value: "goal-run-escalation",
+        },
       ],
     },
     {
@@ -111,6 +115,15 @@ export const Notifications: CollectionConfig = {
       admin: {
         description:
           "Links the notification to the agent-approval row it was fanned out for. Used to bulk-clear bell rows when any admin actions the queue item.",
+      },
+    },
+    {
+      name: "relatedGoalRun",
+      type: "relationship",
+      relationTo: "goal-runs" as never,
+      admin: {
+        description:
+          "Links the notification to the goal-runs row that triggered the escalation.",
       },
     },
     {

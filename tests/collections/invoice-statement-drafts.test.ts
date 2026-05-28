@@ -37,6 +37,13 @@ describe("InvoiceStatementDrafts collection", () => {
     );
     expect(field).toBeDefined();
   });
+
+  it("requires invoice navigation access for all collection operations", () => {
+    expect(InvoiceStatementDrafts.access?.read).toBeTypeOf("function");
+    expect(InvoiceStatementDrafts.access?.create).toBeTypeOf("function");
+    expect(InvoiceStatementDrafts.access?.update).toBeTypeOf("function");
+    expect(InvoiceStatementDrafts.access?.delete).toBeTypeOf("function");
+  });
 });
 
 describe("InvoiceStatementDrafts beforeChange hook (idempotency)", () => {
@@ -60,7 +67,18 @@ describe("InvoiceStatementDrafts beforeChange hook (idempotency)", () => {
       req: { payload: { find } },
     } as any);
     expect(out).toEqual(data);
-    expect(find).toHaveBeenCalledTimes(1);
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "invoice-statement-drafts",
+        where: {
+          and: [
+            { xeroContactId: { equals: "xero-1" } },
+            { status: { equals: "pending" } },
+          ],
+        },
+        overrideAccess: true,
+      }),
+    );
   });
 
   it("throws when an existing pending row blocks the create", async () => {
@@ -99,6 +117,19 @@ describe("InvoiceStatementDrafts beforeChange hook (idempotency)", () => {
       operation: "update",
       req: { payload: { find } },
     } as any);
+    expect(find).not.toHaveBeenCalled();
+  });
+
+  it("skips pending creates without a string Xero contact id", async () => {
+    const hook = getHook();
+    const find = vi.fn();
+    const data = { status: "pending", xeroContactId: null };
+    const out = await hook({
+      data,
+      operation: "create",
+      req: { payload: { find } },
+    } as any);
+    expect(out).toEqual(data);
     expect(find).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { buildToolCatalog, totalToolCount } from "@/lib/agents/optimate-google-ads/tool-catalog";
+import { buildGoalCatalog, buildSuggestedPromptCatalog, buildToolCatalog, totalToolCount } from "@/lib/agents/optimate-google-ads/tool-catalog";
 
 /**
  * GET /api/agent-tool-catalog?agent=optimate-google-ads
@@ -25,10 +25,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   switch (agent) {
     case "optimate-google-ads": {
       const categories = buildToolCatalog();
+      const goals = buildGoalCatalog();
+      const suggestedPrompts = buildSuggestedPromptCatalog();
       return NextResponse.json({
         agent,
         toolCount: totalToolCount(),
+        goalCount: goals.length,
         categories,
+        goals,
+        suggestedPrompts,
       });
     }
     default:

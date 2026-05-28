@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DiscoveryBriefingForm } from "@/components/discovery-briefing/DiscoveryBriefingForm";
 import {
   defaultDiscoveryBriefingState,
@@ -80,6 +80,47 @@ describe("DiscoveryBriefingForm — viewerRole", () => {
       />,
     );
     expect(screen.queryAllByText(/^Hide section$/i)).toHaveLength(0);
+  });
+
+  it("admin viewer: shows markdown export buttons", () => {
+    render(
+      <DiscoveryBriefingForm
+        scope="client"
+        scopeId={1}
+        scopeLabel="Acme"
+        initialState={defaultDiscoveryBriefingState()}
+        viewerRole="admin"
+      />,
+    );
+    expect(screen.getAllByRole("button", { name: /Download \/ Copy Markdown/i })).toHaveLength(2);
+  });
+
+  it("client viewer: can export markdown without calling the authenticated CMS save API", async () => {
+    const clipboard = { writeText: vi.fn(() => Promise.resolve()) };
+    vi.stubGlobal("navigator", { clipboard });
+    const fetchMock = vi.mocked(fetch);
+    const initial = defaultDiscoveryBriefingState();
+    initial.businessName = "Acme";
+
+    render(
+      <DiscoveryBriefingForm
+        scope="client"
+        scopeId={1}
+        scopeLabel="Acme"
+        initialState={initial}
+        viewerRole="client"
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Download \/ Copy Markdown/i })[0]);
+
+    await waitFor(() => {
+      expect(clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("**Business:** Acme"));
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ method: "PUT" }),
+    );
   });
 
   it("admin viewer: keeps hidden section as a collapsed header with the 'Hidden' pill", () => {

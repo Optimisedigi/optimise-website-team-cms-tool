@@ -48,7 +48,8 @@ type ActivityType =
   | "match_type_violation_approved"
   | "match_type_violation_rejected"
   | "consolidation_approved"
-  | "consolidation_rejected";
+  | "consolidation_rejected"
+  | "google_ads_anomaly_detected";
 
 interface ActivityEntry {
   type: ActivityType;

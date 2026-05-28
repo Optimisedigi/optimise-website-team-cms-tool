@@ -31,6 +31,14 @@
     {
       "path": "/api/google-ads-snapshots/cron",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/goal-agents/cron",
+      "schedule": "0 */1 * * *"
+    },
+    {
+      "path": "/api/goal-agents/watchdog",
+      "schedule": "0 5 * * *"
     }
   ],
   "functions": {
@@ -86,6 +94,12 @@
       "maxDuration": 120
     },
     "src/app/(frontend)/api/match-type-violations/cron/route.ts": {
+      "maxDuration": 180
+    },
+    "src/app/(frontend)/api/goal-agents/cron/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/(frontend)/api/goal-agents/watchdog/route.ts": {
       "maxDuration": 180
     }
   }

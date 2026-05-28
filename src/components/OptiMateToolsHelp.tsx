@@ -36,12 +36,18 @@ interface GoalCatalogItem {
   caveat: string
 }
 
+interface SuggestedPromptItem {
+  label: string
+  prompt: string
+}
+
 interface CatalogResponse {
   agent: string
   toolCount: number
   goalCount?: number
   categories: CatalogCategory[]
   goals?: GoalCatalogItem[]
+  suggestedPrompts?: SuggestedPromptItem[]
 }
 
 interface OptiMateToolsHelpProps {
@@ -164,6 +170,47 @@ const OptiMateToolsHelp = ({ agent = 'optimate-google-ads', compact = false }: O
           )}
           {error && (
             <div style={{ padding: 8, fontSize: 12, color: '#b91c1c' }}>{error}</div>
+          )}
+
+          {data && data.suggestedPrompts && data.suggestedPrompts.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: '#7c3aed',
+                    display: 'inline-block',
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#1f2937' }}>Suggested prompts</div>
+                <div style={{ fontSize: 10, color: '#9ca3af' }}>· {data.suggestedPrompts.length}</div>
+              </div>
+              <div style={{ fontSize: 10.5, color: '#6b7280', marginBottom: 6, marginLeft: 16, lineHeight: 1.4 }}>
+                Copy one into chat when you want OptiMate to review an account or queue an approval-gated proposal.
+              </div>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                {data.suggestedPrompts.map((item) => (
+                  <li
+                    key={item.label}
+                    style={{
+                      padding: '7px 8px',
+                      borderRadius: 6,
+                      background: '#f5f3ff',
+                      marginBottom: 4,
+                      border: '1px solid #ddd6fe',
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#312e81', marginBottom: 3 }}>{item.label}</div>
+                    <div style={{ fontSize: 10.5, color: '#4b5563', lineHeight: 1.45 }}>
+                      “{item.prompt}”
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           {data && data.goals && data.goals.length > 0 && (

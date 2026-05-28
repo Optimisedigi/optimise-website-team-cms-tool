@@ -252,6 +252,26 @@ export interface GoalCatalogItem {
   caveat: string;
 }
 
+export interface SuggestedPromptItem {
+  label: string;
+  prompt: string;
+}
+
+const SUGGESTED_PROMPTS: readonly SuggestedPromptItem[] = Object.freeze([
+  {
+    label: "Review geo-targeting opportunities",
+    prompt: "Review this account for deeper geo-targeting opportunities over the last 30-90 days. Look for city/state search terms, near-me searches, overlapping geo campaigns, missing negative locations, and missing negative keywords. If there is a clear opportunity, propose a geo campaign split for human review only. Keep existing campaigns live, create any new geo campaign paused, preserve keyword-level CPCs, use exact match by default, and include Created by Optimise Digital plus pending activation labels.",
+  },
+  {
+    label: "Find wasted search-term spend",
+    prompt: "Review the last 30 days of search terms and identify wasted spend with no conversions. Summarise the biggest patterns and queue negative keyword proposals only where the intent is clearly irrelevant.",
+  },
+  {
+    label: "Check campaign efficiency",
+    prompt: "Review campaign performance over the last 30 days. Highlight campaigns with CPA or spend issues, explain likely causes, and propose approval-gated budget or structure changes only if the numbers support them.",
+  },
+]);
+
 const GOAL_CATALOG: readonly GoalCatalogItem[] = Object.freeze([
   {
     key: "account-efficiency",
@@ -290,6 +310,10 @@ export function toolLabel(name: string): string {
  * Build the grouped catalog from the live tool registry. Pure, deterministic,
  * safe to call from a server route or imported into a unit test.
  */
+export function buildSuggestedPromptCatalog(): SuggestedPromptItem[] {
+  return [...SUGGESTED_PROMPTS];
+}
+
 export function buildToolCatalog(): CatalogCategory[] {
   const tools = getTools();
   const grouped = new Map<ToolCategoryKey | "other", CatalogTool[]>();

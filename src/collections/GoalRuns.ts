@@ -91,6 +91,40 @@ export const GoalRuns: CollectionConfig = {
       },
     },
     {
+      name: "nextCheckAt",
+      type: "date",
+      index: true,
+      admin: {
+        description:
+          "When the scheduler should next process this run. Null means no scheduled check.",
+        date: {
+          pickerAppearance: "dayAndTime",
+        },
+      },
+    },
+    {
+      name: "coolingOffUntil",
+      type: "date",
+      admin: {
+        description:
+          "Earliest time the next mutation is allowed after the most recent action. Used by the scheduler to enforce cadence cooldowns.",
+        date: {
+          pickerAppearance: "dayAndTime",
+        },
+      },
+    },
+    {
+      name: "iterationsCount",
+      type: "number",
+      required: true,
+      defaultValue: 0,
+      min: 0,
+      admin: {
+        description:
+          "How many full observe→act→measure cycles this run has completed.",
+      },
+    },
+    {
       name: "completedAt",
       type: "date",
       admin: {
@@ -103,6 +137,14 @@ export const GoalRuns: CollectionConfig = {
       admin: {
         description:
           "Populated when status = failed. Top-level error from the goal runtime.",
+      },
+    },
+    {
+      name: "parameters",
+      type: "json",
+      admin: {
+        description:
+          "Per-run knobs supplied at create time (e.g. targetImprovementPercent, enabledLevers, observationDays). Read by the goal-type handler each tick; never mutated by the runtime. JSON-serialisable.",
       },
     },
   ],

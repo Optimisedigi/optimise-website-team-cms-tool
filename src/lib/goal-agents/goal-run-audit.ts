@@ -16,6 +16,8 @@
 
 import type { Payload } from "payload";
 
+import { assertLegalTransition } from "./state-machine";
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export type GoalRunStatus =
@@ -164,6 +166,17 @@ export async function markGoalRunStatus(
   payload: Payload,
   args: MarkStatusArgs,
 ): Promise<GoalRunRef> {
+  // Validate the transition against the state machine before writing. If the
+  // row is missing or unreadable, surface that error verbatim so callers see
+  // the underlying cause (e.g. Payload NotFoundError).
+  const current = await payload.findByID({
+    collection: "goal-runs",
+    id: args.goalRunId,
+    depth: 0,
+    overrideAccess: true,
+  });
+  assertLegalTransition(current.status as GoalRunStatus, args.status);
+
   const update: Record<string, unknown> = { status: args.status };
 
   if (args.error !== undefined) update.error = args.error;

@@ -226,6 +226,21 @@ describe("GET /api/invoice-statements/sweep", () => {
     );
   });
 
+  it("returns 502 and does not create drafts when Growth Tools fails", async () => {
+    mockGrowthToolsResponse([{ error: "xero unavailable" }], 503);
+
+    const res = await GET(makeRequest("Bearer test-secret"));
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toContain("Growth Tools fetch failed (503)");
+    expect(mockPayload.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: "invoice-statement-drafts" }),
+    );
+    expect(mockPayload.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: "invoice-statement-drafts" }),
+    );
+  });
+
   it("creates notifications for every admin user when drafts were generated", async () => {
     mockGrowthToolsResponse([SAMPLE_CONTACT]);
     // 4 pending drafts in the queue after this sweep — the notification
