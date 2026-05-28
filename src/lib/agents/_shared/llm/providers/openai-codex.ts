@@ -7,19 +7,21 @@
  * to chatgpt.com/backend-api/codex/responses, consumes the SSE stream to
  * completion, and assembles a single LLMResponse.
  *
- * Requests have to look like real Codex CLI traffic or the auth gate rejects
- * them. The required shape (verified: litellm, nanobot, opencode, pi-mono):
+ * Header + body shape lifted verbatim from gg-framework's `streamOpenAICodex`:
  *   - Authorization: Bearer <access_token>
  *   - chatgpt-account-id: <id from JWT claims>   (from the resolver)
  *   - OpenAI-Beta: responses=experimental
- *   - originator: codex_cli_rs
- *   - User-Agent: codex_cli_rs/<version>
+ *   - originator: ggcoder
+ *   - User-Agent: ggcoder (<os> <release>; <arch>)
+ *   - session_id + x-client-request-id pinned to the prompt cache scope so
+ *     consecutive requests hit the same Codex cache shard
  *   - Content-Type: application/json, Accept: text/event-stream
- * plus the mandatory `instructions` Codex prompt prefix (set by to-codex.ts).
+ * The system prompt is the top-level `instructions` string (set by to-codex.ts).
  *
  * Any non-OK response throws HttpError so the callLLM fallback chain engages.
  */
 
+import os from "node:os";
 import { resolveCredential } from "../auth/resolver";
 import { withRetry, HttpError } from "../retry";
 import { toCodex } from "../transformers/to-codex";
@@ -27,10 +29,22 @@ import { fromCodex, type CodexEvent } from "../transformers/from-codex";
 import type { CallLLMOptions, LLMResponse } from "../types";
 import type { CodexEffort } from "../registry";
 
-/** Codex CLI originator + user-agent. Mirrored so traffic isn't obviously
- *  third-party. The Rust CLI sends `codex_cli_rs/<semver>`. */
-const CODEX_ORIGINATOR = "codex_cli_rs";
-const CODEX_USER_AGENT = "codex_cli_rs/0.0.0";
+/** Originator gg-framework sends. Kept identical so traffic matches ggcoder. */
+const CODEX_ORIGINATOR = "ggcoder";
+
+/** User-Agent built the same way gg-framework does: `ggcoder (<os>...)`. */
+function codexUserAgent(): string {
+  try {
+    return `ggcoder (${os.platform()} ${os.release()}; ${os.arch()})`;
+  } catch {
+    return "ggcoder";
+  }
+}
+
+/** Prompt-cache scope key. gg-framework defaults this to "ggcoder" and pins it
+ *  on both the body `prompt_cache_key` and the session_id/x-client-request-id
+ *  headers so the Codex backend routes to the same cache shard. */
+const CODEX_CACHE_SCOPE = "ggcoder";
 
 const CODEX_RESPONSES_PATH = "/codex/responses";
 
@@ -87,13 +101,19 @@ export async function callOpenAICodex(
 ): Promise<LLMResponse> {
   const auth = await resolveCredential("openai-codex");
   const body = toCodex(opts, providerModel, { effort: config.effort });
+  // Pin the prompt cache scope on the body (gg-framework also sets this).
+  body.prompt_cache_key = CODEX_CACHE_SCOPE;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "text/event-stream",
     "OpenAI-Beta": "responses=experimental",
     originator: CODEX_ORIGINATOR,
-    "User-Agent": CODEX_USER_AGENT,
+    "User-Agent": codexUserAgent(),
+    // The chatgpt.com codex backend routes prompt-cache lookups by header, not
+    // body — pinning both makes consecutive requests hit the same cache shard.
+    session_id: CODEX_CACHE_SCOPE,
+    "x-client-request-id": CODEX_CACHE_SCOPE,
     ...auth.authHeader,
   };
 

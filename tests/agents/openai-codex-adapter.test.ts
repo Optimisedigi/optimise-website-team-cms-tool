@@ -74,8 +74,11 @@ describe("callOpenAICodex", () => {
     expect(init.headers.Authorization).toBe("Bearer tok");
     expect(init.headers["chatgpt-account-id"]).toBe("acct-1");
     expect(init.headers["OpenAI-Beta"]).toBe("responses=experimental");
-    expect(init.headers.originator).toBe("codex_cli_rs");
-    expect(init.headers["User-Agent"]).toMatch(/^codex_cli_rs\//);
+    expect(init.headers.originator).toBe("ggcoder");
+    expect(init.headers["User-Agent"]).toMatch(/^ggcoder/);
+    // gg-framework pins the prompt-cache scope on both headers.
+    expect(init.headers.session_id).toBe("ggcoder");
+    expect(init.headers["x-client-request-id"]).toBe("ggcoder");
 
     expect(res.source).toBe("oauth");
     expect(res.message.content).toEqual([{ type: "text", text: "ok" }]);

@@ -83,9 +83,9 @@ export default function AgentAuthPage() {
   const [completing, setCompleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [probeResult, setProbeResult] = useState<string | null>(null);
-  // Codex device-code flow state.
-  const [codexUserCode, setCodexUserCode] = useState<string | null>(null);
-  const [codexVerificationUrl, setCodexVerificationUrl] = useState<string | null>(null);
+  // Codex (ChatGPT) PKCE paste flow state — mirrors the Anthropic flow.
+  const [codexAuthorizeUrl, setCodexAuthorizeUrl] = useState<string | null>(null);
+  const [codexPasteString, setCodexPasteString] = useState("");
   const [codexCompleting, setCodexCompleting] = useState(false);
 
   async function loadStatus() {
@@ -144,8 +144,6 @@ export default function AgentAuthPage() {
 
   async function handleCodexBegin() {
     setMessage(null);
-    setCodexUserCode(null);
-    setCodexVerificationUrl(null);
     const res = await fetch("/api/agent-auth/begin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -156,9 +154,8 @@ export default function AgentAuthPage() {
       setMessage(`Codex begin failed: ${json.error ?? res.status}`);
       return;
     }
-    setCodexUserCode(json.userCode);
-    setCodexVerificationUrl(json.verificationUrl);
-    window.open(json.verificationUrl, "_blank", "noopener,noreferrer");
+    setCodexAuthorizeUrl(json.authorizeUrl);
+    window.open(json.authorizeUrl, "_blank", "noopener,noreferrer");
   }
 
   async function handleCodexComplete() {
@@ -167,23 +164,17 @@ export default function AgentAuthPage() {
     const res = await fetch("/api/agent-auth/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "openai-codex" }),
+      body: JSON.stringify({ pasteString: codexPasteString }),
     });
     setCodexCompleting(false);
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      if (res.status === 425) {
-        setMessage(
-          "Not authorised yet \u2014 finish the sign-in + code entry in the ChatGPT tab, then click Complete again.",
-        );
-      } else {
-        setMessage(`Codex complete failed: ${json.error ?? res.status}`);
-      }
+      setMessage(`Codex complete failed: ${json.error ?? res.status}`);
       return;
     }
     setMessage("Connected to ChatGPT via Codex OAuth.");
-    setCodexUserCode(null);
-    setCodexVerificationUrl(null);
+    setCodexPasteString("");
+    setCodexAuthorizeUrl(null);
     await loadStatus();
   }
 
@@ -240,49 +231,43 @@ export default function AgentAuthPage() {
         </p>
       </div>
 
-      {/* Connect ChatGPT via Codex OAuth */}
+      {/* Connect ChatGPT via Codex OAuth (Authorization Code + PKCE paste flow) */}
       <div style={cardStyle}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Connect ChatGPT (Codex OAuth)</h2>
         <p style={{ marginTop: 0, fontSize: 13, color: "#666" }}>
-          Device-code flow. Click Begin to get a one-time code; a ChatGPT tab opens at
-          {" "}<code>auth.openai.com/codex/device</code>. Sign in, enter the code, then click Complete here.
-          Requires "Allow device code login" enabled in ChatGPT → Settings → Security.
+          Opens ChatGPT sign-in in a new tab. After you sign in, the browser lands on a
+          {" "}<code>localhost</code> callback that won't load here — copy its full URL from the
+          address bar (or the <code>code</code> value) and paste it below. Powers the
+          {" "}<code>gpt-5.5-codex-medium</code> and <code>gpt-5.5-codex-low</code> models.
         </p>
         <button onClick={handleCodexBegin} style={buttonStyle}>
-          1. Begin (get device code)
+          1. Begin login
         </button>
-        {codexUserCode && (
-          <div style={{ marginTop: 12 }}>
-            <p style={{ fontSize: 13, color: "#222", margin: "0 0 6px" }}>
-              2. Enter this one-time code at{" "}
-              <a href={codexVerificationUrl ?? undefined} target="_blank" rel="noopener noreferrer">
-                {codexVerificationUrl}
-              </a>:
-            </p>
-            <code
-              style={{
-                display: "inline-block",
-                fontSize: 22,
-                letterSpacing: 2,
-                fontWeight: 700,
-                padding: "6px 12px",
-                background: "#f3f4f6",
-                borderRadius: 6,
-              }}
-            >
-              {codexUserCode}
-            </code>
-            <div style={{ marginTop: 12 }}>
-              <button
-                onClick={handleCodexComplete}
-                disabled={codexCompleting}
-                style={{ ...buttonStyle, opacity: codexCompleting ? 0.5 : 1 }}
-              >
-                {codexCompleting ? "Waiting for authorisation..." : "3. Complete (I've authorised)"}
-              </button>
-            </div>
-          </div>
+        {codexAuthorizeUrl && (
+          <p style={{ fontSize: 12, color: "#666", marginTop: 8 }}>
+            Tab not opening? <a href={codexAuthorizeUrl} target="_blank" rel="noopener noreferrer">Click here.</a>
+          </p>
         )}
+        <div style={{ marginTop: 12 }}>
+          <label htmlFor="codex-paste" style={labelStyle}>
+            2. Paste the callback URL or code (<code>code</code>, <code>code#state</code>, or full URL)
+          </label>
+          <input
+            id="codex-paste"
+            type="text"
+            value={codexPasteString}
+            onChange={(e) => setCodexPasteString(e.target.value)}
+            placeholder="http://localhost:1455/auth/callback?code=...&state=..."
+            style={inputStyle}
+          />
+          <button
+            onClick={handleCodexComplete}
+            disabled={!codexPasteString || codexCompleting}
+            style={{ ...buttonStyle, marginTop: 8, opacity: !codexPasteString || codexCompleting ? 0.5 : 1 }}
+          >
+            {codexCompleting ? "Exchanging..." : "3. Complete login"}
+          </button>
+        </div>
       </div>
 
       {/* Connect Anthropic (optional) */}

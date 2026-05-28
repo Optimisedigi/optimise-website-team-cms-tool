@@ -1,20 +1,16 @@
 /**
  * to-codex transformer: canonical CallLLMOptions -> Codex Responses body.
  *
- * Asserts the mandatory Codex instructions prefix is present and begins with
- * the Codex sentinel; the caller's system prompt is appended as a leading
- * developer-role input message; tool defs map to Responses function tools;
- * messages map to Responses input items (user/assistant text, tool_use ->
- * function_call, tool_result -> function_call_output); and reasoning effort is
- * set from the per-model config.
+ * Matches gg-framework's streamOpenAICodex shape: the caller's system prompt is
+ * the top-level `instructions` string (no Codex sentinel, no developer-role
+ * message); messages map to Responses input items; tool_use IDs are remapped to
+ * the `fc_` prefix; tools map to Responses function tools with strict:null;
+ * body carries store:false/stream:true/tool_choice:auto/parallel_tool_calls:true/
+ * include:["reasoning.encrypted_content"] and reasoning:{ effort, summary:"auto" }.
  */
 
 import { describe, it, expect } from "vitest";
-import {
-  toCodex,
-  CODEX_INSTRUCTIONS_PREFIX,
-  UnsupportedCodexImageInputError,
-} from "@/lib/agents/_shared/llm/transformers/to-codex";
+import { toCodex, UnsupportedCodexImageInputError } from "@/lib/agents/_shared/llm/transformers/to-codex";
 import type { CallLLMOptions } from "@/lib/agents/_shared/llm/types";
 
 const opts: CallLLMOptions = {
@@ -26,12 +22,12 @@ const opts: CallLLMOptions = {
       role: "assistant",
       content: [
         { type: "text", text: "Running the audit." },
-        { type: "tool_use", id: "call_1", name: "run_audit", input: { campaign: "X" } },
+        { type: "tool_use", id: "toolu_1", name: "run_audit", input: { campaign: "X" } },
       ],
     },
     {
       role: "tool",
-      content: [{ type: "tool_result", toolUseId: "call_1", content: "audit done" }],
+      content: [{ type: "tool_result", toolUseId: "toolu_1", content: "audit done" }],
     },
   ],
   tools: [
@@ -40,69 +36,60 @@ const opts: CallLLMOptions = {
 };
 
 describe("toCodex", () => {
-  it("sets instructions to the canonical Codex prefix", () => {
+  it("sets instructions to the caller's system prompt (no Codex sentinel)", () => {
     const body = toCodex(opts, "gpt-5.5", { effort: "medium" });
-    expect(body.instructions).toBe(CODEX_INSTRUCTIONS_PREFIX);
-    expect(body.instructions.startsWith("You are Codex, based on GPT-5.")).toBe(true);
+    expect(body.instructions).toBe("You are OptiMate, a Google Ads expert.");
   });
 
-  it("puts the caller system prompt as a leading developer message", () => {
+  it("does NOT emit a developer-role message", () => {
     const body = toCodex(opts, "gpt-5.5", { effort: "medium" });
-    const first = body.input[0];
-    expect(first.type).toBe("message");
-    if (first.type === "message") {
-      expect(first.role).toBe("developer");
-      expect(first.content[0]).toEqual({
-        type: "input_text",
-        text: "You are OptiMate, a Google Ads expert.",
-      });
-    }
+    const hasDeveloper = body.input.some(
+      (i) => "role" in i && (i as { role?: string }).role === "developer",
+    );
+    expect(hasDeveloper).toBe(false);
   });
 
   it("maps user text to a user input_text message", () => {
     const body = toCodex(opts, "gpt-5.5", { effort: "medium" });
-    const userMsg = body.input.find(
-      (i) => i.type === "message" && i.role === "user",
-    );
-    expect(userMsg).toBeDefined();
-    if (userMsg && userMsg.type === "message") {
-      expect(userMsg.content[0]).toEqual({ type: "input_text", text: "Audit campaign X." });
-    }
+    const userMsg = body.input.find((i) => "role" in i && i.role === "user");
+    expect(userMsg).toMatchObject({
+      role: "user",
+      content: [{ type: "input_text", text: "Audit campaign X." }],
+    });
   });
 
-  it("maps assistant text to output_text and tool_use to function_call", () => {
+  it("maps assistant text to output_text with status completed", () => {
     const body = toCodex(opts, "gpt-5.5", { effort: "medium" });
     const asstMsg = body.input.find(
-      (i) => i.type === "message" && i.role === "assistant",
+      (i) => "type" in i && i.type === "message" && (i as { role?: string }).role === "assistant",
     );
-    expect(asstMsg).toBeDefined();
-    if (asstMsg && asstMsg.type === "message") {
-      expect(asstMsg.content[0]).toEqual({
-        type: "output_text",
-        text: "Running the audit.",
-        annotations: [],
-      });
-    }
-    const fnCall = body.input.find((i) => i.type === "function_call");
+    expect(asstMsg).toMatchObject({
+      type: "message",
+      role: "assistant",
+      content: [{ type: "output_text", text: "Running the audit.", annotations: [] }],
+      status: "completed",
+    });
+  });
+
+  it("remaps tool_use ids to the fc_ prefix on the function_call", () => {
+    const body = toCodex(opts, "gpt-5.5", { effort: "medium" });
+    const fnCall = body.input.find((i) => "type" in i && i.type === "function_call");
     expect(fnCall).toEqual({
       type: "function_call",
-      call_id: "call_1",
+      id: "fc_1",
+      call_id: "fc_1",
       name: "run_audit",
       arguments: JSON.stringify({ campaign: "X" }),
     });
   });
 
-  it("maps tool_result to function_call_output", () => {
+  it("remaps the matching tool_result call_id deterministically (same fc_ id)", () => {
     const body = toCodex(opts, "gpt-5.5", { effort: "medium" });
-    const out = body.input.find((i) => i.type === "function_call_output");
-    expect(out).toEqual({
-      type: "function_call_output",
-      call_id: "call_1",
-      output: "audit done",
-    });
+    const out = body.input.find((i) => "type" in i && i.type === "function_call_output");
+    expect(out).toEqual({ type: "function_call_output", call_id: "fc_1", output: "audit done" });
   });
 
-  it("maps tools to Responses function tools and sets tool_choice", () => {
+  it("maps tools to Responses function tools with strict:null", () => {
     const body = toCodex(opts, "gpt-5.5", { effort: "medium" });
     expect(body.tools).toEqual([
       {
@@ -110,32 +97,35 @@ describe("toCodex", () => {
         name: "run_audit",
         description: "Run an audit",
         parameters: { type: "object", properties: {} },
-        strict: false,
+        strict: null,
       },
     ]);
     expect(body.tool_choice).toBe("auto");
     expect(body.parallel_tool_calls).toBe(true);
   });
 
-  it("sets reasoning effort from the per-model config", () => {
-    expect(toCodex(opts, "gpt-5.5", { effort: "medium" }).reasoning).toEqual({ effort: "medium" });
-    expect(toCodex(opts, "gpt-5.5", { effort: "low" }).reasoning).toEqual({ effort: "low" });
+  it("sets reasoning effort + summary, and the reasoning include", () => {
+    const body = toCodex(opts, "gpt-5.5", { effort: "medium" });
+    expect(body.reasoning).toEqual({ effort: "medium", summary: "auto" });
+    expect(body.include).toEqual(["reasoning.encrypted_content"]);
+    expect(toCodex(opts, "gpt-5.5", { effort: "low" }).reasoning).toEqual({
+      effort: "low",
+      summary: "auto",
+    });
   });
 
-  it("always sends store:false and stream:true", () => {
-    const body = toCodex(opts, "gpt-5.5", { effort: "low" });
+  it("always sends store:false and stream:true, never temperature", () => {
+    const body = toCodex({ ...opts, temperature: 0.7 }, "gpt-5.5", { effort: "low" });
     expect(body.store).toBe(false);
     expect(body.stream).toBe(true);
+    expect("temperature" in body).toBe(false);
   });
 
   it("throws UnsupportedCodexImageInputError on image parts", () => {
     const withImage: CallLLMOptions = {
       model: "gpt-5.5-codex-medium",
       messages: [
-        {
-          role: "user",
-          content: [{ type: "image", mediaType: "image/png", data: "base64data" }],
-        },
+        { role: "user", content: [{ type: "image", mediaType: "image/png", data: "base64data" }] },
       ],
     };
     expect(() => toCodex(withImage, "gpt-5.5", { effort: "medium" })).toThrow(

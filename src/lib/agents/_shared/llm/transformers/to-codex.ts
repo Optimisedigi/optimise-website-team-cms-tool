@@ -1,43 +1,27 @@
 /**
  * Canonical CallLLMOptions -> Codex Responses API request body.
  *
- * The Codex backend (chatgpt.com/backend-api/codex/responses) takes a
- * Responses-API body, NOT Chat Completions, so this can't reuse to-openai.ts.
- * Two hard requirements verified against the real Codex CLI traffic
- * (openai/codex gpt_5_codex_prompt.md + Simon Willison's reverse-engineering
- * of the `--debug` request dump):
+ * Lifted from gg-framework's `streamOpenAICodex` (toCodexInput / toCodexTools).
+ * Matches its request shape exactly:
+ *   - the caller's system prompt is sent as the top-level `instructions`
+ *     string (NOT a Codex sentinel, NOT a developer-role message),
+ *   - messages map to Responses `input` items,
+ *   - tool_call IDs are remapped to the `fc_` prefix the Codex backend
+ *     requires (Anthropic-style `toolu_*` IDs are rejected),
+ *   - body carries store:false, stream:true, tool_choice:auto,
+ *     parallel_tool_calls:true, include:["reasoning.encrypted_content"],
+ *     and reasoning:{ effort, summary:"auto" }.
  *
- *   1. Top-level `instructions` MUST begin with the canonical Codex system
- *      prompt ("You are Codex, based on GPT-5. ..."). The endpoint rejects
- *      requests whose instructions don't start with it — OpenAI's auth gate
- *      validates the Codex-specific prompt.
- *   2. The caller's own system prompt is sent as a `developer`-role message at
- *      the FRONT of `input`, exactly as the CLI sends "You are a helpful
- *      assistant." there.
- *
- * Messages map to Responses `input` items:
- *   - user text   -> { type:"message", role:"user", content:[{type:"input_text"}] }
+ * Input item mapping:
+ *   - user text   -> { role:"user", content:[{type:"input_text"}] }
  *   - assistant text -> { type:"message", role:"assistant",
- *                         content:[{type:"output_text", annotations:[]}] }
- *   - tool_use    -> { type:"function_call", call_id, name, arguments }
+ *                         content:[{type:"output_text", annotations:[]}], status:"completed" }
+ *   - tool_use    -> { type:"function_call", id, call_id, name, arguments }
  *   - tool_result -> { type:"function_call_output", call_id, output }
- *
- * Reasoning effort is set per-model from the registry's `effort` field via
- * `reasoning: { effort }`. This is how GPT-5.5 "levels" work — effort is a
- * per-request setting, not a separate model.
  */
 
 import type { CallLLMOptions } from "../types";
 import type { CodexEffort } from "../registry";
-import { sanitizeToolUseId } from "./_tool-id";
-
-/** Exact canonical Codex system prompt prefix the backend expects as the
- *  start of `instructions`. The auth gate validates that instructions begin
- *  with this sentence. Lifted verbatim from openai/codex's gpt_5_codex_prompt.md
- *  (the first two sentences are the stable invariant; the full prompt body can
- *  drift across versions, but the opening identity must match). Do not edit. */
-export const CODEX_INSTRUCTIONS_PREFIX =
-  "You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer.";
 
 export class UnsupportedCodexImageInputError extends Error {
   constructor() {
@@ -53,8 +37,14 @@ type CodexInputContentPart =
   | { type: "output_text"; text: string; annotations: [] };
 
 type CodexInputItem =
-  | { type: "message"; role: "developer" | "user" | "assistant"; content: CodexInputContentPart[] }
-  | { type: "function_call"; call_id: string; name: string; arguments: string }
+  | { role: "user"; content: CodexInputContentPart[] }
+  | {
+      type: "message";
+      role: "assistant";
+      content: CodexInputContentPart[];
+      status: "completed";
+    }
+  | { type: "function_call"; id: string; call_id: string; name: string; arguments: string }
   | { type: "function_call_output"; call_id: string; output: string };
 
 export interface CodexRequestBody {
@@ -63,19 +53,38 @@ export interface CodexRequestBody {
   store: false;
   /** The endpoint streams SSE; the adapter assembles it to a single response. */
   stream: true;
-  instructions: string;
+  instructions: string | undefined;
   input: CodexInputItem[];
+  tool_choice: "auto";
+  parallel_tool_calls: true;
+  include: string[];
   tools?: Array<{
     type: "function";
     name: string;
     description: string;
     parameters: Record<string, unknown>;
-    strict: false;
+    strict: null;
   }>;
-  tool_choice?: "auto";
-  parallel_tool_calls?: boolean;
   temperature?: number;
-  reasoning?: { effort: CodexEffort };
+  reasoning: { effort: CodexEffort; summary: "auto" };
+  /** Prompt-cache scope key. Set by the adapter (gg-framework pins it on both
+   *  the body and the session_id/x-client-request-id headers). */
+  prompt_cache_key?: string;
+}
+
+/**
+ * Remap a tool-call id to the `fc_` prefix Codex requires. gg-framework's
+ * `remapCodexId`: leave `fc_`/`fc-` ids alone; otherwise strip a leading
+ * `toolu_` and prefix `fc_`. Deterministic via the shared idMap so a
+ * function_call and its matching function_call_output keep the same id.
+ */
+function remapCodexId(id: string, idMap: Map<string, string>): string {
+  if (id.startsWith("fc_") || id.startsWith("fc-")) return id;
+  const existing = idMap.get(id);
+  if (existing) return existing;
+  const mapped = `fc_${id.replace(/^toolu_/, "")}`;
+  idMap.set(id, mapped);
+  return mapped;
 }
 
 export function toCodex(
@@ -84,22 +93,55 @@ export function toCodex(
   config: { effort: CodexEffort },
 ): CodexRequestBody {
   const input: CodexInputItem[] = [];
-
-  // The caller's system prompt rides as a leading developer-role message,
-  // matching how the real Codex CLI sends it. The canonical Codex identity
-  // goes in `instructions` below, NOT here.
-  if (opts.system) {
-    input.push({
-      type: "message",
-      role: "developer",
-      content: [{ type: "input_text", text: opts.system }],
-    });
-  }
+  const idMap = new Map<string, string>();
 
   for (const m of opts.messages) {
     if (m.role === "system") {
-      // Already lifted into the developer message / instructions; ignore
-      // additional system messages mid-stream.
+      // System messages mid-stream are folded into `instructions` below via
+      // opts.system; ignore here (gg-framework only honours opts.system).
+      continue;
+    }
+
+    if (m.role === "user") {
+      const content: CodexInputContentPart[] = [];
+      for (const part of m.content) {
+        if (part.type === "text") {
+          content.push({ type: "input_text", text: part.text });
+        } else if (part.type === "image") {
+          throw new UnsupportedCodexImageInputError();
+        } else if (part.type === "tool_result") {
+          // tool_result on a user message -> standalone function_call_output.
+          input.push({
+            type: "function_call_output",
+            call_id: remapCodexId(part.toolUseId, idMap),
+            output: part.content,
+          });
+        }
+      }
+      if (content.length > 0) input.push({ role: "user", content });
+      continue;
+    }
+
+    if (m.role === "assistant") {
+      for (const part of m.content) {
+        if (part.type === "text") {
+          input.push({
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: part.text, annotations: [] }],
+            status: "completed",
+          });
+        } else if (part.type === "tool_use") {
+          const mapped = remapCodexId(part.id, idMap);
+          input.push({
+            type: "function_call",
+            id: mapped,
+            call_id: mapped,
+            name: part.name,
+            arguments: JSON.stringify(part.input),
+          });
+        }
+      }
       continue;
     }
 
@@ -108,57 +150,12 @@ export function toCodex(
         if (part.type === "tool_result") {
           input.push({
             type: "function_call_output",
-            call_id: sanitizeToolUseId(part.toolUseId),
+            call_id: remapCodexId(part.toolUseId, idMap),
             output: part.content,
           });
         }
       }
       continue;
-    }
-
-    if (m.role === "assistant") {
-      const textParts: string[] = [];
-      const toolCalls: CodexInputItem[] = [];
-      for (const part of m.content) {
-        if (part.type === "text") {
-          textParts.push(part.text);
-        } else if (part.type === "tool_use") {
-          toolCalls.push({
-            type: "function_call",
-            call_id: sanitizeToolUseId(part.id),
-            name: part.name,
-            arguments: JSON.stringify(part.input),
-          });
-        }
-      }
-      if (textParts.length > 0) {
-        input.push({
-          type: "message",
-          role: "assistant",
-          content: [{ type: "output_text", text: textParts.join(""), annotations: [] }],
-        });
-      }
-      input.push(...toolCalls);
-      continue;
-    }
-
-    // user role
-    for (const part of m.content) {
-      if (part.type === "text") {
-        input.push({
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text: part.text }],
-        });
-      } else if (part.type === "image") {
-        throw new UnsupportedCodexImageInputError();
-      } else if (part.type === "tool_result") {
-        input.push({
-          type: "function_call_output",
-          call_id: sanitizeToolUseId(part.toolUseId),
-          output: part.content,
-        });
-      }
     }
   }
 
@@ -166,21 +163,24 @@ export function toCodex(
     model: providerModel,
     store: false,
     stream: true,
-    instructions: CODEX_INSTRUCTIONS_PREFIX,
+    // gg-framework: the caller's system prompt IS the instructions string.
+    instructions: opts.system,
     input,
-    reasoning: { effort: config.effort },
+    tool_choice: "auto",
+    parallel_tool_calls: true,
+    include: ["reasoning.encrypted_content"],
+    reasoning: { effort: config.effort, summary: "auto" },
   };
-  if (opts.temperature !== undefined) body.temperature = opts.temperature;
+  // gg-framework drops temperature when a reasoning effort is set; Codex always
+  // runs with an effort here, so temperature is intentionally never sent.
   if (opts.tools && opts.tools.length > 0) {
     body.tools = opts.tools.map((t) => ({
       type: "function" as const,
       name: t.name,
       description: t.description,
       parameters: t.inputSchema,
-      strict: false as const,
+      strict: null,
     }));
-    body.tool_choice = "auto";
-    body.parallel_tool_calls = true;
   }
   return body;
 }
