@@ -52,6 +52,7 @@ beforeEach(() => {
   delete process.env.KIMI_API_KEY;
   delete process.env.MOONSHOT_API_KEY;
   delete process.env.MINIMAX_API_KEY;
+  delete process.env.OPENAI_API_KEY;
 });
 
 describe("resolveCredential, Option B semantics", () => {
@@ -161,5 +162,14 @@ describe("resolveCredential, Option B semantics", () => {
 
     const auth = await resolveCredential("moonshot");
     expect(auth.authHeader.Authorization).toBe("Bearer moonshot-only");
+  });
+
+  it("OpenAI/GPT: uses OPENAI_API_KEY via Bearer auth", async () => {
+    process.env.OPENAI_API_KEY = "openai-key";
+    mockGetCredential.mockResolvedValueOnce(null);
+
+    const auth = await resolveCredential("openai");
+    expect(auth.source).toBe("api-key");
+    expect(auth.authHeader.Authorization).toBe("Bearer openai-key");
   });
 });

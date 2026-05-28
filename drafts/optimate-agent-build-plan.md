@@ -2487,3 +2487,59 @@ The agent then calls these endpoints with `x-api-key: <AUDIT_API_KEY>`, the same
 - 25-day verification scheduled per applied proposal (one-shot delayed task, not recurring).
 - Verification results route to the agent's `activity-log` collection plus the False Flags Log if a verification falls outside the 70% prediction accuracy target.
 
+
+---
+
+## Codex OAuth (Option C) — GPT-5.5 on a ChatGPT subscription
+
+A second, free credential path for the GPT models: serve GPT-5.5 from a
+flat-rate ChatGPT plan via Codex OAuth ("Sign in with ChatGPT") instead of a
+billed `OPENAI_API_KEY`. This reuses the Codex CLI OAuth client + the private
+`chatgpt.com/backend-api/codex/responses` endpoint — the same subscription-reuse
+pattern Anthropic banned for Claude. OpenAI has not (as of 2026-05) banned it.
+
+### How it's wired
+
+- **New provider `openai-codex`** (distinct from the API-key `openai` provider;
+  both coexist). OAuth-only — there is no API key for this path.
+- **Two models, one model id, two efforts:** `gpt-5.5-codex-medium` (default,
+  balanced) and `gpt-5.5-codex-low` (faster/cheaper). Both route to `gpt-5.5`
+  over Codex and differ only by the per-request `reasoning.effort` field.
+- **Device-code auth, not localhost-callback** (the CLI's browser flow can't
+  work on Vercel): `deviceauth/usercode` → operator enters code at
+  `auth.openai.com/codex/device` → poll `deviceauth/token` → exchange at
+  `oauth/token`. Account id extracted from the id_token JWT
+  (`https://api.openai.com/auth`.chatgpt_account_id).
+- **Responses-API request shape** with the mandatory Codex `instructions`
+  prefix ("You are Codex, based on GPT-5. …"); the agent's real system prompt
+  rides as a leading `developer` input message. Codex CLI headers
+  (`OpenAI-Beta: responses=experimental`, `originator`, `chatgpt-account-id`,
+  `User-Agent: codex_cli_rs/…`). SSE response assembled to a single
+  `LLMResponse`.
+
+### Risks & mitigations (user-acknowledged)
+
+- **ToS grey area + fragility:** depends on mimicking the Codex CLI request
+  shape and a private endpoint; OpenAI can break it without notice.
+- **Fallback chain:** any Codex-OAuth failure throws and the `callLLM` chain
+  walks down `fallbackModels` (Kimi → MiniMax → Claude) automatically — strict
+  no-silent-fallback semantics, same as the Anthropic OAuth path.
+- **Two off switches:** the DB `forceFallback` flag (per-provider; for a
+  Codex-only provider this means "disable" → `NoCredentialError`), and the
+  infra-level env kill-switch `CODEX_OAUTH_DISABLED=1` (skips OAuth entirely,
+  fleet-wide, no code change).
+
+### Files
+
+- `auth/oauth/openai-codex.ts` — device-code begin/poll/exchange, refresh,
+  JWT account-id extraction, expiry helper, header builder.
+- `transformers/to-codex.ts` / `from-codex.ts` — Responses request/response.
+- `providers/openai-codex.ts` — adapter (resolve cred → headers + body → POST →
+  consume SSE → map errors to `HttpError`).
+- Resolver, registry, `callLLM`, `agent-auth` routes + page updated.
+
+### Default model
+
+OptiMate's default is **not** changed by this work. Switching the autonomous
+default to `gpt-5.5-codex-medium` is a one-line registry change to do as a
+follow-up once a live probe confirms the path works end-to-end.

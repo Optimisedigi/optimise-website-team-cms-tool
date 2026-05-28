@@ -5,6 +5,7 @@ import { headers as nextHeaders } from "next/headers";
 import { runChatTurn } from "@/lib/agents/optimate-google-ads";
 import type { Message } from "@/lib/agents/_shared/llm/types";
 import { MODEL_REGISTRY, isCanonicalModel, type CanonicalModelName } from "@/lib/agents/_shared/llm/registry";
+import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { fetchMessageBody } from "@/lib/gmail-search";
 import { translateAgentError } from "@/lib/agents/optimate-google-ads/error-translator";
@@ -109,7 +110,11 @@ export async function POST(
       modelOverride = body.model;
     }
 
-    const requestedModel = modelOverride ?? "claude-sonnet-4.6";
+    // For the image-attachment provider guard we need the model that will
+    // actually serve this turn. If the request didn't pick one, that's the
+    // configured chat default (same resolution runChatTurn uses).
+    const requestedModel: CanonicalModelName =
+      modelOverride ?? (await getOptiMateDefaultModels(payload)).defaultChatModel;
     if (imageAttachments.value.length > 0 && MODEL_REGISTRY[requestedModel].provider !== "anthropic") {
       return NextResponse.json(
         { error: "Image attachments are currently supported only with Claude models. Select Claude Sonnet/Opus/Haiku before sending screenshots." },

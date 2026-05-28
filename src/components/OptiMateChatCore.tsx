@@ -27,6 +27,21 @@ function loadPersistedModel(): string {
   }
 }
 
+/** True when the user has an explicit, still-valid model choice in
+ *  localStorage. When false, the chat should defer to the agency-configured
+ *  default (OptiMate Settings global) fetched on mount. */
+function hasExplicitModelChoice(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const raw = window.localStorage.getItem(MODEL_STORAGE_KEY)
+    if (!raw) return false
+    if (!isCanonicalModel(raw)) return false
+    return CHAT_PICKER_MODELS.some((m) => m.canonical === raw)
+  } catch {
+    return false
+  }
+}
+
 /** Persist a model choice. Silently no-ops on SSR or storage failure —
  *  the in-memory state is still correct for the current session. */
 function savePersistedModel(model: string): void {
@@ -457,7 +472,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   const imageInputRef = useRef<HTMLInputElement>(null)
 
   /* Auto-grow the textarea as the user types. Caps at 8 lines so the
-   * chat panel never gets crowded; past that the textarea scrolls. */
+   * chat panel never cramped; past that the textarea scrolls. */
   useEffect(() => {
     const el = inputRef.current
     if (!el) return
@@ -465,6 +480,42 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     const maxPx = 8 * 20 // ~8 rows at 20px line-height
     el.style.height = Math.min(el.scrollHeight, maxPx) + 'px'
   }, [input])
+
+  /* Seed the picker from the agency-configured default (OptiMate Settings
+   * global) on first load. Only applies when the user has NOT made their own
+   * explicit per-browser choice — once they pick a model, their choice wins
+   * and survives reloads. Best-effort: a fetch failure leaves the registry
+   * default in place. */
+  useEffect(() => {
+    if (hasExplicitModelChoice()) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/optimate/default-model')
+        if (!res.ok) return
+        const json = (await res.json()) as { defaultChatModel?: string }
+        const next = json.defaultChatModel
+        if (
+          !cancelled &&
+          typeof next === 'string' &&
+          isCanonicalModel(next) &&
+          CHAT_PICKER_MODELS.some((m) => m.canonical === next)
+        ) {
+          // Don't persist — this is the inherited default, not an explicit
+          // user choice. If the user keeps it and sends, they can still pick
+          // it explicitly later; we only persist on an actual select change.
+          setSelectedModel(next)
+        }
+      } catch {
+        // Network/parse failure — keep the registry default already in state.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // Mount-only: the configured default is read once per chat open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Resolve the sessionId once on mount. Priority: caller-supplied
   // (resuming a thread) → sessionStorage (tab reload — lets us re-attach to
   // whatever thread this tab was last on without needing the DB) → fresh
@@ -1017,6 +1068,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
   const messagesMinHeight = expanded ? 'calc(100vh - 220px)' : compact ? 240 : 300
   const messagesMaxHeight = expanded ? 'calc(100vh - 220px)' : compact ? 360 : 500
   const wrapperMaxWidth = compact ? '100%' : 700
+  const messageBubbleMaxWidth = expanded ? '100%' : '85%'
 
   // Stop keydown bubbling so our Enter handler in the input doesn't trigger
   // Payload's parent-form save shortcuts. We deliberately do NOT block
@@ -1334,7 +1386,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           >
             <div
               style={{
-                maxWidth: '85%',
+                maxWidth: messageBubbleMaxWidth,
                 padding: '10px 14px',
                 borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                 background: msg.role === 'user' ? '#2563eb' : '#f3f4f6',
@@ -1347,14 +1399,14 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
             </div>
             {msg.role === 'assistant' && msg.proposals && msg.proposals.length > 0 && (
-              <div style={{ width: '100%', maxWidth: '85%' }}>
+              <div style={{ width: '100%', maxWidth: messageBubbleMaxWidth }}>
                 {msg.proposals.map((p) => (
                   <OptiMateProposalCard key={p.id} proposal={p} variant="inline" />
                 ))}
               </div>
             )}
             {msg.role === 'assistant' && msg.confirmRequests && msg.confirmRequests.length > 0 && (
-              <div style={{ width: '100%', maxWidth: '85%' }}>
+              <div style={{ width: '100%', maxWidth: messageBubbleMaxWidth }}>
                 {msg.confirmRequests.map((c) => (
                   <OptiMateConfirmBubble
                     key={c.confirmId}
@@ -1561,7 +1613,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
 
       {/* Input — hidden when a multi-chat wrapper is supplying a shared one. */}
       {!hideInput && (
-        <div style={{ position: 'relative', marginTop: 10 }}>
+        <div style={{ position: 'relative', marginTop: 10, width: '100%' }}>
           {attachedEmail && (
             <div
               style={{

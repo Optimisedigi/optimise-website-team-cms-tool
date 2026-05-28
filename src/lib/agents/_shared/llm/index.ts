@@ -16,6 +16,7 @@ import { MODEL_REGISTRY, PROVIDER_CONFIG, type CanonicalModelName } from "./regi
 import { classifyError, isRetryable } from "./retry";
 import { callAnthropic } from "./providers/anthropic";
 import { callOpenAICompatible } from "./providers/openai-compatible";
+import { callOpenAICodex } from "./providers/openai-codex";
 import { NoCredentialError } from "./auth/types";
 import { OAuthFailedError } from "./auth/resolver";
 import type { CallLLMOptions, LLMResponse } from "./types";
@@ -51,6 +52,16 @@ export async function callLLM(opts: CallLLMOptions): Promise<LLMResponse> {
     try {
       if (provCfg.handler === "callAnthropic") {
         return await callAnthropic({ ...opts, model: modelName }, entry.model);
+      }
+      if (provCfg.handler === "callOpenAICodex") {
+        // Only the Codex registry entries carry an `effort` field; the
+        // discriminated handler check guarantees this branch is one of them.
+        const effort = (entry as { effort: "low" | "medium" | "high" | "xhigh" }).effort;
+        return await callOpenAICodex(
+          { ...opts, model: modelName },
+          entry.model,
+          { effort, baseUrl: provCfg.baseUrl },
+        );
       }
       // callOpenAICompatible
       return await callOpenAICompatible(

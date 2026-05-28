@@ -88,6 +88,7 @@ export const FEATURE_KEYS = [
   { label: "Google Sheets Auth (Global)", value: "sheets-auth" },
   { label: "Google Calendar Auth (Global)", value: "calendar-auth" },
   { label: "Cron Settings (Global)", value: "cron-settings" },
+  { label: "OptiMate Settings (Global)", value: "optimate-settings" },
   // Admin
   { label: "Dashboard (Agency)", value: "nav:dashboard" },
   { label: "Usage Reports", value: "usage-reports" },

@@ -78,6 +78,7 @@ import * as migration_20260605_120000_add_conversion_tracking_enabled_from from 
 import * as migration_20260605_130000_seed_account_efficiency_pause_risk_tiers from './20260605_130000_seed_account_efficiency_pause_risk_tiers';
 import * as migration_20260606_120000_add_google_ads_starter_email_templates from './20260606_120000_add_google_ads_starter_email_templates';
 import * as migration_20260606_130000_add_spend_policy_fields from './20260606_130000_add_spend_policy_fields';
+import * as migration_20260607_120000_add_optimate_settings_global from './20260607_120000_add_optimate_settings_global';
 
 export const migrations = [
   {
@@ -479,5 +480,10 @@ export const migrations = [
     up: migration_20260606_130000_add_spend_policy_fields.up,
     down: migration_20260606_130000_add_spend_policy_fields.down,
     name: '20260606_130000_add_spend_policy_fields'
+  },
+  {
+    up: migration_20260607_120000_add_optimate_settings_global.up,
+    down: migration_20260607_120000_add_optimate_settings_global.down,
+    name: '20260607_120000_add_optimate_settings_global'
   },
 ];

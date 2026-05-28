@@ -3569,6 +3569,19 @@ export async function runMigrations(
     await run("payload_locked_documents_rels_goal_runs_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_goal_runs_id_idx` ON `payload_locked_documents_rels` (`goal_runs_id`)");
     await run("locked_docs_rels.goal_run_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `goal_run_snapshots_id` integer REFERENCES `goal_run_snapshots`(`id`) ON DELETE cascade");
     await run("payload_locked_documents_rels_goal_run_snapshots_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_goal_run_snapshots_id_idx` ON `payload_locked_documents_rels` (`goal_run_snapshots_id`)");
+
+    // ── optimate_settings global (2026-06-07) ──────────────────────────────
+    // Single-row global storing the OptiMate agent's default chat / autonomous
+    // models. Globals don't get a payload_locked_documents_rels FK column.
+    // Mirrors src/migrations/20260607_120000_add_optimate_settings_global.ts —
+    // this inline sweep is what production /api/migrate actually executes.
+    await run("optimate_settings", `CREATE TABLE IF NOT EXISTS \`optimate_settings\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`default_chat_model\` text DEFAULT 'claude-sonnet-4.6',
+      \`default_autonomous_model\` text DEFAULT 'kimi-k2.6',
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    )`);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

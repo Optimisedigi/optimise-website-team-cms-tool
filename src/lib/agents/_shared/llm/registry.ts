@@ -15,6 +15,14 @@
  *
  * Last reviewed: 2026-05-07 (Kimi K2 series deprecates 2026-05-25).
  */
+/**
+ * Reasoning-effort levels for the GPT-5.5-class models served over the Codex
+ * Responses backend. The Codex API takes this as a per-request
+ * `reasoning.effort` value; it is NOT a separate model id. Only the
+ * `openai-codex` adapter reads the `effort` field on a registry entry.
+ */
+export type CodexEffort = "low" | "medium" | "high" | "xhigh";
+
 export const MODEL_REGISTRY = {
   // Anthropic (native API). All connect via OAuth (Claude Code client
   // impersonation) when ANTHROPIC OAuth is connected; otherwise via
@@ -30,10 +38,24 @@ export const MODEL_REGISTRY = {
 
   // MiniMax (OpenAI-compatible). M2.7 is the current flagship.
   "minimax-m2.7": { provider: "minimax", model: "MiniMax-M2.7" },
+
+  // OpenAI / GPT (OpenAI-compatible). API-key path billed to OPENAI_API_KEY.
+  "gpt-5.5": { provider: "openai", model: "gpt-5.5" },
+  "gpt-4.1": { provider: "openai", model: "gpt-4.1" },
+  "gpt-4o": { provider: "openai", model: "gpt-4o" },
+
+  // GPT-5.5 over the Codex Responses backend, served by a ChatGPT
+  // subscription via Codex OAuth ("Sign in with ChatGPT"). Both entries use
+  // the SAME underlying model id `gpt-5.5`; they differ only by the
+  // per-request reasoning effort. `medium` is OpenAI's recommended balanced
+  // point and the OptiMate default; `low` is the cheaper/faster tier one
+  // notch down. The `effort` field is read only by the openai-codex adapter.
+  "gpt-5.5-codex-medium": { provider: "openai-codex", model: "gpt-5.5", effort: "medium" },
+  "gpt-5.5-codex-low": { provider: "openai-codex", model: "gpt-5.5", effort: "low" },
 } as const;
 
 export type CanonicalModelName = keyof typeof MODEL_REGISTRY;
-export type ProviderName = "anthropic" | "moonshot" | "minimax";
+export type ProviderName = "anthropic" | "moonshot" | "minimax" | "openai" | "openai-codex";
 
 export interface AnthropicProviderConfig {
   handler: "callAnthropic";
@@ -46,7 +68,17 @@ export interface OpenAICompatibleProviderConfig {
   supportsOAuth: false;
 }
 
-export type ProviderConfig = AnthropicProviderConfig | OpenAICompatibleProviderConfig;
+export interface OpenAICodexProviderConfig {
+  handler: "callOpenAICodex";
+  /** Base for the Codex Responses endpoint, e.g. https://chatgpt.com/backend-api. */
+  baseUrl: string;
+  supportsOAuth: true;
+}
+
+export type ProviderConfig =
+  | AnthropicProviderConfig
+  | OpenAICompatibleProviderConfig
+  | OpenAICodexProviderConfig;
 
 export const PROVIDER_CONFIG: Record<ProviderName, ProviderConfig> = {
   anthropic: {
@@ -64,6 +96,17 @@ export const PROVIDER_CONFIG: Record<ProviderName, ProviderConfig> = {
     // here in case we need to switch per-account later.
     baseUrl: "https://api.minimaxi.chat/v1",
     supportsOAuth: false,
+  },
+  openai: {
+    handler: "callOpenAICompatible",
+    baseUrl: "https://api.openai.com/v1",
+    supportsOAuth: false,
+  },
+  "openai-codex": {
+    handler: "callOpenAICodex",
+    // The Codex Responses endpoint is <baseUrl>/codex/responses.
+    baseUrl: "https://chatgpt.com/backend-api",
+    supportsOAuth: true,
   },
 };
 
@@ -106,5 +149,10 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   { canonical: "claude-haiku-4.5", label: "Claude Haiku 4.5 (OAuth)", hint: "Fast and cheap. Good for simple chat replies." },
   { canonical: "kimi-k2.6", label: "Kimi K2.6", hint: "Long context, analytical. Default for autonomous runs." },
   { canonical: "minimax-m2.7", label: "MiniMax M2.7", hint: "Fallback option, agentic workflows." },
+  { canonical: "gpt-5.5", label: "GPT 5.5", hint: "OpenAI API key. Set OPENAI_API_KEY." },
+  { canonical: "gpt-4.1", label: "GPT 4.1", hint: "OpenAI API key fallback." },
+  { canonical: "gpt-4o", label: "GPT-4o", hint: "OpenAI API key fallback." },
+  { canonical: "gpt-5.5-codex-medium", label: "GPT-5.5 Codex \u2014 medium (ChatGPT OAuth)", hint: "GPT-5.5 over Codex, balanced reasoning. Free via ChatGPT subscription." },
+  { canonical: "gpt-5.5-codex-low", label: "GPT-5.5 Codex \u2014 low (ChatGPT OAuth)", hint: "GPT-5.5 over Codex, faster/cheaper reasoning tier." },
   { canonical: "claude-sonnet-4.5", label: "Claude Sonnet 4.5 (OAuth)", hint: "Previous Sonnet generation, kept for compatibility." },
 ];

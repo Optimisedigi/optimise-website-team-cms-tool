@@ -155,6 +155,8 @@ async function runOneTask(
       messages,
       // Stamp this run as scheduled so tools/apply-handlers can attribute ownership.
       userId,
+      // Unattended run: use the configured autonomous default model.
+      autonomous: true,
     });
 
     // 4. Format and create the Gmail draft.

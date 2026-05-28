@@ -5,10 +5,12 @@ import { setForceFallback } from "@/lib/agents/_shared/llm/auth/store";
 
 /**
  * POST /api/agent-auth/force-fallback
- * Body: { provider: 'anthropic' | 'moonshot' | 'minimax', enabled: boolean }
+ * Body: { provider: 'anthropic' | 'moonshot' | 'minimax' | 'openai' | 'openai-codex', enabled: boolean }
  *
  * Toggles the emergency "force API key" flag for a provider. When on, the
- * resolver skips OAuth even if a stored OAuth credential exists.
+ * resolver skips OAuth even if a stored OAuth credential exists. For the
+ * Codex-only provider (no API key to fall back to), enabling this means the
+ * resolver throws NoCredentialError and the agent loop walks its chain.
  *
  * Auth: requires a logged-in CMS user.
  */
@@ -27,7 +29,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (body.provider !== "anthropic" && body.provider !== "moonshot" && body.provider !== "minimax") {
+  if (
+    body.provider !== "anthropic" &&
+    body.provider !== "moonshot" &&
+    body.provider !== "minimax" &&
+    body.provider !== "openai" &&
+    body.provider !== "openai-codex"
+  ) {
     return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
   }
   if (typeof body.enabled !== "boolean") {

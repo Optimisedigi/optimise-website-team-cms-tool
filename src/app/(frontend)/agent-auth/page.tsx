@@ -18,6 +18,8 @@ interface ProviderStatus {
   oauthConnected: boolean;
   oauthExpiresAt: number | null;
   oauthObtainedAt: number | null;
+  oauthAccountId?: boolean;
+  codexDisabled?: boolean;
   forceFallback: boolean;
   envApiKeyPresent: boolean;
   lastFailure: { timestamp: string; message: string } | null;
@@ -81,6 +83,10 @@ export default function AgentAuthPage() {
   const [completing, setCompleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [probeResult, setProbeResult] = useState<string | null>(null);
+  // Codex device-code flow state.
+  const [codexUserCode, setCodexUserCode] = useState<string | null>(null);
+  const [codexVerificationUrl, setCodexVerificationUrl] = useState<string | null>(null);
+  const [codexCompleting, setCodexCompleting] = useState(false);
 
   async function loadStatus() {
     setLoading(true);
@@ -136,6 +142,51 @@ export default function AgentAuthPage() {
     await loadStatus();
   }
 
+  async function handleCodexBegin() {
+    setMessage(null);
+    setCodexUserCode(null);
+    setCodexVerificationUrl(null);
+    const res = await fetch("/api/agent-auth/begin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "openai-codex" }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMessage(`Codex begin failed: ${json.error ?? res.status}`);
+      return;
+    }
+    setCodexUserCode(json.userCode);
+    setCodexVerificationUrl(json.verificationUrl);
+    window.open(json.verificationUrl, "_blank", "noopener,noreferrer");
+  }
+
+  async function handleCodexComplete() {
+    setMessage(null);
+    setCodexCompleting(true);
+    const res = await fetch("/api/agent-auth/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "openai-codex" }),
+    });
+    setCodexCompleting(false);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 425) {
+        setMessage(
+          "Not authorised yet \u2014 finish the sign-in + code entry in the ChatGPT tab, then click Complete again.",
+        );
+      } else {
+        setMessage(`Codex complete failed: ${json.error ?? res.status}`);
+      }
+      return;
+    }
+    setMessage("Connected to ChatGPT via Codex OAuth.");
+    setCodexUserCode(null);
+    setCodexVerificationUrl(null);
+    await loadStatus();
+  }
+
   async function handleToggleForceFallback(provider: string, enabled: boolean) {
     setMessage(null);
     const res = await fetch("/api/agent-auth/force-fallback", {
@@ -172,8 +223,8 @@ export default function AgentAuthPage() {
     <div style={baseStyle}>
       <h1 style={{ margin: "0 0 4px" }}>Optimate agent auth</h1>
       <p style={{ color: "#666", marginTop: 0 }}>
-        Per-provider credential status for the agent fleet. Optimate-Google-Ads currently uses Kimi (primary) and MiniMax (fallback) via API keys.
-        Anthropic OAuth is supported here for future agents but is not used today.
+        Per-provider credential status for the agent fleet. Claude uses Anthropic OAuth/API keys; Kimi and MiniMax use API keys.
+        GPT-5.5 can run either on an OPENAI_API_KEY (the <code>gpt-5.5</code> model) or, free, on a ChatGPT subscription via Codex OAuth (the <code>gpt-5.5-codex-*</code> models) — connect that below.
       </p>
 
       {message && (
@@ -181,6 +232,58 @@ export default function AgentAuthPage() {
           {message}
         </div>
       )}
+
+      <div style={{ ...cardStyle, background: "#fffbeb", borderColor: "#fde68a" }}>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>GPT / OpenAI auth</h2>
+        <p style={{ margin: 0, fontSize: 13, color: "#92400e", lineHeight: 1.5 }}>
+          Two paths for GPT-5.5. Billed: set <code>OPENAI_API_KEY</code> and use the <code>gpt-5.5</code> model. Free via subscription: connect a ChatGPT plan with Codex OAuth (card below) and use the <code>gpt-5.5-codex-medium</code> / <code>gpt-5.5-codex-low</code> models. The Codex path reuses the Codex CLI OAuth client against a private endpoint — a ToS grey area OpenAI can break at any time — so any failure falls through the normal fallback chain (Kimi → MiniMax → Claude). Kill-switch: set <code>CODEX_OAUTH_DISABLED=1</code> in the environment to disable it fleet-wide instantly.
+        </p>
+      </div>
+
+      {/* Connect ChatGPT via Codex OAuth */}
+      <div style={cardStyle}>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Connect ChatGPT (Codex OAuth)</h2>
+        <p style={{ marginTop: 0, fontSize: 13, color: "#666" }}>
+          Device-code flow. Click Begin to get a one-time code; a ChatGPT tab opens at
+          {" "}<code>auth.openai.com/codex/device</code>. Sign in, enter the code, then click Complete here.
+          Requires "Allow device code login" enabled in ChatGPT → Settings → Security.
+        </p>
+        <button onClick={handleCodexBegin} style={buttonStyle}>
+          1. Begin (get device code)
+        </button>
+        {codexUserCode && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ fontSize: 13, color: "#222", margin: "0 0 6px" }}>
+              2. Enter this one-time code at{" "}
+              <a href={codexVerificationUrl ?? undefined} target="_blank" rel="noopener noreferrer">
+                {codexVerificationUrl}
+              </a>:
+            </p>
+            <code
+              style={{
+                display: "inline-block",
+                fontSize: 22,
+                letterSpacing: 2,
+                fontWeight: 700,
+                padding: "6px 12px",
+                background: "#f3f4f6",
+                borderRadius: 6,
+              }}
+            >
+              {codexUserCode}
+            </code>
+            <div style={{ marginTop: 12 }}>
+              <button
+                onClick={handleCodexComplete}
+                disabled={codexCompleting}
+                style={{ ...buttonStyle, opacity: codexCompleting ? 0.5 : 1 }}
+              >
+                {codexCompleting ? "Waiting for authorisation..." : "3. Complete (I've authorised)"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Connect Anthropic (optional) */}
       <div style={cardStyle}>
@@ -301,6 +404,18 @@ export default function AgentAuthPage() {
           </button>
           <button onClick={() => handleProbe("minimax-m2.7")} style={ghostButtonStyle}>
             Probe MiniMax M2.7 (API key)
+          </button>
+          <button onClick={() => handleProbe("gpt-5.5")} style={ghostButtonStyle}>
+            Probe GPT 5.5 (OpenAI API key)
+          </button>
+          <button onClick={() => handleProbe("gpt-4.1")} style={ghostButtonStyle}>
+            Probe GPT 4.1 (OpenAI API key)
+          </button>
+          <button onClick={() => handleProbe("gpt-5.5-codex-medium")} style={ghostButtonStyle}>
+            Probe GPT-5.5 Codex medium (ChatGPT OAuth)
+          </button>
+          <button onClick={() => handleProbe("gpt-5.5-codex-low")} style={ghostButtonStyle}>
+            Probe GPT-5.5 Codex low (ChatGPT OAuth)
           </button>
         </div>
         {probeResult && (

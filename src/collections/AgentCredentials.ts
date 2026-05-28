@@ -37,7 +37,7 @@ export const AgentCredentials: CollectionConfig = {
       required: true,
       unique: true,
       index: true,
-      admin: { description: "Provider key, e.g. anthropic, moonshot, minimax." },
+      admin: { description: "Provider key, e.g. anthropic, moonshot, minimax, openai-codex." },
     },
     {
       name: "kind",

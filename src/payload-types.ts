@@ -225,6 +225,7 @@ export interface Config {
     'api-cost-rates': ApiCostRate;
     'email-templates': EmailTemplate;
     'cron-settings': CronSetting;
+    'optimate-settings': OptimateSetting;
   };
   globalsSelect: {
     'sheets-auth': SheetsAuthSelect<false> | SheetsAuthSelect<true>;
@@ -232,6 +233,7 @@ export interface Config {
     'api-cost-rates': ApiCostRatesSelect<false> | ApiCostRatesSelect<true>;
     'email-templates': EmailTemplatesSelect<false> | EmailTemplatesSelect<true>;
     'cron-settings': CronSettingsSelect<false> | CronSettingsSelect<true>;
+    'optimate-settings': OptimateSettingsSelect<false> | OptimateSettingsSelect<true>;
   };
   locale: null;
   widgets: {
@@ -4115,6 +4117,7 @@ export interface User {
         | 'sheets-auth'
         | 'calendar-auth'
         | 'cron-settings'
+        | 'optimate-settings'
         | 'nav:dashboard'
         | 'usage-reports'
       )[]
@@ -4221,6 +4224,7 @@ export interface PermissionProfile {
         | 'sheets-auth'
         | 'calendar-auth'
         | 'cron-settings'
+        | 'optimate-settings'
         | 'nav:dashboard'
         | 'usage-reports'
       )[]
@@ -6800,7 +6804,7 @@ export interface NegativeKeywordMonthlyWasteRelevancyCache {
 export interface AgentCredential {
   id: number;
   /**
-   * Provider key, e.g. anthropic, moonshot, minimax.
+   * Provider key, e.g. anthropic, moonshot, minimax, openai-codex.
    */
   provider: string;
   kind: 'oauth' | 'api-key';
@@ -10086,6 +10090,47 @@ export interface CronSetting {
   createdAt?: string | null;
 }
 /**
+ * Default models for the OptiMate Google Ads agent. The chat default seeds the model picker and is used when a request doesn't specify a model; the autonomous default is used for scheduled/cron runs.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "optimate-settings".
+ */
+export interface OptimateSetting {
+  id: number;
+  /**
+   * Model the OptiMate chat picker defaults to, and the model used when a chat request doesn't pick one. Users can still switch models per-conversation.
+   */
+  defaultChatModel:
+    | 'claude-sonnet-4.6'
+    | 'claude-opus-4.7'
+    | 'claude-haiku-4.5'
+    | 'kimi-k2.6'
+    | 'minimax-m2.7'
+    | 'gpt-5.5'
+    | 'gpt-4.1'
+    | 'gpt-4o'
+    | 'gpt-5.5-codex-medium'
+    | 'gpt-5.5-codex-low'
+    | 'claude-sonnet-4.5';
+  /**
+   * Model used for unattended runs (scheduled tasks, cron) where no human picks a model.
+   */
+  defaultAutonomousModel:
+    | 'claude-sonnet-4.6'
+    | 'claude-opus-4.7'
+    | 'claude-haiku-4.5'
+    | 'kimi-k2.6'
+    | 'minimax-m2.7'
+    | 'gpt-5.5'
+    | 'gpt-4.1'
+    | 'gpt-4o'
+    | 'gpt-5.5-codex-medium'
+    | 'gpt-5.5-codex-low'
+    | 'claude-sonnet-4.5';
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "sheets-auth_select".
  */
@@ -10247,6 +10292,17 @@ export interface EmailTemplatesSelect<T extends boolean = true> {
 export interface CronSettingsSelect<T extends boolean = true> {
   timezone?: T;
   matchTypeMonitorSyncHour?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "optimate-settings_select".
+ */
+export interface OptimateSettingsSelect<T extends boolean = true> {
+  defaultChatModel?: T;
+  defaultAutonomousModel?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

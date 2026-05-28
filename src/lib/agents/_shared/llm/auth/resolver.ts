@@ -33,6 +33,11 @@ import {
   getRefreshLock,
 } from "./store";
 import { isExpiringSoon, refreshAnthropicCredential } from "./oauth/anthropic";
+import {
+  isCodexExpiringSoon,
+  refreshCodexCredential,
+  codexAuthHeaders,
+} from "./oauth/openai-codex";
 import { NoCredentialError, type ResolvedAuth, type OAuthCredential } from "./types";
 import { recordAuthEvent } from "./events";
 
@@ -58,6 +63,13 @@ function envApiKeyFor(provider: ProviderName): string | undefined {
       return process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY;
     case "minimax":
       return process.env.MINIMAX_API_KEY;
+    case "openai":
+      return process.env.OPENAI_API_KEY;
+    case "openai-codex":
+      // Codex is OAuth-only — there is no API key for the subscription path.
+      // Returning undefined makes the resolver throw NoCredentialError when
+      // OAuth isn't connected, which the agent loop walks past.
+      return undefined;
     default: {
       const _exhaust: never = provider;
       void _exhaust;
@@ -78,15 +90,25 @@ function apiKeyAuthHeader(
   return { Authorization: `Bearer ${apiKey}` };
 }
 
+function isOAuthExpiringSoon(cred: OAuthCredential): boolean {
+  return cred.provider === "openai-codex" ? isCodexExpiringSoon(cred) : isExpiringSoon(cred);
+}
+
+async function refreshOAuthCredential(cred: OAuthCredential): Promise<OAuthCredential> {
+  return cred.provider === "openai-codex"
+    ? refreshCodexCredential(cred)
+    : refreshAnthropicCredential(cred);
+}
+
 async function refreshIfNeeded(cred: OAuthCredential): Promise<OAuthCredential> {
-  if (!isExpiringSoon(cred)) return cred;
+  if (!isOAuthExpiringSoon(cred)) return cred;
   const inFlight = getRefreshLock(cred.provider);
   if (inFlight) {
     const result = (await inFlight) as OAuthCredential;
     return result;
   }
   const refreshPromise = (async () => {
-    const refreshed = await refreshAnthropicCredential(cred);
+    const refreshed = await refreshOAuthCredential(cred);
     await setCredential(cred.provider, refreshed);
     return refreshed;
   })();
@@ -97,21 +119,34 @@ export async function resolveCredential(provider: ProviderName): Promise<Resolve
   const provCfg = PROVIDER_CONFIG[provider];
 
   if (provCfg.supportsOAuth) {
+    // Env kill-switch: when CODEX_OAUTH_DISABLED is set, behave as if no Codex
+    // credential is stored at all (skip OAuth entirely) so the agent falls
+    // through its fallback chain. Infra-level off switch, independent of the
+    // DB forceFallback flag. Only affects the Codex provider.
+    const codexDisabled =
+      provider === "openai-codex" && Boolean(process.env.CODEX_OAUTH_DISABLED);
     const forced = await isForceFallback(provider);
-    const stored = forced ? null : await getCredential(provider);
+    const stored = forced || codexDisabled ? null : await getCredential(provider);
 
     if (stored?.kind === "oauth") {
       // OAuth was connected. We MUST use it or hard-fail; we never silently
       // fall through to billed API for the same provider.
       try {
         const refreshed = await refreshIfNeeded(stored);
+        let authHeader: Record<string, string> | null = null;
         if (provider === "anthropic") {
           // The adapter composes the rest (anthropic-beta, user-agent, x-app).
           // We only return the auth identity here.
-          const authHeader: Record<string, string> = {
+          authHeader = {
             Authorization: `Bearer ${refreshed.accessToken}`,
             "anthropic-version": "2023-06-01",
           };
+        } else if (provider === "openai-codex") {
+          // Bearer token + chatgpt-account-id. The adapter composes the rest
+          // (OpenAI-Beta, originator, User-Agent, Content-Type).
+          authHeader = codexAuthHeaders(refreshed);
+        }
+        if (authHeader) {
           // Record success quietly; only failures get a notification.
           await recordAuthEvent({
             provider,

@@ -11,7 +11,7 @@ import type { ProviderName } from "../registry";
 
 export interface OAuthCredential {
   kind: "oauth";
-  provider: "anthropic";
+  provider: "anthropic" | "openai-codex";
   accessToken: string;
   refreshToken: string;
   /** Unix ms. */
@@ -20,6 +20,13 @@ export interface OAuthCredential {
   clientId: string;
   scope: string;
   obtainedAt: number;
+  /**
+   * ChatGPT account id, extracted from the Codex OAuth id_token JWT
+   * (`https://api.openai.com/auth`.chatgpt_account_id). Sent as the
+   * `chatgpt-account-id` header on every Codex Responses request. Only set
+   * for the `openai-codex` provider; undefined for Anthropic.
+   */
+  accountId?: string;
 }
 
 export interface ApiKeyCredential {

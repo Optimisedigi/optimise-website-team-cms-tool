@@ -7,7 +7,7 @@
 import { runAgent, MAX_TOKENS_TRUNCATION_MARKER } from "../_shared/base-agent";
 import type { CanonicalTool } from "../_shared/tool";
 import type { CredentialSource, Message, Usage } from "../_shared/llm/types";
-import { DEFAULT_CHAT_MODEL } from "../_shared/llm/registry";
+import { getOptiMateDefaultModels } from "../_shared/optimate-default-models";
 import { AGENT_NAME, buildSystemPromptForAudit, conversionActionsForClient } from "./config";
 import { getAccountOverview } from "./tools/get-account-overview";
 import { getCampaignPerformance } from "./tools/get-campaign-performance";
@@ -155,8 +155,15 @@ export interface RunChatTurnInput {
   client: ClientDocLike | null;
   /** Full conversation history; the latest user message is the last entry. */
   messages: Message[];
-  /** Canonical model name; falls back to DEFAULT_CHAT_MODEL when omitted. */
+  /** Canonical model name; falls back to the configured default when omitted
+   *  (the OptiMate Settings global, or DEFAULT_CHAT_MODEL if unset). */
   modelOverride?: string;
+  /**
+   * True for unattended runs (scheduled tasks / cron). When set and no
+   * modelOverride is given, the agent uses the configured *autonomous* default
+   * model instead of the chat default. Ignored when modelOverride is present.
+   */
+  autonomous?: boolean;
   /**
    * Logged-in CMS user id. Threaded into the agent context so tools that
    * scope to ownership (e.g. list_scheduled_tasks, propose_scheduled_task)
@@ -230,7 +237,7 @@ const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
 const CHAT_MAX_TOKENS = 8192;
 
 export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnResult> {
-  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, disableNonVisionFallbacks } = input;
+  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, disableNonVisionFallbacks, autonomous } = input;
   if (!audit.customerId || !String(audit.customerId).trim()) {
     throw new Error("Audit has no Customer ID; cannot run agent.");
   }
@@ -248,7 +255,16 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
   });
   const conversionActions = conversionActionsForClient(client);
 
-  const modelRequested = modelOverride ?? DEFAULT_CHAT_MODEL;
+  // Resolve the effective model. Explicit override wins; otherwise use the
+  // configured default (chat vs autonomous), which itself falls back to the
+  // registry constants when the global is unset/stale.
+  let modelRequested: string;
+  if (modelOverride) {
+    modelRequested = modelOverride;
+  } else {
+    const defaults = await getOptiMateDefaultModels();
+    modelRequested = autonomous ? defaults.defaultAutonomousModel : defaults.defaultChatModel;
+  }
 
   const agentContext = {
     customerId: String(audit.customerId).replace(/-/g, ""),
