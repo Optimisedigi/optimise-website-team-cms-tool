@@ -34,13 +34,22 @@ export const OptiMateSettings: GlobalConfig = {
   slug: "optimate-settings",
   label: "OptiMate Settings",
   admin: {
-    group: "Settings",
+    group: "Agent",
     description:
       "Default models for the OptiMate Google Ads agent. The chat default seeds the model picker and is used when a request doesn't specify a model; the autonomous default is used for scheduled/cron runs.",
     hidden: hideGlobalUnlessFeature("optimate-settings"),
   },
   access: globalAccess("optimate-settings"),
   fields: [
+    {
+      name: "memoryTokenUsage",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/agent/MemoryTokenUsagePanel",
+        },
+      },
+    },
     {
       name: "defaultChatModel",
       type: "select",

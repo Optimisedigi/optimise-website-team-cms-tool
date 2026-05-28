@@ -121,12 +121,14 @@ import { default as default_20396e04db8c07a5e3383d2e16b34dc4 } from '../../../co
 import { default as default_b058368eb7c5859811170004e5dd59a8 } from '../../../components/SiteHealthReportView'
 import { default as default_6f9be25dea842550674d5a5331ed4ffe } from '../../../components/BusinessCostsListView'
 import { default as default_0a0f3b40e58f63623cf710a9f1c57a57 } from '../../../components/FeatureAccessPicker'
+import { default as default_5832cfd5a3db98abeba26a1e405dd7d5 } from '../../../components/agent/MemoryTokenCounterField'
 import { default as default_3c9d8edcf144f9e259759d2b0c9c8270 } from '../../../components/match-type-violations/MatchTypeViolationReviewList'
 import { default as default_d7691cd6896b18804e19a29368edb888 } from '../../../components/ConnectSheetsButton'
 import { default as default_f7ce8484c2a04dac97a85c29cde49f11 } from '../../../components/ConnectCalendarButton'
 import { default as default_991ab0e2ad7231624c88bf3879cc97a8 } from '../../../components/GoogleAdsStarterEmailPreviewField'
 import { default as default_bdbf091e4ee4c8ba764b4f4e25a35525 } from '../../../components/SignaturePreviewField'
 import { default as default_77e619a924b976ecf037ef3b071568ba } from '../../../components/InvoiceStatementPreviewField'
+import { default as default_b1bb90f08c5df85caf24dc08a7b957cf } from '../../../components/agent/MemoryTokenUsagePanel'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_2539ed3128925d1e4131db1b637125cd } from '../../../components/NotificationsBell'
@@ -272,12 +274,14 @@ export const importMap = {
   "./components/SiteHealthReportView#default": default_b058368eb7c5859811170004e5dd59a8,
   "./components/BusinessCostsListView#default": default_6f9be25dea842550674d5a5331ed4ffe,
   "./components/FeatureAccessPicker#default": default_0a0f3b40e58f63623cf710a9f1c57a57,
+  "./components/agent/MemoryTokenCounterField#default": default_5832cfd5a3db98abeba26a1e405dd7d5,
   "./components/match-type-violations/MatchTypeViolationReviewList#default": default_3c9d8edcf144f9e259759d2b0c9c8270,
   "./components/ConnectSheetsButton#default": default_d7691cd6896b18804e19a29368edb888,
   "./components/ConnectCalendarButton#default": default_f7ce8484c2a04dac97a85c29cde49f11,
   "/components/GoogleAdsStarterEmailPreviewField#default": default_991ab0e2ad7231624c88bf3879cc97a8,
   "/components/SignaturePreviewField#default": default_bdbf091e4ee4c8ba764b4f4e25a35525,
   "/components/InvoiceStatementPreviewField#default": default_77e619a924b976ecf037ef3b071568ba,
+  "./components/agent/MemoryTokenUsagePanel#default": default_b1bb90f08c5df85caf24dc08a7b957cf,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/NotificationsBell#default": default_2539ed3128925d1e4131db1b637125cd,

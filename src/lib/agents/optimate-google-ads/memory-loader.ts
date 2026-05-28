@@ -17,6 +17,7 @@
 
 import { getPayload } from "payload";
 import payloadConfig from "@/payload.config";
+import { estimateTokens } from "@/lib/agents/_shared/token-estimate";
 
 const PINNED_IMPORTANCE_THRESHOLD = 80;
 const PINNED_FACT_LIMIT = 10;
@@ -24,6 +25,20 @@ const PINNED_FACT_LIMIT = 10;
 export interface PinnedMemoryBlock {
   /** Markdown-ish text, or empty string if there's nothing to inject. */
   text: string;
+}
+
+export interface MemoryTokenUsage {
+  /** Pinned facts section text (importance ≥ 80, capped), or "". */
+  memoryText: string;
+  /** Soul section text (all aspects), or "". */
+  soulText: string;
+  memoryTokens: number;
+  soulTokens: number;
+  /** memoryTokens + soulTokens — what the block adds per prompt. */
+  totalTokens: number;
+  /** Row counts behind each section, for the panel's detail line. */
+  pinnedFactCount: number;
+  soulAspectCount: number;
 }
 
 /**
@@ -34,10 +49,27 @@ export interface PinnedMemoryBlock {
 export async function loadPinnedMemoryBlock(
   clientIds: Array<string | number>,
 ): Promise<PinnedMemoryBlock> {
+  const usage = await computeMemoryTokenUsage(clientIds);
+  const sections = [usage.memoryText, usage.soulText].filter((s) => s.length > 0);
+  return { text: sections.length === 0 ? "" : sections.join("\n\n") };
+}
+
+/**
+ * Build the memory + soul block AND its token breakdown in one pass. This is
+ * the single source of truth for what the agent injects every prompt; both
+ * loadPinnedMemoryBlock (runtime) and the token-usage API (CMS panel) call it,
+ * so the displayed estimate always matches what's actually sent.
+ */
+export async function computeMemoryTokenUsage(
+  clientIds: Array<string | number>,
+): Promise<MemoryTokenUsage> {
   const cfg = await payloadConfig;
   const payload = await getPayload({ config: cfg });
 
-  const sections: string[] = [];
+  let memoryText = "";
+  let soulText = "";
+  let pinnedFactCount = 0;
+  let soulAspectCount = 0;
 
   // ── Pinned facts ──
   try {
@@ -68,6 +100,7 @@ export async function loadPinnedMemoryBlock(
       depth: 0,
     });
     if (facts.docs.length > 0) {
+      pinnedFactCount = facts.docs.length;
       const lines = (facts.docs as unknown as Array<{
         scope: string;
         client?: number | { id: number } | null;
@@ -81,12 +114,11 @@ export async function loadPinnedMemoryBlock(
             : `[client ${typeof f.client === "object" && f.client ? f.client.id : f.client}]`;
         return `- ${scopeTag} **${f.subject}** (${f.category}): ${f.content}`;
       });
-      sections.push(
+      memoryText =
         "## Known about this account\n\n" +
-          "Pinned facts loaded from memory. Use `memory_search` if you need more, " +
-          "and `remember` when you learn something new worth keeping.\n\n" +
-          lines.join("\n"),
-      );
+        "Pinned facts loaded from memory. Use `memory_search` if you need more, " +
+        "and `remember` when you learn something new worth keeping.\n\n" +
+        lines.join("\n");
     }
   } catch (err) {
     // Non-fatal: agent runs without pinned memory if the lookup blows up.
@@ -103,20 +135,30 @@ export async function loadPinnedMemoryBlock(
       depth: 0,
     });
     if (soul.docs.length > 0) {
+      soulAspectCount = soul.docs.length;
       const lines = (soul.docs as unknown as Array<{
         aspect: string;
         content: string;
       }>).map((s) => `- **${s.aspect}**: ${s.content}`);
-      sections.push(
+      soulText =
         "## Working with this team\n\n" +
-          "Communication lessons. Use `soul_set` if the user corrects how you " +
-          "communicate.\n\n" +
-          lines.join("\n"),
-      );
+        "Communication lessons. Use `soul_set` if the user corrects how you " +
+        "communicate.\n\n" +
+        lines.join("\n");
     }
   } catch (err) {
     console.warn("[memory-loader] soul lookup failed:", (err as Error).message);
   }
 
-  return { text: sections.length === 0 ? "" : sections.join("\n\n") };
+  const memoryTokens = estimateTokens(memoryText);
+  const soulTokens = estimateTokens(soulText);
+  return {
+    memoryText,
+    soulText,
+    memoryTokens,
+    soulTokens,
+    totalTokens: memoryTokens + soulTokens,
+    pinnedFactCount,
+    soulAspectCount,
+  };
 }

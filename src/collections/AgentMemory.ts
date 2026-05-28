@@ -26,7 +26,7 @@ export const AgentMemory: CollectionConfig = {
     plural: "Agent Memory",
   },
   admin: {
-    group: "Admin",
+    group: "Agent",
     useAsTitle: "subject",
     defaultColumns: ["scope", "client", "category", "subject", "importance", "updatedAt"],
     description:
@@ -87,6 +87,15 @@ export const AgentMemory: CollectionConfig = {
       required: true,
       admin: {
         description: "The fact itself, 1–3 sentences. Past tense for events, present tense for preferences.",
+      },
+    },
+    {
+      name: "tokenEstimate",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/agent/MemoryTokenCounterField",
+        },
       },
     },
     {

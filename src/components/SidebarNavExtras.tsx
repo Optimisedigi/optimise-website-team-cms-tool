@@ -202,11 +202,11 @@ const SidebarNavExtras = () => {
       if (autoLink) autoLink.style.display = 'none'
     }
 
-    // Agent fleet — surfaced under Settings for any logged-in user. The
+    // Agent fleet — surfaced under the Agent group for any logged-in user. The
     // approvals queue and auth setup pages live outside /admin and do their
     // own auth checks.
     injectLink(
-      '#nav-group-Settings .nav-group__content',
+      '#nav-group-Agent .nav-group__content',
       'agent-approvals',
       '/agent-approvals',
       ICONS.agentApprovals,
@@ -214,7 +214,7 @@ const SidebarNavExtras = () => {
       'append',
     )
     injectLink(
-      '#nav-group-Integrations .nav-group__content',
+      '#nav-group-Agent .nav-group__content',
       'agent-auth',
       '/agent-auth',
       ICONS.agentAuth,

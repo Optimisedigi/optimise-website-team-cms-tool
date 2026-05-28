@@ -18,7 +18,7 @@ export const AgentApprovalQueue: CollectionConfig = {
     plural: "Agent Approvals",
   },
   admin: {
-    group: "Admin",
+    group: "Agent",
     useAsTitle: "title",
     defaultColumns: ["agentName", "proposalType", "client", "status", "createdAt"],
     listSearchableFields: ["agentName", "proposalType", "title"],

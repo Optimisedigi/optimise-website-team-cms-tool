@@ -20,7 +20,7 @@ export const AgentCredentials: CollectionConfig = {
   },
   admin: {
     hidden: true,
-    group: "Admin",
+    group: "Agent",
     useAsTitle: "provider",
   },
   access: {

@@ -23,7 +23,7 @@ export const AgentSoul: CollectionConfig = {
     plural: "Agent Soul",
   },
   admin: {
-    group: "Admin",
+    group: "Agent",
     useAsTitle: "aspect",
     defaultColumns: ["aspect", "content", "updatedAt"],
     description:
@@ -54,6 +54,15 @@ export const AgentSoul: CollectionConfig = {
       admin: {
         description:
           "The lesson, 1–3 sentences. Imperative mood. Example: 'Be direct. No apologetic language. State the answer first, then the reasoning.'",
+      },
+    },
+    {
+      name: "tokenEstimate",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/agent/MemoryTokenCounterField",
+        },
       },
     },
   ],
