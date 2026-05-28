@@ -14,20 +14,24 @@ import { isAdmin } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
+const CMS_BLUE = "#0b5394";
+const CMS_GOLD = "#f2b705";
+
 const PAGE_STYLE: React.CSSProperties = {
-  fontFamily: "system-ui, -apple-system, sans-serif",
-  maxWidth: 1200,
-  margin: "32px auto",
-  padding: "0 20px",
-  color: "#222",
+  fontFamily: "var(--font-body, system-ui, -apple-system, sans-serif)",
+  maxWidth: 1220,
+  margin: "24px auto",
+  padding: "0 24px 40px",
+  color: "var(--theme-elevation-900, #111827)",
 };
 
 const CARD: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e5e7eb",
-  borderRadius: 8,
+  background: "var(--theme-elevation-0, #fff)",
+  border: "1px solid var(--theme-elevation-150, #dfe3ea)",
+  borderRadius: 12,
   padding: 16,
   marginBottom: 16,
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.05)",
 };
 
 interface ApprovalDoc {
@@ -213,14 +217,30 @@ export default async function ApprovalReviewPage({
   return (
     <div style={PAGE_STYLE}>
       <div style={{ marginBottom: 12 }}>
-        <a href="/agent-approvals" style={{ fontSize: 12, color: "#2563eb", textDecoration: "none" }}>
+        <a href="/agent-approvals" style={{ fontSize: 12, color: CMS_BLUE, textDecoration: "none", fontWeight: 700 }}>
           ← Approvals
         </a>
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 16 }}>
+      <div
+        style={{
+          background: `linear-gradient(135deg, ${CMS_BLUE}, #083763)`,
+          color: "#fff",
+          borderRadius: 16,
+          padding: 22,
+          marginBottom: 16,
+          boxShadow: "0 14px 40px rgba(11, 83, 148, 0.22)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 16,
+        }}
+      >
         <div>
-          <h1 style={{ fontSize: 22, marginTop: 0, marginBottom: 4 }}>{doc.title}</h1>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>
+          <div style={{ color: CMS_GOLD, fontSize: 12, fontWeight: 700, letterSpacing: 0.7, textTransform: "uppercase" }}>
+            Agent approval review
+          </div>
+          <h1 style={{ fontSize: 28, margin: "4px 0 6px" }}>{doc.title}</h1>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
             <code>{doc.agentName}</code> &middot; <code>{doc.proposalType}</code> &middot; created {new Date(doc.createdAt).toLocaleString()}
           </div>
         </div>
@@ -264,19 +284,19 @@ export default async function ApprovalReviewPage({
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, alignItems: "flex-start" }}>
         <div>
           <div style={CARD}>
-            <h2 style={{ fontSize: 13, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, color: "#6b7280" }}>
+            <h2 style={{ fontSize: 13, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, color: CMS_BLUE }}>
               Internal review
             </h2>
             {internalMd ? renderInternalMarkdown(internalMd) : <p style={{ color: "#9ca3af", fontSize: 13 }}>No internal markdown rendered.</p>}
           </div>
           <div style={CARD}>
-            <h2 style={{ fontSize: 13, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, color: "#6b7280" }}>
+            <h2 style={{ fontSize: 13, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, color: CMS_BLUE }}>
               Client preview
             </h2>
             {clientHtml ? (
               <iframe
                 srcDoc={clientHtml}
-                style={{ width: "100%", minHeight: 320, border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff" }}
+                style={{ width: "100%", minHeight: 320, border: "1px solid var(--theme-elevation-150, #dfe3ea)", borderRadius: 10, background: "#fff" }}
                 sandbox=""
                 title="Client preview"
               />
@@ -288,14 +308,14 @@ export default async function ApprovalReviewPage({
 
         <div>
           <div style={CARD}>
-            <h2 style={{ fontSize: 13, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, color: "#6b7280" }}>
+            <h2 style={{ fontSize: 13, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, color: CMS_BLUE }}>
               Metadata
             </h2>
             <dl style={{ fontSize: 13, margin: 0 }}>
               <Meta label="Approval ID" value={`#${doc.id}`} />
               <Meta label="Client" value={clientLabel} />
               <Meta label="Run" value={
-                <a href={`/agent-runs/${doc.agentRunId}`} style={{ color: "#2563eb" }}>
+                <a href={`/agent-runs/${doc.agentRunId}`} style={{ color: CMS_BLUE, fontWeight: 700 }}>
                   {doc.agentRunId} →
                 </a>
               } />
@@ -305,15 +325,15 @@ export default async function ApprovalReviewPage({
             </dl>
           </div>
           <div style={CARD}>
-            <h2 style={{ fontSize: 13, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, color: "#6b7280" }}>
+            <h2 style={{ fontSize: 13, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, color: CMS_BLUE }}>
               Structured payload
             </h2>
             <pre
               style={{
-                background: "#0f172a",
+                background: "#071d33",
                 color: "#e2e8f0",
                 padding: 12,
-                borderRadius: 6,
+                borderRadius: 10,
                 fontSize: 11,
                 lineHeight: 1.5,
                 margin: 0,
@@ -335,7 +355,7 @@ function renderClient(client: ApprovalDoc["client"]): React.ReactNode {
   if (!client) return "—";
   if (typeof client === "number") return `#${client}`;
   return (
-    <a href={`/admin/collections/clients/${client.id}`} style={{ color: "#2563eb" }}>
+    <a href={`/admin/collections/clients/${client.id}`} style={{ color: CMS_BLUE, fontWeight: 700 }}>
       {client.name ?? `#${client.id}`}
     </a>
   );
@@ -349,7 +369,7 @@ function renderReviewer(reviewer: ApprovalDoc["reviewedBy"]): React.ReactNode {
 
 function Meta({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f3f4f6" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--theme-elevation-100, #eef1f5)" }}>
       <dt style={{ color: "#6b7280", fontSize: 12 }}>{label}</dt>
       <dd style={{ margin: 0, textAlign: "right" }}>{value}</dd>
     </div>

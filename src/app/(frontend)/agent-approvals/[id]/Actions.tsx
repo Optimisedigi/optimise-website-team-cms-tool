@@ -18,13 +18,16 @@ interface Props {
   canApproveOrApply: boolean;
 }
 
+const CMS_BLUE = "#0b5394";
+
 const baseBtn: React.CSSProperties = {
-  padding: "8px 16px",
+  padding: "9px 16px",
   border: "none",
-  borderRadius: 6,
+  borderRadius: 8,
   fontSize: 13,
-  fontWeight: 600,
+  fontWeight: 700,
   cursor: "pointer",
+  boxShadow: "0 4px 12px rgba(15, 23, 42, 0.12)",
 };
 
 export default function ApprovalActions({ approvalId, status, canApproveOrApply }: Props) {
@@ -67,7 +70,7 @@ export default function ApprovalActions({ approvalId, status, canApproveOrApply 
         title={!canApproveOrApply ? "Admin role required" : undefined}
         style={{
           ...baseBtn,
-          background: approveDisabled ? "#9ca3af" : "#16a34a",
+          background: approveDisabled ? "#9ca3af" : "#15803d",
           color: "#fff",
           cursor: approveDisabled ? "not-allowed" : "pointer",
         }}
@@ -100,7 +103,7 @@ export default function ApprovalActions({ approvalId, status, canApproveOrApply 
         }
         style={{
           ...baseBtn,
-          background: applyDisabled ? "#9ca3af" : "#0b5394",
+          background: applyDisabled ? "#9ca3af" : CMS_BLUE,
           color: "#fff",
           cursor: applyDisabled ? "not-allowed" : "pointer",
         }}

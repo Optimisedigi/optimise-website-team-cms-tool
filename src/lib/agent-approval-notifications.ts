@@ -1,9 +1,9 @@
 /**
  * Bell-notification fan-out for the agent-approval-queue.
  *
- * When an agent queues a proposal, every active user gets a per-recipient
- * `agent-approval-pending` notification row so the bell lights up across the
- * team. The notification body names the user who CALLED the agent (looked up
+ * When an agent queues a proposal, every active admin user gets a per-recipient
+ * `agent-approval-pending` notification row so the bell lights up for reviewers.
+ * The notification body names the user who CALLED the agent (looked up
  * via the latest `optimate-chat-turns` row sharing the same agentRunId) so
  * approvers know whose request they're reviewing.
  *
@@ -68,10 +68,12 @@ async function lookupCallerEmail(
 }
 
 /**
- * Create a `agent-approval-pending` notification for every active user.
+ * Create an `agent-approval-pending` notification for every active admin user.
+ * If no role data is available in a local/dev fixture, falls back to all users
+ * rather than silently failing to alert anyone.
  *
- * Best-effort: a per-user create failure is logged and skipped so one bad
- * row never aborts the broadcast.
+ * Best-effort: duplicate rows are skipped, and a per-user create failure is
+ * logged so one bad row never aborts the broadcast.
  */
 export async function fanOutApprovalNotifications(
   payload: Payload,
@@ -92,10 +94,29 @@ export async function fanOutApprovalNotifications(
     overrideAccess: true,
   });
 
+  const adminUsers = users.docs.filter((u) => (u as { role?: string }).role === "admin");
+  const recipients = adminUsers.length > 0 ? adminUsers : users.docs;
+
   let created = 0;
-  for (const u of users.docs) {
+  for (const u of recipients) {
     const recipientId = (u as { id: number | string }).id;
     try {
+      const existing = await payload.find({
+        collection: NOTIFICATIONS,
+        where: {
+          and: [
+            { recipient: { equals: recipientId } },
+            { kind: { equals: "agent-approval-pending" } },
+            { relatedApproval: { equals: input.approvalId } },
+            { readAt: { exists: false } },
+          ],
+        } as never,
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      });
+      if (existing.totalDocs > 0) continue;
+
       await payload.create({
         collection: NOTIFICATIONS,
         overrideAccess: true,

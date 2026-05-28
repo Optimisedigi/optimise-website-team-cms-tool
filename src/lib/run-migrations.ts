@@ -3480,6 +3480,7 @@ export async function runMigrations(
       ["spend_policy_acceptable_variance_percent_high", "numeric"],
       ["spend_policy_hard_floor", "numeric"],
       ["spend_policy_hard_ceiling", "numeric"],
+      ["spend_policy_conversion_tracking_enabled_from", "text"],
     ];
     for (const [col, type] of spendPolicyAdds) {
       await run(

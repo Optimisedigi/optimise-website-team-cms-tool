@@ -28,6 +28,8 @@ type IntegrationResult = {
 
 type IntegrationKey = 'ga4' | 'gsc' | 'googleAds' | 'metaAds'
 
+type OAuthProvider = 'ga4' | 'gsc'
+
 const INTEGRATIONS: Array<{
   key: IntegrationKey
   name: string
@@ -240,6 +242,7 @@ function ClientToolsTab() {
   // once per integration at the top level, not inside a map callback.
   const ga4Id = useFieldValue('ga4PropertyId')
   const gscId = useFieldValue('gscPropertyUrl')
+  const ga4Connected = useBoolFieldValue('ga4Connected')
   const gscConnected = useBoolFieldValue('gscConnected')
   const googleAdsId = useFieldValue('googleAdsCustomerId')
   const metaAdsId = useFieldValue('metaAdAccountId')
@@ -256,7 +259,10 @@ function ClientToolsTab() {
     googleAds: { status: 'idle' },
     metaAds: { status: 'idle' },
   })
-  const [gscDisconnecting, setGscDisconnecting] = useState(false)
+  const [disconnecting, setDisconnecting] = useState<Record<OAuthProvider, boolean>>({
+    ga4: false,
+    gsc: false,
+  })
 
   const testIntegration = useCallback(
     async (key: IntegrationKey) => {
@@ -291,88 +297,91 @@ function ClientToolsTab() {
     [clientId],
   )
 
-  const gscConnect = useCallback(() => {
-    if (!clientId) return
-    // Existing pattern: full-page navigation kicks off Google's OAuth flow,
-    // which redirects back to the admin once tokens are written. Match
-    // IntegrationsPage.tsx so behaviour is identical.
-    window.location.href = `/api/gsc/connect?clientId=${encodeURIComponent(String(clientId))}`
-  }, [clientId])
+  const connectOAuth = useCallback(
+    (provider: OAuthProvider) => {
+      if (!clientId) return
+      // Full-page navigation kicks off Google's OAuth flow and redirects back
+      // to the admin once tokens are written.
+      window.location.href = `/api/${provider}/connect?clientId=${encodeURIComponent(String(clientId))}`
+    },
+    [clientId],
+  )
 
-  const gscDisconnect = useCallback(async () => {
-    if (!clientId || gscDisconnecting) return
-    if (typeof window !== 'undefined') {
-      const ok = window.confirm(
-        'Disconnect Google Search Console for this client? Existing snapshots are kept; new pulls will stop until you reconnect.',
-      )
-      if (!ok) return
-    }
-    setGscDisconnecting(true)
-    try {
-      const res = await fetch('/api/gsc/disconnect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId }),
-      })
-      if (!res.ok) {
+  const disconnectOAuth = useCallback(
+    async (provider: OAuthProvider) => {
+      if (!clientId || disconnecting[provider]) return
+      const label = provider === 'ga4' ? 'Google Analytics 4' : 'Google Search Console'
+      if (typeof window !== 'undefined') {
+        const ok = window.confirm(
+          `Disconnect ${label} for this client? Existing snapshots are kept; new pulls will stop until you reconnect.`,
+        )
+        if (!ok) return
+      }
+      setDisconnecting((prev) => ({ ...prev, [provider]: true }))
+      try {
+        const res = await fetch(`/api/${provider}/disconnect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId }),
+        })
+        if (!res.ok) {
+          setResults((prev) => ({
+            ...prev,
+            [provider]: { status: 'error', message: 'Disconnect failed — try again.' },
+          }))
+          return
+        }
+        // Reload the doc so the form picks up the cleared connection fields.
+        if (typeof window !== 'undefined') window.location.reload()
+      } catch (err) {
         setResults((prev) => ({
           ...prev,
-          gsc: { status: 'error', message: 'Disconnect failed — try again.' },
+          [provider]: {
+            status: 'error',
+            message: err instanceof Error ? err.message : 'Network error',
+          },
         }))
-        return
+      } finally {
+        setDisconnecting((prev) => ({ ...prev, [provider]: false }))
       }
-      // Reload the doc so the form picks up the cleared gscConnected /
-      // gscAccessToken / gscRefreshToken fields. Simpler than dispatching
-      // multiple form-field updates by hand and avoids drift.
-      if (typeof window !== 'undefined') window.location.reload()
-    } catch (err) {
-      setResults((prev) => ({
-        ...prev,
-        gsc: {
-          status: 'error',
-          message: err instanceof Error ? err.message : 'Network error',
-        },
-      }))
-    } finally {
-      setGscDisconnecting(false)
-    }
-  }, [clientId, gscDisconnecting])
+    },
+    [clientId, disconnecting],
+  )
 
   const actionsFor = useCallback(
     (key: IntegrationKey): ActionButton[] => {
       const hasId = idValues[key].trim().length > 0
       const checking = results[key].status === 'checking'
 
-      if (key === 'gsc') {
-        // GSC has per-client OAuth — Connect / Reconnect / Disconnect plus the
-        // standard Test connection probe. Connect is always enabled (the OAuth
-        // flow itself discovers the property URL). Test only runs once tokens
-        // exist (gscConnected = true) AND a property URL is set.
-        const buttons: ActionButton[] = []
-        buttons.push({
-          label: gscConnected ? 'Reconnect' : 'Connect',
-          onClick: gscConnect,
-          variant: 'primary',
-          disabled: !clientId,
-        })
-        if (gscConnected) {
+      if (key === 'ga4' || key === 'gsc') {
+        const connected = key === 'ga4' ? ga4Connected : gscConnected
+        const isDisconnecting = disconnecting[key]
+        const buttons: ActionButton[] = [
+          {
+            label: connected ? 'Reconnect' : 'Connect',
+            onClick: () => connectOAuth(key),
+            variant: 'primary',
+            disabled: !clientId,
+          },
+        ]
+        if (connected) {
           buttons.push({
             label: checking ? 'Testing…' : 'Test connection',
-            onClick: () => testIntegration('gsc'),
+            onClick: () => testIntegration(key),
             variant: 'secondary',
             disabled: !hasId || checking,
           })
           buttons.push({
-            label: gscDisconnecting ? 'Disconnecting…' : 'Disconnect',
-            onClick: gscDisconnect,
+            label: isDisconnecting ? 'Disconnecting…' : 'Disconnect',
+            onClick: () => disconnectOAuth(key),
             variant: 'danger',
-            disabled: gscDisconnecting,
+            disabled: isDisconnecting,
           })
         }
         return buttons
       }
 
-      // GA4 / Google Ads / Meta Ads — test only.
+      // Google Ads / Meta Ads — test only.
       return [
         {
           label: checking ? 'Testing…' : 'Test connection',
@@ -384,10 +393,11 @@ function ClientToolsTab() {
     },
     [
       clientId,
-      gscConnect,
+      connectOAuth,
+      disconnectOAuth,
+      disconnecting,
+      ga4Connected,
       gscConnected,
-      gscDisconnect,
-      gscDisconnecting,
       idValues,
       results,
       testIntegration,
@@ -418,11 +428,10 @@ function ClientToolsTab() {
           lineHeight: 1.5,
         }}
       >
-        <strong>GSC</strong> uses per-client OAuth — Connect or Reconnect below
-        to grant access, then Test connection to verify. <strong>GA4</strong>,{' '}
-        <strong>Google Ads</strong>, and <strong>Meta Ads</strong> use a shared
-        agency account already granted access to this client's properties; Test
-        connection verifies the agency credentials can read this client's data.
+        Manage client-level auth here: <strong>GA4</strong> and <strong>GSC</strong>{' '}
+        use per-client Google OAuth — Connect or Reconnect below, then Test
+        connection to verify access. <strong>Google Ads</strong> and <strong>Meta Ads</strong>{' '}
+        use agency/platform access; Test connection validates the configured IDs.
         The global Integrations page still works for cross-client management.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

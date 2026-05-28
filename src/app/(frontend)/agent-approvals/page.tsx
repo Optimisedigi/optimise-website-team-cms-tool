@@ -10,21 +10,25 @@ import config from "@/payload.config";
 
 export const dynamic = "force-dynamic";
 
+const CMS_BLUE = "#0b5394";
+const CMS_GOLD = "#f2b705";
+
 const PAGE_STYLE: React.CSSProperties = {
-  fontFamily: "system-ui, -apple-system, sans-serif",
-  maxWidth: 1100,
-  margin: "32px auto",
-  padding: "0 20px",
-  color: "#222",
+  fontFamily: "var(--font-body, system-ui, -apple-system, sans-serif)",
+  maxWidth: 1180,
+  margin: "24px auto",
+  padding: "0 24px 40px",
+  color: "var(--theme-elevation-900, #111827)",
 };
 
 const TABLE_STYLE: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
-  background: "#fff",
-  border: "1px solid #e5e7eb",
-  borderRadius: 8,
+  background: "var(--theme-elevation-0, #fff)",
+  border: "1px solid var(--theme-elevation-150, #dfe3ea)",
+  borderRadius: 12,
   overflow: "hidden",
+  boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
 };
 
 const TH: React.CSSProperties = {
@@ -32,16 +36,16 @@ const TH: React.CSSProperties = {
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: 0.5,
-  color: "#6b7280",
-  background: "#f9fafb",
-  padding: "10px 14px",
-  borderBottom: "1px solid #e5e7eb",
+  color: "var(--theme-elevation-600, #4b5563)",
+  background: "var(--theme-elevation-50, #f8fafc)",
+  padding: "11px 14px",
+  borderBottom: "1px solid var(--theme-elevation-150, #dfe3ea)",
 };
 
 const TD: React.CSSProperties = {
   fontSize: 13,
   padding: "12px 14px",
-  borderBottom: "1px solid #f3f4f6",
+  borderBottom: "1px solid var(--theme-elevation-100, #eef1f5)",
   verticalAlign: "top",
 };
 
@@ -113,22 +117,42 @@ export default async function AgentApprovalsListPage({
 
   return (
     <div style={PAGE_STYLE}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <h1 style={{ fontSize: 22, marginTop: 0, marginBottom: 4 }}>Agent approvals</h1>
-        <a href="/agent-auth" style={{ fontSize: 12, color: "#2563eb" }}>
-          Agent auth →
-        </a>
+      <div
+        style={{
+          background: `linear-gradient(135deg, ${CMS_BLUE}, #083763)`,
+          color: "#fff",
+          borderRadius: 16,
+          padding: 22,
+          marginBottom: 18,
+          boxShadow: "0 14px 40px rgba(11, 83, 148, 0.22)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div>
+            <div style={{ color: CMS_GOLD, fontSize: 12, fontWeight: 700, letterSpacing: 0.7, textTransform: "uppercase" }}>
+              Optimise Digital CMS
+            </div>
+            <h1 style={{ fontSize: 28, margin: "4px 0 6px" }}>Agent approvals</h1>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.82)", margin: 0 }}>
+              Review OptiMate recommendations before anything changes in a client account.
+            </p>
+          </div>
+          <a href="/agent-auth" style={{ fontSize: 12, color: "#fff", textDecoration: "none", fontWeight: 700 }}>
+            Agent auth →
+          </a>
+        </div>
       </div>
-      <p style={{ fontSize: 12, color: "#666", marginTop: 0 }}>
-        Drafts queued by Optimate agents, awaiting review.
-      </p>
 
       <form
         method="get"
         style={{
           display: "flex",
           gap: 8,
-          marginBottom: 12,
+          marginBottom: 14,
+          background: "var(--theme-elevation-0, #fff)",
+          border: "1px solid var(--theme-elevation-150, #dfe3ea)",
+          borderRadius: 12,
+          padding: 12,
           alignItems: "center",
           flexWrap: "wrap",
         }}
@@ -172,9 +196,9 @@ export default async function AgentApprovalsListPage({
       {rows.length === 0 ? (
         <div
           style={{
-            background: "#fff",
-            border: "1px solid #e5e7eb",
-            borderRadius: 8,
+            background: "var(--theme-elevation-0, #fff)",
+            border: "1px solid var(--theme-elevation-150, #dfe3ea)",
+            borderRadius: 12,
             padding: 24,
             color: "#6b7280",
             fontSize: 13,
@@ -229,7 +253,7 @@ export default async function AgentApprovalsListPage({
                   <td style={TD}>
                     <a
                       href={`/agent-approvals/${r.id}`}
-                      style={{ color: "#2563eb", fontSize: 12, textDecoration: "none" }}
+                      style={{ color: CMS_BLUE, fontSize: 12, textDecoration: "none", fontWeight: 700 }}
                     >
                       Open →
                     </a>
@@ -254,20 +278,25 @@ function renderClient(client: ApprovalListRow["client"]): string {
   return client.name ?? `#${client.id}`;
 }
 
-const labelStyle: React.CSSProperties = { fontSize: 12, color: "#374151" };
+const labelStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "var(--theme-elevation-700, #374151)",
+  fontWeight: 600,
+};
 const inputStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  border: "1px solid #d1d5db",
-  borderRadius: 4,
+  padding: "7px 10px",
+  border: "1px solid var(--theme-elevation-200, #d1d5db)",
+  borderRadius: 8,
   fontSize: 13,
-  background: "#fff",
+  background: "var(--theme-elevation-0, #fff)",
 };
 const buttonStyle: React.CSSProperties = {
-  padding: "6px 14px",
-  background: "#0b5394",
+  padding: "7px 14px",
+  background: CMS_BLUE,
   color: "#fff",
   border: "none",
-  borderRadius: 4,
+  borderRadius: 8,
   fontSize: 13,
+  fontWeight: 700,
   cursor: "pointer",
 };

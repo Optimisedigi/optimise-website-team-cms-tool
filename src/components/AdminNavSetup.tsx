@@ -35,3 +35,5 @@ export function AdminNavSetup(): null {
 
   return null;
 }
+
+export default AdminNavSetup;
