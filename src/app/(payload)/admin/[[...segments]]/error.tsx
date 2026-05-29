@@ -14,15 +14,46 @@ export default function AdminError({
   useEffect(() => {
     console.error('[admin-error]', error)
 
-    // Auto-recover: if this looks like a stale deployment error, reload the page
-    const msg = error.message || ''
-    if (
-      msg.includes('router state') ||
-      msg.includes('could not be parsed') ||
-      msg.includes('Failed to fetch RSC')
-    ) {
-      window.location.reload()
+    // Auto-recover from transient cold-start failures.
+    //
+    // The overwhelming majority of admin load errors here are one-off:
+    // the first request to a freshly-spun serverless lambda occasionally
+    // fails on its first Turso/libSQL round-trip (connection not yet warm,
+    // or a transient network blip), and an immediate retry on a warm
+    // connection succeeds. Users already work around this by refreshing —
+    // so we do that one refresh for them automatically.
+    //
+    // IMPORTANT: in production Next.js redacts error.message to a generic
+    // string and only exposes `digest`, so we cannot key off the message
+    // text (the old substring checks never matched in prod). Instead we do
+    // a single guarded reload: a sessionStorage flag (keyed by digest)
+    // ensures we reload at most once per error, so a genuinely persistent
+    // failure falls through to the visible UI below instead of looping.
+    try {
+      const key = `admin-error-auto-reload:${error.digest ?? 'nodigest'}`
+      if (typeof window !== 'undefined' && !sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, String(Date.now()))
+        window.location.reload()
+      }
+    } catch {
+      // sessionStorage unavailable (private mode/quota) — fall through to UI.
     }
+  }, [error])
+
+  // Clear the one-shot reload guard once the page has successfully rendered
+  // this boundary without immediately reloading (i.e. the auto-reload already
+  // happened and we're now showing the persistent-error UI). This keeps the
+  // guard from blocking a fresh auto-recover on a later, unrelated cold start.
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      try {
+        const key = `admin-error-auto-reload:${error.digest ?? 'nodigest'}`
+        sessionStorage.removeItem(key)
+      } catch {
+        /* ignore */
+      }
+    }, 10_000)
+    return () => window.clearTimeout(id)
   }, [error])
 
   const handleRefresh = () => {
