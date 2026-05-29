@@ -2937,6 +2937,87 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Client Hub",
+          fields: [
+            {
+              name: "viewClientHub",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ViewClientHubLink",
+                },
+              },
+            },
+            {
+              name: "clientGrowthHubAdminActions",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ClientGrowthHubAdminActions",
+                },
+              },
+            },
+            {
+              name: "createOrganicSnapshot",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/CreateOrganicSnapshotButton",
+                },
+              },
+            },
+            {
+              name: "clientPortalLinks",
+              type: "array",
+              admin: {
+                description: "PIN-gated client hub links for documents, dashboards, audits, decks, and other resources.",
+              },
+              fields: [
+                {
+                  type: "row",
+                  fields: [
+                    { name: "label", type: "text", required: true, admin: { width: "35%" } },
+                    { name: "url", type: "text", required: true, admin: { width: "45%" } },
+                    {
+                      name: "kind",
+                      type: "select",
+                      required: true,
+                      defaultValue: "other",
+                      admin: { width: "20%" },
+                      options: [
+                        { label: "Briefing", value: "briefing" },
+                        { label: "Audit", value: "audit" },
+                        { label: "Dashboard", value: "dashboard" },
+                        { label: "Proposal", value: "proposal" },
+                        { label: "Deck", value: "deck" },
+                        { label: "Document", value: "document" },
+                        { label: "Other", value: "other" },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "visibility",
+                      type: "select",
+                      required: true,
+                      defaultValue: "client_visible",
+                      admin: { width: "50%" },
+                      options: [
+                        { label: "Client Visible", value: "client_visible" },
+                        { label: "Internal", value: "internal" },
+                      ],
+                    },
+                    { name: "sortOrder", type: "number", defaultValue: 0, admin: { width: "50%" } },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
           label: "Presentations",
           fields: [
             {

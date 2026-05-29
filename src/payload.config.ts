@@ -78,6 +78,10 @@ import { ContractReminders } from "./collections/ContractReminders";
 import { Notifications } from "./collections/Notifications";
 import { InvoiceStatementDrafts } from "./collections/InvoiceStatementDrafts";
 import { PinRateLimits } from "./collections/PinRateLimits";
+import { ForecastScenarios } from "./collections/ForecastScenarios";
+import { ClientValueLedgerItems } from "./collections/ClientValueLedgerItems";
+import { ClientPortalRequests } from "./collections/ClientPortalRequests";
+import { QuarterlyOrganicGrowthSnapshots } from "./collections/QuarterlyOrganicGrowthSnapshots";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -117,7 +121,7 @@ export default buildConfig({
   },
   collections: [
     // Clients
-    Clients, ClientProposals, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, ClientProcesses, MeetingSchedulers,
+    Clients, ClientProposals, ClientDiscoveryBriefings, Contracts, SalesLeads, ProcessTemplates, DeckTemplates, ClientProcesses, ClientPortalRequests, ClientValueLedgerItems, MeetingSchedulers,
     // Content
     BlogPosts, BlogPrompts, JobPosts, Media,
     // SEO
@@ -125,7 +129,7 @@ export default buildConfig({
     // Audits
     SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, NegativeSweepCandidates, NegativeKeywordLists, KeywordDeepDiveSessions, SiteHealthReports,
     // Reports
-    AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
+    ForecastScenarios, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Finance
     BusinessCosts, CostCategories, CostRules, InvoiceStatementDrafts,
     Contractors, ContractorTimeEntries, ContractorPayments,

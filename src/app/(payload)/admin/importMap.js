@@ -47,6 +47,9 @@ import { default as default_9ad3230f60ec6dd4da19d1c01b8cf1ba } from '../../../co
 import { default as default_b0745460f96744dbbe5a3465bced6bcf } from '../../../components/ClientBlogPostsList'
 import { default as default_c8dab20425f2b2eab04984a9a36002da } from '../../../components/ClientTopicMap'
 import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
+import { default as default_9bd28f22f7cfbf724da4bb3a872d5395 } from '../../../components/ViewClientHubLink'
+import { default as default_26fdecea7e3f7ba99d63ed3f5f1c31d9 } from '../../../components/ClientGrowthHubAdminActions'
+import { default as default_54e56e75482377de586416fa3ca3cce6 } from '../../../components/CreateOrganicSnapshotButton'
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
 import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
@@ -205,6 +208,9 @@ export const importMap = {
   "./components/ClientBlogPostsList#default": default_b0745460f96744dbbe5a3465bced6bcf,
   "./components/ClientTopicMap#default": default_c8dab20425f2b2eab04984a9a36002da,
   "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
+  "./components/ViewClientHubLink#default": default_9bd28f22f7cfbf724da4bb3a872d5395,
+  "./components/ClientGrowthHubAdminActions#default": default_26fdecea7e3f7ba99d63ed3f5f1c31d9,
+  "./components/CreateOrganicSnapshotButton#default": default_54e56e75482377de586416fa3ca3cce6,
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
   "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,

@@ -5,7 +5,12 @@ vi.mock("@/lib/activity-log", () => ({
   logActivity: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/client-value-ledger", () => ({
+  createLedgerItem: vi.fn().mockResolvedValue({ created: true, id: 1 }),
+}));
+
 import { logActivity } from "@/lib/activity-log";
+import { createLedgerItem } from "@/lib/client-value-ledger";
 
 // ─── Helpers ───────────────────────────────────────────────────
 const mockPayload = {
@@ -464,7 +469,7 @@ describe("BlogPosts: afterChange hook", () => {
 
   it("should log activity when post is newly published", async () => {
     await afterChangeHook({
-      doc: { title: "My Post", status: "published", excerpt: "A brief summary", client: "c1" },
+      doc: { id: "p1", title: "My Post", status: "published", excerpt: "A brief summary", client: "c1" },
       previousDoc: { status: "draft" },
       req: mockReq(),
     });
@@ -476,6 +481,16 @@ describe("BlogPosts: afterChange hook", () => {
       user: 1,
       client: "c1",
     });
+    expect(createLedgerItem).toHaveBeenCalledWith(
+      mockPayload,
+      expect.objectContaining({
+        client: "c1",
+        blogPost: "p1",
+        category: "content",
+        visibility: "client_visible",
+        dedupeKey: "blog-published:p1",
+      }),
+    );
   });
 
   it("should not log when status remains published (no change)", async () => {
@@ -486,6 +501,7 @@ describe("BlogPosts: afterChange hook", () => {
     });
 
     expect(logActivity).not.toHaveBeenCalled();
+    expect(createLedgerItem).not.toHaveBeenCalled();
   });
 
   it("should not log when status changes to draft", async () => {
@@ -496,6 +512,7 @@ describe("BlogPosts: afterChange hook", () => {
     });
 
     expect(logActivity).not.toHaveBeenCalled();
+    expect(createLedgerItem).not.toHaveBeenCalled();
   });
 
   it("should extract client id from populated client object", async () => {

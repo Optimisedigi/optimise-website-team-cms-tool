@@ -75,6 +75,8 @@ export interface Config {
     'process-templates': ProcessTemplate;
     'deck-templates': DeckTemplate;
     'client-processes': ClientProcess;
+    'client-portal-requests': ClientPortalRequest;
+    'client-value-ledger-items': ClientValueLedgerItem;
     'meeting-schedulers': MeetingScheduler;
     'blog-posts': BlogPost;
     'blog-prompts': BlogPrompt;
@@ -95,6 +97,8 @@ export interface Config {
     'negative-keyword-lists': NegativeKeywordList;
     'keyword-deep-dive-sessions': KeywordDeepDiveSession;
     'site-health-reports': SiteHealthReport;
+    'forecast-scenarios': ForecastScenario;
+    'quarterly-organic-growth-snapshots': QuarterlyOrganicGrowthSnapshot;
     'ai-visibility-snapshots': AiVisibilitySnapshot;
     'serp-displacement-snapshots': SerpDisplacementSnapshot;
     'serp-displacement-alerts': SerpDisplacementAlert;
@@ -157,6 +161,8 @@ export interface Config {
     'process-templates': ProcessTemplatesSelect<false> | ProcessTemplatesSelect<true>;
     'deck-templates': DeckTemplatesSelect<false> | DeckTemplatesSelect<true>;
     'client-processes': ClientProcessesSelect<false> | ClientProcessesSelect<true>;
+    'client-portal-requests': ClientPortalRequestsSelect<false> | ClientPortalRequestsSelect<true>;
+    'client-value-ledger-items': ClientValueLedgerItemsSelect<false> | ClientValueLedgerItemsSelect<true>;
     'meeting-schedulers': MeetingSchedulersSelect<false> | MeetingSchedulersSelect<true>;
     'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'blog-prompts': BlogPromptsSelect<false> | BlogPromptsSelect<true>;
@@ -177,6 +183,8 @@ export interface Config {
     'negative-keyword-lists': NegativeKeywordListsSelect<false> | NegativeKeywordListsSelect<true>;
     'keyword-deep-dive-sessions': KeywordDeepDiveSessionsSelect<false> | KeywordDeepDiveSessionsSelect<true>;
     'site-health-reports': SiteHealthReportsSelect<false> | SiteHealthReportsSelect<true>;
+    'forecast-scenarios': ForecastScenariosSelect<false> | ForecastScenariosSelect<true>;
+    'quarterly-organic-growth-snapshots': QuarterlyOrganicGrowthSnapshotsSelect<false> | QuarterlyOrganicGrowthSnapshotsSelect<true>;
     'ai-visibility-snapshots': AiVisibilitySnapshotsSelect<false> | AiVisibilitySnapshotsSelect<true>;
     'serp-displacement-snapshots': SerpDisplacementSnapshotsSelect<false> | SerpDisplacementSnapshotsSelect<true>;
     'serp-displacement-alerts': SerpDisplacementAlertsSelect<false> | SerpDisplacementAlertsSelect<true>;
@@ -1241,6 +1249,19 @@ export interface Client {
     hasNextPage?: boolean;
     totalDocs?: number;
   };
+  /**
+   * PIN-gated client hub links for documents, dashboards, audits, decks, and other resources.
+   */
+  clientPortalLinks?:
+    | {
+        label: string;
+        url: string;
+        kind: 'briefing' | 'audit' | 'dashboard' | 'proposal' | 'deck' | 'document' | 'other';
+        visibility: 'client_visible' | 'internal';
+        sortOrder?: number | null;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Slide decks and presentations for this client. Paste the full deck URL from the 'Open Deck' button — the slug is extracted automatically.
    */
@@ -5287,106 +5308,94 @@ export interface ClientProcess {
   createdAt: string;
 }
 /**
- * Schedule meetings with multiple client contacts by finding overlapping availability
+ * Requests submitted from the client hub.
  *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "meeting-schedulers".
+ * via the `definition` "client-portal-requests".
  */
-export interface MeetingScheduler {
+export interface ClientPortalRequest {
   id: number;
-  /**
-   * Meeting title (e.g. 'Q2 Strategy Review')
-   */
+  client: number | Client;
+  proposal?: (number | null) | ClientProposal;
+  requestType: 'website_edit' | 'campaign_question' | 'tracking_issue' | 'billing' | 'content_request' | 'general';
   title: string;
-  /**
-   * Client this meeting is for
-   */
-  client?: (number | null) | Client;
-  /**
-   * Meeting duration
-   */
-  durationMinutes?: ('15' | '30' | '45' | '60' | '90' | '120') | null;
-  /**
-   * Brief description shown to attendees
-   */
-  meetingTopic?: string | null;
-  /**
-   * Timezone for slots
-   */
-  timezone?: string | null;
-  /**
-   * Slot interval (mins)
-   */
-  slotIntervalMinutes?: number | null;
-  dateRangeStart?: string | null;
-  dateRangeEnd?: string | null;
-  daySchedule?:
+  description: string;
+  status: 'new' | 'triaged' | 'in_progress' | 'waiting_on_client' | 'done' | 'closed';
+  priority: 'low' | 'normal' | 'high';
+  submittedByName?: string | null;
+  submittedByEmail?: string | null;
+  clientVisibleUpdates?:
     | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  dateOverrides?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  businessHoursStart?: string | null;
-  businessHoursEnd?: string | null;
-  /**
-   * Add each person who needs to choose a time. Press Tab from the email field to add a new row. Unique scheduling links are generated on save.
-   */
-  attendees?:
-    | {
-        name: string;
-        email: string;
-        token?: string | null;
-        responded?: boolean | null;
-        respondedAt?: string | null;
-        emailSentAt?: string | null;
-        /**
-         * Slots selected by this attendee
-         */
-        selectedSlots?:
-          | {
-              [k: string]: unknown;
-            }
-          | unknown[]
-          | string
-          | number
-          | boolean
-          | null;
+        date: string;
+        authorLabel: string;
+        message: string;
         id?: string | null;
       }[]
     | null;
-  /**
-   * Available time slots from Google Calendar freebusy check
-   */
-  generatedSlots?:
+  internalNotes?: string | null;
+  relatedLinks?:
     | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
+        label: string;
+        url: string;
+        id?: string | null;
+      }[]
     | null;
-  slotsGeneratedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Client-visible and internal proof-of-value timeline entries.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-value-ledger-items".
+ */
+export interface ClientValueLedgerItem {
+  id: number;
+  client: number | Client;
+  proposal?: (number | null) | ClientProposal;
+  googleAdsAudit?: (number | null) | GoogleAdsAudit;
+  seoAuditProposal?: (number | null) | SeoAuditProposal;
+  clientProcess?: (number | null) | ClientProcess;
+  blogPost?: (number | null) | BlogPost;
+  agentApproval?: (number | null) | AgentApprovalQueue;
+  activityLog?: (number | null) | ActivityLog;
+  occurredAt: string;
+  category:
+    | 'paid_media'
+    | 'seo'
+    | 'content'
+    | 'cro'
+    | 'tracking'
+    | 'process'
+    | 'finance'
+    | 'agent_action'
+    | 'client_approval';
+  title: string;
+  summary: string;
   /**
-   * The confirmed meeting time (ISO datetime)
+   * Examples: saved_spend, clicks, impressions, posts, revenue.
    */
-  matchedSlot?: string | null;
-  googleEventId?: string | null;
-  googleEventLink?: string | null;
-  status: 'draft' | 'slots_generated' | 'invites_sent' | 'awaiting_responses' | 'confirmed' | 'no_match' | 'expired';
-  slug?: string | null;
+  impactType?: string | null;
+  impactValue?: number | null;
+  /**
+   * Examples: AUD, clicks, impressions, posts, leads.
+   */
+  impactUnit?: string | null;
+  confidence: 'measured' | 'estimated' | 'directional';
+  visibility: 'internal' | 'client_visible';
+  source?: string | null;
+  /**
+   * Optional deterministic key used by automation to prevent duplicates.
+   */
+  dedupeKey?: string | null;
+  evidenceLinks?:
+    | {
+        label: string;
+        url: string;
+        kind?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -5503,6 +5512,293 @@ export interface BlogPost {
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
+}
+/**
+ * Drafts and proposed actions from the Optimate agents awaiting human review.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-approval-queue".
+ */
+export interface AgentApprovalQueue {
+  id: number;
+  /**
+   * One-line summary the human sees in the queue list.
+   */
+  title: string;
+  /**
+   * Which agent produced this draft, e.g. optimate-google-ads.
+   */
+  agentName: string;
+  client?: (number | null) | Client;
+  /**
+   * What kind of action the draft proposes, e.g. phrase-match-additions, budget-reallocation, diagnostic-report.
+   */
+  proposalType: string;
+  /**
+   * Run ID this proposal was produced by; matches activity-log entries.
+   */
+  agentRunId: string;
+  /**
+   * Structured payload the apply-side tool will read on approval.
+   */
+  proposalPayload:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Pre-rendered presentation of the proposal for human review.
+   */
+  rendered?: {
+    /**
+     * Brand-toned client-facing HTML.
+     */
+    clientHtml?: string | null;
+    /**
+     * Terse internal-team review markdown.
+     */
+    internalMarkdown?: string | null;
+  };
+  status: 'pending' | 'approved' | 'rejected' | 'applied' | 'failed';
+  /**
+   * CMS user whose chat turn / scheduled action triggered the agent run that produced this proposal. Null for background/system runs.
+   */
+  triggeredBy?: (number | null) | User;
+  reviewedBy?: (number | null) | User;
+  reviewedAt?: string | null;
+  appliedAt?: string | null;
+  /**
+   * If status=failed, the error from the apply-side tool.
+   */
+  applyError?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Automatic feed of team activity
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "activity-log".
+ */
+export interface ActivityLog {
+  id: number;
+  type:
+    | 'blog_published'
+    | 'seo_audit_completed'
+    | 'cro_audit_completed'
+    | 'keyword_analysis'
+    | 'client_added'
+    | 'retainer_changed'
+    | 'proposal_created'
+    | 'gsc_snapshot'
+    | 'time_tracked'
+    | 'google_ads_audit_created'
+    | 'google_ads_proposal_created'
+    | 'link_suggestion_created'
+    | 'negative_sweep_completed'
+    | 'negative_sweep_synced'
+    | 'contract_created'
+    | 'contract_agency_signed'
+    | 'contract_sent'
+    | 'contract_client_signed'
+    | 'contract_reminder_sent'
+    | 'contract_reminder_failed'
+    | 'lead_created'
+    | 'lead_stage_changed'
+    | 'template_created'
+    | 'timeline_created'
+    | 'process_started'
+    | 'ai_visibility_snapshot_created'
+    | 'serp_displacement_snapshot_created'
+    | 'serp_displacement_alert_created'
+    | 'google_ads_budget_pushed'
+    | 'google_ads_anomaly_detected'
+    | 'agent_approval_approved'
+    | 'agent_approval_rejected'
+    | 'agent_tool_call'
+    | 'agent_reasoning'
+    | 'agent_final_output'
+    | 'agent_error'
+    | 'agent_auth_event'
+    | 'match_type_violation_sync'
+    | 'match_type_violation_approved'
+    | 'match_type_violation_rejected';
+  title: string;
+  description?: string | null;
+  /**
+   * User who triggered this activity
+   */
+  user?: (number | null) | User;
+  /**
+   * Related client
+   */
+  client?: (number | null) | Client;
+  /**
+   * Optimate agents: groups all step rows for one agent run.
+   */
+  agentRunId?: string | null;
+  /**
+   * Optimate agents: which agent emitted this step, e.g. optimate-google-ads.
+   */
+  agentName?: string | null;
+  /**
+   * Optimate agents: turn number within the run.
+   */
+  step?: number | null;
+  /**
+   * Optimate agents: tool invoked on this step (when type=agent_tool_call).
+   */
+  toolName?: string | null;
+  /**
+   * Optimate agents: tool input arguments.
+   */
+  input?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Optimate agents: tool output, or final assistant message.
+   */
+  output?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Optimate agents: model reasoning between tool calls. Hidden by default in UI; never rendered to client surfaces.
+   */
+  reasoning?: string | null;
+  /**
+   * Optimate agents: canonical model name that served this step.
+   */
+  model?: string | null;
+  /**
+   * Optimate agents: which credential path served the request.
+   */
+  source?: ('oauth' | 'api-key' | 'api-key-fallback') | null;
+  /**
+   * Optimate agents: wall-time of the step in milliseconds.
+   */
+  durationMs?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Schedule meetings with multiple client contacts by finding overlapping availability
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "meeting-schedulers".
+ */
+export interface MeetingScheduler {
+  id: number;
+  /**
+   * Meeting title (e.g. 'Q2 Strategy Review')
+   */
+  title: string;
+  /**
+   * Client this meeting is for
+   */
+  client?: (number | null) | Client;
+  /**
+   * Meeting duration
+   */
+  durationMinutes?: ('15' | '30' | '45' | '60' | '90' | '120') | null;
+  /**
+   * Brief description shown to attendees
+   */
+  meetingTopic?: string | null;
+  /**
+   * Timezone for slots
+   */
+  timezone?: string | null;
+  /**
+   * Slot interval (mins)
+   */
+  slotIntervalMinutes?: number | null;
+  dateRangeStart?: string | null;
+  dateRangeEnd?: string | null;
+  daySchedule?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  dateOverrides?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  businessHoursStart?: string | null;
+  businessHoursEnd?: string | null;
+  /**
+   * Add each person who needs to choose a time. Press Tab from the email field to add a new row. Unique scheduling links are generated on save.
+   */
+  attendees?:
+    | {
+        name: string;
+        email: string;
+        token?: string | null;
+        responded?: boolean | null;
+        respondedAt?: string | null;
+        emailSentAt?: string | null;
+        /**
+         * Slots selected by this attendee
+         */
+        selectedSlots?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Available time slots from Google Calendar freebusy check
+   */
+  generatedSlots?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  slotsGeneratedAt?: string | null;
+  /**
+   * The confirmed meeting time (ISO datetime)
+   */
+  matchedSlot?: string | null;
+  googleEventId?: string | null;
+  googleEventLink?: string | null;
+  status: 'draft' | 'slots_generated' | 'invites_sent' | 'awaiting_responses' | 'confirmed' | 'no_match' | 'expired';
+  slug?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -5799,6 +6095,164 @@ export interface NegativeSweepCandidate {
   sweepDate: string;
   writtenToSheet?: boolean | null;
   writtenAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Saved Forecast Lab scenarios for client growth planning.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "forecast-scenarios".
+ */
+export interface ForecastScenario {
+  id: number;
+  client: number | Client;
+  proposal?: (number | null) | ClientProposal;
+  title: string;
+  status: 'draft' | 'published' | 'archived';
+  scenarioType: 'google_ads_budget' | 'organic_growth' | 'blended_growth' | 'custom';
+  baselinePeriodStart?: string | null;
+  baselinePeriodEnd?: string | null;
+  assumptions?: {
+    monthlyAdSpend?: number | null;
+    targetMonthlyAdSpend?: number | null;
+    currentCpa?: number | null;
+    targetCpa?: number | null;
+    /**
+     * Decimal rate, e.g. 0.03 for 3%.
+     */
+    conversionRate?: number | null;
+    averageOrderValue?: number | null;
+    /**
+     * Decimal rate, e.g. 0.25 for 25%.
+     */
+    leadCloseRate?: number | null;
+    averageClientValue?: number | null;
+    organicClickGrowthPct?: number | null;
+    /**
+     * Optional 0-1 confidence score.
+     */
+    confidenceLevel?: number | null;
+  };
+  /**
+   * Scenario bands JSON: conservative/base/optimistic leads, revenue, CPA/ROAS, organic clicks/impressions.
+   */
+  outputs?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  publishedAt?: string | null;
+  notes?: string | null;
+  clientSummary?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Ongoing organic growth snapshots for client hub reporting.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "quarterly-organic-growth-snapshots".
+ */
+export interface QuarterlyOrganicGrowthSnapshot {
+  id: number;
+  client: number | Client;
+  proposal?: (number | null) | ClientProposal;
+  seoAuditProposal?: (number | null) | SeoAuditProposal;
+  snapshotDate: string;
+  periodStart: string;
+  periodEnd: string;
+  snapshotType: 'month_1' | 'quarterly' | 'manual';
+  organic?: {
+    totalClicks?: number | null;
+    totalImpressions?: number | null;
+    avgCtr?: number | null;
+    avgPosition?: number | null;
+    brandClicks?: number | null;
+    brandImpressions?: number | null;
+    brandCtr?: number | null;
+    brandPosition?: number | null;
+    nonBrandClicks?: number | null;
+    nonBrandImpressions?: number | null;
+    nonBrandCtr?: number | null;
+    nonBrandPosition?: number | null;
+  };
+  categories?:
+    | {
+        name: string;
+        score?: number | null;
+        rankPosition?: number | null;
+        clicks?: number | null;
+        impressions?: number | null;
+        topQueries?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        relatedPages?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  topicAssociations?:
+    | {
+        topic: string;
+        cluster?: string | null;
+        blogPosts?: (number | BlogPost)[] | null;
+        contentUrls?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        publishedCount?: number | null;
+        firstPublishedAt?: string | null;
+        latestPublishedAt?: string | null;
+        associatedQueries?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  workDelivered?:
+    | {
+        date: string;
+        type: 'blog' | 'technical_fix' | 'internal_link' | 'page_update' | 'audit' | 'other';
+        title: string;
+        url?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  summary?: string | null;
+  wins?: string | null;
+  risks?: string | null;
+  nextFocus?: string | null;
+  sourceGscSnapshot?: (number | null) | GscSnapshot;
   updatedAt: string;
   createdAt: string;
 }
@@ -6178,189 +6632,6 @@ export interface UsageReport {
    * Total estimated cost for the month (AUD)
    */
   totalEstimatedCost?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Automatic feed of team activity
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "activity-log".
- */
-export interface ActivityLog {
-  id: number;
-  type:
-    | 'blog_published'
-    | 'seo_audit_completed'
-    | 'cro_audit_completed'
-    | 'keyword_analysis'
-    | 'client_added'
-    | 'retainer_changed'
-    | 'proposal_created'
-    | 'gsc_snapshot'
-    | 'time_tracked'
-    | 'google_ads_audit_created'
-    | 'google_ads_proposal_created'
-    | 'link_suggestion_created'
-    | 'negative_sweep_completed'
-    | 'negative_sweep_synced'
-    | 'contract_created'
-    | 'contract_agency_signed'
-    | 'contract_sent'
-    | 'contract_client_signed'
-    | 'contract_reminder_sent'
-    | 'contract_reminder_failed'
-    | 'lead_created'
-    | 'lead_stage_changed'
-    | 'template_created'
-    | 'timeline_created'
-    | 'process_started'
-    | 'ai_visibility_snapshot_created'
-    | 'serp_displacement_snapshot_created'
-    | 'serp_displacement_alert_created'
-    | 'google_ads_budget_pushed'
-    | 'google_ads_anomaly_detected'
-    | 'agent_approval_approved'
-    | 'agent_approval_rejected'
-    | 'agent_tool_call'
-    | 'agent_reasoning'
-    | 'agent_final_output'
-    | 'agent_error'
-    | 'agent_auth_event'
-    | 'match_type_violation_sync'
-    | 'match_type_violation_approved'
-    | 'match_type_violation_rejected';
-  title: string;
-  description?: string | null;
-  /**
-   * User who triggered this activity
-   */
-  user?: (number | null) | User;
-  /**
-   * Related client
-   */
-  client?: (number | null) | Client;
-  /**
-   * Optimate agents: groups all step rows for one agent run.
-   */
-  agentRunId?: string | null;
-  /**
-   * Optimate agents: which agent emitted this step, e.g. optimate-google-ads.
-   */
-  agentName?: string | null;
-  /**
-   * Optimate agents: turn number within the run.
-   */
-  step?: number | null;
-  /**
-   * Optimate agents: tool invoked on this step (when type=agent_tool_call).
-   */
-  toolName?: string | null;
-  /**
-   * Optimate agents: tool input arguments.
-   */
-  input?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Optimate agents: tool output, or final assistant message.
-   */
-  output?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Optimate agents: model reasoning between tool calls. Hidden by default in UI; never rendered to client surfaces.
-   */
-  reasoning?: string | null;
-  /**
-   * Optimate agents: canonical model name that served this step.
-   */
-  model?: string | null;
-  /**
-   * Optimate agents: which credential path served the request.
-   */
-  source?: ('oauth' | 'api-key' | 'api-key-fallback') | null;
-  /**
-   * Optimate agents: wall-time of the step in milliseconds.
-   */
-  durationMs?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Drafts and proposed actions from the Optimate agents awaiting human review.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "agent-approval-queue".
- */
-export interface AgentApprovalQueue {
-  id: number;
-  /**
-   * One-line summary the human sees in the queue list.
-   */
-  title: string;
-  /**
-   * Which agent produced this draft, e.g. optimate-google-ads.
-   */
-  agentName: string;
-  client?: (number | null) | Client;
-  /**
-   * What kind of action the draft proposes, e.g. phrase-match-additions, budget-reallocation, diagnostic-report.
-   */
-  proposalType: string;
-  /**
-   * Run ID this proposal was produced by; matches activity-log entries.
-   */
-  agentRunId: string;
-  /**
-   * Structured payload the apply-side tool will read on approval.
-   */
-  proposalPayload:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Pre-rendered presentation of the proposal for human review.
-   */
-  rendered?: {
-    /**
-     * Brand-toned client-facing HTML.
-     */
-    clientHtml?: string | null;
-    /**
-     * Terse internal-team review markdown.
-     */
-    internalMarkdown?: string | null;
-  };
-  status: 'pending' | 'approved' | 'rejected' | 'applied' | 'failed';
-  /**
-   * CMS user whose chat turn / scheduled action triggered the agent run that produced this proposal. Null for background/system runs.
-   */
-  triggeredBy?: (number | null) | User;
-  reviewedBy?: (number | null) | User;
-  reviewedAt?: string | null;
-  appliedAt?: string | null;
-  /**
-   * If status=failed, the error from the apply-side tool.
-   */
-  applyError?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -7401,6 +7672,14 @@ export interface PayloadLockedDocument {
         value: number | ClientProcess;
       } | null)
     | ({
+        relationTo: 'client-portal-requests';
+        value: number | ClientPortalRequest;
+      } | null)
+    | ({
+        relationTo: 'client-value-ledger-items';
+        value: number | ClientValueLedgerItem;
+      } | null)
+    | ({
         relationTo: 'meeting-schedulers';
         value: number | MeetingScheduler;
       } | null)
@@ -7479,6 +7758,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'site-health-reports';
         value: number | SiteHealthReport;
+      } | null)
+    | ({
+        relationTo: 'forecast-scenarios';
+        value: number | ForecastScenario;
+      } | null)
+    | ({
+        relationTo: 'quarterly-organic-growth-snapshots';
+        value: number | QuarterlyOrganicGrowthSnapshot;
       } | null)
     | ({
         relationTo: 'ai-visibility-snapshots';
@@ -8003,6 +8290,16 @@ export interface ClientsSelect<T extends boolean = true> {
   ga4RefreshToken?: T;
   ga4TokenExpiry?: T;
   clientProposals?: T;
+  clientPortalLinks?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        kind?: T;
+        visibility?: T;
+        sortOrder?: T;
+        id?: T;
+      };
   presentations?:
     | T
     | {
@@ -8517,6 +8814,74 @@ export interface ClientProcessesSelect<T extends boolean = true> {
   durationDays?: T;
   lastSharedAt?: T;
   sharedCount?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-portal-requests_select".
+ */
+export interface ClientPortalRequestsSelect<T extends boolean = true> {
+  client?: T;
+  proposal?: T;
+  requestType?: T;
+  title?: T;
+  description?: T;
+  status?: T;
+  priority?: T;
+  submittedByName?: T;
+  submittedByEmail?: T;
+  clientVisibleUpdates?:
+    | T
+    | {
+        date?: T;
+        authorLabel?: T;
+        message?: T;
+        id?: T;
+      };
+  internalNotes?: T;
+  relatedLinks?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-value-ledger-items_select".
+ */
+export interface ClientValueLedgerItemsSelect<T extends boolean = true> {
+  client?: T;
+  proposal?: T;
+  googleAdsAudit?: T;
+  seoAuditProposal?: T;
+  clientProcess?: T;
+  blogPost?: T;
+  agentApproval?: T;
+  activityLog?: T;
+  occurredAt?: T;
+  category?: T;
+  title?: T;
+  summary?: T;
+  impactType?: T;
+  impactValue?: T;
+  impactUnit?: T;
+  confidence?: T;
+  visibility?: T;
+  source?: T;
+  dedupeKey?: T;
+  evidenceLinks?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        kind?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -9247,6 +9612,110 @@ export interface SiteHealthReportsSelect<T extends boolean = true> {
         indexingIssues?: T;
         canonicalMismatches?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "forecast-scenarios_select".
+ */
+export interface ForecastScenariosSelect<T extends boolean = true> {
+  client?: T;
+  proposal?: T;
+  title?: T;
+  status?: T;
+  scenarioType?: T;
+  baselinePeriodStart?: T;
+  baselinePeriodEnd?: T;
+  assumptions?:
+    | T
+    | {
+        monthlyAdSpend?: T;
+        targetMonthlyAdSpend?: T;
+        currentCpa?: T;
+        targetCpa?: T;
+        conversionRate?: T;
+        averageOrderValue?: T;
+        leadCloseRate?: T;
+        averageClientValue?: T;
+        organicClickGrowthPct?: T;
+        confidenceLevel?: T;
+      };
+  outputs?: T;
+  publishedAt?: T;
+  notes?: T;
+  clientSummary?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "quarterly-organic-growth-snapshots_select".
+ */
+export interface QuarterlyOrganicGrowthSnapshotsSelect<T extends boolean = true> {
+  client?: T;
+  proposal?: T;
+  seoAuditProposal?: T;
+  snapshotDate?: T;
+  periodStart?: T;
+  periodEnd?: T;
+  snapshotType?: T;
+  organic?:
+    | T
+    | {
+        totalClicks?: T;
+        totalImpressions?: T;
+        avgCtr?: T;
+        avgPosition?: T;
+        brandClicks?: T;
+        brandImpressions?: T;
+        brandCtr?: T;
+        brandPosition?: T;
+        nonBrandClicks?: T;
+        nonBrandImpressions?: T;
+        nonBrandCtr?: T;
+        nonBrandPosition?: T;
+      };
+  categories?:
+    | T
+    | {
+        name?: T;
+        score?: T;
+        rankPosition?: T;
+        clicks?: T;
+        impressions?: T;
+        topQueries?: T;
+        relatedPages?: T;
+        id?: T;
+      };
+  topicAssociations?:
+    | T
+    | {
+        topic?: T;
+        cluster?: T;
+        blogPosts?: T;
+        contentUrls?: T;
+        publishedCount?: T;
+        firstPublishedAt?: T;
+        latestPublishedAt?: T;
+        associatedQueries?: T;
+        notes?: T;
+        id?: T;
+      };
+  workDelivered?:
+    | T
+    | {
+        date?: T;
+        type?: T;
+        title?: T;
+        url?: T;
+        id?: T;
+      };
+  summary?: T;
+  wins?: T;
+  risks?: T;
+  nextFocus?: T;
+  sourceGscSnapshot?: T;
   updatedAt?: T;
   createdAt?: T;
 }

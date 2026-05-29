@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 import matter from "gray-matter";
 import { logActivity } from "../lib/activity-log";
+import { createLedgerItem } from "../lib/client-value-ledger";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
 
 /**
@@ -39,13 +40,35 @@ export const BlogPosts: CollectionConfig = {
           doc?.status === "published" &&
           previousDoc?.status !== "published";
         if (wasPublished) {
+          const clientId = typeof doc.client === "object" ? doc.client?.id : doc.client;
           logActivity(req.payload, {
             type: "blog_published",
             title: `Published: ${doc.title}`,
             description: doc.excerpt?.slice(0, 120) || "",
             user: req.user?.id,
-            client: typeof doc.client === "object" ? doc.client?.id : doc.client,
+            client: clientId,
           }).catch(() => {});
+
+          if (clientId) {
+            createLedgerItem(req.payload, {
+              client: clientId,
+              blogPost: doc.id,
+              occurredAt: doc.publishedDate || new Date().toISOString(),
+              category: "content",
+              title: `Published blog: ${doc.title}`,
+              summary: doc.excerpt?.slice(0, 180) || "A new SEO/content asset was published for the client.",
+              impactType: "published_content",
+              impactValue: 1,
+              impactUnit: "posts",
+              confidence: "measured",
+              visibility: "client_visible",
+              source: "blog-posts.afterChange",
+              dedupeKey: `blog-published:${doc.id}`,
+              evidenceLinks: doc.slug
+                ? [{ label: "View blog", url: `/digital-marketing-growth-hub/${doc.slug}`, kind: "blog" }]
+                : [],
+            }).catch(() => {});
+          }
 
           // Notify Growth Tools for auto-linking analysis
           const growthToolsUrl = process.env.GROWTH_TOOLS_URL;

@@ -1,0 +1,90 @@
+import type { CollectionConfig } from "payload";
+import { adminOnlyDelete, canAccess, hideUnlessFeature } from "../lib/access";
+
+export const ClientValueLedgerItems: CollectionConfig = {
+  slug: "client-value-ledger-items",
+  labels: {
+    singular: "Client Value Ledger Item",
+    plural: "Client Value Ledger Items",
+  },
+  admin: {
+    useAsTitle: "title",
+    group: "Clients",
+    description: "Client-visible and internal proof-of-value timeline entries.",
+    defaultColumns: ["client", "occurredAt", "category", "title", "impactValue", "impactUnit", "visibility"],
+    hidden: hideUnlessFeature("clients"),
+  },
+  access: {
+    read: canAccess("clients"),
+    create: canAccess("clients"),
+    update: canAccess("clients"),
+    delete: adminOnlyDelete,
+  },
+  defaultSort: "-occurredAt",
+  fields: [
+    { name: "client", type: "relationship", relationTo: "clients", required: true, index: true },
+    { name: "proposal", type: "relationship", relationTo: "client-proposals" },
+    { name: "googleAdsAudit", type: "relationship", relationTo: "google-ads-audits" },
+    { name: "seoAuditProposal", type: "relationship", relationTo: "seo-audit-proposals" },
+    { name: "clientProcess", type: "relationship", relationTo: "client-processes" },
+    { name: "blogPost", type: "relationship", relationTo: "blog-posts" },
+    { name: "agentApproval", type: "relationship", relationTo: "agent-approval-queue" },
+    { name: "activityLog", type: "relationship", relationTo: "activity-log" },
+    { name: "occurredAt", type: "date", required: true, index: true },
+    {
+      name: "category",
+      type: "select",
+      required: true,
+      index: true,
+      options: [
+        { label: "Paid Media", value: "paid_media" },
+        { label: "SEO", value: "seo" },
+        { label: "Content", value: "content" },
+        { label: "CRO", value: "cro" },
+        { label: "Tracking", value: "tracking" },
+        { label: "Process", value: "process" },
+        { label: "Finance", value: "finance" },
+        { label: "Agent Action", value: "agent_action" },
+        { label: "Client Approval", value: "client_approval" },
+      ],
+    },
+    { name: "title", type: "text", required: true },
+    { name: "summary", type: "textarea", required: true },
+    { name: "impactType", type: "text", admin: { description: "Examples: saved_spend, clicks, impressions, posts, revenue." } },
+    { name: "impactValue", type: "number" },
+    { name: "impactUnit", type: "text", admin: { description: "Examples: AUD, clicks, impressions, posts, leads." } },
+    {
+      name: "confidence",
+      type: "select",
+      required: true,
+      defaultValue: "directional",
+      options: [
+        { label: "Measured", value: "measured" },
+        { label: "Estimated", value: "estimated" },
+        { label: "Directional", value: "directional" },
+      ],
+    },
+    {
+      name: "visibility",
+      type: "select",
+      required: true,
+      defaultValue: "internal",
+      index: true,
+      options: [
+        { label: "Internal", value: "internal" },
+        { label: "Client Visible", value: "client_visible" },
+      ],
+    },
+    { name: "source", type: "text" },
+    { name: "dedupeKey", type: "text", unique: true, index: true, admin: { description: "Optional deterministic key used by automation to prevent duplicates." } },
+    {
+      name: "evidenceLinks",
+      type: "array",
+      fields: [
+        { name: "label", type: "text", required: true },
+        { name: "url", type: "text", required: true },
+        { name: "kind", type: "text" },
+      ],
+    },
+  ],
+};
