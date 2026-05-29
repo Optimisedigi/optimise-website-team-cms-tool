@@ -86,7 +86,7 @@ function buildUserMessage(body: SuggestBody): string {
 }
 
 /** Pull the first balanced JSON object out of a model reply, tolerating fences. */
-function extractJson(text: string): unknown {
+export function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = (fenced ? fenced[1] : text).trim();
   const start = candidate.indexOf("{");
@@ -95,6 +95,24 @@ function extractJson(text: string): unknown {
     throw new Error("No JSON object found in model reply");
   }
   return JSON.parse(candidate.slice(start, end + 1));
+}
+
+/**
+ * Thinking-capable models (kimi-k2.6, minimax-m2.7) sometimes emit the JSON
+ * answer inside their reasoning channel rather than the visible content,
+ * especially when the token budget is tight. Try the visible text first, then
+ * fall back to the reasoning text so a JSON object anywhere in the reply still
+ * parses instead of 502ing.
+ */
+export function extractJsonFromReply(visible: string, reasoning: string | undefined): unknown {
+  try {
+    return extractJson(visible);
+  } catch (err) {
+    if (reasoning && reasoning.trim().length > 0) {
+      return extractJson(reasoning);
+    }
+    throw err;
+  }
 }
 
 function normaliseSuggestion(raw: unknown): Suggestion {
@@ -136,7 +154,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const response = await callLLM({
       model: defaultAutonomousModel,
       fallbackModels: DEFAULT_AUTONOMOUS_FALLBACKS,
-      maxTokens: 1500,
+      // Generous budget: the autonomous defaults (kimi-k2.6, minimax-m2.7) are
+      // thinking models that spend tokens on a reasoning pass BEFORE emitting
+      // the visible JSON. At 1500 they routinely exhausted the budget mid-
+      // reasoning and returned empty content, surfacing as "AI returned an
+      // unexpected format". 6000 leaves room for reasoning + the JSON answer.
+      maxTokens: 6000,
       temperature: 0.7,
       system: buildSystemPrompt(),
       messages: [
@@ -151,9 +174,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     let suggestion: Suggestion;
     try {
-      suggestion = normaliseSuggestion(extractJson(text));
+      suggestion = normaliseSuggestion(
+        extractJsonFromReply(text, response.message.reasoningContent),
+      );
     } catch (err) {
-      console.error("[blog-prompts/suggest] parse error:", (err as Error).message, text.slice(0, 300));
+      console.error(
+        "[blog-prompts/suggest] parse error:",
+        (err as Error).message,
+        "stopReason=",
+        response.stopReason,
+        "visibleLen=",
+        text.length,
+        "preview=",
+        text.slice(0, 300),
+      );
       return NextResponse.json(
         { error: "The AI returned an unexpected format. Please try again." },
         { status: 502 },

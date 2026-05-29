@@ -10103,11 +10103,15 @@ export interface EmailTemplate {
 export interface CronSetting {
   id: number;
   /**
-   * IANA timezone for all agency cron jobs, e.g. Australia/Sydney, Europe/London, America/New_York. Handles DST automatically.
+   * Global timezone for the entire CMS. Every scheduled job below runs in this timezone. IANA format, e.g. Australia/Sydney, Europe/London, America/New_York. Handles DST automatically.
    */
   timezone: string;
   /**
-   * Hour (0–23, in agency timezone) when match type violations are synced from Google Ads. Defaults to 9 (9am).
+   * Turn this scheduled sync on or off.
+   */
+  matchTypeMonitorEnabled?: boolean | null;
+  /**
+   * Hour of day (0–23, agency timezone) to run the sync. e.g. 9 = 9am.
    */
   matchTypeMonitorSyncHour: number;
   updatedAt?: string | null;
@@ -10315,6 +10319,7 @@ export interface EmailTemplatesSelect<T extends boolean = true> {
  */
 export interface CronSettingsSelect<T extends boolean = true> {
   timezone?: T;
+  matchTypeMonitorEnabled?: T;
   matchTypeMonitorSyncHour?: T;
   updatedAt?: T;
   createdAt?: T;

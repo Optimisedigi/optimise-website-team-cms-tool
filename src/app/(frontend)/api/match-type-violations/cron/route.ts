@@ -440,6 +440,9 @@ export async function GET(req: NextRequest) {
 
     const agencyTimezone = cronSettings?.timezone ?? "Australia/Sydney";
     const syncHour = cronSettings?.matchTypeMonitorSyncHour ?? 9;
+    // Schedule enable toggle. Defaults to true when the column is null (e.g.
+    // pre-migration rows) so behaviour is unchanged until explicitly disabled.
+    const monitorEnabled = cronSettings?.matchTypeMonitorEnabled ?? true;
 
     // Get the current hour in the agency's timezone (handles DST automatically)
     const localHour = new Intl.DateTimeFormat("en-US", {
@@ -448,7 +451,9 @@ export async function GET(req: NextRequest) {
       hour12: false,
     }).format(new Date());
 
-    const doSync = Number(localHour) === syncHour || req.nextUrl.searchParams.get("forceSync") === "true";
+    const forceSync = req.nextUrl.searchParams.get("forceSync") === "true";
+    // When the schedule is disabled, only an explicit forceSync runs it.
+    const doSync = forceSync || (monitorEnabled && Number(localHour) === syncHour);
 
     // ?resetSync=true clears all sync state so the idempotency guard doesn't block the run
     if (req.nextUrl.searchParams.get("resetSync") === "true") {

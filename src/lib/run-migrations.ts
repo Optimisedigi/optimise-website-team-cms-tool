@@ -2716,6 +2716,12 @@ export async function runMigrations(
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
     )`);
+    // Enable/disable toggle for the Match Type Monitor schedule (2026-05-29).
+    // Defaults to true so existing rows keep running until explicitly disabled.
+    await run(
+      "cron_settings.match_type_monitor_enabled",
+      "ALTER TABLE `cron_settings` ADD `match_type_monitor_enabled` integer DEFAULT true NOT NULL",
+    );
 
     // ── ConsolidationCandidates collection (2026-05-21) ──
     await run("consolidation_candidates", `CREATE TABLE IF NOT EXISTS \`consolidation_candidates\` (
