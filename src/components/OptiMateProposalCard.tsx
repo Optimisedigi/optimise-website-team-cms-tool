@@ -42,7 +42,7 @@ function typePill(proposalType: string): string {
  *      per proposal that the just-finished turn produced.
  *   2. As a chip in the launcher panel's "pending strip" (variant="strip").
  *
- * Both link to /agent-approvals/[id] in a new tab — the canonical review
+ * Both link to /admin/agent-approvals/[id] in a new tab — the canonical review
  * surface where Approve / Apply lives.
  */
 const OptiMateProposalCard = ({ proposal, variant = 'inline' }: OptiMateProposalCardProps) => {
@@ -116,7 +116,7 @@ const OptiMateProposalCard = ({ proposal, variant = 'inline' }: OptiMateProposal
         {proposal.status}
       </span>
       <a
-        href={`/agent-approvals/${proposal.id}`}
+        href={`/admin/agent-approvals/${proposal.id}`}
         target="_blank"
         rel="noopener noreferrer"
         style={{

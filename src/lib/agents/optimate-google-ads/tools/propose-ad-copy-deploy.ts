@@ -8,6 +8,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { queueProposal, buildInternalMarkdown } from "./_propose-helpers";
 
 type AdStatus = "PAUSED" | "ENABLED";
@@ -90,6 +91,6 @@ export const proposeAdCopyDeploy: CanonicalTool<ProposeAdCopyDeployArgs> = {
       return { ok: false, error: (err as Error).message };
     }
 
-    return { ok: true, data: { approvalId, approvalUrl: `/agent-approvals/${approvalId}` } };
+    return { ok: true, data: { approvalId, approvalUrl: agentApprovalPath(approvalId) } };
   },
 };

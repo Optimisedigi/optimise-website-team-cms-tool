@@ -149,6 +149,10 @@ const SidebarNavExtras = () => {
       '/admin/collections/google-ads-audits',
       '/admin/collections/contractors',
       '/admin/collections/contractor-payments',
+      // The agent-approval-queue collection's auto-generated link duplicates the
+      // custom /admin/agent-approvals review page injected below. Hide the raw
+      // collection link so only the purpose-built review UI shows under Agent.
+      '/admin/collections/agent-approval-queue',
     ]
     const hideAutoCollectionLinks = () => {
       for (const href of HIDDEN_COLLECTION_HREFS) {
@@ -203,12 +207,12 @@ const SidebarNavExtras = () => {
     }
 
     // Agent fleet — surfaced under the Agent group for any logged-in user. The
-    // approvals queue and auth setup pages live outside /admin and do their
-    // own auth checks.
+    // approvals queue and auth setup pages live under /admin and render inside
+    // the admin shell, doing their own auth checks.
     injectLink(
       '#nav-group-Agent .nav-group__content',
       'agent-approvals',
-      '/agent-approvals',
+      '/admin/agent-approvals',
       ICONS.agentApprovals,
       'Agent Approvals',
       'append',
@@ -216,7 +220,7 @@ const SidebarNavExtras = () => {
     injectLink(
       '#nav-group-Agent .nav-group__content',
       'agent-auth',
-      '/agent-auth',
+      '/admin/agent-auth',
       ICONS.agentAuth,
       'Agent Auth',
       'append',

@@ -248,13 +248,13 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
-                window.open('/agent-approvals?status=pending', '_blank', 'noopener,noreferrer')
+                window.open('/admin/agent-approvals?status=pending', '_blank', 'noopener,noreferrer')
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
                   e.stopPropagation()
-                  window.open('/agent-approvals?status=pending', '_blank', 'noopener,noreferrer')
+                  window.open('/admin/agent-approvals?status=pending', '_blank', 'noopener,noreferrer')
                 }
               }}
               title={`${pendingCount} pending — open queue`}
@@ -363,7 +363,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               )}
               {pendingCount > 0 && (
                 <a
-                  href="/agent-approvals?status=pending"
+                  href="/admin/agent-approvals?status=pending"
                   target="_blank"
                   rel="noopener noreferrer"
                   title={`${pendingCount} pending approval${pendingCount === 1 ? '' : 's'} — open queue`}

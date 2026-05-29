@@ -8,6 +8,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { queueProposal, buildInternalMarkdown, mdTable } from "./_propose-helpers";
 
 interface PushCampaignIn {
@@ -127,6 +128,6 @@ export const proposeBudgetPushLive: CanonicalTool<ProposeBudgetPushArgs> = {
       return { ok: false, error: (err as Error).message };
     }
 
-    return { ok: true, data: { approvalId, approvalUrl: `/agent-approvals/${approvalId}` } };
+    return { ok: true, data: { approvalId, approvalUrl: agentApprovalPath(approvalId) } };
   },
 };

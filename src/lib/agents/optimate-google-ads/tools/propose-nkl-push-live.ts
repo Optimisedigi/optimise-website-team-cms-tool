@@ -8,6 +8,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { queueProposal, buildInternalMarkdown } from "./_propose-helpers";
 
 interface ProposeNklPushArgs {
@@ -77,6 +78,6 @@ export const proposeNklPushLive: CanonicalTool<ProposeNklPushArgs> = {
       return { ok: false, error: (err as Error).message };
     }
 
-    return { ok: true, data: { approvalId, approvalUrl: `/agent-approvals/${approvalId}`, nklId: args.nklId } };
+    return { ok: true, data: { approvalId, approvalUrl: agentApprovalPath(approvalId), nklId: args.nklId } };
   },
 };

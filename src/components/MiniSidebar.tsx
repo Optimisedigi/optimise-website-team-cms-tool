@@ -102,7 +102,7 @@ const icons: MiniIcon[] = [
   },
   {
     label: 'Agent Approvals',
-    href: '/agent-approvals',
+    href: '/admin/agent-approvals',
     // No feature key — surfaced for any logged-in user, mirroring the
     // SidebarNavExtras pattern (the page itself does its own auth check).
     svg: (

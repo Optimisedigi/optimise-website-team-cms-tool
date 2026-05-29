@@ -7,6 +7,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { CronExpressionParser } from "cron-parser";
 import { getPayload } from "payload";
 import payloadConfig from "@/payload.config";
@@ -196,7 +197,7 @@ export const proposeScheduledTaskUpdate: CanonicalTool<ProposeScheduledTaskUpdat
       ok: true,
       data: {
         approvalId,
-        approvalUrl: `/agent-approvals/${approvalId}`,
+        approvalUrl: agentApprovalPath(approvalId),
       },
     };
   },

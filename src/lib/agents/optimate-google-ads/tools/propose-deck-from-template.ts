@@ -8,6 +8,7 @@
  * production.
  */
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { queueProposal } from "./_propose-helpers";
 import { getTemplate } from "@/lib/decks/registry";
 
@@ -119,7 +120,7 @@ export const proposeDeckFromTemplateTool: CanonicalTool<ProposeDeckFromTemplateA
       ok: true,
       data: {
         approvalId,
-        approvalUrl: `/agent-approvals/${approvalId}`,
+        approvalUrl: agentApprovalPath(approvalId),
         templateSlug: args.templateSlug,
         deckSlug: args.deckSlug,
       },

@@ -4,7 +4,7 @@
  * Every propose-* tool:
  *  1. Validates inputs against a tool-specific schema.
  *  2. Renders an internalMarkdown summary the human reads in
- *     /agent-approvals/[id] (and the inline chat-bubble proposal card).
+ *     /admin/agent-approvals/[id] (and the inline chat-bubble proposal card).
  *  3. Calls queueProposal() (this module) which:
  *       a. enforces the per-turn proposal cap (5 by default), and
  *       b. delegates to queueForApproval() in _shared/approval-queue.

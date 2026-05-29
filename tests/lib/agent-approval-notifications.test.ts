@@ -60,7 +60,7 @@ describe("fanOutApprovalNotifications", () => {
     expect(firstCall.data.recipient).toBe(1);
     expect(firstCall.data.kind).toBe("agent-approval-pending");
     expect(firstCall.data.relatedApproval).toBe(42);
-    expect(firstCall.data.url).toBe("/agent-approvals/42");
+    expect(firstCall.data.url).toBe("/admin/agent-approvals/42");
     expect(firstCall.data.body).toContain("alex@example.com");
     expect(firstCall.data.title).toContain("Add 5 negative phrases");
   });

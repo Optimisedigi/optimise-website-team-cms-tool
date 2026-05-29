@@ -7,6 +7,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { queueProposal } from "./_propose-helpers";
 
 type MatchType = "exact" | "phrase" | "broad";
@@ -118,7 +119,7 @@ export const proposeNegativeKeywords: CanonicalTool<ProposeNegativesArgs> = {
       ok: true,
       data: {
         approvalId,
-        approvalUrl: `/agent-approvals/${approvalId}`,
+        approvalUrl: agentApprovalPath(approvalId),
         candidatesQueued: candidates.length,
       },
     };

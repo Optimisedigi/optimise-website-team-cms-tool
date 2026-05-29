@@ -243,15 +243,15 @@ export function renderMarkdown(text: string) {
    * Inline formatter. Handles:
    *   - **bold** and `inline code`
    *   - bare URLs (https://…)
-   *   - in-app paths /agent-approvals/<id>
+   *   - in-app paths /admin/agent-approvals/<id>
    *
    * Order matters: we run the bold/code regex first so URLs inside backticks
    * are kept literal, then the URL/path regex on the remaining text spans.
    */
   const linkifyText = (text: string, keyPrefix: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = []
-    // Combined: full URL OR /agent-approvals/<id>
-    const regex = /(https?:\/\/[^\s)]+)|(\/agent-approvals\/\d+)/g
+    // Combined: full URL OR /admin/agent-approvals/<id>
+    const regex = /(https?:\/\/[^\s)]+)|(\/admin\/agent-approvals\/\d+)/g
     let lastIndex = 0
     let match: RegExpExecArray | null
     let matchIdx = 0
@@ -1110,7 +1110,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             button on the right; the empty flex spacer keeps them right-aligned. */}
         <div style={{ flex: 1, minWidth: 0 }} />
         <a
-          href="/agent-auth"
+          href="/admin/agent-auth"
           target="_blank"
           rel="noopener noreferrer"
           title={`Anthropic credential: ${authStatus.label}. Click to manage.`}
@@ -1569,7 +1569,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
 
                 {msg.runId && (
                   <a
-                    href={`/agent-runs/${msg.runId}`}
+                    href={`/admin/agent-runs/${msg.runId}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ color: '#2563eb', textDecoration: 'none' }}

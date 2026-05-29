@@ -8,6 +8,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { CronExpressionParser } from "cron-parser";
 import { queueProposal, buildInternalMarkdown } from "./_propose-helpers";
 
@@ -203,7 +204,7 @@ export const proposeScheduledTask: CanonicalTool<ProposeScheduledTaskArgs> = {
       ok: true,
       data: {
         approvalId,
-        approvalUrl: `/agent-approvals/${approvalId}`,
+        approvalUrl: agentApprovalPath(approvalId),
         nextRunAt: cronCheck.nextTwo[0],
       },
     };

@@ -2,7 +2,7 @@
  * Auth event log. Records OAuth success / failure / refresh / fallback
  * transitions so they're visible in three surfaces:
  *   1. The chat status pill (most recent event for the active model)
- *   2. The /agent-auth admin page (per-provider state, last failure, etc.)
+ *   2. The /admin/agent-auth admin page (per-provider state, last failure, etc.)
  *   3. The activity-log collection (audit trail)
  *
  * Every transition the user might want to know about goes through here.
@@ -119,7 +119,7 @@ export async function getRecentAuthEvents(opts: {
 
 /**
  * Find the most recent oauth-failed event for a provider. Used by the
- * /agent-auth status panel to show "Last failure: 3 minutes ago".
+ * /admin/agent-auth status panel to show "Last failure: 3 minutes ago".
  */
 export async function getLastFailure(provider: ProviderName): Promise<AuthEvent | null> {
   const events = await getRecentAuthEvents({

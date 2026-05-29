@@ -9,6 +9,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { queueProposal, buildInternalMarkdown } from "./_propose-helpers";
 
 const VALID_BUSINESS_TYPES = ["distributor", "ecommerce", "service", "other"] as const;
@@ -187,6 +188,6 @@ export const proposeCampaignRestructure: CanonicalTool<ProposeCampaignRestructur
       return { ok: false, error: (err as Error).message };
     }
 
-    return { ok: true, data: { approvalId, approvalUrl: `/agent-approvals/${approvalId}` } };
+    return { ok: true, data: { approvalId, approvalUrl: agentApprovalPath(approvalId) } };
   },
 };

@@ -17,6 +17,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { queueProposal } from "./_propose-helpers";
 import type {
   DeckPayload,
@@ -267,7 +268,7 @@ function asNextItems(v: unknown): NextItem[] {
 
 /**
  * Render an internalMarkdown block the reviewer reads in
- * /agent-approvals/[id]. Lists the slides + key numbers so they can
+ * /admin/agent-approvals/[id]. Lists the slides + key numbers so they can
  * spot bad data without opening the raw JSON.
  */
 function renderInternalMarkdown(args: ProposeStakeholderDeckArgs): string {
@@ -466,7 +467,7 @@ export const proposeStakeholderDeck: CanonicalTool<ProposeStakeholderDeckArgs> =
       ok: true,
       data: {
         approvalId,
-        approvalUrl: `/agent-approvals/${approvalId}`,
+        approvalUrl: agentApprovalPath(approvalId),
         slug: args.slug,
         urlPath: `/partners/google-ads-audit/${args.slug}`,
       },

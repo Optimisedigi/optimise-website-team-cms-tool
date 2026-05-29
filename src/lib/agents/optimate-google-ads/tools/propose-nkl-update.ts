@@ -7,6 +7,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 import { queueProposal, buildInternalMarkdown, mdTable } from "./_propose-helpers";
 
 type MatchType = "exact" | "phrase" | "broad";
@@ -153,7 +154,7 @@ export const proposeNklUpdate: CanonicalTool<ProposeNklUpdateArgs> = {
 
     return {
       ok: true,
-      data: { approvalId, approvalUrl: `/agent-approvals/${approvalId}`, fieldsChanged },
+      data: { approvalId, approvalUrl: agentApprovalPath(approvalId), fieldsChanged },
     };
   },
 };

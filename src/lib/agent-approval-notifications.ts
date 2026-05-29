@@ -84,7 +84,7 @@ export async function fanOutApprovalNotifications(
     ? `Requested by ${callerEmail}.`
     : `Requested by ${input.agentName}.`;
   const body = `${requestedByLine} ${input.title}`.slice(0, 280);
-  const url = `/agent-approvals/${input.approvalId}`;
+  const url = `/admin/agent-approvals/${input.approvalId}`;
 
   const users = await payload.find({
     collection: USERS,
