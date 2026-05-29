@@ -25,6 +25,9 @@ interface SuggestBody {
   clientName?: string;
   servicePages?: string;
   existingTags?: string[];
+  globalBlogRules?: string;
+  clientBlogTone?: string;
+  categoryBlogTone?: string;
 }
 
 /** The fields we ask the model to populate. Deliberately omits client + category. */
@@ -57,6 +60,7 @@ function buildSystemPrompt(): string {
     "You are an expert SEO content strategist for a digital marketing agency.",
     "Given a blog idea and client context, produce the strongest possible brief for a single SEO-optimised blog post.",
     "Use Australian English spelling. No em dashes or en dashes.",
+    "Use the supplied global blog rules and client tone when shaping recommendations. Global rules override tone if they conflict.",
     "",
     "Return ONLY a JSON object (no markdown fences, no prose) with exactly these string keys:",
     "- titleIdea: an intent-led working title (describes what the reader learns + who it's for).",
@@ -78,6 +82,15 @@ function buildUserMessage(body: SuggestBody): string {
   if (body.clientName?.trim()) lines.push(`Client: ${body.clientName.trim()}`);
   if (body.servicePages?.trim()) {
     lines.push(`Client service/product pages (for internal linking context):\n${body.servicePages.trim()}`);
+  }
+  if (body.globalBlogRules?.trim()) {
+    lines.push(`Global blog rules:\n${body.globalBlogRules.trim()}`);
+  }
+  if (body.clientBlogTone?.trim()) {
+    lines.push(`Client blog tone:\n${body.clientBlogTone.trim()}`);
+  }
+  if (body.categoryBlogTone?.trim()) {
+    lines.push(`Category-specific blog tone:\n${body.categoryBlogTone.trim()}`);
   }
   if (body.existingTags && body.existingTags.length > 0) {
     lines.push(`Existing client tags to choose the tag from:\n${body.existingTags.join("\n")}`);

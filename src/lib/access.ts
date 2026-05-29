@@ -48,6 +48,7 @@ export const FEATURE_KEYS = [
   // Content
   { label: "Blog Posts", value: "blog-posts" },
   { label: "Blog Prompts", value: "blog-prompts" },
+  { label: "Blog Settings (Global)", value: "blog-settings" },
   { label: "Job Posts", value: "job-posts" },
   { label: "Media", value: "media" },
   // SEO

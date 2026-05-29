@@ -43,12 +43,12 @@ describe("getOptiMateDefaultModels", () => {
     nextGlobal = {
       defaultChatModel: "gpt-5.5-codex-medium",
       defaultAutonomousModel: "minimax-m2.7",
-      blogPrompterModel: "gpt-4o",
+      blogPrompterModel: "claude-sonnet-4.6",
     };
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe("gpt-5.5-codex-medium");
     expect(result.defaultAutonomousModel).toBe("minimax-m2.7");
-    expect(result.blogPrompterModel).toBe("gpt-4o");
+    expect(result.blogPrompterModel).toBe("claude-sonnet-4.6");
   });
 
   it("falls back to registry defaults when the global is unset", async () => {

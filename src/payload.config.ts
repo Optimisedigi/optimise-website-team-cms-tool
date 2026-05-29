@@ -65,6 +65,7 @@ import { EmailTemplates } from "./globals/EmailTemplates";
 import { CalendarAuth } from "./globals/CalendarAuth";
 import { CronSettings } from "./globals/CronSettings";
 import { OptiMateSettings } from "./globals/OptiMateSettings";
+import { BlogSettings } from "./globals/BlogSettings";
 import { MeetingSchedulers } from "./collections/MeetingSchedulers";
 import { PermissionProfiles } from "./collections/PermissionProfiles";
 import { AgentApprovalQueue } from "./collections/AgentApprovalQueue";
@@ -147,7 +148,7 @@ export default buildConfig({
       },
     }
   }),
-  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates, CronSettings, OptiMateSettings],
+  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates, CronSettings, OptiMateSettings, BlogSettings],
   editor: lexicalEditor({
     features: ({ defaultFeatures }) => [...defaultFeatures, MarkdownPasteFeature()],
   }),

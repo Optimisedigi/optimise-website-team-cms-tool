@@ -228,6 +228,7 @@ export interface Config {
     'email-templates': EmailTemplate;
     'cron-settings': CronSetting;
     'optimate-settings': OptimateSetting;
+    'blog-settings': BlogSetting;
   };
   globalsSelect: {
     'sheets-auth': SheetsAuthSelect<false> | SheetsAuthSelect<true>;
@@ -236,6 +237,7 @@ export interface Config {
     'email-templates': EmailTemplatesSelect<false> | EmailTemplatesSelect<true>;
     'cron-settings': CronSettingsSelect<false> | CronSettingsSelect<true>;
     'optimate-settings': OptimateSettingsSelect<false> | OptimateSettingsSelect<true>;
+    'blog-settings': BlogSettingsSelect<false> | BlogSettingsSelect<true>;
   };
   locale: null;
   widgets: {
@@ -1140,6 +1142,20 @@ export interface Client {
    * Service or product/category pages for this client (one per line). Auto-inserted into generated blog prompts as internal linking requirements.
    */
   servicePages?: string | null;
+  /**
+   * Default tone/style for this client's blog. Example: helpful, direct, technical but not academic; like an experienced consultant explaining trade-offs to a business owner.
+   */
+  blogTone?: string | null;
+  /**
+   * Optional tone overrides/additions used when the Blog Prompter category matches exactly after trimming and lowercasing.
+   */
+  blogCategoryTones?:
+    | {
+        category: string;
+        tone: string;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Author profiles for this client (up to 10)
    */
@@ -4194,6 +4210,7 @@ export interface User {
         | 'media-basic'
         | 'blog-posts'
         | 'blog-prompts'
+        | 'blog-settings'
         | 'job-posts'
         | 'media'
         | 'internal-link-suggestions'
@@ -4302,6 +4319,7 @@ export interface PermissionProfile {
         | 'media-basic'
         | 'blog-posts'
         | 'blog-prompts'
+        | 'blog-settings'
         | 'job-posts'
         | 'media'
         | 'internal-link-suggestions'
@@ -7945,6 +7963,14 @@ export interface ClientsSelect<T extends boolean = true> {
   blogCategories?: T;
   blogTags?: T;
   servicePages?: T;
+  blogTone?: T;
+  blogCategoryTones?:
+    | T
+    | {
+        category?: T;
+        tone?: T;
+        id?: T;
+      };
   authors?:
     | T
     | {
@@ -10317,6 +10343,25 @@ export interface OptimateSetting {
   createdAt?: string | null;
 }
 /**
+ * Global blog rules and defaults used by Blog Prompter generation.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-settings".
+ */
+export interface BlogSetting {
+  id: number;
+  /**
+   * Rules applied to every generated blog prompt and generated markdown, regardless of client.
+   */
+  globalBlogRules?: string | null;
+  /**
+   * Formatting rules applied to every generated blog.
+   */
+  globalMarkdownRules?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "sheets-auth_select".
  */
@@ -10491,6 +10536,17 @@ export interface OptimateSettingsSelect<T extends boolean = true> {
   defaultChatModel?: T;
   defaultAutonomousModel?: T;
   blogPrompterModel?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-settings_select".
+ */
+export interface BlogSettingsSelect<T extends boolean = true> {
+  globalBlogRules?: T;
+  globalMarkdownRules?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

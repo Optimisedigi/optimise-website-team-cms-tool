@@ -2669,6 +2669,35 @@ export const Clients: CollectionConfig = {
                 description: "Service or product/category pages for this client (one per line). Auto-inserted into generated blog prompts as internal linking requirements.",
               },
             },
+            {
+              name: "blogTone",
+              type: "textarea",
+              admin: {
+                description:
+                  "Default tone/style for this client's blog. Example: helpful, direct, technical but not academic; like an experienced consultant explaining trade-offs to a business owner.",
+              },
+            },
+            {
+              name: "blogCategoryTones",
+              type: "array",
+              label: "Category-specific blog tones",
+              admin: {
+                description:
+                  "Optional tone overrides/additions used when the Blog Prompter category matches exactly after trimming and lowercasing.",
+              },
+              fields: [
+                {
+                  name: "category",
+                  type: "text",
+                  required: true,
+                },
+                {
+                  name: "tone",
+                  type: "textarea",
+                  required: true,
+                },
+              ],
+            },
           ],
         },
         {

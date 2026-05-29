@@ -17,7 +17,17 @@ export async function GET() {
       where: { isActive: { not_equals: false } },
       sort: "name",
       limit: 500,
-      select: { name: true, slug: true, gscConnected: true, ga4Connected: true, blogCategories: true, blogTags: true, servicePages: true } as any,
+      select: {
+        name: true,
+        slug: true,
+        gscConnected: true,
+        ga4Connected: true,
+        blogCategories: true,
+        blogTags: true,
+        servicePages: true,
+        blogTone: true,
+        blogCategoryTones: true,
+      } as any,
     });
 
     const clients = result.docs.map((c: any) => ({
@@ -29,6 +39,8 @@ export async function GET() {
       blogCategories: c.blogCategories || '',
       blogTags: c.blogTags || '',
       servicePages: c.servicePages || '',
+      blogTone: c.blogTone || '',
+      blogCategoryTones: Array.isArray(c.blogCategoryTones) ? c.blogCategoryTones : [],
     }));
 
     return NextResponse.json(clients);

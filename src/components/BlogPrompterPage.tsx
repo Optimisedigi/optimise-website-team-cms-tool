@@ -1,9 +1,15 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { buildBlogPrompt, findCategoryTone, parsePromptLines } from '@/lib/blog-prompter'
 import VoiceField from './VoiceField'
 
 // ─── Types ────────────────────────────────────────────────
+
+interface BlogCategoryTone {
+  category?: string | null
+  tone?: string | null
+}
 
 interface Client {
   id: string | number
@@ -11,6 +17,13 @@ interface Client {
   blogCategories: string
   blogTags: string
   servicePages: string
+  blogTone: string
+  blogCategoryTones: BlogCategoryTone[]
+}
+
+interface BlogSettingsState {
+  globalBlogRules: string
+  globalMarkdownRules: string
 }
 
 interface BriefFields {
@@ -41,119 +54,13 @@ function stripBlogPrefix(text: string): string {
   return text.replace(/^[A-Za-z][A-Za-z\s]{0,20}:\s*/, '')
 }
 
-function parseLines(text: string): string[] {
-  return text.split('\n').map((s) => s.trim()).filter(Boolean)
-}
-
-// ─── Prompt generation ────────────────────────────────────
-// Column order from Sheets formula: A, B, C, D, E, G, H, F, I, J, K
-
-const DEFAULT_SERVICES = 'SEO, Google Ads, GEO, CRO, Meta Ads, Integrated digital growth strategy and AI automation'
-
-function buildRequirements(servicePages?: string): string {
-  const services = servicePages?.trim()
-    ? parseLines(servicePages).join(', ')
-    : DEFAULT_SERVICES
-
-  return `## Requirements
-- Use Australian English spelling.
-- No em dashes or en dashes.
-- Keep it clear, commercially grounded, and practical.
-- Make sure the main point and required key points are clearly covered.
-- Blog content exists to support SEO and topic authority.
-- Blog content aligns with business services or products only where relevant and can link back to their service pages: ${services}.
-- If there are clear internal links, make it clear where they should be added in the blog post.
-- Do not add any internal links inside the TLDR section.
-- Each unique URL should only be linked once in the entire blog post. Do not link multiple anchor texts to the same destination.
-- If the blog mentions Facebook Ads, Instagram Ads, Meta Ads, and/or LinkedIn Ads and they all point to the same service page, only add one internal link using "Meta Ads" as the anchor text.
-- Blog content answers real user questions, not generic filler.
-- Include estimated reading time in minutes and a TLDR at the start, formatted exactly as: > **TL;DR**
-- Make it easy and enjoyable to read.
-- Support internal linking to service or product pages.
-- Avoid thin or generic content.
-- Write fully in markdown so it can be copied and pasted cleanly, including internal URLs.
-- Add meta title (under 90 characters), meta description (under 160 characters) and excerpt (under 160 characters), formatted exactly as:
-Meta Title: [Title]
-Meta Description: [Description]
-Excerpt: [Short excerpt]
-- Add relevant, non overlapping FAQs that reflect real search behaviour.
-- Consider all primary and secondary keywords.
-- Do not include anything listed in 'What are points I don't want to add'.
-- Do not end the blog post with "Thanks," "Thank you," "Peter Tu," "Optimise Digital" or any sign-off. End naturally after the final paragraph, right before the FAQ section.
-
-- Make sure you stick to this markdown formatting:
-Bold          **text**
-Italic        *text*
-Bold + Italic ***text***
-H1 (Title)        # Heading
-H2 (Section)      ## Heading
-H3 (Subsection)   ### Heading
-Link              [text](https://url.com)
-Internal Link     [text](/page-path)
-Bullet List       - Item
-Numbered List     1. Item
-Inline Code       \`code\`
-Code Block        \`\`\` code \`\`\`
-Blockquote        > Quote text
-Line Break        Empty line between paragraphs
-FAQ Section       ## FAQ **Q: Question?** A: Answer...
-
-## STRICT MARKDOWN FORMATTING RULES (MUST FOLLOW EXACTLY)
-
-- After every heading (## or ###), the very next line must be the opening paragraph or list with **NO blank line**.
-- Never insert a blank line immediately after a heading.
-- Only insert a single blank line **before** the next heading.
-- Bullet lists must start on the immediate next line after the introducing sentence (no blank line before the first *).
-- After a bullet list ends, you may have **one** blank line before the next paragraph if needed, but keep overall spacing tight and compact.
-- Do not create "air gaps" between sections.
-- Follow the exact example below:
-
-## Example heading
-This paragraph sits directly under the heading with no blank line. Lists start immediately:
-* Point one
-* Point two
-
-This paragraph can follow the list after one blank line only if required.
-
-## Next heading
-Continues the same tight rule.`
-}
-
-function buildPrompt(f: BriefFields, clientName?: string, servicePages?: string): string {
-  const name = clientName || 'Optimise Digital'
-
-  const section = (heading: string, value: string | null | undefined, note?: string) => {
-    if (!value?.trim()) return null
-    return `## ${heading}\n${note ? note + '\n' : ''}${value.trim()}`
-  }
-
-  const parts = [
-    `# Blog content brief for ${name}`,
-    `Write a blog post for ${name} using the brief below.`,
-    section('Blog Idea', f.blogIdea),
-    section('Title idea', f.titleIdea),
-    section('Category', f.category, '(for internal use only)'),
-    section('Tag', f.tag),
-    section('Main point of the content', f.mainPoint),
-    section('Primary keywords to include', f.primaryKeywords),
-    section('Secondary keywords to include', f.secondaryKeywords),
-    section('Key points that must be included', f.keyPoints),
-    section("What are points I don't want to add", f.pointsToAvoid),
-    section('Who is the target audience', f.targetAudience),
-    section('Content to support', f.supportingContent),
-    buildRequirements(servicePages),
-  ]
-
-  return parts.filter(Boolean).join('\n\n')
-}
-
 // ─── Compact prompt output box ────────────────────────────
 
-function PromptBox({ prompt }: { prompt: string }) {
+function OutputBox({ label, value, height = 100, footer }: { label: string; value: string; height?: number; footer?: string }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(prompt)
+    await navigator.clipboard.writeText(value)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -161,17 +68,17 @@ function PromptBox({ prompt }: { prompt: string }) {
   return (
     <div style={{ marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-400)' }}>Generated Prompt</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-400)' }}>{label}</span>
         <button type="button" onClick={handleCopy} style={smallBtnStyle}>
           {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
       <textarea
         readOnly
-        value={prompt}
+        value={value}
         style={{
           width: '100%',
-          height: 100,
+          height,
           overflowY: 'auto',
           resize: 'vertical',
           background: 'var(--theme-elevation-50)',
@@ -185,7 +92,30 @@ function PromptBox({ prompt }: { prompt: string }) {
           boxSizing: 'border-box',
         }}
       />
+      {footer && <div style={{ fontSize: 12, color: 'var(--theme-elevation-400)', marginTop: 6 }}>{footer}</div>}
     </div>
+  )
+}
+
+function PromptBox({ prompt }: { prompt: string }) {
+  return <OutputBox label="Generated Prompt" value={prompt} />
+}
+
+function MarkdownOutputBox({ markdown, draftUrl }: { markdown: string; draftUrl?: string }) {
+  return (
+    <>
+      <OutputBox
+        label="Generated Blog Markdown"
+        value={markdown}
+        height={320}
+        footer="This markdown has been added to the Blog Post draft import box for the selected client."
+      />
+      {draftUrl && (
+        <a href={draftUrl} style={{ display: 'inline-block', marginTop: 8, fontSize: 13, color: '#2563eb', fontWeight: 600 }}>
+          Open draft Blog Post →
+        </a>
+      )}
+    </>
   )
 }
 
@@ -222,10 +152,25 @@ const BlogPrompterPage = () => {
   const [showProposed, setShowProposed] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [suggestMsg, setSuggestMsg] = useState('')
+  const [blogSettings, setBlogSettings] = useState<BlogSettingsState | null>(null)
+  const [generatedBlogMarkdown, setGeneratedBlogMarkdown] = useState('')
+  const [generatingBlog, setGeneratingBlog] = useState(false)
+  const [generateBlogMsg, setGenerateBlogMsg] = useState('')
+  const [generatedDraftUrl, setGeneratedDraftUrl] = useState('')
 
   const selectedClient = clients.find((c) => String(c.id) === selectedClientId) ?? null
-  const clientCategories = selectedClient ? parseLines(selectedClient.blogCategories) : []
-  const clientTags = selectedClient ? parseLines(selectedClient.blogTags) : []
+  const clientCategories = selectedClient ? parsePromptLines(selectedClient.blogCategories) : []
+  const clientTags = selectedClient ? parsePromptLines(selectedClient.blogTags) : []
+  const categoryBlogTone = findCategoryTone(selectedClient?.blogCategoryTones, fields.category)
+
+  const buildCurrentPrompt = (nextFields: BriefFields = fields) => buildBlogPrompt(nextFields, {
+    clientName: selectedClient?.name,
+    servicePages: selectedClient?.servicePages,
+    globalBlogRules: blogSettings?.globalBlogRules,
+    globalMarkdownRules: blogSettings?.globalMarkdownRules,
+    clientBlogTone: selectedClient?.blogTone,
+    categoryBlogTone: findCategoryTone(selectedClient?.blogCategoryTones, nextFields.category),
+  })
 
   const activeBriefs = briefs.filter((b) => b.source !== 'topic-clusters')
   const proposedBriefs = briefs.filter((b) => b.source === 'topic-clusters')
@@ -237,8 +182,8 @@ const BlogPrompterPage = () => {
   const handleClientChange = (id: string) => {
     setSelectedClientId(id)
     const client = clients.find((c) => String(c.id) === id) ?? null
-    const cats = client ? parseLines(client.blogCategories) : []
-    const tags = client ? parseLines(client.blogTags) : []
+    const cats = client ? parsePromptLines(client.blogCategories) : []
+    const tags = client ? parsePromptLines(client.blogTags) : []
     setFields((prev) => ({
       ...prev,
       category: cats.length > 0 ? (cats.includes(prev.category) ? prev.category : '') : prev.category,
@@ -247,7 +192,7 @@ const BlogPrompterPage = () => {
   }
 
   const handleGenerate = () => {
-    setPrompt(buildPrompt(fields, selectedClient?.name, selectedClient?.servicePages))
+    setPrompt(buildCurrentPrompt())
   }
 
   // AI-populate every field except client and category, based on the Blog Idea.
@@ -270,6 +215,9 @@ const BlogPrompterPage = () => {
           clientName: selectedClient?.name,
           servicePages: selectedClient?.servicePages,
           existingTags: clientTags,
+          globalBlogRules: blogSettings?.globalBlogRules,
+          clientBlogTone: selectedClient?.blogTone,
+          categoryBlogTone,
         }),
       })
       const data = await res.json()
@@ -310,6 +258,45 @@ const BlogPrompterPage = () => {
     }
   }
 
+  const handleGenerateBlog = async () => {
+    if (!selectedClient) {
+      setGenerateBlogMsg('Select the client this saved brief belongs to first.')
+      setTimeout(() => setGenerateBlogMsg(''), 4000)
+      return
+    }
+
+    const generated = prompt || buildCurrentPrompt()
+    setPrompt(generated)
+    setGeneratingBlog(true)
+    setGenerateBlogMsg('')
+    setGeneratedDraftUrl('')
+    try {
+      const res = await fetch('/api/blog-prompts/generate-blog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: generated,
+          clientId: selectedClient?.id,
+          blogPromptId: selectedBrief?.id,
+          createDraft: true,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.markdown) {
+        setGenerateBlogMsg(data.error || 'Blog generation failed.')
+        return
+      }
+      setGeneratedBlogMarkdown(data.markdown)
+      setGeneratedDraftUrl(typeof data.draft?.adminUrl === 'string' ? data.draft.adminUrl : '')
+      setGenerateBlogMsg(data.warning ? `Generated with fallback. ${data.warning}` : 'Blog draft created with markdown in the import box.')
+    } catch {
+      setGenerateBlogMsg('Blog generation failed.')
+    } finally {
+      setGeneratingBlog(false)
+      setTimeout(() => setGenerateBlogMsg(''), 10000)
+    }
+  }
+
   const handleSave = async () => {
     if (!fields.blogIdea.trim()) {
       setSaveMsg('Blog Idea is required to save.')
@@ -317,7 +304,7 @@ const BlogPrompterPage = () => {
       return
     }
     setSaving(true)
-    const generated = prompt || buildPrompt(fields, selectedClient?.name, selectedClient?.servicePages)
+    const generated = prompt || buildCurrentPrompt()
     try {
       const res = await fetch('/api/blog-prompts', {
         method: 'POST',
@@ -350,6 +337,15 @@ const BlogPrompterPage = () => {
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d)) setClients(d) })
       .catch(() => {})
+
+    fetch('/api/blog-settings')
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.globalBlogRules === 'string' && typeof d.globalMarkdownRules === 'string') {
+          setBlogSettings(d)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const handleSelectBrief = (brief: SavedBrief) => {
@@ -371,7 +367,7 @@ const BlogPrompterPage = () => {
       targetAudience: brief.targetAudience || '',
       supportingContent: brief.supportingContent || '',
     })
-    setPrompt(brief.generatedPrompt || buildPrompt(brief))
+    setPrompt(brief.generatedPrompt || buildCurrentPrompt(brief))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -557,7 +553,7 @@ const BlogPrompterPage = () => {
             <button type="button" onClick={handleSave} disabled={saving} style={btnStyle}>
               {saving ? 'Saving...' : 'Save Brief'}
             </button>
-            <button type="button" onClick={() => { setFields(emptyFields); setPrompt(''); setSelectedClientId('') }} style={{ ...btnStyle, color: 'var(--theme-elevation-400)' }}>
+            <button type="button" onClick={() => { setFields(emptyFields); setPrompt(''); setGeneratedBlogMarkdown(''); setGeneratedDraftUrl(''); setSelectedClientId('') }} style={{ ...btnStyle, color: 'var(--theme-elevation-400)' }}>
               Clear
             </button>
             {saveMsg && (
@@ -565,9 +561,15 @@ const BlogPrompterPage = () => {
                 {saveMsg}
               </span>
             )}
+            {generateBlogMsg && (
+              <span style={{ fontSize: 13, color: generateBlogMsg.toLowerCase().includes('fail') ? '#ef4444' : '#22c55e', fontWeight: 500 }}>
+                {generateBlogMsg}
+              </span>
+            )}
           </div>
 
           {prompt && <PromptBox prompt={prompt} />}
+          {generatedBlogMarkdown && <MarkdownOutputBox markdown={generatedBlogMarkdown} draftUrl={generatedDraftUrl} />}
         </div>
 
         {/* ── Right: Saved Briefs sidebar ── */}
@@ -666,11 +668,20 @@ const BlogPrompterPage = () => {
             <button type="button" onClick={() => setSelectedBrief(null)} style={{ ...smallBtnStyle, flexShrink: 0 }}>✕ Close</button>
           </div>
 
-          <PromptBox prompt={selectedBrief.generatedPrompt || buildPrompt(selectedBrief)} />
+          <PromptBox prompt={selectedBrief.generatedPrompt || buildCurrentPrompt(selectedBrief)} />
 
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <button type="button" onClick={() => handleLoadBrief(selectedBrief)} style={smallBtnStyle}>
               Load into form
+            </button>
+            <button
+              type="button"
+              onClick={handleGenerateBlog}
+              disabled={generatingBlog || !selectedClient}
+              title={selectedClient ? 'Generate the blog and create a client draft' : 'Select the client this saved brief belongs to first'}
+              style={{ ...smallBtnStyle, background: '#0f766e', color: '#fff', borderColor: '#0f766e', opacity: generatingBlog || !selectedClient ? 0.65 : 1 }}
+            >
+              {generatingBlog ? 'Generating…' : 'Generate Blog'}
             </button>
             <button
               type="button"
