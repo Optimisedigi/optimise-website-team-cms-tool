@@ -468,6 +468,21 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E#{$svg-close}");
 }
 
+// Cron Settings (global) — repeat/cycle arrows (recurring infrastructure schedule)
+.nav #nav-global-cron-settings {
+  @include nav-icon("#{$svg-open}%3Cpolyline points='17 1 21 5 17 9'/%3E%3Cpath d='M3 11V9a4 4 0 0 1 4-4h14'/%3E%3Cpolyline points='7 23 3 19 7 15'/%3E%3Cpath d='M21 13v2a4 4 0 0 1-4 4H3'/%3E#{$svg-close}");
+}
+
+// Optimate Settings (global) — sliders (agent configuration)
+.nav #nav-global-optimate-settings {
+  @include nav-icon("#{$svg-open}%3Cline x1='4' y1='21' x2='4' y2='14'/%3E%3Cline x1='4' y1='10' x2='4' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12' y2='3'/%3E%3Cline x1='20' y1='21' x2='20' y2='16'/%3E%3Cline x1='20' y1='12' x2='20' y2='3'/%3E%3Cline x1='1' y1='14' x2='7' y2='14'/%3E%3Cline x1='9' y1='8' x2='15' y2='8'/%3E%3Cline x1='17' y1='16' x2='23' y2='16'/%3E#{$svg-close}");
+}
+
+// Contractor Time Entries — stopwatch/timer (logged hours)
+.nav #nav-contractor-time-entries {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='13' r='8'/%3E%3Cpath d='M12 9v4l2 2'/%3E%3Cpath d='M5 3 2 6'/%3E%3Cpath d='m22 6-3-3'/%3E#{$svg-close}");
+}
+
 // Deck Templates — presentation slide with chart
 .nav #nav-deck-templates {
   @include nav-icon("#{$svg-open}%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3Cpolyline points='7 12 10 9 13 12 17 8'/%3E#{$svg-close}");
