@@ -3,11 +3,21 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { hasValidApiKey } from "@/collections/api-key-access";
 
-const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
-
 // Collection slug type (use 'as any' to bypass strict type checking for new collections)
 const BUDGETS_COLLECTION = "google-ads-campaign-budgets" as any;
+
+function parseImpressionShare(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return undefined;
+    return value > 1 ? value / 100 : value;
+  }
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "--" || trimmed === "< 10%") return undefined;
+  const numeric = Number(trimmed.replace(/[%<>,\s]/g, ""));
+  if (!Number.isFinite(numeric) || numeric < 0) return undefined;
+  return trimmed.includes("%") || numeric > 1 ? numeric / 100 : numeric;
+}
 
 /**
  * GET /api/google-ads-budgets/[id]/list
@@ -77,16 +87,18 @@ export async function GET(
     .filter(Boolean);
 
   // If Growth Tools URL is configured, fetch from there
-  if (GROWTH_TOOLS_URL && INTERNAL_API_KEY) {
+  const growthToolsUrl = process.env.GROWTH_TOOLS_URL;
+  const internalApiKey = process.env.INTERNAL_API_KEY;
+  if (growthToolsUrl && internalApiKey) {
     try {
       // Fetch THIS_MONTH data for actual MTD spend
       const response = await fetch(
-        `${GROWTH_TOOLS_URL}/api/google-ads/campaign-budgets/list`,
+        `${growthToolsUrl}/api/google-ads/campaign-budgets/list`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-internal-key": INTERNAL_API_KEY!,
+            "x-internal-key": internalApiKey,
           },
           body: JSON.stringify({
             customerId: customerId.replace(/-/g, ""),
@@ -234,14 +246,11 @@ export async function GET(
           mtdSpend: c.cost || 0, // Actual MTD spend from Google Ads
           campaignStatus: c.campaignStatus,
           channelType: c.channelType,
-          searchImpressionShare:
-            typeof rawSearchIS === 'number' && rawSearchIS >= 0
-              ? rawSearchIS
-              : undefined,
-          searchBudgetLostIS:
-            typeof rawBudgetLostIS === 'number' && rawBudgetLostIS >= 0
-              ? rawBudgetLostIS
-              : undefined,
+          searchImpressionShare: parseImpressionShare(rawSearchIS),
+          searchBudgetLostIS: parseImpressionShare(rawBudgetLostIS),
+          // Advisory monthly recommendation (read-only; set by the monthly cron).
+          recommendedDailyBudget: saved?.recommendedDailyBudget ?? null,
+          recommendationGeneratedAt: saved?.recommendationGeneratedAt ?? null,
         };
       });
 

@@ -39,6 +39,10 @@
     {
       "path": "/api/goal-agents/watchdog",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/google-ads-budgets/monthly-recommendations",
+      "schedule": "0 1 1 * *"
     }
   ],
   "functions": {
@@ -101,6 +105,9 @@
     },
     "src/app/(frontend)/api/goal-agents/watchdog/route.ts": {
       "maxDuration": 180
+    },
+    "src/app/(frontend)/api/google-ads-budgets/monthly-recommendations/route.ts": {
+      "maxDuration": 300
     }
   }
 }

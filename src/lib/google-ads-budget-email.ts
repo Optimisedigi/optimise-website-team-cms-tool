@@ -46,6 +46,14 @@ export interface BudgetCampaign {
    * Sourced from `metrics.search_budget_lost_impression_share`.
    */
   searchBudgetLostIS?: number;
+  /**
+   * Advisory recommended daily budget from the monthly recommendation engine
+   * (last month's conversions / CPA / spend). Read-only — never auto-applied
+   * or auto-pushed. Populated by /api/google-ads-budgets/monthly-recommendations.
+   */
+  recommendedDailyBudget?: number;
+  /** ISO timestamp the recommendation was generated. */
+  recommendationGeneratedAt?: string | null;
 }
 
 export interface MonthlySpend {

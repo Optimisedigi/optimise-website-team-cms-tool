@@ -11,11 +11,16 @@ import config from "@/payload.config";
 
 export const dynamic = "force-dynamic";
 
+const WRAP_STYLE: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#f4f6fa",
+};
+
 const PAGE_STYLE: React.CSSProperties = {
   fontFamily: "system-ui, -apple-system, sans-serif",
   maxWidth: 980,
-  margin: "32px auto",
-  padding: "0 20px",
+  margin: "0 auto",
+  padding: "32px 20px",
   color: "#222",
 };
 
@@ -131,6 +136,7 @@ export default async function AgentRunPage({
 
   if (rows.length === 0) {
     return (
+      <div style={WRAP_STYLE}>
       <div style={PAGE_STYLE}>
         <h1 style={{ fontSize: 20, marginTop: 0 }}>Agent run</h1>
         <p style={{ color: "#666" }}>
@@ -141,6 +147,7 @@ export default async function AgentRunPage({
             ← Back to approvals
           </a>
         </p>
+      </div>
       </div>
     );
   }
@@ -155,6 +162,7 @@ export default async function AgentRunPage({
   const src = sourceBadge(sourceOnFinal);
 
   return (
+    <div style={WRAP_STYLE}>
     <div style={PAGE_STYLE}>
       <div style={{ marginBottom: 12 }}>
         <a href="/agent-approvals" style={{ fontSize: 12, color: "#2563eb", textDecoration: "none" }}>
@@ -268,6 +276,7 @@ export default async function AgentRunPage({
           );
         })}
       </ol>
+    </div>
     </div>
   );
 }

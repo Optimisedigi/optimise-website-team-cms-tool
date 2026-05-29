@@ -26,6 +26,10 @@ interface DraftBody {
   subject?: unknown;
   body?: unknown;
   to?: unknown;
+  /** Gmail thread id for in-thread replies. */
+  threadId?: unknown;
+  /** RFC 822 Message-ID of the message being replied to. */
+  inReplyTo?: unknown;
 }
 
 /**
@@ -139,6 +143,8 @@ export async function POST(req: NextRequest) {
   // (Gmail compose pane shows an empty subject line, which is honest).
   const subject = clientSubject || headers.subject || "";
   const to = clientTo || headers.to || "";
+  const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
+  const inReplyTo = typeof body.inReplyTo === "string" ? body.inReplyTo.trim() : "";
 
   const tokenResult = await getValidGmailToken(user.id);
   if (!tokenResult.ok) {
@@ -154,6 +160,8 @@ export async function POST(req: NextRequest) {
       to,
       subject,
       htmlBody: html,
+      ...(threadId ? { threadId } : {}),
+      ...(inReplyTo ? { inReplyTo } : {}),
     });
     return NextResponse.json({
       draftId: result.draftId,

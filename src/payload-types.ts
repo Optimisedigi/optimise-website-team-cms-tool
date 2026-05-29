@@ -6573,6 +6573,26 @@ export interface GoogleAdsCampaignBudget {
    * What triggered the last push (e.g. 'manual', 'cron-monthly-reset', 'cron-mid-month', 'agent'). Used by the Optimate agent to deduplicate work.
    */
   lastPushedSource?: string | null;
+  /**
+   * Recommended daily budget from last month's CPA / conversions / spend. Advisory — apply manually then push.
+   */
+  recommendedDailyBudget?: number | null;
+  /**
+   * When the monthly recommendation was generated
+   */
+  recommendationGeneratedAt?: string | null;
+  /**
+   * Last-month inputs used for the recommendation (conversions, spend, cpa, score).
+   */
+  recommendationBasis?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   bidStrategy:
     | 'manual_cpc'
     | 'maximize_conversions'
@@ -6872,7 +6892,8 @@ export interface Notification {
     | 'invoice-statements-ready'
     | 'agent-approval-pending'
     | 'consolidation-pending'
-    | 'goal-run-escalation';
+    | 'goal-run-escalation'
+    | 'google-ads-budget-review';
   title: string;
   /**
    * Short summary line.
@@ -9515,6 +9536,9 @@ export interface GoogleAdsCampaignBudgetsSelect<T extends boolean = true> {
   actualDailyBudget?: T;
   lastPushedAt?: T;
   lastPushedSource?: T;
+  recommendedDailyBudget?: T;
+  recommendationGeneratedAt?: T;
+  recommendationBasis?: T;
   bidStrategy?: T;
   bidStrategyId?: T;
   manualCpcBid?: T;

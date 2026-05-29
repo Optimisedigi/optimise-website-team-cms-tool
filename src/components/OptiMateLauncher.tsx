@@ -7,6 +7,7 @@ import OptiMateMultiChat, {
   type OptiMateMultiChatHandle,
 } from './OptiMateMultiChat'
 import InvoiceAssistantChat from './InvoiceAssistantChat'
+import GmailReplyChat from './GmailReplyChat'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 
 type AgentKey = 'google-ads' | 'invoices'
@@ -31,7 +32,7 @@ interface AuditOption {
   customerId: string
 }
 
-type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'pomodoro'
+type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'gmail' | 'pomodoro'
 
 const PILL_RIGHT = 20 // pixels — pomodoro pill is gone, sit bottom-right alone
 const PILL_BOTTOM = 20
@@ -355,6 +356,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   · Invoices
                 </span>
               )}
+              {step === 'gmail' && (
+                <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
+                  · Gmail
+                </span>
+              )}
               {pendingCount > 0 && (
                 <a
                   href="/agent-approvals?status=pending"
@@ -395,7 +401,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 ← Accounts
               </button>
             )}
-            {step === 'invoice-chat' && (
+            {(step === 'invoice-chat' || step === 'gmail') && (
               <button
                 type="button"
                 onClick={() => {
@@ -528,8 +534,14 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             style={{
               flex: 1,
               padding: step === 'pomodoro' ? 0 : 14,
-              overflowY: step === 'chat' || step === 'invoice-chat' ? 'hidden' : 'auto',
-              display: step === 'chat' || step === 'invoice-chat' ? 'flex' : 'block',
+              overflowY:
+                step === 'chat' || step === 'invoice-chat' || step === 'gmail'
+                  ? 'hidden'
+                  : 'auto',
+              display:
+                step === 'chat' || step === 'invoice-chat' || step === 'gmail'
+                  ? 'flex'
+                  : 'block',
               flexDirection: 'column',
               minHeight: 0,
             }}
@@ -613,6 +625,67 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 <p style={{ fontSize: 11, color: '#6b7280', marginTop: 12 }}>
                   More agents coming soon.
                 </p>
+
+                {/* Persistent shortcut at the bottom of the launcher: jump
+                    straight into the Gmail reply flow without picking an
+                    agent or a Google Ads account. */}
+                <div
+                  style={{
+                    marginTop: 16,
+                    paddingTop: 12,
+                    borderTop: '1px solid var(--theme-border-color, #e5e7eb)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setStep('gmail')}
+                    title="Reply to an email"
+                    aria-label="Reply to an email"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: '50%',
+                      border: '1px solid var(--theme-border-color, #e5e7eb)',
+                      background: 'var(--theme-input-bg, #fff)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#f9fafb'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
+                    }}
+                  >
+                    {/* Gmail envelope mark */}
+                    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="#4285F4" d="M2 6.5A1.5 1.5 0 0 1 3.5 5H4l8 6 8-6h.5A1.5 1.5 0 0 1 22 6.5V18a1.5 1.5 0 0 1-1.5 1.5h-2V9.2l-6.5 4.9L5.5 9.2v10.3h-2A1.5 1.5 0 0 1 2 18V6.5Z" />
+                      <path fill="#EA4335" d="M2 6.5 12 14l10-7.5V6.5A1.5 1.5 0 0 0 20.5 5h-17A1.5 1.5 0 0 0 2 6.5Z" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep('gmail')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--theme-text, #1f2937)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0,
+                      textAlign: 'left',
+                    }}
+                  >
+                    Reply to an email
+                  </button>
+                </div>
               </div>
             )}
 
@@ -775,6 +848,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             )}
 
             {step === 'invoice-chat' && <InvoiceAssistantChat />}
+
+            {step === 'gmail' && <GmailReplyChat />}
           </div>
         </div>
       )}

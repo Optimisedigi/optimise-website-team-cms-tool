@@ -42,6 +42,7 @@ type ActivityType =
   | "invoice_statement_cap_tripped"
   | "invoice_statement_cooldown_override"
   | "google_ads_budget_pushed"
+  | "google_ads_budget_recommendations"
   | "agent_approval_approved"
   | "agent_approval_rejected"
   | "match_type_violation_sync"
@@ -66,5 +67,6 @@ export async function logActivity(
   await payload.create({
     collection: "activity-log" as any,
     data: entry as any,
+    overrideAccess: true,
   });
 }

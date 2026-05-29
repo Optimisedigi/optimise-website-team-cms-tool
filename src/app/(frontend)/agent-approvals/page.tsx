@@ -13,11 +13,16 @@ export const dynamic = "force-dynamic";
 const CMS_BLUE = "#0b5394";
 const CMS_GOLD = "#f2b705";
 
+const WRAP_STYLE: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#f4f6fa",
+};
+
 const PAGE_STYLE: React.CSSProperties = {
   fontFamily: "var(--font-body, system-ui, -apple-system, sans-serif)",
   maxWidth: 1180,
-  margin: "24px auto",
-  padding: "0 24px 40px",
+  margin: "0 auto",
+  padding: "24px 24px 40px",
   color: "var(--theme-elevation-900, #111827)",
 };
 
@@ -116,6 +121,7 @@ export default async function AgentApprovalsListPage({
   const rows = result.docs as unknown as ApprovalListRow[];
 
   return (
+    <div style={WRAP_STYLE}>
     <div style={PAGE_STYLE}>
       <div
         style={{
@@ -268,6 +274,7 @@ export default async function AgentApprovalsListPage({
       <p style={{ marginTop: 12, fontSize: 12, color: "#6b7280" }}>
         Showing {rows.length} of {result.totalDocs ?? rows.length}
       </p>
+    </div>
     </div>
   );
 }

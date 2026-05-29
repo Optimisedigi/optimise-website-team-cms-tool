@@ -218,6 +218,8 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             standaloneBudget: c.standaloneBudget ?? 0,
             standaloneStartDate: c.standaloneStartDate ?? null,
             standaloneEndDate: c.standaloneEndDate ?? null,
+            recommendedDailyBudget: c.recommendedDailyBudget ?? undefined,
+            recommendationGeneratedAt: c.recommendationGeneratedAt ?? null,
           }));
           setCampaigns(recalculateBudgets(loaded, budget));
           return true;
@@ -436,6 +438,31 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
       }),
     }).catch(() => {});
   }, [id]);
+
+  // Apply a campaign's monthly recommendation into the editable % split. This
+  // converts the recommended daily budget into a percentage of the monthly
+  // total so it flows through the existing allocation maths. It never pushes
+  // to Google Ads — the user still has to click Push afterwards.
+  const applyRecommendation = useCallback((campaign: BudgetCampaign) => {
+    if (typeof campaign.recommendedDailyBudget !== 'number') return;
+    if (!monthlyTotal || monthlyTotal <= 0) {
+      setError('Set a monthly budget total before applying a recommendation.');
+      return;
+    }
+    const recommendedMonthly = campaign.recommendedDailyBudget * DAYS_IN_MONTH;
+    const pct = Math.min(100, Math.max(0, (recommendedMonthly / monthlyTotal) * 100));
+    const rounded = Math.round(pct * 2) / 2; // snap to 0.5% like the editor
+    const updated = campaigns.map((c) =>
+      c.campaignId === campaign.campaignId
+        ? { ...c, standalone: false, budgetPercentage: rounded }
+        : c,
+    );
+    const recalculated = recalculateBudgets(updated, monthlyTotal);
+    setCampaigns(recalculated);
+    const saved = recalculated.find((c) => c.campaignId === campaign.campaignId);
+    if (saved) saveCampaignToCMS(saved);
+    setSuccess(`Applied recommendation to ${campaign.campaignName}. Review and Push to send to Google Ads.`);
+  }, [campaigns, monthlyTotal, recalculateBudgets, saveCampaignToCMS]);
 
   const handleBlurSave = useCallback((campaignId: string, field: 'percentage' | 'bidStrategy', value: string) => {
     if (field === 'percentage') {
@@ -724,15 +751,27 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     ? Math.min(100, (monthlySpend.totalSpend / monthlySpend.maxBudget) * 100) 
     : 0;
   const percentRemaining = 100 - percentUsed;
-  const onTrackPercent = (monthlySpend.daysElapsed / DAYS_IN_MONTH) * 100;
+  const monthInfo = getMonthInfo();
+  const onTrackPercent = (monthlySpend.daysElapsed / monthInfo.daysInMonth) * 100;
+  const expectedSpendToDate = monthlySpend.maxBudget * (monthlySpend.daysElapsed / monthInfo.daysInMonth);
+  const spendPacingDelta = monthlySpend.totalSpend - expectedSpendToDate;
+  const pacingPercentDelta = monthlySpend.maxBudget > 0 ? (spendPacingDelta / monthlySpend.maxBudget) * 100 : 0;
+  const absPacingDelta = Math.abs(spendPacingDelta);
+  const isBehindPace = spendPacingDelta < -1;
+  const isAheadOfPace = spendPacingDelta > 1;
 
   // Determine status
   const isOverBudget = percentUsed > 100;
   const isSlightlyOver = percentUsed > 90 && percentUsed <= 100;
-  const isUnderBudget = percentUsed < onTrackPercent;
-  const statusColor = isOverBudget ? '#dc2626' : isSlightlyOver ? '#d97706' : isUnderBudget ? '#059669' : '#2563eb';
-  const statusBg = isOverBudget ? '#fef2f2' : isSlightlyOver ? '#fffbeb' : isUnderBudget ? '#f0fdf4' : '#eff6ff';
-  const statusText = isOverBudget ? 'Over Budget' : isSlightlyOver ? 'On Track' : isUnderBudget ? 'Under Budget' : 'On Track';
+  const isUnderBudget = isBehindPace;
+  const statusColor = isOverBudget ? '#dc2626' : isSlightlyOver || isAheadOfPace ? '#d97706' : isUnderBudget ? '#059669' : '#2563eb';
+  const statusBg = isOverBudget ? '#fef2f2' : isSlightlyOver || isAheadOfPace ? '#fffbeb' : isUnderBudget ? '#f0fdf4' : '#eff6ff';
+  const statusText = isOverBudget ? 'Over Budget' : isAheadOfPace ? 'Ahead of Pace' : isUnderBudget ? 'Under Budget' : 'On Track';
+  const pacingContext = isBehindPace
+    ? `Behind expected pace by $${absPacingDelta.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : isAheadOfPace
+      ? `Ahead of expected pace by $${absPacingDelta.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+      : 'Within $1 of expected spend-to-date';
 
   const budgetPerDay = monthlySpend.daysRemaining > 0 ? monthlySpend.remainingBudget / monthlySpend.daysRemaining : 0;
   const budgetPerWeek = budgetPerDay * 7;
@@ -905,7 +944,12 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             {/* Budget Progress Card */}
             <div style={{ padding: 20, background: statusBg, borderRadius: 12, border: `2px solid ${statusColor}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>{statusText}</span>
+                <div>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>{statusText}</span>
+                  <div style={{ marginTop: 2, fontSize: 12, color: statusColor, fontWeight: 600 }}>
+                    {pacingContext}
+                  </div>
+                </div>
                 <span style={{ fontSize: 24, fontWeight: 700, color: statusColor }}>{percentUsed.toFixed(0)}%</span>
               </div>
               
@@ -939,7 +983,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                 <span>${monthlySpend.maxBudget.toLocaleString()}</span>
               </div>
               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, textAlign: 'center' }}>
-                Vertical line shows where you should be on track
+                Vertical line shows expected spend-to-date: ${expectedSpendToDate.toLocaleString(undefined, { maximumFractionDigits: 0 })} ({onTrackPercent.toFixed(0)}% of month). Actual is {Math.abs(pacingPercentDelta).toFixed(0)}% {spendPacingDelta < 0 ? 'behind' : spendPacingDelta > 0 ? 'ahead of' : 'on'} pace.
               </div>
               
               {/* Budget Stats */}
@@ -948,10 +992,22 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                   <div style={{ fontSize: 20, fontWeight: 700, color: statusColor }}>
                     ${monthlySpend.totalSpend.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>Spent</div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>Actual spend</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: '#64748b' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#1e293b' }}>
+                    ${expectedSpendToDate.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>Target spend to date</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: statusColor }}>
+                    {spendPacingDelta < 0 ? '-' : '+'}${absPacingDelta.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>Pacing difference</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#64748b' }}>
                     ${monthlySpend.remainingBudget.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </div>
                   <div style={{ fontSize: 11, color: '#64748b' }}>Remaining</div>
@@ -1190,12 +1246,13 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
 
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
           {/* Table Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '36px 2.2fr 0.7fr 0.8fr 0.8fr 0.7fr 0.6fr 0.8fr', gap: 8, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '36px 2.2fr 0.7fr 0.8fr 0.8fr 0.9fr 0.7fr 0.6fr 0.8fr', gap: 8, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
             <div></div>
             <div>Campaign</div>
             <div style={{ textAlign: 'right' }}>% Split</div>
             <div style={{ textAlign: 'right' }}>MTD Spend</div>
             <div style={{ textAlign: 'right' }}>New Daily</div>
+            <div style={{ textAlign: 'right' }} title="Recommended daily budget from last month's conversions, CPA and spend. Advisory only — click to apply, then push.">Recommended</div>
             <div style={{ textAlign: 'right' }}>Avg CPC</div>
             <div style={{ textAlign: 'right' }}>Conv.</div>
             <div style={{ textAlign: 'right' }}>Cost / Conv</div>
@@ -1240,7 +1297,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               return (
                 <div key={campaign.campaignId} style={{ borderBottom: index < filtered.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                   <div
-                    style={{ display: 'grid', gridTemplateColumns: '36px 2.2fr 0.7fr 0.8fr 0.8fr 0.7fr 0.6fr 0.8fr', gap: 8, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
+                    style={{ display: 'grid', gridTemplateColumns: '36px 2.2fr 0.7fr 0.8fr 0.8fr 0.9fr 0.7fr 0.6fr 0.8fr', gap: 8, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
                     onClick={() => {
                       const next = isExpanded ? null : campaign.campaignId;
                       setExpandedCampaign(next);
@@ -1339,6 +1396,27 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                     {/* New Daily Budget */}
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontWeight: 700, color: '#059669', fontSize: 14 }}>${campaign.calculatedDailyBudget.toFixed(2)}</span>
+                    </div>
+
+                    {/* Recommended (advisory; click to apply into the % split) */}
+                    <div style={{ textAlign: 'right' }}>
+                      {typeof campaign.recommendedDailyBudget === 'number' ? (
+                        <span
+                          onClick={(e) => { e.stopPropagation(); applyRecommendation(campaign); }}
+                          title={
+                            `Recommended $${campaign.recommendedDailyBudget.toFixed(2)}/day based on last month` +
+                            (campaign.recommendationGeneratedAt
+                              ? ` (generated ${new Date(campaign.recommendationGeneratedAt).toLocaleDateString()})`
+                              : '') +
+                            '. Click to apply into the % split — still requires Push to send to Google Ads.'
+                          }
+                          style={{ fontSize: 13, fontWeight: 600, color: '#7c3aed', cursor: 'pointer', textDecoration: 'underline dotted' }}
+                        >
+                          ${campaign.recommendedDailyBudget.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: '#cbd5e1' }} title="No recommendation yet. Generated monthly from last month's performance.">—</span>
+                      )}
                     </div>
 
                     {/* Avg CPC */}
@@ -1474,17 +1552,19 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                             )}
                             {!loadingAg && !errorAg && rows && rows.length > 0 && (
                               <div style={{ border: '1px solid #f1f5f9', borderRadius: 6, overflow: 'hidden' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.8fr 0.8fr 0.8fr 0.8fr', gap: 8, padding: '8px 12px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', fontSize: 11, fontWeight: 600, color: '#64748b' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 0.75fr 0.75fr 0.7fr 0.65fr 0.7fr 0.85fr', gap: 8, padding: '8px 12px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', fontSize: 11, fontWeight: 600, color: '#64748b' }}>
                                   <div>Ad Group</div>
                                   <div style={{ textAlign: 'right' }}>MTD Spend</div>
                                   <div style={{ textAlign: 'right' }}>Impr.</div>
                                   <div style={{ textAlign: 'right' }}>Clicks</div>
                                   <div style={{ textAlign: 'right' }}>Conv.</div>
+                                  <div style={{ textAlign: 'right' }} title="Search Impression Share">Search IS</div>
+                                  <div style={{ textAlign: 'right' }} title="Search impressions lost due to budget">Lost to Budget</div>
                                 </div>
                                 {rows.map((ag, agIdx) => (
                                   <div
                                     key={ag.adGroupId}
-                                    style={{ display: 'grid', gridTemplateColumns: '2.4fr 0.8fr 0.8fr 0.8fr 0.8fr', gap: 8, padding: '8px 12px', alignItems: 'center', borderBottom: agIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: 12 }}
+                                    style={{ display: 'grid', gridTemplateColumns: '2.2fr 0.75fr 0.75fr 0.7fr 0.65fr 0.7fr 0.85fr', gap: 8, padding: '8px 12px', alignItems: 'center', borderBottom: agIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: 12 }}
                                   >
                                     <div style={{ minWidth: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                       <span style={{ wordBreak: 'break-word' }}>{ag.adGroupName}</span>
@@ -1517,6 +1597,12 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                                     <div style={{ textAlign: 'right', color: '#64748b' }}>{(ag.impressions || 0).toLocaleString()}</div>
                                     <div style={{ textAlign: 'right', color: '#64748b' }}>{(ag.clicks || 0).toLocaleString()}</div>
                                     <div style={{ textAlign: 'right', color: '#6366f1', fontWeight: 500 }}>{(ag.conversions || 0).toLocaleString()}</div>
+                                    <div style={{ textAlign: 'right', color: '#64748b' }}>
+                                      {typeof ag.searchImpressionShare === 'number' ? `${(ag.searchImpressionShare * 100).toFixed(0)}%` : '—'}
+                                    </div>
+                                    <div style={{ textAlign: 'right', color: typeof ag.searchBudgetLostIS === 'number' && ag.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD ? '#b45309' : '#64748b', fontWeight: typeof ag.searchBudgetLostIS === 'number' && ag.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD ? 600 : 400 }}>
+                                      {typeof ag.searchBudgetLostIS === 'number' ? `${(ag.searchBudgetLostIS * 100).toFixed(0)}%` : '—'}
+                                    </div>
                                   </div>
                                 ))}
                               </div>

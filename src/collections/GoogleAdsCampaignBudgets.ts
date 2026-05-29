@@ -161,6 +161,34 @@ export const GoogleAdsCampaignBudgets: CollectionConfig = {
         description: "What triggered the last push (e.g. 'manual', 'cron-monthly-reset', 'cron-mid-month', 'agent'). Used by the Optimate agent to deduplicate work.",
       },
     },
+    // Monthly recommendation (advisory only — set by the monthly cron from
+    // last month's performance; never auto-applied or auto-pushed).
+    {
+      name: "recommendedDailyBudget",
+      type: "number",
+      admin: {
+        readOnly: true,
+        description:
+          "Recommended daily budget from last month's CPA / conversions / spend. Advisory — apply manually then push.",
+      },
+    },
+    {
+      name: "recommendationGeneratedAt",
+      type: "date",
+      admin: {
+        readOnly: true,
+        description: "When the monthly recommendation was generated",
+      },
+    },
+    {
+      name: "recommendationBasis",
+      type: "json",
+      admin: {
+        readOnly: true,
+        description:
+          "Last-month inputs used for the recommendation (conversions, spend, cpa, score).",
+      },
+    },
     // Bid strategy
     {
       name: "bidStrategy",

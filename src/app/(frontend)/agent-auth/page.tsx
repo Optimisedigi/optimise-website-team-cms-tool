@@ -25,11 +25,15 @@ interface ProviderStatus {
   lastFailure: { timestamp: string; message: string } | null;
 }
 
+const wrapStyle = {
+  minHeight: "100vh",
+  background: "#f4f6fa",
+};
 const baseStyle = {
   fontFamily: "system-ui, -apple-system, sans-serif",
   maxWidth: 720,
-  margin: "40px auto",
-  padding: "0 20px",
+  margin: "0 auto",
+  padding: "40px 20px",
   color: "#222",
 };
 const cardStyle = {
@@ -211,6 +215,7 @@ export default function AgentAuthPage() {
   }
 
   return (
+    <div style={wrapStyle}>
     <div style={baseStyle}>
       <h1 style={{ margin: "0 0 4px" }}>Optimate agent auth</h1>
       <p style={{ color: "#666", marginTop: 0 }}>
@@ -419,6 +424,7 @@ export default function AgentAuthPage() {
           </pre>
         )}
       </div>
+    </div>
     </div>
   );
 }

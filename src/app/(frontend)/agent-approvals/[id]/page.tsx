@@ -17,11 +17,16 @@ export const dynamic = "force-dynamic";
 const CMS_BLUE = "#0b5394";
 const CMS_GOLD = "#f2b705";
 
+const WRAP_STYLE: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#f4f6fa",
+};
+
 const PAGE_STYLE: React.CSSProperties = {
   fontFamily: "var(--font-body, system-ui, -apple-system, sans-serif)",
   maxWidth: 1220,
-  margin: "24px auto",
-  padding: "0 24px 40px",
+  margin: "0 auto",
+  padding: "24px 24px 40px",
   color: "var(--theme-elevation-900, #111827)",
 };
 
@@ -215,6 +220,7 @@ export default async function ApprovalReviewPage({
   const reviewer = renderReviewer(doc.reviewedBy);
 
   return (
+    <div style={WRAP_STYLE}>
     <div style={PAGE_STYLE}>
       <div style={{ marginBottom: 12 }}>
         <a href="/agent-approvals" style={{ fontSize: 12, color: CMS_BLUE, textDecoration: "none", fontWeight: 700 }}>
@@ -226,62 +232,54 @@ export default async function ApprovalReviewPage({
           background: `linear-gradient(135deg, ${CMS_BLUE}, #083763)`,
           color: "#fff",
           borderRadius: 16,
-          padding: 22,
-          marginBottom: 16,
+          padding: 18,
+          marginBottom: 12,
           boxShadow: "0 14px 40px rgba(11, 83, 148, 0.22)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: 16,
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) auto",
+          alignItems: "start",
+          gap: 14,
         }}
       >
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={{ color: CMS_GOLD, fontSize: 12, fontWeight: 700, letterSpacing: 0.7, textTransform: "uppercase" }}>
             Agent approval review
           </div>
-          <h1 style={{ fontSize: 28, margin: "4px 0 6px" }}>{doc.title}</h1>
+          <h1 style={{ fontSize: 24, margin: "4px 0 6px", lineHeight: 1.15 }}>{doc.title}</h1>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
             <code>{doc.agentName}</code> &middot; <code>{doc.proposalType}</code> &middot; created {new Date(doc.createdAt).toLocaleString()}
           </div>
+          {(doc.applyError || !isAdmin(user) || doc.status === "approved") && (
+            <div style={{ marginTop: 8, fontSize: 11, color: "rgba(255,255,255,0.78)", lineHeight: 1.4 }}>
+              {!isAdmin(user) && <div>You can review and reject this proposal. Approving or applying requires an admin role.</div>}
+              {doc.status === "approved" && <div>Apply marks the proposal as applied after the operator runs the change manually.</div>}
+              {doc.applyError && <div style={{ color: "#fecaca" }}><strong>Apply error:</strong> {doc.applyError}</div>}
+            </div>
+          )}
         </div>
-        <span
-          style={{
-            background: sc.bg,
-            color: sc.fg,
-            padding: "4px 12px",
-            borderRadius: 4,
-            fontSize: 12,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: 0.5,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {doc.status}
-        </span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
+          <span
+            style={{
+              background: sc.bg,
+              color: sc.fg,
+              padding: "4px 12px",
+              borderRadius: 4,
+              fontSize: 12,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {doc.status}
+          </span>
+          <div style={{ background: "rgba(255,255,255,0.98)", borderRadius: 10, padding: 8, minWidth: 320 }}>
+            <ApprovalActions approvalId={doc.id} status={doc.status} canApproveOrApply={isAdmin(user)} />
+          </div>
+        </div>
       </div>
 
-      <div style={{ ...CARD, padding: 12 }}>
-        <ApprovalActions approvalId={doc.id} status={doc.status} canApproveOrApply={isAdmin(user)} />
-        {!isAdmin(user) && (
-          <p style={{ marginTop: 8, fontSize: 11, color: "#6b7280" }}>
-            You can review and reject this proposal. Approving or applying requires an admin role.
-          </p>
-        )}
-        {doc.status === "approved" && (
-          <p style={{ marginTop: 8, fontSize: 11, color: "#6b7280" }}>
-            Apply marks the proposal as applied (operator runs the change manually via the existing
-            flow). A future phase will wire automatic apply per proposalType.
-          </p>
-        )}
-        {doc.applyError && (
-          <p style={{ marginTop: 8, fontSize: 12, color: "#991b1b" }}>
-            <strong>Apply error:</strong> {doc.applyError}
-          </p>
-        )}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, alignItems: "flex-start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: 14, alignItems: "flex-start" }}>
         <div>
           <div style={CARD}>
             <h2 style={{ fontSize: 13, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, color: CMS_BLUE }}>
@@ -332,13 +330,13 @@ export default async function ApprovalReviewPage({
               style={{
                 background: "#071d33",
                 color: "#e2e8f0",
-                padding: 12,
+                padding: 10,
                 borderRadius: 10,
-                fontSize: 11,
-                lineHeight: 1.5,
+                fontSize: 10,
+                lineHeight: 1.35,
                 margin: 0,
                 overflow: "auto",
-                maxHeight: 480,
+                maxHeight: 360,
                 fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
               }}
             >
@@ -347,6 +345,7 @@ export default async function ApprovalReviewPage({
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

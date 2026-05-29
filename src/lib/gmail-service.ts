@@ -126,8 +126,10 @@ function buildMimeMessage(args: {
   to: string;
   subject: string;
   htmlBody: string;
+  /** RFC 822 Message-ID of the message being replied to, for threading. */
+  inReplyTo?: string;
 }): string {
-  const { to, subject, htmlBody } = args;
+  const { to, subject, htmlBody, inReplyTo } = args;
   // Encode subject as RFC 2047 if it contains non-ASCII to keep Gmail happy.
   const isAscii = /^[\x20-\x7E]*$/.test(subject);
   const encodedSubject = isAscii
@@ -140,9 +142,13 @@ function buildMimeMessage(args: {
     "MIME-Version: 1.0",
     'Content-Type: text/html; charset="UTF-8"',
     "Content-Transfer-Encoding: 7bit",
-    "",
-    htmlBody,
   ];
+  // In-thread replies: setting In-Reply-To / References lets Gmail group the
+  // draft into the original conversation alongside threadId on the message.
+  if (inReplyTo) {
+    lines.push(`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`);
+  }
+  lines.push("", htmlBody);
   const raw = lines.join("\r\n");
   // Gmail wants base64url (URL-safe, no padding).
   return Buffer.from(raw, "utf-8")
@@ -158,18 +164,31 @@ function buildMimeMessage(args: {
  */
 export async function createGmailDraft(
   accessToken: string,
-  args: { to: string; subject: string; htmlBody: string },
+  args: {
+    to: string;
+    subject: string;
+    htmlBody: string;
+    /** Gmail thread id to attach the draft to (in-thread reply). */
+    threadId?: string;
+    /** RFC 822 Message-ID of the message being replied to. */
+    inReplyTo?: string;
+  },
 ): Promise<{ draftId: string; messageId: string }> {
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({ access_token: accessToken });
 
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-  const raw = buildMimeMessage(args);
+  const raw = buildMimeMessage({
+    to: args.to,
+    subject: args.subject,
+    htmlBody: args.htmlBody,
+    inReplyTo: args.inReplyTo,
+  });
 
   const res = await gmail.users.drafts.create({
     userId: "me",
     requestBody: {
-      message: { raw },
+      message: args.threadId ? { raw, threadId: args.threadId } : { raw },
     },
   });
 

@@ -77,6 +77,10 @@ export const Notifications: CollectionConfig = {
           label: "Goal run escalation",
           value: "goal-run-escalation",
         },
+        {
+          label: "Monthly Google Ads budget review",
+          value: "google-ads-budget-review",
+        },
       ],
     },
     {

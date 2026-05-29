@@ -22,6 +22,9 @@ export interface GmailSearchResult {
 
 export interface GmailMessageBody {
   messageId: string;
+  threadId: string;
+  /** RFC 822 Message-ID header, used as In-Reply-To when drafting a reply. */
+  rfcMessageId: string;
   subject: string;
   from: string;
   to: string;
@@ -181,6 +184,8 @@ export async function fetchMessageBody(
 
   return {
     messageId: msg.id ?? messageId,
+    threadId: msg.threadId ?? "",
+    rfcMessageId: getHeader(headers, "Message-ID"),
     subject: getHeader(headers, "Subject"),
     from: getHeader(headers, "From"),
     to: getHeader(headers, "To"),
