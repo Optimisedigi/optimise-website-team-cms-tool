@@ -53,7 +53,7 @@ export interface CodexRequestBody {
   store: false;
   /** The endpoint streams SSE; the adapter assembles it to a single response. */
   stream: true;
-  instructions: string | undefined;
+  instructions: string;
   input: CodexInputItem[];
   tool_choice: "auto";
   parallel_tool_calls: true;
@@ -164,7 +164,14 @@ export function toCodex(
     store: false,
     stream: true,
     // gg-framework: the caller's system prompt IS the instructions string.
-    instructions: opts.system,
+    // The Codex Responses endpoint REQUIRES a non-empty instructions field
+    // (it 400s with {"detail":"Instructions are required"} otherwise), so fall
+    // back to a minimal instruction when the caller didn't supply a system
+    // prompt (e.g. the auth probe).
+    instructions:
+      opts.system && opts.system.trim().length > 0
+        ? opts.system
+        : "You are a helpful assistant.",
     input,
     tool_choice: "auto",
     parallel_tool_calls: true,
