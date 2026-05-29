@@ -268,14 +268,14 @@
   flex-direction: column;
 }
 
-// Reorder nav groups: Performance → Clients → Growth Tools → Content → Finance → Costs Overview → Integrations → Settings → Admin
+// Reorder nav groups: Performance → Clients → Growth Tools → Content → Finance → Integrations → Agent → Settings → Admin
 #nav-group-Performance          { order: 1; }
 #nav-group-Clients              { order: 2; }
 [id="nav-group-Growth Tools"]   { order: 3; }
 #nav-group-Content              { order: 4; }
 #nav-group-Finance              { order: 5; }
-[id="nav-group-Costs Overview"] { order: 6; }
-#nav-group-Integrations         { order: 7; }
+#nav-group-Integrations         { order: 6; }
+#nav-group-Agent                { order: 7; }
 #nav-group-Settings             { order: 8; }
 #nav-group-Admin                { order: 9; }
 .nav .nav__controls    { order: 99; }

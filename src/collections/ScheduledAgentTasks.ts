@@ -19,7 +19,7 @@ export const ScheduledAgentTasks: CollectionConfig = {
     plural: "Scheduled Agent Tasks",
   },
   admin: {
-    group: "Admin",
+    group: "Agent",
     useAsTitle: "title",
     defaultColumns: [
       "title",

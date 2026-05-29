@@ -5,7 +5,7 @@ export const BusinessCosts: CollectionConfig = {
   slug: "business-costs",
   labels: { singular: "Costs Overview", plural: "Costs Overview" },
   admin: {
-    group: "Costs Overview",
+    group: "Finance",
     defaultColumns: ["date", "description", "amount", "category", "source"],
     components: {
       views: {

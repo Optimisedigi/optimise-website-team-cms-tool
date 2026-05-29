@@ -42,8 +42,8 @@ describe("BusinessCosts Collection", () => {
     expect(BusinessCosts.slug).toBe("business-costs");
   });
 
-  it("should be in Costs Overview admin group", () => {
-    expect(BusinessCosts.admin?.group).toBe("Costs Overview");
+  it("should be in Finance admin group", () => {
+    expect(BusinessCosts.admin?.group).toBe("Finance");
   });
 
   it("should have required date field", () => {
