@@ -1,8 +1,6 @@
 'use client'
 
-import OptiMateMultiChat, {
-  type OptiMateChatTarget,
-} from '@/components/OptiMateMultiChat'
+import OptiMateMultiChat, { type OptiMateChatTarget } from '@/components/OptiMateMultiChat'
 
 interface Props {
   targets: OptiMateChatTarget[]
@@ -91,6 +89,7 @@ export default function OptimatePopoutClient({ targets }: Props) {
           flex: 1,
           minHeight: 0,
           padding: 14,
+          paddingTop: 18,
           display: 'flex',
           flexDirection: 'column',
         }}

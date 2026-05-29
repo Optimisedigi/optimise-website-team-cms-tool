@@ -135,10 +135,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   // Don't render the floating launcher on the standalone popout window
   // (otherwise we'd get a recursive pill-in-window UI). The popout page
   // renders the chat directly, no launcher needed.
-  if (
-    typeof window !== 'undefined' &&
-    window.location.pathname.startsWith('/optimate-popout')
-  ) {
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/optimate-popout')) {
     return <>{children}</>
   }
 
@@ -180,8 +177,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
     if (!filter.trim()) return true
     const q = filter.trim().toLowerCase()
     return (
-      (a.businessName ?? '').toLowerCase().includes(q) ||
-      a.customerId.toLowerCase().includes(q)
+      (a.businessName ?? '').toLowerCase().includes(q) || a.customerId.toLowerCase().includes(q)
     )
   })
 
@@ -197,7 +193,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             setOpen(true)
             pomo.requestNotificationPermission()
           }}
-          title={pendingCount > 0 ? `Open OptiMate (${pendingCount} pending approval${pendingCount === 1 ? '' : 's'})` : 'Open OptiMate'}
+          title={
+            pendingCount > 0
+              ? `Open OptiMate (${pendingCount} pending approval${pendingCount === 1 ? '' : 's'})`
+              : 'Open OptiMate'
+          }
           style={{
             position: 'fixed',
             bottom: PILL_BOTTOM,
@@ -248,13 +248,21 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
-                window.open('/admin/agent-approvals?status=pending', '_blank', 'noopener,noreferrer')
+                window.open(
+                  '/admin/agent-approvals?status=pending',
+                  '_blank',
+                  'noopener,noreferrer',
+                )
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
                   e.stopPropagation()
-                  window.open('/admin/agent-approvals?status=pending', '_blank', 'noopener,noreferrer')
+                  window.open(
+                    '/admin/agent-approvals?status=pending',
+                    '_blank',
+                    'noopener,noreferrer',
+                  )
                 }
               }}
               title={`${pendingCount} pending — open queue`}
@@ -318,7 +326,17 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               height={24}
               style={{ borderRadius: '50%', display: 'block' }}
             />
-            <div style={{ fontWeight: 600, fontSize: 13, flex: 1, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <div
+              style={{
+                fontWeight: 600,
+                fontSize: 13,
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flexWrap: 'wrap',
+              }}
+            >
               <span>{step === 'pomodoro' ? 'Pomodoro' : 'OptiMate'}</span>
               {pomo.pillLabel && (
                 <span
@@ -459,7 +477,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     `&sessionIds=${encodeURIComponent(sessionIds)}`
                   const features = [
                     'popup=yes',
-                    'width=520',
+                    'width=680',
                     'height=720',
                     'menubar=no',
                     'toolbar=no',
@@ -482,7 +500,16 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   lineHeight: 1,
                 }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
                 </svg>
               </button>
@@ -501,10 +528,22 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 display: 'flex',
                 alignItems: 'center',
                 lineHeight: 1,
-                animation: pomo.running || pomo.tracking ? 'optimate-pulse 1.6s ease-in-out infinite' : undefined,
+                animation:
+                  pomo.running || pomo.tracking
+                    ? 'optimate-pulse 1.6s ease-in-out infinite'
+                    : undefined,
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
@@ -535,13 +574,9 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               flex: 1,
               padding: step === 'pomodoro' ? 0 : 14,
               overflowY:
-                step === 'chat' || step === 'invoice-chat' || step === 'gmail'
-                  ? 'hidden'
-                  : 'auto',
+                step === 'chat' || step === 'invoice-chat' || step === 'gmail' ? 'hidden' : 'auto',
               display:
-                step === 'chat' || step === 'invoice-chat' || step === 'gmail'
-                  ? 'flex'
-                  : 'block',
+                step === 'chat' || step === 'invoice-chat' || step === 'gmail' ? 'flex' : 'block',
               flexDirection: 'column',
               minHeight: 0,
             }}
@@ -665,8 +700,14 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   >
                     {/* Gmail envelope mark */}
                     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-                      <path fill="#4285F4" d="M2 6.5A1.5 1.5 0 0 1 3.5 5H4l8 6 8-6h.5A1.5 1.5 0 0 1 22 6.5V18a1.5 1.5 0 0 1-1.5 1.5h-2V9.2l-6.5 4.9L5.5 9.2v10.3h-2A1.5 1.5 0 0 1 2 18V6.5Z" />
-                      <path fill="#EA4335" d="M2 6.5 12 14l10-7.5V6.5A1.5 1.5 0 0 0 20.5 5h-17A1.5 1.5 0 0 0 2 6.5Z" />
+                      <path
+                        fill="#4285F4"
+                        d="M2 6.5A1.5 1.5 0 0 1 3.5 5H4l8 6 8-6h.5A1.5 1.5 0 0 1 22 6.5V18a1.5 1.5 0 0 1-1.5 1.5h-2V9.2l-6.5 4.9L5.5 9.2v10.3h-2A1.5 1.5 0 0 1 2 18V6.5Z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M2 6.5 12 14l10-7.5V6.5A1.5 1.5 0 0 0 20.5 5h-17A1.5 1.5 0 0 0 2 6.5Z"
+                      />
                     </svg>
                   </button>
                   <button
@@ -724,9 +765,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 {auditsLoading && (
                   <p style={{ fontSize: 12, color: '#6b7280' }}>Loading accounts…</p>
                 )}
-                {auditsError && (
-                  <p style={{ fontSize: 12, color: '#dc2626' }}>{auditsError}</p>
-                )}
+                {auditsError && <p style={{ fontSize: 12, color: '#dc2626' }}>{auditsError}</p>}
                 {!auditsLoading && !auditsError && filteredAudits.length === 0 && (
                   <p style={{ fontSize: 12, color: '#6b7280' }}>
                     No accounts with a Customer ID found.
@@ -771,7 +810,14 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                           style={{ margin: 0, pointerEvents: 'none' }}
                         />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {opt.businessName || 'Untitled audit'}
                           </div>
                           <div style={{ fontSize: 11, color: '#6b7280' }}>{opt.customerId}</div>
@@ -838,11 +884,13 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               <OptiMateMultiChat
                 ref={multiChatRef}
                 key={selectedAudits.map((a) => String(a.id)).join('|')}
-                targets={selectedAudits.map((a): OptiMateChatTarget => ({
-                  id: a.id,
-                  customerId: a.customerId,
-                  businessName: a.businessName,
-                }))}
+                targets={selectedAudits.map(
+                  (a): OptiMateChatTarget => ({
+                    id: a.id,
+                    customerId: a.customerId,
+                    businessName: a.businessName,
+                  }),
+                )}
                 compact
               />
             )}
