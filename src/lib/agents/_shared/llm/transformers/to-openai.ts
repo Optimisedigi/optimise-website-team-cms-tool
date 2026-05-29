@@ -47,6 +47,16 @@ export interface OpenAIRequestBody {
   }>;
 }
 
+/**
+ * OpenAI's reasoning / GPT-5-class models reject any `temperature` other than
+ * the default of 1 ("invalid temperature: only 1 is allowed for this model").
+ * For these we must omit the field entirely rather than send our usual value.
+ * Matches gpt-5* (incl. gpt-5.5) and the o-series (o1/o3/o4...).
+ */
+function modelOnlyAllowsDefaultTemperature(providerModel: string): boolean {
+  return /^(gpt-5|o\d)/i.test(providerModel);
+}
+
 export function toOpenAI(opts: CallLLMOptions, providerModel: string): OpenAIRequestBody {
   const messages: OpenAIMessage[] = [];
   if (opts.system) messages.push({ role: "system", content: opts.system });
@@ -127,7 +137,13 @@ export function toOpenAI(opts: CallLLMOptions, providerModel: string): OpenAIReq
     max_tokens: opts.maxTokens ?? 4096,
     messages,
   };
-  if (opts.temperature !== undefined) body.temperature = opts.temperature;
+  // Only send temperature when the model actually accepts a non-default value.
+  if (
+    opts.temperature !== undefined &&
+    !modelOnlyAllowsDefaultTemperature(providerModel)
+  ) {
+    body.temperature = opts.temperature;
+  }
   if (opts.tools && opts.tools.length > 0) {
     body.tools = opts.tools.map((t) => ({
       type: "function" as const,

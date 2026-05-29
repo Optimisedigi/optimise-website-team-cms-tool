@@ -3582,6 +3582,14 @@ export async function runMigrations(
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`);
+
+    // ── google_ads_campaign_budgets monthly recommendation fields (2026-06-08) ──
+    // Advisory recommended daily budgets set by the monthly recommendation cron.
+    // Mirrors src/migrations/20260608_120000_add_budget_recommendation_fields.ts —
+    // this inline sweep is what production /api/migrate actually executes.
+    await run("gacb.recommended_daily_budget", "ALTER TABLE `google_ads_campaign_budgets` ADD `recommended_daily_budget` numeric");
+    await run("gacb.recommendation_generated_at", "ALTER TABLE `google_ads_campaign_budgets` ADD `recommendation_generated_at` text");
+    await run("gacb.recommendation_basis", "ALTER TABLE `google_ads_campaign_budgets` ADD `recommendation_basis` text");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
