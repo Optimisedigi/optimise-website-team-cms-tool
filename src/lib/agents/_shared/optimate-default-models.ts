@@ -26,6 +26,8 @@ import {
 export interface OptiMateDefaultModels {
   defaultChatModel: CanonicalModelName;
   defaultAutonomousModel: CanonicalModelName;
+  /** Optional task-specific model for Blog Prompter AI Suggest. */
+  blogPrompterModel?: CanonicalModelName;
 }
 
 /** True if the model is canonical AND still offered in the chat picker. */
@@ -50,7 +52,15 @@ export async function getOptiMateDefaultModels(
     const global = (await payload.findGlobal({
       slug: "optimate-settings",
       overrideAccess: true,
-    })) as { defaultChatModel?: unknown; defaultAutonomousModel?: unknown } | null;
+    })) as {
+      defaultChatModel?: unknown;
+      defaultAutonomousModel?: unknown;
+      blogPrompterModel?: unknown;
+    } | null;
+
+    const blogPrompterModel = isUsablePickerModel(global?.blogPrompterModel)
+      ? global.blogPrompterModel
+      : undefined;
 
     return {
       defaultChatModel: isUsablePickerModel(global?.defaultChatModel)
@@ -59,6 +69,7 @@ export async function getOptiMateDefaultModels(
       defaultAutonomousModel: isUsablePickerModel(global?.defaultAutonomousModel)
         ? global.defaultAutonomousModel
         : DEFAULT_AUTONOMOUS_MODEL,
+      ...(blogPrompterModel ? { blogPrompterModel } : {}),
     };
   } catch (err) {
     console.warn(

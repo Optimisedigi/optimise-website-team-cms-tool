@@ -149,52 +149,69 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "Blog idea is too long" }, { status: 413 });
     }
 
-    const { defaultAutonomousModel } = await getOptiMateDefaultModels(payload);
+    const { defaultAutonomousModel, blogPrompterModel } = await getOptiMateDefaultModels(payload);
 
-    const response = await callLLM({
-      model: defaultAutonomousModel,
-      fallbackModels: DEFAULT_AUTONOMOUS_FALLBACKS,
-      // Generous budget: the autonomous defaults (kimi-k2.6, minimax-m2.7) are
-      // thinking models that spend tokens on a reasoning pass BEFORE emitting
-      // the visible JSON. At 1500 they routinely exhausted the budget mid-
-      // reasoning and returned empty content, surfacing as "AI returned an
-      // unexpected format". 6000 leaves room for reasoning + the JSON answer.
-      maxTokens: 6000,
-      temperature: 0.7,
-      system: buildSystemPrompt(),
-      messages: [
-        { role: "user", content: [{ type: "text", text: buildUserMessage(body) }] },
-      ],
-    });
+    const runSuggestion = async (model: typeof defaultAutonomousModel, useFallbackChain: boolean) => {
+      const response = await callLLM({
+        model,
+        ...(useFallbackChain ? { fallbackModels: DEFAULT_AUTONOMOUS_FALLBACKS } : {}),
+        // Generous budget: the autonomous defaults (kimi-k2.6, minimax-m2.7) are
+        // thinking models that spend tokens on a reasoning pass BEFORE emitting
+        // the visible JSON. At 1500 they routinely exhausted the budget mid-
+        // reasoning and returned empty content, surfacing as "AI returned an
+        // unexpected format". 6000 leaves room for reasoning + the JSON answer.
+        maxTokens: 6000,
+        temperature: 0.7,
+        system: buildSystemPrompt(),
+        messages: [
+          { role: "user", content: [{ type: "text", text: buildUserMessage(body) }] },
+        ],
+      });
 
-    const text = response.message.content
-      .map((p) => (p.type === "text" ? p.text : ""))
-      .join("")
-      .trim();
+      const text = response.message.content
+        .map((p) => (p.type === "text" ? p.text : ""))
+        .join("")
+        .trim();
 
-    let suggestion: Suggestion;
-    try {
-      suggestion = normaliseSuggestion(
-        extractJsonFromReply(text, response.message.reasoningContent),
-      );
-    } catch (err) {
-      console.error(
-        "[blog-prompts/suggest] parse error:",
-        (err as Error).message,
-        "stopReason=",
-        response.stopReason,
-        "visibleLen=",
-        text.length,
-        "preview=",
-        text.slice(0, 300),
-      );
-      return NextResponse.json(
-        { error: "The AI returned an unexpected format. Please try again." },
-        { status: 502 },
-      );
+      try {
+        return {
+          suggestion: normaliseSuggestion(
+            extractJsonFromReply(text, response.message.reasoningContent),
+          ),
+          model: response.model,
+        };
+      } catch (err) {
+        console.error(
+          "[blog-prompts/suggest] parse error:",
+          (err as Error).message,
+          "model=",
+          response.model,
+          "stopReason=",
+          response.stopReason,
+          "visibleLen=",
+          text.length,
+          "preview=",
+          text.slice(0, 300),
+        );
+        throw new Error(`Model ${response.model} returned an unexpected format.`);
+      }
+    };
+
+    let result: Awaited<ReturnType<typeof runSuggestion>>;
+    let warning: string | undefined;
+    if (blogPrompterModel && blogPrompterModel !== defaultAutonomousModel) {
+      try {
+        result = await runSuggestion(blogPrompterModel, false);
+      } catch (err) {
+        warning = `Blog Prompter AI model ${blogPrompterModel} failed (${(err as Error).message}); fell back to autonomous default ${defaultAutonomousModel}.`;
+        console.warn("[blog-prompts/suggest]", warning);
+        result = await runSuggestion(defaultAutonomousModel, true);
+      }
+    } else {
+      result = await runSuggestion(defaultAutonomousModel, true);
     }
 
-    return NextResponse.json({ ok: true, suggestion, model: response.model });
+    return NextResponse.json({ ok: true, ...result, warning });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Suggestion failed";
     console.error("[blog-prompts/suggest] error:", message);

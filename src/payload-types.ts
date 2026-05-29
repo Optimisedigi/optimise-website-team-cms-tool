@@ -10095,7 +10095,7 @@ export interface EmailTemplate {
   createdAt?: string | null;
 }
 /**
- * Timezone and scheduling for automated cron jobs. Times are evaluated in the agency's timezone, including DST.
+ * Timezone and scheduled automation jobs for the whole CMS. Times are evaluated in the agency timezone, including DST.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "cron-settings".
@@ -10155,6 +10155,24 @@ export interface OptimateSetting {
     | 'gpt-5.5-codex-medium'
     | 'gpt-5.5-codex-low'
     | 'claude-sonnet-4.5';
+  /**
+   * Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Non-thinking models (GPT-4.1 / GPT-4o) are best for strict JSON tasks if OpenAI is connected.
+   */
+  blogPrompterModel?:
+    | (
+        | 'claude-sonnet-4.6'
+        | 'claude-opus-4.7'
+        | 'claude-haiku-4.5'
+        | 'kimi-k2.6'
+        | 'minimax-m2.7'
+        | 'gpt-5.5'
+        | 'gpt-4.1'
+        | 'gpt-4o'
+        | 'gpt-5.5-codex-medium'
+        | 'gpt-5.5-codex-low'
+        | 'claude-sonnet-4.5'
+      )
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -10332,6 +10350,7 @@ export interface CronSettingsSelect<T extends boolean = true> {
 export interface OptimateSettingsSelect<T extends boolean = true> {
   defaultChatModel?: T;
   defaultAutonomousModel?: T;
+  blogPrompterModel?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

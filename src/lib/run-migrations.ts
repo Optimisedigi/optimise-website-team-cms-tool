@@ -3588,6 +3588,12 @@ export async function runMigrations(
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`);
+    // Optional task-specific model used by Blog Prompter AI Suggest.
+    // Nullable by design: blank means "use the autonomous default".
+    await run(
+      "optimate_settings.blog_prompter_model",
+      "ALTER TABLE `optimate_settings` ADD `blog_prompter_model` text",
+    );
 
     // ── google_ads_campaign_budgets monthly recommendation fields (2026-06-08) ──
     // Advisory recommended daily budgets set by the monthly recommendation cron.

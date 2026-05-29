@@ -260,6 +260,7 @@ const BlogPrompterPage = () => {
     }
     setSuggesting(true)
     setSuggestMsg('')
+    let keepMessageLonger = false
     try {
       const res = await fetch('/api/blog-prompts/suggest', {
         method: 'POST',
@@ -294,12 +295,18 @@ const BlogPrompterPage = () => {
         }
         return next
       })
-      setSuggestMsg('Recommendations added to empty fields.')
+      const warning = typeof data.warning === 'string' ? data.warning : ''
+      keepMessageLonger = warning.length > 0
+      setSuggestMsg(
+        warning
+          ? `Recommendations added using fallback. ${warning}`
+          : 'Recommendations added to empty fields.',
+      )
     } catch {
       setSuggestMsg('AI suggestion failed.')
     } finally {
       setSuggesting(false)
-      setTimeout(() => setSuggestMsg(''), 4000)
+      setTimeout(() => setSuggestMsg(''), keepMessageLonger ? 10000 : 4000)
     }
   }
 

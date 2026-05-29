@@ -25,8 +25,22 @@ import {
  * Options are sourced from CHAT_PICKER_MODELS so this dropdown always matches
  * the models the chat UI offers (including the new gpt-5.5-codex-* entries).
  */
+const MODEL_REASONING_LABELS: Record<string, "thinking" | "non-thinking" | "light thinking"> = {
+  "claude-sonnet-4.6": "thinking",
+  "claude-sonnet-4.5": "thinking",
+  "claude-opus-4.7": "thinking",
+  "claude-haiku-4.5": "light thinking",
+  "kimi-k2.6": "thinking",
+  "minimax-m2.7": "thinking",
+  "gpt-5.5": "thinking",
+  "gpt-4.1": "non-thinking",
+  "gpt-4o": "non-thinking",
+  "gpt-5.5-codex-medium": "thinking",
+  "gpt-5.5-codex-low": "thinking",
+};
+
 const MODEL_OPTIONS = CHAT_PICKER_MODELS.map((m) => ({
-  label: m.label,
+  label: `${m.label} — ${MODEL_REASONING_LABELS[m.canonical] ?? "thinking"}`,
   value: m.canonical,
 }));
 
@@ -70,6 +84,16 @@ export const OptiMateSettings: GlobalConfig = {
       admin: {
         description:
           "Model used for unattended runs (scheduled tasks, cron) where no human picks a model.",
+      },
+    },
+    {
+      name: "blogPrompterModel",
+      type: "select",
+      options: MODEL_OPTIONS,
+      label: "Blog Prompter AI model",
+      admin: {
+        description:
+          "Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Non-thinking models (GPT-4.1 / GPT-4o) are best for strict JSON tasks if OpenAI is connected.",
       },
     },
   ],

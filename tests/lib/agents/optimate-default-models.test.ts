@@ -43,10 +43,12 @@ describe("getOptiMateDefaultModels", () => {
     nextGlobal = {
       defaultChatModel: "gpt-5.5-codex-medium",
       defaultAutonomousModel: "minimax-m2.7",
+      blogPrompterModel: "gpt-4o",
     };
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe("gpt-5.5-codex-medium");
     expect(result.defaultAutonomousModel).toBe("minimax-m2.7");
+    expect(result.blogPrompterModel).toBe("gpt-4o");
   });
 
   it("falls back to registry defaults when the global is unset", async () => {
@@ -54,16 +56,19 @@ describe("getOptiMateDefaultModels", () => {
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe(DEFAULT_CHAT_MODEL);
     expect(result.defaultAutonomousModel).toBe(DEFAULT_AUTONOMOUS_MODEL);
+    expect(result.blogPrompterModel).toBeUndefined();
   });
 
   it("falls back when a stored value is not a canonical/picker model", async () => {
     nextGlobal = {
       defaultChatModel: "totally-made-up-model",
       defaultAutonomousModel: "",
+      blogPrompterModel: "not-real",
     };
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe(DEFAULT_CHAT_MODEL);
     expect(result.defaultAutonomousModel).toBe(DEFAULT_AUTONOMOUS_MODEL);
+    expect(result.blogPrompterModel).toBeUndefined();
   });
 
   it("falls back (and does not throw) when findGlobal errors", async () => {
