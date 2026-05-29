@@ -149,10 +149,6 @@ const SidebarNavExtras = () => {
       '/admin/collections/google-ads-audits',
       '/admin/collections/contractors',
       '/admin/collections/contractor-payments',
-      // The agent-approval-queue collection's auto-generated link duplicates the
-      // custom /admin/agent-approvals review page injected below. Hide the raw
-      // collection link so only the purpose-built review UI shows under Agent.
-      '/admin/collections/agent-approval-queue',
     ]
     const hideAutoCollectionLinks = () => {
       for (const href of HIDDEN_COLLECTION_HREFS) {

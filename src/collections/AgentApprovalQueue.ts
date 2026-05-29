@@ -19,6 +19,11 @@ export const AgentApprovalQueue: CollectionConfig = {
   },
   admin: {
     group: "Agent",
+    // Hidden from the nav/dashboard: the custom /admin/agent-approvals review
+    // page is the front door for this queue. Records stay reachable by URL
+    // (the custom page links into individual rows). Without this the auto
+    // collection link rendered a second "Agent Approvals" entry under Agent.
+    hidden: true,
     useAsTitle: "title",
     defaultColumns: ["agentName", "proposalType", "client", "status", "createdAt"],
     listSearchableFields: ["agentName", "proposalType", "title"],
