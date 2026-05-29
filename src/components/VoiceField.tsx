@@ -40,6 +40,11 @@ interface VoiceFieldProps {
   disabled?: boolean
   className?: string
   onRecordingComplete?: () => void
+  /**
+   * When true, renders a textarea that grows to fit its content (no inner
+   * scrollbar) instead of a fixed single line. Implies multiline behaviour.
+   */
+  autoGrow?: boolean
 }
 
 type RecordingState = 'idle' | 'recording' | 'processing'
@@ -53,7 +58,9 @@ export default function VoiceField({
   disabled = false,
   className = '',
   onRecordingComplete,
+  autoGrow = false,
 }: VoiceFieldProps) {
+  const autoGrowRef = useRef<HTMLTextAreaElement | null>(null)
   const [recordingState, setRecordingState] = useState<RecordingState>('idle')
   const [showSuccess, setShowSuccess] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
@@ -341,6 +348,15 @@ export default function VoiceField({
     }
   }
 
+  // Grow the auto-grow textarea to fit its content whenever the value changes.
+  useEffect(() => {
+    if (!autoGrow) return
+    const el = autoGrowRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [autoGrow, value])
+
   const canRecord = isSupported || hasFallback
 
   const getMicIconClass = () => {
@@ -363,7 +379,17 @@ export default function VoiceField({
       )}
       
       <div className="voice-field-input-wrapper">
-        {multiline ? (
+        {autoGrow ? (
+          <textarea
+            ref={autoGrowRef}
+            className="voice-field-input voice-field-textarea voice-field-autogrow"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            disabled={disabled}
+            rows={1}
+          />
+        ) : multiline ? (
           <textarea
             className="voice-field-input voice-field-textarea"
             value={value}

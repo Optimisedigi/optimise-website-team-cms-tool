@@ -43,6 +43,7 @@ import { default as default_c48582730ce567b18023caac0e161ded } from '../../../co
 import { default as default_27f33631b35cbfcb8b72da4ae6fd1e41 } from '../../../components/match-type-violations/MatchTypeMonitorToggle'
 import { default as default_522f40213ad4b7c13dfb4e9b8621e85b } from '../../../components/RunPerformanceReportButton'
 import { default as default_b0745460f96744dbbe5a3465bced6bcf } from '../../../components/ClientBlogPostsList'
+import { default as default_ClientTopicMap } from '../../../components/ClientTopicMap'
 import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
 import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
@@ -196,6 +197,7 @@ export const importMap = {
   "./components/match-type-violations/MatchTypeMonitorToggle#default": default_27f33631b35cbfcb8b72da4ae6fd1e41,
   "./components/RunPerformanceReportButton#default": default_522f40213ad4b7c13dfb4e9b8621e85b,
   "./components/ClientBlogPostsList#default": default_b0745460f96744dbbe5a3465bced6bcf,
+  "./components/ClientTopicMap#default": default_ClientTopicMap,
   "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
   "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,

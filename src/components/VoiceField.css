@@ -62,6 +62,13 @@
   min-height: 100px;
 }
 
+/* Auto-grow: no inner scroll, height driven by JS to fit content */
+.voice-field-autogrow {
+  resize: none;
+  min-height: 0;
+  overflow-y: hidden;
+}
+
 .interim-text {
   position: absolute;
   top: 0;

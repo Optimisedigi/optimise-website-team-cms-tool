@@ -220,6 +220,8 @@ const BlogPrompterPage = () => {
   const selectedBriefRef = useRef<HTMLDivElement>(null)
   const [deletingId, setDeletingId] = useState<string | number | null>(null)
   const [showProposed, setShowProposed] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestMsg, setSuggestMsg] = useState('')
 
   const selectedClient = clients.find((c) => String(c.id) === selectedClientId) ?? null
   const clientCategories = selectedClient ? parseLines(selectedClient.blogCategories) : []
@@ -246,6 +248,59 @@ const BlogPrompterPage = () => {
 
   const handleGenerate = () => {
     setPrompt(buildPrompt(fields, selectedClient?.name, selectedClient?.servicePages))
+  }
+
+  // AI-populate every field except client and category, based on the Blog Idea.
+  // Only fills fields that are currently empty so manual edits are never lost.
+  const handleSuggest = async () => {
+    if (!fields.blogIdea.trim()) {
+      setSuggestMsg('Enter a blog idea first.')
+      setTimeout(() => setSuggestMsg(''), 3000)
+      return
+    }
+    setSuggesting(true)
+    setSuggestMsg('')
+    try {
+      const res = await fetch('/api/blog-prompts/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blogIdea: fields.blogIdea,
+          clientName: selectedClient?.name,
+          servicePages: selectedClient?.servicePages,
+          existingTags: clientTags,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.suggestion) {
+        setSuggestMsg(data.error || 'AI suggestion failed.')
+        return
+      }
+      const s = data.suggestion as Partial<BriefFields>
+      // Never overwrite client or category. Only fill empty fields.
+      setFields((prev) => {
+        const next = { ...prev }
+        const fillable: (keyof BriefFields)[] = [
+          'titleIdea', 'tag', 'mainPoint', 'keyPoints', 'primaryKeywords',
+          'secondaryKeywords', 'pointsToAvoid', 'targetAudience', 'supportingContent',
+        ]
+        for (const key of fillable) {
+          const suggested = (s[key] || '').trim()
+          if (!suggested) continue
+          if (next[key]?.trim()) continue
+          // Only accept a suggested tag if it matches the client's tag list (when one exists).
+          if (key === 'tag' && clientTags.length > 0 && !clientTags.includes(suggested)) continue
+          next[key] = suggested
+        }
+        return next
+      })
+      setSuggestMsg('Recommendations added to empty fields.')
+    } catch {
+      setSuggestMsg('AI suggestion failed.')
+    } finally {
+      setSuggesting(false)
+      setTimeout(() => setSuggestMsg(''), 4000)
+    }
   }
 
   const handleSave = async () => {
@@ -347,15 +402,46 @@ const BlogPrompterPage = () => {
             </Field>
           </div>
 
+          {/* Blog Idea — full width, auto-growing, with AI Suggest button */}
+          <div style={{ marginBottom: 16 }}>
+            <Field label="Blog Idea *" hint="Required">
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <VoiceField
+                    value={fields.blogIdea}
+                    onChange={(v) => setFields((prev) => ({ ...prev, blogIdea: v }))}
+                    placeholder="e.g. Why page speed matters for local SEO"
+                    autoGrow
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSuggest}
+                  disabled={suggesting}
+                  title="Let AI recommend the rest of the brief from your blog idea"
+                  style={{
+                    ...btnStyle,
+                    background: '#7c3aed',
+                    color: '#fff',
+                    borderColor: '#7c3aed',
+                    whiteSpace: 'nowrap',
+                    opacity: suggesting ? 0.7 : 1,
+                    cursor: suggesting ? 'wait' : 'pointer',
+                  }}
+                >
+                  {suggesting ? 'Thinking…' : '\u2728 AI Suggest'}
+                </button>
+              </div>
+            </Field>
+            {suggestMsg && (
+              <span style={{ fontSize: 12, marginTop: 6, display: 'inline-block', color: suggestMsg.toLowerCase().includes('fail') || suggestMsg.toLowerCase().includes('first') ? '#ef4444' : '#22c55e', fontWeight: 500 }}>
+                {suggestMsg}
+              </span>
+            )}
+          </div>
+
           {/* 2-column grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px' }}>
-            <Field label="Blog Idea *" hint="Required">
-              <VoiceField
-                value={fields.blogIdea}
-                onChange={(v) => setFields((prev) => ({ ...prev, blogIdea: v }))}
-                placeholder="e.g. Why page speed matters for local SEO"
-              />
-            </Field>
             <Field label="Title Idea">
               <VoiceField
                 value={fields.titleIdea}

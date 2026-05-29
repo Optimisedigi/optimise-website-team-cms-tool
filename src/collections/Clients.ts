@@ -2640,6 +2640,15 @@ export const Clients: CollectionConfig = {
                 },
               },
             },
+            {
+              name: "clientTopicMap",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ClientTopicMap",
+                },
+              },
+            },
           ],
         },
         {
