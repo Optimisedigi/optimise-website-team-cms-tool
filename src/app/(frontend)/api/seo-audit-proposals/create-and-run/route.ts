@@ -123,6 +123,29 @@ export async function POST(req: NextRequest) {
       const created = await payload.create({ collection: "seo-audit-proposals", data: data as any, overrideAccess: true });
       recordId = created.id;
     }
+
+    // Keep the visible relationship field on the source document in sync so the
+    // run appears immediately on the Client/Client Proposal tab in admin.
+    if (proposalId != null) {
+      await payload.update({
+        collection: "client-proposals",
+        id: proposalId,
+        data: { seoAuditProposal: recordId } as any,
+        overrideAccess: true,
+      });
+    } else if (clientId != null) {
+      const client: any = await payload.findByID({ collection: "clients", id: clientId, overrideAccess: true });
+      const existingLinks = Array.isArray(client.seoAuditProposals) ? client.seoAuditProposals : [];
+      const nextLinks = [recordId, ...existingLinks]
+        .map((item) => (typeof item === "object" && item ? item.id : item))
+        .filter((item, index, arr) => item != null && arr.indexOf(item) === index);
+      await payload.update({
+        collection: "clients",
+        id: clientId,
+        data: { seoAuditProposals: nextLinks } as any,
+        overrideAccess: true,
+      });
+    }
   } catch (err: any) {
     return NextResponse.json({ error: "Failed to create SEO Audit Proposal record", detail: err?.message }, { status: 500 });
   }

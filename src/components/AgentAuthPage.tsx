@@ -216,7 +216,7 @@ export default function AgentAuthPage() {
       <h1 style={{ margin: "0 0 4px" }}>Optimate agent auth</h1>
       <p style={{ color: "#666", marginTop: 0 }}>
         Per-provider credential status for the agent fleet. Claude uses Anthropic OAuth/API keys; Kimi and MiniMax use API keys.
-        GPT-5.5 can run either on an OPENAI_API_KEY (the <code>gpt-5.5</code> model) or, free, on a ChatGPT subscription via Codex OAuth (the <code>gpt-5.5-codex-*</code> models) — connect that below.
+        GPT-5.5 is exposed through the ChatGPT subscription Codex OAuth path (the <code>gpt-5.5-codex-*</code> models) — connect that below.
       </p>
 
       {message && (
@@ -228,7 +228,7 @@ export default function AgentAuthPage() {
       <div style={{ ...cardStyle, background: "#fffbeb", borderColor: "#fde68a" }}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>GPT / OpenAI auth</h2>
         <p style={{ margin: 0, fontSize: 13, color: "#92400e", lineHeight: 1.5 }}>
-          Two paths for GPT-5.5. Billed: set <code>OPENAI_API_KEY</code> and use the <code>gpt-5.5</code> model. Free via subscription: connect a ChatGPT plan with Codex OAuth (card below) and use the <code>gpt-5.5-codex-medium</code> / <code>gpt-5.5-codex-low</code> models. The Codex path reuses the Codex CLI OAuth client against a private endpoint — a ToS grey area OpenAI can break at any time — so any failure falls through the normal fallback chain (Kimi → MiniMax → Claude). Kill-switch: set <code>CODEX_OAUTH_DISABLED=1</code> in the environment to disable it fleet-wide instantly.
+          Connect a ChatGPT plan with Codex OAuth (card below) and use the <code>gpt-5.5-codex-medium</code> / <code>gpt-5.5-codex-low</code> models. Plain OpenAI API-key models are hidden because this CMS is not configured with <code>OPENAI_API_KEY</code>. The Codex path reuses the Codex CLI OAuth client against a private endpoint — a ToS grey area OpenAI can break at any time — so any failure falls through the normal fallback chain (Kimi → MiniMax → Claude). Kill-switch: set <code>CODEX_OAUTH_DISABLED=1</code> in the environment to disable it fleet-wide instantly.
         </p>
       </div>
 
@@ -390,12 +390,6 @@ export default function AgentAuthPage() {
           </button>
           <button onClick={() => handleProbe("minimax-m2.7")} style={ghostButtonStyle}>
             Probe MiniMax M2.7 (API key)
-          </button>
-          <button onClick={() => handleProbe("gpt-5.5")} style={ghostButtonStyle}>
-            Probe GPT 5.5 (OpenAI API key)
-          </button>
-          <button onClick={() => handleProbe("gpt-4.1")} style={ghostButtonStyle}>
-            Probe GPT 4.1 (OpenAI API key)
           </button>
           <button onClick={() => handleProbe("gpt-5.5-codex-medium")} style={ghostButtonStyle}>
             Probe GPT-5.5 Codex medium (ChatGPT OAuth)

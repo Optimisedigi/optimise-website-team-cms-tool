@@ -64,6 +64,12 @@ describe("POST /api/seo-audit-proposals/create-and-run", () => {
     expect(res.status).toBe(200);
     expect(json.id).toBe(42);
     expect(mockPayload.create).toHaveBeenCalledOnce();
+    expect(mockPayload.update).toHaveBeenCalledWith({
+      collection: "client-proposals",
+      id: 5,
+      data: { seoAuditProposal: 42 },
+      overrideAccess: true,
+    });
     const createArg = mockPayload.create.mock.calls[0][0];
     expect(createArg.collection).toBe("seo-audit-proposals");
     expect(createArg.data).toMatchObject({
@@ -85,7 +91,7 @@ describe("POST /api/seo-audit-proposals/create-and-run", () => {
       gscSiteUrl: "sc-domain:acme.com",
     });
     mockPayload.find.mockResolvedValueOnce({ docs: [{ id: 99 }] });
-    mockPayload.update.mockResolvedValueOnce({ id: 99 });
+    mockPayload.update.mockResolvedValue({ id: 99 });
 
     const { POST } = await import("@/app/(frontend)/api/seo-audit-proposals/create-and-run/route");
     const res = await POST(makeReq({ proposalId: 5 }));
@@ -93,7 +99,13 @@ describe("POST /api/seo-audit-proposals/create-and-run", () => {
 
     expect(json.id).toBe(99);
     expect(mockPayload.create).not.toHaveBeenCalled();
-    expect(mockPayload.update).toHaveBeenCalledOnce();
+    expect(mockPayload.update).toHaveBeenCalledTimes(2);
+    expect(mockPayload.update).toHaveBeenLastCalledWith({
+      collection: "client-proposals",
+      id: 5,
+      data: { seoAuditProposal: 99 },
+      overrideAccess: true,
+    });
   });
 
   it("pulls brand keywords from a client when run in client mode", async () => {
@@ -108,6 +120,7 @@ describe("POST /api/seo-audit-proposals/create-and-run", () => {
     });
     mockPayload.find.mockResolvedValueOnce({ docs: [] });
     mockPayload.create.mockResolvedValueOnce({ id: 50 });
+    mockPayload.findByID.mockResolvedValueOnce({ id: 7, seoAuditProposals: [] });
 
     const { POST } = await import("@/app/(frontend)/api/seo-audit-proposals/create-and-run/route");
     const res = await POST(makeReq({ clientId: 7 }));
@@ -115,6 +128,12 @@ describe("POST /api/seo-audit-proposals/create-and-run", () => {
 
     expect(res.status).toBe(200);
     expect(json.id).toBe(50);
+    expect(mockPayload.update).toHaveBeenCalledWith({
+      collection: "clients",
+      id: 7,
+      data: { seoAuditProposals: [50] },
+      overrideAccess: true,
+    });
     const createArg = mockPayload.create.mock.calls[0][0];
     expect(createArg.data).toMatchObject({
       client: 7,

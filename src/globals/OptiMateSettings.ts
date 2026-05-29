@@ -23,18 +23,16 @@ import {
  * `src/lib/agents/_shared/optimate-default-models.ts`, the single reader.
  *
  * Options are sourced from CHAT_PICKER_MODELS so this dropdown always matches
- * the models the chat UI offers (including the new gpt-5.5-codex-* entries).
+ * the models the chat UI offers. Plain OpenAI API-key models are deliberately
+ * omitted until OPENAI_API_KEY is configured.
  */
-const MODEL_REASONING_LABELS: Record<string, "thinking" | "non-thinking" | "light thinking"> = {
+const MODEL_REASONING_LABELS: Record<string, "thinking" | "light thinking"> = {
   "claude-sonnet-4.6": "thinking",
   "claude-sonnet-4.5": "thinking",
   "claude-opus-4.7": "thinking",
   "claude-haiku-4.5": "light thinking",
   "kimi-k2.6": "thinking",
   "minimax-m2.7": "thinking",
-  "gpt-5.5": "thinking",
-  "gpt-4.1": "non-thinking",
-  "gpt-4o": "non-thinking",
   "gpt-5.5-codex-medium": "thinking",
   "gpt-5.5-codex-low": "thinking",
 };
@@ -93,7 +91,7 @@ export const OptiMateSettings: GlobalConfig = {
       label: "Blog Prompter AI model",
       admin: {
         description:
-          "Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Non-thinking models (GPT-4.1 / GPT-4o) are best for strict JSON tasks if OpenAI is connected.",
+          "Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
       },
     },
   ],

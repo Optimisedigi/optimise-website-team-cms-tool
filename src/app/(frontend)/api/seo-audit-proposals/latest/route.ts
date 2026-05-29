@@ -29,13 +29,38 @@ export async function GET(req: NextRequest) {
     : { proposal: { equals: Number(proposalId) } };
 
   try {
-    const result = await payload.find({
+    let result = await payload.find({
       collection: "seo-audit-proposals",
       where: where as any,
       sort: "-createdAt",
       limit: 1,
       overrideAccess: true,
     });
+
+    // If a proposal was manually linked on the Client/Client Proposal record before
+    // the reverse relationship was populated, still surface that linked run.
+    if (result.docs.length === 0 && clientId) {
+      const client = await payload.findByID({ collection: "clients", id: Number(clientId), overrideAccess: true });
+      const linked = Array.isArray((client as any).seoAuditProposals)
+        ? (client as any).seoAuditProposals[0]
+        : null;
+      const linkedId = typeof linked === "object" && linked ? linked.id : linked;
+      if (linkedId) {
+        const doc = await payload.findByID({ collection: "seo-audit-proposals", id: linkedId, overrideAccess: true });
+        result = { docs: [doc] } as typeof result;
+      }
+    }
+
+    if (result.docs.length === 0 && proposalId) {
+      const proposal = await payload.findByID({ collection: "client-proposals", id: Number(proposalId), overrideAccess: true });
+      const linked = (proposal as any).seoAuditProposal;
+      const linkedId = typeof linked === "object" && linked ? linked.id : linked;
+      if (linkedId) {
+        const doc = await payload.findByID({ collection: "seo-audit-proposals", id: linkedId, overrideAccess: true });
+        result = { docs: [doc] } as typeof result;
+      }
+    }
+
     const doc = result.docs[0];
     if (!doc) return NextResponse.json({ found: false });
 

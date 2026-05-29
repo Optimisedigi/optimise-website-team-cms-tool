@@ -49,29 +49,32 @@ const ClientSeoProposalActions = () => {
 
   if (!id) return null
   if (loading) return <div style={{ marginBottom: 16, fontSize: 13, color: '#94a3b8' }}>Loading latest SEO Audit Proposal…</div>
-  if (!run || !run.found || run.status !== 'completed') {
+  if (!run || !run.found || !run.id) {
     return (
       <div style={{ marginBottom: 16, fontSize: 13, color: '#94a3b8' }}>
-        No completed SEO Audit Proposal yet — run one above to enable View &amp; Copy Email.
+        No SEO Audit Proposal linked yet. Run one above to create the linked record.
       </div>
     )
   }
 
+  const isCompleted = run.status === 'completed'
   const href = `/seo-audit-proposals/${run.reportSlug || run.id}/v2`
+  const adminHref = `/admin/collections/seo-audit-proposals/${run.id}`
 
   return (
     <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ fontSize: 13, color: '#94a3b8' }}>
+        Latest linked SEO Audit Proposal: <strong>{run.status || 'pending'}</strong>
+      </div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={adminHref}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 8,
             padding: '10px 20px',
-            background: '#22c55e',
+            background: '#334155',
             color: '#fff',
             borderRadius: 8,
             textDecoration: 'none',
@@ -79,13 +82,40 @@ const ClientSeoProposalActions = () => {
             fontSize: 14,
           }}
         >
-          View SEO Audit Proposal &#8599;
+          Open SEO Audit Proposal record
         </a>
+        {isCompleted && (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 20px',
+              background: '#22c55e',
+              color: '#fff',
+              borderRadius: 8,
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
+            View SEO Audit Proposal &#8599;
+          </a>
+        )}
       </div>
-      <CopySeoProposalEmailButton
-        report={run.report ?? null}
-        websiteUrl={run.websiteUrl ?? null}
-      />
+      {isCompleted ? (
+        <CopySeoProposalEmailButton
+          report={run.report ?? null}
+          websiteUrl={run.websiteUrl ?? null}
+        />
+      ) : (
+        <div style={{ fontSize: 13, color: '#94a3b8' }}>
+          View and Copy Email appear after the proposal run completes.
+        </div>
+      )}
     </div>
   )
 }

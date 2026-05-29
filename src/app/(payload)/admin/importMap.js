@@ -42,8 +42,10 @@ import { default as default_d4ebfcd7dcd43ec537c0f248f26cef22 } from '../../../co
 import { default as default_c48582730ce567b18023caac0e161ded } from '../../../components/RunNegativeSweepButton'
 import { default as default_27f33631b35cbfcb8b72da4ae6fd1e41 } from '../../../components/match-type-violations/MatchTypeMonitorToggle'
 import { default as default_522f40213ad4b7c13dfb4e9b8621e85b } from '../../../components/RunPerformanceReportButton'
+import { default as default_ed819b1ecb4aa7a99ab5ada6893b4ec2 } from '../../../components/RunSeoProposalButton'
+import { default as default_9ad3230f60ec6dd4da19d1c01b8cf1ba } from '../../../components/ClientSeoProposalActions'
 import { default as default_b0745460f96744dbbe5a3465bced6bcf } from '../../../components/ClientBlogPostsList'
-import { default as default_ClientTopicMap } from '../../../components/ClientTopicMap'
+import { default as default_c8dab20425f2b2eab04984a9a36002da } from '../../../components/ClientTopicMap'
 import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
 import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
@@ -93,6 +95,8 @@ import { default as default_6c751ab69932cc559e5c82f606fdbdb0 } from '../../../co
 import { default as default_72255986d47c1b790f52db8aabe6d202 } from '../../../components/InternalLinkSuggestionsListView'
 import { default as default_3d6cbb93c24934a6d54420e5106bbab0 } from '../../../components/ViewReportLink'
 import { default as default_5ee4907bc6cc2a02fa1a48dea9e62484 } from '../../../components/DownloadMarkdownButton'
+import { default as default_de1a75fccaf9600fa4b51a4cd773908e } from '../../../components/ViewSeoAuditProposalLink'
+import { default as default_8ec23d6183bad000dc1750353ed54267 } from '../../../components/CopySeoProposalEmailButton'
 import { default as default_96a982169d7094c7232bb687c5c863a6 } from '../../../components/RunGoogleAdsAuditButton'
 import { default as default_47af8c78950b0c47a8049a44d7cef06c } from '../../../components/GoogleAdsAuditPreview'
 import { default as default_9c631d4925e49d9cfb3fb118c0ff4010 } from '../../../components/DownloadAuditDataButton'
@@ -196,8 +200,10 @@ export const importMap = {
   "./components/RunNegativeSweepButton#default": default_c48582730ce567b18023caac0e161ded,
   "./components/match-type-violations/MatchTypeMonitorToggle#default": default_27f33631b35cbfcb8b72da4ae6fd1e41,
   "./components/RunPerformanceReportButton#default": default_522f40213ad4b7c13dfb4e9b8621e85b,
+  "./components/RunSeoProposalButton#default": default_ed819b1ecb4aa7a99ab5ada6893b4ec2,
+  "./components/ClientSeoProposalActions#default": default_9ad3230f60ec6dd4da19d1c01b8cf1ba,
   "./components/ClientBlogPostsList#default": default_b0745460f96744dbbe5a3465bced6bcf,
-  "./components/ClientTopicMap#default": default_ClientTopicMap,
+  "./components/ClientTopicMap#default": default_c8dab20425f2b2eab04984a9a36002da,
   "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
   "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,
@@ -247,6 +253,8 @@ export const importMap = {
   "./components/InternalLinkSuggestionsListView#default": default_72255986d47c1b790f52db8aabe6d202,
   "./components/ViewReportLink#default": default_3d6cbb93c24934a6d54420e5106bbab0,
   "./components/DownloadMarkdownButton#default": default_5ee4907bc6cc2a02fa1a48dea9e62484,
+  "./components/ViewSeoAuditProposalLink#default": default_de1a75fccaf9600fa4b51a4cd773908e,
+  "./components/CopySeoProposalEmailButton#default": default_8ec23d6183bad000dc1750353ed54267,
   "./components/RunGoogleAdsAuditButton#default": default_96a982169d7094c7232bb687c5c863a6,
   "./components/GoogleAdsAuditPreview#default": default_47af8c78950b0c47a8049a44d7cef06c,
   "./components/DownloadAuditDataButton#default": default_9c631d4925e49d9cfb3fb118c0ff4010,

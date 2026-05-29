@@ -10283,9 +10283,6 @@ export interface OptimateSetting {
     | 'claude-haiku-4.5'
     | 'kimi-k2.6'
     | 'minimax-m2.7'
-    | 'gpt-5.5'
-    | 'gpt-4.1'
-    | 'gpt-4o'
     | 'gpt-5.5-codex-medium'
     | 'gpt-5.5-codex-low'
     | 'claude-sonnet-4.5';
@@ -10298,14 +10295,11 @@ export interface OptimateSetting {
     | 'claude-haiku-4.5'
     | 'kimi-k2.6'
     | 'minimax-m2.7'
-    | 'gpt-5.5'
-    | 'gpt-4.1'
-    | 'gpt-4o'
     | 'gpt-5.5-codex-medium'
     | 'gpt-5.5-codex-low'
     | 'claude-sonnet-4.5';
   /**
-   * Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Non-thinking models (GPT-4.1 / GPT-4o) are best for strict JSON tasks if OpenAI is connected.
+   * Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.
    */
   blogPrompterModel?:
     | (
@@ -10314,9 +10308,6 @@ export interface OptimateSetting {
         | 'claude-haiku-4.5'
         | 'kimi-k2.6'
         | 'minimax-m2.7'
-        | 'gpt-5.5'
-        | 'gpt-4.1'
-        | 'gpt-4o'
         | 'gpt-5.5-codex-medium'
         | 'gpt-5.5-codex-low'
         | 'claude-sonnet-4.5'

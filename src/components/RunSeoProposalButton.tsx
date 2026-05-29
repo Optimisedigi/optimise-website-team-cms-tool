@@ -123,10 +123,11 @@ const RunSeoProposalButton = () => {
   // Soft validation hint (full validation happens server-side).
   const websiteUrl = fields?.websiteUrl?.value as string | undefined
   const gscSiteUrl = fields?.gscSiteUrl?.value as string | undefined
+  const clientGscSiteUrl = fields?.gscSiteUrl?.value as string | undefined
   const missing: string[] = []
-  if (collectionSlug === 'seo-audit-proposals' || collectionSlug === 'client-proposals') {
+  if (collectionSlug === 'seo-audit-proposals' || collectionSlug === 'client-proposals' || collectionSlug === 'clients') {
     if (!websiteUrl) missing.push('Website URL')
-    if (!gscSiteUrl) missing.push('GSC Property')
+    if (!(collectionSlug === 'clients' ? clientGscSiteUrl : gscSiteUrl)) missing.push('GSC Property')
   }
 
   return (
