@@ -82,6 +82,7 @@ export interface Config {
     media: Media;
     'internal-link-suggestions': InternalLinkSuggestion;
     'seo-audits': SeoAudit;
+    'seo-audit-proposals': SeoAuditProposal;
     'cro-audits': CroAudit;
     'google-ads-audits': GoogleAdsAudit;
     'tag-setup-audits': TagSetupAudit;
@@ -163,6 +164,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     'internal-link-suggestions': InternalLinkSuggestionsSelect<false> | InternalLinkSuggestionsSelect<true>;
     'seo-audits': SeoAuditsSelect<false> | SeoAuditsSelect<true>;
+    'seo-audit-proposals': SeoAuditProposalsSelect<false> | SeoAuditProposalsSelect<true>;
     'cro-audits': CroAuditsSelect<false> | CroAuditsSelect<true>;
     'google-ads-audits': GoogleAdsAuditsSelect<false> | GoogleAdsAuditsSelect<true>;
     'tag-setup-audits': TagSetupAuditsSelect<false> | TagSetupAuditsSelect<true>;
@@ -1119,6 +1121,14 @@ export interface Client {
       | null;
   };
   /**
+   * Who is presenting (e.g. 'Adam Telhiwec and Peter Tu'). Shown on the closing slide of the SEO Audit Proposal.
+   */
+  presentedBy?: string | null;
+  /**
+   * SEO Audit Proposal runs for this client
+   */
+  seoAuditProposals?: (number | SeoAuditProposal)[] | null;
+  /**
    * Blog categories for this client (one per line). Pre-populates the category dropdown in the Blog Prompter.
    */
   blogCategories?: string | null;
@@ -1893,6 +1903,10 @@ export interface ClientProposal {
       )
     | null;
   /**
+   * Who is presenting (e.g. 'Adam Telhiwec and Peter Tu'). Shown on the closing slide of the SEO Audit Proposal & proposal decks.
+   */
+  presentedBy?: string | null;
+  /**
    * One idea per line — these will appear at the bottom of the report as potential recommendations for the prospect
    */
   suggestions?: string | null;
@@ -2090,6 +2104,10 @@ export interface ClientProposal {
         | '19'
       )[]
     | null;
+  /**
+   * Latest SEO Audit Proposal run for this proposal
+   */
+  seoAuditProposal?: (number | null) | SeoAuditProposal;
   /**
    * Up to 4 mission priorities shown on the v2 'Where to focus our energy' slide (slide 13). Each becomes one card. Leave empty to hide the slide.
    */
@@ -3889,6 +3907,99 @@ export interface AiVisibilitySnapshot {
   createdAt: string;
 }
 /**
+ * Full SEO Audit Proposals — GSC performance, technical, demand, rankings, SEO/CRO, service coverage, location, topic authority, and lead-value ROI.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-audit-proposals".
+ */
+export interface SeoAuditProposal {
+  id: number;
+  /**
+   * Linked client (when run from a client)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Linked client proposal (when run from a proposal)
+   */
+  proposal?: (number | null) | ClientProposal;
+  /**
+   * Auto-generated slug for the public report URL
+   */
+  reportSlug?: string | null;
+  /**
+   * Website analysed
+   */
+  websiteUrl: string;
+  /**
+   * Search Console property — URL (https://x.com/) or domain property (sc-domain:x.com)
+   */
+  gscSiteUrl: string;
+  /**
+   * Business type / industry
+   */
+  businessType?: string | null;
+  /**
+   * Target location (country:city, e.g. au:sydney)
+   */
+  location?: string | null;
+  /**
+   * Brand terms (one per line or comma-separated) for the brand-vs-non-brand split. Pulled from the client when available.
+   */
+  brandKeywords?: string | null;
+  /**
+   * Optional 4-digit PIN to gate the public deck. Leave blank for no gate. Pulled from the client/proposal when available.
+   */
+  proposalPin?: string | null;
+  /**
+   * Who is presenting this proposal (e.g. 'Adam Telhiwec and Peter Tu'). Shown on the closing slide. Pulled from the client/proposal when available.
+   */
+  presentedBy?: string | null;
+  /**
+   * Average order / client value ($) — drives ROI revenue
+   */
+  averageOrderValue?: number | null;
+  /**
+   * Website visitor → lead/sale conversion rate (%). Defaults to 2% if blank.
+   */
+  conversionRate?: number | null;
+  /**
+   * Optional — cost per lead ($) for the equivalent-paid-cost comparison
+   */
+  costPerLead?: number | null;
+  /**
+   * Current run status
+   */
+  status?: ('pending' | 'running' | 'completed' | 'failed') | null;
+  /**
+   * Current stage (e.g. 'Running GSC|20')
+   */
+  progress?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  /**
+   * Error details if the run failed
+   */
+  error?: string | null;
+  /**
+   * One-line verdict (copied from the report for list view)
+   */
+  verdict?: string | null;
+  /**
+   * Full SeoProposalReport JSON returned by the Growth Tools engine
+   */
+  report?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Track leads through the sales funnel by channel
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -4087,6 +4198,7 @@ export interface User {
         | 'media'
         | 'internal-link-suggestions'
         | 'seo-audits'
+        | 'seo-audit-proposals'
         | 'cro-audits'
         | 'google-ads-audits'
         | 'tag-setup-audits'
@@ -4194,6 +4306,7 @@ export interface PermissionProfile {
         | 'media'
         | 'internal-link-suggestions'
         | 'seo-audits'
+        | 'seo-audit-proposals'
         | 'cro-audits'
         | 'google-ads-audits'
         | 'tag-setup-audits'
@@ -7298,6 +7411,10 @@ export interface PayloadLockedDocument {
         value: number | SeoAudit;
       } | null)
     | ({
+        relationTo: 'seo-audit-proposals';
+        value: number | SeoAuditProposal;
+      } | null)
+    | ({
         relationTo: 'cro-audits';
         value: number | CroAudit;
       } | null)
@@ -7823,6 +7940,8 @@ export interface ClientsSelect<T extends boolean = true> {
               id?: T;
             };
       };
+  presentedBy?: T;
+  seoAuditProposals?: T;
   blogCategories?: T;
   blogTags?: T;
   servicePages?: T;
@@ -7914,6 +8033,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
       };
   keywords?: T;
   targetLocation?: T;
+  presentedBy?: T;
   suggestions?: T;
   leadConversionRate?: T;
   leadToSaleConversionRate?: T;
@@ -7974,6 +8094,7 @@ export interface ClientProposalsSelect<T extends boolean = true> {
       };
   latestAiVisibilitySnapshot?: T;
   visibleSlides?: T;
+  seoAuditProposal?: T;
   missionPriorities?:
     | T
     | {
@@ -8578,6 +8699,34 @@ export interface SeoAuditsSelect<T extends boolean = true> {
   proposal?: T;
   visitorIp?: T;
   visitorFingerprint?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-audit-proposals_select".
+ */
+export interface SeoAuditProposalsSelect<T extends boolean = true> {
+  client?: T;
+  proposal?: T;
+  reportSlug?: T;
+  websiteUrl?: T;
+  gscSiteUrl?: T;
+  businessType?: T;
+  location?: T;
+  brandKeywords?: T;
+  proposalPin?: T;
+  presentedBy?: T;
+  averageOrderValue?: T;
+  conversionRate?: T;
+  costPerLead?: T;
+  status?: T;
+  progress?: T;
+  startedAt?: T;
+  completedAt?: T;
+  error?: T;
+  verdict?: T;
+  report?: T;
   updatedAt?: T;
   createdAt?: T;
 }
