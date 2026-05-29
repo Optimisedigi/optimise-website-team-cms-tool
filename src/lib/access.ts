@@ -54,6 +54,7 @@ export const FEATURE_KEYS = [
   { label: "Internal Link Suggestions", value: "internal-link-suggestions" },
   // Audits
   { label: "SEO Audits", value: "seo-audits" },
+  { label: "SEO Audit Proposals", value: "seo-audit-proposals" },
   { label: "CRO Audits", value: "cro-audits" },
   { label: "Google Ads Audits", value: "google-ads-audits" },
   { label: "Tag Setup Audits", value: "tag-setup-audits" },
@@ -116,6 +117,7 @@ export const AUTO_GRANT_CLIENTS_BASIC_TRIGGERS: readonly FeatureSlug[] = [
   "job-posts",
   "internal-link-suggestions",
   "seo-audits",
+  "seo-audit-proposals",
   "cro-audits",
   "google-ads-audits",
   "tag-setup-audits",

@@ -1,0 +1,92 @@
+.sap-wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #0f172a;
+  line-height: 1.5;
+}
+
+.sap-header { margin-bottom: 40px; }
+.sap-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  margin-bottom: 8px;
+}
+.sap-wrap h1 { font-size: 30px; margin: 0 0 12px; }
+.sap-verdict { font-size: 18px; font-weight: 600; color: #1e293b; margin: 0 0 12px; }
+.sap-narrative { font-size: 15px; color: #334155; margin: 0 0 12px; white-space: pre-line; }
+.sap-muted { font-size: 13px; color: #64748b; }
+
+.sap-section { margin-bottom: 40px; }
+.sap-section h2 { font-size: 20px; margin: 0 0 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+.sap-section h3 { font-size: 15px; margin: 24px 0 10px; color: #1e293b; }
+
+.sap-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.sap-metric {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+  background: #f8fafc;
+}
+.sap-metric-value { font-size: 22px; font-weight: 700; }
+.sap-metric-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+.sap-metric-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+.sap-metric-ok { border-color: #bbf7d0; background: #f0fdf4; }
+.sap-metric-ok .sap-metric-value { color: #16a34a; }
+.sap-metric-warn { border-color: #fed7aa; background: #fff7ed; }
+.sap-metric-warn .sap-metric-value { color: #ea580c; }
+
+.sap-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.sap-table th {
+  text-align: left;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 8px 10px;
+  color: #64748b;
+  font-weight: 600;
+}
+.sap-table td { border-bottom: 1px solid #f1f5f9; padding: 8px 10px; }
+.sap-table code { font-size: 12px; word-break: break-all; }
+
+.sap-list { margin: 8px 0; padding-left: 20px; font-size: 14px; }
+.sap-list li { margin-bottom: 6px; }
+.sap-list code { font-size: 12px; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+
+/* Money slide */
+.sap-money h2 { border-color: #1e293b; }
+.sap-band {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 12px 0;
+}
+.sap-band-col {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  background: #f8fafc;
+}
+.sap-band-optimistic { border-color: #bbf7d0; background: #f0fdf4; }
+.sap-band-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-bottom: 8px; }
+.sap-band-clicks { font-size: 18px; font-weight: 700; color: #2563eb; }
+.sap-band-revenue { font-size: 26px; font-weight: 800; color: #16a34a; margin: 6px 0; }
+.sap-band-line { font-size: 13px; color: #475569; }
+.sap-note { font-size: 12px; color: #94a3b8; margin-top: 8px; font-style: italic; }
+
+@media (max-width: 640px) {
+  .sap-band { grid-template-columns: 1fr; }
+}

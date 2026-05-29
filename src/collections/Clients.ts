@@ -2603,6 +2603,49 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "SEO Audit Proposal",
+          description:
+            "Full SEO Audit Proposal for this client — GSC performance, technical, demand, rankings, SEO/CRO, service coverage, location, topic authority, and lead-value ROI. Pulls website, GSC property, brand keywords, AOV and conversion rate from this client record.",
+          fields: [
+            {
+              name: "runSeoProposal",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunSeoProposalButton",
+                },
+              },
+            },
+            {
+              name: "seoProposalActions",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ClientSeoProposalActions",
+                },
+              },
+            },
+            {
+              name: "presentedBy",
+              type: "text",
+              admin: {
+                description:
+                  "Who is presenting (e.g. 'Adam Telhiwec and Peter Tu'). Shown on the closing slide of the SEO Audit Proposal.",
+              },
+            },
+            {
+              name: "seoAuditProposals",
+              type: "relationship",
+              relationTo: "seo-audit-proposals",
+              hasMany: true,
+              admin: {
+                readOnly: true,
+                description: "SEO Audit Proposal runs for this client",
+              },
+            },
+          ],
+        },
+        {
           label: "Blog Settings",
           fields: [
             {

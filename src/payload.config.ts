@@ -15,6 +15,7 @@ import { ClientProposals } from "./collections/ClientProposals";
 import { ClientDiscoveryBriefings } from "./collections/ClientDiscoveryBriefings";
 import { BlogPosts } from "./collections/BlogPosts";
 import { SeoAudits } from "./collections/SeoAudits";
+import { SeoAuditProposals } from "./collections/SeoAuditProposals";
 import { CroAudits } from "./collections/CroAudits";
 import { KeywordSnapshots } from "./collections/KeywordSnapshots";
 import { CompetitorAnalyses } from "./collections/CompetitorAnalyses";
@@ -121,7 +122,7 @@ export default buildConfig({
     // SEO
     InternalLinkSuggestions,
     // Audits
-    SeoAudits, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, NegativeSweepCandidates, NegativeKeywordLists, KeywordDeepDiveSessions, SiteHealthReports,
+    SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, NegativeSweepCandidates, NegativeKeywordLists, KeywordDeepDiveSessions, SiteHealthReports,
     // Reports
     AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Finance

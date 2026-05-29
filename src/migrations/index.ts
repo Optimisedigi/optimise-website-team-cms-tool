@@ -80,6 +80,9 @@ import * as migration_20260606_120000_add_google_ads_starter_email_templates fro
 import * as migration_20260606_130000_add_spend_policy_fields from './20260606_130000_add_spend_policy_fields';
 import * as migration_20260607_120000_add_optimate_settings_global from './20260607_120000_add_optimate_settings_global';
 import * as migration_20260608_120000_add_budget_recommendation_fields from './20260608_120000_add_budget_recommendation_fields';
+import * as migration_20260610_120000_add_seo_audit_proposals from './20260610_120000_add_seo_audit_proposals';
+import * as migration_20260611_120000_add_presented_by_fields from './20260611_120000_add_presented_by_fields';
+import * as migration_20260612_120000_seo_proposal_relationships_and_pin from './20260612_120000_seo_proposal_relationships_and_pin';
 
 export const migrations = [
   {
@@ -491,5 +494,20 @@ export const migrations = [
     up: migration_20260608_120000_add_budget_recommendation_fields.up,
     down: migration_20260608_120000_add_budget_recommendation_fields.down,
     name: '20260608_120000_add_budget_recommendation_fields'
+  },
+  {
+    up: migration_20260610_120000_add_seo_audit_proposals.up,
+    down: migration_20260610_120000_add_seo_audit_proposals.down,
+    name: '20260610_120000_add_seo_audit_proposals'
+  },
+  {
+    up: migration_20260611_120000_add_presented_by_fields.up,
+    down: migration_20260611_120000_add_presented_by_fields.down,
+    name: '20260611_120000_add_presented_by_fields'
+  },
+  {
+    up: migration_20260612_120000_seo_proposal_relationships_and_pin.up,
+    down: migration_20260612_120000_seo_proposal_relationships_and_pin.down,
+    name: '20260612_120000_seo_proposal_relationships_and_pin'
   },
 ];

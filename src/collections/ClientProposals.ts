@@ -1212,6 +1212,14 @@ export const ClientProposals: CollectionConfig = {
               ],
             },
             {
+              name: "presentedBy",
+              type: "text",
+              admin: {
+                description:
+                  "Who is presenting (e.g. 'Adam Telhiwec and Peter Tu'). Shown on the closing slide of the SEO Audit Proposal & proposal decks.",
+              },
+            },
+            {
               name: "suggestions",
               label: "Pre-Audit Growth Suggestions",
               type: "textarea",
@@ -1693,6 +1701,40 @@ export const ClientProposals: CollectionConfig = {
                 { label: "Slide 18: Launch Requirements", value: "18" },
                 { label: "Slide 19: Closing", value: "19" },
               ],
+            },
+          ],
+        },
+        {
+          label: "SEO Audit Proposal",
+          description:
+            "Full SEO Audit Proposal — GSC performance, technical, demand, rankings, SEO/CRO, service coverage, location, topic authority, and lead-value ROI. Uses this proposal's website, GSC property, business type, AOV and conversion rate.",
+          fields: [
+            {
+              name: "runSeoProposal",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/RunSeoProposalButton",
+                },
+              },
+            },
+            {
+              name: "seoProposalActions",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ClientSeoProposalActions",
+                },
+              },
+            },
+            {
+              name: "seoAuditProposal",
+              type: "relationship",
+              relationTo: "seo-audit-proposals",
+              admin: {
+                readOnly: true,
+                description: "Latest SEO Audit Proposal run for this proposal",
+              },
             },
           ],
         },

@@ -86,6 +86,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // SEO Audit Proposal decks: slug is the record's reportSlug. The PIN lives on
+  // the record (proposalPin), having been pulled from the linked client/proposal
+  // when the run was created.
+  const seoProposalResult = await payload.find({
+    collection: "seo-audit-proposals",
+    where: { reportSlug: { equals: slug } },
+    limit: 1,
+    overrideAccess: true,
+    select: { proposalPin: true },
+  });
+  const seoProposal = seoProposalResult.docs[0];
+  if (seoProposal) {
+    const storedPin = (seoProposal as Record<string, unknown>).proposalPin as string | undefined;
+    const result = await checkPinWithLockout(`audit-auth:${slug}`, password, storedPin ?? "");
+    if (result.ok) {
+      return NextResponse.json({ ok: true });
+    }
+    return NextResponse.json({ ok: false, error: result.message }, { status: result.status });
+  }
+
   // Try seo-audits first (legacy audit reports)
   const auditResult = await payload.find({
     collection: "seo-audits",

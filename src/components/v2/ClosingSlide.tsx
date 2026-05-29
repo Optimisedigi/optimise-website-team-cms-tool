@@ -19,10 +19,14 @@ const OD_URL =
 export function ClosingSlide({
   businessName,
   websiteUrl,
+  presentedBy,
 }: {
   businessName: string
   websiteUrl: string | null
+  /** Overrides the default "Presented by" names when provided. */
+  presentedBy?: string | null
 }): ReactElement {
+  const presenters = (presentedBy && presentedBy.trim()) || 'Adam Telhiwec and Peter Tu'
   const clientHref = websiteUrl
     ? websiteUrl.startsWith('http')
       ? websiteUrl
@@ -96,7 +100,7 @@ export function ClosingSlide({
         </div>
         <div className="col">
           <div className="lbl">Presented by</div>
-          <div className="val">Adam Telhiwec and Peter Tu</div>
+          <div className="val">{presenters}</div>
         </div>
         <div className="col">
           <div className="lbl">Next</div>
