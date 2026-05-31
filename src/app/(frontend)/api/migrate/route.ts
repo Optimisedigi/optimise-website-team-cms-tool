@@ -90,12 +90,54 @@ export async function POST(request: NextRequest) {
     /* ignore */
   }
 
+  const diagnostics: Record<string, unknown> = {};
+  const diagnosticTables = [
+    "clients",
+    "clients_client_portal_links",
+    "client_value_ledger_items",
+    "client_value_ledger_items_evidence_links",
+    "quarterly_organic_growth_snapshots",
+    "qogs_categories",
+    "qogs_topic_associations",
+    "qogs_topic_associations_rels",
+    "qogs_work_delivered",
+    "forecast_scenarios",
+    "client_portal_requests",
+  ];
+  for (const tableName of diagnosticTables) {
+    try {
+      const countResult = await client.execute(`SELECT COUNT(*) AS count FROM \`${tableName}\``);
+      diagnostics[`${tableName}Count`] = Number(countResult.rows[0]?.count ?? countResult.rows[0]?.[0] ?? 0);
+    } catch (error) {
+      diagnostics[`${tableName}Error`] = error instanceof Error ? error.message : String(error);
+    }
+  }
+  try {
+    await payload.find({ collection: "clients", limit: 1, depth: 0, overrideAccess: true });
+    diagnostics.payloadClientsFind = "ok";
+  } catch (error) {
+    diagnostics.payloadClientsFind = error instanceof Error ? error.message : String(error);
+  }
+  try {
+    await payload.find({ collection: "client-value-ledger-items", limit: 1, depth: 0, overrideAccess: true });
+    diagnostics.payloadClientValueLedgerItemsFind = "ok";
+  } catch (error) {
+    diagnostics.payloadClientValueLedgerItemsFind = error instanceof Error ? error.message : String(error);
+  }
+  try {
+    await payload.find({ collection: "quarterly-organic-growth-snapshots", limit: 1, depth: 0, overrideAccess: true });
+    diagnostics.payloadQuarterlyOrganicGrowthSnapshotsFind = "ok";
+  } catch (error) {
+    diagnostics.payloadQuarterlyOrganicGrowthSnapshotsFind = error instanceof Error ? error.message : String(error);
+  }
+
   return NextResponse.json({
     ok: true,
     version: "2026-05-17",
     dbReachable,
     migrationsRun: results,
     tables,
+    diagnostics,
   });
 }
 
