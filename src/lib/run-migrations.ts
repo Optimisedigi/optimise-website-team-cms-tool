@@ -1075,6 +1075,26 @@ export async function runMigrations(
     // --- blog_prompts.gap_status column ---
     await run("blog_prompts.gap_status", "ALTER TABLE `blog_prompts` ADD `gap_status` text DEFAULT 'open'");
   
+    // --- Blog Settings global + client blog tone fields ---
+    await run("blog_settings", `CREATE TABLE IF NOT EXISTS \`blog_settings\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`global_blog_rules\` text,
+      \`global_markdown_rules\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    )`);
+    await run("clients.blog_tone", "ALTER TABLE `clients` ADD `blog_tone` text");
+    await run("clients_blog_category_tones", `CREATE TABLE IF NOT EXISTS \`clients_blog_category_tones\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`category\` text,
+      \`tone\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_blog_category_tones_order_idx", "CREATE INDEX IF NOT EXISTS `clients_blog_category_tones_order_idx` ON `clients_blog_category_tones` (`_order`)");
+    await run("clients_blog_category_tones_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_blog_category_tones_parent_id_idx` ON `clients_blog_category_tones` (`_parent_id`)");
+
     // --- clients: OptiMate automation fields ---
     await run("clients.gads_auto_optimate_enabled", "ALTER TABLE `clients` ADD `gads_auto_optimate_enabled` integer DEFAULT 0");
     await run("clients.gads_auto_optimate_mode", "ALTER TABLE `clients` ADD `gads_auto_optimate_mode` text DEFAULT 'review_first'");
@@ -3602,6 +3622,163 @@ export async function runMigrations(
     await run("gacb.recommended_daily_budget", "ALTER TABLE `google_ads_campaign_budgets` ADD `recommended_daily_budget` numeric");
     await run("gacb.recommendation_generated_at", "ALTER TABLE `google_ads_campaign_budgets` ADD `recommendation_generated_at` text");
     await run("gacb.recommendation_basis", "ALTER TABLE `google_ads_campaign_budgets` ADD `recommendation_basis` text");
+
+    // ── Client Growth Hub collections and client portal links (2026-06-14) ──
+    // The public /api/migrate endpoint runs this legacy inline sweep, not Payload's
+    // generated migration index. Keep this block in sync with
+    // src/migrations/20260614_120000_add_client_growth_hub.ts so production gets
+    // the new tables and the Clients admin screen does not query missing columns.
+    await run("forecast_scenarios", `CREATE TABLE IF NOT EXISTS \`forecast_scenarios\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`proposal_id\` integer,
+      \`title\` text NOT NULL,
+      \`status\` text DEFAULT 'draft' NOT NULL,
+      \`scenario_type\` text DEFAULT 'custom' NOT NULL,
+      \`baseline_period_start\` text,
+      \`baseline_period_end\` text,
+      \`assumptions_monthly_ad_spend\` numeric,
+      \`assumptions_target_monthly_ad_spend\` numeric,
+      \`assumptions_current_cpa\` numeric,
+      \`assumptions_target_cpa\` numeric,
+      \`assumptions_conversion_rate\` numeric,
+      \`assumptions_average_order_value\` numeric,
+      \`assumptions_lead_close_rate\` numeric,
+      \`assumptions_average_client_value\` numeric,
+      \`assumptions_organic_click_growth_pct\` numeric,
+      \`assumptions_confidence_level\` numeric,
+      \`outputs\` text,
+      \`published_at\` text,
+      \`notes\` text,
+      \`client_summary\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("client_value_ledger_items", `CREATE TABLE IF NOT EXISTS \`client_value_ledger_items\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`proposal_id\` integer,
+      \`google_ads_audit_id\` integer,
+      \`seo_audit_proposal_id\` integer,
+      \`client_process_id\` integer,
+      \`blog_post_id\` integer,
+      \`agent_approval_id\` integer,
+      \`activity_log_id\` integer,
+      \`occurred_at\` text NOT NULL,
+      \`category\` text NOT NULL,
+      \`title\` text NOT NULL,
+      \`summary\` text NOT NULL,
+      \`impact_type\` text,
+      \`impact_value\` numeric,
+      \`impact_unit\` text,
+      \`confidence\` text DEFAULT 'directional' NOT NULL,
+      \`visibility\` text DEFAULT 'internal' NOT NULL,
+      \`source\` text,
+      \`dedupe_key\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`google_ads_audit_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`seo_audit_proposal_id\`) REFERENCES \`seo_audit_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`client_process_id\`) REFERENCES \`client_processes\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`blog_post_id\`) REFERENCES \`blog_posts\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`agent_approval_id\`) REFERENCES \`agent_approval_queue\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`activity_log_id\`) REFERENCES \`activity_log\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("client_value_ledger_items_evidence_links", `CREATE TABLE IF NOT EXISTS \`client_value_ledger_items_evidence_links\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`label\` text NOT NULL,
+      \`url\` text NOT NULL,
+      \`kind\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_value_ledger_items\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("client_portal_requests", `CREATE TABLE IF NOT EXISTS \`client_portal_requests\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`proposal_id\` integer,
+      \`request_type\` text DEFAULT 'general' NOT NULL,
+      \`title\` text NOT NULL,
+      \`description\` text NOT NULL,
+      \`status\` text DEFAULT 'new' NOT NULL,
+      \`priority\` text DEFAULT 'normal' NOT NULL,
+      \`submitted_by_name\` text,
+      \`submitted_by_email\` text,
+      \`internal_notes\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("client_portal_requests_client_visible_updates", `CREATE TABLE IF NOT EXISTS \`client_portal_requests_client_visible_updates\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`date\` text NOT NULL,
+      \`author_label\` text NOT NULL,
+      \`message\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_portal_requests\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("client_portal_requests_related_links", `CREATE TABLE IF NOT EXISTS \`client_portal_requests_related_links\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`label\` text NOT NULL,
+      \`url\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`client_portal_requests\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("quarterly_organic_growth_snapshots", `CREATE TABLE IF NOT EXISTS \`quarterly_organic_growth_snapshots\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`proposal_id\` integer,
+      \`seo_audit_proposal_id\` integer,
+      \`snapshot_date\` text NOT NULL,
+      \`period_start\` text NOT NULL,
+      \`period_end\` text NOT NULL,
+      \`snapshot_type\` text DEFAULT 'manual' NOT NULL,
+      \`organic_total_clicks\` numeric DEFAULT 0,
+      \`organic_total_impressions\` numeric DEFAULT 0,
+      \`organic_avg_ctr\` numeric DEFAULT 0,
+      \`organic_avg_position\` numeric DEFAULT 0,
+      \`organic_brand_clicks\` numeric DEFAULT 0,
+      \`organic_brand_impressions\` numeric DEFAULT 0,
+      \`organic_brand_ctr\` numeric DEFAULT 0,
+      \`organic_brand_position\` numeric DEFAULT 0,
+      \`organic_non_brand_clicks\` numeric DEFAULT 0,
+      \`organic_non_brand_impressions\` numeric DEFAULT 0,
+      \`organic_non_brand_ctr\` numeric DEFAULT 0,
+      \`organic_non_brand_position\` numeric DEFAULT 0,
+      \`summary\` text,
+      \`wins\` text,
+      \`risks\` text,
+      \`next_focus\` text,
+      \`source_gsc_snapshot_id\` integer,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`seo_audit_proposal_id\`) REFERENCES \`seo_audit_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`source_gsc_snapshot_id\`) REFERENCES \`gsc_snapshots\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("forecast_scenarios_client_idx", "CREATE INDEX IF NOT EXISTS `forecast_scenarios_client_idx` ON `forecast_scenarios` (`client_id`)");
+    await run("forecast_scenarios_proposal_idx", "CREATE INDEX IF NOT EXISTS `forecast_scenarios_proposal_idx` ON `forecast_scenarios` (`proposal_id`)");
+    await run("forecast_scenarios_status_idx", "CREATE INDEX IF NOT EXISTS `forecast_scenarios_status_idx` ON `forecast_scenarios` (`status`)");
+    await run("client_value_ledger_items_client_idx", "CREATE INDEX IF NOT EXISTS `client_value_ledger_items_client_idx` ON `client_value_ledger_items` (`client_id`)");
+    await run("client_value_ledger_items_occurred_at_idx", "CREATE INDEX IF NOT EXISTS `client_value_ledger_items_occurred_at_idx` ON `client_value_ledger_items` (`occurred_at`)");
+    await run("client_value_ledger_items_dedupe_key_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `client_value_ledger_items_dedupe_key_idx` ON `client_value_ledger_items` (`dedupe_key`)");
+    await run("client_portal_requests_client_idx", "CREATE INDEX IF NOT EXISTS `client_portal_requests_client_idx` ON `client_portal_requests` (`client_id`)");
+    await run("client_portal_requests_status_idx", "CREATE INDEX IF NOT EXISTS `client_portal_requests_status_idx` ON `client_portal_requests` (`status`)");
+    await run("quarterly_organic_growth_snapshots_client_idx", "CREATE INDEX IF NOT EXISTS `quarterly_organic_growth_snapshots_client_idx` ON `quarterly_organic_growth_snapshots` (`client_id`)");
+    await run("quarterly_organic_growth_snapshots_snapshot_date_idx", "CREATE INDEX IF NOT EXISTS `quarterly_organic_growth_snapshots_snapshot_date_idx` ON `quarterly_organic_growth_snapshots` (`snapshot_date`)");
+    await run("clients.client_portal_links", "ALTER TABLE `clients` ADD `client_portal_links` text");
+    await run("locked_docs_rels.forecast_scenarios_id", "ALTER TABLE `payload_locked_documents_rels` ADD `forecast_scenarios_id` integer REFERENCES `forecast_scenarios`(`id`) ON DELETE cascade");
+    await run("locked_docs_rels.client_value_ledger_items_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_value_ledger_items_id` integer REFERENCES `client_value_ledger_items`(`id`) ON DELETE cascade");
+    await run("locked_docs_rels.client_portal_requests_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_portal_requests_id` integer REFERENCES `client_portal_requests`(`id`) ON DELETE cascade");
+    await run("locked_docs_rels.quarterly_organic_growth_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `quarterly_organic_growth_snapshots_id` integer REFERENCES `quarterly_organic_growth_snapshots`(`id`) ON DELETE cascade");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
