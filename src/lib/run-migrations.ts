@@ -3847,6 +3847,40 @@ export async function runMigrations(
     await run("locked_docs_rels.client_value_ledger_items_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_value_ledger_items_id` integer REFERENCES `client_value_ledger_items`(`id`) ON DELETE cascade");
     await run("locked_docs_rels.client_portal_requests_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_portal_requests_id` integer REFERENCES `client_portal_requests`(`id`) ON DELETE cascade");
     await run("locked_docs_rels.quarterly_organic_growth_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `quarterly_organic_growth_snapshots_id` integer REFERENCES `quarterly_organic_growth_snapshots`(`id`) ON DELETE cascade");
+
+    // ── SEO Migration Checks (Post-Migration SEO Review tool, 2026-06-15) ──
+    // The collection ships in the Payload config but was only added to the
+    // generated migration file, never to this inline sweep that /api/migrate
+    // runs in production. Result: payload_locked_documents_rels has no
+    // `seo_migration_checks_id` column, so Payload's document-lock query
+    // (run when opening ANY client/edit view) throws `no such column` and the
+    // whole detail page blanks. Keep in sync with
+    // src/migrations/20260615_120000_add_seo_migration_checks.ts.
+    await run("seo_migration_checks", `CREATE TABLE IF NOT EXISTS \`seo_migration_checks\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`title\` text,
+      \`client_id\` integer,
+      \`site_url\` text,
+      \`cutover_date\` text,
+      \`is_domain_move\` integer DEFAULT false,
+      \`status\` text DEFAULT 'pending',
+      \`overall_score\` numeric,
+      \`run_at\` text,
+      \`error\` text,
+      \`scores_by_phase\` text,
+      \`checklist\` text,
+      \`redirects\` text,
+      \`performance\` text,
+      \`actions\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("seo_migration_checks_client_idx", "CREATE INDEX IF NOT EXISTS `seo_migration_checks_client_idx` ON `seo_migration_checks` (`client_id`)");
+    await run("seo_migration_checks_status_idx", "CREATE INDEX IF NOT EXISTS `seo_migration_checks_status_idx` ON `seo_migration_checks` (`status`)");
+    await run("seo_migration_checks_created_at_idx", "CREATE INDEX IF NOT EXISTS `seo_migration_checks_created_at_idx` ON `seo_migration_checks` (`created_at`)");
+    await run("seo_migration_checks_updated_at_idx", "CREATE INDEX IF NOT EXISTS `seo_migration_checks_updated_at_idx` ON `seo_migration_checks` (`updated_at`)");
+    await run("locked_docs_rels.seo_migration_checks_id", "ALTER TABLE `payload_locked_documents_rels` ADD `seo_migration_checks_id` integer REFERENCES `seo_migration_checks`(`id`) ON DELETE cascade");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
