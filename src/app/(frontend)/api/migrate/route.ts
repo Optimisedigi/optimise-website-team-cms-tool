@@ -113,10 +113,39 @@ export async function POST(request: NextRequest) {
     }
   }
   try {
-    await payload.find({ collection: "clients", limit: 1, depth: 0, overrideAccess: true });
+    const clientsResult = await payload.find({ collection: "clients", limit: 1, depth: 0, overrideAccess: true });
     diagnostics.payloadClientsFind = "ok";
+    const firstClientId = clientsResult.docs[0]?.id;
+    diagnostics.firstClientId = firstClientId ?? null;
+    if (firstClientId != null) {
+      try {
+        await payload.findByID({ collection: "clients", id: firstClientId, depth: 0, overrideAccess: true });
+        diagnostics.payloadClientDetailDepth0 = "ok";
+      } catch (error) {
+        diagnostics.payloadClientDetailDepth0 = error instanceof Error ? error.message : String(error);
+      }
+      try {
+        await payload.findByID({ collection: "clients", id: firstClientId, depth: 1, overrideAccess: true });
+        diagnostics.payloadClientDetailDepth1 = "ok";
+      } catch (error) {
+        diagnostics.payloadClientDetailDepth1 = error instanceof Error ? error.message : String(error);
+      }
+    }
   } catch (error) {
     diagnostics.payloadClientsFind = error instanceof Error ? error.message : String(error);
+  }
+  try {
+    const googleAdsClients = await payload.find({
+      collection: "clients",
+      where: { isActive: { not_equals: false } },
+      sort: "name",
+      limit: 500,
+      depth: 0,
+      overrideAccess: true,
+    });
+    diagnostics.googleAdsClientListCount = googleAdsClients.totalDocs;
+  } catch (error) {
+    diagnostics.googleAdsClientList = error instanceof Error ? error.message : String(error);
   }
   try {
     await payload.find({ collection: "client-value-ledger-items", limit: 1, depth: 0, overrideAccess: true });
