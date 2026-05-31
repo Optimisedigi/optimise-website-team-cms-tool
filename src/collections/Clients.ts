@@ -2242,6 +2242,22 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "SEO",
+          description:
+            "Per-client SEO tools. Run a Post-Migration SEO Review (redirects, indexing, soft-404s, performance, Core Web Vitals) and jump to this client's SEO records.",
+          fields: [
+            {
+              name: "clientSeoTab",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/ClientSeoTab",
+                },
+              },
+            },
+          ],
+        },
+        {
           label: "Search",
           description:
             "Consolidated home for search-side configuration — Search Console, SEO Health monitoring, SERP tracking, and AI Visibility. The brand keywords list below is the single source of truth used by every feature in this tab, the Google Ads dashboard's brand-vs-generic split, AI Search Erosion Detector, negative-sweep, and quality score analysis.",
