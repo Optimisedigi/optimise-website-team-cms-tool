@@ -204,13 +204,13 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   `));
 
   await db.run(sql.raw(`
-    CREATE TABLE IF NOT EXISTS \`qogs_topic_associations_rels\` (
+    CREATE TABLE IF NOT EXISTS \`quarterly_organic_growth_snapshots_rels\` (
       \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
       \`order\` integer,
-      \`parent_id\` text NOT NULL,
+      \`parent_id\` integer NOT NULL,
       \`path\` text NOT NULL,
       \`blog_posts_id\` integer,
-      FOREIGN KEY (\`parent_id\`) REFERENCES \`qogs_topic_associations\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`quarterly_organic_growth_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade,
       FOREIGN KEY (\`blog_posts_id\`) REFERENCES \`blog_posts\`(\`id\`) ON UPDATE no action ON DELETE cascade
     );
   `));
@@ -257,10 +257,10 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
     "CREATE INDEX IF NOT EXISTS `qogs_categories_parent_id_idx` ON `qogs_categories` (`_parent_id`)",
     "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_order_idx` ON `qogs_topic_associations` (`_order`)",
     "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_parent_id_idx` ON `qogs_topic_associations` (`_parent_id`)",
-    "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_order_idx` ON `qogs_topic_associations_rels` (`order`)",
-    "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_parent_idx` ON `qogs_topic_associations_rels` (`parent_id`)",
-    "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_path_idx` ON `qogs_topic_associations_rels` (`path`)",
-    "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_blog_posts_idx` ON `qogs_topic_associations_rels` (`blog_posts_id`)",
+    "CREATE INDEX IF NOT EXISTS `quarterly_organic_growth_snapshots_rels_order_idx` ON `quarterly_organic_growth_snapshots_rels` (`order`)",
+    "CREATE INDEX IF NOT EXISTS `quarterly_organic_growth_snapshots_rels_parent_idx` ON `quarterly_organic_growth_snapshots_rels` (`parent_id`)",
+    "CREATE INDEX IF NOT EXISTS `quarterly_organic_growth_snapshots_rels_path_idx` ON `quarterly_organic_growth_snapshots_rels` (`path`)",
+    "CREATE INDEX IF NOT EXISTS `quarterly_organic_growth_snapshots_rels_blog_posts_idx` ON `quarterly_organic_growth_snapshots_rels` (`blog_posts_id`)",
     "CREATE INDEX IF NOT EXISTS `qogs_work_delivered_order_idx` ON `qogs_work_delivered` (`_order`)",
     "CREATE INDEX IF NOT EXISTS `qogs_work_delivered_parent_id_idx` ON `qogs_work_delivered` (`_parent_id`)",
     "CREATE INDEX IF NOT EXISTS `clients_client_portal_links_order_idx` ON `clients_client_portal_links` (`_order`)",

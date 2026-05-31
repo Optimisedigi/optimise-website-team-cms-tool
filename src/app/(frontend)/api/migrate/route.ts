@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     "quarterly_organic_growth_snapshots",
     "qogs_categories",
     "qogs_topic_associations",
-    "qogs_topic_associations_rels",
+    "quarterly_organic_growth_snapshots_rels",
     "qogs_work_delivered",
     "forecast_scenarios",
     "client_portal_requests",
