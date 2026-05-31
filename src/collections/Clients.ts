@@ -257,15 +257,6 @@ export const Clients: CollectionConfig = {
       },
     },
     {
-      name: "_defaultTab",
-      type: "ui",
-      admin: {
-        components: {
-          Field: "./components/ClientDefaultTab",
-        },
-      },
-    },
-    {
       type: "tabs",
       tabs: [
         {
