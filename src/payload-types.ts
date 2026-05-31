@@ -93,6 +93,7 @@ export interface Config {
     'content-researches': ContentResearch;
     'gsc-alerts': GscAlert;
     'gsc-indexing-audits': GscIndexingAudit;
+    'seo-migration-checks': SeoMigrationCheck;
     'negative-sweep-candidates': NegativeSweepCandidate;
     'negative-keyword-lists': NegativeKeywordList;
     'keyword-deep-dive-sessions': KeywordDeepDiveSession;
@@ -179,6 +180,7 @@ export interface Config {
     'content-researches': ContentResearchesSelect<false> | ContentResearchesSelect<true>;
     'gsc-alerts': GscAlertsSelect<false> | GscAlertsSelect<true>;
     'gsc-indexing-audits': GscIndexingAuditsSelect<false> | GscIndexingAuditsSelect<true>;
+    'seo-migration-checks': SeoMigrationChecksSelect<false> | SeoMigrationChecksSelect<true>;
     'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
     'negative-keyword-lists': NegativeKeywordListsSelect<false> | NegativeKeywordListsSelect<true>;
     'keyword-deep-dive-sessions': KeywordDeepDiveSessionsSelect<false> | KeywordDeepDiveSessionsSelect<true>;
@@ -4245,6 +4247,7 @@ export interface User {
         | 'content-researches'
         | 'gsc-alerts'
         | 'gsc-indexing-audits'
+        | 'seo-migration-checks'
         | 'negative-keyword-lists'
         | 'keyword-deep-dive-sessions'
         | 'site-health-reports'
@@ -4262,6 +4265,7 @@ export interface User {
         | 'nav:search-console'
         | 'nav:deployments'
         | 'nav:google-ads'
+        | 'nav:seo'
         | 'nav:integrations'
         | 'nav:indexing-helper'
         | 'sheets-auth'
@@ -4354,6 +4358,7 @@ export interface PermissionProfile {
         | 'content-researches'
         | 'gsc-alerts'
         | 'gsc-indexing-audits'
+        | 'seo-migration-checks'
         | 'negative-keyword-lists'
         | 'keyword-deep-dive-sessions'
         | 'site-health-reports'
@@ -4371,6 +4376,7 @@ export interface PermissionProfile {
         | 'nav:search-console'
         | 'nav:deployments'
         | 'nav:google-ads'
+        | 'nav:seo'
         | 'nav:integrations'
         | 'nav:indexing-helper'
         | 'sheets-auth'
@@ -6049,6 +6055,92 @@ export interface GscIndexingAudit {
    * Inspection results — InspectionResult[]
    */
   inspectionResults?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Best-practice SEO health review after a site migration
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-migration-checks".
+ */
+export interface SeoMigrationCheck {
+  id: number;
+  /**
+   * Auto-generated label (domain + cutover date)
+   */
+  title?: string | null;
+  /**
+   * The client this review belongs to
+   */
+  client: number | Client;
+  /**
+   * GSC property URL reviewed
+   */
+  siteUrl?: string | null;
+  /**
+   * Date the new site went live
+   */
+  cutoverDate: string;
+  /**
+   * Tick for a domain change (Change of Address applies)
+   */
+  isDomainMove?: boolean | null;
+  status?: ('pending' | 'running' | 'completed' | 'failed') | null;
+  /**
+   * 0–100 migration health score
+   */
+  overallScore?: number | null;
+  /**
+   * When the review was run
+   */
+  runAt?: string | null;
+  error?: string | null;
+  scoresByPhase?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  checklist?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  redirects?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  performance?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  actions?:
     | {
         [k: string]: unknown;
       }
@@ -7742,6 +7834,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'gsc-indexing-audits';
         value: number | GscIndexingAudit;
+      } | null)
+    | ({
+        relationTo: 'seo-migration-checks';
+        value: number | SeoMigrationCheck;
       } | null)
     | ({
         relationTo: 'negative-sweep-candidates';
@@ -9478,6 +9574,28 @@ export interface GscIndexingAuditsSelect<T extends boolean = true> {
   urlSources?: T;
   discoveredUrls?: T;
   inspectionResults?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-migration-checks_select".
+ */
+export interface SeoMigrationChecksSelect<T extends boolean = true> {
+  title?: T;
+  client?: T;
+  siteUrl?: T;
+  cutoverDate?: T;
+  isDomainMove?: T;
+  status?: T;
+  overallScore?: T;
+  runAt?: T;
+  error?: T;
+  scoresByPhase?: T;
+  checklist?: T;
+  redirects?: T;
+  performance?: T;
+  actions?: T;
   updatedAt?: T;
   createdAt?: T;
 }

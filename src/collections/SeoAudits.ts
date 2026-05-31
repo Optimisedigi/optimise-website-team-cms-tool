@@ -21,8 +21,8 @@ const autoGenerateSlug: CollectionBeforeChangeHook = ({ data }) => {
 export const SeoAudits: CollectionConfig = {
   slug: "seo-audits",
   labels: {
-    singular: "SEO Audit",
-    plural: "SEO Audits",
+    singular: "SEO Audit Score",
+    plural: "SEO Audit Scores",
   },
   admin: {
     useAsTitle: "websiteUrl",

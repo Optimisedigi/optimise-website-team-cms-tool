@@ -85,6 +85,7 @@ import * as migration_20260611_120000_add_presented_by_fields from './20260611_1
 import * as migration_20260612_120000_seo_proposal_relationships_and_pin from './20260612_120000_seo_proposal_relationships_and_pin';
 import * as migration_20260613_120000_add_blog_settings_and_client_tone from './20260613_120000_add_blog_settings_and_client_tone';
 import * as migration_20260614_120000_add_client_growth_hub from './20260614_120000_add_client_growth_hub';
+import * as migration_20260615_120000_add_seo_migration_checks from './20260615_120000_add_seo_migration_checks';
 
 export const migrations = [
   {
@@ -521,5 +522,10 @@ export const migrations = [
     up: migration_20260614_120000_add_client_growth_hub.up,
     down: migration_20260614_120000_add_client_growth_hub.down,
     name: '20260614_120000_add_client_growth_hub'
+  },
+  {
+    up: migration_20260615_120000_add_seo_migration_checks.up,
+    down: migration_20260615_120000_add_seo_migration_checks.down,
+    name: '20260615_120000_add_seo_migration_checks'
   },
 ];

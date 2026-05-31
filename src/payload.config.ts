@@ -40,6 +40,7 @@ import { GoalRuns } from "./collections/GoalRuns";
 import { GoalRunSnapshots } from "./collections/GoalRunSnapshots";
 import { GoogleAdsSnapshots } from "./collections/GoogleAdsSnapshots";
 import { GscIndexingAudits } from "./collections/GscIndexingAudits";
+import { SeoMigrationChecks } from "./collections/SeoMigrationChecks";
 import { InternalLinkSuggestions } from "./collections/InternalLinkSuggestions";
 import { NegativeSweepCandidates } from "./collections/NegativeSweepCandidates";
 import { MatchTypeViolationCandidates } from "./collections/MatchTypeViolationCandidates";
@@ -127,7 +128,7 @@ export default buildConfig({
     // SEO
     InternalLinkSuggestions,
     // Audits
-    SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, NegativeSweepCandidates, NegativeKeywordLists, KeywordDeepDiveSessions, SiteHealthReports,
+    SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, NegativeKeywordLists, KeywordDeepDiveSessions, SiteHealthReports,
     // Reports
     ForecastScenarios, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Finance

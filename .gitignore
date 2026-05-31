@@ -65,3 +65,4 @@ node_modules/
 
 # Personal drafts / scratch (not deployed)
 /drafts/
+*.sync-conflict-*
