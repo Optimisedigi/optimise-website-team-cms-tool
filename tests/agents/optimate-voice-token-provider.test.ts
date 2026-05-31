@@ -55,11 +55,11 @@ describe('getTokenProvider', () => {
 })
 
 describe('isVoiceEnabled', () => {
-  it('is true when the provider env var is set, false otherwise', () => {
+  it('defaults to true so the local helper voice button stays visible', () => {
     process.env.NEXT_PUBLIC_OPTIMATE_VOICE_PROVIDER = 'local'
     expect(isVoiceEnabled()).toBe(true)
     delete process.env.NEXT_PUBLIC_OPTIMATE_VOICE_PROVIDER
-    expect(isVoiceEnabled()).toBe(false)
+    expect(isVoiceEnabled()).toBe(true)
   })
 })
 

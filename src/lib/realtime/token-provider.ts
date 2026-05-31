@@ -117,6 +117,5 @@ export function getTokenProvider(): TokenProvider {
 
 /** Whether voice is enabled at all (feature flag = provider env var present). */
 export function isVoiceEnabled(): boolean {
-  const selected = process.env.NEXT_PUBLIC_OPTIMATE_VOICE_PROVIDER
-  return typeof selected === 'string' && selected.trim().length > 0
+  return true
 }
