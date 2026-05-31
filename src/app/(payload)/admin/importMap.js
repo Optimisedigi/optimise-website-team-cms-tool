@@ -42,14 +42,12 @@ import { default as default_d4ebfcd7dcd43ec537c0f248f26cef22 } from '../../../co
 import { default as default_c48582730ce567b18023caac0e161ded } from '../../../components/RunNegativeSweepButton'
 import { default as default_27f33631b35cbfcb8b72da4ae6fd1e41 } from '../../../components/match-type-violations/MatchTypeMonitorToggle'
 import { default as default_522f40213ad4b7c13dfb4e9b8621e85b } from '../../../components/RunPerformanceReportButton'
+import { default as default_59b042ea08cb3c0cd1f262318da2751b } from '../../../components/ClientSeoTab'
 import { default as default_ed819b1ecb4aa7a99ab5ada6893b4ec2 } from '../../../components/RunSeoProposalButton'
 import { default as default_9ad3230f60ec6dd4da19d1c01b8cf1ba } from '../../../components/ClientSeoProposalActions'
 import { default as default_b0745460f96744dbbe5a3465bced6bcf } from '../../../components/ClientBlogPostsList'
 import { default as default_c8dab20425f2b2eab04984a9a36002da } from '../../../components/ClientTopicMap'
 import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
-import { default as default_9bd28f22f7cfbf724da4bb3a872d5395 } from '../../../components/ViewClientHubLink'
-import { default as default_26fdecea7e3f7ba99d63ed3f5f1c31d9 } from '../../../components/ClientGrowthHubAdminActions'
-import { default as default_54e56e75482377de586416fa3ca3cce6 } from '../../../components/CreateOrganicSnapshotButton'
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
 import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
@@ -120,8 +118,7 @@ import { default as default_f7cd7bb1cdadc6401b03afe470d6711d } from '../../../co
 import { default as default_214c40d7f773cd5ecb4ad679938f183b } from '../../../components/GoogleAdsChat'
 import { default as default_6d638ae0812e4c3b3793e2cfa8990bb7 } from '../../../components/GscIndexingAuditInfo'
 import { default as default_14da33fa7cd5bda0159f477250995b44 } from '../../../components/GscIndexingAuditResults'
-import { default as default_seomigrationcheckresults01 } from '../../../components/SeoMigrationCheckResults'
-import { default as default_clientseotab0001 } from '../../../components/ClientSeoTab'
+import { default as default_47462fb0551fe403e8e18448c49a5142 } from '../../../components/SeoMigrationCheckResults'
 import { default as default_c99210795b28d20ce793bfa990d64a2d } from '../../../components/NegativeKeywordListInfo'
 import { default as default_782e1e631e6dbac23bb6406c8354b517 } from '../../../components/NegativeKeywordCampaignSelect'
 import { default as default_67cd75f7dc15172a4e21290c38ac2619 } from '../../../components/NegativeKeywordBulkAdd'
@@ -205,14 +202,12 @@ export const importMap = {
   "./components/RunNegativeSweepButton#default": default_c48582730ce567b18023caac0e161ded,
   "./components/match-type-violations/MatchTypeMonitorToggle#default": default_27f33631b35cbfcb8b72da4ae6fd1e41,
   "./components/RunPerformanceReportButton#default": default_522f40213ad4b7c13dfb4e9b8621e85b,
+  "./components/ClientSeoTab#default": default_59b042ea08cb3c0cd1f262318da2751b,
   "./components/RunSeoProposalButton#default": default_ed819b1ecb4aa7a99ab5ada6893b4ec2,
   "./components/ClientSeoProposalActions#default": default_9ad3230f60ec6dd4da19d1c01b8cf1ba,
   "./components/ClientBlogPostsList#default": default_b0745460f96744dbbe5a3465bced6bcf,
   "./components/ClientTopicMap#default": default_c8dab20425f2b2eab04984a9a36002da,
   "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
-  "./components/ViewClientHubLink#default": default_9bd28f22f7cfbf724da4bb3a872d5395,
-  "./components/ClientGrowthHubAdminActions#default": default_26fdecea7e3f7ba99d63ed3f5f1c31d9,
-  "./components/CreateOrganicSnapshotButton#default": default_54e56e75482377de586416fa3ca3cce6,
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
   "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
@@ -283,8 +278,7 @@ export const importMap = {
   "./components/GoogleAdsChat#default": default_214c40d7f773cd5ecb4ad679938f183b,
   "./components/GscIndexingAuditInfo#default": default_6d638ae0812e4c3b3793e2cfa8990bb7,
   "./components/GscIndexingAuditResults#default": default_14da33fa7cd5bda0159f477250995b44,
-  "./components/SeoMigrationCheckResults#default": default_seomigrationcheckresults01,
-  "./components/ClientSeoTab#default": default_clientseotab0001,
+  "./components/SeoMigrationCheckResults#default": default_47462fb0551fe403e8e18448c49a5142,
   "./components/NegativeKeywordListInfo#default": default_c99210795b28d20ce793bfa990d64a2d,
   "./components/NegativeKeywordCampaignSelect#default": default_782e1e631e6dbac23bb6406c8354b517,
   "./components/NegativeKeywordBulkAdd#default": default_67cd75f7dc15172a4e21290c38ac2619,

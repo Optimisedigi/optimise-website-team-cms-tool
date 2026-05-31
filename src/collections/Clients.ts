@@ -2956,33 +2956,6 @@ export const Clients: CollectionConfig = {
           label: "Client Hub",
           fields: [
             {
-              name: "viewClientHub",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/ViewClientHubLink",
-                },
-              },
-            },
-            {
-              name: "clientGrowthHubAdminActions",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/ClientGrowthHubAdminActions",
-                },
-              },
-            },
-            {
-              name: "createOrganicSnapshot",
-              type: "ui",
-              admin: {
-                components: {
-                  Field: "./components/CreateOrganicSnapshotButton",
-                },
-              },
-            },
-            {
               name: "clientPortalLinks",
               type: "array",
               dbName: "clients_client_portal_links",
