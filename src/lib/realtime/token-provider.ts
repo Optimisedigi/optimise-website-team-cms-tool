@@ -38,7 +38,11 @@ export interface TokenProvider {
   getStatus(): Promise<{ reachable: boolean; connected: boolean }>
 }
 
-const DEFAULT_HELPER_URL = 'http://localhost:1456'
+// Use the IPv4 loopback literal, NOT `localhost`. On macOS `localhost` often
+// resolves to IPv6 `::1` first, but the helper binds only to `127.0.0.1`
+// (IPv4) — so `http://localhost:1456` hits `[::1]:1456`, gets connection
+// refused, and the UI wrongly reports the helper as "not running".
+const DEFAULT_HELPER_URL = 'http://127.0.0.1:1456'
 
 function helperUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_OPTIMATE_VOICE_HELPER_URL
