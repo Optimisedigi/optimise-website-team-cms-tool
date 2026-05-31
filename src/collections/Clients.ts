@@ -2969,6 +2969,7 @@ export const Clients: CollectionConfig = {
             {
               name: "clientPortalLinks",
               type: "array",
+              dbName: "clients_client_portal_links",
               admin: {
                 description: "PIN-gated client hub links for documents, dashboards, audits, decks, and other resources.",
               },

@@ -98,6 +98,7 @@ export const QuarterlyOrganicGrowthSnapshots: CollectionConfig = {
     {
       name: "categories",
       type: "array",
+      dbName: "qogs_categories",
       fields: [
         { name: "name", type: "text", required: true },
         { name: "score", type: "number" },
@@ -111,6 +112,7 @@ export const QuarterlyOrganicGrowthSnapshots: CollectionConfig = {
     {
       name: "topicAssociations",
       type: "array",
+      dbName: "qogs_topic_associations",
       fields: [
         { name: "topic", type: "text", required: true },
         { name: "cluster", type: "text" },
@@ -126,6 +128,7 @@ export const QuarterlyOrganicGrowthSnapshots: CollectionConfig = {
     {
       name: "workDelivered",
       type: "array",
+      dbName: "qogs_work_delivered",
       fields: [
         { name: "date", type: "date", required: true },
         {

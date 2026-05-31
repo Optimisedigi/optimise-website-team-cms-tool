@@ -170,6 +170,78 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
     );
   `));
 
+  await db.run(sql.raw(`
+    CREATE TABLE IF NOT EXISTS \`qogs_categories\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`name\` text NOT NULL,
+      \`score\` numeric,
+      \`rank_position\` numeric,
+      \`clicks\` numeric,
+      \`impressions\` numeric,
+      \`top_queries\` text,
+      \`related_pages\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`quarterly_organic_growth_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    );
+  `));
+
+  await db.run(sql.raw(`
+    CREATE TABLE IF NOT EXISTS \`qogs_topic_associations\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`topic\` text NOT NULL,
+      \`cluster\` text,
+      \`content_urls\` text,
+      \`published_count\` numeric DEFAULT 0,
+      \`first_published_at\` text,
+      \`latest_published_at\` text,
+      \`associated_queries\` text,
+      \`notes\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`quarterly_organic_growth_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    );
+  `));
+
+  await db.run(sql.raw(`
+    CREATE TABLE IF NOT EXISTS \`qogs_topic_associations_rels\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`order\` integer,
+      \`parent_id\` text NOT NULL,
+      \`path\` text NOT NULL,
+      \`blog_posts_id\` integer,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`qogs_topic_associations\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`blog_posts_id\`) REFERENCES \`blog_posts\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    );
+  `));
+
+  await db.run(sql.raw(`
+    CREATE TABLE IF NOT EXISTS \`qogs_work_delivered\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`date\` text NOT NULL,
+      \`type\` text NOT NULL,
+      \`title\` text NOT NULL,
+      \`url\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`quarterly_organic_growth_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    );
+  `));
+
+  await db.run(sql.raw(`
+    CREATE TABLE IF NOT EXISTS \`clients_client_portal_links\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`label\` text NOT NULL,
+      \`url\` text NOT NULL,
+      \`kind\` text DEFAULT 'other' NOT NULL,
+      \`visibility\` text DEFAULT 'client_visible' NOT NULL,
+      \`sort_order\` numeric DEFAULT 0,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    );
+  `));
+
   const indexStatements = [
     "CREATE INDEX IF NOT EXISTS `forecast_scenarios_client_idx` ON `forecast_scenarios` (`client_id`)",
     "CREATE INDEX IF NOT EXISTS `forecast_scenarios_proposal_idx` ON `forecast_scenarios` (`proposal_id`)",
@@ -181,16 +253,22 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
     "CREATE INDEX IF NOT EXISTS `client_portal_requests_status_idx` ON `client_portal_requests` (`status`)",
     "CREATE INDEX IF NOT EXISTS `quarterly_organic_growth_snapshots_client_idx` ON `quarterly_organic_growth_snapshots` (`client_id`)",
     "CREATE INDEX IF NOT EXISTS `quarterly_organic_growth_snapshots_snapshot_date_idx` ON `quarterly_organic_growth_snapshots` (`snapshot_date`)",
+    "CREATE INDEX IF NOT EXISTS `qogs_categories_order_idx` ON `qogs_categories` (`_order`)",
+    "CREATE INDEX IF NOT EXISTS `qogs_categories_parent_id_idx` ON `qogs_categories` (`_parent_id`)",
+    "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_order_idx` ON `qogs_topic_associations` (`_order`)",
+    "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_parent_id_idx` ON `qogs_topic_associations` (`_parent_id`)",
+    "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_order_idx` ON `qogs_topic_associations_rels` (`order`)",
+    "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_parent_idx` ON `qogs_topic_associations_rels` (`parent_id`)",
+    "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_path_idx` ON `qogs_topic_associations_rels` (`path`)",
+    "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_blog_posts_idx` ON `qogs_topic_associations_rels` (`blog_posts_id`)",
+    "CREATE INDEX IF NOT EXISTS `qogs_work_delivered_order_idx` ON `qogs_work_delivered` (`_order`)",
+    "CREATE INDEX IF NOT EXISTS `qogs_work_delivered_parent_id_idx` ON `qogs_work_delivered` (`_parent_id`)",
+    "CREATE INDEX IF NOT EXISTS `clients_client_portal_links_order_idx` ON `clients_client_portal_links` (`_order`)",
+    "CREATE INDEX IF NOT EXISTS `clients_client_portal_links_parent_id_idx` ON `clients_client_portal_links` (`_parent_id`)",
   ];
 
   for (const statement of indexStatements) {
     await db.run(sql.raw(statement));
-  }
-
-  try {
-    await db.run(sql.raw("ALTER TABLE `clients` ADD COLUMN `client_portal_links` text;"));
-  } catch {
-    /* column already exists */
   }
 
   await addLockedDocColumn(db, "forecast_scenarios_id", "forecast_scenarios");

@@ -3764,6 +3764,63 @@ export async function runMigrations(
       FOREIGN KEY (\`seo_audit_proposal_id\`) REFERENCES \`seo_audit_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null,
       FOREIGN KEY (\`source_gsc_snapshot_id\`) REFERENCES \`gsc_snapshots\`(\`id\`) ON UPDATE no action ON DELETE set null
     )`);
+    await run("qogs_categories", `CREATE TABLE IF NOT EXISTS \`qogs_categories\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`name\` text NOT NULL,
+      \`score\` numeric,
+      \`rank_position\` numeric,
+      \`clicks\` numeric,
+      \`impressions\` numeric,
+      \`top_queries\` text,
+      \`related_pages\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`quarterly_organic_growth_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("qogs_topic_associations", `CREATE TABLE IF NOT EXISTS \`qogs_topic_associations\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`topic\` text NOT NULL,
+      \`cluster\` text,
+      \`content_urls\` text,
+      \`published_count\` numeric DEFAULT 0,
+      \`first_published_at\` text,
+      \`latest_published_at\` text,
+      \`associated_queries\` text,
+      \`notes\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`quarterly_organic_growth_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("qogs_topic_associations_rels", `CREATE TABLE IF NOT EXISTS \`qogs_topic_associations_rels\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`order\` integer,
+      \`parent_id\` text NOT NULL,
+      \`path\` text NOT NULL,
+      \`blog_posts_id\` integer,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`qogs_topic_associations\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`blog_posts_id\`) REFERENCES \`blog_posts\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("qogs_work_delivered", `CREATE TABLE IF NOT EXISTS \`qogs_work_delivered\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`date\` text NOT NULL,
+      \`type\` text NOT NULL,
+      \`title\` text NOT NULL,
+      \`url\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`quarterly_organic_growth_snapshots\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_client_portal_links", `CREATE TABLE IF NOT EXISTS \`clients_client_portal_links\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`label\` text NOT NULL,
+      \`url\` text NOT NULL,
+      \`kind\` text DEFAULT 'other' NOT NULL,
+      \`visibility\` text DEFAULT 'client_visible' NOT NULL,
+      \`sort_order\` numeric DEFAULT 0,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
     await run("forecast_scenarios_client_idx", "CREATE INDEX IF NOT EXISTS `forecast_scenarios_client_idx` ON `forecast_scenarios` (`client_id`)");
     await run("forecast_scenarios_proposal_idx", "CREATE INDEX IF NOT EXISTS `forecast_scenarios_proposal_idx` ON `forecast_scenarios` (`proposal_id`)");
     await run("forecast_scenarios_status_idx", "CREATE INDEX IF NOT EXISTS `forecast_scenarios_status_idx` ON `forecast_scenarios` (`status`)");
@@ -3774,7 +3831,18 @@ export async function runMigrations(
     await run("client_portal_requests_status_idx", "CREATE INDEX IF NOT EXISTS `client_portal_requests_status_idx` ON `client_portal_requests` (`status`)");
     await run("quarterly_organic_growth_snapshots_client_idx", "CREATE INDEX IF NOT EXISTS `quarterly_organic_growth_snapshots_client_idx` ON `quarterly_organic_growth_snapshots` (`client_id`)");
     await run("quarterly_organic_growth_snapshots_snapshot_date_idx", "CREATE INDEX IF NOT EXISTS `quarterly_organic_growth_snapshots_snapshot_date_idx` ON `quarterly_organic_growth_snapshots` (`snapshot_date`)");
-    await run("clients.client_portal_links", "ALTER TABLE `clients` ADD `client_portal_links` text");
+    await run("qogs_categories_order_idx", "CREATE INDEX IF NOT EXISTS `qogs_categories_order_idx` ON `qogs_categories` (`_order`)");
+    await run("qogs_categories_parent_id_idx", "CREATE INDEX IF NOT EXISTS `qogs_categories_parent_id_idx` ON `qogs_categories` (`_parent_id`)");
+    await run("qogs_topic_associations_order_idx", "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_order_idx` ON `qogs_topic_associations` (`_order`)");
+    await run("qogs_topic_associations_parent_id_idx", "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_parent_id_idx` ON `qogs_topic_associations` (`_parent_id`)");
+    await run("qogs_topic_associations_rels_order_idx", "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_order_idx` ON `qogs_topic_associations_rels` (`order`)");
+    await run("qogs_topic_associations_rels_parent_idx", "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_parent_idx` ON `qogs_topic_associations_rels` (`parent_id`)");
+    await run("qogs_topic_associations_rels_path_idx", "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_path_idx` ON `qogs_topic_associations_rels` (`path`)");
+    await run("qogs_topic_associations_rels_blog_posts_idx", "CREATE INDEX IF NOT EXISTS `qogs_topic_associations_rels_blog_posts_idx` ON `qogs_topic_associations_rels` (`blog_posts_id`)");
+    await run("qogs_work_delivered_order_idx", "CREATE INDEX IF NOT EXISTS `qogs_work_delivered_order_idx` ON `qogs_work_delivered` (`_order`)");
+    await run("qogs_work_delivered_parent_id_idx", "CREATE INDEX IF NOT EXISTS `qogs_work_delivered_parent_id_idx` ON `qogs_work_delivered` (`_parent_id`)");
+    await run("clients_client_portal_links_order_idx", "CREATE INDEX IF NOT EXISTS `clients_client_portal_links_order_idx` ON `clients_client_portal_links` (`_order`)");
+    await run("clients_client_portal_links_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_client_portal_links_parent_id_idx` ON `clients_client_portal_links` (`_parent_id`)");
     await run("locked_docs_rels.forecast_scenarios_id", "ALTER TABLE `payload_locked_documents_rels` ADD `forecast_scenarios_id` integer REFERENCES `forecast_scenarios`(`id`) ON DELETE cascade");
     await run("locked_docs_rels.client_value_ledger_items_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_value_ledger_items_id` integer REFERENCES `client_value_ledger_items`(`id`) ON DELETE cascade");
     await run("locked_docs_rels.client_portal_requests_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_portal_requests_id` integer REFERENCES `client_portal_requests`(`id`) ON DELETE cascade");
