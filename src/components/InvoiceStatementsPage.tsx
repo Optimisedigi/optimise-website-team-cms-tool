@@ -276,7 +276,15 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
 
   useEffect(() => {
     setLoading(true)
-    void refreshPreview(customMessage, greetingOverride)
+    // On open, pull live data from Xero once (re-pull + URL union + sticky +
+    // persist) so payment links are current and durable. refreshSnapshot ends
+    // by rendering the preview. Only pending drafts can be refreshed; for
+    // approved/failed (resend/retry) we just render the stored snapshot.
+    if (draft.status === 'pending') {
+      void refreshSnapshot()
+    } else {
+      void refreshPreview(customMessage, greetingOverride)
+    }
     // initial load only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id])
@@ -691,18 +699,43 @@ export default function InvoiceStatementsPage() {
           </div>
           <h1 style={{ fontSize: 24, margin: '4px 0 0 0' }}>Invoice Statements</h1>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => void load()} style={btnSecondary} disabled={loading || sweeping}>
-            {loading ? 'Loading\u2026' : 'Refresh list'}
-          </button>
-          <button
-            onClick={() => void runSweep()}
-            style={btnPrimary}
-            disabled={sweeping || loading}
-            title="Re-pull outstanding invoices from Xero and refresh pending drafts"
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div
+            style={{
+              fontSize: 11,
+              lineHeight: 1.4,
+              color: 'var(--theme-elevation-500)',
+              maxWidth: 260,
+              textAlign: 'right',
+            }}
           >
-            {sweeping ? 'Sweeping\u2026' : 'Refresh sweep from Xero'}
-          </button>
+            <div>
+              <strong>Refresh list</strong>: reload this page from the CMS (fast,
+              no Xero call).
+            </div>
+            <div>
+              <strong>Refresh sweep from Xero</strong>: re-pull live data from
+              Xero, add/update drafts (slow).
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => void load()}
+              style={btnSecondary}
+              disabled={loading || sweeping}
+              title="Reloads the drafts shown on this page from the CMS. Does not contact Xero — use this to see the latest saved drafts after a sweep or someone else's changes."
+            >
+              {loading ? 'Loading\u2026' : 'Refresh list'}
+            </button>
+            <button
+              onClick={() => void runSweep()}
+              style={btnPrimary}
+              disabled={sweeping || loading}
+              title="Re-pulls all outstanding invoices live from Xero: creates new drafts for clients who now qualify, updates existing pending drafts with the latest amounts and payment links, and expires stale ones. Slower — it hits the Xero API."
+            >
+              {sweeping ? 'Sweeping\u2026' : 'Refresh sweep from Xero'}
+            </button>
+          </div>
         </div>
       </div>
 

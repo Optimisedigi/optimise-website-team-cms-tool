@@ -7,7 +7,6 @@ import {
   type StatementSnapshot,
 } from "@/lib/invoice-statement-email";
 import { loadStatementTemplates } from "@/lib/invoice-statement-templates";
-import { refreshStatementSnapshot } from "@/lib/invoice-statement-snapshot";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -16,15 +15,14 @@ interface RouteParams {
 /**
  * POST /api/invoice-statements/:id/preview
  *
- * Rebuilds `{ subject, html, text }` from current `snapshot` + `customMessage`
- * + global templates. Used by the modal iframe so the preview always matches
- * exactly what would be sent.
+ * Rebuilds `{ subject, html, text }` from current stored `snapshot` +
+ * `customMessage` + global templates. Used by the modal iframe so the preview
+ * matches exactly what would be sent.
  *
- * Before building, the draft's snapshot is auto-refreshed from Growth Tools so
- * "View & pay" links reflect the latest Xero `onlineInvoiceUrl` values (a
- * freshly-issued invoice initially returns `null` until Xero activates its
- * online-payment link). If the refresh fails we fall back to the stored
- * snapshot so preview never breaks on a transient upstream error.
+ * Read-only and cheap: this fires on every debounced keystroke in the modal,
+ * so it never hits Xero or writes to the DB. Live freshness (re-pull, URL
+ * union + sticky merge, persistence) happens once on modal open via
+ * /refresh-snapshot and again on approve-send.
  *
  * Body: `{ customMessage?: string }` \u2014 client may pass an unsaved override.
  */
@@ -50,8 +48,6 @@ export async function POST(
 
   let draft: {
     id: number | string;
-    status: string;
-    xeroContactId: string;
     snapshot: StatementSnapshot;
     customMessage: string | null;
     greetingOverride: string | null;
@@ -67,20 +63,12 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Auto-refresh the snapshot (pending drafts only) so the preview's payment
-  // links match what would actually be sent. Read-only: preview never writes
-  // back to the draft — the send path is the only writer. Best-effort: on
-  // failure or all-paid we render the stored snapshot.
-  let snapshot = draft.snapshot;
-  if (draft.status === "pending") {
-    const refresh = await refreshStatementSnapshot(
-      draft.xeroContactId,
-      draft.snapshot,
-    );
-    if (refresh.ok && !refresh.value.allPaid) {
-      snapshot = refresh.value.snapshot;
-    }
-  }
+  // Read-only: preview renders purely from the stored snapshot and fires on
+  // every debounced keystroke, so it must NOT hit Xero or write to the DB.
+  // Freshness (live Xero re-pull, URL union + sticky merge, persistence) is
+  // handled once when the modal opens via the explicit /refresh-snapshot
+  // route, and again on approve-send. See InvoiceStatementsPage modal.
+  const snapshot = draft.snapshot;
 
   const { templates, signatureHtml } = await loadStatementTemplates(payload);
 

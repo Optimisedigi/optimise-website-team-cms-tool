@@ -52,12 +52,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function countUrls(row: GrowthToolsRow): number {
-  return row.unpaid.reduce(
-    (n, inv) => n + (inv.onlineInvoiceUrl ? 1 : 0),
-    0,
-  );
-}
+
 
 interface GrowthToolsRow {
   contactId: string;
@@ -158,15 +153,17 @@ export async function refreshStatementSnapshot(
 
   // The endpoint flaps: the same invoice's URL is present on one call and null
   // on the next, the contact can transiently drop out of the response, and it
-  // sometimes 500s. Retry with backoff and keep the BEST contact-bearing
-  // response — the one whose target contact has the most non-null URLs.
+  // sometimes 500s. No single call reliably returns every URL, so instead of
+  // picking one "best" response we UNION the URLs seen across all attempts
+  // into `knownUrls` (seeded above with previously-known links). The shape of
+  // the statement (which invoices, amounts) comes from the latest response
+  // that actually contained the contact.
   //
   // A response that omits the contact is NOT treated as terminal "all paid":
   // under flapping that can be a transient miss, and acting on it would wrongly
   // zero out the whole statement. We only conclude all-paid if EVERY successful
   // attempt omitted the contact (`sawContact` stays false).
-  let best: GrowthToolsRow | null = null;
-  let bestScore = -1;
+  let latest: GrowthToolsRow | null = null;
   let sawSuccess = false;
   let sawContact = false;
   let lastError = "";
@@ -185,13 +182,13 @@ export async function refreshStatementSnapshot(
       const row = rows.find((r) => r.contactId === xeroContactId);
       if (!row) continue;
       sawContact = true;
-      const score = countUrls(row);
-      if (score > bestScore) {
-        best = row;
-        bestScore = score;
+      latest = row;
+      // Accumulate every URL this attempt exposed.
+      for (const inv of row.unpaid) {
+        if (inv.onlineInvoiceUrl) knownUrls.set(inv.invoiceId, inv.onlineInvoiceUrl);
       }
-      // Every unpaid invoice already has a URL — can't do better, stop early.
-      if (score === row.unpaid.length) break;
+      // Every unpaid invoice now has a known URL — can't do better, stop early.
+      if (row.unpaid.every((inv) => knownUrls.has(inv.invoiceId))) break;
     } catch (err) {
       lastError = `Growth Tools request failed: ${
         err instanceof Error ? err.message : String(err)
@@ -210,7 +207,7 @@ export async function refreshStatementSnapshot(
   }
 
   const now = new Date().toISOString();
-  const fresh = best;
+  const fresh = latest;
 
   if (!sawContact || !fresh) {
     // Client has cleared everything since the sweep.

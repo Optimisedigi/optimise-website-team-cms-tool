@@ -44,16 +44,18 @@ function urlFlags(snapshot: StatementSnapshot): string {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // mockReset (not clearAllMocks) so a persistent mockResolvedValue from one
+  // test does not leak its implementation into the next.
+  globalFetch.mockReset();
   process.env.GROWTH_TOOLS_URL = "https://growth.test";
   process.env.INTERNAL_API_KEY = "internal";
   process.env.STATEMENT_REFRESH_BACKOFF_MS = "0";
 });
 
 describe("refreshStatementSnapshot — upstream flapping mitigation", () => {
-  it("retries and keeps the response with the most non-null payment links", async () => {
-    // call 1: only inv-2 has a URL. call 2: inv-1 + inv-3 have URLs (better).
-    // call 3: only inv-1 (worse). Best (2 URLs) should win.
+  it("unions payment links across all attempts so no single flaky call loses a link", async () => {
+    // No single call has every URL: call 1 has inv-2, call 2 has inv-1 + inv-3.
+    // The union across attempts must yield all three.
     globalFetch
       .mockResolvedValueOnce(okJson([row([null, "https://x/2", null])]))
       .mockResolvedValueOnce(okJson([row(["https://x/1", null, "https://x/3"])]))
@@ -63,7 +65,7 @@ describe("refreshStatementSnapshot — upstream flapping mitigation", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(urlFlags(result.value.snapshot)).toBe("INV-001=Y INV-002=N INV-003=Y");
+    expect(urlFlags(result.value.snapshot)).toBe("INV-001=Y INV-002=Y INV-003=Y");
   });
 
   it("stops early when a response already has every link populated", async () => {
