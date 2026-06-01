@@ -139,7 +139,10 @@ describe("buildStatementEmail", () => {
     expect(withMessage.html).toContain(
       "Thanks for sticking with us through the rebuild.",
     );
-    expect(withMessage.html).toContain("border-left:3px solid #1a73e8");
+    expect(withMessage.html).not.toContain("border-left:3px solid #1a73e8");
+    expect(withMessage.html).toContain(
+      '<p style="margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.55;white-space:pre-wrap;">Thanks for sticking with us through the rebuild.</p>',
+    );
 
     const withoutMessage = buildStatementEmail({
       snapshot: SAMPLE_STATEMENT_SNAPSHOT,

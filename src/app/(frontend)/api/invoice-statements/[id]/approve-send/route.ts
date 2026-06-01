@@ -102,9 +102,8 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Pending / failed always allowed. Approved is allowed only when the
-  // caller explicitly opts into a resend via overrideCooldown.
-  const isResend = draft.status === "approved" && body.overrideCooldown === true;
+  // Pending / failed always allowed. Approved rows are treated as resends.
+  const isResend = draft.status === "approved";
   if (
     draft.status !== "pending" &&
     draft.status !== "failed" &&
@@ -168,7 +167,7 @@ export async function POST(
   const capResult = await runCaps({
     payload,
     xeroContactId: draft.xeroContactId,
-    skipCooldown: body.overrideCooldown === true,
+    skipCooldown: true,
   });
   if (!capResult.ok) {
     logActivity(payload, {

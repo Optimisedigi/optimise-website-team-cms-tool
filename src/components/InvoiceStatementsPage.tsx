@@ -249,7 +249,6 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
   const [refreshing, setRefreshing] = useState(false)
   const [rejectMode, setRejectMode] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
-  const [overrideCooldown, setOverrideCooldown] = useState(false)
 
   const refreshPreview = useCallback(
     async (msg: string, greeting: string) => {
@@ -328,7 +327,7 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
     const ccLine = draft.snapshot.unpaid.length > 0
       ? `Will email ${draft.snapshot.unpaidCount} invoices totalling ${formatAud(draft.totalOutstanding)} and CC peter@optimisedigital.online.`
       : ''
-    const resendNote = draft.status === 'approved' && overrideCooldown
+    const resendNote = draft.status === 'approved'
       ? `\n\nThis is a RESEND \u2014 the previous statement was already sent on ${formatDate(draft.sentAt)} to ${draft.recipientEmail || '(unknown)'}.`
       : ''
     if (!window.confirm(`Send to ${recipientOverride}? ${ccLine}${resendNote}`)) return
@@ -342,7 +341,6 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
           customMessage,
           greetingOverride,
           recipientEmailOverride: recipientOverride,
-          overrideCooldown,
         }),
       })
       const data = await res.json()
@@ -379,8 +377,7 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
   const stale = isStale(draft.lastRefreshedAt)
   const recipientMissing = !recipientOverride.trim()
   const alreadySent = draft.status === 'approved' && Boolean(draft.sentAt)
-  const canSend =
-    !recipientMissing && (draft.status !== 'approved' || overrideCooldown)
+  const canSend = !recipientMissing
 
   return (
     <div
@@ -554,29 +551,6 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
           </div>
         </div>
 
-        {!rejectMode && (
-          <div
-            style={{
-              padding: '8px 20px',
-              borderTop: '1px solid var(--theme-elevation-100)',
-              background: 'var(--theme-elevation-50)',
-              fontSize: 12,
-              color: 'var(--theme-elevation-600)',
-            }}
-          >
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={overrideCooldown}
-                onChange={(e) => setOverrideCooldown(e.target.checked)}
-              />
-              <span>
-                Override 20-day cooldown for this contact (tick this if a prior test/send to the same Xero contact is blocking this draft).
-              </span>
-            </label>
-          </div>
-        )}
-
         <div style={{ padding: '12px 20px', borderTop: '1px solid var(--theme-elevation-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div>
             {rejectMode ? (
@@ -605,9 +579,7 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
                 title={
                   recipientMissing
                     ? 'Add email address in Xero first'
-                    : alreadySent && !overrideCooldown
-                      ? 'Tick "Override cooldown" above to resend'
-                      : ''
+                    : ''
                 }
               >
                 {busy

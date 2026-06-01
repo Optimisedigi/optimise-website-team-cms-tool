@@ -193,10 +193,8 @@ describe("POST /api/invoice-statements/:id/approve-send", () => {
     expect(body.error).toContain("monthly cap");
   });
 
-  it("trips the per-contact cooldown with a 429", async () => {
-    let callCount = 0;
+  it("does not block sends for the per-contact cooldown", async () => {
     mockPayload.find.mockImplementation((args: { where?: { and?: Array<{ xeroContactId?: unknown }> } }) => {
-      callCount++;
       const isCooldownQuery = args?.where?.and?.some(
         (c) => c.xeroContactId !== undefined,
       );
@@ -205,11 +203,10 @@ describe("POST /api/invoice-statements/:id/approve-send", () => {
       }
       return Promise.resolve({ docs: [], totalDocs: 0 });
     });
-    void callCount;
+
     const res = await approveSend(makeRequest(), PARAMS);
-    expect(res.status).toBe(429);
-    const body = await res.json();
-    expect(body.error).toContain("cooldown");
+
+    expect(res.status).toBe(200);
   });
 
   it("calls Brevo with correct recipient + cc + attachments and persists success", async () => {
@@ -318,13 +315,13 @@ describe("POST /api/invoice-statements/:id/approve-send", () => {
     );
   });
 
-  it("refuses to send a draft that is already approved", async () => {
+  it("allows resending a draft that is already approved", async () => {
     mockPayload.findByID.mockResolvedValueOnce({
       ...DRAFT_ROW,
       status: "approved",
     });
     const res = await approveSend(makeRequest(), PARAMS);
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
   });
 
   it("allows retry from a failed draft", async () => {

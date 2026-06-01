@@ -223,7 +223,7 @@ export function buildStatementEmail(
     .join("");
 
   const customMessageBlock = customMessage?.trim()
-    ? `<p style="margin:0 0 16px 0;padding:12px 14px;background:#f9fafb;border-left:3px solid #1a73e8;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.6;white-space:pre-wrap;">${escapeHtml(customMessage.trim())}</p>`
+    ? `<p style="margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.55;white-space:pre-wrap;">${escapeHtml(customMessage.trim())}</p>`
     : "";
 
   const attachmentsLine = attachmentsAttached
