@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import { headers as getHeaders } from "next/headers";
 import config from "@/payload.config";
+import type { StatementSnapshot } from "@/lib/invoice-statement-email";
 import { refreshStatementSnapshot } from "@/lib/invoice-statement-snapshot";
 
 interface RouteParams {
@@ -34,6 +35,7 @@ export async function POST(
     id: number | string;
     xeroContactId: string;
     status: string;
+    snapshot: StatementSnapshot;
   };
   try {
     draft = (await payload.findByID({
@@ -53,7 +55,10 @@ export async function POST(
     );
   }
 
-  const result = await refreshStatementSnapshot(draft.xeroContactId);
+  const result = await refreshStatementSnapshot(
+    draft.xeroContactId,
+    draft.snapshot,
+  );
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

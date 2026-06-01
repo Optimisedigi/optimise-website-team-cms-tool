@@ -97,6 +97,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.GROWTH_TOOLS_URL = "https://growth.test";
   process.env.INTERNAL_API_KEY = "internal";
+  process.env.STATEMENT_REFRESH_BACKOFF_MS = "0";
   mockPayload.auth.mockResolvedValue({ user: { id: 99, email: "admin@example.com" } });
   mockPayload.findByID.mockResolvedValue(DRAFT_ROW);
   mockPayload.findGlobal.mockResolvedValue(TEMPLATES_GLOBAL);
@@ -197,9 +198,10 @@ describe("invoice statement preview route", () => {
 });
 
 describe("invoice statement refresh-snapshot route", () => {
-  it("returns 502 and leaves the draft untouched when Growth Tools fetch fails", async () => {
+  it("returns 502 and leaves the draft untouched when every Growth Tools attempt fails", async () => {
     const { POST } = await import("@/app/(frontend)/api/invoice-statements/[id]/refresh-snapshot/route");
-    globalFetch.mockResolvedValueOnce({ ok: false, status: 503 } as Response);
+    // The helper retries with backoff; all attempts must fail to surface 502.
+    globalFetch.mockResolvedValue({ ok: false, status: 503 } as Response);
 
     const res = await POST(postRequest("/api/invoice-statements/7/refresh-snapshot"), PARAMS);
 

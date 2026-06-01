@@ -8,19 +8,56 @@ import type {
  *
  * The CMS never talks to Xero directly — it reads outstanding-invoice data
  * (including each invoice's `onlineInvoiceUrl`, which powers the "View & pay"
- * link) from Growth Tools' `/api/xero/contacts/with-outstanding` endpoint.
+ * link) from Growth Tools' `/api/xero/contacts/with-outstanding` endpoint,
+ * which proxies the Xero API.
  *
- * Drafts persist a point-in-time `snapshot`. Xero only populates
- * `OnlineInvoiceUrl` once an invoice is approved/sent and its online-payment
- * portal link is live, so a freshly-issued invoice initially returns `null`.
- * That means a stored snapshot can show a `—` dash for the newest invoice
- * even though the link exists by the time the statement is previewed/sent.
+ * Observed upstream behaviour: that endpoint is flaky for `onlineInvoiceUrl`.
+ * Xero only returns `OnlineInvoiceUrl` on a single-invoice GET (not the bulk
+ * list call), so Growth Tools fetches each invoice's URL individually. Under
+ * Xero rate limits those per-invoice calls intermittently fail, so the SAME
+ * invoice comes back with a URL on one request and `null` on the next — the
+ * link appears/disappears/moves between invoices on every refresh, and the
+ * endpoint occasionally 500s outright.
  *
- * This module rebuilds a draft's snapshot from the live Growth Tools response
- * so preview + send always reflect the latest payment links. It is the single
- * source of truth shared by the manual refresh route and the auto-refresh
- * performed on preview/approve-send.
+ * To make the team-facing UI stable regardless of upstream flapping this
+ * module:
+ *   1. Retries the fetch with backoff and keeps the BEST response (the one
+ *      with the most non-null URLs).
+ *   2. Merges "sticky" URLs from the previous snapshot — a known-good
+ *      `onlineInvoiceUrl` is never overwritten with `null`. Once we've seen a
+ *      payment link for an invoice it stays put.
+ *
+ * It is the single source of truth shared by the manual refresh route and the
+ * auto-refresh performed on preview/approve-send.
+ *
+ * NOTE: the real fix belongs upstream in Growth Tools (retry + cache the
+ * per-invoice URL so it never returns null for an invoice that has one). This
+ * is the defensive CMS-side mitigation.
  */
+
+/** Total attempts for the outstanding fetch (1 initial + retries). */
+const FETCH_ATTEMPTS = 3;
+/**
+ * Base backoff in ms between attempts (scales linearly per retry). Overridable
+ * via `STATEMENT_REFRESH_BACKOFF_MS` so tests can disable the delay.
+ */
+function backoffMs(): number {
+  const raw = process.env.STATEMENT_REFRESH_BACKOFF_MS;
+  const parsed = raw === undefined ? NaN : Number(raw);
+  return Number.isFinite(parsed) ? parsed : 400;
+}
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function countUrls(row: GrowthToolsRow): number {
+  return row.unpaid.reduce(
+    (n, inv) => n + (inv.onlineInvoiceUrl ? 1 : 0),
+    0,
+  );
+}
 
 interface GrowthToolsRow {
   contactId: string;
@@ -92,9 +129,15 @@ async function fetchXeroContactEmail(
  * to write the result. Returns a discriminated-union result so callers can
  * degrade gracefully (e.g. preview/send fall back to the stored snapshot
  * rather than blocking the team on a transient Growth Tools failure).
+ *
+ * @param xeroContactId  Xero contact to refresh.
+ * @param previousSnapshot  The draft's currently-stored snapshot, if any. Used
+ *   to preserve ("stick") known-good `onlineInvoiceUrl` values so the flaky
+ *   upstream endpoint can't blank out a link we've already seen.
  */
 export async function refreshStatementSnapshot(
   xeroContactId: string,
+  previousSnapshot?: StatementSnapshot | null,
 ): Promise<RefreshSnapshotResult> {
   const growthUrl = process.env.GROWTH_TOOLS_URL;
   const internalKey = process.env.INTERNAL_API_KEY;
@@ -106,33 +149,70 @@ export async function refreshStatementSnapshot(
   url.searchParams.set("minCount", "1");
   url.searchParams.set("paidSinceDays", "90");
 
-  let rows: GrowthToolsRow[];
-  try {
-    const res = await fetch(url.toString(), {
-      headers: { "x-internal-key": internalKey },
-    });
-    if (!res.ok) {
-      return {
-        ok: false,
-        error: `Growth Tools fetch failed (${res.status})`,
-        status: 502,
-      };
+  // Build a lookup of previously-known payment links, keyed by invoiceId, so
+  // we can re-apply them when this fetch returns null for the same invoice.
+  const knownUrls = new Map<string, string>();
+  for (const inv of previousSnapshot?.unpaid ?? []) {
+    if (inv.onlineInvoiceUrl) knownUrls.set(inv.invoiceId, inv.onlineInvoiceUrl);
+  }
+
+  // The endpoint flaps: the same invoice's URL is present on one call and null
+  // on the next, the contact can transiently drop out of the response, and it
+  // sometimes 500s. Retry with backoff and keep the BEST contact-bearing
+  // response — the one whose target contact has the most non-null URLs.
+  //
+  // A response that omits the contact is NOT treated as terminal "all paid":
+  // under flapping that can be a transient miss, and acting on it would wrongly
+  // zero out the whole statement. We only conclude all-paid if EVERY successful
+  // attempt omitted the contact (`sawContact` stays false).
+  let best: GrowthToolsRow | null = null;
+  let bestScore = -1;
+  let sawSuccess = false;
+  let sawContact = false;
+  let lastError = "";
+  for (let attempt = 0; attempt < FETCH_ATTEMPTS; attempt++) {
+    if (attempt > 0) await sleep(backoffMs() * attempt);
+    try {
+      const res = await fetch(url.toString(), {
+        headers: { "x-internal-key": internalKey },
+      });
+      if (!res.ok) {
+        lastError = `Growth Tools fetch failed (${res.status})`;
+        continue;
+      }
+      const rows = (await res.json()) as GrowthToolsRow[];
+      sawSuccess = true;
+      const row = rows.find((r) => r.contactId === xeroContactId);
+      if (!row) continue;
+      sawContact = true;
+      const score = countUrls(row);
+      if (score > bestScore) {
+        best = row;
+        bestScore = score;
+      }
+      // Every unpaid invoice already has a URL — can't do better, stop early.
+      if (score === row.unpaid.length) break;
+    } catch (err) {
+      lastError = `Growth Tools request failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
     }
-    rows = (await res.json()) as GrowthToolsRow[];
-  } catch (err) {
+  }
+
+  // No successful response at all → upstream is down; surface the error so
+  // callers keep the stored snapshot rather than zeroing it.
+  if (!sawSuccess) {
     return {
       ok: false,
-      error: `Growth Tools request failed: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
+      error: lastError || "Growth Tools request failed",
       status: 502,
     };
   }
 
   const now = new Date().toISOString();
-  const fresh = rows.find((r) => r.contactId === xeroContactId);
+  const fresh = best;
 
-  if (!fresh) {
+  if (!sawContact || !fresh) {
     // Client has cleared everything since the sweep.
     const empty: StatementSnapshot = {
       contact: {
@@ -192,7 +272,10 @@ export async function refreshStatementSnapshot(
       total: inv.total,
       amountDue: inv.amountDue,
       status: inv.status,
-      onlineInvoiceUrl: inv.onlineInvoiceUrl,
+      // Sticky URL: prefer the freshly-fetched link, but never downgrade a
+      // previously-known link to null when upstream flaps.
+      onlineInvoiceUrl:
+        inv.onlineInvoiceUrl ?? knownUrls.get(inv.invoiceId) ?? null,
     })),
     paid: fresh.paid.map((inv) => ({
       invoiceId: inv.invoiceId,

@@ -198,7 +198,10 @@ export async function POST(
   // we fall back to the stored snapshot rather than block the send.
   let snapshot = draft.snapshot;
   if (draft.status === "pending") {
-    const refresh = await refreshStatementSnapshot(draft.xeroContactId);
+    const refresh = await refreshStatementSnapshot(
+      draft.xeroContactId,
+      draft.snapshot,
+    );
     if (refresh.ok && !refresh.value.allPaid) {
       snapshot = refresh.value.snapshot;
       await payload

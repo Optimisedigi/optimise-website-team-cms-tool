@@ -116,6 +116,7 @@ beforeEach(() => {
   process.env.BREVO_API_KEY = "brevo-test";
   process.env.GROWTH_TOOLS_URL = "https://growth.test";
   process.env.INTERNAL_API_KEY = "internal";
+  process.env.STATEMENT_REFRESH_BACKOFF_MS = "0";
   process.env.STATEMENT_MAX_PER_MONTH = "1000";
   process.env.STATEMENT_MAX_PER_HOUR = "50";
   process.env.STATEMENT_MIN_DAYS_BETWEEN_SENDS = "20";

@@ -73,7 +73,10 @@ export async function POST(
   // failure or all-paid we render the stored snapshot.
   let snapshot = draft.snapshot;
   if (draft.status === "pending") {
-    const refresh = await refreshStatementSnapshot(draft.xeroContactId);
+    const refresh = await refreshStatementSnapshot(
+      draft.xeroContactId,
+      draft.snapshot,
+    );
     if (refresh.ok && !refresh.value.allPaid) {
       snapshot = refresh.value.snapshot;
     }
