@@ -10926,6 +10926,21 @@ export interface OptimateSetting {
         | 'claude-sonnet-4.5'
       )
     | null;
+  /**
+   * Optional. Model used by the Xero invoice assistant. Leave blank to use the autonomous default.
+   */
+  invoiceAssistantModel?:
+    | (
+        | 'claude-sonnet-4.6'
+        | 'claude-opus-4.7'
+        | 'claude-haiku-4.5'
+        | 'kimi-k2.6'
+        | 'minimax-m2.7'
+        | 'gpt-5.5-codex-medium'
+        | 'gpt-5.5-codex-low'
+        | 'claude-sonnet-4.5'
+      )
+    | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -11123,6 +11138,7 @@ export interface OptimateSettingsSelect<T extends boolean = true> {
   defaultChatModel?: T;
   defaultAutonomousModel?: T;
   blogPrompterModel?: T;
+  invoiceAssistantModel?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

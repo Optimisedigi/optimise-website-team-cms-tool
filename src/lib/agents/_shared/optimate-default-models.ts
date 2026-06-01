@@ -28,6 +28,8 @@ export interface OptiMateDefaultModels {
   defaultAutonomousModel: CanonicalModelName;
   /** Optional task-specific model for Blog Prompter AI Suggest. */
   blogPrompterModel?: CanonicalModelName;
+  /** Optional task-specific model for the Xero invoice assistant. */
+  invoiceAssistantModel?: CanonicalModelName;
 }
 
 /** True if the model is canonical AND still offered in the chat picker. */
@@ -56,10 +58,14 @@ export async function getOptiMateDefaultModels(
       defaultChatModel?: unknown;
       defaultAutonomousModel?: unknown;
       blogPrompterModel?: unknown;
+      invoiceAssistantModel?: unknown;
     } | null;
 
     const blogPrompterModel = isUsablePickerModel(global?.blogPrompterModel)
       ? global.blogPrompterModel
+      : undefined;
+    const invoiceAssistantModel = isUsablePickerModel(global?.invoiceAssistantModel)
+      ? global.invoiceAssistantModel
       : undefined;
 
     return {
@@ -70,6 +76,7 @@ export async function getOptiMateDefaultModels(
         ? global.defaultAutonomousModel
         : DEFAULT_AUTONOMOUS_MODEL,
       ...(blogPrompterModel ? { blogPrompterModel } : {}),
+      ...(invoiceAssistantModel ? { invoiceAssistantModel } : {}),
     };
   } catch (err) {
     console.warn(

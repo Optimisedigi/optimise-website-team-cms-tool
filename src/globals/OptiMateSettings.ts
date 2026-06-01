@@ -16,6 +16,7 @@ import {
  *    model the API uses when a chat request omits an explicit `model`.
  *  - `defaultAutonomousModel` is the model used for unattended runs (scheduled
  *    tasks / cron) where there is no human picking a model.
+ *  - `invoiceAssistantModel` is the model used by the Xero invoice assistant.
  *
  * Both fall back to the registry constants (DEFAULT_CHAT_MODEL /
  * DEFAULT_AUTONOMOUS_MODEL) if unset or pointing at a model that's since been
@@ -92,6 +93,16 @@ export const OptiMateSettings: GlobalConfig = {
       admin: {
         description:
           "Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
+      },
+    },
+    {
+      name: "invoiceAssistantModel",
+      type: "select",
+      options: MODEL_OPTIONS,
+      label: "Invoice Assistant model",
+      admin: {
+        description:
+          "Optional. Model used by the Xero invoice assistant. Leave blank to use the autonomous default.",
       },
     },
   ],
