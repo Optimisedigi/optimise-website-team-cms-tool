@@ -245,6 +245,67 @@ describe("POST /api/invoice-statements/:id/approve-send", () => {
     );
   });
 
+  it("auto-refreshes the snapshot so the sent email uses current Xero payment links", async () => {
+    globalFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/xero/contacts/with-outstanding")) {
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              {
+                contactId: "xero-1",
+                contactName: "Acme Pty Ltd",
+                firstName: "Alex",
+                lastName: "Acme",
+                emailAddress: "alex@acme.example",
+                unpaid: [
+                  {
+                    invoiceId: "inv-1",
+                    invoiceNumber: "INV-001",
+                    reference: "Retainer",
+                    date: "2026-03-01",
+                    dueDate: "2026-03-15",
+                    total: 2200,
+                    amountDue: 2200,
+                    status: "AUTHORISED",
+                    onlineInvoiceUrl: "https://in.xero.com/now-live",
+                  },
+                ],
+                paid: [],
+                totalOutstanding: 2200,
+                totalOverdue: 2200,
+                unpaidCount: 1,
+                overdueCount: 1,
+              },
+            ]),
+        } as Response;
+      }
+      if (url.includes("/pdf")) {
+        return {
+          ok: true,
+          arrayBuffer: () => Promise.resolve(Buffer.from("PDF").buffer),
+        } as Response;
+      }
+      if (url.includes("brevo.com")) {
+        return {
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ messageId: "msg-abc" }),
+        } as Response;
+      }
+      return { ok: false, status: 404, json: () => Promise.resolve({}) } as Response;
+    });
+
+    const res = await approveSend(makeRequest(), PARAMS);
+    expect(res.status).toBe(200);
+
+    const brevoCall = globalFetch.mock.calls.find(([url]) =>
+      String(url).includes("brevo.com"),
+    );
+    const brevoBody = JSON.parse(brevoCall![1].body);
+    expect(brevoBody.htmlContent).toContain("https://in.xero.com/now-live");
+  });
+
   it("flips status to failed and returns 502 when Brevo errors", async () => {
     globalFetch.mockImplementation(async (url: string) => {
       if (url.includes("/pdf")) {

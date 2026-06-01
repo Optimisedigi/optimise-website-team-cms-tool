@@ -8,6 +8,7 @@ import {
 } from "@/lib/invoice-statement-email";
 import { loadStatementTemplates } from "@/lib/invoice-statement-templates";
 import { runCaps, validateCcList } from "@/lib/invoice-statement-caps";
+import { refreshStatementSnapshot } from "@/lib/invoice-statement-snapshot";
 import { logActivity } from "@/lib/activity-log";
 import { userHasFeature } from "@/lib/access";
 
@@ -188,9 +189,39 @@ export async function POST(
     }).catch(() => {});
   }
 
+  // ── Auto-refresh snapshot ──────────────────────────────────────────────
+  // Pull the latest outstanding from Growth Tools so the sent email's
+  // "View & pay" links reflect current Xero `onlineInvoiceUrl` values. A
+  // freshly-issued invoice returns `null` until Xero activates its online
+  // payment link, so without this the newest invoice can ship with a `—`
+  // dash. Best-effort: on failure (or if the contact has cleared everything)
+  // we fall back to the stored snapshot rather than block the send.
+  let snapshot = draft.snapshot;
+  if (draft.status === "pending") {
+    const refresh = await refreshStatementSnapshot(draft.xeroContactId);
+    if (refresh.ok && !refresh.value.allPaid) {
+      snapshot = refresh.value.snapshot;
+      await payload
+        .update({
+          collection: "invoice-statement-drafts" as never,
+          id,
+          overrideAccess: true,
+          data: {
+            snapshot: refresh.value.snapshot,
+            totalOutstanding: refresh.value.totalOutstanding,
+            totalOverdue: refresh.value.totalOverdue,
+            unpaidCount: refresh.value.unpaidCount,
+            overdueCount: refresh.value.overdueCount,
+            lastRefreshedAt: refresh.value.refreshedAt,
+          } as never,
+        })
+        .catch(() => {});
+    }
+  }
+
   // ── Fetch PDFs (best-effort) ───────────────────────────────────────────
   const attachments = await fetchPdfsWithBudget(
-    draft.snapshot.unpaid.map((inv) => ({
+    snapshot.unpaid.map((inv) => ({
       invoiceId: inv.invoiceId,
       invoiceNumber: inv.invoiceNumber || inv.invoiceId,
     })),
@@ -199,7 +230,7 @@ export async function POST(
 
   // ── Build email ────────────────────────────────────────────────────────
   const email = buildStatementEmail({
-    snapshot: draft.snapshot,
+    snapshot,
     customMessage,
     greetingOverride,
     templates,

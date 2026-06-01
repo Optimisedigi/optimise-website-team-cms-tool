@@ -115,8 +115,10 @@ describe("invoice statement preview route", () => {
     expect(mockPayload.findByID).not.toHaveBeenCalled();
   });
 
-  it("renders preview from an unsaved custom message and greeting override without persisting", async () => {
+  it("renders preview from an unsaved custom message and greeting override without persisting the message", async () => {
     const { POST } = await import("@/app/(frontend)/api/invoice-statements/[id]/preview/route");
+    // Default fetch returns [] (no matching contact) so auto-refresh is a no-op
+    // and the stored snapshot is used.
 
     const res = await POST(
       postRequest("/api/invoice-statements/7/preview", {
@@ -131,6 +133,65 @@ describe("invoice statement preview route", () => {
     expect(body.subject).toContain("$2,200.00");
     expect(body.html).toContain("Please prioritise this today.");
     expect(body.html).toContain("Hi accounts team,");
+    // The unsaved custom message is never written back to the draft.
+    expect(mockPayload.update).not.toHaveBeenCalled();
+  });
+
+  it("auto-refreshes the snapshot from Growth Tools before rendering so payment links are current", async () => {
+    const { POST } = await import("@/app/(frontend)/api/invoice-statements/[id]/preview/route");
+    globalFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve([
+          {
+            contactId: "xero-1",
+            contactName: "Acme Pty Ltd",
+            firstName: "Alex",
+            lastName: "Acme",
+            emailAddress: "alex@acme.example",
+            unpaid: [
+              {
+                invoiceId: "inv-1",
+                invoiceNumber: "INV-001",
+                reference: "Retainer",
+                date: "2026-03-01",
+                dueDate: "2026-03-15",
+                total: 2200,
+                amountDue: 2200,
+                status: "AUTHORISED",
+                // Previously null in the stored snapshot; now activated in Xero.
+                onlineInvoiceUrl: "https://in.xero.com/fresh-link",
+              },
+            ],
+            paid: [],
+            totalOutstanding: 2200,
+            totalOverdue: 2200,
+            unpaidCount: 1,
+            overdueCount: 1,
+          },
+        ]),
+    } as Response);
+
+    const res = await POST(postRequest("/api/invoice-statements/7/preview"), PARAMS);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.html).toContain("https://in.xero.com/fresh-link");
+    // Preview is read-only: the refreshed snapshot is rendered but not
+    // persisted (the send path is the only writer).
+    expect(mockPayload.update).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the stored snapshot when the auto-refresh fetch fails", async () => {
+    const { POST } = await import("@/app/(frontend)/api/invoice-statements/[id]/preview/route");
+    globalFetch.mockResolvedValueOnce({ ok: false, status: 503 } as Response);
+
+    const res = await POST(postRequest("/api/invoice-statements/7/preview"), PARAMS);
+    const body = await res.json();
+
+    // Preview still succeeds using the stored snapshot, no persistence.
+    expect(res.status).toBe(200);
+    expect(body.html).toContain("https://in.xero.com/inv-1");
     expect(mockPayload.update).not.toHaveBeenCalled();
   });
 });
