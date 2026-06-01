@@ -21,7 +21,7 @@ Still actively expanding — core audit/proposal/content/GSC features are built,
 - **Storage:** Vercel Blob (media, screenshots)
 - **Email:** Postmark (audit report emails)
 - **AI:** Google Gemini (blog prompts, blog images)
-- **Deploy:** Vercel (production: `optimise-website-team-cms-tool.vercel.app`)
+- **Deploy:** Vercel (production: `cms.optimisedigital.online`)
 - **Dev port:** 3004 (hardcoded in package.json, just run `npm run dev`)
 
 ## External Services
