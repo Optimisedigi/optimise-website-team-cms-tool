@@ -276,12 +276,13 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
 
   useEffect(() => {
     setLoading(true)
-    // On open, pull live data from Xero once (re-pull + URL union + sticky +
-    // persist) so payment links are current and durable. refreshSnapshot ends
-    // by rendering the preview. Pending + failed drafts can be refreshed (a
-    // failed send is retryable); approved/expired/rejected are terminal, so we
-    // just render the stored snapshot.
-    if (draft.status === 'pending' || draft.status === 'failed') {
+    // On open, pull live data from Xero ONLY when the stored snapshot is stale
+    // (>24h or never refreshed). Refreshing on every open hammered Xero — each
+    // open hit the rate-limited endpoint and kept the 429 cooldown alive, so it
+    // never cleared. When the snapshot is fresh we just render it (no Xero
+    // call); the "Refresh from Xero" button is always there for an explicit pull.
+    const refreshable = draft.status === 'pending' || draft.status === 'failed'
+    if (refreshable && isStale(draft.lastRefreshedAt)) {
       void refreshSnapshot()
     } else {
       void refreshPreview(customMessage, greetingOverride)
