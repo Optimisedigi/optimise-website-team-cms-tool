@@ -2249,6 +2249,21 @@ export const Clients: CollectionConfig = {
           ],
         },
         {
+          label: "Forecast Scenarios",
+          description: "Saved Forecast Lab scenarios for client growth planning.",
+          fields: [
+            {
+              name: "forecastScenarios",
+              type: "join",
+              collection: "forecast-scenarios",
+              on: "client",
+              admin: {
+                defaultColumns: ["title", "scenarioType", "status", "publishedAt"],
+              },
+            },
+          ],
+        },
+        {
           label: "Search",
           description:
             "Consolidated home for search-side configuration — Search Console, SEO Health monitoring, SERP tracking, and AI Visibility. The brand keywords list below is the single source of truth used by every feature in this tab, the Google Ads dashboard's brand-vs-generic split, AI Search Erosion Detector, negative-sweep, and quality score analysis.",

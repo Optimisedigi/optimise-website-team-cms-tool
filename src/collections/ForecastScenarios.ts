@@ -1,5 +1,5 @@
 import type { CollectionConfig } from "payload";
-import { adminOnlyDelete, canAccess, hideUnlessFeature } from "../lib/access";
+import { adminOnlyDelete, canAccess } from "../lib/access";
 
 export const ForecastScenarios: CollectionConfig = {
   slug: "forecast-scenarios",
@@ -10,9 +10,9 @@ export const ForecastScenarios: CollectionConfig = {
   admin: {
     useAsTitle: "title",
     group: "Reports",
-    description: "Saved Forecast Lab scenarios for client growth planning.",
+    description: "Saved Forecast Lab scenarios for client growth planning. Managed from each Client's Forecast Scenarios tab.",
     defaultColumns: ["title", "client", "scenarioType", "status", "publishedAt"],
-    hidden: hideUnlessFeature("clients"),
+    hidden: true,
   },
   access: {
     read: canAccess("clients"),

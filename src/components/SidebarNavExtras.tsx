@@ -165,6 +165,20 @@ const SidebarNavExtras = () => {
     // surfaces these collections in its tables.
     const HIDDEN_COLLECTION_HREFS = [
       '/admin/collections/google-ads-audits',
+      '/admin/collections/seo-audits',
+      '/admin/collections/seo-audit-proposals',
+      '/admin/collections/seo-migration-checks',
+      '/admin/collections/internal-link-suggestions',
+      '/admin/collections/quarterly-organic-growth-snapshots',
+      '/admin/collections/site-health-reports',
+      '/admin/collections/gsc-snapshots',
+      '/admin/collections/gsc-daily',
+      '/admin/collections/gsc-alerts',
+      '/admin/collections/gsc-indexing-audits',
+      '/admin/collections/forecast-scenarios',
+      '/admin/collections/ai-visibility-snapshots',
+      '/admin/collections/serp-displacement-snapshots',
+      '/admin/collections/serp-displacement-alerts',
       '/admin/collections/contractors',
       '/admin/collections/contractor-payments',
     ]
@@ -174,6 +188,11 @@ const SidebarNavExtras = () => {
         if (link && link.style.display !== 'none') {
           link.style.display = 'none'
         }
+      }
+
+      const reportsGroup = document.querySelector('#nav-group-Reports') as HTMLElement | null
+      if (reportsGroup && reportsGroup.style.display !== 'none') {
+        reportsGroup.style.display = 'none'
       }
     }
     hideAutoCollectionLinks()

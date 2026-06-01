@@ -6,48 +6,46 @@ import RocketSplash from './RocketSplash'
 /**
  * SEO hub — nested under Growth Tools (mirrors the Google Ads hub).
  *
- * Lists clients and opens each one's edit view, where the per-client "SEO" tab
- * lives (Post-Migration SEO Review + links to the client's SEO records).
- *
- * Note: Payload v3's Tabs field does not select a tab from the URL hash, so the
- * `#tab-N` anchor (kept for parity with the Google Ads hub) only scrolls; the
- * user clicks the SEO tab. We therefore avoid relying on a brittle positional
- * index that silently drifts whenever a tab is inserted.
+ * Lists clients and opens each one's dedicated SEO workspace, keeping SEO-only
+ * records out of the general client edit screen.
  */
-
-// 0-based position of the "SEO" tab in Clients.ts — used only for the scroll
-// anchor, matching the Google Ads hub convention. Not load-bearing for tab
-// selection (Payload ignores the hash).
-const TAB_INDEX_SEO = 7
 
 interface ClientRow {
   id: number
   name: string
+  slug: string
   gscConnected: boolean
+  latestSeoAudit: { id: number; overallScore: number | null; auditStatus: string | null; createdAt: string } | null
+  latestMigration: { id: number; status: string | null; createdAt: string } | null
+  counts: {
+    seoAudits: number
+    migrations: number
+    internalLinks: number
+    quarterlySnapshots: number
+    siteHealthReports: number
+  }
 }
 
-const destinationFor = (c: ClientRow): string =>
-  `/admin/collections/clients/${c.id}#tab-${TAB_INDEX_SEO}`
+const destinationFor = (c: ClientRow): string => `/admin/growth-tools/seo/${c.slug || c.id}`
+
+const scoreColor = (score: number | null) => {
+  if (score == null) return { bg: '#f3f4f6', fg: '#6b7280' }
+  if (score >= 8) return { bg: '#dcfce7', fg: '#166534' }
+  if (score >= 5) return { bg: '#fef3c7', fg: '#92400e' }
+  return { bg: '#fee2e2', fg: '#991b1b' }
+}
 
 const SeoHubPage = () => {
   const [clients, setClients] = useState<ClientRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'connected' | 'unconnected'>('connected')
+  const [filter, setFilter] = useState<'all' | 'connected' | 'unconnected'>('all')
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    fetch('/api/clients/list')
+    fetch('/api/clients/seo-list')
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
-        if (Array.isArray(data)) {
-          setClients(
-            data.map((c: { id: number; name: string; gscConnected?: boolean }) => ({
-              id: c.id,
-              name: c.name,
-              gscConnected: !!c.gscConnected,
-            })),
-          )
-        }
+        if (Array.isArray(data)) setClients(data)
         setLoading(false)
       })
       .catch((err) => {
@@ -69,7 +67,9 @@ const SeoHubPage = () => {
   const stats = useMemo(() => {
     const total = clients.length
     const connected = clients.filter((c) => c.gscConnected).length
-    return { total, connected }
+    const audited = clients.filter((c) => !!c.latestSeoAudit).length
+    const migrations = clients.filter((c) => !!c.latestMigration).length
+    return { total, connected, audited, migrations }
   }, [clients])
 
   if (loading) return <RocketSplash />
@@ -78,13 +78,13 @@ const SeoHubPage = () => {
     <div className="od-settings">
       <h2 className="od-settings__title">SEO</h2>
       <p className="od-settings__subtitle">
-        SEO tooling across all clients. Click a client to open their SEO tab —
-        run a Post-Migration SEO Review and jump to their audits, indexing, and alerts.
+        SEO tooling across all clients. Click a client to open their SEO workspace —
+        SEO audit scores, migrations, internal link suggestions, quarterly organic growth snapshots, and site health reports.
       </p>
 
       {/* Summary stats */}
       <div className="od-box" style={{ marginBottom: 16 }}>
-        <div className="od-box__stats od-box__stats--2">
+        <div className="od-box__stats od-box__stats--4">
           <div className="od-box__stat">
             <span className="od-box__stat-value">{stats.total}</span>
             <span className="od-box__stat-label">Active clients</span>
@@ -92,6 +92,14 @@ const SeoHubPage = () => {
           <div className="od-box__stat">
             <span className="od-box__stat-value">{stats.connected}</span>
             <span className="od-box__stat-label">GSC connected</span>
+          </div>
+          <div className="od-box__stat">
+            <span className="od-box__stat-value">{stats.audited}</span>
+            <span className="od-box__stat-label">SEO audited</span>
+          </div>
+          <div className="od-box__stat">
+            <span className="od-box__stat-value">{stats.migrations}</span>
+            <span className="od-box__stat-label">Migrations</span>
           </div>
         </div>
       </div>
@@ -138,19 +146,22 @@ const SeoHubPage = () => {
             <tr>
               <th style={thStyle}>Client</th>
               <th style={thStyle}>Search Console</th>
+              <th style={thStyle}>Latest audit score</th>
+              <th style={thStyle}>SEO records</th>
               <th style={{ ...thStyle, textAlign: 'right', paddingRight: 16 }}></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ padding: 32, textAlign: 'center', color: '#6b7280' }}>
+                <td colSpan={5} style={{ padding: 32, textAlign: 'center', color: '#6b7280' }}>
                   No clients match the current filter.
                 </td>
               </tr>
             )}
             {filtered.map((c) => {
               const href = destinationFor(c)
+              const colors = scoreColor(c.latestSeoAudit?.overallScore ?? null)
               return (
                 <tr
                   key={c.id}
@@ -181,13 +192,35 @@ const SeoHubPage = () => {
                       <span style={{ color: '#9ca3af' }}>Not connected</span>
                     )}
                   </td>
+                  <td style={tdStyle}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        minWidth: 38,
+                        textAlign: 'center',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        background: colors.bg,
+                        color: colors.fg,
+                        fontWeight: 700,
+                        fontSize: 12,
+                      }}
+                    >
+                      {c.latestSeoAudit?.overallScore ?? '—'}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={{ color: '#475569', fontSize: 12 }}>
+                      Audits {c.counts.seoAudits} · Migrations {c.counts.migrations} · Links {c.counts.internalLinks} · Quarterly {c.counts.quarterlySnapshots} · Health {c.counts.siteHealthReports}
+                    </span>
+                  </td>
                   <td style={{ ...tdStyle, textAlign: 'right', paddingRight: 16 }}>
                     <a
                       href={href}
                       onClick={(e) => e.stopPropagation()}
                       style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 500, fontSize: 13 }}
                     >
-                      Open →
+                      Open SEO →
                     </a>
                   </td>
                 </tr>
