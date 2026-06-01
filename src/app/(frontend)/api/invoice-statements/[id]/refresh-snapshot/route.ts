@@ -48,9 +48,12 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (draft.status !== "pending") {
+  // Pending drafts (not yet sent) and failed drafts (a send that errored and
+  // can be retried) may both be refreshed. Approved/expired/rejected are
+  // terminal — their snapshot is a historical record and must not change.
+  if (draft.status !== "pending" && draft.status !== "failed") {
     return NextResponse.json(
-      { error: "Only pending drafts can be refreshed" },
+      { error: "Only pending or failed drafts can be refreshed" },
       { status: 409 },
     );
   }

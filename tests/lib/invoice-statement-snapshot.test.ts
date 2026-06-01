@@ -53,31 +53,18 @@ beforeEach(() => {
 });
 
 describe("refreshStatementSnapshot — upstream flapping mitigation", () => {
-  it("unions payment links across all attempts so no single flaky call loses a link", async () => {
-    // No single call has every URL: call 1 has inv-2, call 2 has inv-1 + inv-3.
-    // The union across attempts must yield all three.
-    globalFetch
-      .mockResolvedValueOnce(okJson([row([null, "https://x/2", null])]))
-      .mockResolvedValueOnce(okJson([row(["https://x/1", null, "https://x/3"])]))
-      .mockResolvedValueOnce(okJson([row(["https://x/1", null, null])]));
+  it("makes a single Growth Tools call (server-side handles retry/cache)", async () => {
+    // The CMS no longer multi-fetches: Growth Tools retries + caches the flaky
+    // Xero OnlineInvoice calls, so stacking bulk calls here just multiplied
+    // load and exhausted Xero's daily limit. One call is enough.
+    globalFetch.mockResolvedValue(okJson([row(["https://x/1", "https://x/2"])]));
 
     const result = await refreshStatementSnapshot(CONTACT_ID);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(urlFlags(result.value.snapshot)).toBe("INV-001=Y INV-002=Y INV-003=Y");
-  });
-
-  it("stops early when a response already has every link populated", async () => {
-    globalFetch.mockResolvedValueOnce(
-      okJson([row(["https://x/1", "https://x/2"])]),
-    );
-
-    const result = await refreshStatementSnapshot(CONTACT_ID);
-
-    expect(result.ok).toBe(true);
-    // Only one fetch — no retries needed.
     expect(globalFetch).toHaveBeenCalledTimes(1);
+    expect(urlFlags(result.value.snapshot)).toBe("INV-001=Y INV-002=Y");
   });
 
   it("preserves a previously-known URL when this fetch returns null (sticky)", async () => {
@@ -136,7 +123,7 @@ describe("refreshStatementSnapshot — upstream flapping mitigation", () => {
     expect(byId["inv-2"]).toBe("https://x/sticky-2");
   });
 
-  it("returns a 502 result when every attempt fails", async () => {
+  it("returns a 502 result when the Growth Tools call fails", async () => {
     globalFetch.mockResolvedValue({ ok: false, status: 500 } as Response);
 
     const result = await refreshStatementSnapshot(CONTACT_ID);
@@ -144,7 +131,7 @@ describe("refreshStatementSnapshot — upstream flapping mitigation", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.status).toBe(502);
-    expect(globalFetch).toHaveBeenCalledTimes(3);
+    expect(globalFetch).toHaveBeenCalledTimes(1);
   });
 
   it("reports allPaid only when every successful attempt omits the contact", async () => {
@@ -157,19 +144,104 @@ describe("refreshStatementSnapshot — upstream flapping mitigation", () => {
     expect(result.value.allPaid).toBe(true);
   });
 
-  it("does NOT zero the statement when the contact only transiently drops out", async () => {
-    // attempt 1: contact missing (flaky miss). attempt 2: contact present.
-    // We must trust the response that has the contact, not the empty one.
-    globalFetch
-      .mockResolvedValueOnce(okJson([]))
-      .mockResolvedValueOnce(okJson([row(["https://x/1", "https://x/2"])]));
+  it("keeps the previous snapshot's links when this single call returns null (sticky)", async () => {
+    // The core protection now that there's no intra-call union: a known-good
+    // link from the stored snapshot is never blanked by a flaky null.
+    const previous: StatementSnapshot = {
+      contact: {
+        contactId: CONTACT_ID,
+        contactName: "Acme Pty Ltd",
+        firstName: "Alex",
+        lastName: "Acme",
+        emailAddress: "alex@acme.example",
+      },
+      unpaid: [
+        {
+          invoiceId: "inv-1",
+          invoiceNumber: "INV-001",
+          reference: "Retainer",
+          date: "2026-03-01",
+          dueDate: "2026-03-15",
+          total: 1000,
+          amountDue: 1000,
+          status: "AUTHORISED",
+          onlineInvoiceUrl: "https://x/sticky-1",
+        },
+      ],
+      paid: [],
+      totalOutstanding: 1000,
+      totalOverdue: 1000,
+      unpaidCount: 1,
+      overdueCount: 1,
+      capturedAt: "2026-05-01T00:00:00.000Z",
+    };
+    globalFetch.mockResolvedValue(okJson([row([null])]));
 
-    const result = await refreshStatementSnapshot(CONTACT_ID);
+    const result = await refreshStatementSnapshot(CONTACT_ID, previous);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.allPaid).toBe(false);
-    expect(result.value.snapshot.unpaid).toHaveLength(2);
-    expect(urlFlags(result.value.snapshot)).toBe("INV-001=Y INV-002=Y");
+    expect(result.value.snapshot.unpaid[0]!.onlineInvoiceUrl).toBe(
+      "https://x/sticky-1",
+    );
+  });
+
+  it("asks Growth Tools to skip the Xero link lookup for invoices we already have", async () => {
+    const previous: StatementSnapshot = {
+      contact: {
+        contactId: CONTACT_ID,
+        contactName: "Acme Pty Ltd",
+        firstName: "Alex",
+        lastName: "Acme",
+        emailAddress: "alex@acme.example",
+      },
+      unpaid: [
+        {
+          invoiceId: "inv-1",
+          invoiceNumber: "INV-001",
+          reference: "Retainer",
+          date: "2026-03-01",
+          dueDate: "2026-03-15",
+          total: 1000,
+          amountDue: 1000,
+          status: "AUTHORISED",
+          onlineInvoiceUrl: "https://x/sticky-1",
+        },
+        {
+          invoiceId: "inv-2",
+          invoiceNumber: "INV-002",
+          reference: "Retainer",
+          date: "2026-03-01",
+          dueDate: "2026-03-15",
+          total: 1000,
+          amountDue: 1000,
+          status: "AUTHORISED",
+          onlineInvoiceUrl: null, // missing — must still be resolved
+        },
+      ],
+      paid: [],
+      totalOutstanding: 2000,
+      totalOverdue: 2000,
+      unpaidCount: 2,
+      overdueCount: 2,
+      capturedAt: "2026-05-01T00:00:00.000Z",
+    };
+    globalFetch.mockResolvedValue(okJson([row([null, "https://x/fresh-2"])]));
+
+    await refreshStatementSnapshot(CONTACT_ID, previous);
+
+    const calledUrl = String(globalFetch.mock.calls[0]![0]);
+    const skip = new URL(calledUrl).searchParams.get("skipUrlInvoiceIds");
+    // inv-1 already has a link → skipped; inv-2 has none → not skipped.
+    expect(skip).toBe("inv-1");
+  });
+
+  it("omits skipUrlInvoiceIds entirely when no links are known yet", async () => {
+    globalFetch.mockResolvedValue(okJson([row([null, null])]));
+
+    await refreshStatementSnapshot(CONTACT_ID);
+
+    const calledUrl = String(globalFetch.mock.calls[0]![0]);
+    expect(new URL(calledUrl).searchParams.has("skipUrlInvoiceIds")).toBe(false);
   });
 });

@@ -245,6 +245,66 @@ describe("invoice statement refresh-snapshot route", () => {
       }),
     );
   });
+
+  it("allows refreshing a failed draft so it can be re-sent with fresh data", async () => {
+    const { POST } = await import("@/app/(frontend)/api/invoice-statements/[id]/refresh-snapshot/route");
+    mockPayload.findByID.mockResolvedValueOnce({ ...DRAFT_ROW, status: "failed" });
+    globalFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve([
+          {
+            contactId: "xero-1",
+            contactName: "Acme Pty Ltd",
+            firstName: "Alex",
+            lastName: "Acme",
+            emailAddress: "alex@acme.example",
+            unpaid: [
+              {
+                invoiceId: "inv-1",
+                invoiceNumber: "INV-001",
+                reference: "Retainer",
+                date: "2026-03-01",
+                dueDate: "2026-03-15",
+                total: 2200,
+                amountDue: 2200,
+                status: "AUTHORISED",
+                onlineInvoiceUrl: "https://in.xero.com/inv-1",
+              },
+            ],
+            paid: [],
+            totalOutstanding: 2200,
+            totalOverdue: 2200,
+            unpaidCount: 1,
+            overdueCount: 1,
+          },
+        ]),
+    } as Response);
+
+    const res = await POST(postRequest("/api/invoice-statements/7/refresh-snapshot"), PARAMS);
+
+    expect(res.status).toBe(200);
+    // Refresh updates the snapshot but never flips the draft's status — it
+    // stays `failed` until a retry send succeeds.
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ status: expect.anything() }),
+      }),
+    );
+  });
+
+  it("rejects refreshing a terminal (approved) draft with 409", async () => {
+    const { POST } = await import("@/app/(frontend)/api/invoice-statements/[id]/refresh-snapshot/route");
+    mockPayload.findByID.mockResolvedValueOnce({ ...DRAFT_ROW, status: "approved" });
+
+    const res = await POST(postRequest("/api/invoice-statements/7/refresh-snapshot"), PARAMS);
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: "Only pending or failed drafts can be refreshed",
+    });
+    expect(mockPayload.update).not.toHaveBeenCalled();
+  });
 });
 
 describe("invoice statement reject route", () => {

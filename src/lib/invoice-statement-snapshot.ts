@@ -35,8 +35,20 @@ import type {
  * is the defensive CMS-side mitigation.
  */
 
-/** Total attempts for the outstanding fetch (1 initial + retries). */
-const FETCH_ATTEMPTS = 3;
+/**
+ * Attempts for the outstanding fetch. Kept at 1: Growth Tools now retries +
+ * caches the flaky Xero OnlineInvoice calls server-side, so multiple bulk
+ * calls from here are redundant AND harmful — each bulk call fans out to many
+ * Xero API calls, and stacking 3 of them per refresh is what exhausted Xero's
+ * daily rate limit and made every call hang. One call + the sticky merge
+ * against the previous snapshot is enough.
+ */
+const FETCH_ATTEMPTS = 1;
+
+/** Per-request timeout (ms) for the Growth Tools call, so the UI never hangs
+ * on a slow/stuck upstream. The refresh fails fast and callers fall back to
+ * the stored snapshot. */
+const FETCH_TIMEOUT_MS = 20_000;
 /**
  * Base backoff in ms between attempts (scales linearly per retry). Overridable
  * via `STATEMENT_REFRESH_BACKOFF_MS` so tests can disable the delay.
@@ -151,18 +163,22 @@ export async function refreshStatementSnapshot(
     if (inv.onlineInvoiceUrl) knownUrls.set(inv.invoiceId, inv.onlineInvoiceUrl);
   }
 
-  // The endpoint flaps: the same invoice's URL is present on one call and null
-  // on the next, the contact can transiently drop out of the response, and it
-  // sometimes 500s. No single call reliably returns every URL, so instead of
-  // picking one "best" response we UNION the URLs seen across all attempts
-  // into `knownUrls` (seeded above with previously-known links). The shape of
-  // the statement (which invoices, amounts) comes from the latest response
-  // that actually contained the contact.
-  //
-  // A response that omits the contact is NOT treated as terminal "all paid":
-  // under flapping that can be a transient miss, and acting on it would wrongly
-  // zero out the whole statement. We only conclude all-paid if EVERY successful
-  // attempt omitted the contact (`sawContact` stays false).
+  // Tell Growth Tools which invoices we already have a link for so it skips the
+  // Xero OnlineInvoice lookup for them and only resolves the MISSING ones. We
+  // re-apply our known links from `knownUrls` below, so skipping costs nothing.
+  if (knownUrls.size > 0) {
+    url.searchParams.set("skipUrlInvoiceIds", [...knownUrls.keys()].join(","));
+  }
+
+  // Retry/cache for the flaky Xero OnlineInvoice calls now lives in Growth
+  // Tools (which the bulk endpoint proxies), so a single call here is enough
+  // and avoids multiplying Xero's call volume. Resilience kept on this side:
+  //   - `knownUrls` (seeded above from the previous snapshot) is merged in
+  //     below so a flaky null never blanks a link we've already seen;
+  //   - a response that OMITS the contact is not treated as terminal "all
+  //     paid" unless the call genuinely succeeded without the contact present
+  //     (`sawContact` stays false), so a transient miss can't zero a statement.
+  // The loop is retained (FETCH_ATTEMPTS-driven) but defaults to one pass.
   let latest: GrowthToolsRow | null = null;
   let sawSuccess = false;
   let sawContact = false;
@@ -172,6 +188,7 @@ export async function refreshStatementSnapshot(
     try {
       const res = await fetch(url.toString(), {
         headers: { "x-internal-key": internalKey },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) {
         lastError = `Growth Tools fetch failed (${res.status})`;

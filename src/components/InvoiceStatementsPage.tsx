@@ -278,9 +278,10 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
     setLoading(true)
     // On open, pull live data from Xero once (re-pull + URL union + sticky +
     // persist) so payment links are current and durable. refreshSnapshot ends
-    // by rendering the preview. Only pending drafts can be refreshed; for
-    // approved/failed (resend/retry) we just render the stored snapshot.
-    if (draft.status === 'pending') {
+    // by rendering the preview. Pending + failed drafts can be refreshed (a
+    // failed send is retryable); approved/expired/rejected are terminal, so we
+    // just render the stored snapshot.
+    if (draft.status === 'pending' || draft.status === 'failed') {
       void refreshSnapshot()
     } else {
       void refreshPreview(customMessage, greetingOverride)
