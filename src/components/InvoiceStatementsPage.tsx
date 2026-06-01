@@ -363,6 +363,27 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
     }
   }
 
+  const resetFailed = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/invoice-statements/${draft.id}/reset-failed`, {
+        method: 'POST',
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? `Reset failed (${res.status})`)
+      // Just clear the failed state — don't force a Xero re-pull here (it may be
+      // rate-limited and would surface a fresh error on a draft the user just
+      // reset). They can hit "Refresh from Xero" when ready.
+      setDraft((prev) => ({ ...prev, status: 'pending', sendError: null }))
+      onUpdated()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const submitReject = async () => {
     setBusy(true)
     setError(null)
@@ -561,7 +582,7 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
         </div>
 
         <div style={{ padding: '12px 20px', borderTop: '1px solid var(--theme-elevation-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <div>
+          <div style={{ display: 'flex', gap: 10 }}>
             {rejectMode ? (
               <button onClick={() => setRejectMode(false)} style={btnSecondary} disabled={busy}>
                 Cancel reject
@@ -569,6 +590,16 @@ function ReviewModal({ draft: initialDraft, onClose, onUpdated }: ReviewModalPro
             ) : (
               <button onClick={() => setRejectMode(true)} style={btnDanger} disabled={busy}>
                 Reject
+              </button>
+            )}
+            {!rejectMode && draft.status === 'failed' && (
+              <button
+                onClick={resetFailed}
+                style={btnSecondary}
+                disabled={busy}
+                title="Clear the failed state and put this draft back to pending so you can start fresh (refresh + send again)."
+              >
+                {busy ? 'Resetting\u2026' : 'Reset to pending'}
               </button>
             )}
           </div>

@@ -432,3 +432,35 @@ describe("POST /api/invoice-statements/:id/reject", () => {
     expect(res.status).toBe(409);
   });
 });
+
+// ── reset-failed route ───────────────────────────────────────
+
+import { POST as resetFailed } from "@/app/(frontend)/api/invoice-statements/[id]/reset-failed/route";
+
+describe("POST /api/invoice-statements/:id/reset-failed", () => {
+  it("rejects unauthenticated requests", async () => {
+    mockPayload.auth.mockResolvedValueOnce({ user: null });
+    const res = await resetFailed(makeRequest(), PARAMS);
+    expect(res.status).toBe(401);
+    expect(mockPayload.update).not.toHaveBeenCalled();
+  });
+
+  it("flips a failed draft back to pending and clears the send error", async () => {
+    mockPayload.findByID.mockResolvedValueOnce({ ...DRAFT_ROW, status: "failed" });
+    const res = await resetFailed(makeRequest(), PARAMS);
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true, status: "pending" });
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "pending", sendError: null }),
+      }),
+    );
+  });
+
+  it("refuses to reset a draft that is not failed", async () => {
+    mockPayload.findByID.mockResolvedValueOnce({ ...DRAFT_ROW, status: "pending" });
+    const res = await resetFailed(makeRequest(), PARAMS);
+    expect(res.status).toBe(409);
+    expect(mockPayload.update).not.toHaveBeenCalled();
+  });
+});
