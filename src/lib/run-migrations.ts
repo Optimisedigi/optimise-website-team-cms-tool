@@ -109,6 +109,16 @@ export async function runMigrations(
     await run("clients.business_type", "ALTER TABLE `clients` ADD `business_type` text");
     await run("clients.target_location", "ALTER TABLE `clients` ADD `target_location` text");
     await run("clients.client_goals", "ALTER TABLE `clients` ADD `client_goals` text");
+    await run("clients.client_type", "ALTER TABLE `clients` ADD `client_type` text DEFAULT 'recurring'");
+    await run("clients_services", `CREATE TABLE IF NOT EXISTS \`clients_services\` (
+      \`order\` integer NOT NULL,
+      \`parent_id\` integer NOT NULL,
+      \`value\` text,
+      \`id\` integer PRIMARY KEY NOT NULL,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_services_order_idx", "CREATE INDEX IF NOT EXISTS `clients_services_order_idx` ON `clients_services` (`order`)");
+    await run("clients_services_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_services_parent_id_idx` ON `clients_services` (`parent_id`)");
   
     // --- CRO Audits ---
     await run("cro_audits", `CREATE TABLE IF NOT EXISTS \`cro_audits\` (

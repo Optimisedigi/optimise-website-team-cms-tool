@@ -42,6 +42,14 @@ vi.mock('@/lib/agents/optimate-google-ads', () => ({
       execute: vi.fn(),
     },
   ],
+  getPortfolioTools: () => [
+    {
+      name: 'get_portfolio_performance_summary',
+      description: 'read portfolio',
+      inputSchema: { type: 'object', properties: {} },
+      execute: execSpy,
+    },
+  ],
 }))
 vi.mock('@/lib/agents/optimate-google-ads/config', () => ({
   conversionActionsForClient: () => 'Purchase',
@@ -60,6 +68,7 @@ function makeRequest(body: unknown): Request {
 beforeEach(() => {
   mockPayload.auth.mockReset()
   mockPayload.findByID.mockReset()
+  mockPayload.find.mockReset()
   execSpy.mockClear()
 })
 
@@ -83,6 +92,50 @@ describe('POST /api/optimate/realtime-tool', () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 42 } })
     expect((await POST(makeRequest({ name: 'get_campaign_performance' }))).status).toBe(400)
     expect((await POST(makeRequest({ auditId: '1' }))).status).toBe(400)
+  })
+
+  it('falls back to customerId when auditId does not resolve', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 42 } })
+    mockPayload.findByID.mockRejectedValue(new Error('not found'))
+    mockPayload.find.mockResolvedValue({ docs: [{ id: 9, customerId: '1234567890', client: null }] })
+    const res = await POST(
+      makeRequest({
+        auditId: 'missing',
+        customerId: '123-456-7890',
+        name: 'get_campaign_performance',
+        arguments: { range: 'LAST_7_DAYS' },
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(execSpy).toHaveBeenCalledTimes(1)
+    const [, ctx] = execSpy.mock.calls[0] as [
+      Record<string, unknown>,
+      { context: Record<string, unknown> },
+    ]
+    expect(ctx.context.auditId).toBe(9)
+    expect(ctx.context.customerId).toBe('1234567890')
+  })
+
+  it('executes portfolio voice tools with selected account refs', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 42 } })
+    const res = await POST(
+      makeRequest({
+        mode: 'portfolio',
+        selectedAccountRefs: [7, '8'],
+        name: 'get_portfolio_performance_summary',
+        arguments: {},
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(mockPayload.findByID).not.toHaveBeenCalled()
+    expect(execSpy).toHaveBeenCalledTimes(1)
+    const [args, ctx] = execSpy.mock.calls[0] as [
+      Record<string, unknown>,
+      { context: Record<string, unknown> },
+    ]
+    expect(args.accountRefs).toEqual([7, '8'])
+    expect(ctx.context.mode).toBe('portfolio')
+    expect(ctx.context.selectedAccountRefs).toEqual([7, '8'])
   })
 
   it('returns 404 when the audit is not found', async () => {
