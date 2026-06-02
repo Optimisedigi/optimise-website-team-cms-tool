@@ -552,6 +552,29 @@ $svg-close: "%3C/svg%3E";
   margin-left: 48px;
 }
 
+// ============================================================
+// Global sticky top header (mockup .topbar) — applies to ALL admin pages
+// ============================================================
+// Payload's `.app-header` (breadcrumbs + account menu) defaults to
+// `position: relative` and scrolls away. Pin it to the top with the mockup's
+// calmer, blurred, bordered surface so it stays visible while the page
+// scrolls — the same treatment used on the client edit page, now everywhere.
+.app-header {
+  position: sticky;
+  top: 0;
+  // Sit above page content but below the nav drawer / modals.
+  z-index: 30;
+
+  // Always show the blurred background (Payload only reveals it on scroll via
+  // `--show-bg`); force it on so the sticky bar reads as a solid header.
+  .app-header__bg {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--theme-elevation-100, #e7e9ee);
+  }
+}
+
 
 // Sidebar Dashboard link — sits below logo, above nav groups
 .sidebar-dashboard-link {
@@ -661,27 +684,44 @@ $svg-close: "%3C/svg%3E";
 // ============================================================
 // Custom Dashboard — Clean hub layout
 // ============================================================
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 // Light gray background on the dashboard page
 .dashboard {
-  background: #f3f4f6 !important;
+  background: #f5f6f8 !important;
   min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .od-dash {
   margin-bottom: 40px;
-  padding-top: 24px;
+  padding-top: 12px;
+
+  // Mockup brand tokens, scoped to the dashboard so they never touch
+  // Payload's global theme variables.
+  --od-canvas: #f5f6f8;
+  --od-card: #fff;
+  --od-card2: #fbfbfc;
+  --od-border: #e7e9ee;
+  --od-border-soft: #eef0f3;
+  --od-t1: #111827;
+  --od-t2: #5b6573;
+  --od-t3: #8b95a3;
+  --od-accent: #2c97c9;
+  --od-accent-strong: #1f7fad;
+  --od-green: #16a34a;
+  --od-red: #dc2626;
 }
 
 .od-dash__header {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .od-dash__title {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
   margin: 0;
   letter-spacing: -0.02em;
@@ -695,8 +735,8 @@ $svg-close: "%3C/svg%3E";
 
 .od-dash__layout {
   display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 20px;
+  grid-template-columns: 1fr 360px;
+  gap: 16px;
   align-items: start;
 }
 
@@ -715,9 +755,12 @@ $svg-close: "%3C/svg%3E";
 // ── Box (card) ──
 .od-box {
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  border: 1px solid #e7e9ee;
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow:
+    0 1px 3px rgba(16, 24, 40, 0.07),
+    0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 .od-box--muted {
@@ -725,16 +768,18 @@ $svg-close: "%3C/svg%3E";
 }
 
 .od-box__head {
-  padding: 14px 20px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 16px 18px;
+  border-bottom: 1px solid #eef0f3;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
 }
 
 .od-box__title {
   font-size: 14px;
   font-weight: 700;
+  letter-spacing: -0.01em;
   color: #111827;
 }
 
@@ -754,8 +799,192 @@ $svg-close: "%3C/svg%3E";
   color: #6b7280;
 }
 
+.od-box__eyebrow {
+  font-size: 11px;
+  color: #8b95a3;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: block;
+  margin-bottom: 2px;
+}
+
 .od-box__body {
   padding: 0;
+}
+
+// ── KPI dot ──
+.od-kpi-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 5px;
+  flex-shrink: 0;
+}
+
+// ── Full-width band header (precedes full-width sections, mockup .band-h) ──
+.od-band {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 26px 0 14px;
+}
+
+.od-band__text {
+  min-width: 0;
+}
+
+.od-band__eyebrow {
+  font-size: 11px;
+  color: #8b95a3;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.od-band h2 {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #111827;
+  margin: 0;
+}
+
+.od-band__spacer {
+  flex: 1;
+}
+
+// Segmented period control inside a band header (mockup .seg)
+.od-seg {
+  display: inline-flex;
+  background: #fff;
+  border: 1px solid #e7e9ee;
+  border-radius: 8px;
+  overflow: hidden;
+
+  button {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #5b6573;
+    cursor: pointer;
+    transition: background 150ms, color 150ms;
+
+    & + button {
+      border-left: 1px solid #e7e9ee;
+    }
+
+    &:hover {
+      background: #f5f6f8;
+    }
+
+    &.od-seg--active {
+      background: #2c97c9;
+      color: #fff;
+    }
+  }
+}
+
+// ── KPI strip (8-card topline row) ──
+.od-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.od-kpi {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 12px 11px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.od-kpi__label {
+  font-size: 10.5px;
+  color: #6b7280;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  height: 28px;
+  line-height: 1.3;
+
+  .od-kpi-dot {
+    margin-top: 4px;
+    margin-right: 0;
+  }
+}
+
+.od-kpi__value {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #111827;
+  margin-top: 0;
+}
+
+// Optional month-over-month delta row (only rendered when real change
+// data is available — KPI strip tiles currently omit it; see Dashboard.tsx).
+.od-kpi__delta {
+  font-size: 10.5px;
+  font-weight: 700;
+  margin-top: auto;
+  padding-top: 4px;
+  letter-spacing: 0.01em;
+}
+
+.od-kpi__delta--up {
+  color: #16a34a;
+}
+
+.od-kpi__delta--down {
+  color: #dc2626;
+}
+
+.od-kpi__delta--flat {
+  color: #8b95a3;
+}
+
+@media (max-width: 768px) {
+  .od-kpi-strip {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .od-kpi__value {
+    font-size: 15px;
+  }
+}
+
+// ── New Client button (page header) ──
+.od-dash__new-client {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  background: #2c97c9;
+  color: #ffffff;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 150ms;
+  white-space: nowrap;
+
+  &:hover {
+    background: #1f7fad;
+  }
 }
 
 // ── Stat grid inside boxes ──
@@ -763,7 +992,7 @@ $svg-close: "%3C/svg%3E";
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  background: #e5e7eb;
+  background: #eef0f3;
 }
 
 .od-box__stats--6 {
@@ -805,7 +1034,7 @@ $svg-close: "%3C/svg%3E";
 
 .od-box__stat-label {
   font-size: 10px;
-  color: #6b7280;
+  color: #5b6573;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   line-height: 1.3;
@@ -1016,45 +1245,70 @@ $svg-close: "%3C/svg%3E";
   padding: 20px;
 }
 
-// 4-column summary row: Total | Infra | API | LLM
+// Compact inline summary row (mockup style): Total | Business | Infra | API | LLM
 .od-costs__summary-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.od-costs__summary-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+  margin-right: 5px;
+  flex-shrink: 0;
+}
+
+// Horizontal current-month composition bar
+.od-stackbar {
+  height: 12px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #eef0f3;
+  display: flex;
+
+  span {
+    display: block;
+    height: 100%;
+  }
 }
 
 .od-costs__summary {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 14px 8px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
 }
 
 .od-costs__summary--total {
-  background: #f3f4f6;
-  border-color: #d1d5db;
+  // no extra chrome — matches the mockup's inline Total stat
 }
 
 .od-costs__summary-dot {
   width: 8px;
   height: 8px;
   border-radius: 2px;
+  display: inline-block;
+  margin-right: 5px;
   flex-shrink: 0;
 }
 
 .od-costs__summary-label {
-  font-size: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #6b7280;
+  color: #8b95a3;
+  display: flex;
+  align-items: center;
 }
 
 .od-costs__summary-value {
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: #111827;
@@ -1145,7 +1399,7 @@ $svg-close: "%3C/svg%3E";
   justify-content: space-between;
   align-items: center;
   padding: 6px 0;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #eef0f3;
   font-size: 12px;
 
   &:last-child {
@@ -1187,7 +1441,7 @@ $svg-close: "%3C/svg%3E";
   display: flex;
   gap: 10px;
   padding: 10px 20px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #eef0f3;
 
   &:last-child {
     border-bottom: none;
@@ -1349,7 +1603,7 @@ $svg-close: "%3C/svg%3E";
 
 // ── GSC Card — Top Queries table ──
 .od-gsc__queries {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid #e7e9ee;
 }
 
 .od-gsc__queries-head {
@@ -1375,7 +1629,7 @@ $svg-close: "%3C/svg%3E";
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: #9ca3af;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid #eef0f3;
   }
 
   td {
@@ -1404,6 +1658,52 @@ $svg-close: "%3C/svg%3E";
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+// ── Inline stat row (mockup .stat tiles) ──
+// Padded inline grid used inside cards (GSC, GA4, Drip) in place of the
+// divider-based .od-box__stats grid.
+.od-gsc-stats {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
+  padding: 18px;
+}
+
+.od-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+
+  .k {
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #8b95a3;
+  }
+
+  .v {
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #111827;
+  }
+
+  .d {
+    font-size: 11px;
+    font-weight: 700;
+    color: #8b95a3;
+  }
+
+  .d.up {
+    color: #16a34a;
+  }
+
+  .d.down {
+    color: #dc2626;
+  }
 }
 
 // ── 2-column stat grid ──
@@ -1773,7 +2073,8 @@ $svg-close: "%3C/svg%3E";
   // ── Headers ──
   .od-dash__header {
     flex-direction: column;
-    gap: 4px;
+    align-items: flex-start;
+    gap: 8px;
   }
 
   .od-dash__title {
@@ -2755,6 +3056,97 @@ $svg-close: "%3C/svg%3E";
   @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'/%3E#{$svg-close}");
 }
 
+// Blog Settings global — cog, matching the other settings icon
+.nav #nav-global-blog-settings {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'/%3E#{$svg-close}");
+}
+
+// Recently added client/workflow/report nav items
+.nav #nav-client-discovery-briefings {
+  @include nav-icon("#{$svg-open}%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3Cpath d='M8 9h8M8 13h5'/%3E#{$svg-close}");
+}
+.nav #nav-client-portal-requests {
+  @include nav-icon("#{$svg-open}%3Cpath d='M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4'/%3E%3Cpolyline points='10 17 15 12 10 7'/%3E%3Cline x1='15' y1='12' x2='3' y2='12'/%3E#{$svg-close}");
+}
+.nav #nav-client-value-ledger-items {
+  @include nav-icon("#{$svg-open}%3Cpath d='M12 1v22'/%3E%3Cpath d='M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E#{$svg-close}");
+}
+.nav #nav-forecast-scenarios {
+  @include nav-icon("#{$svg-open}%3Cpolyline points='22 7 13.5 15.5 8.5 10.5 2 17'/%3E%3Cpolyline points='16 7 22 7 22 13'/%3E#{$svg-close}");
+}
+.nav #nav-quarterly-organic-growth-snapshots {
+  @include nav-icon("#{$svg-open}%3Cpath d='M12 20V10'/%3E%3Cpath d='M18 20V4'/%3E%3Cpath d='M6 20v-4'/%3E#{$svg-close}");
+}
+.nav #nav-ai-visibility-snapshots {
+  @include nav-icon("#{$svg-open}%3Cpath d='M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z'/%3E%3Cpath d='M19 3v4M21 5h-4'/%3E#{$svg-close}");
+}
+.nav #nav-serp-displacement-snapshots {
+  @include nav-icon("#{$svg-open}%3Cpath d='M3 3v18h18'/%3E%3Cpath d='M7 14l3-3 4 4 5-8'/%3E#{$svg-close}");
+}
+.nav #nav-serp-displacement-alerts {
+  @include nav-icon("#{$svg-open}%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E#{$svg-close}");
+}
+.nav #nav-seo-audit-proposals {
+  @include nav-icon("#{$svg-open}%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Ccircle cx='11.5' cy='14.5' r='2.5'/%3E%3Cline x1='13.3' y1='16.3' x2='16' y2='19'/%3E#{$svg-close}");
+}
+.nav #nav-seo-migration-checks {
+  @include nav-icon("#{$svg-open}%3Cpath d='M3 12h18'/%3E%3Cpath d='M13 5l7 7-7 7'/%3E%3Cpath d='M5 5l7 7-7 7'/%3E#{$svg-close}");
+}
+.nav #nav-invoice-statement-drafts {
+  @include nav-icon("#{$svg-open}%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cpath d='M9 13h6M9 17h6'/%3E#{$svg-close}");
+}
+.nav #nav-contractor-payments {
+  @include nav-icon("#{$svg-open}%3Crect x='2' y='5' width='20' height='14' rx='2'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M2 9a4 4 0 0 0 4-4M18 19a4 4 0 0 1 4-4'/%3E#{$svg-close}");
+}
+.nav #nav-contractors {
+  @include nav-icon("#{$svg-open}%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3Cpath d='M16 11l2 2 4-4'/%3E#{$svg-close}");
+}
+
+// Hidden/internal nav items get icons too, so they look complete if surfaced.
+.nav #nav-agent-credentials {
+  @include nav-icon("#{$svg-open}%3Crect x='3' y='11' width='18' height='11' rx='2' ry='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E#{$svg-close}");
+}
+.nav #nav-consolidation-candidates {
+  @include nav-icon("#{$svg-open}%3Cpath d='M8 3H5a2 2 0 0 0-2 2v3'/%3E%3Cpath d='M16 3h3a2 2 0 0 1 2 2v3'/%3E%3Cpath d='M8 21H5a2 2 0 0 1-2-2v-3'/%3E%3Cpath d='M16 21h3a2 2 0 0 0 2-2v-3'/%3E%3Cpath d='M7 12h10'/%3E#{$svg-close}");
+}
+.nav #nav-contract-reminders {
+  @include nav-icon("#{$svg-open}%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E#{$svg-close}");
+}
+.nav #nav-goal-runs,
+.nav #nav-goal-run-snapshots,
+.nav #nav-goal-risk-tiers {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='6'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E#{$svg-close}");
+}
+.nav #nav-google-ads-ad-extensions,
+.nav #nav-google-ads-campaign-budgets,
+.nav #nav-google-ads-snapshots {
+  @include nav-icon("#{$svg-open}%3Cpath d='M3 11l18-5v12L3 13v-2z'/%3E%3Cpath d='M11.6 16.8a3 3 0 1 1-5.8-1.6'/%3E#{$svg-close}");
+}
+.nav #nav-gsc-daily,
+.nav #nav-gsc-snapshots {
+  @include nav-icon("#{$svg-open}%3Cpolyline points='22 12 18 12 15 21 9 3 6 12 2 12'/%3E#{$svg-close}");
+}
+.nav #nav-keyword-deep-dive-sessions {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3Cpath d='M11 8v6M8 11h6'/%3E#{$svg-close}");
+}
+.nav #nav-match-type-sync-state,
+.nav #nav-match-type-violation-candidates {
+  @include nav-icon("#{$svg-open}%3Cpath d='M4 7h16'/%3E%3Cpath d='M4 12h10'/%3E%3Cpath d='M4 17h7'/%3E%3Cpath d='M18 14l3 3-3 3'/%3E#{$svg-close}");
+}
+.nav #nav-negative-keyword-avoided-spend-cache,
+.nav #nav-negative-keyword-monthly-waste-relevancy-cache {
+  @include nav-icon("#{$svg-open}%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3Cline x1='8' y1='11' x2='14' y2='11'/%3E#{$svg-close}");
+}
+.nav #nav-notifications {
+  @include nav-icon("#{$svg-open}%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E#{$svg-close}");
+}
+.nav #nav-optimate-chat-turns {
+  @include nav-icon("#{$svg-open}%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3Cpath d='M8 10h8M8 14h5'/%3E#{$svg-close}");
+}
+.nav #nav-pin-rate-limits {
+  @include nav-icon("#{$svg-open}%3Crect x='3' y='11' width='18' height='11' rx='2' ry='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3Cpath d='M12 15v3'/%3E#{$svg-close}");
+}
+
 // ── Responsive ──
 @media (max-width: 768px) {
   .od-funnel {
@@ -3254,4 +3646,1076 @@ $svg-close: "%3C/svg%3E";
 body.role-non-admin .doc-tabs a.doc-tab[aria-label="API"],
 body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
   display: none !important;
+}
+
+// ============================================================
+// Clients list view — prototype card-table port
+// ============================================================
+// Ported from mockups/2-clients-collapsed.html + _shared.css tokens, but every
+// selector is namespaced under Payload's `.collection-list--clients` wrapper
+// (emitted by @payloadcms/ui List view: `collection-list collection-list--<slug>`)
+// so none of it can leak into other collections' list views. Reuses Payload's
+// `--theme-*` variables where possible so dark mode still works.
+.collection-list--clients {
+  // Prototype brand tokens, scoped so they never touch the global theme.
+  --odc-border: var(--theme-elevation-100);
+  --odc-border-soft: var(--theme-elevation-50);
+  --odc-card: var(--theme-elevation-0);
+  --odc-card-2: var(--theme-elevation-50);
+  --odc-t1: var(--theme-elevation-1000);
+  --odc-t2: var(--theme-elevation-500);
+  --odc-t3: var(--theme-elevation-400);
+
+  // ── Table surface: calmer, card-like ──
+  .table {
+    border: 1px solid var(--odc-border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--odc-card);
+    box-shadow:
+      0 1px 3px rgba(16, 24, 40, 0.06),
+      0 1px 2px rgba(16, 24, 40, 0.04);
+
+    table {
+      border-collapse: collapse;
+    }
+
+    // Header: uppercase, muted, lighter weight. Left-aligned to match cells.
+    thead th {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--odc-t3);
+      background: var(--odc-card-2);
+      border-bottom: 1px solid var(--odc-border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+
+    // Widen the Client (name) column and give it room for the avatar + two-line
+    // text without crowding the rest of the row.
+    th.cell-name,
+    td.cell-name {
+      min-width: 240px;
+    }
+
+    tbody tr {
+      // Override Payload's zebra striping for a flat card look with row hover.
+      background: transparent !important;
+
+      td {
+        border-bottom: 1px solid var(--odc-border-soft);
+        padding: 9px 14px;
+        vertical-align: middle;
+        color: var(--odc-t1);
+        text-align: left;
+      }
+
+      &:hover td {
+        background: var(--odc-card-2);
+      }
+
+      &:last-child td {
+        border-bottom: none;
+      }
+    }
+
+    // When the row-click enhancer is mounted, show a pointer cursor on data
+    // cells so it's clear the whole row is clickable. The select-checkbox cell
+    // keeps its default cursor.
+    &.od-rows-clickable tbody tr td:not(.cell-_select) {
+      cursor: pointer;
+    }
+  }
+
+  // ── Client cell: avatar + name + domain ──
+  .od-client-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .od-client-cell__avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  // Uploaded client logo — same footprint as the gradient avatar, contained so
+  // non-square logos aren't distorted, with a subtle ring on a white backdrop.
+  .od-client-cell__logo {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    object-fit: contain;
+    background: #ffffff;
+    border: 1px solid var(--odc-border);
+  }
+
+  .od-client-cell__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .od-client-cell__name {
+    font-weight: 600;
+    color: var(--odc-t1);
+    line-height: 1.3;
+  }
+
+  .od-client-cell__domain {
+    font-size: 11px;
+    color: var(--odc-t2);
+    line-height: 1.3;
+  }
+
+  // ── Monospace slug + tabular PIN ──
+  .od-cell-slug {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--odc-t2);
+  }
+
+  .od-cell-pin {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.05em;
+    color: var(--odc-t2);
+  }
+
+  // Account manager stacks the name and the "+N" suffix on two lines with very
+  // tight spacing.
+  .od-cell-mgr {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1.1;
+    color: var(--odc-t2);
+  }
+
+  .od-cell-mgr__more {
+    color: var(--odc-t3);
+    font-size: 11px;
+  }
+
+  .od-cell-months {
+    font-variant-numeric: tabular-nums;
+    color: var(--odc-t2);
+  }
+
+  .od-cell-muted {
+    color: var(--odc-t3);
+  }
+
+  // ── Pills (status) ──
+  .od-pill {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  .od-pill--green {
+    background: #e8f6ee;
+    color: #157f3c;
+  }
+
+  .od-pill--gray {
+    background: #eef0f3;
+    color: #5b6573;
+  }
+
+  .od-pill--blue {
+    background: #e6f4fb;
+    color: #1f7fad;
+  }
+}
+
+// ============================================================
+// Client edit (document) view — scoped card-based reskin
+// ============================================================
+// Ported from mockups/4-client-record.html + _shared.css tokens. EVERY selector
+// is namespaced under Payload's `.collection-edit--clients` wrapper (emitted by
+// @payloadcms/ui Edit view: `collection-edit collection-edit--<slug>`,
+// node_modules/@payloadcms/ui/dist/views/Edit/index.js:438) so NONE of it can
+// leak into other collections' edit views. Reuses Payload's `--theme-*`
+// variables where possible so dark mode still works. Visual/layout only — no
+// field, config, or data changes; the rocket loader is untouched.
+.collection-edit--clients {
+  // Prototype brand tokens, scoped so they never touch the global theme.
+  --ode-border: var(--theme-elevation-100);
+  --ode-border-soft: var(--theme-elevation-50);
+  --ode-card: var(--theme-elevation-0);
+  --ode-card-2: var(--theme-elevation-50);
+  --ode-t1: var(--theme-elevation-1000);
+  --ode-t2: var(--theme-elevation-500);
+  --ode-t3: var(--theme-elevation-400);
+  --ode-accent: #2c97c9;
+  --ode-accent-strong: #1f7fad;
+  --ode-radius: 12px;
+  --ode-radius-sm: 9px;
+  --ode-shadow: 0 1px 3px rgba(16, 24, 40, 0.07), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --ode-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+
+  // ── 1. Canvas + rhythm ──
+  // Calmer page background and a max-width content column so wide 33%/34% rows
+  // don't sprawl across ultrawide monitors.
+  background: #f5f6f8;
+
+  .document-fields__edit {
+    max-width: 1180px;
+  }
+
+  // Vertical spacing between field rows/groups — kept tight for the compact
+  // layout (e.g. the gap between the Name row and the Website URL row).
+  .render-fields > .field-type {
+    margin-bottom: 10px;
+  }
+
+  // ── 2. Tabs: calmer underline-active pill tabs ──
+  .tabs-field__tabs {
+    gap: 2px;
+    border-bottom: 1px solid var(--ode-border);
+  }
+
+  .tabs-field__tab-button {
+    font-size: 13px;
+    font-weight: 600;
+    // Same dark colour as the page's body text (not the muted grey).
+    color: var(--ode-t1);
+    // Horizontal padding reduced ~46% total (14px → 7.56px) to tighten the
+    // spacing between tabs (Business · Notes · Discovery Briefing …).
+    padding: 10px 7.56px;
+    border-bottom: 2px solid transparent;
+    transition: color 0.12s, border-color 0.12s;
+
+    &:hover {
+      color: var(--ode-t1);
+    }
+
+    &--active {
+      color: var(--ode-accent);
+      border-bottom-color: var(--ode-accent);
+    }
+  }
+
+  // ── 3. Sections → mockup "section aside + field card" two-column layout ──
+  // Each Business-tab collapsible is laid out as a 2-column grid: a left
+  // "aside" column holding the section title + one-line description, and a
+  // right white "field card" holding the inputs. This is the signature pattern
+  // of mockups/3-googleads-business-tab.html.
+  //
+  // How it works: `.collapsible-field` is the grid. The inner `.collapsible`
+  // wrapper is flattened with `display: contents` so its toggle row (the
+  // section title) and its content become direct grid items, alongside the
+  // `.field-description` sibling. NOTE: the content grid item is the
+  // react-animate-height wrapper (`.rah-static`), NOT `.collapsible__content`
+  // (which is nested one level deeper) — so the card placement targets
+  // `.rah-static` and the card chrome (border/padding) targets the inner
+  // `.collapsible__content`. The title + description are pulled into the left
+  // column; the content forms the right card.
+  .collapsible-field {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    // Row 1 = title, row 2 = description, row 3 = flexible spacer that absorbs
+    // the card's extra height so the title + description stay pinned together
+    // at the top of the aside (rather than the description floating to the
+    // card's vertical centre/bottom).
+    grid-template-rows: auto auto 1fr;
+    column-gap: 28px;
+    align-items: start;
+    margin-bottom: 28px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--ode-border-soft);
+
+    &:last-of-type {
+      border-bottom: none;
+    }
+
+    // Flatten the collapsible wrapper so the toggle (title) and content become
+    // direct children of the grid.
+    > .collapsible-field__collapsible {
+      display: contents;
+    }
+
+    // ── Left column, row 1: section title (the collapsible toggle row) ──
+    .collapsible__toggle-wrap {
+      grid-column: 1;
+      grid-row: 1;
+      background: transparent;
+      border: none;
+      padding: 0;
+      align-self: start;
+    }
+
+    .collapsible-field__row-label-wrap {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ode-t1);
+      letter-spacing: -0.01em;
+    }
+
+    // Keep the chevron toggle indicator subtle and aligned with the title.
+    .collapsible__indicator {
+      color: var(--ode-t3);
+    }
+
+    // ── Left column, row 2: section description (directly under the title) ──
+    > .field-description {
+      grid-column: 1;
+      grid-row: 2;
+      align-self: start;
+      margin: 6px 0 0;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--ode-t2);
+    }
+
+    // ── Right column: the field card ──
+    // The grid item is the AnimateHeight wrapper (`.rah-static`); pin it to
+    // column 2 spanning all left rows so the card sits beside the aside
+    // regardless of the aside's height. The row-3 spacer (1fr) absorbs the
+    // card's overflow height, keeping the title + description together at the
+    // top of the aside.
+    //
+    // Card chrome (background/border/shadow) lives on this wrapper rather than
+    // on the inner `.collapsible__content` so that a COLLAPSED section
+    // (e.g. Advanced) — whose wrapper animates to height 0 — hides the chrome
+    // entirely instead of leaving a stray bordered sliver beside the title.
+    > .collapsible-field__collapsible > .rah-static,
+    > .collapsible-field__collapsible > [class*='rah-'] {
+      grid-column: 2;
+      grid-row: 1 / -1;
+      align-self: stretch;
+      background: var(--ode-card);
+      border: 1px solid var(--ode-border);
+      border-radius: var(--ode-radius);
+      box-shadow: var(--ode-shadow-sm);
+      overflow: hidden;
+    }
+
+    // Collapsed wrapper has no height — drop its chrome so nothing renders.
+    > .collapsible-field__collapsible > [class*='rah-'][aria-hidden='true'] {
+      border: none;
+      box-shadow: none;
+    }
+
+    .collapsible__content {
+      padding: 16px;
+    }
+  }
+
+  // Single-column fallback on narrow viewports — stack aside above the card.
+  @media (max-width: 1024px) {
+    .collapsible-field {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+      row-gap: 8px;
+
+      .collapsible__toggle-wrap,
+      > .field-description {
+        grid-column: 1;
+        grid-row: auto;
+      }
+
+      > .collapsible-field__collapsible > .rah-static,
+      > .collapsible-field__collapsible > [class*='rah-'] {
+        grid-column: 1;
+        grid-row: auto;
+      }
+    }
+  }
+
+  // ── 4. Rows & inputs ──
+  // Soften input surfaces toward the mockup's filled, rounded, focus-ringed look.
+  // Style containers only — never the interactive widget internals of date
+  // pickers, relationship/select dropdowns or uploads.
+  .field-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ode-t1);
+  }
+
+  // Field hint text under inputs — compact (small, muted) but allowed to wrap
+  // so longer descriptions stay fully readable rather than being clipped.
+  .field-description {
+    font-size: 11.5px;
+    color: var(--ode-t3);
+    line-height: 1.4;
+  }
+
+  // Plain text / number / email / password inputs and textareas.
+  .field-type.text input[type='text'],
+  .field-type.number input,
+  .field-type.email input,
+  .field-type.password input,
+  .field-type.textarea textarea,
+  .field-type.date-time-field .rs__control,
+  .field-type.relationship .rs__control,
+  .field-type.select .rs__control {
+    background: var(--ode-card);
+    border: 1px solid var(--ode-border);
+    border-radius: var(--ode-radius-sm);
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+
+  .field-type.text input[type='text']:focus,
+  .field-type.number input:focus,
+  .field-type.email input:focus,
+  .field-type.password input:focus,
+  .field-type.textarea textarea:focus,
+  .field-type.date-time-field .rs__control--is-focused,
+  .field-type.relationship .rs__control--is-focused,
+  .field-type.select .rs__control--is-focused {
+    border-color: var(--ode-accent);
+    box-shadow: 0 0 0 3px rgba(44, 151, 201, 0.12);
+    outline: none;
+  }
+
+  // Lay out Payload rows as an even-column CSS grid instead of flex with %
+  // widths. Percentage widths (33%×3 = 99%) plus any column gap overflow 100%
+  // and wrap the last field; an auto-fit grid keyed off the field count keeps
+  // all fields on one line and evenly sized regardless of the gap.
+  .field-type.row > .row__fields {
+    display: grid;
+    // One row, N equal columns (N = however many fields the row declares),
+    // so e.g. Name · Trading · Slug all sit on one line and stay evenly sized.
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    column-gap: 16px;
+    row-gap: 16px;
+
+    // Neutralise Payload's inline percentage widths so the grid controls sizing.
+    > .field-type {
+      width: auto !important;
+      flex: initial;
+      min-width: 0;
+    }
+  }
+
+  // The Website-URL / Client-PIN / Website-Type row keeps a fixed 3 columns,
+  // and the conditionally-shown External CMS select stacks directly UNDER
+  // Website Type (same column, row 2) rather than appearing as a 4th box — so
+  // Website Type + External CMS read as one streamlined control.
+  .field-type.row > .row__fields:has(> #field-websiteType) {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, 1fr);
+
+    > #field-websiteType {
+      grid-column: 3;
+      grid-row: 1;
+    }
+
+    > #field-externalCms {
+      grid-column: 3;
+      grid-row: 2;
+      margin-top: -4px; // hug the Website Type select above it
+    }
+  }
+
+  // ── 4b. Checkboxes → iOS-style toggle switches (mockup .switch) ──
+  // Purely presentational: the native checkbox stays in place and functional;
+  // we hide its square box + tick and repaint `.checkbox-input__input` as a
+  // 40×23px pill with a sliding knob. Accent when checked, grey when off.
+  // `.field-type.checkbox--checked` is Payload's checked-state hook.
+  .field-type.checkbox {
+    .checkbox-input {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    // The pill track.
+    .checkbox-input__input {
+      position: relative;
+      flex: 0 0 40px;
+      width: 40px;
+      height: 23px;
+      border-radius: 20px;
+      background: #cbd2dc; // off (grey)
+      transition: background 0.15s;
+    }
+
+    // White sliding knob.
+    .checkbox-input__input::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      transition: left 0.15s;
+    }
+
+    // Hide Payload's square box + tick icon; keep the <input> as a full-size,
+    // invisible, clickable overlay on top of the pill.
+    .checkbox-input__icon {
+      display: none !important;
+    }
+
+    .checkbox-input__input input[type='checkbox'] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    // Label sits to the right of the switch.
+    .checkbox-input label.field-label {
+      margin: 0;
+      cursor: pointer;
+    }
+
+    // Checked state: accent track + knob slid right.
+    &.checkbox--checked .checkbox-input__input,
+    .checkbox-input--checked .checkbox-input__input {
+      background: var(--ode-accent);
+    }
+
+    &.checkbox--checked .checkbox-input__input::after,
+    .checkbox-input--checked .checkbox-input__input::after {
+      left: 20px;
+    }
+  }
+
+  // ── 5. Array tables: bordered, header-row, striped look ──
+  // Applied to array fields (additional contacts, account managers, one-off
+  // projects, commissions, historical revenue) via CSS only — Payload's array
+  // row components are left intact.
+  .array-field__draggable-rows {
+    border: 1px solid var(--ode-border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--ode-card);
+  }
+
+  .array-field__row {
+    border-bottom: 1px solid var(--ode-border-soft);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .array-field__row-header,
+  .array-field__fields {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  // Accent the array "Add row" control to match the mockup's add-row link.
+  // The add-row element is itself the `.btn`, coloured via `--btn-color`.
+  .array-field__add-row.btn {
+    --btn-color: var(--ode-accent);
+
+    &:hover:not(:disabled) {
+      --btn-color: var(--ode-accent-strong);
+    }
+  }
+
+  // ── 6. Document controls → sticky bottom save bar (mockup .savebar) ──
+  // Repositioned in the `body.od-client-record` block below (the doc-controls
+  // element lives outside `.collection-edit--clients`). Here we only style the
+  // primary Save button to the accent colour.
+  .doc-controls__controls .btn--style-primary {
+    border-radius: var(--ode-radius-sm);
+    background: var(--ode-accent);
+    border-color: var(--ode-accent);
+
+    &:hover {
+      background: var(--ode-accent-strong);
+      border-color: var(--ode-accent-strong);
+    }
+  }
+
+  // ── 7. Client record header card (mockup .detail-head) ──
+  // Rendered by ClientRecordHeader (a `ui` field) above the tabs. Mirrors the
+  // mockup's .detail-head: clickable circular logo + name/meta + status pill +
+  // editable service pills + revenue stat strip.
+  .od-client-head {
+    // Own stacking context (relative + z-index) so the fixed save bar's and
+    // app-header's `backdrop-filter: blur()` compositing layers don't sample
+    // and blur this card — a Chromium backdrop-filter artifact otherwise blurs
+    // the header box that sits between those two blurred layers.
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    background: var(--ode-card);
+    border: 1px solid var(--ode-border);
+    border-radius: var(--ode-radius);
+    box-shadow: var(--ode-shadow);
+    // 15.5px top, 8px bottom, 18px sides.
+    padding: 15.5px 18px 8px;
+    margin-top: 10px;
+    margin-bottom: 8px;
+  }
+
+  // ── Clickable circular logo button (38px = 48px reduced by ~20%) ──
+  .od-client-head__logo-btn {
+    position: relative;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 50%;
+
+    &:hover .od-client-head__logo-edit {
+      opacity: 1;
+    }
+  }
+
+  .od-client-head__logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: contain;
+    background: #ffffff;
+    border: 1px solid var(--ode-border);
+    display: block;
+  }
+
+  .od-client-head__logo--initial {
+    display: grid;
+    place-items: center;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 16px;
+    border: none;
+    background: linear-gradient(135deg, var(--ode-accent), #468d8b);
+  }
+
+  // Small pencil affordance overlaid bottom-right of the logo on hover.
+  .od-client-head__logo-edit {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--ode-accent);
+    color: #ffffff;
+    font-size: 10px;
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    transition: opacity 0.12s;
+    box-shadow: 0 0 0 2px var(--ode-card);
+  }
+
+  .od-client-head__body {
+    flex: 1;
+    min-width: 0;
+    // Nudge the name / website / slug / pills down 5px so they align with the
+    // logo circle rather than sitting at the very top of the card.
+    margin-top: 5px;
+  }
+
+  // Top line: identity (left) + service pills (right), wrapping on narrow.
+  .od-client-head__topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .od-client-head__identity {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .od-client-head__name {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ode-t1);
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .od-client-head__meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: var(--ode-t2);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--ode-accent);
+    }
+  }
+
+  .od-client-head__pill {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .od-client-head__pill--active {
+    background: #e8f6ee;
+    color: #157f3c;
+  }
+
+  .od-client-head__pill--inactive {
+    background: #eef0f3;
+    color: #5b6573;
+  }
+
+  // Teal "Recurring" pill (mockup .pill.teal) — active client on a retainer.
+  .od-client-head__pill--recurring {
+    background: #e4f4f2;
+    color: #2a706d;
+  }
+
+  // ── Editable service pills (mockup .svc-pill) ──
+  .od-client-head__services {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .od-client-head__services-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ode-t3);
+    margin-right: 2px;
+  }
+
+  .od-svc-pill {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+    border: 1.5px solid var(--ode-border);
+    background: var(--ode-card-2);
+    color: var(--ode-t3);
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+
+    &:hover:not(.od-svc-pill--on) {
+      color: var(--ode-t2);
+      border-color: var(--ode-t3);
+    }
+  }
+
+  .od-svc-pill--on {
+    background: rgba(56, 189, 248, 0.14);
+    color: #1f7fad;
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+
+  // ── Revenue stat strip (mockup) ──
+  .od-client-head__strip {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 1px;
+    margin-top: 14px;
+    border: 1px solid var(--ode-border);
+    border-radius: var(--ode-radius-sm);
+    overflow: hidden;
+    background: var(--ode-border);
+    box-shadow: var(--ode-shadow-sm);
+  }
+
+  .od-client-head__stat {
+    background: var(--ode-card);
+    padding: 8px 16px;
+    min-width: 96px;
+  }
+
+  .od-client-head__stat-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ode-t3);
+    margin-bottom: 4px;
+  }
+
+  .od-client-head__stat-value {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ode-t1);
+  }
+
+  .od-client-head__stat--total .od-client-head__stat-value {
+    color: var(--ode-accent);
+  }
+}
+
+// ── 8. Client edit chrome: native title hidden + mockup-style topbar ──
+// These elements live OUTSIDE `.collection-edit--clients` (under
+// `.template-default__wrap`), so they're scoped via the `od-client-record`
+// body class that ClientRecordHeader toggles only while a client edit page is
+// mounted. Nothing here affects any other collection or view.
+body.od-client-record {
+  // Halve the horizontal gutter (default 60px) so the left edge of the
+  // breadcrumb, header card, tabs and field content all sit closer to the
+  // sidebar. Applied via the shared `--gutter-h` token so every gutter element
+  // shifts together, in both collapsed and expanded sidebar states.
+  --gutter-h: 30px;
+
+  // Match the mockup canvas (#f5f6f8) across the WHOLE content area. The
+  // collection-edit box already uses it, but the surrounding wrap/main render
+  // white — paint them grey too so no white shows around the cards.
+  .template-default__wrap,
+  .collection-edit__main-wrapper,
+  .collection-edit__main,
+  .collection-edit__form {
+    background: #f5f6f8;
+  }
+
+  // Hide Payload's native document title block ("Trover tax" /
+  // "Manage client websites") — replaced by the .od-client-head card.
+  .doc-header__title,
+  .doc-header__after-header {
+    display: none !important;
+  }
+
+  // Hide Payload's native Edit/API view-switcher tab strip. It rendered as a
+  // faint, half-obscured row above the header card (overlapped by the now-empty
+  // doc-controls). Removing it lets the client header card sit at the very top.
+  // The API view is still reachable directly via its URL.
+  .doc-tabs {
+    display: none !important;
+  }
+
+  // Collapse the now-empty document header (it held the hidden title block; its
+  // margin-top + padding-bottom otherwise leave a tall dead gap above the
+  // client header card) and trim the form's top padding so the header card
+  // sits snug under the topbar.
+  .doc-header {
+    margin-top: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: 0 !important;
+  }
+
+  .collection-edit--clients .document-fields {
+    padding-top: 0;
+  }
+
+  // The fields' inner gutter carries a default ~30px top padding — the main
+  // source of the gap above the header card. Trim it right down.
+  .collection-edit--clients .document-fields__main > .gutter {
+    padding-top: 0;
+  }
+
+  // ── Sticky bottom save bar (mockup .savebar) ──
+  // Float Payload's controls wrapper (the Save action) as a rounded, blurred
+  // bar pinned to the bottom of the viewport. We do NOT reposition the whole
+  // `.doc-controls` element (it's also a gutter and stretches full-height when
+  // taken out of flow); instead we remove it from layout with `display:
+  // contents` so it leaves NO box (and no stray stacking context / blur layer
+  // over the header card) — only its now-fixed controls wrapper remains.
+  .doc-controls {
+    display: contents;
+  }
+
+  // Flatten the intermediate doc-controls containers too. With only `.doc-
+  // controls` set to `display: contents`, its `__content`/`__wrapper` children
+  // stay in normal flow and reserve ~56px of empty height at the top (the gap
+  // above the header card). `display: contents` on them leaves no box — only
+  // the controls wrapper (pulled to a fixed bottom bar below) remains visible.
+  .doc-controls .doc-controls__content,
+  .doc-controls .doc-controls__wrapper {
+    display: contents;
+  }
+
+  // Drop the doc-controls meta (Last Modified / Created) and the divider line.
+  .doc-controls .doc-controls__meta,
+  .doc-controls .doc-controls__divider {
+    display: none !important;
+  }
+
+  // The controls wrapper becomes the floating save bar. It's anchored to the
+  // content column rather than centred on the viewport: `left` matches the
+  // sidebar width so the bar starts flush with the content (never under the
+  // sidebar), and `right` leaves a gap for the bottom-right OptiMate launcher.
+  // `--od-savebar-left` is set per sidebar state below (collapsed vs expanded).
+  .doc-controls .doc-controls__controls-wrapper {
+    position: fixed;
+    bottom: 16px;
+    left: var(--od-savebar-left, 260px);
+    right: 196px; // 20px launcher gap + ~160px launcher + breathing room
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    border: 1px solid #e7e9ee;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.05);
+    padding: 10px 16px;
+  }
+
+  // Anchor the bar's left edge to the live sidebar width. `.template-default`
+  // is a descendant of body and carries `--nav-open` when the full sidebar is
+  // shown; without it, the 48px mini-rail is shown (matching the existing
+  // `.template-default:not(--nav-open) .template-default__wrap` 48px offset).
+  //  - expanded nav  → 260px sidebar + 16px gutter
+  //  - collapsed nav → 48px mini rail + 16px gutter
+  .template-default--nav-open .doc-controls__controls-wrapper {
+    --od-savebar-left: 276px;
+  }
+  .template-default:not(.template-default--nav-open) .doc-controls__controls-wrapper {
+    --od-savebar-left: 64px;
+  }
+
+  // Status label on the left of the save bar (mockup .savebar). Reflects real
+  // state: amber "● Unsaved changes" when the Save button is enabled (the form
+  // is dirty), grey "● All changes saved" when Save is disabled (pristine).
+  // Uses :has() to read the Save button's disabled state from the wrapper.
+  .doc-controls .doc-controls__controls-wrapper::before {
+    content: '\25CF\00A0\00A0Unsaved changes';
+    margin-right: auto;
+    font-size: 12.5px;
+    color: #e67e22;
+    letter-spacing: 0.01em;
+  }
+
+  .doc-controls .doc-controls__controls-wrapper:has(#action-save.btn--disabled)::before,
+  .doc-controls .doc-controls__controls-wrapper:has(#action-save[aria-disabled='true'])::before {
+    content: '\25CF\00A0\00A0All changes saved';
+    color: #8b95a3;
+  }
+
+  // Mobile: sidebar is hidden (content wrap margin-left: 0) and the desktop
+  // launcher offset doesn't apply — let the bar span the viewport with a small
+  // uniform inset instead of the sidebar/launcher gaps.
+  @media (max-width: 768px) {
+    .doc-controls .doc-controls__controls-wrapper {
+      left: 12px;
+      right: 12px;
+    }
+  }
+
+  // Leave room at the bottom of the form so the last fields aren't hidden
+  // behind the floating save bar.
+  .collection-edit--clients .document-fields {
+    padding-bottom: 88px;
+  }
+
+  // Hide the in-body Logo upload field and Services select — both are now
+  // edited from the header card (the avatar opens the logo picker; the
+  // header's service pills write to the `services` field). The fields stay
+  // mounted (so the header can drive them) but are visually removed here.
+  // `position: absolute` + clipping keeps the hidden logo picker reachable by
+  // the header's programmatic click without affecting layout.
+  .collection-edit--clients #field-logo,
+  .collection-edit--clients #field-services {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: -1px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    border: 0 !important;
+  }
+
+  // Hide the standalone billing-summary strip (ClientBillingSummary Field) —
+  // its numbers are now shown in the header card's revenue strip. The field's
+  // virtual value + list Cell are untouched; only this above-tabs render is
+  // suppressed to avoid a duplicate strip.
+  .collection-edit--clients #field-billingSummary {
+    display: none !important;
+  }
+
+  // Static mockup-style topbar: restyle Payload's real app-header (breadcrumbs)
+  // into the calmer, sticky, blurred bar from the mockup.
+  .app-header {
+    --od-border: #e7e9ee;
+
+    .app-header__bg {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--od-border);
+    }
+
+    .step-nav {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    // Let the breadcrumb wrapper grow so its trailing search pill can sit to
+    // the right of the crumbs, before the account/actions controls.
+    .app-header__step-nav-wrapper {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+
+    // Decorative search affordance, matching the mockup's topbar search pill.
+    // Non-interactive (the topbar search isn't a real feature) — purely the
+    // visual the mockup calls for, sitting between crumbs and account menu.
+    .app-header__step-nav-wrapper::after {
+      content: '\1F50D\00A0\00A0Search\2026';
+      margin-left: auto;
+      margin-right: 16px;
+      display: inline-flex;
+      align-items: center;
+      height: 34px;
+      // Wider search pill (was content-sized ~110px).
+      width: 260px;
+      max-width: 38vw;
+      padding: 0 14px;
+      border-radius: 9px;
+      border: 1px solid var(--od-border);
+      background: #fbfbfc;
+      color: #8b95a3;
+      font-size: 13px;
+      font-weight: 400;
+      white-space: nowrap;
+      pointer-events: none;
+      flex: 0 0 auto;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  // On mobile the decorative search pill would crowd the breadcrumb — drop it.
+  body.od-client-record .app-header .app-header__step-nav-wrapper::after {
+    display: none;
+  }
 }

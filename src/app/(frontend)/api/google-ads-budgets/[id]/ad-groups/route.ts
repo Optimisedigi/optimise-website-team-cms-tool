@@ -16,9 +16,6 @@ import { hasValidApiKey } from "@/collections/api-key-access";
  * endpoint (404), the upstream error is surfaced verbatim so the team knows
  * what's missing rather than seeing a silent failure.
  */
-const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
-
 export const maxDuration = 30;
 
 interface AdGroupRow {
@@ -32,6 +29,19 @@ interface AdGroupRow {
   cost: number;
   searchImpressionShare?: number;
   searchBudgetLostIS?: number;
+}
+
+function parseImpressionShare(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return undefined;
+    return value > 1 ? value / 100 : value;
+  }
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "--" || trimmed === "< 10%") return undefined;
+  const numeric = Number(trimmed.replace(/[%<>,\s]/g, ""));
+  if (!Number.isFinite(numeric) || numeric < 0) return undefined;
+  return trimmed.includes("%") || numeric > 1 ? numeric / 100 : numeric;
 }
 
 export async function GET(
@@ -60,7 +70,9 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) {
+  const growthToolsUrl = process.env.GROWTH_TOOLS_URL;
+  const internalApiKey = process.env.INTERNAL_API_KEY;
+  if (!growthToolsUrl || !internalApiKey) {
     return NextResponse.json(
       {
         error:
@@ -121,12 +133,12 @@ export async function GET(
   let upstream: Response;
   try {
     upstream = await fetch(
-      `${GROWTH_TOOLS_URL}/api/google-ads/ad-groups/list`,
+      `${growthToolsUrl}/api/google-ads/ad-groups/list`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-internal-key": INTERNAL_API_KEY,
+          "x-internal-key": internalApiKey,
         },
         body: JSON.stringify({
           customerId: customerId.replace(/-/g, ""),
@@ -202,14 +214,8 @@ export async function GET(
         avgCpc: Number(ag.avgCpc ?? 0),
         conversions: Number(ag.conversions ?? 0),
         cost: Number(ag.cost ?? ag.mtdSpend ?? 0),
-        searchImpressionShare:
-          typeof rawSearchIS === "number" && rawSearchIS >= 0
-            ? rawSearchIS
-            : undefined,
-        searchBudgetLostIS:
-          typeof rawBudgetLostIS === "number" && rawBudgetLostIS >= 0
-            ? rawBudgetLostIS
-            : undefined,
+        searchImpressionShare: parseImpressionShare(rawSearchIS),
+        searchBudgetLostIS: parseImpressionShare(rawBudgetLostIS),
       };
     })
     .filter((ag) => ag.adGroupId)

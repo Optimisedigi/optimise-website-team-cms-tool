@@ -9,6 +9,7 @@ interface MockPayload {
   findByID: ReturnType<typeof vi.fn>;
   create: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
+  update: ReturnType<typeof vi.fn>;
   logger: { error: ReturnType<typeof vi.fn> };
 }
 
@@ -18,6 +19,7 @@ function makePayload(): MockPayload {
     findByID: vi.fn(),
     create: vi.fn().mockResolvedValue({ id: 1 }),
     delete: vi.fn().mockResolvedValue({ docs: [] }),
+    update: vi.fn().mockResolvedValue({ id: 1 }),
     logger: { error: vi.fn() },
   };
 }
@@ -165,21 +167,30 @@ describe("fanOutApprovalNotifications", () => {
 });
 
 describe("clearApprovalNotifications", () => {
-  it("deletes notifications matching the approval id and returns the count", async () => {
+  it("marks unread notifications matching the approval id as read and returns the count", async () => {
     const payload = makePayload();
-    payload.delete.mockResolvedValue({ docs: [{ id: 1 }, { id: 2 }, { id: 3 }] });
+    payload.find.mockResolvedValue({ docs: [{ id: 1 }, { id: 2 }, { id: 3 }], totalDocs: 3 });
+    payload.update.mockResolvedValue({});
 
     const count = await clearApprovalNotifications(payload as never, 42);
 
     expect(count).toBe(3);
-    const call = payload.delete.mock.calls[0][0];
-    expect(call.collection).toBe("notifications");
-    expect(call.where).toEqual({
+    const findCall = payload.find.mock.calls[0][0];
+    expect(findCall.collection).toBe("notifications");
+    expect(findCall.where).toEqual({
       and: [
         { kind: { equals: "agent-approval-pending" } },
         { relatedApproval: { equals: 42 } },
+        { readAt: { exists: false } },
       ],
     });
+    expect(payload.update).toHaveBeenCalledTimes(3);
+    expect(payload.update.mock.calls[0][0]).toMatchObject({
+      collection: "notifications",
+      id: 1,
+      overrideAccess: true,
+    });
+    expect(payload.update.mock.calls[0][0].data.readAt).toEqual(expect.any(String));
   });
 
   it("returns 0 and logs on delete failure", async () => {

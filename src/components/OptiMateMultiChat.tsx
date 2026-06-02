@@ -12,8 +12,6 @@ import {
 import OptiMateChatCore, { type OptiMateChatCoreHandle } from './OptiMateChatCore'
 import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
 import OptiMateToolsHelp from './OptiMateToolsHelp'
-import OptiMateVoice from './OptiMateVoice'
-import { isVoiceEnabled } from '@/lib/realtime/token-provider'
 
 export type OptiMateChatTarget =
   | {
@@ -27,9 +25,10 @@ export type OptiMateChatTarget =
     }
   | {
       mode: 'portfolio'
-      id: 'portfolio'
-      businessName: 'Portfolio'
+      id: string
+      businessName: string
       initialSessionId?: string
+      messageContextPrefix?: string
     }
 
 export interface OptiMateMultiChatHandle {
@@ -67,7 +66,30 @@ function targetLabel(target: OptiMateChatTarget | undefined): string {
  */
 const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatProps>(
   function OptiMateMultiChat({ targets, compact = false, fluid = false }, ref) {
-    const [activeId, setActiveId] = useState<string>(() => String(targets[0]?.id ?? ''))
+    const selectedAccountsTarget = useMemo<OptiMateChatTarget | null>(() => {
+      const auditTargets = targets.filter((t) => t.mode !== 'portfolio')
+      if (auditTargets.length < 2) return null
+      const accountLines = auditTargets.map((t) => {
+        const label = t.businessName || t.customerId
+        const ref = String(t.id)
+        const customer = t.customerId.replace(/-/g, '')
+        return `- ${label}: accountRef=${ref}, customerKey=${customer}`
+      })
+      return {
+        mode: 'portfolio',
+        id: 'selected-accounts',
+        businessName: 'Selected accounts',
+        messageContextPrefix:
+          'Answer using only these selected Google Ads accounts unless the user explicitly asks to widen the scope. ' +
+          'When the user asks for an email or draft, compare/summarise these selected accounts together and create one combined Gmail draft if requested.\n' +
+          accountLines.join('\n'),
+      }
+    }, [targets])
+    const chatTargets = useMemo(
+      () => (selectedAccountsTarget ? [selectedAccountsTarget, ...targets] : targets),
+      [selectedAccountsTarget, targets],
+    )
+    const [activeId, setActiveId] = useState<string>(() => String(selectedAccountsTarget?.id ?? targets[0]?.id ?? ''))
     const [broadcast, setBroadcast] = useState(false)
     const [input, setInput] = useState('')
     const [busy, setBusy] = useState(false)
@@ -75,9 +97,6 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
     const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
     const refs = useRef<Map<string, OptiMateChatCoreHandle | null>>(new Map())
     const inputRef = useRef<HTMLTextAreaElement>(null)
-    // Feature flag: only render the voice button when a voice provider is set.
-    const voiceEnabled = isVoiceEnabled()
-
     /* Auto-grow the shared textarea as the user types. Caps at 8 lines so
      * the panel doesn't get crowded; past that it scrolls. */
     useEffect(() => {
@@ -95,9 +114,15 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
       [],
     )
 
+    useEffect(() => {
+      if (!chatTargets.some((t) => String(t.id) === activeId)) {
+        setActiveId(String(chatTargets[0]?.id ?? ''))
+      }
+    }, [activeId, chatTargets])
+
     const activeTarget = useMemo(
-      () => targets.find((t) => String(t.id) === activeId) ?? targets[0],
-      [targets, activeId],
+      () => chatTargets.find((t) => String(t.id) === activeId) ?? chatTargets[0],
+      [chatTargets, activeId],
     )
 
     const send = async () => {
@@ -144,7 +169,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
       () => ({
         getSessionIds: () => {
           const out: Record<string, string> = {}
-          for (const t of targets) {
+          for (const t of chatTargets) {
             const key = String(t.id)
             const sid = refs.current.get(key)?.getSessionId()
             if (sid) out[key] = sid
@@ -152,13 +177,13 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
           return out
         },
       }),
-      [targets],
+      [chatTargets],
     )
 
     // Single-account / portfolio fast path: ChatCore owns the header row so
     // History and Expand sit beside the account/portfolio name.
-    if (targets.length === 1) {
-      const t = targets[0]
+    if (chatTargets.length === 1) {
+      const t = chatTargets[0]
       return (
         <OptiMateChatCore
           ref={setRef(String(t.id))}
@@ -170,6 +195,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
           compact={compact}
           fluid={fluid}
           initialSessionId={t.initialSessionId}
+          messageContextPrefix={t.mode === 'portfolio' ? t.messageContextPrefix : undefined}
         />
       )
     }
@@ -187,7 +213,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
             flexShrink: 0,
           }}
         >
-          {targets.map((t) => {
+          {chatTargets.map((t) => {
             const isActive = String(t.id) === activeId
             return (
               <button
@@ -233,7 +259,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
           them keeps each tab's history hot when the user switches between
           them, and broadcast-mode needs every ref live anyway. */}
         <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-          {targets.map((t) => {
+          {chatTargets.map((t) => {
             const isActive = String(t.id) === activeId
             return (
               <div
@@ -253,6 +279,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
                   fluid={fluid}
                   hideInput
                   initialSessionId={t.initialSessionId}
+                  messageContextPrefix={t.mode === 'portfolio' ? t.messageContextPrefix : undefined}
                 />
               </div>
             )
@@ -400,7 +427,9 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
               placeholder={
                 broadcast
                   ? `Ask all ${targets.length} accounts... (Shift+Enter for newline)`
-                  : `Ask ${targetLabel(activeTarget)}... (Shift+Enter for newline)`
+                  : activeTarget?.mode === 'portfolio' && activeTarget.id === 'selected-accounts'
+                    ? `Ask selected accounts together... (Shift+Enter for newline)`
+                    : `Ask ${targetLabel(activeTarget)}... (Shift+Enter for newline)`
               }
               disabled={busy}
               style={{

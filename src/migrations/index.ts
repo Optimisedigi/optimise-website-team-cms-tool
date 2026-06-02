@@ -86,8 +86,12 @@ import * as migration_20260612_120000_seo_proposal_relationships_and_pin from '.
 import * as migration_20260613_120000_add_blog_settings_and_client_tone from './20260613_120000_add_blog_settings_and_client_tone';
 import * as migration_20260614_120000_add_client_growth_hub from './20260614_120000_add_client_growth_hub';
 import * as migration_20260615_120000_add_seo_migration_checks from './20260615_120000_add_seo_migration_checks';
+import * as migration_20260616_120000_add_managed_google_ads_toggle from './20260616_120000_add_managed_google_ads_toggle';
+import * as migration_20260617_120000_add_client_logo from './20260617_120000_add_client_logo';
+import * as migration_20260618_120000_add_clients_services from './20260618_120000_add_clients_services';
 import * as migration_20260619_120000_add_agent_memory_review_fields from './20260619_120000_add_agent_memory_review_fields';
 import * as migration_20260620_120000_add_optimate_chat_turns_mode from './20260620_120000_add_optimate_chat_turns_mode';
+import * as migration_20260621_120000_add_contact_phone_fields from './20260621_120000_add_contact_phone_fields';
 
 export const migrations = [
   {
@@ -531,6 +535,21 @@ export const migrations = [
     name: '20260615_120000_add_seo_migration_checks'
   },
   {
+    up: migration_20260616_120000_add_managed_google_ads_toggle.up,
+    down: migration_20260616_120000_add_managed_google_ads_toggle.down,
+    name: '20260616_120000_add_managed_google_ads_toggle'
+  },
+  {
+    up: migration_20260617_120000_add_client_logo.up,
+    down: migration_20260617_120000_add_client_logo.down,
+    name: '20260617_120000_add_client_logo'
+  },
+  {
+    up: migration_20260618_120000_add_clients_services.up,
+    down: migration_20260618_120000_add_clients_services.down,
+    name: '20260618_120000_add_clients_services'
+  },
+  {
     up: migration_20260619_120000_add_agent_memory_review_fields.up,
     down: migration_20260619_120000_add_agent_memory_review_fields.down,
     name: '20260619_120000_add_agent_memory_review_fields'
@@ -539,5 +558,10 @@ export const migrations = [
     up: migration_20260620_120000_add_optimate_chat_turns_mode.up,
     down: migration_20260620_120000_add_optimate_chat_turns_mode.down,
     name: '20260620_120000_add_optimate_chat_turns_mode'
+  },
+  {
+    up: migration_20260621_120000_add_contact_phone_fields.up,
+    down: migration_20260621_120000_add_contact_phone_fields.down,
+    name: '20260621_120000_add_contact_phone_fields'
   },
 ];

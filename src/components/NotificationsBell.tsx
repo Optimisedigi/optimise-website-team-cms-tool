@@ -156,19 +156,26 @@ const NotificationsBell = (): ReactElement | null => {
     if (next) void loadList();
   };
 
+  const markItemRead = async (item: NotificationRow): Promise<void> => {
+    if (item.readAt) return;
+    const readAt = new Date().toISOString();
+    setItems((prev) => prev.map((p) => (p.id === item.id ? { ...p, readAt } : p)));
+    setUnreadCount((c) => Math.max(0, c - 1));
+    try {
+      await fetch(`/api/notifications/${item.id}/mark-read`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Roll back on failure so the badge does not lie.
+      setItems((prev) => prev.map((p) => (p.id === item.id ? { ...p, readAt: null } : p)));
+      setUnreadCount((c) => c + 1);
+    }
+  };
+
   const onItemClick = async (item: NotificationRow): Promise<void> => {
     setOpen(false);
-    if (!item.readAt) {
-      try {
-        await fetch(`/api/notifications/${item.id}/mark-read`, {
-          method: "POST",
-          credentials: "include",
-        });
-        setUnreadCount((c) => Math.max(0, c - 1));
-      } catch {
-        // ignore — navigation still happens.
-      }
-    }
+    await markItemRead(item);
     if (item.url) router.push(item.url);
   };
 
@@ -279,8 +286,9 @@ const NotificationsBell = (): ReactElement | null => {
             border: "1px solid var(--theme-elevation-150, #ddd)",
             borderRadius: 8,
             boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-            minWidth: 340,
-            maxWidth: 400,
+            width: "min(400px, calc(100vw - 24px))",
+            minWidth: 0,
+            maxWidth: "calc(100vw - 24px)",
             zIndex: 10000,
             overflow: "hidden",
           }}
@@ -338,10 +346,16 @@ const NotificationsBell = (): ReactElement | null => {
                 const baseBg = unread ? unreadBg : readBg;
                 const hoverBg = "var(--theme-elevation-100, #e8eaf0)";
                 return (
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     key={item.id}
                     onClick={() => void onItemClick(item)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      void onItemClick(item);
+                    }}
                     style={{
                       display: "block",
                       width: "100%",
@@ -356,6 +370,8 @@ const NotificationsBell = (): ReactElement | null => {
                       cursor: "pointer",
                       transition: "background 150ms",
                       opacity: unread ? 1 : 0.78,
+                      whiteSpace: "normal",
+                      overflowWrap: "anywhere",
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background = hoverBg;
@@ -393,6 +409,9 @@ const NotificationsBell = (): ReactElement | null => {
                             ? "var(--theme-elevation-900, #111)"
                             : "var(--theme-elevation-600, #666)",
                           flex: 1,
+                          minWidth: 0,
+                          whiteSpace: "normal",
+                          overflowWrap: "anywhere",
                         }}
                       >
                         {item.title}
@@ -408,6 +427,8 @@ const NotificationsBell = (): ReactElement | null => {
                           lineHeight: 1.4,
                           marginBottom: 4,
                           paddingLeft: unread ? 16 : 0,
+                          whiteSpace: "normal",
+                          overflowWrap: "anywhere",
                         }}
                       >
                         {item.body}
@@ -421,6 +442,8 @@ const NotificationsBell = (): ReactElement | null => {
                         gap: 6,
                         color: "var(--theme-elevation-400, #999)",
                         paddingLeft: unread ? 16 : 0,
+                        minWidth: 0,
+                        flexWrap: "wrap",
                       }}
                     >
                       <span>{formatRelativeTime(item.createdAt)}</span>
@@ -429,8 +452,30 @@ const NotificationsBell = (): ReactElement | null => {
                           · Read
                         </span>
                       )}
+                      {unread && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void markItemRead(item);
+                          }}
+                          style={{
+                            marginLeft: "auto",
+                            color: "#1a73e8",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            padding: "2px 0",
+                            border: "none",
+                            background: "none",
+                            fontSize: 11,
+                          }}
+                        >
+                          Mark as read
+                        </button>
+                      )}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
           </div>

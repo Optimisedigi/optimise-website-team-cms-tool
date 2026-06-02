@@ -6,6 +6,7 @@ import {
   retainerRevenueYTD,
   revenueShareFactor,
 } from "../lib/client-revenue";
+import { monthsActiveFrom } from "../lib/client-months-active";
 import {
   canAccess,
   canAccessAnyOrApiKey,
@@ -83,6 +84,37 @@ function extractDeckSlugFromUrl(deckUrl: string): string {
   return trimmed.replace(/[#?].*$/, "").replace(/\/+$/, "");
 }
 
+// Known external-CMS platforms selectable in the merged Website Type dropdown.
+const EXTERNAL_CMS_PLATFORMS = [
+  "wordpress",
+  "shopify",
+  "squarespace",
+  "wix",
+  "webflow",
+  "other",
+] as const;
+
+/**
+ * Keep the legacy `externalCms` field in sync with the merged `websiteType`
+ * dropdown so downstream consumers don't change:
+ *  - the tag-setup checker / GSC monitor / OptiMate / UI keep reading
+ *    `websiteType === "built_by_us"` (true only for the "Built by Us" option),
+ *  - the tag-setup `switch (client.externalCms)` keeps receiving the platform
+ *    key (wordpress / shopify / …).
+ * When websiteType is a platform value, externalCms mirrors it; when it's
+ * "built_by_us" (or unset), externalCms is cleared.
+ */
+const deriveWebsiteTypeFields: CollectionBeforeChangeHook = ({ data }) => {
+  if (!data) return data;
+  const wt = data.websiteType;
+  if (typeof wt === "string" && (EXTERNAL_CMS_PLATFORMS as readonly string[]).includes(wt)) {
+    data.externalCms = wt;
+  } else if (wt === "built_by_us" || wt === null || wt === undefined || wt === "") {
+    data.externalCms = null;
+  }
+  return data;
+};
+
 const derivePresentationDeckSlugs: CollectionBeforeChangeHook = ({ data }) => {
   if (!data || !Array.isArray(data.presentations)) return data;
   data.presentations = data.presentations.map(
@@ -114,8 +146,34 @@ export const Clients: CollectionConfig = {
     useAsTitle: "name",
     group: "Clients",
     description: "Manage client websites",
-    defaultColumns: ["name", "slug", "websiteUrl", "isActive"],
+    defaultColumns: [
+      "name",
+      "slug",
+      "isActive",
+      "clientPin",
+      "accountManagers",
+      "monthsActive",
+      "billingSummary",
+    ],
     hidden: hideUnlessFeature("clients"),
+    components: {
+      // Renders the "Active only / Show inactive" toggle above the list table
+      // (flips ?showInactive, read by the baseListFilter below) and mounts the
+      // row-click enhancer that makes each list row open the client edit page.
+      beforeListTable: [
+        "./components/ClientsShowInactiveToggle",
+        "./components/ClientsRowClick",
+      ],
+    },
+    // Hide inactive clients from the default list view — deactivated clients
+    // stay in the system (and reachable by direct link) but shouldn't clutter
+    // the working list. Escape hatch: the toggle above (or `?showInactive=1`
+    // directly) reveals them again.
+    baseListFilter: ({ req }) => {
+      const showInactive = req?.query?.showInactive;
+      if (showInactive === "1" || showInactive === "true") return null;
+      return { isActive: { not_equals: false } };
+    },
   },
   access: {
     // Read is allowed for both full `clients` users and `clients-basic`
@@ -129,7 +187,7 @@ export const Clients: CollectionConfig = {
     delete: adminOnlyDelete,
   },
   hooks: {
-    beforeChange: [trackRetainerChange, derivePresentationDeckSlugs],
+    beforeChange: [trackRetainerChange, derivePresentationDeckSlugs, deriveWebsiteTypeFields],
     afterChange: [
       async ({ doc, operation, req }) => {
         if (operation === "create") {
@@ -191,6 +249,43 @@ export const Clients: CollectionConfig = {
       },
     ],
     afterRead: [
+      // Legacy mapping: records saved before the Website Type / External CMS
+      // merge stored websiteType="external_cms" with the platform in
+      // externalCms. Surface the platform as websiteType so the merged
+      // dropdown displays correctly. Downstream `=== "built_by_us"` checks are
+      // unaffected (external_cms was never built_by_us either way).
+      ({ doc }) => {
+        if (doc?.websiteType === "external_cms") {
+          doc.websiteType = doc.externalCms || "other";
+        }
+        return doc;
+      },
+      // Resolve the logo thumbnail URL onto `logoThumbUrl` for the list cell.
+      // Runs for every client (incl. agency). The list view fetches at depth 0
+      // so `doc.logo` is usually a bare id — fetch the media row in that case;
+      // when already populated (depth >= 1) read straight off the object.
+      async ({ doc, req }) => {
+        const logo = doc?.logo;
+        if (!logo) return doc;
+        try {
+          if (typeof logo === "object") {
+            doc.logoThumbUrl =
+              logo?.sizes?.thumbnail?.url || logo?.url || "";
+          } else {
+            const media = await req.payload.findByID({
+              collection: "media",
+              id: logo,
+              depth: 0,
+              overrideAccess: true,
+            });
+            doc.logoThumbUrl =
+              (media as any)?.sizes?.thumbnail?.url || (media as any)?.url || "";
+          }
+        } catch {
+          doc.logoThumbUrl = "";
+        }
+        return doc;
+      },
       ({ doc }) => {
         if (doc?.isAgency) return doc;
 
@@ -224,6 +319,11 @@ export const Clients: CollectionConfig = {
         // when the field is unset, so existing clients are unaffected.
         const share = revenueShareFactor(doc?.revenueSharePercent as number | null | undefined);
         doc.billingSummary = (retainerRevenue + oneOffTotal + historicalRevenue) * share;
+
+        // Virtual: whole months since clientStartDate, for the list view's
+        // "Months Active" column. Computed (not stored) — same pattern as
+        // billingSummary above, so no DB migration is needed.
+        doc.monthsActive = monthsActiveFrom(doc?.clientStartDate as string | null, now);
         return doc;
       },
     ],
@@ -237,13 +337,62 @@ export const Clients: CollectionConfig = {
       access: sensitiveFieldAccess("clients"),
       admin: {
         components: {
-          Field: "./components/ClientBillingSummary",
+          // The above-tabs billing strip moved into the client header card
+          // (ClientRecordHeader's revenue strip), so this field no longer
+          // renders its own Field component on the edit page. The list Cell
+          // and the computed virtual value are unchanged.
           Cell: "./components/BillingSummaryCell",
         },
-        condition: conditionRequiresFeature(
-          "clients",
-          (data: any) => !data?.isAgency && data?.id,
-        ),
+        // Keep it out of the edit form body entirely — it's a display-only
+        // virtual whose numbers now live in the header card.
+        disableListColumn: false,
+        hidden: true,
+      },
+    },
+    {
+      // Virtual: whole months since clientStartDate. Computed in the afterRead
+      // hook (not stored) — drives the "Months Active" column in the list view.
+      name: "monthsActive",
+      label: "Months Active",
+      type: "number",
+      virtual: true,
+      access: sensitiveFieldAccess("clients"),
+      admin: {
+        components: {
+          Cell: "./components/clients-list/MonthsActiveCell",
+        },
+        // `admin.hidden` keeps this computed value out of the edit/document
+        // view (it has no Field component) while still allowing it as a list
+        // column — `fieldIsHiddenOrDisabled` only filters top-level `hidden`,
+        // not `admin.hidden`, so the "Months Active" column still renders.
+        hidden: true,
+      },
+    },
+    {
+      // Virtual: resolved logo thumbnail URL. The admin list view fetches at
+      // depth 0, so the `logo` upload arrives as a bare id and can't be read
+      // directly by the list cell. This field is populated in the afterRead
+      // hook (resolving media when needed) so NameAvatarCell has a usable URL.
+      name: "logoThumbUrl",
+      type: "text",
+      virtual: true,
+      admin: {
+        hidden: true,
+        disableListColumn: true,
+      },
+    },
+    {
+      // Read-only client record header card (small circular logo + name +
+      // website / Google Ads ID / status pill), shown above the tabs. All
+      // details are auto-populated from the saved client record. Replaces
+      // Payload's native title block (hidden via the `od-client-record` body
+      // class — see custom.scss).
+      name: "recordHeader",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/ClientRecordHeader",
+        },
       },
     },
     {
@@ -256,12 +405,27 @@ export const Clients: CollectionConfig = {
         condition: (data: any) => !!data?.isAgency,
       },
     },
+
     {
       type: "tabs",
       tabs: [
         {
           label: "Business",
           fields: [
+            // ══ Business Identity & Status collapsible ══════════════
+            // Wraps the core naming, logo, services, PIN/website-type and the
+            // active/locations toggles into the mockup's first "section aside +
+            // field card" block. `isAgency` (position: sidebar) auto-extracts to
+            // the document sidebar regardless of nesting here.
+            {
+              type: "collapsible",
+              label: "Business Identity",
+              admin: {
+                initCollapsed: false,
+                description:
+                  "Core naming, logo and the public-facing URL used across proposals, audits and the client hub, plus publishing status and physical-location settings.",
+              },
+              fields: [
             // ── Identity row (3-col) ──────────────────────────────
             // Most-used fields kept at the top so the team can scan a client
             // record without scrolling. Layout-only — the field bodies are
@@ -276,13 +440,16 @@ export const Clients: CollectionConfig = {
                   admin: {
                     description: "Client/business name (e.g., 'Acme Corp')",
                     width: "33%",
+                    components: {
+                      Cell: "./components/clients-list/NameAvatarCell",
+                    },
                   },
                 },
                 {
                   name: "tradingName",
                   type: "text",
                   admin: {
-                    description: "Trading / operating name if different from the legal entity name (e.g., 'Acme Corp' when the legal name is 'Acme Corp Pty Ltd'). Auto-populated from signed contracts.",
+                    description: "Operating name if different from the legal entity",
                     width: "33%",
                   },
                 },
@@ -294,35 +461,59 @@ export const Clients: CollectionConfig = {
                   admin: {
                     description: "URL-friendly identifier (e.g., 'acme-corp')",
                     width: "33%",
+                    components: {
+                      Cell: "./components/clients-list/SlugCell",
+                    },
                   },
                 },
+              ],
+            },
+            // Client logo — shown in the Clients list avatar when set, falling
+            // back to a coloured initial. Stored in the media collection.
+            {
+              name: "logo",
+              type: "upload",
+              relationTo: "media",
+              admin: {
+                description:
+                  "Client logo (square works best). Shown as the avatar in the Clients list; falls back to a coloured initial when empty.",
+              },
+            },
+            // Services this client is engaged for. Drives the service pills in
+            // the client edit header (see ClientRecordHeader) and is available
+            // for future filtering/reporting. Multi-select so a client can buy
+            // any combination of offerings.
+            {
+              name: "services",
+              type: "select",
+              hasMany: true,
+              admin: {
+                description:
+                  "Which services Optimise delivers for this client. Shown as pills in the client header.",
+              },
+              options: [
+                { label: "Google Ads", value: "google_ads" },
+                { label: "SEO", value: "seo" },
+                { label: "Paid Social", value: "paid_social" },
+                { label: "Website Build", value: "website_build" },
+                { label: "Automations", value: "automations" },
+              ],
+            },
+            // ── Site identity row (3-col) ─────────────────────────────
+            // Matches the mockup's second Business Identity row:
+            // Website URL · Client PIN · Website Type. externalCms follows
+            // conditionally below when Website Type is "External CMS".
+            {
+              type: "row",
+              fields: [
                 {
                   name: "websiteUrl",
                   type: "text",
                   admin: {
                     description: "Client website URL (e.g., 'https://acmecorp.com')",
-                    width: "34%",
+                    width: "33%",
                   },
                 },
-              ],
-            },
-            // isAgency stays on the sidebar — it's a meta toggle that hides
-            // sections of this tab. apiKey moved into the Advanced section.
-            {
-              name: "isAgency",
-              type: "checkbox",
-              defaultValue: false,
-              admin: {
-                position: "sidebar",
-                description: "Check if this is the agency itself (hides revenue fields)",
-              },
-            },
-            // ── Site identity row (3-col) ─────────────────────────────
-            // clientPin moved off the sidebar into the body per the request
-            // to put PIN + websiteType + externalCms on one row.
-            {
-              type: "row",
-              fields: [
                 {
                   name: "clientPin",
                   type: "text",
@@ -331,6 +522,9 @@ export const Clients: CollectionConfig = {
                     description:
                       "4-digit PIN for client hub access (auto-generated)",
                     width: "33%",
+                    components: {
+                      Cell: "./components/clients-list/PinCell",
+                    },
                   },
                   validate: async (value: string | null | undefined, { req, id }: any) => {
                     if (!value) return true;
@@ -365,27 +559,22 @@ export const Clients: CollectionConfig = {
                   },
                 },
                 {
+                  // Single dropdown covering both "who built it" and "which
+                  // platform": "Built by Us" plus each external CMS. The legacy
+                  // `externalCms` field is kept in sync from this value by a
+                  // beforeChange hook (deriveWebsiteTypeFields) so the tag-setup
+                  // checker, GSC monitor, OptiMate and the UI keep reading
+                  // `websiteType === "built_by_us"` and `externalCms` (the
+                  // platform) exactly as before — no consumer changes needed.
                   name: "websiteType",
                   type: "select",
                   admin: {
                     description:
-                      "Used by the tag setup checker to determine if issues are auto-fixable (built by us) or advisory-only (external).",
+                      "How the website is built — drives tag-setup fix guidance",
                     width: "33%",
                   },
                   options: [
                     { label: "Built by Us", value: "built_by_us" },
-                    { label: "External CMS / Third Party", value: "external_cms" },
-                  ],
-                },
-                {
-                  name: "externalCms",
-                  type: "select",
-                  admin: {
-                    description: "Which CMS platform is the website built on? Used by the tag setup checker to generate platform-specific fix instructions.",
-                    condition: (data: any) => data?.websiteType === "external_cms",
-                    width: "34%",
-                  },
-                  options: [
                     { label: "WordPress", value: "wordpress" },
                     { label: "Shopify", value: "shopify" },
                     { label: "Squarespace", value: "squarespace" },
@@ -394,12 +583,24 @@ export const Clients: CollectionConfig = {
                     { label: "Other", value: "other" },
                   ],
                 },
+                {
+                  // Hidden legacy field, derived from websiteType by
+                  // deriveWebsiteTypeFields. Retained so downstream code that
+                  // reads `client.externalCms` (tag-setup platform switch) keeps
+                  // working without changes. Not shown in the form.
+                  name: "externalCms",
+                  type: "text",
+                  admin: {
+                    hidden: true,
+                  },
+                },
               ],
             },
-            // ── Toggles row ────────────────────────────────────────
-            // Booleans grouped together rather than stacking vertically.
-            // numberOfLocations follows below it (conditional, so the row
-            // doesn't shift width when locations is off).
+            // ── Toggles: compact 2-per-row grid (mockup's 2×2 toggle box) ──
+            // isAgency (moved off the sidebar), isActive, hasPhysicalLocations
+            // and numberOfLocations laid out two columns wide instead of one
+            // toggle per row — the compact framework applied across the CMS.
+            // numberOfLocations is conditional (only when hasPhysicalLocations).
             {
               type: "row",
               fields: [
@@ -409,16 +610,33 @@ export const Clients: CollectionConfig = {
                   defaultValue: true,
                   admin: {
                     description: "Enable/disable content publishing for this client",
-                    width: "33%",
+                    width: "50%",
+                    components: {
+                      Cell: "./components/clients-list/StatusCell",
+                    },
                   },
                 },
+                {
+                  name: "isAgency",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Check if this is the agency itself (hides revenue fields)",
+                    width: "50%",
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
                 {
                   name: "hasPhysicalLocations",
                   type: "checkbox",
                   defaultValue: false,
                   admin: {
                     description: "Does this business have physical locations?",
-                    width: "33%",
+                    width: "50%",
                   },
                 },
                 {
@@ -428,18 +646,79 @@ export const Clients: CollectionConfig = {
                   admin: {
                     description: "Number of physical locations",
                     condition: (data: any) => data?.hasPhysicalLocations,
-                    width: "34%",
+                    width: "50%",
                   },
                 },
               ],
             },
-            // ══ Details collapsible ═════════════════════════════════
+            // ── Google Ads ID + conversion goals (moved here from Contacts) ──
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "googleAdsCustomerId",
+                  type: "text",
+                  admin: {
+                    description:
+                      "Google Ads customer ID (e.g. 955-493-5739). Client must grant MCC access.",
+                    width: "33%",
+                  },
+                },
+                {
+                  name: "conversionGoal",
+                  type: "select",
+                  admin: {
+                    description: "Primary conversion goal. Shown on client reports.",
+                    width: "33%",
+                  },
+                  options: [
+                    { label: "Lead Generation", value: "lead generation" },
+                    { label: "Phone Calls", value: "phone calls" },
+                    { label: "Form Submissions", value: "form submissions" },
+                    { label: "E-commerce Sales", value: "e-commerce" },
+                    { label: "Bookings / Appointments", value: "bookings" },
+                    { label: "Quote Requests", value: "quote requests" },
+                    { label: "Email Sign-ups", value: "email sign-ups" },
+                    { label: "Free Trial Sign-ups", value: "free trial" },
+                    { label: "Content Downloads", value: "content downloads" },
+                    { label: "Brand Awareness", value: "brand awareness" },
+                  ],
+                },
+                {
+                  name: "secondaryConversionGoal",
+                  type: "select",
+                  admin: {
+                    description: "Secondary conversion goal",
+                    width: "33%",
+                  },
+                  options: [
+                    { label: "Lead Generation", value: "lead generation" },
+                    { label: "Phone Calls", value: "phone calls" },
+                    { label: "Form Submissions", value: "form submissions" },
+                    { label: "E-commerce Sales", value: "e-commerce" },
+                    { label: "Bookings / Appointments", value: "bookings" },
+                    { label: "Quote Requests", value: "quote requests" },
+                    { label: "Email Sign-ups", value: "email sign-ups" },
+                    { label: "Free Trial Sign-ups", value: "free trial" },
+                    { label: "Content Downloads", value: "content downloads" },
+                    { label: "Brand Awareness", value: "brand awareness" },
+                  ],
+                },
+              ],
+            },
+            ],
+            },
+            // ══ Contacts & Managers collapsible ═════════════════════
             // Contact info, account managers, locations, conversion goals —
             // all in one scrollable section, expanded by default.
             {
               type: "collapsible",
-              label: "Details",
-              admin: { initCollapsed: false },
+              label: "Contacts & Managers",
+              admin: {
+                initCollapsed: false,
+                description:
+                  "Primary contact, additional stakeholders, the Optimise account managers assigned to this client, plus conversion goals and Google Ads linkage.",
+              },
               fields: [
             {
               type: "row",
@@ -449,6 +728,7 @@ export const Clients: CollectionConfig = {
                   type: "text",
                   admin: {
                     description: "Primary contact name",
+                    width: "33%",
                   },
                 },
                 {
@@ -456,6 +736,15 @@ export const Clients: CollectionConfig = {
                   type: "email",
                   admin: {
                     description: "Primary contact email",
+                    width: "33%",
+                  },
+                },
+                {
+                  name: "contactPhone",
+                  type: "text",
+                  admin: {
+                    description: "Primary contact phone",
+                    width: "33%",
                   },
                 },
               ],
@@ -468,6 +757,7 @@ export const Clients: CollectionConfig = {
                   "Secondary client-side contacts (e.g. marketing director, owner). Internal team members go in Account Managers below.",
               },
               fields: [
+                // Single compact row: Name · Job Title · Email · Phone.
                 {
                   type: "row",
                   fields: [
@@ -475,22 +765,28 @@ export const Clients: CollectionConfig = {
                       name: "name",
                       type: "text",
                       required: true,
-                      admin: { description: "Contact name" },
+                      admin: { description: "Contact name", width: "25%" },
+                    },
+                    {
+                      name: "jobTitle",
+                      type: "text",
+                      admin: {
+                        description: "e.g. Marketing Director, Owner",
+                        width: "25%",
+                      },
                     },
                     {
                       name: "email",
                       type: "email",
                       required: true,
-                      admin: { description: "Contact email" },
+                      admin: { description: "Contact email", width: "25%" },
+                    },
+                    {
+                      name: "phone",
+                      type: "text",
+                      admin: { description: "Contact phone", width: "25%" },
                     },
                   ],
-                },
-                {
-                  name: "jobTitle",
-                  type: "text",
-                  admin: {
-                    description: "e.g. Marketing Director, Owner",
-                  },
                 },
                 {
                   name: "responsibilities",
@@ -507,6 +803,9 @@ export const Clients: CollectionConfig = {
               type: "array",
               admin: {
                 description: "Team members managing this client. They receive notifications for ad copy approvals, audits, etc.",
+                components: {
+                  Cell: "./components/clients-list/AccountManagerCell",
+                },
               },
               fields: [
                 {
@@ -527,13 +826,6 @@ export const Clients: CollectionConfig = {
                   ],
                 },
               ],
-            },
-            {
-              name: "googleAdsCustomerId",
-              type: "text",
-              admin: {
-                description: "Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.",
-              },
             },
             {
               name: "googleMapsUrls",
@@ -561,52 +853,6 @@ export const Clients: CollectionConfig = {
                 },
               ],
             },
-            // ── Conversion goals row (2-col) ────────────────────────────
-            {
-              type: "row",
-              fields: [
-                {
-                  name: "conversionGoal",
-                  type: "select",
-                  admin: {
-                    description: "Primary conversion goal. Carried over from proposal. Shown on client reports.",
-                    width: "50%",
-                  },
-                  options: [
-                    { label: "Lead Generation", value: "lead generation" },
-                    { label: "Phone Calls", value: "phone calls" },
-                    { label: "Form Submissions", value: "form submissions" },
-                    { label: "E-commerce Sales", value: "e-commerce" },
-                    { label: "Bookings / Appointments", value: "bookings" },
-                    { label: "Quote Requests", value: "quote requests" },
-                    { label: "Email Sign-ups", value: "email sign-ups" },
-                    { label: "Free Trial Sign-ups", value: "free trial" },
-                    { label: "Content Downloads", value: "content downloads" },
-                    { label: "Brand Awareness", value: "brand awareness" },
-                  ],
-                },
-                {
-                  name: "secondaryConversionGoal",
-                  type: "select",
-                  admin: {
-                    description: "Secondary conversion goal",
-                    width: "50%",
-                  },
-                  options: [
-                    { label: "Lead Generation", value: "lead generation" },
-                    { label: "Phone Calls", value: "phone calls" },
-                    { label: "Form Submissions", value: "form submissions" },
-                    { label: "E-commerce Sales", value: "e-commerce" },
-                    { label: "Bookings / Appointments", value: "bookings" },
-                    { label: "Quote Requests", value: "quote requests" },
-                    { label: "Email Sign-ups", value: "email sign-ups" },
-                    { label: "Free Trial Sign-ups", value: "free trial" },
-                    { label: "Content Downloads", value: "content downloads" },
-                    { label: "Brand Awareness", value: "brand awareness" },
-                  ],
-                },
-              ],
-            },
               ],
             },
             // ══ Acquisition collapsible ══════════════════════════════════
@@ -617,7 +863,11 @@ export const Clients: CollectionConfig = {
             {
               type: "collapsible",
               label: "Acquisition",
-              admin: { initCollapsed: false },
+              admin: {
+                initCollapsed: false,
+                description:
+                  "Where this client came from and who referred them — used for attribution and partner reporting.",
+              },
               fields: [
             {
               type: "row",
@@ -703,7 +953,11 @@ export const Clients: CollectionConfig = {
             {
               type: "collapsible",
               label: "Billing",
-              admin: { initCollapsed: false },
+              admin: {
+                initCollapsed: false,
+                description:
+                  "Retainer, setup fee, revenue share, one-off projects, commissions and historical revenue.",
+              },
               fields: [
             {
               name: "clientStartDate",
@@ -1153,7 +1407,11 @@ export const Clients: CollectionConfig = {
             {
               type: "collapsible",
               label: "Advanced",
-              admin: { initCollapsed: true },
+              admin: {
+                initCollapsed: true,
+                description:
+                  "API access keys and other low-level settings. Most users never need to touch these.",
+              },
               fields: [
             {
               name: "apiKey",
@@ -1741,6 +1999,14 @@ export const Clients: CollectionConfig = {
                 description: "Configure Google Ads automations for this client",
               },
               fields: [
+                {
+                  name: "isManagedGoogleAdsAccount",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description: "Show this client in OptiMate and active Google Ads account pickers. Turn off for MCC accounts we can see but do not manage.",
+                  },
+                },
                 // Dashboard (Quality Score tab)
                 {
                   name: "dashboardEnabled",
@@ -3039,11 +3305,10 @@ export const Clients: CollectionConfig = {
                     {
                       name: "deckUrl",
                       type: "text",
-                      required: true,
                       admin: {
                         width: "40%",
                         description:
-                          "Full deck URL, e.g. https://cms.optimisedigital.online/partners/<client>/<deck>/",
+                          "Full deck URL, e.g. https://cms.optimisedigital.online/partners/<client>/<deck>/. Optional so incomplete presentation rows don't block client saves.",
                       },
                     },
                     {

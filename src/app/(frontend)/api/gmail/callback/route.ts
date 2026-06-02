@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const oauthError = req.nextUrl.searchParams.get("error");
 
   const redirectTo = (params: Record<string, string>) => {
-    const u = new URL("/admin/account", req.url);
+    const u = new URL("/admin/settings/integrations", req.url);
     for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
     return NextResponse.redirect(u);
   };

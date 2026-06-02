@@ -276,7 +276,7 @@ describe("get_weekly_metric_table - execute", () => {
     expect(data.html.indexOf(">CPA<", cpaIdx + 1)).toBe(-1);
   });
 
-  it("renders delta columns with direction-aware colour when compare=\"wow\"", async () => {
+  it("accepts compare=\"wow\" but renders absolute metric columns only", async () => {
     // Two weeks: clicks 100 -> 200 (volume up, green).
     const fetchMock = vi
       .fn()
@@ -300,8 +300,8 @@ describe("get_weekly_metric_table - execute", () => {
     expect(result.ok).toBe(true);
     const data = result.data as { html: string; compare?: string };
     expect(data.compare).toBe("wow");
-    expect(data.html).toMatch(/\u0394 vs prev/);
-    expect(data.html).toMatch(/color:#059669[^"]*">\+100\.0%</);
+    expect(data.html).not.toMatch(/\u0394 vs prev/);
+    expect(data.html).not.toMatch(/color:#(?:059669|dc2626)[^"]*">[+-]\d+\.0%/);
   });
 
   it("returns ok:false when any underlying fetch fails", async () => {
@@ -344,7 +344,7 @@ describe("get_weekly_metric_table - execute", () => {
     expect(result.error).toMatch(/customerId/);
   });
 
-  it("surfaces table_may_overflow_gmail warning when total columns exceed 10", async () => {
+  it("does not warn for six metrics when compare=wow no longer adds delta columns", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
@@ -353,7 +353,8 @@ describe("get_weekly_metric_table - execute", () => {
     // @ts-expect-error - test override
     globalThis.fetch = fetchMock;
 
-    // 6 metrics + compare="wow" → 1 + 6*2 = 13 columns → overflow.
+    // 6 metrics + compare="wow" still renders 1 + 6 = 7 columns because
+    // compare is accepted for compatibility but no longer adds delta columns.
     const args = getWeeklyMetricTable.validate!({
       weeks: 1,
       endDate: "2026-05-17",
@@ -363,6 +364,6 @@ describe("get_weekly_metric_table - execute", () => {
     const result = await getWeeklyMetricTable.execute(args, baseCtx());
     expect(result.ok).toBe(true);
     const data = result.data as { warnings: string[] };
-    expect(data.warnings).toContain("table_may_overflow_gmail");
+    expect(data.warnings).not.toContain("table_may_overflow_gmail");
   });
 });

@@ -26,6 +26,21 @@ export async function GET() {
       sort: "name",
       limit: 500,
       depth: 0,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        googleAdsCustomerId: true,
+        createdAt: true,
+        gadsTrajectoryLatestScore: true,
+        gadsTrajectoryPreviousScore: true,
+        gadsTrajectoryScoreChange: true,
+        gadsTrajectoryTrend: true,
+        gadsAutoDashboardEnabled: true,
+        gadsAutoWeeklyReportWeeklyReportEnabled: true,
+        gadsAutoNegativeSweepEnabled: true,
+        gadsAutoReauditEnabled: true,
+      } as any,
     });
 
     // For each client, find the latest Google Ads audit (if any) so we can
@@ -39,6 +54,7 @@ export async function GET() {
           limit: 500,
           depth: 0,
           select: {
+            id: true,
             client: true,
             createdAt: true,
             overallScore: true,

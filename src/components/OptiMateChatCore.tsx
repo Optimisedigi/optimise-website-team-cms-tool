@@ -163,6 +163,8 @@ export interface OptiMateChatCoreProps {
   fluid?: boolean
   /** Hide the per-tab input row (the multi-chat wrapper supplies a shared one). */
   hideInput?: boolean
+  /** Optional hidden context sent to the API before each user request, without showing it in the chat bubble. */
+  messageContextPrefix?: string
   /**
    * Resume an existing chat thread on mount. When set, the component fetches
    * the thread's turns from /api/optimate-chat-history and seeds `messages`.
@@ -530,6 +532,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       compact = false,
       fluid = false,
       hideInput = false,
+      messageContextPrefix,
       initialSessionId,
     },
     ref,
@@ -720,7 +723,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             data?.error === 'gmail-not-connected'
               ? 'Connect Gmail first.'
               : data?.error === 'scope-insufficient'
-                ? 'Reconnect Gmail to grant compose access.'
+                ? 'Reconnect Gmail to grant compose and signature access.'
                 : data?.error || `Failed (${res.status})`
           setDraftState((prev) => ({ ...prev, [idx]: { status: 'error', error: msg } }))
           return
@@ -931,13 +934,17 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
 
       try {
         const chatUrl = mode === 'portfolio' ? '/api/optimate/google-ads-portfolio/chat' : `/api/google-ads-audits/${auditId}/chat`
+        const apiMessage = messageContextPrefix
+          ? `${messageContextPrefix.trim()}\n\nUser request: ${trimmedText || 'Please review the attached image.'}`
+          : trimmedText || 'Please review the attached image.'
         const res = await fetch(chatUrl, {
           method: 'POST',
           credentials: 'include',
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            message: trimmedText || 'Please review the attached image.',
+            message: apiMessage,
+            displayMessage: trimmedText || 'Please review the attached image.',
             sessionId: sessionIdRef.current,
             history: messages.map(({ role, content }) => ({ role, content })),
             model: selectedModel,
@@ -1334,6 +1341,16 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           {/* Anthropic credential pill removed per request — it was noisy and the
             credential state is managed on the agent-auth admin page. */}
           {!compact && <OptiMateToolsHelp compact={compact} />}
+          {hideInput && mode === 'audit' && voiceEnabled && (
+            <OptiMateVoice
+              auditId={auditId}
+              businessName={businessName}
+              onTurn={upsertVoiceTurn}
+              onAssistantMessage={appendVoiceAssistantMessage}
+              controlsContainer={voiceControlsEl}
+              triggerSize={29}
+            />
+          )}
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
               type="button"
@@ -2174,7 +2191,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     />
                   </svg>
                 </button>
-                {voiceEnabled && (
+                {mode === 'audit' && voiceEnabled && (
                   <OptiMateVoice
                     auditId={auditId}
                     businessName={businessName}

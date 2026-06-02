@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
         {
           error: "scope-insufficient",
           reason:
-            "Gmail returned insufficient permissions. Reconnect Gmail to grant compose access.",
+            "Gmail returned insufficient permissions. Reconnect Gmail to grant compose and settings/signature access.",
         },
         { status: 403 },
       );

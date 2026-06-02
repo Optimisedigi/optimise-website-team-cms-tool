@@ -3605,14 +3605,20 @@ export async function runMigrations(
       \`id\` integer PRIMARY KEY NOT NULL,
       \`default_chat_model\` text DEFAULT 'claude-sonnet-4.6',
       \`default_autonomous_model\` text DEFAULT 'kimi-k2.6',
+      \`blog_prompter_model\` text,
+      \`invoice_assistant_model\` text,
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`);
-    // Optional task-specific model used by Blog Prompter AI Suggest.
-    // Nullable by design: blank means "use the autonomous default".
+    // Optional task-specific models. Nullable by design: blank means use the
+    // autonomous default.
     await run(
       "optimate_settings.blog_prompter_model",
       "ALTER TABLE `optimate_settings` ADD `blog_prompter_model` text",
+    );
+    await run(
+      "optimate_settings.invoice_assistant_model",
+      "ALTER TABLE `optimate_settings` ADD `invoice_assistant_model` text",
     );
 
     // ── google_ads_campaign_budgets monthly recommendation fields (2026-06-08) ──

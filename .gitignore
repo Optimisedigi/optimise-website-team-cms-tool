@@ -30,6 +30,7 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env.vercel
 
 # vercel
 .vercel
@@ -40,6 +41,7 @@ next-env.d.ts
 
 .env
 *.db
+*.db.bak
 
 /media
 
@@ -65,4 +67,10 @@ node_modules/
 
 # Personal drafts / scratch (not deployed)
 /drafts/
+/mockups/
+
+# Claude Code MCP config (contains API token)
+.mcp.json
+
+# Syncthing conflict artifacts (never commit; they break typecheck/build)
 *.sync-conflict-*

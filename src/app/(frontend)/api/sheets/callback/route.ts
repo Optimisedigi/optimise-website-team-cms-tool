@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     return clearStateCookie(
       NextResponse.redirect(
         new URL(
-          `/admin/globals/sheets-auth?sheets_error=${encodeURIComponent(error)}`,
+          `/admin/settings/integrations?sheets_error=${encodeURIComponent(error)}`,
           req.url
         )
       )
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     });
 
     return clearStateCookie(
-      NextResponse.redirect(new URL("/admin/globals/sheets-auth", req.url))
+      NextResponse.redirect(new URL("/admin/settings/integrations", req.url))
     );
   } catch (err) {
     const message =
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
     return clearStateCookie(
       NextResponse.redirect(
         new URL(
-          `/admin/globals/sheets-auth?sheets_error=${encodeURIComponent(message)}`,
+          `/admin/settings/integrations?sheets_error=${encodeURIComponent(message)}`,
           req.url
         )
       )

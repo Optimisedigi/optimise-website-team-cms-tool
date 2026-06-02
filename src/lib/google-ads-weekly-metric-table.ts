@@ -22,21 +22,14 @@
  *     null (no conversions) renders as a dash, no colour.
  *     No other metric gets absolute-threshold colouring; the agency does not
  *     have canonical bands for CPC / CTR / conv_rate / etc. across clients.
- *   - With `compare: "wow"` each metric column is followed by a "delta vs
- *     prev" column. Direction-aware colouring per metric: for cost-shaped
- *     metrics (spend / cpa / cpc) a *decrease* is green and *increase* is
- *     red; for volume-shaped metrics (clicks / impressions / conversions /
- *     ctr / conv_rate) it's the reverse. First row renders "-" (no prev).
- *     prev === 0 also renders "-" (no well-defined percent change from zero).
+ *   - No week-on-week uplift / delta columns. Weekly tables show absolute
+ *     metric values only, even if a legacy caller still passes compare="wow".
  *   - Highlight row: ONLY the latest row, and ONLY when it is a partial
  *     in-progress week. Light green background #f0fdf4 + bold cells. The
- *     CPA cell keeps its threshold colour and stays bold; delta cells keep
- *     their direction-aware colour on top of the highlight bg.
+ *     CPA cell keeps its threshold colour and stays bold.
  *   - Labels use ASCII hyphen "-" (no em / en dashes anywhere - soul rule).
- *
- * Practical Gmail width sweet spot: 4 metrics with `compare: "wow"` (9
- * columns including Week). The tool layer caps `metrics` at 6 and surfaces
- * a soft warning when total columns exceed 10.
+ *   - Width: content-sized, not full-width. The table should be wide enough for
+ *     its columns but should not expand just because the Gmail window expands.
  *
  * NO React, NO Payload, NO browser-only globals. Pure TS. Date math is UTC
  * to avoid timezone drift; the module never reads `Date.now()` - `endDate`
@@ -341,67 +334,11 @@ function cpaColor(cpa: number | null): string | null {
   return "#dc2626";
 }
 
-/**
- * For each metric, is an *increase* an improvement?
- *   - spend / cpa / cpc: NO  (lower is better - decrease shows green)
- *   - clicks / impressions / conversions / ctr / conv_rate: YES (higher is
- *     better - increase shows green)
- */
-function increaseIsGood(metric: WeeklyMetricKey): boolean {
-  switch (metric) {
-    case "spend":
-    case "cpa":
-    case "cpc":
-      return false;
-    case "clicks":
-    case "impressions":
-    case "conversions":
-    case "ctr":
-    case "conv_rate":
-      return true;
-  }
-}
-
-/**
- * Direction-aware delta colour. Returns null when no delta exists (first
- * row, either value null, prev === 0).
- */
-function deltaColor(
-  metric: WeeklyMetricKey,
-  current: number | null,
-  prev: number | null,
-): string | null {
-  if (current === null || prev === null) return null;
-  // prev === 0 yields no well-defined percent change; renders as "-" with
-  // no colour. Matches the formatDelta contract.
-  if (prev === 0) return null;
-  if (current === prev) return null;
-  const improving =
-    current > prev ? increaseIsGood(metric) : !increaseIsGood(metric);
-  return improving ? "#059669" : "#dc2626";
-}
-
-/**
- * Format the delta cell text. Returns "-" when there's no defined change
- * (first row, either value null, prev === 0).
- */
-function formatDelta(current: number | null, prev: number | null): string {
-  if (current === null || prev === null) return "-";
-  if (prev === 0) return "-";
-  const pct = ((current - prev) / Math.abs(prev)) * 100;
-  if (pct === 0) return "0.0%";
-  const sign = pct > 0 ? "+" : "-";
-  return `${sign}${Math.abs(pct).toLocaleString("en-US", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })}%`;
-}
-
 export interface GenerateTableArgs {
   rows: WeeklyBucketRow[];
   /** Non-empty, ordered, deduped at the tool layer. */
   metrics: WeeklyMetricKey[];
-  /** Omitted = no delta columns. Only "wow" is supported today. */
+  /** Legacy input accepted for compatibility but ignored. Tables are absolute-only. */
   compare?: "wow";
   /** Override "Weekly Performance Trend". */
   title?: string;
@@ -419,7 +356,6 @@ export interface GenerateTableArgs {
 export function generateWeeklyMetricTableHtml(args: GenerateTableArgs): string {
   const rows = args.rows;
   const metrics = args.metrics;
-  const compare = args.compare;
   const summary = (args.summary ?? "").trim();
   const title = (args.title ?? "").trim() || "Weekly Performance Trend";
 
@@ -428,11 +364,11 @@ export function generateWeeklyMetricTableHtml(args: GenerateTableArgs): string {
   const highlightIndex = lastIndex >= 0 && rows[lastIndex].partial ? lastIndex : -1;
 
   const cellBase =
-    "padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222";
+    "padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:13px;font-family:Verdana,sans-serif;color:#222;white-space:nowrap";
   const headBase =
-    "padding:6px 10px;border-bottom:2px solid #cbd5e1;font-size:13px;font-family:Verdana,sans-serif;color:#222;font-weight:600";
+    "padding:6px 10px;border-bottom:2px solid #cbd5e1;font-size:13px;font-family:Verdana,sans-serif;color:#222;font-weight:600;white-space:nowrap";
 
-  // Precompute per-row per-metric values so delta cells can reach back one row.
+  // Precompute per-row per-metric values once for rendering.
   const computed: Array<Array<number | null>> = rows.map((row) =>
     metrics.map((m) => computeMetric(m, row.totals)),
   );
@@ -442,9 +378,6 @@ export function generateWeeklyMetricTableHtml(args: GenerateTableArgs): string {
   headerCells.push(`<th style="${headBase};text-align:left">Week</th>`);
   for (const m of metrics) {
     headerCells.push(`<th style="${headBase};text-align:right">${metricHeader(m)}</th>`);
-    if (compare === "wow") {
-      headerCells.push(`<th style="${headBase};text-align:right">${"\u0394"} vs prev</th>`);
-    }
   }
 
   const bodyRowsHtml = rows
@@ -462,8 +395,7 @@ export function generateWeeklyMetricTableHtml(args: GenerateTableArgs): string {
         const m = metrics[mi];
         const value = computed[i][mi];
 
-        // Absolute-threshold colouring fires only for CPA, on every row,
-        // independent of the delta direction.
+        // Absolute-threshold colouring fires only for CPA, on every row.
         let absColor: string | null = null;
         if (m === "cpa") absColor = cpaColor(value);
 
@@ -473,17 +405,6 @@ export function generateWeeklyMetricTableHtml(args: GenerateTableArgs): string {
         cells.push(
           `<td style="${cellBase}${rowBg}${valueColorStyle};text-align:right">${formatMetric(m, value)}</td>`,
         );
-
-        if (compare === "wow") {
-          const prev = i > 0 ? computed[i - 1][mi] : null;
-          const dColor = deltaColor(m, value, prev);
-          const deltaStyle = dColor
-            ? `;color:${dColor};font-weight:700`
-            : boldHighlight;
-          cells.push(
-            `<td style="${cellBase}${rowBg}${deltaStyle};text-align:right">${formatDelta(value, prev)}</td>`,
-          );
-        }
       }
 
       return `<tr>${cells.join("")}</tr>`;
@@ -496,7 +417,7 @@ export function generateWeeklyMetricTableHtml(args: GenerateTableArgs): string {
 
   return `<div style="font-family:Verdana,sans-serif;color:#222;font-size:13px">
   <p style="margin:0 0 8px;font-family:Verdana,sans-serif;font-size:14px;color:#222"><strong>${escapeHtml(title)}</strong></p>
-  <table style="border-collapse:collapse;width:100%;font-family:Verdana,sans-serif;color:#222">
+  <table style="border-collapse:collapse;width:auto;max-width:680px;table-layout:auto;font-family:Verdana,sans-serif;color:#222">
     <tr>
       ${headerCells.join("\n      ")}
     </tr>

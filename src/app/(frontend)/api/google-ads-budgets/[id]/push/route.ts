@@ -4,8 +4,6 @@ import config from "@/payload.config";
 import { hasValidApiKey } from "@/collections/api-key-access";
 import { logActivity } from "@/lib/activity-log";
 
-const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 const BUDGETS_COLLECTION: any = "google-ads-campaign-budgets";
 
 interface PushCampaignBudget {
@@ -95,16 +93,19 @@ export async function POST(
   let pushedCount = 0;
   const errors: string[] = [];
 
+  const growthToolsUrl = process.env.GROWTH_TOOLS_URL;
+  const internalApiKey = process.env.INTERNAL_API_KEY;
+
   // Push to Google Ads via Growth Tools
-  if (GROWTH_TOOLS_URL && INTERNAL_API_KEY) {
+  if (growthToolsUrl && internalApiKey) {
     try {
       const response = await fetch(
-        `${GROWTH_TOOLS_URL}/api/google-ads/campaign-budgets/push`,
+        `${growthToolsUrl}/api/google-ads/campaign-budgets/push`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-internal-key": INTERNAL_API_KEY!,
+            "x-internal-key": internalApiKey,
           },
           body: JSON.stringify({
             customerId: customerId.replace(/-/g, ""),
@@ -184,11 +185,16 @@ export async function POST(
   if (pushedCount > 0) {
     try {
       const userName = (user as any)?.name || (user as any)?.email || "Unknown user";
-      const clientName = client?.name || audit.clientName || "Unknown client";
+      const clientName = client?.name || audit.businessName || audit.clientName || "Unknown client";
+      const pushedCampaigns = campaigns
+        .slice(0, 5)
+        .map((campaign) => `${campaign.campaignId}: $${campaign.dailyBudget.toFixed(2)}/day`)
+        .join(", ");
+      const extraCount = campaigns.length > 5 ? ` + ${campaigns.length - 5} more` : "";
       await logActivity(payload, {
         type: "google_ads_budget_pushed",
-        title: "Google Ads budget pushed",
-        description: `${userName} pushed budget for ${clientName} (CID ${customerId})`,
+        title: `Google Ads budget pushed: ${clientName}`,
+        description: `${userName} pushed ${pushedCount} campaign budget${pushedCount === 1 ? "" : "s"} to Google Ads for ${clientName} (CID ${customerId}). ${pushedCampaigns}${extraCount}`,
         user: user?.id,
         client: client?.id,
       });

@@ -1,6 +1,22 @@
-import type { CollectionConfig } from "payload";
+import type { CollectionBeforeChangeHook, CollectionConfig } from "payload";
 import { logActivity } from "../lib/activity-log";
 import { canAccess, adminOnlyDelete, hideUnlessFeature } from "../lib/access";
+
+const normalizeProcessOrders: CollectionBeforeChangeHook = async ({ data }) => {
+  if (Array.isArray(data?.phases)) {
+    data.phases.forEach((phase: any, phaseIndex: number) => {
+      phase.phaseOrder = phaseIndex + 1;
+
+      if (Array.isArray(phase.steps)) {
+        phase.steps.forEach((step: any, stepIndex: number) => {
+          step.stepOrder = stepIndex + 1;
+        });
+      }
+    });
+  }
+
+  return data;
+};
 
 /**
  * ClientProcesses Collection
@@ -41,6 +57,7 @@ export const ClientProcesses: CollectionConfig = {
   },
   defaultSort: "-updatedAt",
   hooks: {
+    beforeChange: [normalizeProcessOrders],
     afterChange: [
       async ({ doc, operation, req }) => {
         if (operation === "create") {

@@ -103,11 +103,12 @@ const SidebarNavExtras = () => {
   useEffect(() => {
     if (canIntegrations) {
       injectLink(
-        '#nav-group-Integrations .nav-group__content',
+        '#nav-group-Settings .nav-group__content',
         'integrations',
         '/admin/settings/integrations',
         ICONS.integrations,
         'Integrations',
+        'append',
       )
     }
 

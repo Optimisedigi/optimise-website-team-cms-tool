@@ -1,6 +1,12 @@
 import { default as default_5164bc2f3a3226d7b1d82146ff4ed3f0 } from '../../../components/BillingSummaryCell'
-import { default as default_e7d7aad66827a99befb1746a4455cced } from '../../../components/ClientBillingSummary'
+import { default as default_4aab2fbdea9dfe40f4fe8faf27c0b0d1 } from '../../../components/clients-list/MonthsActiveCell'
+import { default as default_5309cef183be6bdf16bb392cf8fd6f3b } from '../../../components/ClientRecordHeader'
 import { default as default_3d79dbcfcaa26d85aa8754377a3675dd } from '../../../components/AgencyBadge'
+import { default as default_50b91e94cbd399a9e8db44292fbb507f } from '../../../components/clients-list/NameAvatarCell'
+import { default as default_71c8c06dc8caa5debc23ed3566764a63 } from '../../../components/clients-list/SlugCell'
+import { default as default_a04d3e5e4f63cb4971cc6756d558eb31 } from '../../../components/clients-list/PinCell'
+import { default as default_4688024c692ee599e6afafd55990ce14 } from '../../../components/clients-list/StatusCell'
+import { default as default_a9f880a6de06ab5f693a05644fa1793e } from '../../../components/clients-list/AccountManagerCell'
 import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../components/MonthlyRetainerCell'
 import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../components/ClientNotesTable'
 import { default as default_9ac394c54993eebab40c6ee07594e90a } from '../../../components/admin/DiscoveryBriefingPanel'
@@ -49,6 +55,8 @@ import { default as default_c8dab20425f2b2eab04984a9a36002da } from '../../../co
 import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../components/CheckTagSetupButton'
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
 import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
+import { default as default_a78435ccde604fd147bece248584301d } from '../../../components/ClientsShowInactiveToggle'
+import { default as default_9107dac15c298ad46889bb6460266637 } from '../../../components/ClientsRowClick'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_da47157ebc74588a3650c3de3faf920e } from '../../../components/MockupUpload'
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
@@ -134,7 +142,9 @@ import { default as default_f7ce8484c2a04dac97a85c29cde49f11 } from '../../../co
 import { default as default_991ab0e2ad7231624c88bf3879cc97a8 } from '../../../components/GoogleAdsStarterEmailPreviewField'
 import { default as default_bdbf091e4ee4c8ba764b4f4e25a35525 } from '../../../components/SignaturePreviewField'
 import { default as default_77e619a924b976ecf037ef3b071568ba } from '../../../components/InvoiceStatementPreviewField'
+import { Banner as Banner_3817bf644402e67bfe6577f60ef982de } from '@payloadcms/ui'
 import { default as default_b1bb90f08c5df85caf24dc08a7b957cf } from '../../../components/agent/MemoryTokenUsagePanel'
+import { default as default_3d0ad3af79773fa3e0e884a28989ff85 } from '../../../components/agent/MemoryReviewPanel'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
 import { default as default_2396ffa5fcb8566707b31b0d1917b213 } from '../../../components/Logo'
 import { default as default_2539ed3128925d1e4131db1b637125cd } from '../../../components/NotificationsBell'
@@ -158,8 +168,14 @@ import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } f
 
 export const importMap = {
   "./components/BillingSummaryCell#default": default_5164bc2f3a3226d7b1d82146ff4ed3f0,
-  "./components/ClientBillingSummary#default": default_e7d7aad66827a99befb1746a4455cced,
+  "./components/clients-list/MonthsActiveCell#default": default_4aab2fbdea9dfe40f4fe8faf27c0b0d1,
+  "./components/ClientRecordHeader#default": default_5309cef183be6bdf16bb392cf8fd6f3b,
   "./components/AgencyBadge#default": default_3d79dbcfcaa26d85aa8754377a3675dd,
+  "./components/clients-list/NameAvatarCell#default": default_50b91e94cbd399a9e8db44292fbb507f,
+  "./components/clients-list/SlugCell#default": default_71c8c06dc8caa5debc23ed3566764a63,
+  "./components/clients-list/PinCell#default": default_a04d3e5e4f63cb4971cc6756d558eb31,
+  "./components/clients-list/StatusCell#default": default_4688024c692ee599e6afafd55990ce14,
+  "./components/clients-list/AccountManagerCell#default": default_a9f880a6de06ab5f693a05644fa1793e,
   "./components/MonthlyRetainerCell#default": default_1048d3ef8844cd92abe61dc0b4e55a00,
   "./components/ClientNotesTable#default": default_0c04cad98ec5e03879ab56990698fc12,
   "./components/admin/DiscoveryBriefingPanel#default": default_9ac394c54993eebab40c6ee07594e90a,
@@ -208,6 +224,8 @@ export const importMap = {
   "./components/CheckTagSetupButton#default": default_c1ac710d288beee1f124dc7c494f485d,
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
   "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,
+  "./components/ClientsShowInactiveToggle#default": default_a78435ccde604fd147bece248584301d,
+  "./components/ClientsRowClick#default": default_9107dac15c298ad46889bb6460266637,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/MockupUpload#default": default_da47157ebc74588a3650c3de3faf920e,
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
@@ -293,7 +311,9 @@ export const importMap = {
   "/components/GoogleAdsStarterEmailPreviewField#default": default_991ab0e2ad7231624c88bf3879cc97a8,
   "/components/SignaturePreviewField#default": default_bdbf091e4ee4c8ba764b4f4e25a35525,
   "/components/InvoiceStatementPreviewField#default": default_77e619a924b976ecf037ef3b071568ba,
+  "@payloadcms/ui#Banner": Banner_3817bf644402e67bfe6577f60ef982de,
   "./components/agent/MemoryTokenUsagePanel#default": default_b1bb90f08c5df85caf24dc08a7b957cf,
+  "./components/agent/MemoryReviewPanel#default": default_3d0ad3af79773fa3e0e884a28989ff85,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,
   "./components/Logo#default": default_2396ffa5fcb8566707b31b0d1917b213,
   "./components/NotificationsBell#default": default_2539ed3128925d1e4131db1b637125cd,

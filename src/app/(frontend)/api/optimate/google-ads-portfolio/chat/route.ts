@@ -51,12 +51,16 @@ export async function POST(request: Request) {
       imageAttachments?: unknown;
       sessionId?: unknown;
       reasoningMode?: unknown;
+      displayMessage?: unknown;
     };
     const sessionId =
       typeof body.sessionId === "string" && body.sessionId.trim().length > 0
         ? body.sessionId.trim()
         : crypto.randomUUID();
     const message = typeof body.message === "string" ? body.message.trim() : "";
+    const displayMessage = typeof body.displayMessage === "string" && body.displayMessage.trim().length > 0
+      ? body.displayMessage.trim()
+      : message;
     if (!message) {
       return NextResponse.json({ error: "message is required" }, { status: 400 });
     }
@@ -154,7 +158,7 @@ export async function POST(request: Request) {
           mode: "portfolio",
           user: user.id,
           role: "user",
-          content: message,
+          content: displayMessage,
         },
         overrideAccess: true,
       })

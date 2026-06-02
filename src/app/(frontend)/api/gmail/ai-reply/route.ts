@@ -23,6 +23,7 @@ interface AiReplyBody {
   subject?: unknown;
   from?: unknown;
   instructions?: unknown;
+  mode?: unknown;
 }
 
 const MAX_BODY_LEN = 20_000;
@@ -30,12 +31,12 @@ const MAX_INSTRUCTIONS_LEN = 2_000;
 
 function buildSystemPrompt(): string {
   return [
-    "You are an assistant that drafts email replies for a digital marketing agency in Australia.",
-    "Write a professional, concise reply to the email the user received.",
+    "You are an assistant that drafts emails for a digital marketing agency in Australia.",
+    "Write professional, concise email copy. The user may be replying to an inbound email or drafting a brand-new outbound email from instructions.",
     "Use Australian English spelling. Keep a warm but businesslike tone.",
     "Preserve the user's intent and any instructions they give.",
-    "Do not invent facts, prices, dates, or commitments that aren't supported by the original email or the user's instructions.",
-    "Return ONLY the reply body text — no subject line, no 'To:'/'From:' headers, no surrounding quotes, no commentary.",
+    "Do not invent facts, prices, dates, or commitments that aren't supported by the supplied source text or the user's instructions.",
+    "Return ONLY the email body text — no subject line, no 'To:'/'From:' headers, no surrounding quotes, no commentary.",
   ].join(" ");
 }
 
@@ -44,8 +45,16 @@ function buildUserMessage(args: {
   subject: string;
   from: string;
   instructions: string;
+  mode: "draft" | "reply";
 }): string {
   const parts: string[] = [];
+  if (args.mode === "draft") {
+    if (args.subject) parts.push(`Suggested subject/context: ${args.subject}`);
+    parts.push("Here are my instructions/source notes for the new email:\n\n" + args.bodyText);
+    parts.push(args.instructions || "\n\nDraft an appropriate outbound email on my behalf.");
+    return parts.join("\n");
+  }
+
   if (args.from) parts.push(`The email is from: ${args.from}`);
   if (args.subject) parts.push(`Subject: ${args.subject}`);
   parts.push("Here is the email I received:\n\n" + args.bodyText);
@@ -85,6 +94,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const subject = typeof body.subject === "string" ? body.subject.trim() : "";
   const from = typeof body.from === "string" ? body.from.trim() : "";
+  const mode = body.mode === "draft" ? "draft" : "reply";
   const instructions =
     typeof body.instructions === "string"
       ? body.instructions.trim().slice(0, MAX_INSTRUCTIONS_LEN)
@@ -110,6 +120,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 subject,
                 from,
                 instructions,
+                mode,
               }),
             },
           ],

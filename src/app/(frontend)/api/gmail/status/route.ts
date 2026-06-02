@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
+import { getPrimaryGmailSignature } from "@/lib/gmail-service";
 
 /**
  * GET /api/gmail/status
@@ -25,10 +27,34 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     id: user.id,
     depth: 0,
     overrideAccess: true,
-  })) as { gmailConnected?: boolean; gmailEmail?: string | null };
+  })) as { gmailConnected?: boolean; gmailEmail?: string | null; gmailTokenExpiry?: string | null };
+
+  let settingsAccess = false;
+  let hasSignature = false;
+  let reconnectRequired = false;
+
+  if (fresh.gmailConnected) {
+    const userId = typeof user.id === "number" ? user.id : Number(user.id);
+    const token = await getValidGmailToken(userId);
+    if (token.ok) {
+      try {
+        const signature = await getPrimaryGmailSignature(token.accessToken);
+        settingsAccess = true;
+        hasSignature = signature.trim().length > 0;
+      } catch {
+        reconnectRequired = true;
+      }
+    } else {
+      reconnectRequired = true;
+    }
+  }
 
   return NextResponse.json({
     connected: Boolean(fresh.gmailConnected),
     email: fresh.gmailEmail ?? null,
+    tokenExpiry: fresh.gmailTokenExpiry ?? null,
+    settingsAccess,
+    hasSignature,
+    reconnectRequired,
   });
 }

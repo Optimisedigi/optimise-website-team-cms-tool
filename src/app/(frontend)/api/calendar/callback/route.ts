@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     return clearStateCookie(
       NextResponse.redirect(
         new URL(
-          `/admin/globals/calendar-auth?calendar_error=${encodeURIComponent(error)}`,
+          `/admin/settings/integrations?calendar_error=${encodeURIComponent(error)}`,
           req.url
         )
       )
@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
     });
 
     return clearStateCookie(
-      NextResponse.redirect(new URL("/admin/globals/calendar-auth", req.url))
+      NextResponse.redirect(new URL("/admin/settings/integrations", req.url))
     );
   } catch (err) {
     const message =
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
     return clearStateCookie(
       NextResponse.redirect(
         new URL(
-          `/admin/globals/calendar-auth?calendar_error=${encodeURIComponent(message)}`,
+          `/admin/settings/integrations?calendar_error=${encodeURIComponent(message)}`,
           req.url
         )
       )

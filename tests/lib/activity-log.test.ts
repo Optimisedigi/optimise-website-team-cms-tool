@@ -22,6 +22,7 @@ describe("logActivity", () => {
         type: "blog_published",
         title: "New blog post",
       },
+      overrideAccess: true,
     });
   });
 
@@ -95,6 +96,7 @@ describe("logActivity", () => {
         user: 1,
         client: "acme-id",
       },
+      overrideAccess: true,
     });
   });
 

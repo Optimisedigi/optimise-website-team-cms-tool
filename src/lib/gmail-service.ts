@@ -8,17 +8,21 @@ import { google } from "googleapis";
  *  - gmail.readonly → OptiMate launcher search & attach inbox emails as
  *                     per-turn chat context. We never send mail on the
  *                     user's behalf.
+ *  - gmail.settings.basic → read the connected account's sendAs signature so
+ *                           drafts/replies can include the user's Gmail signature.
  *
- * Note: gmail.readonly was added in Phase 6. Existing users connected under
- * the previous (compose-only) scope must reconnect once via /api/gmail/connect
- * — refresh tokens issued under the old scope set will not yield readonly
- * access, and Gmail returns 403 insufficientPermissions on search calls.
+ * Note: gmail.readonly and gmail.settings.basic were added after the first
+ * compose-only rollout. Existing users connected under the previous scope set
+ * must reconnect once via /api/gmail/connect — refresh tokens issued under the
+ * old scopes will not yield readonly/settings access, and Gmail returns 403
+ * insufficientPermissions on search/signature calls.
  */
 
 // Includes openid + email so we can resolve the connecting user's address.
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.compose",
   "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.settings.basic",
   "https://www.googleapis.com/auth/userinfo.email",
   "openid",
 ];
@@ -159,8 +163,32 @@ function buildMimeMessage(args: {
 }
 
 /**
+ * Read the connected Gmail account's primary/default sendAs signature.
+ */
+export async function getPrimaryGmailSignature(accessToken: string): Promise<string> {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+
+  const res = await gmail.users.settings.sendAs.list({ userId: "me" });
+  const sendAs = res.data.sendAs ?? [];
+  const primary =
+    sendAs.find((entry) => entry.isDefault) ??
+    sendAs.find((entry) => entry.isPrimary) ??
+    sendAs[0];
+  return typeof primary?.signature === "string" ? primary.signature.trim() : "";
+}
+
+function appendGmailSignature(htmlBody: string, signatureHtml: string): string {
+  const signature = signatureHtml.trim();
+  if (!signature) return htmlBody;
+  if (htmlBody.includes(signature)) return htmlBody;
+  return `${htmlBody}<br><br>${signature}`;
+}
+
+/**
  * Create a Gmail draft using the given access token. Returns the draft id
- * and the underlying message id.
+ * and the underlying message id. Appends the connected Gmail signature by default.
  */
 export async function createGmailDraft(
   accessToken: string,
@@ -172,16 +200,21 @@ export async function createGmailDraft(
     threadId?: string;
     /** RFC 822 Message-ID of the message being replied to. */
     inReplyTo?: string;
+    /** Append the connected Gmail account's configured signature. Defaults to true. */
+    appendSignature?: boolean;
   },
 ): Promise<{ draftId: string; messageId: string }> {
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({ access_token: accessToken });
 
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+  const htmlBody = args.appendSignature === false
+    ? args.htmlBody
+    : appendGmailSignature(args.htmlBody, await getPrimaryGmailSignature(accessToken));
   const raw = buildMimeMessage({
     to: args.to,
     subject: args.subject,
-    htmlBody: args.htmlBody,
+    htmlBody,
     inReplyTo: args.inReplyTo,
   });
 

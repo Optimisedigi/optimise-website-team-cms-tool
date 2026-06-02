@@ -11,12 +11,22 @@ interface ClientOption {
   ga4Connected: boolean
 }
 
+interface SystemIntegrationStatus {
+  connected: boolean
+  email: string | null
+  detail?: string
+  reconnectRequired?: boolean
+}
+
 const IntegrationsPage = () => {
   const [clients, setClients] = useState<ClientOption[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [disconnecting, setDisconnecting] = useState(false)
   const [ga4Disconnecting, setGa4Disconnecting] = useState(false)
+  const [gmailStatus, setGmailStatus] = useState<SystemIntegrationStatus | null>(null)
+  const [sheetsStatus, setSheetsStatus] = useState<SystemIntegrationStatus | null>(null)
+  const [calendarStatus, setCalendarStatus] = useState<SystemIntegrationStatus | null>(null)
 
   useEffect(() => {
     fetch('/api/clients/list')
@@ -37,6 +47,51 @@ const IntegrationsPage = () => {
         setLoading(false)
       })
       .catch((err) => { console.error('[Integrations] fetch error:', err); setLoading(false) })
+  }, [])
+
+  useEffect(() => {
+    const loadSystemIntegrations = async () => {
+      const [gmailRes, sheetsRes, calendarRes] = await Promise.allSettled([
+        fetch('/api/gmail/status', { credentials: 'include' }),
+        fetch('/api/globals/sheets-auth', { credentials: 'include' }),
+        fetch('/api/globals/calendar-auth', { credentials: 'include' }),
+      ])
+
+      if (gmailRes.status === 'fulfilled' && gmailRes.value.ok) {
+        const data = await gmailRes.value.json()
+        const detail = data.reconnectRequired
+          ? 'Reconnect to grant signature/settings access'
+          : data.settingsAccess
+            ? data.hasSignature
+              ? 'Signature ready'
+              : 'Settings access ready, no Gmail signature found'
+            : null
+        setGmailStatus({
+          connected: Boolean(data.connected),
+          email: data.email ?? null,
+          reconnectRequired: Boolean(data.reconnectRequired),
+          ...(detail ? { detail } : {}),
+        })
+      }
+
+      if (sheetsRes.status === 'fulfilled' && sheetsRes.value.ok) {
+        const data = await sheetsRes.value.json()
+        setSheetsStatus({
+          connected: Boolean(data.connectedEmail),
+          email: data.connectedEmail ?? null,
+        })
+      }
+
+      if (calendarRes.status === 'fulfilled' && calendarRes.value.ok) {
+        const data = await calendarRes.value.json()
+        setCalendarStatus({
+          connected: Boolean(data.connectedEmail),
+          email: data.connectedEmail ?? null,
+        })
+      }
+    }
+
+    void loadSystemIntegrations()
   }, [])
 
   const selectedClient = clients.find((c) => String(c.id) === String(selectedClientId)) || null
@@ -85,6 +140,39 @@ const IntegrationsPage = () => {
     }
   }
 
+  const systemCards = [
+    {
+      key: 'gmail',
+      icon: 'Gmail',
+      name: 'Gmail',
+      desc: 'Per-user Gmail drafts, inbox search, replies, and Gmail signature access',
+      status: gmailStatus,
+      connectHref: '/api/gmail/connect',
+      reconnectLabel: 'Reconnect Gmail',
+      connectLabel: 'Connect Gmail',
+    },
+    {
+      key: 'sheets',
+      icon: 'Sheets',
+      name: 'Google Sheets',
+      desc: 'System Sheets OAuth for negative keyword spreadsheet sync',
+      status: sheetsStatus,
+      connectHref: '/api/sheets/connect',
+      reconnectLabel: 'Reconnect Sheets',
+      connectLabel: 'Connect Sheets',
+    },
+    {
+      key: 'calendar',
+      icon: 'Cal',
+      name: 'Google Calendar',
+      desc: 'System Calendar OAuth for meeting availability and event creation',
+      status: calendarStatus,
+      connectHref: '/api/calendar/connect',
+      reconnectLabel: 'Reconnect Calendar',
+      connectLabel: 'Connect Calendar',
+    },
+  ]
+
   if (loading) {
     return <RocketSplash />
   }
@@ -93,6 +181,8 @@ const IntegrationsPage = () => {
     <div className="od-settings">
       <h2 className="od-settings__title">Integrations</h2>
       <p className="od-settings__subtitle">Manage platform connections for your agency.</p>
+
+      <h3 style={{ margin: '20px 0 10px', fontSize: 16 }}>Client integrations</h3>
 
       {/* Client Picker */}
       {clients.length > 0 && (
@@ -172,34 +262,52 @@ const IntegrationsPage = () => {
           </div>
         </div>
 
-        {/* Google Ads */}
-        <div className="od-settings__card od-settings__card--disabled">
-          <div className="od-settings__card-header">
-            <div className="od-settings__card-icon">Ads</div>
-            <div>
-              <div className="od-settings__card-name">Google Ads</div>
-              <div className="od-settings__card-desc">Campaign performance, spend, and conversion tracking</div>
-            </div>
-          </div>
-          <div className="od-settings__card-footer">
-            <span className="od-settings__badge">Coming Soon</span>
-          </div>
-        </div>
-
-        {/* Meta Ads */}
-        <div className="od-settings__card od-settings__card--disabled">
-          <div className="od-settings__card-header">
-            <div className="od-settings__card-icon">Meta</div>
-            <div>
-              <div className="od-settings__card-name">Meta Ads</div>
-              <div className="od-settings__card-desc">Facebook and Instagram ad performance</div>
-            </div>
-          </div>
-          <div className="od-settings__card-footer">
-            <span className="od-settings__badge">Coming Soon</span>
-          </div>
-        </div>
       </div>
+
+      <h3 style={{ margin: '28px 0 10px', fontSize: 16 }}>System integrations</h3>
+      <div className="od-settings__grid">
+        {systemCards.map((card) => {
+          const status = card.status
+          const connected = Boolean(status?.connected)
+          return (
+            <div className="od-settings__card" key={card.key}>
+              <div className="od-settings__card-header">
+                <div className="od-settings__card-icon">{card.icon}</div>
+                <div>
+                  <div className="od-settings__card-name">{card.name}</div>
+                  <div className="od-settings__card-desc">{card.desc}</div>
+                  {status?.email && (
+                    <div className="od-settings__card-desc" style={{ marginTop: 4 }}>{status.email}</div>
+                  )}
+                  {status?.detail && (
+                    <div className="od-settings__card-desc" style={{ marginTop: 4 }}>{status.detail}</div>
+                  )}
+                </div>
+              </div>
+              <div className="od-settings__card-footer">
+                {connected ? (
+                  <>
+                    <span className={`od-settings__status ${status?.reconnectRequired ? '' : 'od-settings__status--connected'}`}>
+                      {status?.reconnectRequired ? 'Reconnect Needed' : 'Connected'}
+                    </span>
+                    <a className="od-settings__btn od-settings__btn--primary" href={card.connectHref} style={{ textDecoration: 'none' }}>
+                      {card.reconnectLabel}
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <span className="od-settings__status">Not Connected</span>
+                    <a className="od-settings__btn od-settings__btn--primary" href={card.connectHref} style={{ textDecoration: 'none' }}>
+                      {card.connectLabel}
+                    </a>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
     </div>
   )
 }

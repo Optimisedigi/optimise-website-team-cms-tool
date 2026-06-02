@@ -2162,11 +2162,10 @@ export const ClientProposals: CollectionConfig = {
                     {
                       name: "deckUrl",
                       type: "text",
-                      required: true,
                       admin: {
                         width: "40%",
                         description:
-                          "Full deck URL, e.g. https://cms.optimisedigital.online/partners/<proposal>/<deck>/",
+                          "Full deck URL, e.g. https://cms.optimisedigital.online/partners/<proposal>/<deck>/. Optional so incomplete presentation rows don't block proposal saves.",
                       },
                     },
                     {

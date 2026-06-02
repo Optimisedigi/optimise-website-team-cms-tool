@@ -3,15 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
- * Gmail reply flow for the OptiMate launcher panel.
+ * Gmail draft flow for the OptiMate launcher panel.
  *
- * A self-contained, agent-less shortcut: search the inbox → pick a message →
- * AI drafts a reply → edit it → save to Gmail Drafts (threaded in-reply). It
- * reuses the existing per-user Gmail OAuth and read-only search/body routes,
- * the new /api/gmail/ai-reply generator, and /api/gmail/draft for saving.
+ * A self-contained shortcut for two workflows:
+ *   - write a new email from instructions, no inbox search required
+ *   - search the inbox → pick a message → AI drafts a threaded reply
  *
- * We never send mail — the draft lands in the user's Gmail Drafts with the
- * original recipient prefilled, threaded into the original conversation.
+ * It reuses the existing per-user Gmail OAuth routes, /api/gmail/ai-reply for
+ * generated text, and /api/gmail/draft for saving. We never send mail — the
+ * draft lands in the user's Gmail Drafts for review.
  */
 
 interface SearchResult {
@@ -34,9 +34,9 @@ interface MessageBody {
   body: string
 }
 
-type Phase = 'search' | 'message'
+type Phase = 'compose' | 'search' | 'message'
 
-const DEFAULT_QUERY = 'in:inbox newer_than:14d'
+const DEFAULT_QUERY = ''
 
 function parseFromAddress(from: string): string {
   // "Name <email@x.com>" → "email@x.com"; bare addresses pass through.
@@ -53,7 +53,7 @@ export default function GmailReplyChat(): React.ReactElement {
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null)
   const [statusError, setStatusError] = useState<string | null>(null)
 
-  const [phase, setPhase] = useState<Phase>('search')
+  const [phase, setPhase] = useState<Phase>('compose')
   const [query, setQuery] = useState(DEFAULT_QUERY)
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -64,6 +64,8 @@ export default function GmailReplyChat(): React.ReactElement {
   const [loadingMessage, setLoadingMessage] = useState(false)
 
   const [instructions, setInstructions] = useState('')
+  const [composeSubject, setComposeSubject] = useState('')
+  const [composeTo, setComposeTo] = useState('')
   const [draftingReply, setDraftingReply] = useState(false)
   const [replyText, setReplyText] = useState('')
   const [replyError, setReplyError] = useState<string | null>(null)
@@ -153,6 +155,38 @@ export default function GmailReplyChat(): React.ReactElement {
     }
   }, [])
 
+  const draftNewEmail = useCallback(async () => {
+    const prompt = instructions.trim()
+    if (!prompt) return
+    setDraftingReply(true)
+    setReplyError(null)
+    setSavedUrl(null)
+    setSaveError(null)
+    try {
+      const res = await fetch('/api/gmail/ai-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          mode: 'draft',
+          bodyText: prompt,
+          subject: composeSubject.trim() || undefined,
+          instructions: 'Draft a brand-new outbound email from these instructions. Return only the email body, with no subject line or headers.',
+        }),
+      })
+      const data = (await res.json()) as { reply?: string; error?: string }
+      if (!res.ok) {
+        setReplyError(data.error || `Draft failed (${res.status})`)
+        return
+      }
+      setReplyText(data.reply ?? '')
+    } catch (err) {
+      setReplyError(err instanceof Error ? err.message : 'Draft failed')
+    } finally {
+      setDraftingReply(false)
+    }
+  }, [instructions, composeSubject])
+
   const draftReply = useCallback(async () => {
     if (!message) return
     setDraftingReply(true)
@@ -181,6 +215,35 @@ export default function GmailReplyChat(): React.ReactElement {
       setDraftingReply(false)
     }
   }, [message, instructions])
+
+  const saveNewDraft = useCallback(async () => {
+    if (!replyText.trim()) return
+    setSaving(true)
+    setSaveError(null)
+    setSavedUrl(null)
+    try {
+      const res = await fetch('/api/gmail/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          to: composeTo.trim() || undefined,
+          subject: composeSubject.trim() || undefined,
+          body: replyText,
+        }),
+      })
+      const data = (await res.json()) as { gmailUrl?: string; error?: string; reason?: string }
+      if (!res.ok) {
+        setSaveError(data.reason || data.error || `Save failed (${res.status})`)
+        return
+      }
+      setSavedUrl(data.gmailUrl ?? null)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }, [replyText, composeTo, composeSubject])
 
   const saveDraft = useCallback(async () => {
     if (!message || !replyText.trim()) return
@@ -227,7 +290,7 @@ export default function GmailReplyChat(): React.ReactElement {
     return (
       <div style={{ ...fillColumn, alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center', padding: 16 }}>
         <div style={{ fontSize: 13, color: '#374151' }}>
-          Connect your Gmail account to draft replies.
+          Connect your Gmail account to create drafts.
         </div>
         {statusError && <div style={{ fontSize: 12, color: '#dc2626' }}>{statusError}</div>}
         <a
@@ -262,20 +325,115 @@ export default function GmailReplyChat(): React.ReactElement {
         }}
       >
         <span style={{ fontSize: 11, color: '#6b7280' }}>
-          {connectedEmail ? `Gmail · ${connectedEmail}` : 'Gmail reply'}
+          {connectedEmail ? `Gmail · ${connectedEmail}` : 'Gmail draft'}
         </span>
-        {phase === 'message' && (
-          <button
-            type="button"
-            onClick={() => setPhase('search')}
-            style={ghostLink}
-          >
-            ← Back to results
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {phase !== 'compose' && (
+            <button
+              type="button"
+              onClick={() => {
+                setPhase('compose')
+                setMessage(null)
+                setReplyText('')
+                setReplyError(null)
+                setSavedUrl(null)
+                setSaveError(null)
+              }}
+              style={ghostLink}
+            >
+              New draft
+            </button>
+          )}
+          {phase === 'message' && (
+            <button
+              type="button"
+              onClick={() => setPhase('search')}
+              style={ghostLink}
+            >
+              ← Back to results
+            </button>
+          )}
+          {phase === 'compose' && (
+            <button
+              type="button"
+              onClick={() => {
+                setPhase('search')
+                setReplyText('')
+                setReplyError(null)
+                setSavedUrl(null)
+                setSaveError(null)
+              }}
+              style={ghostLink}
+            >
+              Reply to existing email
+            </button>
+          )}
+        </div>
       </div>
 
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 0', minHeight: 0 }}>
+        {phase === 'compose' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input
+              type="text"
+              value={composeTo}
+              onChange={(e) => setComposeTo(e.target.value)}
+              placeholder="To (optional — you can choose in Gmail)…"
+              style={inputStyle}
+            />
+            <input
+              type="text"
+              value={composeSubject}
+              onChange={(e) => setComposeSubject(e.target.value)}
+              placeholder="Subject (optional)…"
+              style={inputStyle}
+            />
+            <textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="What should the email say? You can also discuss content in OptiMate chat, then save the final reply as a Gmail draft."
+              rows={6}
+              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.45 }}
+            />
+            {replyError && <div style={errorBox}>{replyError}</div>}
+            <button
+              type="button"
+              onClick={draftNewEmail}
+              disabled={draftingReply || !instructions.trim()}
+              style={{ ...primaryButton, opacity: draftingReply || !instructions.trim() ? 0.6 : 1 }}
+            >
+              {draftingReply ? 'Drafting…' : replyText ? 'Redraft email' : 'Draft email'}
+            </button>
+            {replyText && (
+              <>
+                <textarea
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  rows={10}
+                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.45 }}
+                />
+                <button
+                  type="button"
+                  onClick={saveNewDraft}
+                  disabled={saving || !replyText.trim()}
+                  style={{ ...primaryButton, background: '#059669', opacity: saving || !replyText.trim() ? 0.6 : 1 }}
+                >
+                  {saving ? 'Saving…' : 'Save to Gmail Drafts'}
+                </button>
+                {saveError && <div style={errorBox}>{saveError}</div>}
+                {savedUrl && (
+                  <div style={{ fontSize: 12, color: '#166534' }}>
+                    Saved to Drafts.{' '}
+                    <a href={savedUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+                      Open in Gmail →
+                    </a>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {phase === 'search' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -312,7 +470,7 @@ export default function GmailReplyChat(): React.ReactElement {
 
             {!searched && !searching && (
               <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '16px 8px' }}>
-                Search your inbox to pick an email to reply to.
+                Search your inbox to pick an email to reply to, or use New draft to write without searching.
               </div>
             )}
 

@@ -30,6 +30,9 @@ interface GmailStatus {
   connected: boolean;
   email: string | null;
   tokenExpiry: string | null;
+  settingsAccess?: boolean;
+  hasSignature?: boolean;
+  reconnectRequired?: boolean;
 }
 
 const baseStyle = {
@@ -270,12 +273,19 @@ export default function AgentAuthPage() {
       <div style={cardStyle}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Gmail connection</h2>
         <p style={{ marginTop: 0, fontSize: 13, color: "#666", lineHeight: 1.5 }}>
-          Used by OptiMate to search attached emails, create Gmail drafts, and reconnect after new Gmail permissions are added.
+          Used by OptiMate to search attached emails, create Gmail drafts and replies, and append your Gmail signature. Reconnect if signature/settings access is missing.
         </p>
         {gmailStatus?.connected ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 13, color: "#15803d", fontWeight: 600 }}>
+            <span style={{ fontSize: 13, color: gmailStatus.reconnectRequired ? "#b45309" : "#15803d", fontWeight: 600 }}>
               Connected{gmailStatus.email ? `: ${gmailStatus.email}` : ""}
+              {gmailStatus.reconnectRequired
+                ? " · reconnect needed for signature access"
+                : gmailStatus.settingsAccess
+                  ? gmailStatus.hasSignature
+                    ? " · signature ready"
+                    : " · settings access ready, no Gmail signature found"
+                  : ""}
             </span>
             <div style={{ display: "flex", gap: 8 }}>
               <a href="/api/gmail/connect" style={{ ...ghostButtonStyle, textDecoration: "none" }}>

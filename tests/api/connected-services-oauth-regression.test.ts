@@ -301,7 +301,7 @@ describe("connected service OAuth and route regressions", () => {
       headers: { cookie: "oauth_state_calendar=expected" },
     }));
 
-    expect(redirectLocation(res)).toBe("http://localhost/admin/globals/calendar-auth");
+    expect(redirectLocation(res)).toBe("http://localhost/admin/settings/integrations");
     expect(mockPayload.updateGlobal).toHaveBeenCalledWith(expect.objectContaining({
       slug: "calendar-auth",
       data: expect.objectContaining({ connectedEmail: "(connected)", refreshToken: "calendar-refresh-secret" }),

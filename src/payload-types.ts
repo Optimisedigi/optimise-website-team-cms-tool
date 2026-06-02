@@ -145,6 +145,7 @@ export interface Config {
       googleAdsAudits: 'google-ads-audits';
       negativeKeywordLists: 'negative-keyword-lists';
       keywordDeepDiveSessions: 'keyword-deep-dive-sessions';
+      forecastScenarios: 'forecast-scenarios';
       siteHealthReports: 'site-health-reports';
       tagSetupAudits: 'tag-setup-audits';
       clientProposals: 'client-proposals';
@@ -286,12 +287,14 @@ export interface UserAuthOperations {
 export interface Client {
   id: number;
   billingSummary?: number | null;
+  monthsActive?: number | null;
+  logoThumbUrl?: string | null;
   /**
    * Client/business name (e.g., 'Acme Corp')
    */
   name: string;
   /**
-   * Trading / operating name if different from the legal entity name (e.g., 'Acme Corp' when the legal name is 'Acme Corp Pty Ltd'). Auto-populated from signed contracts.
+   * Operating name if different from the legal entity
    */
   tradingName?: string | null;
   /**
@@ -299,29 +302,34 @@ export interface Client {
    */
   slug: string;
   /**
+   * Client logo (square works best). Shown as the avatar in the Clients list; falls back to a coloured initial when empty.
+   */
+  logo?: (number | null) | Media;
+  /**
+   * Which services Optimise delivers for this client. Shown as pills in the client header.
+   */
+  services?: ('google_ads' | 'seo' | 'paid_social' | 'website_build' | 'automations')[] | null;
+  /**
    * Client website URL (e.g., 'https://acmecorp.com')
    */
   websiteUrl?: string | null;
-  /**
-   * Check if this is the agency itself (hides revenue fields)
-   */
-  isAgency?: boolean | null;
   /**
    * 4-digit PIN for client hub access (auto-generated)
    */
   clientPin?: string | null;
   /**
-   * Used by the tag setup checker to determine if issues are auto-fixable (built by us) or advisory-only (external).
+   * How the website is built — drives tag-setup fix guidance
    */
-  websiteType?: ('built_by_us' | 'external_cms') | null;
-  /**
-   * Which CMS platform is the website built on? Used by the tag setup checker to generate platform-specific fix instructions.
-   */
-  externalCms?: ('wordpress' | 'shopify' | 'squarespace' | 'wix' | 'webflow' | 'other') | null;
+  websiteType?: ('built_by_us' | 'wordpress' | 'shopify' | 'squarespace' | 'wix' | 'webflow' | 'other') | null;
+  externalCms?: string | null;
   /**
    * Enable/disable content publishing for this client
    */
   isActive?: boolean | null;
+  /**
+   * Check if this is the agency itself (hides revenue fields)
+   */
+  isAgency?: boolean | null;
   /**
    * Does this business have physical locations?
    */
@@ -331,75 +339,11 @@ export interface Client {
    */
   numberOfLocations?: number | null;
   /**
-   * Primary contact name
-   */
-  contactName?: string | null;
-  /**
-   * Primary contact email
-   */
-  contactEmail?: string | null;
-  /**
-   * Secondary client-side contacts (e.g. marketing director, owner). Internal team members go in Account Managers below.
-   */
-  additionalContacts?:
-    | {
-        /**
-         * Contact name
-         */
-        name: string;
-        /**
-         * Contact email
-         */
-        email: string;
-        /**
-         * e.g. Marketing Director, Owner
-         */
-        jobTitle?: string | null;
-        /**
-         * What this contact owns, when to loop them in — free text.
-         */
-        responsibilities?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Team members managing this client. They receive notifications for ad copy approvals, audits, etc.
-   */
-  accountManagers?:
-    | {
-        /**
-         * Account manager name
-         */
-        name: string;
-        /**
-         * Account manager email
-         */
-        email: string;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Google Ads customer ID (e.g. 955-493-5739). Client must grant access to the Optimise Digital MCC.
+   * Google Ads customer ID (e.g. 955-493-5739). Client must grant MCC access.
    */
   googleAdsCustomerId?: string | null;
   /**
-   * Google Maps listing URLs for GBP analysis
-   */
-  googleMapsUrls?:
-    | {
-        /**
-         * Google Maps listing URL
-         */
-        url: string;
-        /**
-         * Location label (e.g. 'Head Office', 'Sydney Branch')
-         */
-        label?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Primary conversion goal. Carried over from proposal. Shown on client reports.
+   * Primary conversion goal. Shown on client reports.
    */
   conversionGoal?:
     | (
@@ -431,6 +375,78 @@ export interface Client {
         | 'content downloads'
         | 'brand awareness'
       )
+    | null;
+  /**
+   * Primary contact name
+   */
+  contactName?: string | null;
+  /**
+   * Primary contact email
+   */
+  contactEmail?: string | null;
+  /**
+   * Primary contact phone
+   */
+  contactPhone?: string | null;
+  /**
+   * Secondary client-side contacts (e.g. marketing director, owner). Internal team members go in Account Managers below.
+   */
+  additionalContacts?:
+    | {
+        /**
+         * Contact name
+         */
+        name: string;
+        /**
+         * e.g. Marketing Director, Owner
+         */
+        jobTitle?: string | null;
+        /**
+         * Contact email
+         */
+        email: string;
+        /**
+         * Contact phone
+         */
+        phone?: string | null;
+        /**
+         * What this contact owns, when to loop them in — free text.
+         */
+        responsibilities?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Team members managing this client. They receive notifications for ad copy approvals, audits, etc.
+   */
+  accountManagers?:
+    | {
+        /**
+         * Account manager name
+         */
+        name: string;
+        /**
+         * Account manager email
+         */
+        email: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Google Maps listing URLs for GBP analysis
+   */
+  googleMapsUrls?:
+    | {
+        /**
+         * Google Maps listing URL
+         */
+        url: string;
+        /**
+         * Location label (e.g. 'Head Office', 'Sydney Branch')
+         */
+        label?: string | null;
+        id?: string | null;
+      }[]
     | null;
   /**
    * How this client was acquired
@@ -801,6 +817,10 @@ export interface Client {
    */
   gadsAuto?: {
     /**
+     * Show this client in OptiMate and active Google Ads account pickers. Turn off for MCC accounts we can see but do not manage.
+     */
+    isManagedGoogleAdsAccount?: boolean | null;
+    /**
      * Enable Google Ads dashboard & monthly quality score snapshots
      */
     dashboardEnabled?: boolean | null;
@@ -969,6 +989,11 @@ export interface Client {
         id?: string | null;
       }[]
     | null;
+  forecastScenarios?: {
+    docs?: (number | ForecastScenario)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   /**
    * Brand terms (one per line OR comma-separated). Single source of truth used by GSC monitoring, Google Ads dashboard (brand-vs-generic spend split), AI Visibility, AI Search Erosion Detector, negative-sweep, and quality score analysis. Per-audit overrides live on each Google Ads audit's brandTerms field. Entries shorter than 3 chars are ignored.
    */
@@ -1274,9 +1299,9 @@ export interface Client {
          */
         title: string;
         /**
-         * Full deck URL, e.g. https://cms.optimisedigital.online/partners/<client>/<deck>/
+         * Full deck URL, e.g. https://cms.optimisedigital.online/partners/<client>/<deck>/. Optional so incomplete presentation rows don't block client saves.
          */
-        deckUrl: string;
+        deckUrl?: string | null;
         /**
          * Internal: extracted from the deck URL above. Used for routing.
          */
@@ -2471,9 +2496,9 @@ export interface ClientProposal {
          */
         title: string;
         /**
-         * Full deck URL, e.g. https://cms.optimisedigital.online/partners/<proposal>/<deck>/
+         * Full deck URL, e.g. https://cms.optimisedigital.online/partners/<proposal>/<deck>/. Optional so incomplete presentation rows don't block proposal saves.
          */
-        deckUrl: string;
+        deckUrl?: string | null;
         /**
          * Internal: extracted from the deck URL above. Used for routing.
          */
@@ -4518,6 +4543,60 @@ export interface KeywordDeepDiveSession {
   createdAt: string;
 }
 /**
+ * Saved Forecast Lab scenarios for client growth planning. Managed from each Client's Forecast Scenarios tab.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "forecast-scenarios".
+ */
+export interface ForecastScenario {
+  id: number;
+  client: number | Client;
+  proposal?: (number | null) | ClientProposal;
+  title: string;
+  status: 'draft' | 'published' | 'archived';
+  scenarioType: 'google_ads_budget' | 'organic_growth' | 'blended_growth' | 'custom';
+  baselinePeriodStart?: string | null;
+  baselinePeriodEnd?: string | null;
+  assumptions?: {
+    monthlyAdSpend?: number | null;
+    targetMonthlyAdSpend?: number | null;
+    currentCpa?: number | null;
+    targetCpa?: number | null;
+    /**
+     * Decimal rate, e.g. 0.03 for 3%.
+     */
+    conversionRate?: number | null;
+    averageOrderValue?: number | null;
+    /**
+     * Decimal rate, e.g. 0.25 for 25%.
+     */
+    leadCloseRate?: number | null;
+    averageClientValue?: number | null;
+    organicClickGrowthPct?: number | null;
+    /**
+     * Optional 0-1 confidence score.
+     */
+    confidenceLevel?: number | null;
+  };
+  /**
+   * Scenario bands JSON: conservative/base/optimistic leads, revenue, CPA/ROAS, organic clicks/impressions.
+   */
+  outputs?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  publishedAt?: string | null;
+  notes?: string | null;
+  clientSummary?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Monthly Google Search Console data snapshots
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -6187,60 +6266,6 @@ export interface NegativeSweepCandidate {
   sweepDate: string;
   writtenToSheet?: boolean | null;
   writtenAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Saved Forecast Lab scenarios for client growth planning.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "forecast-scenarios".
- */
-export interface ForecastScenario {
-  id: number;
-  client: number | Client;
-  proposal?: (number | null) | ClientProposal;
-  title: string;
-  status: 'draft' | 'published' | 'archived';
-  scenarioType: 'google_ads_budget' | 'organic_growth' | 'blended_growth' | 'custom';
-  baselinePeriodStart?: string | null;
-  baselinePeriodEnd?: string | null;
-  assumptions?: {
-    monthlyAdSpend?: number | null;
-    targetMonthlyAdSpend?: number | null;
-    currentCpa?: number | null;
-    targetCpa?: number | null;
-    /**
-     * Decimal rate, e.g. 0.03 for 3%.
-     */
-    conversionRate?: number | null;
-    averageOrderValue?: number | null;
-    /**
-     * Decimal rate, e.g. 0.25 for 25%.
-     */
-    leadCloseRate?: number | null;
-    averageClientValue?: number | null;
-    organicClickGrowthPct?: number | null;
-    /**
-     * Optional 0-1 confidence score.
-     */
-    confidenceLevel?: number | null;
-  };
-  /**
-   * Scenario bands JSON: conservative/base/optimistic leads, revenue, CPA/ROAS, organic clicks/impressions.
-   */
-  outputs?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  publishedAt?: string | null;
-  notes?: string | null;
-  clientSummary?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -8080,25 +8105,34 @@ export interface PayloadMigration {
  */
 export interface ClientsSelect<T extends boolean = true> {
   billingSummary?: T;
+  monthsActive?: T;
+  logoThumbUrl?: T;
   name?: T;
   tradingName?: T;
   slug?: T;
+  logo?: T;
+  services?: T;
   websiteUrl?: T;
-  isAgency?: T;
   clientPin?: T;
   websiteType?: T;
   externalCms?: T;
   isActive?: T;
+  isAgency?: T;
   hasPhysicalLocations?: T;
   numberOfLocations?: T;
+  googleAdsCustomerId?: T;
+  conversionGoal?: T;
+  secondaryConversionGoal?: T;
   contactName?: T;
   contactEmail?: T;
+  contactPhone?: T;
   additionalContacts?:
     | T
     | {
         name?: T;
-        email?: T;
         jobTitle?: T;
+        email?: T;
+        phone?: T;
         responsibilities?: T;
         id?: T;
       };
@@ -8109,7 +8143,6 @@ export interface ClientsSelect<T extends boolean = true> {
         email?: T;
         id?: T;
       };
-  googleAdsCustomerId?: T;
   googleMapsUrls?:
     | T
     | {
@@ -8117,8 +8150,6 @@ export interface ClientsSelect<T extends boolean = true> {
         label?: T;
         id?: T;
       };
-  conversionGoal?: T;
-  secondaryConversionGoal?: T;
   acquisitionChannel?: T;
   acquisitionDetail?: T;
   referredBy?: T;
@@ -8232,6 +8263,7 @@ export interface ClientsSelect<T extends boolean = true> {
   gadsAuto?:
     | T
     | {
+        isManagedGoogleAdsAccount?: T;
         dashboardEnabled?: T;
         negativeSweepEnabled?: T;
         negativeSweepMode?: T;
@@ -8302,6 +8334,7 @@ export interface ClientsSelect<T extends boolean = true> {
         campaignId?: T;
         id?: T;
       };
+  forecastScenarios?: T;
   brandKeywords?: T;
   gscConnected?: T;
   gscPropertyUrl?: T;
@@ -11174,6 +11207,7 @@ export interface CronSettingsSelect<T extends boolean = true> {
 export interface OptimateSettingsSelect<T extends boolean = true> {
   defaultChatModel?: T;
   defaultAutonomousModel?: T;
+  chatHistoryTokenLimit?: T;
   blogPrompterModel?: T;
   invoiceAssistantModel?: T;
   updatedAt?: T;

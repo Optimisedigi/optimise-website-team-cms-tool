@@ -1,14 +1,14 @@
 import type { GlobalConfig } from "payload";
-import { globalAccess, hideGlobalUnlessFeature } from "../lib/access";
+import { globalAccess } from "../lib/access";
 
 export const CalendarAuth: GlobalConfig = {
   slug: "calendar-auth",
   label: "Google Calendar Auth",
   admin: {
-    group: "Integrations",
+    group: "Settings",
     description:
       "Google Calendar OAuth token for checking availability and creating meeting events. Connect once to enable meeting scheduling.",
-    hidden: hideGlobalUnlessFeature("calendar-auth"),
+    hidden: true,
   },
   access: globalAccess("calendar-auth"),
   fields: [

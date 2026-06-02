@@ -193,9 +193,9 @@ describe("generateWeeklyMetricTableHtml - back-compat byte-identity", () => {
   });
 });
 
-describe("generateWeeklyMetricTableHtml - single-metric WoW (CPC)", () => {
-  // 4-week CPC fixture. Week 1 CPC $2 (baseline), week 2 $1 (decrease,
-  // green for cost), week 3 $2 (increase, red), week 4 $3 (increase, red).
+describe("generateWeeklyMetricTableHtml - compare=wow compatibility", () => {
+  // 4-week CPC fixture. Legacy callers may still pass compare="wow", but
+  // the canonical table deliberately renders absolute metric values only.
   const rows: WeeklyBucketRow[] = [
     bucket("2026-04-27", "2026-05-03", "Apr 27 - May 3", false, {
       spend: 200,
@@ -223,29 +223,26 @@ describe("generateWeeklyMetricTableHtml - single-metric WoW (CPC)", () => {
     }),
   ];
 
-  it("renders Week / CPC / delta header, first delta dash, signed deltas after", () => {
+  it("ignores legacy compare=wow and renders absolute metric columns only", () => {
     const html = generateWeeklyMetricTableHtml({
       rows,
       metrics: ["cpc"],
       compare: "wow",
     });
-    // Headers.
     expect(html).toContain(">Week<");
     expect(html).toContain(">CPC<");
-    expect(html).toMatch(/\u0394 vs prev/);
-    // First row delta cell: dash, no colour.
-    expect(html).toMatch(/<td[^>]*text-align:right">-<\/td>/);
-    // Row 2 delta: -50.0% (decrease) → green for CPC (cost-shaped).
-    expect(html).toMatch(/color:#059669[^"]*">-50\.0%</);
-    // Row 3 delta: +100.0% (increase) → red for CPC.
-    expect(html).toMatch(/color:#dc2626[^"]*">\+100\.0%</);
-    // Row 4 delta: +50.0% (increase) → red for CPC.
-    expect(html).toMatch(/color:#dc2626[^"]*">\+50\.0%</);
+    expect(html).not.toMatch(/\u0394 vs prev/);
+    expect(html).not.toMatch(/color:#(?:059669|dc2626)[^"]*">[+-]\d+\.0%/);
+
+
+
+
+
   });
 });
 
 describe("generateWeeklyMetricTableHtml - direction reversed (Clicks)", () => {
-  // For volume-shaped metrics, an increase is good (green).
+  // Non-CPA metrics do not get colour treatment in the canonical table.
   const rows: WeeklyBucketRow[] = [
     bucket("2026-04-27", "2026-05-03", "Apr 27 - May 3", false, {
       spend: 0,
@@ -255,32 +252,32 @@ describe("generateWeeklyMetricTableHtml - direction reversed (Clicks)", () => {
     }),
     bucket("2026-05-04", "2026-05-10", "May 4 - May 10", false, {
       spend: 0,
-      clicks: 200, // increase → green
+      clicks: 200,
       impressions: 0,
       conversions: 0,
     }),
     bucket("2026-05-11", "2026-05-17", "May 11 - May 17", false, {
       spend: 0,
-      clicks: 100, // decrease → red
+      clicks: 100,
       impressions: 0,
       conversions: 0,
     }),
   ];
 
-  it("increase shows green and decrease shows red", () => {
+  it("does not add direction colouring for non-CPA metrics", () => {
     const html = generateWeeklyMetricTableHtml({
       rows,
       metrics: ["clicks"],
       compare: "wow",
     });
-    // +100% (clicks doubled) → green.
-    expect(html).toMatch(/color:#059669[^"]*">\+100\.0%</);
-    // -50% (clicks halved) → red.
-    expect(html).toMatch(/color:#dc2626[^"]*">-50\.0%</);
+    expect(html).toContain(">Clicks<");
+    expect(html).not.toMatch(/color:#(?:059669|dc2626)[^"]*">[+-]\d+\.0%/);
+
+
   });
 });
 
-describe("generateWeeklyMetricTableHtml - prev === 0 → '-' with no colour", () => {
+describe("generateWeeklyMetricTableHtml - prev === 0 compatibility", () => {
   const rows: WeeklyBucketRow[] = [
     bucket("2026-04-27", "2026-05-03", "Apr 27 - May 3", false, {
       spend: 0,
@@ -296,17 +293,16 @@ describe("generateWeeklyMetricTableHtml - prev === 0 → '-' with no colour", ()
     }),
   ];
 
-  it("renders '-' for delta when prev value is zero (no defined percent change)", () => {
+  it("renders absolute values without delta dashes when compare=wow is passed", () => {
     const html = generateWeeklyMetricTableHtml({
       rows,
       metrics: ["clicks"],
       compare: "wow",
     });
-    // Both delta cells should be "-" - first row has no prev, second row has
-    // prev=0. Count "-" cells in delta column.
-    const dashes = html.match(/<td[^>]*text-align:right">-<\/td>/g) ?? [];
-    expect(dashes.length).toBeGreaterThanOrEqual(2);
-    // No direction colours applied here.
+
+    expect(html).toContain(">0</td>");
+    expect(html).toContain(">50</td>");
+    expect(html).not.toMatch(/\u0394 vs prev/);
     const colorMatches = html.match(/color:#(?:059669|dc2626)/g) ?? [];
     expect(colorMatches).toHaveLength(0);
   });
