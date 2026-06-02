@@ -100,43 +100,6 @@ export async function GET() {
       }
     }
 
-    try {
-      const managedClientResult = await payload.find({
-        collection: "clients",
-        where: {
-          and: [
-            { isActive: { not_equals: false } },
-            { googleAdsCustomerId: { not_equals: null } },
-            { googleAdsCustomerId: { not_equals: "" } },
-            { "gadsAuto.isManagedGoogleAdsAccount": { not_equals: false } },
-          ],
-        },
-        limit: 500,
-        depth: 0,
-        sort: "name",
-        overrideAccess: true,
-        select: {
-          id: true,
-        } as any,
-      });
-
-      managedClientIds.clear();
-      const managedClientDocs = managedClientResult.docs as unknown as Array<{ id: string | number }>;
-      for (const client of managedClientDocs) {
-        managedClientIds.add(String(client.id));
-      }
-      for (const clientId of rawClientsById.keys()) {
-        if (!managedClientIds.has(clientId)) {
-          unmanagedClientIds.add(clientId);
-        }
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (!message.includes("gads_auto_is_managed_google_ads_account")) {
-        throw err;
-      }
-    }
-
     const unmanagedCustomerKeys = new Set<string>();
     for (const clientId of unmanagedClientIds) {
       const customerId = normaliseCustomerId(rawClientsById.get(clientId)?.googleAdsCustomerId);
@@ -192,23 +155,31 @@ export async function GET() {
       const businessName = typeof client.name === "string" && client.name.trim()
         ? client.name.trim()
         : `Google Ads ${customerId}`;
-      const audit = await payload.create({
-        collection: "google-ads-audits",
-        data: {
+      try {
+        const audit = await payload.create({
+          collection: "google-ads-audits",
+          data: {
+            businessName,
+            customerId,
+            client: Number(client.id),
+          },
+          overrideAccess: true,
+        } as any);
+
+        byCustomerId.set(key, {
+          id: (audit as { id: string | number }).id,
           businessName,
           customerId,
-          client: Number(client.id),
-        },
-        overrideAccess: true,
-      } as any);
-
-      byCustomerId.set(key, {
-        id: (audit as { id: string | number }).id,
-        businessName,
-        customerId,
-        source: "client",
-        clientId: client.id as string | number,
-      });
+          source: "client",
+          clientId: client.id as string | number,
+        });
+      } catch (err) {
+        console.error("[optimate/google-ads-accounts] failed to create lightweight audit", {
+          clientId: client.id,
+          customerId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
 
     const accounts = Array.from(byCustomerId.values()).sort((a, b) => {
