@@ -6787,7 +6787,7 @@ export interface ScheduledAgentTask {
   createdAt: string;
 }
 /**
- * Facts the agent has learned, scoped per-client or globally. The agent searches these via memory_search; only importance ≥ 80 rows auto-load into the prompt.
+ * Facts the agent has learned, scoped per-client or globally. Most rows stay search-only; only importance ≥ 80 active rows auto-load into the prompt.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "agent-memory".
@@ -6819,9 +6819,37 @@ export interface AgentMemory {
    */
   importance?: number | null;
   /**
+   * Archived memories are ignored by memory_search and are never auto-loaded. Use Needs Review for facts that may be stale or duplicated.
+   */
+  status?: ('active' | 'needs_review' | 'archived') | null;
+  /**
+   * 0-100 confidence that this memory is accurate. Low-confidence rows should be reviewed before pinning.
+   */
+  confidence?: number | null;
+  /**
+   * How this memory was created, for review and trust decisions.
+   */
+  source?: ('user-saved' | 'agent-inferred' | 'admin-created') | null;
+  /**
+   * Incremented whenever memory_search returns this row.
+   */
+  useCount?: number | null;
+  /**
    * Stamped by memory_search every time this row is returned. Lets us prune stale rows.
    */
   lastAccessedAt?: string | null;
+  /**
+   * Last memory_search query that returned this row.
+   */
+  lastMatchedQuery?: string | null;
+  /**
+   * Optional date when this memory should be reviewed for freshness.
+   */
+  reviewAfter?: string | null;
+  /**
+   * Optional expiry. Expired memories are ignored by memory_search and pinned-memory loading.
+   */
+  expiresAt?: string | null;
   /**
    * Who or which run created this fact.
    */
@@ -6864,7 +6892,8 @@ export interface OptimateChatTurn {
    * Stable UUID identifying the chat thread. Matches `sessionIdRef.current` in OptiMateChatCore.
    */
   sessionId: string;
-  audit: number | GoogleAdsAudit;
+  mode: 'audit' | 'portfolio';
+  audit?: (number | null) | GoogleAdsAudit;
   /**
    * The human team-member who owns this thread.
    */
@@ -10179,7 +10208,14 @@ export interface AgentMemorySelect<T extends boolean = true> {
   subject?: T;
   content?: T;
   importance?: T;
+  status?: T;
+  confidence?: T;
+  source?: T;
+  useCount?: T;
   lastAccessedAt?: T;
+  lastMatchedQuery?: T;
+  reviewAfter?: T;
+  expiresAt?: T;
   createdBy?: T;
   agentRunId?: T;
   updatedAt?: T;
@@ -10201,6 +10237,7 @@ export interface AgentSoulSelect<T extends boolean = true> {
  */
 export interface OptimateChatTurnsSelect<T extends boolean = true> {
   sessionId?: T;
+  mode?: T;
   audit?: T;
   user?: T;
   client?: T;
@@ -10896,8 +10933,7 @@ export interface OptimateSetting {
     | 'claude-haiku-4.5'
     | 'kimi-k2.6'
     | 'minimax-m2.7'
-    | 'gpt-5.5-codex-medium'
-    | 'gpt-5.5-codex-low'
+    | 'gpt-5.5-codex'
     | 'claude-sonnet-4.5';
   /**
    * Model used for unattended runs (scheduled tasks, cron) where no human picks a model.
@@ -10908,9 +10944,12 @@ export interface OptimateSetting {
     | 'claude-haiku-4.5'
     | 'kimi-k2.6'
     | 'minimax-m2.7'
-    | 'gpt-5.5-codex-medium'
-    | 'gpt-5.5-codex-low'
+    | 'gpt-5.5-codex'
     | 'claude-sonnet-4.5';
+  /**
+   * Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.
+   */
+  chatHistoryTokenLimit?: number | null;
   /**
    * Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.
    */
@@ -10921,8 +10960,7 @@ export interface OptimateSetting {
         | 'claude-haiku-4.5'
         | 'kimi-k2.6'
         | 'minimax-m2.7'
-        | 'gpt-5.5-codex-medium'
-        | 'gpt-5.5-codex-low'
+        | 'gpt-5.5-codex'
         | 'claude-sonnet-4.5'
       )
     | null;
@@ -10936,8 +10974,7 @@ export interface OptimateSetting {
         | 'claude-haiku-4.5'
         | 'kimi-k2.6'
         | 'minimax-m2.7'
-        | 'gpt-5.5-codex-medium'
-        | 'gpt-5.5-codex-low'
+        | 'gpt-5.5-codex'
         | 'claude-sonnet-4.5'
       )
     | null;

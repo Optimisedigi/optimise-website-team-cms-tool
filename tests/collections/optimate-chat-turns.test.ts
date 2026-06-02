@@ -21,12 +21,15 @@ describe("OptimateChatTurns collection", () => {
     expect(OptimateChatTurns.admin?.useAsTitle).toBe("preview");
   });
 
-  it("declares required sessionId / audit / user / role / content fields", () => {
-    for (const name of ["sessionId", "audit", "user", "role", "content"]) {
+  it("declares required sessionId / mode / user / role / content fields and nullable audit", () => {
+    for (const name of ["sessionId", "mode", "user", "role", "content"]) {
       const f = findField(OptimateChatTurns.fields ?? [], name);
       expect(f, `missing field: ${name}`).toBeDefined();
       expect(f.required).toBe(true);
     }
+    const audit = findField(OptimateChatTurns.fields ?? [], "audit");
+    expect(audit, "missing field: audit").toBeDefined();
+    expect(audit.required).toBe(false);
   });
 
   it("audit and user relations index by id", () => {

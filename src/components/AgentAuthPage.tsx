@@ -26,6 +26,12 @@ interface ProviderStatus {
   lastFailure: { timestamp: string; message: string } | null;
 }
 
+interface GmailStatus {
+  connected: boolean;
+  email: string | null;
+  tokenExpiry: string | null;
+}
+
 const baseStyle = {
   fontFamily: "system-ui, -apple-system, sans-serif",
   maxWidth: 720,
@@ -84,6 +90,8 @@ export default function AgentAuthPage() {
   const [completing, setCompleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [probeResult, setProbeResult] = useState<string | null>(null);
+  const [gmailStatus, setGmailStatus] = useState<GmailStatus | null>(null);
+  const [gmailBusy, setGmailBusy] = useState(false);
   // Codex (ChatGPT) PKCE paste flow state — mirrors the Anthropic flow.
   const [codexAuthorizeUrl, setCodexAuthorizeUrl] = useState<string | null>(null);
   const [codexPasteString, setCodexPasteString] = useState("");
@@ -91,14 +99,21 @@ export default function AgentAuthPage() {
 
   async function loadStatus() {
     setLoading(true);
-    const res = await fetch("/api/agent-auth/status");
-    if (!res.ok) {
-      setMessage(`Failed to load status (HTTP ${res.status})`);
+    const [authRes, gmailRes] = await Promise.all([
+      fetch("/api/agent-auth/status"),
+      fetch("/api/gmail/status", { credentials: "include" }),
+    ]);
+    if (!authRes.ok) {
+      setMessage(`Failed to load status (HTTP ${authRes.status})`);
       setLoading(false);
       return;
     }
-    const json = await res.json();
+    const json = await authRes.json();
     setProviders(json.providers);
+    if (gmailRes.ok) {
+      const gmailJson = (await gmailRes.json()) as GmailStatus;
+      setGmailStatus(gmailJson);
+    }
     setLoading(false);
   }
 
@@ -194,6 +209,26 @@ export default function AgentAuthPage() {
     await loadStatus();
   }
 
+  async function disconnectGmail() {
+    if (!confirm("Disconnect Gmail for your CMS user? You can reconnect straight after to grant the latest permissions.")) {
+      return;
+    }
+    setGmailBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/gmail/disconnect", { method: "POST", credentials: "include" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setMessage(`Gmail disconnect failed: ${json.error ?? res.status}`);
+        return;
+      }
+      setMessage("Gmail disconnected. Click Connect Gmail to reconnect with the latest permissions.");
+      await loadStatus();
+    } finally {
+      setGmailBusy(false);
+    }
+  }
+
   async function handleProbe(model: string) {
     setProbeResult(`Probing ${model}...`);
     const res = await fetch("/api/agent-auth/probe", {
@@ -228,8 +263,34 @@ export default function AgentAuthPage() {
       <div style={{ ...cardStyle, background: "#fffbeb", borderColor: "#fde68a" }}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>GPT / OpenAI auth</h2>
         <p style={{ margin: 0, fontSize: 13, color: "#92400e", lineHeight: 1.5 }}>
-          Connect a ChatGPT plan with Codex OAuth (card below) and use the <code>gpt-5.5-codex-medium</code> / <code>gpt-5.5-codex-low</code> models. Plain OpenAI API-key models are hidden because this CMS is not configured with <code>OPENAI_API_KEY</code>. The Codex path reuses the Codex CLI OAuth client against a private endpoint — a ToS grey area OpenAI can break at any time — so any failure falls through the normal fallback chain (Kimi → MiniMax → Claude). Kill-switch: set <code>CODEX_OAUTH_DISABLED=1</code> in the environment to disable it fleet-wide instantly.
+          Connect a ChatGPT plan with Codex OAuth (card below) and use the <code>gpt-5.5-codex</code> model. Reasoning is controlled per request from the chat UI. Plain OpenAI API-key models are hidden because this CMS is not configured with <code>OPENAI_API_KEY</code>. The Codex path reuses the Codex CLI OAuth client against a private endpoint — a ToS grey area OpenAI can break at any time — so any failure falls through the normal fallback chain (Kimi → MiniMax → Claude). Kill-switch: set <code>CODEX_OAUTH_DISABLED=1</code> in the environment to disable it fleet-wide instantly.
         </p>
+      </div>
+
+      <div style={cardStyle}>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Gmail connection</h2>
+        <p style={{ marginTop: 0, fontSize: 13, color: "#666", lineHeight: 1.5 }}>
+          Used by OptiMate to search attached emails, create Gmail drafts, and reconnect after new Gmail permissions are added.
+        </p>
+        {gmailStatus?.connected ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, color: "#15803d", fontWeight: 600 }}>
+              Connected{gmailStatus.email ? `: ${gmailStatus.email}` : ""}
+            </span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <a href="/api/gmail/connect" style={{ ...ghostButtonStyle, textDecoration: "none" }}>
+                Reconnect Gmail
+              </a>
+              <button type="button" onClick={disconnectGmail} disabled={gmailBusy} style={{ ...ghostButtonStyle, color: "#b91c1c", borderColor: "#b91c1c", opacity: gmailBusy ? 0.6 : 1 }}>
+                {gmailBusy ? "Disconnecting..." : "Disconnect"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <a href="/api/gmail/connect" style={{ ...buttonStyle, display: "inline-block", textDecoration: "none" }}>
+            Connect Gmail
+          </a>
+        )}
       </div>
 
       {/* Connect ChatGPT via Codex OAuth (Authorization Code + PKCE paste flow) */}
@@ -239,7 +300,7 @@ export default function AgentAuthPage() {
           Opens ChatGPT sign-in in a new tab. After you sign in, the browser lands on a
           {" "}<code>localhost</code> callback that won't load here — copy its full URL from the
           address bar (or the <code>code</code> value) and paste it below. Powers the
-          {" "}<code>gpt-5.5-codex-medium</code> and <code>gpt-5.5-codex-low</code> models.
+          {" "}<code>gpt-5.5-codex</code> model.
         </p>
         <button onClick={handleCodexBegin} style={buttonStyle}>
           1. Begin login
@@ -391,11 +452,8 @@ export default function AgentAuthPage() {
           <button onClick={() => handleProbe("minimax-m2.7")} style={ghostButtonStyle}>
             Probe MiniMax M2.7 (API key)
           </button>
-          <button onClick={() => handleProbe("gpt-5.5-codex-medium")} style={ghostButtonStyle}>
-            Probe GPT-5.5 Codex medium (ChatGPT OAuth)
-          </button>
-          <button onClick={() => handleProbe("gpt-5.5-codex-low")} style={ghostButtonStyle}>
-            Probe GPT-5.5 Codex low (ChatGPT OAuth)
+          <button onClick={() => handleProbe("gpt-5.5-codex")} style={ghostButtonStyle}>
+            Probe GPT-5.5 Codex (ChatGPT OAuth)
           </button>
         </div>
         {probeResult && (

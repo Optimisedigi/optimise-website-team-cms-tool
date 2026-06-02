@@ -54,13 +54,10 @@ export async function callLLM(opts: CallLLMOptions): Promise<LLMResponse> {
         return await callAnthropic({ ...opts, model: modelName }, entry.model);
       }
       if (provCfg.handler === "callOpenAICodex") {
-        // Only the Codex registry entries carry an `effort` field; the
-        // discriminated handler check guarantees this branch is one of them.
-        const effort = (entry as { effort: "low" | "medium" | "high" | "xhigh" }).effort;
         return await callOpenAICodex(
           { ...opts, model: modelName },
           entry.model,
-          { effort, baseUrl: provCfg.baseUrl },
+          { baseUrl: provCfg.baseUrl },
         );
       }
       // callOpenAICompatible

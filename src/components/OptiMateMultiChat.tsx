@@ -15,14 +15,22 @@ import OptiMateToolsHelp from './OptiMateToolsHelp'
 import OptiMateVoice from './OptiMateVoice'
 import { isVoiceEnabled } from '@/lib/realtime/token-provider'
 
-export interface OptiMateChatTarget {
-  id: string | number
-  customerId: string
-  businessName?: string
-  /** Optional thread to resume on mount. Used by the popout window so the
-   *  new tab shows the same conversation the launcher had open. */
-  initialSessionId?: string
-}
+export type OptiMateChatTarget =
+  | {
+      mode?: 'audit'
+      id: string | number
+      customerId: string
+      businessName?: string
+      /** Optional thread to resume on mount. Used by the popout window so the
+       *  new tab shows the same conversation the launcher had open. */
+      initialSessionId?: string
+    }
+  | {
+      mode: 'portfolio'
+      id: 'portfolio'
+      businessName: 'Portfolio'
+      initialSessionId?: string
+    }
 
 export interface OptiMateMultiChatHandle {
   /** Map of String(auditId) → current sessionId for that tab. Used by the
@@ -34,6 +42,14 @@ interface OptiMateMultiChatProps {
   targets: OptiMateChatTarget[]
   /** Compact = launcher panel; default = full tab. Forwarded to each ChatCore. */
   compact?: boolean
+  /** Fluid = standalone popout; chat and message bubbles expand with browser width. */
+  fluid?: boolean
+}
+
+function targetLabel(target: OptiMateChatTarget | undefined): string {
+  if (!target) return 'this account'
+  if (target.businessName) return target.businessName
+  return target.mode === 'portfolio' ? 'Portfolio' : target.customerId
 }
 
 /**
@@ -50,7 +66,7 @@ interface OptiMateMultiChatProps {
  * ChatCore unchanged.
  */
 const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatProps>(
-  function OptiMateMultiChat({ targets, compact = false }, ref) {
+  function OptiMateMultiChat({ targets, compact = false, fluid = false }, ref) {
     const [activeId, setActiveId] = useState<string>(() => String(targets[0]?.id ?? ''))
     const [broadcast, setBroadcast] = useState(false)
     const [input, setInput] = useState('')
@@ -139,64 +155,22 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
       [targets],
     )
 
-    // Single-account fast path: skip the broadcast-aware shared input and
-    // let the ChatCore render its own input. We still render an account
-    // label strip on top in the SAME visual position as the multi-account
-    // tab strip, so the user always sees which account they're talking to
-    // — previously this slot rendered nothing for single-account chats,
-    // which made it ambiguous when you'd picked a single account.
+    // Single-account / portfolio fast path: ChatCore owns the header row so
+    // History and Expand sit beside the account/portfolio name.
     if (targets.length === 1) {
       const t = targets[0]
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              borderBottom: '1px solid var(--theme-border-color, #e5e7eb)',
-              marginBottom: 8,
-              paddingTop: 10,
-              flexShrink: 0,
-            }}
-          >
-            {/* Non-clickable label — there's nothing to switch to, but the
-              strip matches the multi-account header so the layout is stable
-              when you add/remove accounts. The label gets the row's flexible
-              space and ellipsis-truncates only if genuinely too long. */}
-            <div
-              title={t.businessName || t.customerId}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                padding: '8px 10px',
-                fontSize: 13,
-                lineHeight: 1.5,
-                fontWeight: 600,
-                color: '#111',
-                borderBottom: '2px solid #2563eb',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {t.businessName || t.customerId}
-            </div>
-          </div>
-          {/* Voice CTA is rendered inside OptiMateChatCore, above the input row.
-              The ?, History and Expand controls live in ChatCore's own header. */}
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <OptiMateChatCore
-              ref={setRef(String(t.id))}
-              key={String(t.id)}
-              auditId={t.id}
-              customerId={t.customerId}
-              businessName={t.businessName}
-              compact={compact}
-              initialSessionId={t.initialSessionId}
-            />
-          </div>
-        </div>
+        <OptiMateChatCore
+          ref={setRef(String(t.id))}
+          key={String(t.id)}
+          mode={t.mode ?? 'audit'}
+          auditId={t.id}
+          customerId={t.mode === 'portfolio' ? undefined : t.customerId}
+          businessName={t.businessName}
+          compact={compact}
+          fluid={fluid}
+          initialSessionId={t.initialSessionId}
+        />
       )
     }
 
@@ -220,7 +194,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
                 key={String(t.id)}
                 type="button"
                 onClick={() => setActiveId(String(t.id))}
-                title={t.customerId}
+                title={t.mode === 'portfolio' ? 'Portfolio' : t.customerId}
                 style={{
                   padding: '6px 10px',
                   fontSize: 12,
@@ -235,7 +209,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
                   flexShrink: 0,
                 }}
               >
-                {t.businessName || t.customerId}
+                {t.businessName || (t.mode === 'portfolio' ? 'Portfolio' : t.customerId)}
               </button>
             )
           })}
@@ -271,10 +245,12 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
               >
                 <OptiMateChatCore
                   ref={setRef(String(t.id))}
+                  mode={t.mode ?? 'audit'}
                   auditId={t.id}
-                  customerId={t.customerId}
+                  customerId={t.mode === 'portfolio' ? undefined : t.customerId}
                   businessName={t.businessName}
                   compact={compact}
+                  fluid={fluid}
                   hideInput
                   initialSessionId={t.initialSessionId}
                 />
@@ -424,7 +400,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
               placeholder={
                 broadcast
                   ? `Ask all ${targets.length} accounts... (Shift+Enter for newline)`
-                  : `Ask ${activeTarget?.businessName ?? activeTarget?.customerId ?? 'this account'}... (Shift+Enter for newline)`
+                  : `Ask ${targetLabel(activeTarget)}... (Shift+Enter for newline)`
               }
               disabled={busy}
               style={{

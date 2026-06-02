@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
-import { runChatTurn } from "@/lib/agents/optimate-google-ads";
+import { runPortfolioChatTurn } from "@/lib/agents/optimate-google-ads";
 import type { Message, ReasoningMode } from "@/lib/agents/_shared/llm/types";
 import { isCanonicalModel, type CanonicalModelName } from "@/lib/agents/_shared/llm/registry";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
@@ -31,25 +31,10 @@ const SUPPORTED_IMAGE_MEDIA_TYPES = new Set<SupportedImageMediaType>([
 ]);
 const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_ATTACHMENTS = 3;
+const APPROX_CHARS_PER_TOKEN = 4;
+const MIN_RECENT_HISTORY_MESSAGES = 8;
 
-/**
- * POST /api/google-ads-audits/[id]/chat
- *
- * Runs the Optimate-Google-Ads agent for one chat turn against the linked
- * audit. The agent loop is non-streaming — we wait for end_turn, then return
- * the final assistant text plus runId / modelUsed for the timeline viewer.
- *
- * Body: {
- *   message: string,
- *   history?: Array<{ role: "user"|"assistant", content: string }>,
- *   model?: string,         // canonical model name from CHAT_PICKER_MODELS
- *   sessionId?: string,     // unused server-side; kept for client back-compat
- * }
- */
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: Request) {
   try {
     const payload = await getPayload({ config });
     const headersList = await nextHeaders();
@@ -58,14 +43,6 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
-    // URL params arrive as strings, but Payload's relationship validator for a
-    // SQLite-backed numeric collection rejects string IDs with
-    // "The following field is invalid: Audit". Coerce once here so both the
-    // user + assistant persist writes (and the runChatTurn audit lookup) get a
-    // proper number. If the id isn't numeric we leave it alone — the audit
-    // load on line 126 will throw a clearer 404 below.
-    const auditIdNum = /^\d+$/.test(id) ? Number(id) : (id as unknown as number);
     const body = (await request.json()) as {
       message?: unknown;
       history?: unknown;
@@ -75,8 +52,6 @@ export async function POST(
       sessionId?: unknown;
       reasoningMode?: unknown;
     };
-    // Stable thread id. If the client didn't send one, mint a fresh UUID so
-    // this turn at least lands in its own thread row instead of being lost.
     const sessionId =
       typeof body.sessionId === "string" && body.sessionId.trim().length > 0
         ? body.sessionId.trim()
@@ -120,9 +95,6 @@ export async function POST(
       modelOverride = body.model;
     }
 
-    // Optional attached-email context. Client only forwards metadata; we
-    // fetch the body fresh from Gmail using the user's tokens so nothing
-    // gets stored in the CMS.
     let decoratedMessage = message;
     let hasUntrustedAttachedEmail = false;
     const attached = body.attachedEmail;
@@ -135,17 +107,12 @@ export async function POST(
         );
         if (!tokenResult.ok) {
           return NextResponse.json(
-            {
-              error: `Could not fetch attached email: ${tokenResult.reason}`,
-            },
+            { error: `Could not fetch attached email: ${tokenResult.reason}` },
             { status: 502 },
           );
         }
         try {
-          const email = await fetchMessageBody(
-            tokenResult.accessToken,
-            messageId,
-          );
+          const email = await fetchMessageBody(tokenResult.accessToken, messageId);
           hasUntrustedAttachedEmail = true;
           decoratedMessage =
             `--- UNTRUSTED attached email content ---\n` +
@@ -157,71 +124,35 @@ export async function POST(
             `--- End untrusted attached email content ---\n\n` +
             message;
         } catch (err) {
-          const e = err as { code?: number; status?: number; message?: string };
+          const e = err as { message?: string };
           return NextResponse.json(
-            {
-              error: `Could not fetch attached email: ${e.message ?? "Gmail fetch failed"}`,
-            },
+            { error: `Could not fetch attached email: ${e.message ?? "Gmail fetch failed"}` },
             { status: 502 },
           );
         }
       }
     }
 
-    const audit = await payload.findByID({
-      collection: "google-ads-audits",
-      id,
-      overrideAccess: true,
-      depth: 1,
-    });
-    if (!audit) {
-      return NextResponse.json({ error: "Audit not found" }, { status: 404 });
-    }
-    if (!(audit as any).customerId) {
-      return NextResponse.json(
-        { error: "Audit has no Customer ID" },
-        { status: 400 },
-      );
-    }
-
-    // Resolve linked client (preferred) or fall back to any client linked
-    // through the audit's proposal. Either way, this is best-effort context.
-    const linkedClient = await resolveLinkedClient(payload, audit);
-
-    // Track whether any persistence attempt failed so we can surface it to
-    // the user inline. Persistence is best-effort — failures must NOT block
-    // the chat reply — but the UI needs to know so the user isn't surprised
-    // when their history vanishes on reload.
     let persisted = true;
     const handlePersistError = (label: string, err: unknown) => {
       persisted = false;
       const msg = err instanceof Error ? err.message : String(err);
-      // Detect the most common production failure mode (missing table after
-      // a deploy that didn't run /api/migrate) and log a single targeted
-      // warning so it's easy to spot in Vercel logs.
       if (/no such table/i.test(msg)) {
         console.warn(
           `[chat-persist] optimate_chat_turns table missing — run POST /api/migrate with x-api-key header to create it. (${label})`,
         );
       } else {
-        console.error(`[chat-persist] ${label} row failed:`, err);
+        console.error(`[chat-persist] portfolio ${label} row failed:`, err);
       }
     };
 
-    // Persist the user's prompt before the agent runs. Best-effort — if the
-    // write fails (e.g. table missing on a freshly-deployed env), the chat
-    // turn still proceeds. We store the user's actual prompt, not the
-    // attached-email-decorated version, since the email body is fetched
-    // fresh from Gmail per the existing comment above.
     const userPersistPromise = payload
       .create({
         collection: "optimate-chat-turns" as any,
         data: {
           sessionId,
-          mode: "audit",
-          audit: auditIdNum,
+          mode: "portfolio",
           user: user.id,
-          client: linkedClient?.id ?? undefined,
           role: "user",
           content: message,
         },
@@ -252,9 +183,7 @@ export async function POST(
       },
     ];
 
-    const result = await runChatTurn({
-      audit: audit as any,
-      client: linkedClient,
+    const result = await runPortfolioChatTurn({
       messages,
       modelOverride,
       userId: typeof user.id === "number" ? user.id : Number(user.id),
@@ -262,7 +191,6 @@ export async function POST(
       reasoningMode,
     });
 
-    // Persist the assistant turn. Same best-effort treatment as the user row.
     const proposalIds = Array.isArray(result.proposals)
       ? result.proposals
           .map((p) => (p && typeof p === "object" ? (p as { id?: unknown }).id : undefined))
@@ -273,10 +201,8 @@ export async function POST(
         collection: "optimate-chat-turns" as any,
         data: {
           sessionId,
-          mode: "audit",
-          audit: auditIdNum,
+          mode: "portfolio",
           user: user.id,
-          client: linkedClient?.id ?? undefined,
           role: "assistant",
           content: result.reply ?? "",
           runId: result.runId,
@@ -289,11 +215,6 @@ export async function POST(
         handlePersistError("assistant", err);
       });
 
-    // Await both persistence attempts so we can report `persisted` accurately
-    // in the response. These are quick local DB writes — the agent loop
-    // (multi-second LLM call) has already completed by this point, so this
-    // adds negligible latency. Errors are already swallowed by the .catch
-    // handlers above, so neither promise will reject.
     await Promise.all([userPersistPromise, assistantPersistPromise]);
 
     return NextResponse.json({
@@ -308,14 +229,7 @@ export async function POST(
       persisted,
     });
   } catch (err) {
-    console.error("[google-ads-chat] error:", err);
-    // Translate known agent-loop / provider failures into a plain-English
-    // explanation the user can act on. Returning HTTP 200 with the
-    // explanation as `reply` makes the chat UI render it as a normal
-    // assistant turn (visible in-context with the rest of the
-    // conversation) instead of a toast that disappears. The error_kind
-    // field is for telemetry and for clients that want to render the
-    // bubble differently — today it's informational only.
+    console.error("[google-ads-portfolio-chat] error:", err);
     const translated = translateAgentError(err);
     if (translated) {
       return NextResponse.json({
@@ -332,14 +246,11 @@ export async function POST(
       });
     }
     return NextResponse.json(
-      { error: (err as Error).message || "Failed to process chat request" },
+      { error: (err as Error).message || "Failed to process portfolio chat request" },
       { status: 500 },
     );
   }
 }
-
-const APPROX_CHARS_PER_TOKEN = 4;
-const MIN_RECENT_HISTORY_MESSAGES = 8;
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / APPROX_CHARS_PER_TOKEN);
@@ -350,51 +261,35 @@ function compactChatHistory(
   tokenLimit: number,
 ): IncomingHistoryEntry[] {
   if (history.length === 0) return [];
-
   const totalTokens = history.reduce((sum, entry) => sum + estimateTokens(entry.content), 0);
   if (totalTokens <= tokenLimit) return history;
 
   const recent: IncomingHistoryEntry[] = [];
   let recentTokens = 0;
   const recentBudget = Math.max(Math.floor(tokenLimit * 0.65), MIN_RECENT_HISTORY_MESSAGES * 80);
-
   for (let i = history.length - 1; i >= 0; i -= 1) {
     const entry = history[i];
     if (!entry) continue;
     const entryTokens = estimateTokens(entry.content);
-    if (
-      recent.length >= MIN_RECENT_HISTORY_MESSAGES &&
-      recentTokens + entryTokens > recentBudget
-    ) {
-      break;
-    }
+    if (recent.length >= MIN_RECENT_HISTORY_MESSAGES && recentTokens + entryTokens > recentBudget) break;
     recent.unshift(entry);
     recentTokens += entryTokens;
   }
 
-  const olderCount = Math.max(0, history.length - recent.length);
-  const older = history.slice(0, olderCount);
+  const older = history.slice(0, Math.max(0, history.length - recent.length));
   if (older.length === 0) return recent;
-
   const summaryBudgetChars = Math.max(
     1200,
     Math.floor(Math.max(300, tokenLimit - recentTokens) * APPROX_CHARS_PER_TOKEN),
   );
-  const summaryLines = older.map((entry) => {
-    const label = entry.role === "assistant" ? "Assistant" : "User";
-    return `${label}: ${entry.content.replace(/\s+/g, " ").trim()}`;
-  });
-  const rawSummary = summaryLines.join("\n");
-  const clippedSummary =
-    rawSummary.length > summaryBudgetChars
-      ? `${rawSummary.slice(0, summaryBudgetChars - 120).trim()}\n[Older history clipped to stay within the configured context limit.]`
-      : rawSummary;
-
+  const clippedSummary = older
+    .map((entry) => `${entry.role === "assistant" ? "Assistant" : "User"}: ${entry.content.replace(/\s+/g, " ").trim()}`)
+    .join("\n")
+    .slice(0, summaryBudgetChars);
   return [
     {
       role: "user",
-      content:
-        `Conversation summary for older messages, preserve important decisions, constraints, proposals, approvals, client preferences, and unresolved tasks:\n${clippedSummary}`,
+      content: `Conversation summary for older portfolio messages, preserve important decisions, constraints, proposals, approvals, client preferences, and unresolved tasks:\n${clippedSummary}`,
     },
     ...recent,
   ];
@@ -411,9 +306,7 @@ function parseImageAttachments(input: unknown):
 
   const parsed: IncomingImageAttachment[] = [];
   for (const raw of input) {
-    if (!raw || typeof raw !== "object") {
-      return { ok: false, error: "Each image attachment must be an object" };
-    }
+    if (!raw || typeof raw !== "object") return { ok: false, error: "Each image attachment must be an object" };
     const item = raw as Record<string, unknown>;
     const mediaType = item.mediaType;
     const data = item.data;
@@ -438,45 +331,4 @@ function parseImageAttachments(input: unknown):
     });
   }
   return { ok: true, value: parsed };
-}
-
-async function resolveLinkedClient(
-  payload: Awaited<ReturnType<typeof getPayload>>,
-  audit: unknown,
-): Promise<{
-  id?: string | number;
-  name?: string | null;
-  conversionActionCategories?: Array<{ label?: string; color?: string; actions?: string }> | null;
-  phoneCallConversionActions?: string | null;
-  formSubmitConversionActions?: string | null;
-} | null> {
-  const a = audit as Record<string, unknown>;
-  const directClient = a.client as { id?: string | number } | string | number | null | undefined;
-  let clientId: string | number | undefined;
-  if (directClient && typeof directClient === "object") {
-    clientId = (directClient as { id?: string | number }).id;
-  } else if (typeof directClient === "string" || typeof directClient === "number") {
-    clientId = directClient;
-  }
-
-  if (!clientId) {
-    const proposal = a.proposal as { id?: string | number; client?: unknown } | string | number | null | undefined;
-    if (proposal && typeof proposal === "object") {
-      const pc = (proposal as { client?: unknown }).client;
-      if (pc && typeof pc === "object") clientId = (pc as { id?: string | number }).id;
-      else if (typeof pc === "string" || typeof pc === "number") clientId = pc;
-    }
-  }
-
-  if (!clientId) return null;
-  try {
-    const c = await payload.findByID({
-      collection: "clients",
-      id: clientId,
-      overrideAccess: true,
-    });
-    return c as any;
-  } catch {
-    return null;
-  }
 }

@@ -3,9 +3,8 @@
  *
  * Canonical Gmail-ready weekly account-level metric table for any combination
  * of spend / clicks / impressions / conversions / cpa / cpc / ctr / conv_rate,
- * with optional week-on-week percent deltas. Replaces the deprecated
- * `get_weekly_trend_note` (which is now a thin shim around this tool with a
- * fixed metric set).
+ * as absolute values only. Replaces the deprecated `get_weekly_trend_note`
+ * (which is now a thin shim around this tool with a fixed metric set).
  *
  * Use this WHENEVER the user asks for "by week", "weekly", "week-on-week",
  * "trend", or a multi-week summary of any metric. NEVER hand-write trend HTML.
@@ -16,16 +15,16 @@
  *   - metrics (1..6 entries, required): which columns to render. Order is
  *     preserved; duplicates collapse to first occurrence so the LLM cannot
  *     accidentally produce two CPA columns.
- *   - compare (optional, only "wow" allowed): adds a "delta vs prev" column
- *     next to each metric column, with direction-aware colouring (decrease
- *     green / increase red for cost-shaped metrics; reversed for volume).
+ *   - compare is accepted for old saved prompts but ignored; weekly uplift /
+ *     delta columns are no longer rendered.
+
  *   - title (optional): overrides the default "Weekly Performance Trend"
  *     heading.
  *   - summary (optional, 1-3 sentences): plain text rendered as a paragraph
  *     under the table.
  *
  * Examples:
- *   - "CPC by week with WoW change" -> metrics: ["cpc"], compare: "wow"
+ *   - "CPC by week" -> metrics: ["cpc"]
  *   - "Spend / conversions / CPA trend" -> metrics: ["spend","conversions","cpa"]
  *
  * Data path:
@@ -104,7 +103,7 @@ function isWeeklyMetricKey(value: unknown): value is WeeklyMetricKey {
 export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
   name: "get_weekly_metric_table",
   description:
-    "Canonical Gmail-ready weekly account-level metric table. Renders any combination of these eight metrics by week (Verdana, plain row borders, no card chrome): spend, clicks, impressions, conversions, cpa, cpc, ctr, conv_rate. Optional WoW % delta columns via compare=\"wow\" (direction-aware colouring per metric). Partial in-progress latest week is highlighted automatically. Args: weeks (1..12, default 4), endDate (ISO YYYY-MM-DD, default today UTC), metrics (1..6 keys from the list above, order preserved, dupes collapse), compare (\"wow\" only), title (override heading), summary (optional 1-3 sentence note under the table). Use this WHENEVER the user asks for \"by week\", \"weekly\", \"week-on-week\", a trend, or a multi-week summary of any metric. NEVER hand-write trend HTML. Examples: metrics=[\"cpc\"], compare=\"wow\" for a CPC trend with deltas; metrics=[\"spend\",\"conversions\",\"cpa\"] for the classic three-column trend.",
+    "Canonical Gmail-ready weekly account-level metric table. Renders any combination of these eight metrics by week (Verdana, plain row borders, no card chrome): spend, clicks, impressions, conversions, cpa, cpc, ctr, conv_rate. Weekly uplift / WoW delta columns are no longer rendered; the table shows absolute metric values only. Partial in-progress latest week is highlighted automatically. Args: weeks (1..12, default 4), endDate (ISO YYYY-MM-DD, default today UTC), metrics (1..6 keys from the list above, order preserved, dupes collapse), title (override heading), summary (optional 1-3 sentence note under the table). Use this WHENEVER the user asks for \"by week\", \"weekly\", \"week-on-week\", a trend, or a multi-week summary of any metric. NEVER hand-write trend HTML. Examples: metrics=[\"cpc\"] for a CPC trend; metrics=[\"spend\",\"conversions\",\"cpa\"] for the classic three-column trend.",
   inputSchema: {
     type: "object",
     properties: {
@@ -133,7 +132,7 @@ export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
         type: "string",
         enum: ["wow"],
         description:
-          "Optional. \"wow\" adds a 'delta vs prev' column next to each metric column with direction-aware colouring. Omit for absolute-only.",
+          "Deprecated compatibility input. Accepted but ignored; weekly tables now render absolute metric values only, with no uplift / delta columns.",
       },
       title: {
         type: "string",
@@ -208,7 +207,8 @@ export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
       throw new Error(`metrics may not exceed ${MAX_METRICS} entries`);
     }
 
-    // compare: optional, only "wow" allowed today.
+    // compare: deprecated compatibility input. Still accepted so old scheduled
+    // prompts do not fail, but the renderer ignores it.
     let compare: "wow" | undefined;
     if (obj.compare !== undefined && obj.compare !== null && obj.compare !== "") {
       if (obj.compare !== "wow") {
@@ -288,8 +288,8 @@ export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
     });
 
     // Soft-warn when the table is likely to overflow Gmail's ~700px width.
-    // Column count = 1 (Week) + metrics + (compare ? metrics : 0).
-    const columnCount = 1 + args.metrics.length * (args.compare === "wow" ? 2 : 1);
+    // Column count = 1 (Week) + metrics. Deprecated compare input is ignored.
+    const columnCount = 1 + args.metrics.length;
     const warnings: string[] = [];
     if (columnCount > COLUMN_WARN_THRESHOLD) {
       warnings.push("table_may_overflow_gmail");

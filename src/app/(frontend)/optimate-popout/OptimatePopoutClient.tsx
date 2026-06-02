@@ -88,13 +88,13 @@ export default function OptimatePopoutClient({ targets }: Props) {
         style={{
           flex: 1,
           minHeight: 0,
-          padding: 14,
-          paddingTop: 18,
+          padding: '6px 14px 14px',
           display: 'flex',
           flexDirection: 'column',
+          width: '100%',
         }}
       >
-        <OptiMateMultiChat targets={targets} />
+        <OptiMateMultiChat targets={targets} fluid />
       </div>
     </div>
   )

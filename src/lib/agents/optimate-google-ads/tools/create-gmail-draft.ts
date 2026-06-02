@@ -40,7 +40,7 @@ interface CreateGmailDraftArgs {
 export const createGmailDraftTool: CanonicalTool<CreateGmailDraftArgs> = {
   name: "create_gmail_draft",
   description:
-    "Create a ONE-OFF draft in the user's own Gmail Drafts folder, right now. Never sends mail. Use when the user asks for a draft email NOW (not on a schedule). The classic pairing: call get_budget_management_email first, then pass its `html` field as `htmlBody` here so the budget email lands as a real Gmail draft instead of pasted HTML in chat. Args: subject (required), htmlBody (required, raw HTML), to (optional recipient — leave blank if user didn't specify; Gmail forces them to pick one before sending). Requires the CMS user to have Gmail connected. Returns the Gmail deep-link to the draft. NOT for recurring drafts — use propose_scheduled_task for those.",
+    "Create a ONE-OFF draft in the user's own Gmail Drafts folder, right now. Never sends mail. Use when the user asks for a draft email NOW (not on a schedule), including drafts based on the current conversation or an OptiMate analysis. The classic pairing: call get_budget_management_email first, then pass its `html` field as `htmlBody` here so the budget email lands as a real Gmail draft instead of pasted HTML in chat. For general emails, pass the client-ready body as `htmlBody`. Args: subject (required), htmlBody (required, raw HTML), to (optional recipient — leave blank if user didn't specify; Gmail forces them to pick one before sending). Requires the CMS user to have Gmail connected. Returns the Gmail deep-link to the draft. NOT for recurring drafts — use propose_scheduled_task for those.",
   inputSchema: {
     type: "object",
     properties: {

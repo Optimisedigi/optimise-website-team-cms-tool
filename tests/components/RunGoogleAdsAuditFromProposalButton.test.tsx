@@ -69,7 +69,20 @@ describe('RunGoogleAdsAuditFromProposalButton', () => {
 
     render(<RunGoogleAdsAuditFromProposalButton />)
 
-    expect(screen.getByText(/enter a google ads customer id first/i)).toBeInTheDocument()
+    expect(screen.getByText(/enter a google ads customer id/i)).toBeInTheDocument()
+  })
+
+  it('explains the Google Ads audit is separate from the client proposal audit', () => {
+    mockUseDocumentInfo.mockReturnValue({ id: 1 })
+    mockUseAllFormFields.mockReturnValue([buildFields()])
+
+    render(<RunGoogleAdsAuditFromProposalButton />)
+
+    expect(screen.getByText(/separate from the main/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /run google ads audit/i })).toHaveAttribute(
+      'title',
+      expect.stringContaining('separate Google Ads audit record'),
+    )
   })
 
   it('enables button when googleAdsCustomerId is present', () => {
@@ -306,7 +319,7 @@ describe('RunGoogleAdsAuditFromProposalButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /run google ads audit/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/creating & running audit/i)).toBeInTheDocument()
+      expect(screen.getByText(/creating & running google ads audit/i)).toBeInTheDocument()
     })
   })
 

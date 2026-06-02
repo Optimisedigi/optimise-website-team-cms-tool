@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import OptimatePopoutClient from './OptimatePopoutClient'
 
 interface PageProps {
-  searchParams: Promise<{ audits?: string; sessionIds?: string }>
+  searchParams: Promise<{ audits?: string; sessionIds?: string; mode?: string; portfolio?: string }>
 }
 
 /**
@@ -38,7 +38,25 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
     redirect('/admin/login?redirect=/optimate-popout')
   }
 
-  const { audits, sessionIds: sessionIdsParam } = await searchParams
+  const { audits, sessionIds: sessionIdsParam, mode, portfolio } = await searchParams
+  const portfolioMode = mode === 'portfolio' || portfolio === '1'
+
+  if (portfolioMode) {
+    const initialSessionId = sessionIdsParam?.split(',')[0]?.trim()
+    return (
+      <OptimatePopoutClient
+        targets={[
+          {
+            mode: 'portfolio',
+            id: 'portfolio',
+            businessName: 'Portfolio',
+            ...(initialSessionId ? { initialSessionId } : {}),
+          },
+        ]}
+      />
+    )
+  }
+
   const ids = (audits ?? '')
     .split(',')
     .map((s) => s.trim())
@@ -71,6 +89,7 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
   })
 
   type Target = {
+    mode: 'audit'
     id: number | string
     customerId: string
     businessName?: string
@@ -81,6 +100,7 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
       const id = d.id as number | string
       const sid = sessionIdsByAuditId.get(String(id))
       return {
+        mode: 'audit' as const,
         id,
         customerId: typeof d.customerId === 'string' ? d.customerId : '',
         businessName: typeof d.businessName === 'string' ? d.businessName : undefined,

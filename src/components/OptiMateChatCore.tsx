@@ -11,6 +11,7 @@ import {
  *  every ChatCore instance reads/writes the same slot — picking a model in
  *  one tab updates the default the next tab opens with. ~25 bytes total. */
 const MODEL_STORAGE_KEY = 'optimate-chat-model'
+type ReasoningMode = 'off' | 'low' | 'medium' | 'high'
 
 /** Read a persisted model choice from localStorage, falling back to the
  *  registry default. Guards against:
@@ -18,10 +19,15 @@ const MODEL_STORAGE_KEY = 'optimate-chat-model'
  *  - localStorage disabled / quota exceeded (try/catch)
  *  - stale values from a model that's since been removed from the registry
  *    (isCanonicalModel) or from the chat picker (CHAT_PICKER_MODELS) */
+function normaliseStoredModel(raw: string | null): string | null {
+  if (raw === 'gpt-5.5-codex-medium' || raw === 'gpt-5.5-codex-low') return 'gpt-5.5-codex'
+  return raw
+}
+
 function loadPersistedModel(): string {
   if (typeof window === 'undefined') return DEFAULT_CHAT_MODEL
   try {
-    const raw = window.localStorage.getItem(MODEL_STORAGE_KEY)
+    const raw = normaliseStoredModel(window.localStorage.getItem(MODEL_STORAGE_KEY))
     if (!raw) return DEFAULT_CHAT_MODEL
     if (!isCanonicalModel(raw)) return DEFAULT_CHAT_MODEL
     if (!CHAT_PICKER_MODELS.some((m) => m.canonical === raw)) return DEFAULT_CHAT_MODEL
@@ -37,7 +43,7 @@ function loadPersistedModel(): string {
 function hasExplicitModelChoice(): boolean {
   if (typeof window === 'undefined') return false
   try {
-    const raw = window.localStorage.getItem(MODEL_STORAGE_KEY)
+    const raw = normaliseStoredModel(window.localStorage.getItem(MODEL_STORAGE_KEY))
     if (!raw) return false
     if (!isCanonicalModel(raw)) return false
     return CHAT_PICKER_MODELS.some((m) => m.canonical === raw)
@@ -103,6 +109,7 @@ import { isVoiceEnabled } from '@/lib/realtime/token-provider'
  */
 export interface OptiMateChatCoreHandle {
   sendMessage: (text: string) => Promise<void>
+  stopThinking: () => void
   isBusy: () => boolean
   /** Current sessionId for this audit's chat thread. Read by the launcher
    *  popout handler so the new window can resume the same thread instead
@@ -146,11 +153,14 @@ interface ChatMessage {
 }
 
 export interface OptiMateChatCoreProps {
+  mode?: 'audit' | 'portfolio'
   auditId: string | number
-  customerId: string
+  customerId?: string
   businessName?: string
   /** Compact mode = launcher panel; default = full tab */
   compact?: boolean
+  /** Standalone popout mode fills the browser width for wide tables/reports. */
+  fluid?: boolean
   /** Hide the per-tab input row (the multi-chat wrapper supplies a shared one). */
   hideInput?: boolean
   /**
@@ -159,6 +169,30 @@ export interface OptiMateChatCoreProps {
    * Leave unset to start a fresh thread.
    */
   initialSessionId?: string
+}
+
+function OptiMateTypingLoader(): React.ReactElement {
+  return (
+    <span
+      aria-label="OptiMate is typing"
+      role="status"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, height: 20 }}
+    >
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 999,
+            background: '#6b7280',
+            animation: 'optimateTyping 1s infinite',
+            animationDelay: `${i * 250}ms`,
+          }}
+        />
+      ))}
+    </span>
+  )
 }
 
 interface ChatSession {
@@ -177,6 +211,13 @@ const SUGGESTED_QUESTIONS = [
   'Which campaigns are performing best this week?',
   'Are there any keywords wasting spend?',
   'Give me a weekly performance summary',
+]
+
+const PORTFOLIO_SUGGESTED_QUESTIONS = [
+  'Show me the account inventory',
+  'Summarise portfolio performance',
+  'Find cross-account search-term waste',
+  'Draft an account-priority email',
 ]
 
 /**
@@ -334,10 +375,26 @@ export function renderMarkdown(text: string) {
         j++
       }
 
+      // Some model-generated markdown tables accidentally put the intro sentence
+      // into the first header cell, e.g. "Here's the table... | Week | Spend".
+      // Treat that as prose outside the table so the data columns stay aligned.
+      const introHeaderPattern = /^(here\s+is|here'?s|below\s+is|the\s+table|table\s+for)\b/i
+      const hasIntroHeader =
+        header.length > 1 && introHeaderPattern.test(header[0] ?? '') && /week|date/i.test(header[1] ?? '')
+      const tableIntro = hasIntroHeader ? header[0] : null
+      const tableHeader = hasIntroHeader ? header.slice(1) : header
+      const tableColCount = tableHeader.length
+      const tableNotes = bodyRows.flatMap((row) =>
+        row
+          .slice(tableColCount)
+          .map((cell) => cell.trim())
+          .filter((cell) => cell.length > 0),
+      )
+
       // Determine numeric columns by inspecting the first body row.
       const numericCols = new Set<number>()
       if (bodyRows.length > 0) {
-        bodyRows[0].forEach((cell, idx) => {
+        bodyRows[0].slice(0, tableColCount).forEach((cell, idx) => {
           if (isNumericCell(cell)) numericCols.add(idx)
         })
       }
@@ -345,17 +402,22 @@ export function renderMarkdown(text: string) {
       const tableKey = `table-${elements.length}`
       elements.push(
         <div key={tableKey} style={{ overflowX: 'auto', margin: '8px 0' }}>
+          {tableIntro && (
+            <p style={{ margin: '0 0 8px 0', fontSize: 13, lineHeight: 1.45 }}>
+              {formatInline(tableIntro)}
+            </p>
+          )}
           <table
             style={{
               borderCollapse: 'collapse',
               fontSize: 12,
-              width: '100%',
-              maxWidth: '100%',
+              width: 'auto',
+              maxWidth: '680px',
             }}
           >
             <thead>
               <tr>
-                {header.map((cell, idx) => (
+                {tableHeader.map((cell, idx) => (
                   <th
                     key={`th-${idx}`}
                     style={{
@@ -364,6 +426,7 @@ export function renderMarkdown(text: string) {
                       textAlign: numericCols.has(idx) ? 'right' : 'left',
                       border: '1px solid #e5e7eb',
                       fontWeight: 600,
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     {formatInline(cell)}
@@ -374,7 +437,7 @@ export function renderMarkdown(text: string) {
             <tbody>
               {bodyRows.map((row, rIdx) => (
                 <tr key={`tr-${rIdx}`}>
-                  {Array.from({ length: colCount }).map((_, cIdx) => {
+                  {Array.from({ length: tableColCount }).map((_, cIdx) => {
                     const cell = row[cIdx] ?? ''
                     return (
                       <td
@@ -383,6 +446,7 @@ export function renderMarkdown(text: string) {
                           padding: '6px 8px',
                           border: '1px solid #e5e7eb',
                           textAlign: numericCols.has(cIdx) ? 'right' : 'left',
+                          whiteSpace: 'nowrap',
                         }}
                       >
                         {formatInline(cell)}
@@ -393,6 +457,11 @@ export function renderMarkdown(text: string) {
               ))}
             </tbody>
           </table>
+          {tableNotes.map((note, noteIdx) => (
+            <p key={`table-note-${noteIdx}`} style={{ margin: '8px 0 0 0', fontSize: 12, lineHeight: 1.45, color: '#4b5563' }}>
+              {formatInline(note)}
+            </p>
+          ))}
         </div>,
       )
       i = j - 1
@@ -453,13 +522,23 @@ export function renderMarkdown(text: string) {
 
 const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProps>(
   function OptiMateChatCore(
-    { auditId, customerId, businessName, compact = false, hideInput = false, initialSessionId },
+    {
+      mode = 'audit',
+      auditId,
+      customerId,
+      businessName,
+      compact = false,
+      fluid = false,
+      hideInput = false,
+      initialSessionId,
+    },
     ref,
   ) {
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const abortControllerRef = useRef<AbortController | null>(null)
     // Portal target for the active voice controls (under the account name).
     // A state mirror forces one re-render once the ref node is attached so the
     // portal has a valid container on the first active render.
@@ -486,14 +565,24 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       },
       [],
     )
+
+    const appendVoiceAssistantMessage = useCallback((text: string) => {
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: text, voice: true, voiceId: `voice_tool_${Date.now()}` },
+      ])
+    }, [])
     // Lazy initializer: runs once on mount, so localStorage is only read once.
     // Reset on reload picks up whatever the user last chose in any tab.
     const [selectedModel, setSelectedModel] = useState<string>(() => loadPersistedModel())
+    const [reasoningMode, setReasoningMode] = useState<ReasoningMode>('off')
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     // Feature flag: render the voice CTA only when a provider is configured.
     const voiceEnabled = isVoiceEnabled()
     const imageInputRef = useRef<HTMLInputElement>(null)
+    const storageScope = mode === 'portfolio' ? 'portfolio' : auditId
+    const displayName = businessName || (mode === 'portfolio' ? 'Portfolio' : customerId) || 'Google Ads'
 
     /* Auto-grow the textarea as the user types. Caps at 8 lines so the
      * chat panel never cramped; past that the textarea scrolls. */
@@ -546,15 +635,15 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     // UUID. The lazy initializer ensures we don't churn through UUIDs on
     // every render.
     const sessionIdRef = useRef<string>(
-      initialSessionId ?? loadPersistedSessionId(auditId) ?? crypto.randomUUID(),
+      initialSessionId ?? loadPersistedSessionId(storageScope) ?? crypto.randomUUID(),
     )
     // Persist the initial session id immediately so a reload before the first
     // message still attaches to the same thread.
     useEffect(() => {
-      savePersistedSessionId(auditId, sessionIdRef.current)
-      // We intentionally only run on mount / auditId change — sessionIdRef
+      savePersistedSessionId(storageScope, sessionIdRef.current)
+      // We intentionally only run on mount / scope change — sessionIdRef
       // mutations elsewhere call savePersistedSessionId themselves.
-    }, [auditId])
+    }, [storageScope])
     const [historyOpen, setHistoryOpen] = useState(false)
     const [sessions, setSessions] = useState<ChatSession[]>([])
     const [sessionsLoading, setSessionsLoading] = useState(false)
@@ -568,6 +657,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     const bumpPendingRefresh = useCallback(() => setPendingRefreshTick((n) => n + 1), [])
     const [attachedEmail, setAttachedEmail] = useState<AttachedEmailMeta | null>(null)
     const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([])
+    const [dragActive, setDragActive] = useState(false)
     const [pickerOpen, setPickerOpen] = useState(false)
     // Drives the dim hint + popover that lists keyword triggers below the
     // chat input. Hover/focus on the textarea wrapper expands the popover.
@@ -665,7 +755,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           if (!res.ok) return
           const data = (await res.json()) as { docs?: Array<Record<string, unknown>> }
           if (cancelled) return
-          const auditIdStr = String(auditId)
+          const auditIdStr = mode === 'portfolio' ? '' : String(auditId)
           const items: OptiMateProposal[] = (data.docs ?? [])
             .map((d) => {
               const payload = d.proposalPayload as Record<string, unknown> | null
@@ -681,7 +771,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     : '',
               }
             })
-            .filter((d) => d._audit === auditIdStr || d._audit === '')
+            .filter((d) => (mode === 'portfolio' ? d._audit === '' : d._audit === auditIdStr || d._audit === ''))
             .map(({ _audit: _drop, ...rest }) => rest)
           setPendingForAudit(items)
         } catch {
@@ -692,7 +782,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       return () => {
         cancelled = true
       }
-    }, [auditId, pendingRefreshTick])
+    }, [auditId, mode, pendingRefreshTick])
 
     const scrollToBottom = useCallback(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -747,7 +837,10 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       setSessionsLoading(true)
       try {
         const res = await fetch(
-          `/api/optimate-chat-history?auditId=${encodeURIComponent(String(auditId))}`,
+          mode === 'portfolio'
+            ? '/api/optimate-chat-history?mode=portfolio'
+            : `/api/optimate-chat-history?auditId=${encodeURIComponent(String(auditId))}`,
+
           { credentials: 'include' },
         )
         if (!res.ok) {
@@ -761,7 +854,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       } finally {
         setSessionsLoading(false)
       }
-    }, [auditId])
+    }, [auditId, mode])
 
     const loadSession = useCallback(
       async (sid: string) => {
@@ -782,24 +875,38 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               modelUsed: typeof t.modelUsed === 'string' ? t.modelUsed : undefined,
             }))
           sessionIdRef.current = sid
-          savePersistedSessionId(auditId, sid)
+          savePersistedSessionId(storageScope, sid)
           setMessages(loaded)
           setError(null)
         } catch {
           /* silent */
         }
       },
-      [auditId],
+      [storageScope],
     )
 
     const startNewChat = useCallback(() => {
       const fresh = crypto.randomUUID()
       sessionIdRef.current = fresh
-      savePersistedSessionId(auditId, fresh)
+      savePersistedSessionId(storageScope, fresh)
       setMessages([])
       setError(null)
       setHistoryOpen(false)
-    }, [auditId])
+    }, [storageScope])
+
+    const stopThinking = useCallback(() => {
+      const controller = abortControllerRef.current
+      abortControllerRef.current = null
+      if (controller && !controller.signal.aborted) {
+        try {
+          controller.abort('Stopped by user')
+        } catch {
+          // Some browser/dev overlays are noisy about abort reasons; stopping is best-effort.
+        }
+      }
+      setLoading(false)
+      setError(null)
+    }, [])
 
     const sendMessage = async (text: string) => {
       const trimmedText = text.trim()
@@ -819,16 +926,22 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       setLoading(true)
       setError(null)
 
+      const controller = new AbortController()
+      abortControllerRef.current = controller
+
       try {
-        const res = await fetch(`/api/google-ads-audits/${auditId}/chat`, {
+        const chatUrl = mode === 'portfolio' ? '/api/optimate/google-ads-portfolio/chat' : `/api/google-ads-audits/${auditId}/chat`
+        const res = await fetch(chatUrl, {
           method: 'POST',
           credentials: 'include',
+          signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: trimmedText || 'Please review the attached image.',
             sessionId: sessionIdRef.current,
-            history: messages.slice(-20).map(({ role, content }) => ({ role, content })),
+            history: messages.map(({ role, content }) => ({ role, content })),
             model: selectedModel,
+            reasoningMode,
             imageAttachments: currentImages.map((image) => ({
               name: image.name,
               mediaType: image.mediaType,
@@ -907,10 +1020,10 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           data.sessionId !== sessionIdRef.current
         ) {
           sessionIdRef.current = data.sessionId
-          savePersistedSessionId(auditId, data.sessionId)
+          savePersistedSessionId(storageScope, data.sessionId)
         } else {
           // Reaffirm storage (cheap) so any earlier write failure is retried.
-          savePersistedSessionId(auditId, sessionIdRef.current)
+          savePersistedSessionId(storageScope, sessionIdRef.current)
         }
 
         // Attachments are per-turn context only — clear after a successful
@@ -942,8 +1055,15 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to send message')
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          setError(null)
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to send message')
+        }
       } finally {
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null
+        }
         setLoading(false)
         inputRef.current?.focus()
       }
@@ -1038,9 +1158,15 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         reader.readAsDataURL(file)
       })
 
-    const handleImageFiles = async (files: FileList | null) => {
+    const handleImageFiles = useCallback(async (files: FileList | File[] | null) => {
       if (!files || files.length === 0) return
-      const nextFiles = Array.from(files).slice(0, MAX_IMAGE_ATTACHMENTS - imageAttachments.length)
+      const incoming = Array.from(files).filter((file) => file.type.startsWith('image/'))
+      if (incoming.length === 0) {
+        setError('Drop PNG, JPEG, GIF, or WebP images into OptiMate.')
+        return
+      }
+      const availableSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - imageAttachments.length)
+      const nextFiles = incoming.slice(0, availableSlots)
       if (nextFiles.length === 0) {
         setError(`Attach up to ${MAX_IMAGE_ATTACHMENTS} images per message.`)
         return
@@ -1048,13 +1174,66 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       try {
         const next = await Promise.all(nextFiles.map(readImageAttachment))
         setImageAttachments((prev) => [...prev, ...next].slice(0, MAX_IMAGE_ATTACHMENTS))
-        setError(null)
+        setError(
+          incoming.length > nextFiles.length
+            ? `Attached the first ${nextFiles.length} images. Limit is ${MAX_IMAGE_ATTACHMENTS} per message.`
+            : null,
+        )
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not attach image')
       } finally {
         if (imageInputRef.current) imageInputRef.current.value = ''
       }
-    }
+    }, [imageAttachments.length])
+
+    useEffect(() => {
+      if (hideInput) return
+      let dragDepth = 0
+
+      const eventHasFiles = (event: DragEvent): boolean =>
+        Array.from(event.dataTransfer?.types ?? []).includes('Files')
+
+      const handleWindowDragEnter = (event: DragEvent) => {
+        if (!eventHasFiles(event)) return
+        event.preventDefault()
+        dragDepth += 1
+        setDragActive(true)
+      }
+
+      const handleWindowDragOver = (event: DragEvent) => {
+        if (!eventHasFiles(event)) return
+        event.preventDefault()
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+        setDragActive(true)
+      }
+
+      const handleWindowDragLeave = (event: DragEvent) => {
+        if (!eventHasFiles(event)) return
+        event.preventDefault()
+        dragDepth = Math.max(0, dragDepth - 1)
+        if (dragDepth === 0) setDragActive(false)
+      }
+
+      const handleWindowDrop = (event: DragEvent) => {
+        if (!eventHasFiles(event)) return
+        event.preventDefault()
+        dragDepth = 0
+        setDragActive(false)
+        void handleImageFiles(event.dataTransfer?.files ?? null)
+      }
+
+      window.addEventListener('dragenter', handleWindowDragEnter)
+      window.addEventListener('dragover', handleWindowDragOver)
+      window.addEventListener('dragleave', handleWindowDragLeave)
+      window.addEventListener('drop', handleWindowDrop)
+
+      return () => {
+        window.removeEventListener('dragenter', handleWindowDragEnter)
+        window.removeEventListener('dragover', handleWindowDragOver)
+        window.removeEventListener('dragleave', handleWindowDragLeave)
+        window.removeEventListener('drop', handleWindowDrop)
+      }
+    }, [handleImageFiles, hideInput])
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
       e.stopPropagation()
@@ -1073,17 +1252,18 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         sendMessage: async (text: string) => {
           await sendMessage(text)
         },
+        stopThinking,
         isBusy: () => loading,
         getSessionId: () => sessionIdRef.current,
       }),
-      [loading, sendMessage],
+      [loading, sendMessage, stopThinking],
     )
 
     // Sizing
-    const messagesMinHeight = expanded ? 'calc(100vh - 220px)' : compact ? 240 : 300
-    const messagesMaxHeight = expanded ? 'calc(100vh - 220px)' : compact ? 360 : 500
-    const wrapperMaxWidth = compact ? '100%' : 700
-    const messageBubbleMaxWidth = expanded ? '100%' : '85%'
+    const messagesMinHeight = expanded ? 0 : compact ? 180 : fluid ? 0 : 260
+    const messagesMaxHeight = expanded ? 'none' : compact ? 300 : fluid ? 'none' : 440
+    const wrapperMaxWidth = compact || fluid ? '100%' : 700
+    const messageBubbleMaxWidth = expanded || fluid ? '100%' : '85%'
 
     // Stop keydown bubbling so our Enter handler in the input doesn't trigger
     // Payload's parent-form save shortcuts. We deliberately do NOT block
@@ -1101,33 +1281,56 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           width: '100%',
           maxWidth: '100%',
           marginBottom: 0,
-          overflowY: 'auto',
+          overflow: 'hidden',
+          minHeight: 0,
         }
-      : { maxWidth: wrapperMaxWidth, marginBottom: compact ? 0 : 20, width: '100%' }
+      : {
+          maxWidth: wrapperMaxWidth,
+          marginBottom: compact || fluid ? 0 : 20,
+          width: '100%',
+          ...(fluid
+            ? { height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+            : {}),
+        }
 
     return (
       <div style={wrapperStyle} onKeyDown={(e) => e.stopPropagation()}>
+        <style>{`
+          @keyframes optimateTyping {
+            0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(-3px); }
+          }
+        `}</style>
         {/* Header */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            marginBottom: 10,
+            marginBottom: 8,
+            flexShrink: 0,
           }}
         >
-          {/* Title + avatar removed — the parent launcher / popout black bar
-            already shows the agent name ("OptiMate Google Ads"). This header
-            row still hosts the auth pill, tools-help button and history
-            button on the right; the empty flex spacer keeps them right-aligned. */}
-          {/* Active voice controls (stop / mute / waveform) are portalled into
-              this strip by OptiMateVoice — it sits in the empty space under the
-              account name, on the left of the header. No "Listening" text: the
-              waveform animation already signals the call is live. */}
-          <div
-            ref={voiceControlsRef}
-            style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}
-          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              title={displayName}
+              style={{
+                fontSize: 13,
+                lineHeight: 1.35,
+                fontWeight: 650,
+                color: 'var(--theme-text, #111827)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {displayName}
+            </div>
+            <div
+              ref={voiceControlsRef}
+              style={{ minWidth: 0, display: 'flex', alignItems: 'center', marginTop: 2 }}
+            />
+          </div>
           {/* Anthropic credential pill removed per request — it was noisy and the
             credential state is managed on the agent-auth admin page. */}
           {!compact && <OptiMateToolsHelp compact={compact} />}
@@ -1296,17 +1499,19 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             display: 'flex',
             flexDirection: 'column',
             gap: 12,
+            ...(fluid || expanded ? { flex: '1 1 auto', minHeight: 0, maxHeight: 'none' } : {}),
           }}
         >
           {pendingForAudit.length > 0 && (
             <div
               style={{
                 display: 'flex',
+                flexWrap: 'wrap',
                 gap: 6,
                 padding: '8px 4px',
                 borderBottom: '1px dashed #e5e7eb',
                 marginBottom: 4,
-                overflowX: 'auto',
+                overflow: 'hidden',
                 flexShrink: 0,
               }}
             >
@@ -1322,7 +1527,15 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 Pending
               </span>
               {pendingForAudit.map((p) => (
-                <OptiMateProposalCard key={p.id} proposal={p} variant="strip" />
+                <OptiMateProposalCard
+                  key={p.id}
+                  proposal={p}
+                  variant="strip"
+                  onReject={(id) => {
+                    setPendingForAudit((items) => items.filter((item) => item.id !== id))
+                    bumpPendingRefresh()
+                  }}
+                />
               ))}
             </div>
           )}
@@ -1330,7 +1543,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           {messages.length === 0 && (
             <div style={{ textAlign: 'center', padding: '32px 8px' }}>
               <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
-                Ask OptiMate anything about this Google Ads account.
+                {mode === 'portfolio'
+                  ? 'Ask OptiMate for compact cross-account Google Ads analysis.'
+                  : 'Ask OptiMate anything about this Google Ads account.'}
               </p>
               <div
                 style={{
@@ -1340,7 +1555,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   justifyContent: 'center',
                 }}
               >
-                {SUGGESTED_QUESTIONS.map((q) => (
+                {(mode === 'portfolio' ? PORTFOLIO_SUGGESTED_QUESTIONS : SUGGESTED_QUESTIONS).map((q) => (
                   <button
                     key={q}
                     type="button"
@@ -1385,6 +1600,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               <div
                 style={{
                   maxWidth: messageBubbleMaxWidth,
+                  width: fluid && msg.role === 'assistant' ? '100%' : undefined,
                   padding: '10px 14px',
                   borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                   background: msg.role === 'user' ? '#2563eb' : '#f3f4f6',
@@ -1586,20 +1802,37 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
               <div
                 style={{
-                  padding: '10px 14px',
+                  padding: '10px 12px 10px 14px',
                   borderRadius: '16px 16px 16px 4px',
                   background: '#f3f4f6',
                   fontSize: 13,
                   color: '#6b7280',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 8,
                 }}
               >
-                <span style={{ animation: 'pulse 1.5s infinite' }}>Thinking</span>
-                <span style={{ animation: 'pulse 1.5s infinite 0.2s' }}>.</span>
-                <span style={{ animation: 'pulse 1.5s infinite 0.4s' }}>.</span>
-                <span style={{ animation: 'pulse 1.5s infinite 0.6s' }}>.</span>
+                <OptiMateTypingLoader />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    stopThinking()
+                  }}
+                  style={{
+                    border: '1px solid #d1d5db',
+                    background: '#fff',
+                    color: '#374151',
+                    borderRadius: 999,
+                    padding: '3px 8px',
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  Stop
+                </button>
               </div>
             </div>
           )}
@@ -1609,9 +1842,40 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
 
         {error && <p style={{ marginTop: 8, fontSize: 12, color: '#dc2626' }}>{error}</p>}
 
+        {dragActive && !hideInput && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 2147483647,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(37, 99, 235, 0.12)',
+              border: '3px dashed rgba(37, 99, 235, 0.7)',
+              pointerEvents: 'none',
+            }}
+          >
+            <div
+              style={{
+                padding: '16px 22px',
+                borderRadius: 16,
+                background: '#fff',
+                color: '#1d4ed8',
+                boxShadow: '0 18px 45px rgba(15, 23, 42, 0.18)',
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              Drop images to attach to OptiMate
+            </div>
+          </div>
+        )}
+
         {/* Input — hidden when a multi-chat wrapper is supplying a shared one. */}
         {!hideInput && (
-          <div style={{ position: 'relative', marginTop: 10, width: '100%' }}>
+          <div style={{ position: 'relative', marginTop: 10, width: '100%', flexShrink: 0 }}>
             {attachedEmail && (
               <div
                 style={{
@@ -1725,7 +1989,16 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               }}
             />
 
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div
+              style={{
+                position: 'relative',
+                minHeight: 104,
+                border: '1px solid var(--theme-border-color, #e5e7eb)',
+                borderRadius: 14,
+                background: 'var(--theme-input-bg, #fff)',
+                padding: '12px 14px 46px',
+              }}
+            >
               <input
                 ref={imageInputRef}
                 type="file"
@@ -1734,9 +2007,79 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 onChange={(e) => handleImageFiles(e.target.files)}
                 style={{ display: 'none' }}
               />
-              {/* Attach controls stacked vertically (paperclip above mail) so they
-                take one narrow column and leave the textbox as wide as possible. */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Feel free to ask"
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  minHeight: 36,
+                  padding: 0,
+                  border: 'none',
+                  fontSize: 13,
+                  lineHeight: '20px',
+                  background: 'transparent',
+                  color: 'var(--theme-text, #1f2937)',
+                  outline: 'none',
+                  resize: 'none',
+                  fontFamily: 'inherit',
+                  overflowY: 'auto',
+                }}
+              />
+
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 14,
+                  bottom: 8,
+                  display: 'flex',
+                  gap: 7,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setPickerOpen((v) => !v)
+                  }}
+                  disabled={loading}
+                  title="Browse your Gmail inbox to attach an email"
+                  style={{
+                    width: 29,
+                    height: 29,
+                    padding: 0,
+                    background: pickerOpen ? '#e0e7ff' : '#fff',
+                    color: '#374151',
+                    border: '1px solid var(--theme-border-color, #e5e7eb)',
+                    borderRadius: 8,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    lineHeight: 1,
+                  }}
+                  aria-label="Browse Gmail inbox"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                </button>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1745,10 +2088,12 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     imageInputRef.current?.click()
                   }}
                   disabled={loading || imageAttachments.length >= MAX_IMAGE_ATTACHMENTS}
-                  title="Attach a screenshot (Claude only)"
+                  title="Attach a screenshot"
                   style={{
-                    padding: '7px 9px',
-                    background: '#f3f4f6',
+                    width: 29,
+                    height: 29,
+                    padding: 0,
+                    background: '#fff',
                     color: '#374151',
                     border: '1px solid var(--theme-border-color, #e5e7eb)',
                     borderRadius: 8,
@@ -1763,10 +2108,9 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   }}
                   aria-label="Attach image screenshot"
                 >
-                  {/* Paperclip icon */}
                   <svg
-                    width="16"
-                    height="16"
+                    width="14"
+                    height="14"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -1778,98 +2122,18 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                   </svg>
                 </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setPickerOpen((v) => !v)
-                  }}
-                  disabled={loading}
-                  title="Browse your Gmail inbox to attach an email"
-                  style={{
-                    padding: '7px 9px',
-                    background: pickerOpen ? '#e0e7ff' : '#f3f4f6',
-                    color: '#374151',
-                    border: '1px solid var(--theme-border-color, #e5e7eb)',
-                    borderRadius: 8,
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    lineHeight: 1,
-                  }}
-                  aria-label="Browse Gmail inbox"
-                >
-                  {/* Standard envelope / mail icon */}
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <rect x="2" y="4" width="20" height="16" rx="2" />
-                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                  </svg>
-                </button>
               </div>
-              <textarea
-                ref={inputRef}
-                rows={1}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Feel free to ask"
-                disabled={loading}
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  // Match the stacked icon columns on both sides (two icons +
-                  // gap ≈ 70px) so the textbox aligns with them.
-                  height: 70,
-                  padding: '10px 14px',
-                  border: '1px solid var(--theme-border-color, #e5e7eb)',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  lineHeight: '20px',
-                  background: 'var(--theme-input-bg, #fff)',
-                  color: 'var(--theme-text, #1f2937)',
-                  outline: 'none',
-                  resize: 'none',
-                  fontFamily: 'inherit',
-                  overflowY: 'auto',
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#2563eb'
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--theme-border-color, #e5e7eb)'
-                }}
-              />
-              {/* Right side: small icons stacked — Voice on top, Send below. */}
+
               <div
                 style={{
+                  position: 'absolute',
+                  right: 14,
+                  bottom: 8,
                   display: 'flex',
-                  flexDirection: 'column',
+                  gap: 7,
                   alignItems: 'center',
-                  gap: 6,
-                  flexShrink: 0,
                 }}
               >
-                {voiceEnabled && (
-                  <OptiMateVoice
-                    auditId={auditId}
-                    businessName={businessName}
-                    onTurn={upsertVoiceTurn}
-                    controlsContainer={voiceControlsEl}
-                    triggerSize={32}
-                  />
-                )}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1884,8 +2148,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: 32,
-                    height: 32,
+                    width: 29,
+                    height: 29,
                     background:
                       loading || (!input.trim() && imageAttachments.length === 0)
                         ? '#9ca3af'
@@ -1900,8 +2164,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     transition: 'background 0.15s',
                   }}
                 >
-                  {/* Send / arrow-up glyph. */}
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path
                       d="M12 19V5M5 12l7-7 7 7"
                       stroke="currentColor"
@@ -1911,6 +2174,17 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     />
                   </svg>
                 </button>
+                {voiceEnabled && (
+                  <OptiMateVoice
+                    auditId={auditId}
+                    businessName={businessName}
+                    onTurn={upsertVoiceTurn}
+                    onAssistantMessage={appendVoiceAssistantMessage}
+                    controlsContainer={voiceControlsEl}
+                    triggerSize={29}
+                    attachedEmailMessageId={attachedEmail?.messageId ?? null}
+                  />
+                )}
               </div>
             </div>
 
@@ -1924,12 +2198,38 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                 display: 'flex',
                 gap: 8,
                 alignItems: 'center',
+                justifyContent: 'flex-end',
                 marginTop: 6,
                 // Keep a clear gap below the model selector so it isn't clipped
                 // by the bottom edge of the popout window.
                 marginBottom: 18,
               }}
             >
+              <select
+                value={reasoningMode}
+                onChange={(e) => {
+                  const next = e.target.value as ReasoningMode
+                  setReasoningMode(next)
+                }}
+                disabled={loading}
+                title="Reasoning mode for the next request. Off is fastest/cheapest."
+                style={{
+                  fontSize: 11,
+                  padding: '4px 8px',
+                  border: '1px solid var(--theme-border-color, #e5e7eb)',
+                  borderRadius: 6,
+                  background: 'var(--theme-input-bg, #fff)',
+                  color: 'var(--theme-text, #1f2937)',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  width: 150,
+                  maxWidth: '100%',
+                }}
+              >
+                <option value="off">Reasoning off</option>
+                <option value="low">Reasoning low</option>
+                <option value="medium">Reasoning medium</option>
+                <option value="high">Reasoning high</option>
+              </select>
               <select
                 value={selectedModel}
                 onChange={(e) => {
@@ -1946,8 +2246,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   background: 'var(--theme-input-bg, #fff)',
                   color: 'var(--theme-text, #1f2937)',
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  width: '100%',
-                  maxWidth: 240,
+                  width: 270,
+                  maxWidth: '100%',
                 }}
               >
                 {CHAT_PICKER_MODELS.map((m) => (

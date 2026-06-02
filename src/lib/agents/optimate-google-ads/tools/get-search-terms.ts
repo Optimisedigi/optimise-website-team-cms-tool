@@ -40,6 +40,8 @@ interface SearchTermRaw {
   cost?: number;
   spend?: number;
   conversions?: number;
+  conversionsByAction?: Record<string, number>;
+  conversionsByCategory?: Record<string, number>;
   segment?: string;
 }
 
@@ -52,7 +54,7 @@ interface SearchTermsEnvelope {
 export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
   name: "get_search_terms",
   description:
-    "Search queries that triggered ads on the linked account, with metrics. Args: range (optional preset OR custom 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'-style literal; default LAST_30_DAYS), minImpressions (default 0), limit (default 200, max 1000), segment ('month'|'week'|'day' — when set, returns one row per (term, segment) pair instead of a single total). Use to find wasted spend before proposing negative keywords.",
+    "Search queries that triggered ads on the linked account, with metrics. Args: range (optional preset OR custom 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'-style literal; default LAST_30_DAYS), minImpressions (default 0), limit (default 200, max 1000), segment ('month'|'week'|'day' — when set, returns one row per (term, segment) pair instead of a single total). Returns conversion breakdowns by configured category when available. Use to find wasted spend before proposing negative keywords.",
   inputSchema: {
     type: "object",
     properties: {
@@ -126,6 +128,7 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
     const limit = args.limit ?? 200;
     const minImpressions = args.minImpressions ?? 0;
     const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
+    const conversionActionCategories = (ctx.context.conversionActionCategories as string | undefined) ?? "";
 
     const qs = new URLSearchParams({
       customerId,
@@ -133,6 +136,7 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
       limit: String(limit),
     });
     if (conversionActions) qs.set("conversionActions", conversionActions);
+    if (conversionActionCategories) qs.set("conversionActionCategories", conversionActionCategories);
     if (resolved.segment) qs.set("segment", resolved.segment);
 
     const res = await growthToolsGet<SearchTermsEnvelope>(
@@ -165,6 +169,8 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
           clicks,
           spend: round2(spend),
           conversions: round2(conversions),
+          conversionsByAction: normaliseBreakdown(t.conversionsByAction),
+          conversionsByCategory: normaliseBreakdown(t.conversionsByCategory),
           cpa: conversions > 0 ? round2(spend / conversions) : null,
         };
       })
@@ -191,6 +197,10 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
         ...(resolved.startDate ? { startDate: resolved.startDate, endDate: resolved.endDate } : {}),
         ...(resolved.coercedFrom ? { coercedFrom: resolved.coercedFrom, note: resolved.note } : {}),
         segmentation: resolved.segment ?? null,
+        conversionActionsApplied: conversionActions || null,
+        conversionScopeNote: conversionActions
+          ? "Conversions are filtered to the CMS default conversion actions for this client."
+          : "No CMS default conversion actions were configured, so Growth Tools returned its default conversion scope.",
         ...(segmentationUnavailable ? { segmentationUnavailable: true } : {}),
         count: terms.length,
         terms: terms.slice(0, limit),
@@ -198,6 +208,14 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
     };
   },
 };
+
+function normaliseBreakdown(value: unknown): Record<string, number> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, raw]) => [key, round2(Number(raw ?? 0))] as const)
+    .filter(([key, n]) => key.trim().length > 0 && Number.isFinite(n) && n !== 0);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;

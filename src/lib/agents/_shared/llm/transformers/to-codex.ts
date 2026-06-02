@@ -20,20 +20,12 @@
  *   - tool_result -> { type:"function_call_output", call_id, output }
  */
 
-import type { CallLLMOptions } from "../types";
+import type { CallLLMOptions, ReasoningMode } from "../types";
 import type { CodexEffort } from "../registry";
-
-export class UnsupportedCodexImageInputError extends Error {
-  constructor() {
-    super(
-      "Image attachments are only supported on Anthropic Claude models in OptiMate. Select a Claude model, or add Codex image-part support before sending screenshots.",
-    );
-    this.name = "UnsupportedCodexImageInputError";
-  }
-}
 
 type CodexInputContentPart =
   | { type: "input_text"; text: string }
+  | { type: "input_image"; image_url: string }
   | { type: "output_text"; text: string; annotations: [] };
 
 type CodexInputItem =
@@ -57,7 +49,7 @@ export interface CodexRequestBody {
   input: CodexInputItem[];
   tool_choice: "auto";
   parallel_tool_calls: true;
-  include: string[];
+  include?: string[];
   tools?: Array<{
     type: "function";
     name: string;
@@ -66,7 +58,7 @@ export interface CodexRequestBody {
     strict: null;
   }>;
   temperature?: number;
-  reasoning: { effort: CodexEffort; summary: "auto" };
+  reasoning?: { effort: CodexEffort; summary: "auto" };
   /** Prompt-cache scope key. Set by the adapter (gg-framework pins it on both
    *  the body and the session_id/x-client-request-id headers). */
   prompt_cache_key?: string;
@@ -90,7 +82,7 @@ function remapCodexId(id: string, idMap: Map<string, string>): string {
 export function toCodex(
   opts: CallLLMOptions,
   providerModel: string,
-  config: { effort: CodexEffort },
+  config: { reasoningMode: ReasoningMode },
 ): CodexRequestBody {
   const input: CodexInputItem[] = [];
   const idMap = new Map<string, string>();
@@ -108,7 +100,10 @@ export function toCodex(
         if (part.type === "text") {
           content.push({ type: "input_text", text: part.text });
         } else if (part.type === "image") {
-          throw new UnsupportedCodexImageInputError();
+          content.push({
+            type: "input_image",
+            image_url: `data:${part.mediaType};base64,${part.data}`,
+          });
         } else if (part.type === "tool_result") {
           // tool_result on a user message -> standalone function_call_output.
           input.push({
@@ -175,11 +170,13 @@ export function toCodex(
     input,
     tool_choice: "auto",
     parallel_tool_calls: true,
-    include: ["reasoning.encrypted_content"],
-    reasoning: { effort: config.effort, summary: "auto" },
   };
-  // gg-framework drops temperature when a reasoning effort is set; Codex always
-  // runs with an effort here, so temperature is intentionally never sent.
+  if (config.reasoningMode !== "off") {
+    body.include = ["reasoning.encrypted_content"];
+    body.reasoning = { effort: config.reasoningMode, summary: "auto" };
+  }
+  // gg-framework drops temperature when a reasoning effort is set; keep the
+  // existing no-temperature behaviour for Codex.
   if (opts.tools && opts.tools.length > 0) {
     body.tools = opts.tools.map((t) => ({
       type: "function" as const,

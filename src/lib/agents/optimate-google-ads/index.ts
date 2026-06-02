@@ -6,9 +6,15 @@
 
 import { runAgent, MAX_TOKENS_TRUNCATION_MARKER } from "../_shared/base-agent";
 import type { CanonicalTool } from "../_shared/tool";
-import type { CredentialSource, Message, Usage } from "../_shared/llm/types";
+import type { CredentialSource, Message, ReasoningMode, Usage } from "../_shared/llm/types";
 import { getOptiMateDefaultModels } from "../_shared/optimate-default-models";
-import { AGENT_NAME, buildSystemPromptForAudit, conversionActionsForClient } from "./config";
+import {
+  AGENT_NAME,
+  buildSystemPromptForAudit,
+  buildSystemPromptForPortfolio,
+  conversionActionCategoriesForClient,
+  conversionActionsForClient,
+} from "./config";
 import { getAccountOverview } from "./tools/get-account-overview";
 import { getCampaignPerformance } from "./tools/get-campaign-performance";
 import { getSearchTerms } from "./tools/get-search-terms";
@@ -39,6 +45,11 @@ import { proposeGeoCampaignSplit } from "./tools/propose-geo-campaign-split";
 import { proposeAdGroupCreate } from "./tools/propose-ad-group-create";
 import { proposeKeywordsAdd } from "./tools/propose-keywords-add";
 import { getCampaignProposalStatus } from "./tools/get-campaign-proposal-status";
+import { listGoalRuns } from "./tools/list-goal-runs";
+import { getGoalRun } from "./tools/get-goal-run";
+import { getGoalProgressSummary } from "./tools/get-goal-progress-summary";
+import { createGoalRun } from "./tools/create-goal-run";
+import { createAccountEfficiencyGoalRun } from "./tools/create-account-efficiency-goal-run";
 import { proposeScheduledTask } from "./tools/propose-scheduled-task";
 import { listScheduledTasks } from "./tools/list-scheduled-tasks";
 import { proposeScheduledTaskUpdate } from "./tools/propose-scheduled-task-update";
@@ -48,6 +59,9 @@ import { requestConfirmTool } from "./tools/request-confirm";
 import { remember } from "./tools/remember";
 import { memorySearch } from "./tools/memory-search";
 import { soulSet } from "./tools/soul-set";
+import { getPortfolioAccountInventory } from "./tools/get-portfolio-account-inventory";
+import { getPortfolioPerformanceSummary } from "./tools/get-portfolio-performance-summary";
+import { getPortfolioSearchTermWastage } from "./tools/get-portfolio-search-term-wastage";
 import { resetProposalCounter } from "./tools/_propose-helpers";
 import { readClientConnectionFlags } from "./tools/_client-tokens";
 import { loadPinnedMemoryBlock } from "./memory-loader";
@@ -56,7 +70,7 @@ import { logAgentStep } from "../_shared/activity-log";
 import { getPayload } from "payload";
 import payloadConfig from "@/payload.config";
 
-export { AGENT_NAME, buildSystemPromptForAudit };
+export { AGENT_NAME, buildSystemPromptForAudit, buildSystemPromptForPortfolio };
 
 const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "create_gmail_draft",
@@ -115,6 +129,11 @@ export function getTools(options?: { restrictExternalContextActions?: boolean })
     proposeAdGroupCreate as unknown as CanonicalTool<unknown>,
     proposeKeywordsAdd as unknown as CanonicalTool<unknown>,
     getCampaignProposalStatus as unknown as CanonicalTool<unknown>,
+    listGoalRuns as unknown as CanonicalTool<unknown>,
+    getGoalRun as unknown as CanonicalTool<unknown>,
+    getGoalProgressSummary as unknown as CanonicalTool<unknown>,
+    createGoalRun as unknown as CanonicalTool<unknown>,
+    createAccountEfficiencyGoalRun as unknown as CanonicalTool<unknown>,
     proposeScheduledTask as unknown as CanonicalTool<unknown>,
     listScheduledTasks as unknown as CanonicalTool<unknown>,
     proposeScheduledTaskUpdate as unknown as CanonicalTool<unknown>,
@@ -133,6 +152,21 @@ export function getTools(options?: { restrictExternalContextActions?: boolean })
   return tools.filter((tool) => !EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES.has(tool.name));
 }
 
+export function getPortfolioTools(options?: { restrictExternalContextActions?: boolean }): CanonicalTool<unknown>[] {
+  const tools = [
+    getPortfolioAccountInventory as unknown as CanonicalTool<unknown>,
+    getPortfolioPerformanceSummary as unknown as CanonicalTool<unknown>,
+    getPortfolioSearchTermWastage as unknown as CanonicalTool<unknown>,
+    createGmailDraftTool as unknown as CanonicalTool<unknown>,
+    requestConfirmTool as unknown as CanonicalTool<unknown>,
+    memorySearch as unknown as CanonicalTool<unknown>,
+    remember as unknown as CanonicalTool<unknown>,
+    soulSet as unknown as CanonicalTool<unknown>,
+  ];
+  if (!options?.restrictExternalContextActions) return tools;
+  return tools.filter((tool) => !EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES.has(tool.name));
+}
+
 interface AuditDocLike {
   id: string | number;
   businessName?: string | null;
@@ -145,7 +179,7 @@ interface ClientDocLike {
   id?: string | number;
   name?: string | null;
   dashboardConversionActions?: string | null;
-  conversionActionCategories?: Array<{ label?: string; actions?: string }> | null;
+  conversionActionCategories?: Array<{ label?: string; color?: string; actions?: string }> | null;
   phoneCallConversionActions?: string | null;
   formSubmitConversionActions?: string | null;
 }
@@ -173,8 +207,16 @@ export interface RunChatTurnInput {
   userId?: number;
   /** True when the latest user message includes untrusted external content, e.g. a fetched Gmail body. */
   restrictExternalContextActions?: boolean;
-  /** True when this turn includes image parts that only Anthropic Claude currently supports. */
-  disableNonVisionFallbacks?: boolean;
+  /** Per-request reasoning mode. Defaults to off for routine chat turns. */
+  reasoningMode?: ReasoningMode;
+}
+
+export interface RunPortfolioChatTurnInput {
+  messages: Message[];
+  modelOverride?: string;
+  userId?: number;
+  restrictExternalContextActions?: boolean;
+  reasoningMode?: ReasoningMode;
 }
 
 export interface ProposalSummary {
@@ -236,8 +278,52 @@ const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
  */
 const CHAT_MAX_TOKENS = 8192;
 
+export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Promise<RunChatTurnResult> {
+  const { messages, modelOverride, userId, restrictExternalContextActions, reasoningMode } = input;
+  const pinnedMemory = await loadPinnedMemoryBlock([]);
+  const systemPrompt = buildSystemPromptForPortfolio({
+    pinnedMemoryBlock: pinnedMemory.text,
+    recentMessages: messages,
+  });
+  let modelRequested: string;
+  if (modelOverride) {
+    modelRequested = modelOverride;
+  } else {
+    const defaults = await getOptiMateDefaultModels();
+    modelRequested = defaults.defaultChatModel;
+  }
+  const result = await runAgent({
+    agentName: AGENT_NAME,
+    systemPrompt,
+    tools: getPortfolioTools({ restrictExternalContextActions }),
+    initialMessages: messages,
+    model: modelRequested,
+    fallbackModels: DEFAULT_FALLBACKS,
+    maxTokens: CHAT_MAX_TOKENS,
+    reasoningMode,
+    context: {
+      mode: "portfolio",
+      ...(userId !== undefined ? { userId } : {}),
+    },
+  });
+  const reply = extractReplyText(result.finalMessage);
+  resetProposalCounter(result.runId);
+  const proposals = await fetchProposalsForRun(result.runId);
+  const confirmRequests = extractConfirmRequests(result.steps);
+  return {
+    reply,
+    runId: result.runId,
+    modelRequested,
+    modelUsed: result.modelUsed,
+    source: result.source,
+    totalUsage: result.totalUsage,
+    proposals,
+    confirmRequests,
+  };
+}
+
 export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnResult> {
-  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, disableNonVisionFallbacks, autonomous } = input;
+  const { audit, client, messages, modelOverride, userId, restrictExternalContextActions, autonomous, reasoningMode } = input;
   if (!audit.customerId || !String(audit.customerId).trim()) {
     throw new Error("Audit has no Customer ID; cannot run agent.");
   }
@@ -254,6 +340,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     recentMessages: messages,
   });
   const conversionActions = conversionActionsForClient(client);
+  const conversionActionCategories = conversionActionCategoriesForClient(client);
 
   // Resolve the effective model. Explicit override wins; otherwise use the
   // configured default (chat vs autonomous), which itself falls back to the
@@ -271,6 +358,7 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     clientId: client?.id,
     auditId: audit.id,
     conversionActions,
+    conversionActionCategories,
     ...(userId !== undefined ? { userId } : {}),
   };
 
@@ -280,8 +368,9 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
     tools: getTools({ restrictExternalContextActions }),
     initialMessages: messages,
     model: modelRequested,
-    fallbackModels: disableNonVisionFallbacks ? [] : DEFAULT_FALLBACKS,
+    fallbackModels: DEFAULT_FALLBACKS,
     maxTokens: CHAT_MAX_TOKENS,
+    reasoningMode,
     context: agentContext,
   });
 
@@ -333,8 +422,9 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
       tools: getTools({ restrictExternalContextActions }),
       initialMessages: retryMessages,
       model: modelRequested,
-      fallbackModels: disableNonVisionFallbacks ? [] : DEFAULT_FALLBACKS,
+      fallbackModels: DEFAULT_FALLBACKS,
       maxTokens: CHAT_MAX_TOKENS,
+      reasoningMode,
       context: agentContext,
       // Reuse the original runId so the activity-log timeline shows the
       // retry as a continuation, not a fresh run.

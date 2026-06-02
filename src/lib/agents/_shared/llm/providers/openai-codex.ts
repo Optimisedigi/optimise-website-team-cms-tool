@@ -27,7 +27,7 @@ import { withRetry, HttpError } from "../retry";
 import { toCodex } from "../transformers/to-codex";
 import { fromCodex, type CodexEvent } from "../transformers/from-codex";
 import type { CallLLMOptions, LLMResponse } from "../types";
-import type { CodexEffort } from "../registry";
+import type { ReasoningMode } from "../types";
 
 /** Originator gg-framework sends. Kept identical so traffic matches ggcoder. */
 const CODEX_ORIGINATOR = "ggcoder";
@@ -47,6 +47,7 @@ function codexUserAgent(): string {
 const CODEX_CACHE_SCOPE = "ggcoder";
 
 const CODEX_RESPONSES_PATH = "/codex/responses";
+const DEFAULT_LLM_TIMEOUT_MS = 90_000;
 
 /**
  * Parse a Codex SSE stream body to a flat list of JSON events. Reads the
@@ -97,10 +98,10 @@ async function parseCodexSSE(body: ReadableStream<Uint8Array>): Promise<CodexEve
 export async function callOpenAICodex(
   opts: CallLLMOptions,
   providerModel: string,
-  config: { effort: CodexEffort; baseUrl: string },
+  config: { baseUrl: string },
 ): Promise<LLMResponse> {
   const auth = await resolveCredential("openai-codex");
-  const body = toCodex(opts, providerModel, { effort: config.effort });
+  const body = toCodex(opts, providerModel, { reasoningMode: (opts.reasoningMode ?? "off") as ReasoningMode });
   // Pin the prompt cache scope on the body (gg-framework also sets this).
   body.prompt_cache_key = CODEX_CACHE_SCOPE;
 
@@ -124,6 +125,7 @@ export async function callOpenAICodex(
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new HttpError(res.status, await res.text(), { headers: res.headers });

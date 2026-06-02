@@ -4,7 +4,7 @@ import config from '@/payload.config'
 import { headers as nextHeaders } from 'next/headers'
 import { getTools } from '@/lib/agents/optimate-google-ads'
 import { conversionActionsForClient } from '@/lib/agents/optimate-google-ads/config'
-import { isVoiceReadTool } from '@/lib/agents/optimate-google-ads/realtime-tools'
+import { isVoiceTool } from '@/lib/agents/optimate-google-ads/realtime-tools'
 import type { CanonicalTool, ToolContext, ToolResultPayload } from '@/lib/agents/_shared/tool'
 
 export const runtime = 'nodejs'
@@ -22,9 +22,9 @@ export const runtime = 'nodejs'
  *     claimed user.
  *   - Resolve the run context (clientId, customerId, conversionActions) from
  *     the authenticated audit, NOT from the request body.
- *   - Reject any tool that isn't in the voice read-only allow-set — voice is
- *     read + ask only; budget/keyword/campaign writes stay behind the
- *     text-chat propose → confirm → apply gate.
+ *   - Reject any tool that isn't in the registered voice allow-set. Voice now
+ *     shares text OptiMate's tool surface; safety is enforced by the same
+ *     tool-level approval queues and Gmail draft-only scope.
  *
  * Body: { auditId: string|number, name: string, arguments?: object }
  */
@@ -56,14 +56,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'name is required' }, { status: 400 })
     }
 
-    // Voice is read + ask only. Reject anything outside the allow-set BEFORE
-    // touching the DB or the tool, so a confused/compromised client can never
-    // drive a write through speech.
-    if (!isVoiceReadTool(name)) {
+    // Reject anything outside the registered voice allow-set BEFORE touching
+    // the DB or the tool, so a confused/compromised client can never call an
+    // unregistered function through speech.
+    if (!isVoiceTool(name)) {
       return NextResponse.json(
         {
           ok: false,
-          error: `Tool "${name}" is not available over voice. Writes must go through text chat (propose → confirm → apply).`,
+          error: `Tool "${name}" is not available over voice.`,
         },
         { status: 403 },
       )
@@ -95,11 +95,10 @@ export async function POST(request: Request) {
 
     const linkedClient = await resolveLinkedClient(payload, audit)
 
-    // Find the registered tool. It must exist AND still pass the read-only gate
-    // (defence in depth — getTools() could in theory return a name that the
-    // prefix check on a free-text `name` wouldn't have caught).
+    // Find the registered tool. It must exist AND still pass the voice gate
+    // (defence in depth against a free-text `name`).
     const tool = getTools().find((t) => t.name === name) as CanonicalTool<unknown> | undefined
-    if (!tool || !isVoiceReadTool(tool.name)) {
+    if (!tool || !isVoiceTool(tool.name)) {
       return NextResponse.json(
         { ok: false, error: `Unknown or disallowed tool: ${name}` },
         { status: 403 },

@@ -52,9 +52,10 @@ let nextUpdateError: Error | null = null;
 const findCalls: FindArgs[] = [];
 const updateCalls: UpdateArgs[] = [];
 
-const { findImpl, updateImpl } = vi.hoisted(() => ({
+const { findImpl, updateImpl, createImpl } = vi.hoisted(() => ({
   findImpl: vi.fn(),
   updateImpl: vi.fn(),
+  createImpl: vi.fn(),
 }));
 
 findImpl.mockImplementation(async (args: FindArgs) => {
@@ -73,6 +74,7 @@ vi.mock("payload", () => ({
   getPayload: vi.fn(async () => ({
     find: findImpl,
     update: updateImpl,
+    create: createImpl,
   })),
 }));
 vi.mock("@/payload.config", () => ({ default: Promise.resolve({}) }));
@@ -96,6 +98,7 @@ beforeEach(() => {
   recordGoalRunSnapshotMock.mockReset();
   findImpl.mockClear();
   updateImpl.mockClear();
+  createImpl.mockReset();
   findCalls.length = 0;
   updateCalls.length = 0;
   nextExistingDocs = [];
@@ -106,6 +109,7 @@ beforeEach(() => {
   startGoalRunMock.mockResolvedValue({ id: 101, status: "analysing" });
   markGoalRunStatusMock.mockResolvedValue({ id: 101, status: "awaiting_data" });
   recordGoalRunSnapshotMock.mockResolvedValue({ id: 501, goalRunId: 101 });
+  createImpl.mockResolvedValue({ id: 77 });
 });
 
 describe("create_goal_run — validate()", () => {
@@ -172,133 +176,81 @@ describe("create_goal_run — execute()", () => {
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/No client linked/);
     // Nothing should have been written.
+    expect(createImpl).not.toHaveBeenCalled();
     expect(startGoalRunMock).not.toHaveBeenCalled();
     expect(markGoalRunStatusMock).not.toHaveBeenCalled();
     expect(updateImpl).not.toHaveBeenCalled();
     expect(recordGoalRunSnapshotMock).not.toHaveBeenCalled();
   });
 
-  it("refuses with the existing id when an active run already exists for this client/goal", async () => {
-    nextExistingDocs = [{ id: 77, goal: VALID_GOAL, status: "analysing" }];
+  it("queues a human approval row instead of creating a goal run immediately", async () => {
+    createImpl.mockResolvedValueOnce({ id: 77 });
 
     const res = await createGoalRun.execute({ goal: VALID_GOAL }, makeCtx());
-    expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/active/);
-    expect(res.error).toContain(VALID_GOAL);
-    expect(res.error).toContain("77");
-    expect(res.error).toMatch(/get_goal_run/);
-
-    // The dup-check query must scope by client + goal + non-terminal status.
-    expect(findCalls).toHaveLength(1);
-    const w = findCalls[0].where as {
-      and: Array<Record<string, { equals?: unknown; not_in?: unknown }>>;
-    };
-    expect(w.and).toHaveLength(3);
-    expect(w.and[0].client?.equals).toBe(42);
-    expect(w.and[1].goal?.equals).toBe(VALID_GOAL);
-    expect(w.and[2].status?.not_in).toEqual(["complete", "failed"]);
-
-    // No writes should have happened.
-    expect(startGoalRunMock).not.toHaveBeenCalled();
-    expect(markGoalRunStatusMock).not.toHaveBeenCalled();
-    expect(updateImpl).not.toHaveBeenCalled();
-    expect(recordGoalRunSnapshotMock).not.toHaveBeenCalled();
-  });
-
-  it("happy path: calls startGoalRun → markGoalRunStatus → update(nextCheckAt) in order and returns awaiting_data", async () => {
-    const before = Date.now();
-    const res = await createGoalRun.execute({ goal: VALID_GOAL }, makeCtx());
-    const after = Date.now();
-
     expect(res.ok).toBe(true);
-    const data = res.data as {
-      goalRunId: number;
-      goal: string;
-      status: string;
-      nextCheckAt: string;
-      message: string;
-    };
-    expect(data.goalRunId).toBe(101);
-    expect(data.goal).toBe(VALID_GOAL);
-    expect(data.status).toBe("awaiting_data");
-    expect(data.message).toMatch(/scheduler/i);
-
-    // nextCheckAt should be ISO-string and "now"-ish.
-    const ts = Date.parse(data.nextCheckAt);
-    expect(Number.isFinite(ts)).toBe(true);
-    expect(ts).toBeGreaterThanOrEqual(before);
-    expect(ts).toBeLessThanOrEqual(after);
-
-    // Call order assertions via invocationCallOrder.
-    expect(startGoalRunMock).toHaveBeenCalledTimes(1);
-    expect(markGoalRunStatusMock).toHaveBeenCalledTimes(1);
-    expect(updateImpl).toHaveBeenCalledTimes(1);
-
-    const startOrder = startGoalRunMock.mock.invocationCallOrder[0];
-    const markOrder = markGoalRunStatusMock.mock.invocationCallOrder[0];
-    const updateOrder = updateImpl.mock.invocationCallOrder[0];
-    expect(startOrder).toBeLessThan(markOrder);
-    expect(markOrder).toBeLessThan(updateOrder);
-
-    // startGoalRun args
-    expect(startGoalRunMock.mock.calls[0][1]).toEqual({
-      clientId: 42,
-      goal: VALID_GOAL,
+    expect(res.data).toMatchObject({
+      approvalId: 77,
+      approvalUrl: "/admin/agent-approvals/77",
     });
-    // markGoalRunStatus args
-    expect(markGoalRunStatusMock.mock.calls[0][1]).toEqual({
-      goalRunId: 101,
-      status: "awaiting_data",
-    });
-    // update(goal-runs, nextCheckAt)
-    const upd = updateCalls[0];
-    expect(upd.collection).toBe("goal-runs");
-    expect(upd.id).toBe(101);
-    expect(upd.data.nextCheckAt).toBe(data.nextCheckAt);
-    expect(upd.overrideAccess).toBe(true);
 
-    // No snapshot when no reason provided.
+    expect(createImpl).toHaveBeenCalledTimes(1);
+    expect(createImpl.mock.calls[0][0]).toMatchObject({
+      collection: "agent-approval-queue",
+      data: {
+        proposalType: "goal-run-create",
+        title: `Create goal run: ${VALID_GOAL}`,
+        client: 42,
+        proposalPayload: {
+          clientId: 42,
+          goal: VALID_GOAL,
+        },
+        status: "pending",
+      },
+      overrideAccess: true,
+    });
+
+    expect(startGoalRunMock).not.toHaveBeenCalled();
+    expect(markGoalRunStatusMock).not.toHaveBeenCalled();
+    expect(updateImpl).not.toHaveBeenCalled();
     expect(recordGoalRunSnapshotMock).not.toHaveBeenCalled();
   });
 
-  it("with reason: also calls recordGoalRunSnapshot once with the right args", async () => {
+  it("includes reason, summary, and supporting numbers in the approval row", async () => {
+    createImpl.mockResolvedValueOnce({ id: 88 });
+
     const res = await createGoalRun.execute(
-      { goal: VALID_GOAL, reason: "team standup decision" },
+      {
+        goal: VALID_GOAL,
+        reason: "team standup decision",
+        summary: "Start the waste reducer after reviewing last week.",
+        supportingNumbers: ["$500 spend reviewed in get_search_terms"],
+      },
       makeCtx(),
     );
     expect(res.ok).toBe(true);
+    expect(res.data).toMatchObject({ approvalId: 88 });
 
-    expect(recordGoalRunSnapshotMock).toHaveBeenCalledTimes(1);
-    const snapArgs = recordGoalRunSnapshotMock.mock.calls[0][1];
-    expect(snapArgs).toEqual({
-      goalRunId: 101,
-      step: 1,
-      action: "create_goal_run",
-      riskTier: "green",
-      status: "proposed",
-      proposedPayload: {
-        reason: "team standup decision",
-        createdBy: "optimate-chat",
-      },
+    const data = createImpl.mock.calls[0][0].data;
+    expect(data.proposalPayload).toMatchObject({
+      clientId: 42,
+      goal: VALID_GOAL,
+      reason: "team standup decision",
     });
-
-    // Snapshot is recorded AFTER the row is created and queued.
-    const recOrder = recordGoalRunSnapshotMock.mock.invocationCallOrder[0];
-    const updOrder = updateImpl.mock.invocationCallOrder[0];
-    expect(recOrder).toBeGreaterThan(updOrder);
+    expect(data.rendered.internalMarkdown).toContain("Start the waste reducer");
+    expect(data.rendered.internalMarkdown).toContain("$500 spend reviewed");
   });
 
-  it("returns ok:false when startGoalRun throws and never issues follow-up calls", async () => {
-    startGoalRunMock.mockRejectedValueOnce(new Error("DB exploded"));
+  it("returns ok:false when queueing the approval throws", async () => {
+    createImpl.mockRejectedValueOnce(new Error("DB exploded"));
 
     const res = await createGoalRun.execute(
       { goal: VALID_GOAL, reason: "should not write" },
       makeCtx(),
     );
     expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/Failed to create goal run/);
     expect(res.error).toContain("DB exploded");
 
+    expect(startGoalRunMock).not.toHaveBeenCalled();
     expect(markGoalRunStatusMock).not.toHaveBeenCalled();
     expect(updateImpl).not.toHaveBeenCalled();
     expect(recordGoalRunSnapshotMock).not.toHaveBeenCalled();

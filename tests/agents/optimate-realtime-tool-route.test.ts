@@ -71,9 +71,9 @@ describe('POST /api/optimate/realtime-tool', () => {
     expect(mockPayload.findByID).not.toHaveBeenCalled()
   })
 
-  it('rejects a write/propose tool with 403 before touching the DB', async () => {
+  it('rejects an unregistered tool with 403 before touching the DB', async () => {
     mockPayload.auth.mockResolvedValue({ user: { id: 42 } })
-    const res = await POST(makeRequest({ auditId: '1', name: 'propose_budget_update' }))
+    const res = await POST(makeRequest({ auditId: '1', name: 'send_gmail' }))
     expect(res.status).toBe(403)
     expect(mockPayload.findByID).not.toHaveBeenCalled()
     expect(execSpy).not.toHaveBeenCalled()

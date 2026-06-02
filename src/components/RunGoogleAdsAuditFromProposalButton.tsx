@@ -81,10 +81,25 @@ const RunGoogleAdsAuditFromProposalButton = () => {
 
   return (
     <div style={{ marginBottom: 20 }}>
+      <div
+        style={{
+          marginBottom: 10,
+          padding: '10px 12px',
+          background: '#eff6ff',
+          border: '1px solid #bfdbfe',
+          borderRadius: 8,
+          color: '#1e3a8a',
+          fontSize: 13,
+          lineHeight: 1.45,
+        }}
+      >
+        <strong>Google Ads Audit</strong> checks the prospect's Google Ads account via the MCC customer ID below. This is separate from the main <strong>Client Proposal Audit</strong>, which runs SEO, CRO, keyword, competitor, content, SERP displacement, and AI visibility checks for the proposal report.
+      </div>
       <button
         type="button"
         onClick={handleClick}
         disabled={loading || !hasCid}
+        title="Creates a separate Google Ads audit record linked to this proposal, then starts the Google Ads audit pipeline."
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -99,12 +114,12 @@ const RunGoogleAdsAuditFromProposalButton = () => {
           cursor: loading || !hasCid ? 'not-allowed' : 'pointer',
         }}
       >
-        {loading ? 'Creating & Running Audit...' : 'Run Google Ads Audit'}
+        {loading ? 'Creating & Running Google Ads Audit...' : 'Run Google Ads Audit'}
       </button>
 
       {!hasCid && (
         <p style={{ marginTop: 8, fontSize: 13, color: '#9ca3af' }}>
-          Enter a Google Ads Customer ID first.
+          Enter a Google Ads Customer ID on the Prospect tab first.
         </p>
       )}
 

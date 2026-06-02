@@ -3,7 +3,7 @@
  * the chat/autonomous default models with safe fallbacks.
  *
  * Mocks `getPayload` so we control what findGlobal returns. Asserts:
- *   - configured valid models are returned as-is,
+ *   - configured valid models are returned, with legacy aliases normalised,
  *   - an unset global falls back to the registry constants,
  *   - a non-canonical / picker-removed stored value falls back,
  *   - a findGlobal throw falls back (never throws to the caller),
@@ -39,14 +39,14 @@ beforeEach(() => {
 });
 
 describe("getOptiMateDefaultModels", () => {
-  it("returns configured valid models", async () => {
+  it("returns configured valid models and normalises legacy aliases", async () => {
     nextGlobal = {
       defaultChatModel: "gpt-5.5-codex-medium",
       defaultAutonomousModel: "minimax-m2.7",
       blogPrompterModel: "claude-sonnet-4.6",
     };
     const result = await getOptiMateDefaultModels();
-    expect(result.defaultChatModel).toBe("gpt-5.5-codex-medium");
+    expect(result.defaultChatModel).toBe("gpt-5.5-codex");
     expect(result.defaultAutonomousModel).toBe("minimax-m2.7");
     expect(result.blogPrompterModel).toBe("claude-sonnet-4.6");
   });

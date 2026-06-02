@@ -30,14 +30,40 @@ export interface OptiMateDefaultModels {
   blogPrompterModel?: CanonicalModelName;
   /** Optional task-specific model for the Xero invoice assistant. */
   invoiceAssistantModel?: CanonicalModelName;
+  /** Approximate token budget for chat history before compacting older turns. */
+  chatHistoryTokenLimit: number;
 }
 
 /** True if the model is canonical AND still offered in the chat picker. */
+function normaliseModelName(value: unknown): unknown {
+  if (value === "gpt-5.5-codex-medium" || value === "gpt-5.5-codex-low") return "gpt-5.5-codex";
+  return value;
+}
+
 function isUsablePickerModel(value: unknown): value is CanonicalModelName {
+  const model = normaliseModelName(value);
   return (
-    typeof value === "string" &&
-    isCanonicalModel(value) &&
-    CHAT_PICKER_MODELS.some((m) => m.canonical === value)
+    typeof model === "string" &&
+    isCanonicalModel(model) &&
+    CHAT_PICKER_MODELS.some((m) => m.canonical === model)
+  );
+}
+
+function resolvePickerModel(value: unknown): CanonicalModelName | undefined {
+  const model = normaliseModelName(value);
+  return isUsablePickerModel(model) ? model : undefined;
+}
+
+const DEFAULT_CHAT_HISTORY_TOKEN_LIMIT = 6000;
+const MIN_CHAT_HISTORY_TOKEN_LIMIT = 1000;
+const MAX_CHAT_HISTORY_TOKEN_LIMIT = 30000;
+
+function resolveChatHistoryTokenLimit(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_CHAT_HISTORY_TOKEN_LIMIT;
+  return Math.min(
+    MAX_CHAT_HISTORY_TOKEN_LIMIT,
+    Math.max(MIN_CHAT_HISTORY_TOKEN_LIMIT, Math.round(parsed)),
   );
 }
 
@@ -59,22 +85,16 @@ export async function getOptiMateDefaultModels(
       defaultAutonomousModel?: unknown;
       blogPrompterModel?: unknown;
       invoiceAssistantModel?: unknown;
+      chatHistoryTokenLimit?: unknown;
     } | null;
 
-    const blogPrompterModel = isUsablePickerModel(global?.blogPrompterModel)
-      ? global.blogPrompterModel
-      : undefined;
-    const invoiceAssistantModel = isUsablePickerModel(global?.invoiceAssistantModel)
-      ? global.invoiceAssistantModel
-      : undefined;
+    const blogPrompterModel = resolvePickerModel(global?.blogPrompterModel);
+    const invoiceAssistantModel = resolvePickerModel(global?.invoiceAssistantModel);
 
     return {
-      defaultChatModel: isUsablePickerModel(global?.defaultChatModel)
-        ? global.defaultChatModel
-        : DEFAULT_CHAT_MODEL,
-      defaultAutonomousModel: isUsablePickerModel(global?.defaultAutonomousModel)
-        ? global.defaultAutonomousModel
-        : DEFAULT_AUTONOMOUS_MODEL,
+      defaultChatModel: resolvePickerModel(global?.defaultChatModel) ?? DEFAULT_CHAT_MODEL,
+      defaultAutonomousModel: resolvePickerModel(global?.defaultAutonomousModel) ?? DEFAULT_AUTONOMOUS_MODEL,
+      chatHistoryTokenLimit: resolveChatHistoryTokenLimit(global?.chatHistoryTokenLimit),
       ...(blogPrompterModel ? { blogPrompterModel } : {}),
       ...(invoiceAssistantModel ? { invoiceAssistantModel } : {}),
     };
@@ -86,6 +106,7 @@ export async function getOptiMateDefaultModels(
     return {
       defaultChatModel: DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: DEFAULT_AUTONOMOUS_MODEL,
+      chatHistoryTokenLimit: DEFAULT_CHAT_HISTORY_TOKEN_LIMIT,
     };
   }
 }

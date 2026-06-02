@@ -1,33 +1,14 @@
 /**
  * Tool: create_goal_run
  *
- * Side-effecting. Queues a new autonomous goal-agent run for the current
- * client in `awaiting_data` so the scheduler picks it up on the next hourly
- * tick.
- *
- * Flow:
- *   1. Validate the requested `goal` against the runtime registry
- *      (`GOAL_TYPES`) — never hardcoded.
- *   2. Refuse if no client is linked to the chat context.
- *   3. Refuse if an active (non-terminal) goal-run of the same goal already
- *      exists for this client, surfacing the existing id so the operator can
- *      inspect it via `get_goal_run`.
- *   4. Create the row via `startGoalRun` (status defaults to "analysing"),
- *      then immediately transition to "awaiting_data" (legal per
- *      LEGAL_TRANSITIONS) so the scheduler treats it as a fresh queue entry.
- *   5. Stamp `nextCheckAt = now` so the next tick picks it up.
- *   6. If the caller supplied a `reason`, write step 1 as a proposed snapshot
- *      for audit ("created by optimate-chat").
+ * Side-effecting only in the approval queue. Queues a human approval row to
+ * create a new autonomous goal-agent run for the current client. The goal run
+ * is not created until an admin approves and applies the queued proposal.
  */
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
-import { getPayload } from "payload";
-import payloadConfig from "@/payload.config";
+import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
+import { queueProposal, buildInternalMarkdown } from "./_propose-helpers";
 import { GOAL_TYPES } from "@/lib/goal-agents/goal-types";
-import {
-  startGoalRun,
-  markGoalRunStatus,
-  recordGoalRunSnapshot,
-} from "@/lib/goal-agents/goal-run-audit";
 
 const GOAL_KEYS = Object.keys(GOAL_TYPES) as Array<keyof typeof GOAL_TYPES>;
 
@@ -36,16 +17,14 @@ const MAX_REASON_LEN = 500;
 export interface CreateGoalRunArgs {
   goal: string;
   reason?: string;
-}
-
-interface ExistingGoalRunDoc {
-  id: number;
+  summary?: string;
+  supportingNumbers?: string[];
 }
 
 export const createGoalRun: CanonicalTool<CreateGoalRunArgs> = {
   name: "create_goal_run",
   description:
-    "Queue a new autonomous goal-agent run for the current client. The scheduler picks it up on the next hourly tick. Args: goal (required \u2014 must be a registered goal type; currently 'search-term-waste-reducer'), reason (optional \u2014 short note recorded as the run's first snapshot for audit). Use when the team says 'set up waste-reducer for this client'. Returns the new goal-run id and initial state. Goal type 'search-term-waste-reducer' starts in awaiting_data and waits for a fresh google-ads-snapshots row before doing anything.",
+    "Queue human approval to create a new autonomous goal-agent run for the current client. Args: goal (required, must be a registered goal type; currently 'search-term-waste-reducer'), reason (optional), summary (optional), supportingNumbers (optional). Use when the team says 'set up waste-reducer for this client'. Returns an approval id and URL. The run is not created until approved and applied.",
   inputSchema: {
     type: "object",
     properties: {
@@ -60,6 +39,16 @@ export const createGoalRun: CanonicalTool<CreateGoalRunArgs> = {
         maxLength: MAX_REASON_LEN,
         description:
           "Optional short note explaining why the run is being created. Recorded as the run's first snapshot for audit.",
+      },
+      summary: {
+        type: "string",
+        maxLength: 500,
+        description: "1 to 3 sentence summary shown to the human approval reviewer.",
+      },
+      supportingNumbers: {
+        type: "array",
+        items: { type: "string" },
+        description: "Optional evidence from read tools supporting why this goal run should be created.",
       },
     },
     required: ["goal"],
@@ -98,6 +87,29 @@ export const createGoalRun: CanonicalTool<CreateGoalRunArgs> = {
       }
     }
 
+    const summary = obj.summary;
+    if (summary !== undefined && summary !== null) {
+      if (typeof summary !== "string") throw new Error("summary must be a string");
+      const trimmed = summary.trim();
+      if (trimmed.length > 500) throw new Error("summary must be <= 500 chars");
+      if (trimmed.length > 0) out.summary = trimmed;
+    }
+
+    const supportingNumbers = obj.supportingNumbers;
+    if (supportingNumbers !== undefined && supportingNumbers !== null) {
+      if (!Array.isArray(supportingNumbers)) {
+        throw new Error("supportingNumbers must be an array of strings");
+      }
+      const cleaned = supportingNumbers
+        .map((item) => {
+          if (typeof item !== "string") throw new Error("supportingNumbers entries must be strings");
+          return item.trim();
+        })
+        .filter(Boolean)
+        .slice(0, 10);
+      if (cleaned.length > 0) out.supportingNumbers = cleaned;
+    }
+
     return out;
   },
   execute: async (args, ctx) => {
@@ -109,7 +121,7 @@ export const createGoalRun: CanonicalTool<CreateGoalRunArgs> = {
     ) {
       return {
         ok: false,
-        error: "No client linked; cannot create a goal run.",
+        error: "No client linked; cannot queue a goal run approval.",
       };
     }
 
@@ -117,133 +129,49 @@ export const createGoalRun: CanonicalTool<CreateGoalRunArgs> = {
     if (!Number.isFinite(clientId)) {
       return {
         ok: false,
-        error: "No client linked; cannot create a goal run.",
+        error: "No client linked; cannot queue a goal run approval.",
       };
     }
 
-    const cfg = await payloadConfig;
-    const payload = await getPayload({ config: cfg });
+    const summary = args.summary ?? `Queue a ${args.goal} goal-agent run for this client.`;
+    const internalMarkdown = buildInternalMarkdown({
+      summary,
+      supportingNumbers: args.supportingNumbers,
+      diffSection: [
+        `**Goal:** ${args.goal}`,
+        args.reason ? `**Reason:** ${args.reason}` : "**Reason:** Not supplied",
+      ].join("\n"),
+      applyEffect:
+        "Will create a goal-runs row in awaiting_data and set nextCheckAt to now. " +
+        "The scheduler will pick it up on the next hourly tick. No Google Ads changes are applied by this approval itself.",
+    });
 
-    // 1) Refuse if a non-terminal run of the same goal already exists for
-    //    this client. We surface the existing id so the operator can use
-    //    `get_goal_run` to inspect it instead of double-queuing.
-    let existing;
+    let approvalId: number;
     try {
-      existing = await payload.find({
-        collection: "goal-runs" as never,
-        where: {
-          and: [
-            { client: { equals: clientId } },
-            { goal: { equals: args.goal } },
-            { status: { not_in: ["complete", "failed"] } },
-          ],
-        } as never,
-        limit: 1,
-        depth: 0,
-        overrideAccess: true,
-      });
-    } catch (err) {
-      return {
-        ok: false,
-        error: `Failed to check existing goal runs: ${(err as Error).message}`,
-      };
-    }
-
-    const existingDocs = (existing.docs ?? []) as ExistingGoalRunDoc[];
-    if (existingDocs.length > 0) {
-      const id = existingDocs[0]?.id;
-      return {
-        ok: false,
-        error: `An active ${args.goal} run already exists for this client (id: ${id}). Use get_goal_run to inspect it.`,
-      };
-    }
-
-    // 2) Create the run. startGoalRun lands it in "analysing"; we then
-    //    transition to "awaiting_data" so the scheduler sees a fresh queue
-    //    entry on the next tick. The analysing→awaiting_data move is legal
-    //    per LEGAL_TRANSITIONS.
-    let ref;
-    try {
-      ref = await startGoalRun(payload, {
+      approvalId = await queueProposal({
+        agentName: "optimate-google-ads",
+        agentRunId: ctx.agentRunId,
+        triggeredByUserId: ctx.context.userId as number | undefined,
+        proposalType: "goal-run-create",
+        title: `Create goal run: ${args.goal}`,
         clientId,
-        goal: args.goal,
+        proposalPayload: {
+          clientId,
+          goal: args.goal,
+          ...(args.reason ? { reason: args.reason } : {}),
+        },
+        rendered: { internalMarkdown },
       });
     } catch (err) {
-      return {
-        ok: false,
-        error: `Failed to create goal run: ${(err as Error).message}`,
-      };
-    }
-
-    try {
-      await markGoalRunStatus(payload, {
-        goalRunId: ref.id,
-        status: "awaiting_data",
-      });
-    } catch (err) {
-      return {
-        ok: false,
-        error: `Failed to set goal-run status to awaiting_data: ${(err as Error).message}`,
-      };
-    }
-
-    // 3) Stamp nextCheckAt so the next scheduler tick treats this row as due.
-    const nextCheckAt = new Date().toISOString();
-    try {
-      await payload.update({
-        collection: "goal-runs",
-        id: ref.id,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        data: { nextCheckAt } as any,
-        overrideAccess: true,
-      });
-    } catch (err) {
-      return {
-        ok: false,
-        error: `Failed to stamp nextCheckAt on goal run: ${(err as Error).message}`,
-      };
-    }
-
-    // 4) Optionally record the reason as the first audit snapshot.
-    if (args.reason && args.reason.length > 0) {
-      try {
-        await recordGoalRunSnapshot(payload, {
-          goalRunId: ref.id,
-          step: 1,
-          action: "create_goal_run",
-          riskTier: "green",
-          status: "proposed",
-          proposedPayload: {
-            reason: args.reason,
-            createdBy: "optimate-chat",
-          },
-        });
-      } catch (err) {
-        // The run is already created and queued — don't fail the whole call
-        // because the audit snapshot didn't land. Surface it in the message
-        // so the operator knows the audit trail is partial.
-        return {
-          ok: true,
-          data: {
-            goalRunId: ref.id,
-            goal: args.goal,
-            status: "awaiting_data" as const,
-            nextCheckAt,
-            message: `Goal queued. The scheduler will pick it up on the next hourly tick. (Note: failed to record initial audit snapshot: ${(err as Error).message})`,
-          },
-        };
-      }
+      return { ok: false, error: (err as Error).message };
     }
 
     return {
       ok: true,
       data: {
-        goalRunId: ref.id,
-        goal: args.goal,
-        status: "awaiting_data" as const,
-        nextCheckAt,
-        message:
-          "Goal queued. The scheduler will pick it up on the next hourly tick.",
+        approvalId,
+        approvalUrl: agentApprovalPath(approvalId),
+        message: "Goal run queued for human approval. It will not start until approved and applied.",
       },
     };
   },

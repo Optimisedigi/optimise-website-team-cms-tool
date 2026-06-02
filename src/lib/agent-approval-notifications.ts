@@ -8,8 +8,9 @@
  * approvers know whose request they're reviewing.
  *
  * When any user approves or rejects, every related row (matched by
- * `relatedApproval`) is deleted in one shot — the bell clears for everyone
- * on their next poll without per-user dismissal bookkeeping.
+ * `relatedApproval`) is marked read in one shot. The bell clears for everyone,
+ * but the rows remain in the latest-notifications history so team members can
+ * still click back into the approval/activity statement later.
  */
 
 import type { Payload } from "payload";
@@ -146,32 +147,44 @@ export async function fanOutApprovalNotifications(
 }
 
 /**
- * Delete every per-user `agent-approval-pending` notification tied to the
- * given approval row. Called from both the approve and reject routes so the
+ * Mark every per-user `agent-approval-pending` notification tied to the given
+ * approval row as read. Called from approve/reject/apply/fail transitions so the
  * bell clears everywhere as soon as any team-member actions the queue item.
  *
- * Returns the number of rows removed (best-effort; 0 on lookup failure).
+ * Returns the number of rows updated (best-effort; 0 on lookup failure).
  */
 export async function clearApprovalNotifications(
   payload: Payload,
   approvalId: number,
 ): Promise<number> {
   try {
-    const result = await payload.delete({
+    const unread = await payload.find({
       collection: NOTIFICATIONS,
       where: {
         and: [
           { kind: { equals: "agent-approval-pending" } },
           { relatedApproval: { equals: approvalId } },
+          { readAt: { exists: false } },
         ],
       } as never,
+      limit: 500,
+      depth: 0,
       overrideAccess: true,
     });
-    const docs = (result as { docs?: unknown[] }).docs;
-    return Array.isArray(docs) ? docs.length : 0;
+
+    const readAt = new Date().toISOString();
+    for (const row of unread.docs) {
+      await payload.update({
+        collection: NOTIFICATIONS,
+        id: (row as { id: number | string }).id,
+        overrideAccess: true,
+        data: { readAt } as never,
+      });
+    }
+    return unread.docs.length;
   } catch (err) {
     payload.logger?.error?.({
-      msg: "agent-approval notification cleanup failed",
+      msg: "agent-approval notification read-mark failed",
       approvalId,
       error: err instanceof Error ? err.message : String(err),
     });

@@ -2,8 +2,8 @@
  * Error classification + exponential backoff helper for LLM provider calls.
  *
  * Distinguishes between errors the agent loop should retry on (transient
- * network blips, 429/529 overloads), errors that should trigger a credential
- * fallback (401/403 from OAuth), and errors that should abort immediately
+ * network blips, 429/529 overloads, timeouts), errors that should trigger a
+ * credential fallback (401/403), and errors that should abort immediately
  * (invalid request, context overflow).
  */
 
@@ -11,6 +11,7 @@ export type ErrorClass =
   | "overloaded"        // 429 / 529 ,  retry with backoff
   | "rate-limited"      // OpenAI-style 429 ,  retry with backoff
   | "transient"         // 502 / 503 / network blip ,  retry small N
+  | "timeout"           // AbortSignal timeout , retry small N
   | "auth"              // 401 / 403 ,  non-retryable; resolver layer escalates to fallback
   | "context-overflow"  // model token cap ,  non-retryable, escalate to caller
   | "invalid-request"   // 400 ,  non-retryable, log and raise
@@ -77,6 +78,10 @@ export function classifyError(err: unknown): ErrorClass {
     if (err.status >= 500 && err.status < 600) return "transient";
     return "unknown";
   }
+  if (typeof DOMException !== "undefined" && err instanceof DOMException && err.name === "TimeoutError") return "timeout";
+  if (err instanceof Error && /aborted|aborterror|timeout|timed out|ETIMEDOUT/i.test(err.message)) {
+    return "timeout";
+  }
   // Network errors from fetch surface as TypeErrors with various messages
   if (err instanceof TypeError && /fetch|network|ECONNRESET|ETIMEDOUT/i.test(err.message)) {
     return "transient";
@@ -85,7 +90,7 @@ export function classifyError(err: unknown): ErrorClass {
 }
 
 export function isRetryable(cls: ErrorClass): boolean {
-  return cls === "overloaded" || cls === "rate-limited" || cls === "transient";
+  return cls === "overloaded" || cls === "rate-limited" || cls === "transient" || cls === "timeout";
 }
 
 /** Sleep with optional AbortSignal support. */
@@ -123,7 +128,7 @@ export async function withRetry<T>(
       const exp = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 250;
       const hinted = err instanceof HttpError ? err.retryAfterMs : null;
       const delay = hinted !== null ? Math.max(hinted, exp) : exp;
-      await sleep(delay, opts?.signal);
+      await sleep(Math.min(delay, 10_000), opts?.signal);
     }
   }
   throw lastErr;

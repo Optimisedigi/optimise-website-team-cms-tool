@@ -1,15 +1,12 @@
 /**
  * Realtime voice tool surface for OptiMate.
  *
- * The voice path is READ + ASK ONLY (see plan §3). The model may auto-execute
- * read-only data tools, but never budget/keyword/campaign writes — those stay
- * behind the text-chat propose → request_confirm → apply gate. So this module
- * maps only the read-only `get_*` / `list_*` / `memory_search` tools into the
- * OpenAI Realtime `tools` shape.
- *
- * Server-side (the realtime-tool route) re-derives this same allow-set and
- * rejects anything outside it, so a compromised/confused client can't widen
- * the surface — this adapter is just what the model is *told* it has.
+ * Voice now exposes the same canonical OptiMate tool registry as text chat.
+ * Tool-level and approval-queue guardrails remain the safety boundary: Google
+ * Ads/CMS proposals queue for human review, goal-run creation queues approval,
+ * and Gmail has draft-only scope (never send). Server-side (the realtime-tool
+ * route) re-derives this same registered-tool allow-set and rejects anything
+ * outside it, so a compromised/confused client cannot widen the surface.
  */
 
 import { getTools } from './index'
@@ -24,46 +21,25 @@ export interface RealtimeFunctionTool {
 }
 
 /**
- * The names allowed to auto-execute from voice. Derived by convention from the
- * registered tool set: read-only data lookups only. Explicitly EXCLUDES every
- * write/propose/apply/create tool. Resolved against `getTools()` so a tool that
- * isn't actually registered can never sneak in.
+ * The names allowed to execute from voice. This intentionally mirrors the
+ * registered text-chat tool set so voice and text OptiMate have the same
+ * capabilities. Resolved against `getTools()` so a tool that isn't registered
+ * can never sneak in.
  */
-export function getVoiceReadToolNames(): Set<string> {
-  const allowed = new Set<string>()
-  for (const tool of getTools()) {
-    if (isVoiceReadTool(tool.name)) {
-      allowed.add(tool.name)
-    }
-  }
-  return allowed
+export function getVoiceToolNames(): Set<string> {
+  return new Set(getTools().map((tool) => tool.name))
 }
 
-/**
- * A tool is voice-read-safe when it only reads data. We allow the `get_*` and
- * `list_*` lookup families plus `memory_search`, and hard-deny anything that
- * proposes, applies, creates, or otherwise mutates state.
- */
-export function isVoiceReadTool(name: string): boolean {
-  if (MUTATING_PREFIXES.some((prefix) => name.startsWith(prefix))) {
-    return false
-  }
-  if (EXPLICIT_DENY.has(name)) {
-    return false
-  }
-  return name.startsWith('get_') || name.startsWith('list_') || name === 'memory_search'
+export const getVoiceReadToolNames = getVoiceToolNames
+
+/** True when the name belongs to the registered OptiMate tool set. */
+export function isVoiceTool(name: string): boolean {
+  return getVoiceToolNames().has(name)
 }
 
-const MUTATING_PREFIXES = ['propose_', 'apply_', 'create_', 'request_'] as const
+export const isVoiceReadTool = isVoiceTool
 
-// Belt-and-braces deny-list for read-shaped names that still carry side effects
-// or shouldn't be voice-driven (e.g. memory writes, persona changes).
-const EXPLICIT_DENY = new Set<string>(['remember', 'soul_set'])
-
-/**
- * Build the Realtime `tools` array for the allowed read set. Pass the result
- * of getVoiceReadToolNames() (or a narrower subset) as `allowed`.
- */
+/** Build the Realtime `tools` array for the allowed voice set. */
 export function getRealtimeToolDefinitions(allowed: Set<string>): RealtimeFunctionTool[] {
   return getTools()
     .filter((tool) => allowed.has(tool.name))

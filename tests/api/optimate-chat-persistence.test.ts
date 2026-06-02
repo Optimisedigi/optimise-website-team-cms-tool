@@ -8,6 +8,7 @@ const mockPayload = {
   auth: vi.fn(),
   create: vi.fn(),
   findByID: vi.fn(),
+  findGlobal: vi.fn(),
 };
 
 vi.mock("payload", () => ({
@@ -29,19 +30,9 @@ vi.mock("@/lib/agents/_shared/llm/registry", () => ({
   // Accept anything as a canonical model so we don't have to ship the real
   // registry through the test bundle.
   isCanonicalModel: () => true,
-  // The chat route references MODEL_REGISTRY for the image-attachment provider
-  // guard; these tests send no images so the lookup never runs, but provide a
-  // stub so the import resolves.
-  MODEL_REGISTRY: {},
-}));
-
-// The chat route reads the configured default model via this helper. Stub it
-// so the unit test doesn't touch the optimate-settings global.
-vi.mock("@/lib/agents/_shared/optimate-default-models", () => ({
-  getOptiMateDefaultModels: vi.fn(async () => ({
-    defaultChatModel: "claude-sonnet-4.6",
-    defaultAutonomousModel: "kimi-k2.6",
-  })),
+  DEFAULT_CHAT_MODEL: "claude-sonnet-4",
+  DEFAULT_AUTONOMOUS_MODEL: "kimi-k2.6",
+  CHAT_PICKER_MODELS: [{ canonical: "claude-sonnet-4" }, { canonical: "kimi-k2.6" }],
 }));
 
 vi.mock("@/lib/agents/_shared/user-gmail-tokens", () => ({
@@ -74,6 +65,11 @@ beforeEach(() => {
     customerId: "123-456-7890",
     client: null,
     proposal: null,
+  });
+  mockPayload.findGlobal.mockResolvedValue({
+    defaultChatModel: "claude-sonnet-4",
+    defaultAutonomousModel: "kimi-k2.6",
+    chatHistoryTokenLimit: 6000,
   });
   mockRunChatTurn.mockResolvedValue({
     reply: "Here's your answer.",

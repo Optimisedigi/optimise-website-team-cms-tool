@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const auditId = url.searchParams.get("auditId");
     const sessionId = url.searchParams.get("sessionId");
+    const mode = url.searchParams.get("mode");
 
     const isAdmin = (user as { role?: string }).role === "admin";
 
@@ -61,9 +62,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ sessionId, turns });
     }
 
-    if (!auditId) {
+    if (!auditId && mode !== "portfolio") {
       return NextResponse.json(
-        { error: "auditId or sessionId is required" },
+        { error: "auditId, mode=portfolio, or sessionId is required" },
         { status: 400 },
       );
     }
@@ -72,9 +73,9 @@ export async function GET(request: Request) {
     // admin) and reduce into one row per sessionId. We over-fetch turns and
     // group client-side because Payload's REST/local API doesn't expose a
     // GROUP BY. Capped at 200 rows scanned, 50 sessions returned.
-    const where: Record<string, unknown> = {
-      audit: { equals: auditId },
-    };
+    const where: Record<string, unknown> = mode === "portfolio"
+      ? { mode: { equals: "portfolio" } }
+      : { audit: { equals: auditId } };
     if (!isAdmin) {
       where.user = { equals: user.id };
     }

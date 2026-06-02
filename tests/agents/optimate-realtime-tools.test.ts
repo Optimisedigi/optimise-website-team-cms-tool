@@ -1,15 +1,9 @@
 /**
  * OptiMate Realtime voice tool adapter.
  *
- * Verifies the voice path is read + ask only:
- *   - getVoiceReadToolNames() returns only read-only lookup tools and never a
- *     propose/apply/create/request or memory-write tool.
- *   - getRealtimeToolDefinitions() maps allowed CanonicalTools into the GA
- *     Realtime `{ type:"function", name, description, parameters }` shape.
- *   - isVoiceReadTool() denies every mutating prefix.
- *
- * Mocks payload like the other agent tool tests so the module graph (index.ts
- * pulls in payload + config) resolves under vitest.
+ * Voice shares the canonical OptiMate tool registry with text chat. Safety for
+ * side effects is handled by the same tool-level approval queues and Gmail
+ * draft-only scope, while the realtime bridge still rejects unregistered names.
  */
 
 import { describe, it, expect, vi } from 'vitest'
@@ -27,63 +21,57 @@ vi.mock('@/payload.config', () => ({ default: Promise.resolve({}) }))
 import {
   getRealtimeToolDefinitions,
   getVoiceReadToolNames,
+  getVoiceToolNames,
   isVoiceReadTool,
+  isVoiceTool,
 } from '@/lib/agents/optimate-google-ads/realtime-tools'
 import { getTools } from '@/lib/agents/optimate-google-ads'
 
-describe('getVoiceReadToolNames', () => {
-  const allowed = getVoiceReadToolNames()
+describe('getVoiceToolNames', () => {
+  const allowed = getVoiceToolNames()
 
-  it('includes core read-only data tools', () => {
+  it('includes read, draft, approval, goal, and memory tools from text OptiMate', () => {
     expect(allowed.has('get_campaign_performance')).toBe(true)
     expect(allowed.has('get_account_overview')).toBe(true)
     expect(allowed.has('memory_search')).toBe(true)
     expect(allowed.has('list_scheduled_tasks')).toBe(true)
+    expect(allowed.has('create_gmail_draft')).toBe(true)
+    expect(allowed.has('propose_budget_update')).toBe(true)
+    expect(allowed.has('request_confirm')).toBe(true)
+    expect(allowed.has('create_goal_run')).toBe(true)
+    expect(allowed.has('create_account_efficiency_goal_run')).toBe(true)
+    expect(allowed.has('remember')).toBe(true)
+    expect(allowed.has('soul_set')).toBe(true)
   })
 
-  it('never includes a write/propose/apply/create tool', () => {
-    for (const name of allowed) {
-      expect(name.startsWith('propose_')).toBe(false)
-      expect(name.startsWith('apply_')).toBe(false)
-      expect(name.startsWith('create_')).toBe(false)
-      expect(name.startsWith('request_')).toBe(false)
-    }
-    expect(allowed.has('propose_budget_update')).toBe(false)
-    expect(allowed.has('propose_keywords_add')).toBe(false)
-    expect(allowed.has('create_gmail_draft')).toBe(false)
-    expect(allowed.has('request_confirm')).toBe(false)
-    expect(allowed.has('remember')).toBe(false)
-    expect(allowed.has('soul_set')).toBe(false)
-  })
-
-  it('is a strict subset of the registered tool set', () => {
+  it('matches the registered tool set exactly', () => {
     const registered = new Set(getTools().map((t) => t.name))
-    for (const name of allowed) {
-      expect(registered.has(name)).toBe(true)
-    }
+    expect(allowed).toEqual(registered)
+    expect(getVoiceReadToolNames()).toEqual(registered)
   })
 })
 
-describe('isVoiceReadTool', () => {
-  it('allows read families', () => {
-    expect(isVoiceReadTool('get_account_overview')).toBe(true)
-    expect(isVoiceReadTool('list_goal_runs')).toBe(true)
-    expect(isVoiceReadTool('memory_search')).toBe(true)
+describe('isVoiceTool', () => {
+  it('allows registered text OptiMate tools over voice', () => {
+    expect(isVoiceTool('get_account_overview')).toBe(true)
+    expect(isVoiceTool('list_goal_runs')).toBe(true)
+    expect(isVoiceTool('memory_search')).toBe(true)
+    expect(isVoiceTool('propose_budget_update')).toBe(true)
+    expect(isVoiceTool('create_goal_run')).toBe(true)
+    expect(isVoiceTool('request_confirm')).toBe(true)
+    expect(isVoiceReadTool('create_gmail_draft')).toBe(true)
   })
 
-  it('denies mutating prefixes and explicit writes', () => {
-    expect(isVoiceReadTool('propose_budget_update')).toBe(false)
-    expect(isVoiceReadTool('apply_keywords_add')).toBe(false)
-    expect(isVoiceReadTool('create_goal_run')).toBe(false)
-    expect(isVoiceReadTool('request_confirm')).toBe(false)
-    expect(isVoiceReadTool('remember')).toBe(false)
-    expect(isVoiceReadTool('soul_set')).toBe(false)
+  it('denies unregistered names', () => {
+    expect(isVoiceTool('apply_keywords_add')).toBe(false)
+    expect(isVoiceTool('send_gmail')).toBe(false)
+    expect(isVoiceReadTool('delete_everything')).toBe(false)
   })
 })
 
 describe('getRealtimeToolDefinitions', () => {
   it('maps allowed tools to the GA Realtime function shape', () => {
-    const allowed = getVoiceReadToolNames()
+    const allowed = getVoiceToolNames()
     const defs = getRealtimeToolDefinitions(allowed)
 
     expect(defs.length).toBe(allowed.size)

@@ -29,7 +29,7 @@ export const OptimateChatTurns: CollectionConfig = {
     group: "Admin",
     hidden: true,
     useAsTitle: "preview",
-    defaultColumns: ["sessionId", "role", "audit", "user", "createdAt"],
+    defaultColumns: ["sessionId", "mode", "role", "audit", "user", "createdAt"],
     description:
       "Persistent OptiMate chat history. One row per user or assistant message.",
   },
@@ -57,10 +57,21 @@ export const OptimateChatTurns: CollectionConfig = {
       },
     },
     {
+      name: "mode",
+      type: "select",
+      required: true,
+      defaultValue: "audit",
+      index: true,
+      options: [
+        { label: "Audit", value: "audit" },
+        { label: "Portfolio", value: "portfolio" },
+      ],
+    },
+    {
       name: "audit",
       type: "relationship",
       relationTo: "google-ads-audits" as any,
-      required: true,
+      required: false,
       index: true,
     },
     {

@@ -76,6 +76,8 @@ export async function computeMemoryTokenUsage(
     const where: Record<string, unknown> = {
       and: [
         { importance: { greater_than_equal: PINNED_IMPORTANCE_THRESHOLD } },
+        { or: [{ status: { equals: "active" } }, { status: { exists: false } }] },
+        { or: [{ expiresAt: { greater_than: new Date().toISOString() } }, { expiresAt: { exists: false } }] },
         clientIds.length > 0
           ? {
               or: [

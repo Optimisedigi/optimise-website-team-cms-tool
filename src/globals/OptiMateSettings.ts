@@ -27,19 +27,8 @@ import {
  * the models the chat UI offers. Plain OpenAI API-key models are deliberately
  * omitted until OPENAI_API_KEY is configured.
  */
-const MODEL_REASONING_LABELS: Record<string, "thinking" | "light thinking"> = {
-  "claude-sonnet-4.6": "thinking",
-  "claude-sonnet-4.5": "thinking",
-  "claude-opus-4.7": "thinking",
-  "claude-haiku-4.5": "light thinking",
-  "kimi-k2.6": "thinking",
-  "minimax-m2.7": "thinking",
-  "gpt-5.5-codex-medium": "thinking",
-  "gpt-5.5-codex-low": "thinking",
-};
-
 const MODEL_OPTIONS = CHAT_PICKER_MODELS.map((m) => ({
-  label: `${m.label} — ${MODEL_REASONING_LABELS[m.canonical] ?? "thinking"}`,
+  label: m.label,
   value: m.canonical,
 }));
 
@@ -55,55 +44,108 @@ export const OptiMateSettings: GlobalConfig = {
   access: globalAccess("optimate-settings"),
   fields: [
     {
-      name: "memoryTokenUsage",
-      type: "ui",
-      admin: {
-        components: {
-          Field: "./components/agent/MemoryTokenUsagePanel",
+      type: "tabs",
+      tabs: [
+        {
+          label: "Models & Chat",
+          fields: [
+            {
+              name: "reasoningNote",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: {
+                    path: "@payloadcms/ui#Banner",
+                    clientProps: {
+                      type: "info",
+                      children:
+                        "Reasoning is now controlled per request in the OptiMate chat UI. It defaults to off for routine requests; turn it on only for complex multi-step work.",
+                    },
+                  },
+                },
+              },
+            },
+            {
+              name: "defaultChatModel",
+              type: "select",
+              options: MODEL_OPTIONS,
+              defaultValue: DEFAULT_CHAT_MODEL,
+              required: true,
+              admin: {
+                description:
+                  "Model the OptiMate chat picker defaults to, and the model used when a chat request doesn't pick one. Users can still switch models per-conversation.",
+              },
+            },
+            {
+              name: "defaultAutonomousModel",
+              type: "select",
+              options: MODEL_OPTIONS,
+              defaultValue: DEFAULT_AUTONOMOUS_MODEL,
+              required: true,
+              admin: {
+                description:
+                  "Model used for unattended runs (scheduled tasks, cron) where no human picks a model.",
+              },
+            },
+            {
+              name: "chatHistoryTokenLimit",
+              type: "number",
+              label: "Chat history token limit",
+              defaultValue: 6000,
+              min: 1000,
+              max: 30000,
+              admin: {
+                description:
+                  "Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.",
+              },
+            },
+            {
+              name: "blogPrompterModel",
+              type: "select",
+              options: MODEL_OPTIONS,
+              label: "Blog Prompter AI model",
+              admin: {
+                description:
+                  "Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
+              },
+            },
+            {
+              name: "invoiceAssistantModel",
+              type: "select",
+              options: MODEL_OPTIONS,
+              label: "Invoice Assistant model",
+              admin: {
+                description:
+                  "Optional. Model used by the Xero invoice assistant. Leave blank to use the autonomous default.",
+              },
+            },
+          ],
         },
-      },
+        {
+          label: "Memory",
+          fields: [
+            {
+              name: "memoryTokenUsage",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/agent/MemoryTokenUsagePanel",
+                },
+              },
+            },
+            {
+              name: "memoryReview",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/agent/MemoryReviewPanel",
+                },
+              },
+            },
+          ],
+        },
+      ],
     },
-    {
-      name: "defaultChatModel",
-      type: "select",
-      options: MODEL_OPTIONS,
-      defaultValue: DEFAULT_CHAT_MODEL,
-      required: true,
-      admin: {
-        description:
-          "Model the OptiMate chat picker defaults to, and the model used when a chat request doesn't pick one. Users can still switch models per-conversation.",
-      },
-    },
-    {
-      name: "defaultAutonomousModel",
-      type: "select",
-      options: MODEL_OPTIONS,
-      defaultValue: DEFAULT_AUTONOMOUS_MODEL,
-      required: true,
-      admin: {
-        description:
-          "Model used for unattended runs (scheduled tasks, cron) where no human picks a model.",
-      },
-    },
-    {
-      name: "blogPrompterModel",
-      type: "select",
-      options: MODEL_OPTIONS,
-      label: "Blog Prompter AI model",
-      admin: {
-        description:
-          "Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
-      },
-    },
-    {
-      name: "invoiceAssistantModel",
-      type: "select",
-      options: MODEL_OPTIONS,
-      label: "Invoice Assistant model",
-      admin: {
-        description:
-          "Optional. Model used by the Xero invoice assistant. Leave blank to use the autonomous default.",
-      },
-    },
+
   ],
 };

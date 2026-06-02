@@ -28,9 +28,9 @@ export const AgentMemory: CollectionConfig = {
   admin: {
     group: "Agent",
     useAsTitle: "subject",
-    defaultColumns: ["scope", "client", "category", "subject", "importance", "updatedAt"],
+    defaultColumns: ["scope", "client", "category", "subject", "importance", "status", "useCount", "lastAccessedAt"],
     description:
-      "Facts the agent has learned, scoped per-client or globally. The agent searches these via memory_search; only importance ≥ 80 rows auto-load into the prompt.",
+      "Facts the agent has learned, scoped per-client or globally. Most rows stay search-only; only importance ≥ 80 active rows auto-load into the prompt.",
   },
   access: {
     // Admin-only — facts contain client business intelligence.
@@ -110,12 +110,81 @@ export const AgentMemory: CollectionConfig = {
       },
     },
     {
+      name: "status",
+      type: "select",
+      defaultValue: "active",
+      options: [
+        { label: "Active", value: "active" },
+        { label: "Needs Review", value: "needs_review" },
+        { label: "Archived", value: "archived" },
+      ],
+      admin: {
+        description:
+          "Archived memories are ignored by memory_search and are never auto-loaded. Use Needs Review for facts that may be stale or duplicated.",
+      },
+    },
+    {
+      name: "confidence",
+      type: "number",
+      defaultValue: 80,
+      min: 0,
+      max: 100,
+      admin: {
+        description: "0-100 confidence that this memory is accurate. Low-confidence rows should be reviewed before pinning.",
+      },
+    },
+    {
+      name: "source",
+      type: "select",
+      defaultValue: "agent-inferred",
+      options: [
+        { label: "User Saved", value: "user-saved" },
+        { label: "Agent Inferred", value: "agent-inferred" },
+        { label: "Admin Created", value: "admin-created" },
+      ],
+      admin: {
+        description: "How this memory was created, for review and trust decisions.",
+      },
+    },
+    {
+      name: "useCount",
+      type: "number",
+      defaultValue: 0,
+      min: 0,
+      admin: {
+        description: "Incremented whenever memory_search returns this row.",
+        readOnly: true,
+      },
+    },
+    {
       name: "lastAccessedAt",
       type: "date",
       admin: {
         description:
           "Stamped by memory_search every time this row is returned. Lets us prune stale rows.",
         readOnly: true,
+      },
+    },
+    {
+      name: "lastMatchedQuery",
+      type: "text",
+      admin: {
+        description: "Last memory_search query that returned this row.",
+        readOnly: true,
+      },
+    },
+    {
+      name: "reviewAfter",
+      type: "date",
+      admin: {
+        description: "Optional date when this memory should be reviewed for freshness.",
+      },
+    },
+    {
+      name: "expiresAt",
+      type: "date",
+      admin: {
+        description: "Optional expiry. Expired memories are ignored by memory_search and pinned-memory loading.",
       },
     },
     {

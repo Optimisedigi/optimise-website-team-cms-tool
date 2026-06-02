@@ -8,18 +8,13 @@
 
 import type { CallLLMOptions } from "../types";
 
-export class UnsupportedOpenAIImageInputError extends Error {
-  constructor() {
-    super(
-      "Image attachments are only supported on Anthropic Claude models in OptiMate. Select a Claude model, or add provider-specific image-part support for the selected OpenAI-compatible provider/model before sending screenshots.",
-    );
-    this.name = "UnsupportedOpenAIImageInputError";
-  }
-}
+type OpenAIUserContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
 
 interface OpenAIMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content?: string | null;
+  content?: string | OpenAIUserContentPart[] | null;
   /**
    * Kimi (Moonshot) thinking-mode contract: when an assistant message
    * carries tool_calls, the API requires `reasoning_content` to be present
@@ -111,12 +106,16 @@ export function toOpenAI(opts: CallLLMOptions, providerModel: string): OpenAIReq
     }
 
     // user role
-    const userTextParts: string[] = [];
+    const userContentParts: OpenAIUserContentPart[] = [];
     const userToolResults: OpenAIMessage[] = [];
     for (const part of m.content) {
-      if (part.type === "text") userTextParts.push(part.text);
-      else if (part.type === "image") {
-        throw new UnsupportedOpenAIImageInputError();
+      if (part.type === "text") {
+        userContentParts.push({ type: "text", text: part.text });
+      } else if (part.type === "image") {
+        userContentParts.push({
+          type: "image_url",
+          image_url: { url: `data:${part.mediaType};base64,${part.data}` },
+        });
       } else if (part.type === "tool_result") {
         // tool_result on a user message: emit as separate role:'tool' message
         userToolResults.push({
@@ -126,8 +125,17 @@ export function toOpenAI(opts: CallLLMOptions, providerModel: string): OpenAIReq
         });
       }
     }
-    if (userTextParts.length > 0) {
-      messages.push({ role: "user", content: userTextParts.join("") });
+    if (userContentParts.length > 0) {
+      const hasImage = userContentParts.some((part) => part.type === "image_url");
+      messages.push({
+        role: "user",
+        content: hasImage
+          ? userContentParts
+          : userContentParts
+              .filter((part): part is Extract<OpenAIUserContentPart, { type: "text" }> => part.type === "text")
+              .map((part) => part.text)
+              .join(""),
+      });
     }
     messages.push(...userToolResults);
   }

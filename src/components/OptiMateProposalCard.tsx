@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
 export interface OptiMateProposal {
@@ -13,6 +14,7 @@ interface OptiMateProposalCardProps {
   proposal: OptiMateProposal
   /** Visual variant — inline lives under a chat bubble; strip is the panel-top row. */
   variant?: 'inline' | 'strip'
+  onReject?: (id: number) => void
 }
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -45,22 +47,41 @@ function typePill(proposalType: string): string {
  * Both link to /admin/agent-approvals/[id] in a new tab — the canonical review
  * surface where Approve / Apply lives.
  */
-const OptiMateProposalCard = ({ proposal, variant = 'inline' }: OptiMateProposalCardProps) => {
+const OptiMateProposalCard = ({ proposal, variant = 'inline', onReject }: OptiMateProposalCardProps) => {
   const status = statusPalette(proposal.status)
   const isStrip = variant === 'strip'
+  const [rejecting, setRejecting] = useState(false)
+
+  const rejectProposal = async (): Promise<void> => {
+    if (rejecting) return
+    setRejecting(true)
+    try {
+      const res = await fetch(`/api/agent-approvals/${proposal.id}/reject`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error(`Reject failed (${res.status})`)
+      onReject?.(proposal.id)
+    } catch (err) {
+      console.error('[OptiMateProposalCard] reject failed:', err)
+      setRejecting(false)
+    }
+  }
 
   const wrapperStyle: CSSProperties = isStrip
     ? {
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 6,
-        padding: '4px 8px',
+        gap: 4,
+        padding: '4px 6px',
         background: '#fffbeb',
         border: '1px solid #fde68a',
         borderRadius: 999,
         fontSize: 11,
         whiteSpace: 'nowrap',
-        flexShrink: 0,
+        flexShrink: 1,
+        minWidth: 0,
+        maxWidth: '100%',
       }
     : {
         marginTop: 6,
@@ -91,10 +112,11 @@ const OptiMateProposalCard = ({ proposal, variant = 'inline' }: OptiMateProposal
       </span>
       <span
         style={{
-          flex: isStrip ? '0 0 auto' : 1,
+          flex: isStrip ? '1 1 auto' : 1,
+          minWidth: 0,
           fontWeight: 500,
           color: '#374151',
-          maxWidth: isStrip ? 220 : undefined,
+          maxWidth: isStrip ? 90 : undefined,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
         }}
@@ -115,21 +137,55 @@ const OptiMateProposalCard = ({ proposal, variant = 'inline' }: OptiMateProposal
       >
         {proposal.status}
       </span>
-      <a
-        href={`/admin/agent-approvals/${proposal.id}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          color: '#2563eb',
-          textDecoration: 'none',
-          fontWeight: 600,
-          fontSize: 11,
-          marginLeft: isStrip ? 0 : 4,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        Open →
-      </a>
+      {isStrip && onReject ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            void rejectProposal()
+          }}
+          disabled={rejecting}
+          title="Reject this pending proposal"
+          aria-label={`Reject ${proposal.title}`}
+          style={{
+            width: 18,
+            height: 18,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            border: '1px solid #fecaca',
+            borderRadius: 999,
+            background: '#fff',
+            color: '#991b1b',
+            cursor: rejecting ? 'default' : 'pointer',
+            fontSize: 12,
+            fontWeight: 700,
+            lineHeight: 1,
+            flexShrink: 0,
+            opacity: rejecting ? 0.55 : 1,
+          }}
+        >
+          ×
+        </button>
+      ) : (
+        <a
+          href={`/admin/agent-approvals/${proposal.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: '#2563eb',
+            textDecoration: 'none',
+            fontWeight: 600,
+            fontSize: 11,
+            marginLeft: isStrip ? 0 : 4,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {isStrip ? 'Open' : 'Open →'}
+        </a>
+      )}
     </div>
   )
 }

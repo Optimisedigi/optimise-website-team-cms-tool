@@ -20,6 +20,7 @@ import { fromAnthropic } from "../transformers/from-anthropic";
 import type { CallLLMOptions, LLMResponse } from "../types";
 
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+const DEFAULT_LLM_TIMEOUT_MS = 90_000;
 
 /** Real Claude Code CLI version sent as user-agent on OAuth requests.
  *  gg-ai pins this; we mirror so our traffic doesn't stand out. */
@@ -72,6 +73,7 @@ export async function callAnthropic(
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new HttpError(res.status, await res.text(), { headers: res.headers });

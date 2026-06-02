@@ -16,10 +16,13 @@
  *   - Plan mode, session DAGs, multi-turn memory across runs
  */
 
-import { callLLM } from "./llm";
+import { AggregateLLMError, callLLM } from "./llm";
 import { toToolDef, type CanonicalTool, type ToolContext } from "./tool";
 import { logAgentStep } from "./activity-log";
 import { recordAuthEvent } from "./llm/auth/events";
+import { NoCredentialError } from "./llm/auth/types";
+import { OAuthFailedError } from "./llm/auth/resolver";
+import { classifyError, HttpError } from "./llm/retry";
 import { MODEL_REGISTRY, type CanonicalModelName } from "./llm/registry";
 import type { AgentRunOptions, AgentRunResult, AgentStep } from "./types";
 import type { ContentPart, Message, Usage } from "./llm/types";
@@ -58,6 +61,52 @@ function newRunId(): string {
 
 function emptyUsage(): Usage {
   return { inputTokens: 0, outputTokens: 0 };
+}
+
+function describeLLMError(err: unknown): string {
+  if (err instanceof NoCredentialError) {
+    return `no credential configured for ${err.provider}`;
+  }
+  if (err instanceof OAuthFailedError) {
+    return `${err.provider} OAuth failed: ${err.reason}`;
+  }
+  if (err instanceof HttpError) {
+    const cls = classifyError(err);
+    if (cls === "auth") return `authentication failed (HTTP ${err.status})`;
+    if (cls === "rate-limited") return `rate limited (HTTP ${err.status})`;
+    if (cls === "overloaded") return `provider overloaded (HTTP ${err.status})`;
+    if (cls === "timeout") return `request timed out (HTTP ${err.status})`;
+    if (cls === "context-overflow") return "context window exceeded";
+    if (cls === "invalid-request") return `invalid request (HTTP ${err.status})`;
+    return `HTTP ${err.status}`;
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  const cls = classifyError(err);
+  if (cls === "timeout") return "request timed out";
+  if (cls === "transient") return `temporary network/provider error: ${message}`;
+  return message || "unknown error";
+}
+
+function formatLLMFailure(err: unknown): string {
+  if (err instanceof AggregateLLMError) {
+    const attempts = err.errors
+      .map(({ model, error }) => `${model}: ${describeLLMError(error)}`)
+      .join("; ");
+    return `I couldn't get a response from any configured model. ${attempts}`;
+  }
+  return `I couldn't get a response from the model. ${describeLLMError(err)}`;
+}
+
+function llmFailureMessage(error: string): Message {
+  return {
+    role: "assistant",
+    content: [
+      {
+        type: "text",
+        text: `${error}. Please check model credentials/rate limits, or try again in a moment.`,
+      },
+    ],
+  };
 }
 
 function accumulateUsage(acc: Usage, add: Usage): Usage {
@@ -99,14 +148,49 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
     }
 
     const llmStart = Date.now();
-    const response = await callLLM({
-      model: opts.model,
-      fallbackModels: opts.fallbackModels,
-      messages,
-      system: opts.systemPrompt,
-      tools: toolDefs.length > 0 ? toolDefs : undefined,
-      ...(currentMaxTokens !== undefined ? { maxTokens: currentMaxTokens } : {}),
-    });
+    let response;
+    try {
+      response = await callLLM({
+        model: opts.model,
+        fallbackModels: opts.fallbackModels,
+        messages,
+        system: opts.systemPrompt,
+        tools: toolDefs.length > 0 ? toolDefs : undefined,
+        ...(currentMaxTokens !== undefined ? { maxTokens: currentMaxTokens } : {}),
+        timeoutMs: opts.timeoutMs,
+        reasoningMode: opts.reasoningMode,
+      });
+    } catch (err) {
+      const llmDuration = Date.now() - llmStart;
+      const output = formatLLMFailure(err);
+      const finalMessage = llmFailureMessage(output);
+      const step: AgentStep = {
+        step: turn,
+        type: "error",
+        output,
+        durationMs: llmDuration,
+        timestamp: new Date().toISOString(),
+      };
+      steps.push(step);
+      await logAgentStep({
+        agentRunId: runId,
+        agentName: opts.agentName,
+        step: turn,
+        type: "agent_error",
+        title: `${opts.agentName} LLM request failed`,
+        output,
+        durationMs: llmDuration,
+        clientId: opts.context.clientId as string | number | undefined,
+      });
+      return {
+        finalMessage,
+        steps,
+        totalUsage,
+        modelUsed,
+        source: lastSource,
+        runId,
+      };
+    }
     const llmDuration = Date.now() - llmStart;
 
     totalUsage = accumulateUsage(totalUsage, response.usage);

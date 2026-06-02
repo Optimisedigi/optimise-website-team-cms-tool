@@ -31,6 +31,7 @@ interface MemoryRow {
   subject: string;
   content: string;
   importance: number;
+  useCount?: number;
   updatedAt: string;
 }
 
@@ -104,11 +105,19 @@ export const memorySearch: CanonicalTool<MemorySearchArgs> = {
     const scopeWhere: Record<string, unknown> =
       scopeBlocks.length === 1 ? scopeBlocks[0] : { or: scopeBlocks };
 
+    const activeWhere: Record<string, unknown> = {
+      and: [
+        scopeWhere,
+        { or: [{ status: { equals: "active" } }, { status: { exists: false } }] },
+        { or: [{ expiresAt: { greater_than: new Date().toISOString() } }, { expiresAt: { exists: false } }] },
+      ],
+    };
+
     const where: Record<string, unknown> =
       args.query && args.query.length > 0
         ? {
             and: [
-              scopeWhere,
+              activeWhere,
               {
                 or: [
                   { subject: { contains: args.query } },
@@ -118,7 +127,7 @@ export const memorySearch: CanonicalTool<MemorySearchArgs> = {
               },
             ],
           }
-        : scopeWhere;
+        : activeWhere;
 
     let result;
     try {
@@ -151,7 +160,11 @@ export const memorySearch: CanonicalTool<MemorySearchArgs> = {
             payload.update({
               collection: "agent-memory" as never,
               id: r.id,
-              data: { lastAccessedAt: now } as never,
+              data: {
+                lastAccessedAt: now,
+                lastMatchedQuery: args.query ?? "",
+                useCount: Number(r.useCount ?? 0) + 1,
+              } as never,
               overrideAccess: true,
             }),
           ).catch((err) => {

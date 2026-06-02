@@ -1,5 +1,9 @@
 import type { CollectionConfig } from "payload";
 import { hasValidApiKey } from "./api-key-access";
+import {
+  clearApprovalNotifications,
+  fanOutApprovalNotifications,
+} from "../lib/agent-approval-notifications";
 
 /**
  * Agent Approval Queue.
@@ -36,6 +40,34 @@ export const AgentApprovalQueue: CollectionConfig = {
     delete: ({ req }) => req.user?.role === "admin",
   },
   defaultSort: "-createdAt",
+  hooks: {
+    afterChange: [
+      async ({ doc, operation, req }) => {
+        if (operation === "create" && doc.status === "pending") {
+          await fanOutApprovalNotifications(req.payload, {
+            approvalId: Number(doc.id),
+            agentRunId: String(doc.agentRunId),
+            agentName: String(doc.agentName),
+            proposalType: String(doc.proposalType),
+            title: String(doc.title),
+            clientId:
+              doc.client !== undefined && doc.client !== null
+                ? typeof doc.client === "object"
+                  ? doc.client.id
+                  : doc.client
+                : null,
+          });
+        }
+
+        if (
+          operation === "update" &&
+          ["approved", "rejected", "applied", "failed"].includes(String(doc.status))
+        ) {
+          await clearApprovalNotifications(req.payload, Number(doc.id));
+        }
+      },
+    ],
+  },
   fields: [
     {
       name: "title",

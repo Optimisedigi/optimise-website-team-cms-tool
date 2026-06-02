@@ -61,20 +61,17 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   const [auditsLoading, setAuditsLoading] = useState(false)
   const [auditsError, setAuditsError] = useState<string | null>(null)
   const [selectedAudits, setSelectedAudits] = useState<AuditOption[]>([])
+  const [portfolioSelected, setPortfolioSelected] = useState(false)
   const [filter, setFilter] = useState('')
-  const [pendingCount, setPendingCount] = useState<number>(0)
 
   const loadAudits = useCallback(async () => {
     setAuditsLoading(true)
     setAuditsError(null)
     try {
-      const res = await fetch(
-        '/api/google-ads-audits?where[customerId][not_equals]=&limit=200&depth=0&sort=-updatedAt',
-        { credentials: 'include' },
-      )
+      const res = await fetch('/api/optimate/google-ads-accounts', { credentials: 'include' })
       if (!res.ok) throw new Error(`Failed (${res.status})`)
-      const data = (await res.json()) as { docs?: Array<Record<string, unknown>> }
-      const docs = Array.isArray(data.docs) ? data.docs : []
+      const data = (await res.json()) as { accounts?: Array<Record<string, unknown>> }
+      const docs = Array.isArray(data.accounts) ? data.accounts : []
       const opts: AuditOption[] = docs
         .map((d) => ({
           id: d.id as string | number,
@@ -95,35 +92,6 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
       loadAudits()
     }
   }, [open, step, audits, auditsLoading, loadAudits])
-
-  // Poll pending approvals so the launcher pill shows a live count badge.
-  // Cheap query: limit=0 returns just totalDocs. Polled while the panel is
-  // closed (every 60s) and refetched once when opened.
-  useEffect(() => {
-    if (!user) return
-    let cancelled = false
-    const fetchCount = async () => {
-      try {
-        const res = await fetch(
-          '/api/agent-approval-queue?where[status][equals]=pending&limit=0&depth=0',
-          { credentials: 'include' },
-        )
-        if (!res.ok) return
-        const data = (await res.json()) as { totalDocs?: number }
-        if (!cancelled && typeof data.totalDocs === 'number') {
-          setPendingCount(data.totalDocs)
-        }
-      } catch {
-        /* silent */
-      }
-    }
-    fetchCount()
-    const interval = setInterval(fetchCount, 60_000)
-    return () => {
-      cancelled = true
-      clearInterval(interval)
-    }
-  }, [user, open])
 
   // Reset to agent step when closing the panel.
   const close = () => {
@@ -162,14 +130,21 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
   }
 
   const toggleAudit = (opt: AuditOption) => {
+    setPortfolioSelected(false)
     setSelectedAudits((prev) => {
       const exists = prev.some((a) => String(a.id) === String(opt.id))
       return exists ? prev.filter((a) => String(a.id) !== String(opt.id)) : [...prev, opt]
     })
   }
 
+  const startPortfolioChat = () => {
+    setSelectedAudits([])
+    setPortfolioSelected(true)
+    setStep('chat')
+  }
+
   const goToChat = () => {
-    if (selectedAudits.length === 0) return
+    if (selectedAudits.length === 0 && !portfolioSelected) return
     setStep('chat')
   }
 
@@ -193,11 +168,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             setOpen(true)
             pomo.requestNotificationPermission()
           }}
-          title={
-            pendingCount > 0
-              ? `Open OptiMate (${pendingCount} pending approval${pendingCount === 1 ? '' : 's'})`
-              : 'Open OptiMate'
-          }
+          title="Open OptiMate"
           style={{
             position: 'fixed',
             bottom: PILL_BOTTOM,
@@ -239,46 +210,6 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               title={pomo.tracking ? `Tracking: ${pomo.taskName}` : 'Pomodoro running'}
             >
               ⏱ {pomo.pillLabel}
-            </span>
-          )}
-          {pendingCount > 0 && (
-            <span
-              role="link"
-              tabIndex={0}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                window.open(
-                  '/admin/agent-approvals?status=pending',
-                  '_blank',
-                  'noopener,noreferrer',
-                )
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  window.open(
-                    '/admin/agent-approvals?status=pending',
-                    '_blank',
-                    'noopener,noreferrer',
-                  )
-                }
-              }}
-              title={`${pendingCount} pending — open queue`}
-              style={{
-                background: '#ef4444',
-                color: '#fff',
-                fontSize: 11,
-                fontWeight: 700,
-                lineHeight: 1,
-                padding: '3px 6px',
-                borderRadius: 999,
-                marginLeft: 2,
-                cursor: 'pointer',
-              }}
-            >
-              {pendingCount > 99 ? '99+' : pendingCount}
             </span>
           )}
         </button>
@@ -359,7 +290,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   · Pick Google Ads accounts
                 </span>
               )}
-              {step === 'chat' && selectedAudits.length > 0 && (
+              {step === 'chat' && (selectedAudits.length > 0 || portfolioSelected) && (
                 // Agent name lives in the black bar slot that used to show the
                 // client name. The active account label is already surfaced by
                 // the per-account tab strip inside OptiMateMultiChat (and by
@@ -378,27 +309,6 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
                   · Gmail
                 </span>
-              )}
-              {pendingCount > 0 && (
-                <a
-                  href="/admin/agent-approvals?status=pending"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={`${pendingCount} pending approval${pendingCount === 1 ? '' : 's'} — open queue`}
-                  style={{
-                    background: '#ef4444',
-                    color: '#fff',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: '2px 6px',
-                    borderRadius: 999,
-                    marginLeft: 8,
-                    textDecoration: 'none',
-                    verticalAlign: 'middle',
-                  }}
-                >
-                  {pendingCount > 99 ? '99+' : pendingCount} pending
-                </a>
               )}
             </div>
             {step === 'chat' && (
@@ -440,7 +350,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 ← Agents
               </button>
             )}
-            {step === 'chat' && selectedAudits.length > 0 && (
+            {step === 'chat' && (selectedAudits.length > 0 || portfolioSelected) && (
               <button
                 type="button"
                 onClick={() => {
@@ -472,9 +382,10 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   // floating launcher and doesn't trap our `position:
                   // fixed` container — the chat fills the whole window
                   // and resizes with it.
-                  const url =
-                    `/optimate-popout?audits=${encodeURIComponent(ids)}` +
-                    `&sessionIds=${encodeURIComponent(sessionIds)}`
+                  const url = portfolioSelected
+                    ? `/optimate-popout?mode=portfolio&sessionIds=${encodeURIComponent(sessionMap.portfolio ?? '')}`
+                    : `/optimate-popout?audits=${encodeURIComponent(ids)}` +
+                      `&sessionIds=${encodeURIComponent(sessionIds)}`
                   const features = [
                     'popup=yes',
                     'width=680',
@@ -484,7 +395,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     'location=no',
                     'status=no',
                   ].join(',')
-                  window.open(url, `optimate-popout-${ids}`, features)
+                  window.open(url, `optimate-popout-${portfolioSelected ? 'portfolio' : ids}`, features)
                   setOpen(false)
                 }}
                 title="Pop out to a separate window"
@@ -662,7 +573,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 </p>
 
                 {/* Persistent shortcut at the bottom of the launcher: jump
-                    straight into the Gmail reply flow without picking an
+                    straight into the Gmail draft flow without picking an
                     agent or a Google Ads account. */}
                 <div
                   style={{
@@ -677,8 +588,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   <button
                     type="button"
                     onClick={() => setStep('gmail')}
-                    title="Reply to an email"
-                    aria-label="Reply to an email"
+                    title="Draft an email"
+                    aria-label="Draft an email"
                     style={{
                       width: 38,
                       height: 38,
@@ -724,7 +635,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                       textAlign: 'left',
                     }}
                   >
-                    Reply to an email
+                    Draft an email
                   </button>
                 </div>
               </div>
@@ -746,6 +657,28 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     (select one or more)
                   </span>
                 </label>
+                <button
+                  type="button"
+                  onClick={startPortfolioChat}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '10px 12px',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: 8,
+                    background: '#eff6ff',
+                    color: '#1e3a8a',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    marginBottom: 10,
+                  }}
+                >
+                  Portfolio analysis, all accounts
+                  <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: '#1d4ed8' }}>
+                    Start with no account selected and fetch compact summaries on demand.
+                  </span>
+                </button>
                 <input
                   type="text"
                   value={filter}
@@ -842,6 +775,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     onClick={() => {
                       setAgent('')
                       setSelectedAudits([])
+                      setPortfolioSelected(false)
                       setStep('agent')
                     }}
                     style={{
@@ -858,39 +792,46 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   <button
                     type="button"
                     onClick={goToChat}
-                    disabled={selectedAudits.length === 0}
+                    disabled={selectedAudits.length === 0 && !portfolioSelected}
                     style={{
                       padding: '8px 14px',
-                      background: selectedAudits.length === 0 ? '#9ca3af' : '#2563eb',
+                      background: selectedAudits.length === 0 && !portfolioSelected ? '#9ca3af' : '#2563eb',
                       color: '#fff',
                       border: 'none',
                       borderRadius: 6,
                       fontWeight: 600,
                       fontSize: 13,
-                      cursor: selectedAudits.length === 0 ? 'not-allowed' : 'pointer',
+                      cursor: selectedAudits.length === 0 && !portfolioSelected ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {selectedAudits.length === 0
-                      ? 'Select accounts'
-                      : selectedAudits.length === 1
-                        ? 'Continue'
-                        : `Continue with ${selectedAudits.length}`}
+                    {portfolioSelected
+                      ? 'Continue with portfolio'
+                      : selectedAudits.length === 0
+                        ? 'Select accounts'
+                        : selectedAudits.length === 1
+                          ? 'Continue'
+                          : `Continue with ${selectedAudits.length}`}
                   </button>
                 </div>
               </div>
             )}
 
-            {step === 'chat' && selectedAudits.length > 0 && (
+            {step === 'chat' && (selectedAudits.length > 0 || portfolioSelected) && (
               <OptiMateMultiChat
                 ref={multiChatRef}
-                key={selectedAudits.map((a) => String(a.id)).join('|')}
-                targets={selectedAudits.map(
-                  (a): OptiMateChatTarget => ({
-                    id: a.id,
-                    customerId: a.customerId,
-                    businessName: a.businessName,
-                  }),
-                )}
+                key={portfolioSelected ? 'portfolio' : selectedAudits.map((a) => String(a.id)).join('|')}
+                targets={
+                  portfolioSelected
+                    ? [{ mode: 'portfolio', id: 'portfolio', businessName: 'Portfolio' }]
+                    : selectedAudits.map(
+                        (a): OptiMateChatTarget => ({
+                          mode: 'audit',
+                          id: a.id,
+                          customerId: a.customerId,
+                          businessName: a.businessName,
+                        }),
+                      )
+                }
                 compact
               />
             )}

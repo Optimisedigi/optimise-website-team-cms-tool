@@ -2,7 +2,7 @@
  * Top-level shapes the agent loop produces and consumes.
  */
 
-import type { Message, Usage, CredentialSource } from "./llm/types";
+import type { Message, Usage, CredentialSource, ReasoningMode } from "./llm/types";
 import type { CanonicalTool } from "./tool";
 
 export interface AgentRunOptions {
@@ -29,6 +29,10 @@ export interface AgentRunOptions {
   maxTokens?: number;
   /** Optional cancellation. */
   signal?: AbortSignal;
+  /** Per-provider request timeout in ms. Default lives in provider adapters. */
+  timeoutMs?: number;
+  /** Per-request reasoning mode. Defaults to off for routine chat turns. */
+  reasoningMode?: ReasoningMode;
   /** Optional pre-allocated run id; useful for chaining log entries. */
   runId?: string;
 }

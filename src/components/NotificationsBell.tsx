@@ -54,7 +54,7 @@ function useBellAnimations(): void {
  * Admin top-bar notifications bell.
  *
  * Polls `/api/notifications/unread-count` every 60s. Clicking the bell
- * fetches the 10 most recent notifications (unread first, then read).
+ * fetches the 20 most recent notifications (newest first, read rows included).
  * Clicking a notification marks it read and navigates to its `url`.
  *
  * Lives next to `UserDisplayName` in the `admin.components.actions` slot.
@@ -83,7 +83,7 @@ const NotificationsBell = (): ReactElement | null => {
   const loadList = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/notifications?limit=10", {
+      const res = await fetch("/api/notifications?limit=20", {
         credentials: "include",
       });
       if (res.ok) {

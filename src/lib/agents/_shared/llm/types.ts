@@ -65,6 +65,8 @@ export interface LLMResponse {
   source: CredentialSource;
 }
 
+export type ReasoningMode = "off" | "low" | "medium" | "high";
+
 export interface CallLLMOptions {
   /** Canonical model name (key into MODEL_REGISTRY). */
   model: string;
@@ -77,4 +79,6 @@ export interface CallLLMOptions {
   fallbackModels?: string[];
   /** Hard limit on total wall time across primary + fallbacks. Default 60_000. */
   timeoutMs?: number;
+  /** Per-request reasoning mode. Defaults to off for routine chat turns. */
+  reasoningMode?: ReasoningMode;
 }

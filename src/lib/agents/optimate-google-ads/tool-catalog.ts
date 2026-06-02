@@ -17,6 +17,7 @@
 import { getTools } from "./index";
 
 export type ToolCategoryKey =
+  | "read-portfolio"
   | "read-google-ads"
   | "read-search-and-ai"
   | "read-pipeline"
@@ -46,6 +47,13 @@ interface CategoryMeta {
 }
 
 export const TOOL_CATEGORIES: Record<ToolCategoryKey, CategoryMeta> = {
+  "read-portfolio": {
+    key: "read-portfolio",
+    label: "Read: Portfolio",
+    blurb: "Compact cross-account Google Ads summaries that avoid loading every account into context.",
+    color: "#1d4ed8",
+    order: 5,
+  },
   "read-google-ads": {
     key: "read-google-ads",
     label: "Read \u2014 Google Ads",
@@ -158,6 +166,11 @@ export const TOOL_CATEGORIES: Record<ToolCategoryKey, CategoryMeta> = {
  * appear under an "Other" bucket so nothing silently disappears from the UI.
  */
 export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
+  // Read: Portfolio
+  get_portfolio_account_inventory: "read-portfolio",
+  get_portfolio_performance_summary: "read-portfolio",
+  get_portfolio_search_term_wastage: "read-portfolio",
+
   // Read — Google Ads
   get_account_overview: "read-google-ads",
   get_campaign_performance: "read-google-ads",
@@ -188,6 +201,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   // Read — goal agents
   list_goal_runs: "read-goals",
   get_goal_run: "read-goals",
+  get_goal_progress_summary: "read-goals",
 
   // Actions — do-it-now
   create_gmail_draft: "actions",

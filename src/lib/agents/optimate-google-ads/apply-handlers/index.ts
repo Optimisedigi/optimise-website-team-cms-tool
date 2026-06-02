@@ -15,6 +15,8 @@
  *   - "ad-group-create"      → create ONE ad group in an existing campaign (PAUSED), optionally cloning a source
  *   - "keywords-add"         → bulk-add positive keywords to an existing ad group (PAUSED)
  *   - "geo-campaign-split"   → create a labelled geo campaign batch PAUSED + reviewed parent isolation
+ *   - "goal-run-create"      → create a generic goal-agent run
+ *   - "account-efficiency-goal-run-create" → create an Account Efficiency goal-agent run
  *   - "stakeholder-deck"     → write a 5-slide deck (page.tsx + globals.css) to disk
  */
 
@@ -36,6 +38,8 @@ import { applyKeywordPause } from "./keyword-pause";
 import { applyCampaignRestructure } from "./campaign-restructure";
 import { applyCampaignBuild } from "./campaign-build";
 import { applyGeoCampaignSplit } from "./geo-campaign-split";
+import { applyGoalRunCreate } from "./goal-run-create";
+import { applyAccountEfficiencyGoalRunCreate } from "./account-efficiency-goal-run-create";
 import { applyScheduledTaskCreate } from "./scheduled-task-create";
 import { applyScheduledTaskUpdate } from "./scheduled-task-update";
 import { applyStakeholderDeck } from "./stakeholder-deck";
@@ -69,6 +73,8 @@ export function registerOptimateApplyHandlers(): void {
   registerApplyHandler("campaign-restructure", applyCampaignRestructure);
   registerApplyHandler("campaign-build", applyCampaignBuild);
   registerApplyHandler("geo-campaign-split", applyGeoCampaignSplit);
+  registerApplyHandler("goal-run-create", applyGoalRunCreate);
+  registerApplyHandler("account-efficiency-goal-run-create", applyAccountEfficiencyGoalRunCreate);
   registerApplyHandler("scheduled-task-create", applyScheduledTaskCreate);
   registerApplyHandler("scheduled-task-update", applyScheduledTaskUpdate);
   registerApplyHandler("stakeholder-deck", applyStakeholderDeck);

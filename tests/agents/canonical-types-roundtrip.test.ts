@@ -208,7 +208,7 @@ describe("OpenAI-compatible transformer", () => {
     });
   });
 
-  it("blocks image attachments for OpenAI-compatible providers until model-specific vision support is added", () => {
+  it("converts image attachments to OpenAI-compatible image_url content", () => {
     const opts: CallLLMOptions = {
       ...baseOpts,
       messages: [
@@ -222,9 +222,13 @@ describe("OpenAI-compatible transformer", () => {
       ],
     };
 
-    expect(() => toOpenAI(opts, "kimi-k2.6")).toThrow(
-      "Image attachments are only supported on Anthropic Claude models in OptiMate",
-    );
+    expect(toOpenAI(opts, "kimi-k2.6").messages[1]).toEqual({
+      role: "user",
+      content: [
+        { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgo=" } },
+        { type: "text", text: "Read this screenshot." },
+      ],
+    });
   });
 
   it("converts OpenAI response to canonical LLMResponse", () => {

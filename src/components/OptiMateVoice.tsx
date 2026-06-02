@@ -4,7 +4,7 @@
  * OptiMateVoice — live OpenAI Realtime voice for an OptiMate audit.
  *
  * Flow (mirrors Brah's working WebRTC renderer, plan §2.5):
- *   1. Fetch the voice session config (instructions + read-only tool defs)
+ *   1. Fetch the voice session config (instructions + full OptiMate tool defs)
  *      from /api/optimate/realtime-session (server-built, prompt stays ours).
  *   2. Mint an ephemeral secret via the token provider (local Electron helper
  *      bridge on 127.0.0.1).
@@ -30,6 +30,8 @@ interface OptiMateVoiceProps {
   /** Push/stream a spoken turn into the host chat thread. Same voiceId =
    *  update that message in place (used for streaming assistant deltas). */
   onTurn?: (voiceId: string, role: 'user' | 'assistant', text: string) => void
+  /** Append a non-streaming assistant message, used for tool result cards/links. */
+  onAssistantMessage?: (text: string) => void
   /** Report the live call status for the host to show (e.g. "Listening…"),
    *  or null when idle. */
   onStatusChange?: (status: string | null) => void
@@ -39,6 +41,8 @@ interface OptiMateVoiceProps {
   controlsContainer?: HTMLElement | null
   /** Diameter (px) of the idle round mic trigger. Defaults to 40. */
   triggerSize?: number
+  /** Optional Gmail message id attached as reference context for this voice call. */
+  attachedEmailMessageId?: string | null
 }
 
 type VoiceState = 'idle' | 'checking' | 'connecting' | 'connected' | 'error'
@@ -115,18 +119,39 @@ function parseToolArguments(raw: unknown): Record<string, unknown> {
 // leaks into the transcript (e.g. "((get_weekly_metric_table))" or a bare
 // snake_case function token). The instructions tell it not to; this guarantees
 // the displayed chat stays clean even if it slips.
-function sanitizeToolMentions(text: string): string {
+const NON_ENGLISH_SCRIPT = /[\u0080-\u024f\u0370-\u03ff\u0400-\u052f\u0590-\u05ff\u0600-\u06ff\u0900-\u097f\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uac00-\ud7af]/
+
+function sanitizeVoiceTranscript(text: string): string {
   return (
     text
       // (( tool_name )) or ( tool_name ) wrappers around a snake_case token
       .replace(/\(+\s*[a-z][a-z0-9]*(?:_[a-z0-9]+)+\s*\)+/gi, '')
       // bare snake_case function-style tokens (two+ segments), word-bounded
       .replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi, '')
+      // Strip transcript chunks in other scripts/languages. Voice mode is
+      // English-only for OptiMate, so music/TV snippets like 安倍晉三 or German
+      // fragments should never appear in the chat thread.
+      .replace(NON_ENGLISH_SCRIPT, '')
       // tidy whitespace/punctuation left behind
       .replace(/\s{2,}/g, ' ')
       .replace(/\s+([.,!?;:])/g, '$1')
       .trim()
   )
+}
+
+const VOICE_INTENT_KEYWORDS = /\b(account|ad|ads|audit|budget|campaign|cpa|cpc|ctr|conversion|conversions|draft|email|google|keyword|keywords|negative|pacing|report|search|spend|term|terms|waste|wasting)\b/i
+const COMMON_BACKGROUND_FRAGMENTS = /^(aber nicht|abe shinzo)[.!?。\s]*$/i
+
+function isLikelyIntentionalVoiceInput(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  if (COMMON_BACKGROUND_FRAGMENTS.test(trimmed)) return false
+  if (NON_ENGLISH_SCRIPT.test(trimmed)) return false
+
+  const words = trimmed.match(/[A-Za-z0-9$£€%]+/g) ?? []
+  if (words.length >= 3) return true
+  if (/[?]/.test(trimmed) && words.length >= 1) return true
+  return VOICE_INTENT_KEYWORDS.test(trimmed) && words.length >= 1
 }
 
 // Standard microphone glyph used across most chat UIs (rounded capsule mic on
@@ -179,26 +204,30 @@ function readLevel({ analyser, data }: AnalyserBundle): number {
   return Math.min(1, Math.max(0, (rms - 0.015) * 8))
 }
 
-const WAVE_BARS = 18
-
 /**
- * Brah-style live audio visualizer: mirrored frequency bars that react to the
- * combined mic + assistant audio level. Shown while the call is connected so
- * you can see it's listening and watch it move as either side speaks.
+ * ChatGPT-style connected voice orb. The glow gently breathes while connected
+ * and reacts to the louder of mic or assistant audio so it feels alive without
+ * taking over the compact OptiMate header.
  */
-function VoiceWaveform({
+function VoiceConnectionOrb({
   micStream,
   remoteStream,
   active,
+  muted,
 }: {
   micStream: MediaStream | null
   remoteStream: MediaStream | null
   active: boolean
+  muted: boolean
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [level, setLevel] = useState(0)
 
   useEffect(() => {
-    if (!active || !micStream) return
+    if (!active || muted || !micStream) {
+      setLevel(0)
+      return
+    }
+
     const AudioCtx =
       window.AudioContext ??
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
@@ -211,71 +240,62 @@ function VoiceWaveform({
       remote = null
     }
 
-    const bars = new Array(WAVE_BARS).fill(0)
     let smoothed = 0
     let raf = 0
-    const canvas = canvasRef.current
-    const c2d = canvas?.getContext('2d') ?? null
-    const ratio = window.devicePixelRatio || 1
-    const W = 140
-    const H = 22
-    if (canvas) {
-      canvas.width = Math.round(W * ratio)
-      canvas.height = Math.round(H * ratio)
-      c2d?.setTransform(ratio, 0, 0, ratio, 0, 0)
-    }
-    let grad: CanvasGradient | null = null
-    if (c2d) {
-      grad = c2d.createLinearGradient(0, 0, W, 0)
-      grad.addColorStop(0, '#818cf8')
-      grad.addColorStop(0.5, '#a5b4fc')
-      grad.addColorStop(1, '#59d9c4')
-    }
-
-    const draw = () => {
+    const tick = () => {
       const micLevel = readLevel(mic)
       const remoteLevel = remote ? readLevel(remote) : 0
-      const level = Math.max(micLevel, remoteLevel * 1.15)
-      smoothed = smoothed * 0.72 + level * 0.28
-
-      if (c2d) {
-        mic.analyser.getByteFrequencyData(mic.freq)
-        if (remote) remote.analyser.getByteFrequencyData(remote.freq)
-        const usable = Math.floor(mic.freq.length * 0.62)
-        const perBar = Math.max(1, Math.floor(usable / WAVE_BARS))
-        const half = H / 2
-        const spacing = W / WAVE_BARS
-        const barW = Math.max(2, spacing * 0.52)
-        const radius = barW / 2
-        c2d.clearRect(0, 0, W, H)
-        c2d.fillStyle = grad ?? '#a5b4fc'
-        for (let i = 0; i < WAVE_BARS; i++) {
-          let mag = 0
-          for (let b = 0; b < perBar; b++) {
-            const idx = i * perBar + b
-            const m = mic.freq[idx] ?? 0
-            const r = remote ? (remote.freq[idx] ?? 0) : 0
-            mag = Math.max(mag, m, r)
-          }
-          const target = (mag / 255) * (half - 1) * (0.4 + smoothed)
-          bars[i] = bars[i] * 0.6 + Math.max(2, target) * 0.4
-          const x = i * spacing + (spacing - barW) / 2
-          const h = bars[i]
-          c2d.beginPath()
-          c2d.roundRect(x, half - h, barW, h * 2, radius)
-          c2d.fill()
-        }
-      }
-      raf = requestAnimationFrame(draw)
+      smoothed = smoothed * 0.78 + Math.max(micLevel, remoteLevel * 1.15) * 0.22
+      setLevel(smoothed)
+      raf = requestAnimationFrame(tick)
     }
-    draw()
+    tick()
+
     return () => {
       cancelAnimationFrame(raf)
       void ctx.close()
     }
-  }, [active, micStream, remoteStream])
+  }, [active, micStream, muted, remoteStream])
 
-  return <canvas ref={canvasRef} style={{ width: 140, height: 22, display: 'block' }} />
+  const scale = 1 + Math.min(0.18, level * 0.3)
+
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 28,
+        height: 28,
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        opacity: muted ? 0.5 : 1,
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          inset: 2,
+          borderRadius: '50%',
+          border: '2px solid #059669',
+          opacity: muted ? 0.35 : 0.9,
+          animation: muted ? undefined : 'optimateVoicePulse 1.5s ease-in-out infinite',
+        }}
+      />
+      <span
+        style={{
+          width: 12,
+          height: 12,
+          borderRadius: '50%',
+          background: '#047857',
+          boxShadow: muted ? undefined : '0 0 12px rgba(5,150,105,0.55)',
+          transform: `scale(${scale})`,
+          transition: 'transform 90ms linear, opacity 160ms ease',
+        }}
+      />
+    </span>
+  )
 }
 
 // -----------------------------------------------------------------------------
@@ -285,8 +305,10 @@ export default function OptiMateVoice({
   businessName,
   onTurn,
   onStatusChange,
+  onAssistantMessage,
   controlsContainer,
   triggerSize = 40,
+  attachedEmailMessageId,
 }: OptiMateVoiceProps) {
   const [state, setState] = useState<VoiceState>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -306,6 +328,10 @@ export default function OptiMateVoice({
   const activeReplyIdRef = useRef<string | null>(null)
   const coordinatorRef = useRef<ResponseCoordinator>(createResponseCoordinator())
   const handledToolCallIds = useRef<Set<string>>(new Set())
+  const pendingGmailDraftRef = useRef<{ gmailUrl: string; subject?: string; to?: string } | null>(
+    null,
+  )
+  const gmailDraftConfirmationReplyIdRef = useRef<string | null>(null)
 
   const provider = getTokenProvider()
 
@@ -353,17 +379,55 @@ export default function OptiMateVoice({
         result = { ok: false, error: err instanceof Error ? err.message : 'Tool call failed' }
       }
 
+      const isGmailDraftTool = name === 'create_gmail_draft'
+      const gmailDraftData = result.data as
+        | { gmailUrl?: unknown; subject?: unknown; to?: unknown }
+        | undefined
+
+      if (isGmailDraftTool && result.ok && typeof gmailDraftData?.gmailUrl === 'string') {
+        pendingGmailDraftRef.current = {
+          gmailUrl: gmailDraftData.gmailUrl,
+          subject:
+            typeof gmailDraftData.subject === 'string' && gmailDraftData.subject
+              ? gmailDraftData.subject
+              : undefined,
+          to: typeof gmailDraftData.to === 'string' && gmailDraftData.to ? gmailDraftData.to : undefined,
+        }
+      }
+
+      const output =
+        isGmailDraftTool && result.ok
+          ? {
+              ok: true,
+              draftCreated: true,
+              subject: pendingGmailDraftRef.current?.subject ?? null,
+              to: pendingGmailDraftRef.current?.to ?? null,
+              note: 'The Gmail draft link is available in the UI. Do not read or say the URL aloud.',
+            }
+          : result.ok
+            ? (result.data ?? { ok: true })
+            : { error: result.error }
+
       sendEvent({
         type: 'conversation.item.create',
         item: {
           type: 'function_call_output',
           call_id: callId,
-          output: JSON.stringify(
-            result.ok ? (result.data ?? { ok: true }) : { error: result.error },
-          ),
+          output: JSON.stringify(output),
         },
       })
-      requestResponse({ type: 'response.create' })
+      requestResponse(
+        isGmailDraftTool
+          ? {
+              type: 'response.create',
+              response: {
+                output_modalities: ['audio'],
+                instructions:
+                  'Confirm the Gmail draft was saved in one short sentence. Do not say, spell, or mention the Gmail URL. Do not repeat the full email contents. The chat UI will show the subject and Open in Gmail link silently.',
+              },
+            }
+          : { type: 'response.create' },
+      )
     },
     [auditId, sendEvent, requestResponse],
   )
@@ -392,20 +456,28 @@ export default function OptiMateVoice({
       }
 
       // Final transcript of the user's speech → push a user turn into the host
-      // chat thread.
+      // chat thread, but only answer if it looks like a deliberate OptiMate
+      // request. Background audio/music can transcribe as short foreign-language
+      // fragments; those should not trigger tool calls or assistant replies.
       if (
         event.type === 'conversation.item.input_audio_transcription.completed' &&
         typeof event.transcript === 'string' &&
         event.transcript.trim()
       ) {
-        const text = sanitizeToolMentions(event.transcript.trim())
-        if (text) onTurn?.(`u_${Date.now()}`, 'user', text)
+        const text = sanitizeVoiceTranscript(event.transcript.trim())
+        if (text && isLikelyIntentionalVoiceInput(text)) {
+          onTurn?.(`u_${Date.now()}`, 'user', text)
+        }
       }
 
       // A new assistant response is starting → open a fresh streaming turn.
       if (event.type === 'response.created') {
-        activeReplyIdRef.current = `a_${Date.now()}`
+        const replyId = `a_${Date.now()}`
+        activeReplyIdRef.current = replyId
         replyTextRef.current = ''
+        if (pendingGmailDraftRef.current) {
+          gmailDraftConfirmationReplyIdRef.current = replyId
+        }
       }
       // Stream output audio transcript deltas into that turn (update in place).
       if (
@@ -416,10 +488,25 @@ export default function OptiMateVoice({
         const id = activeReplyIdRef.current
         if (id) {
           replyTextRef.current += event.delta
-          onTurn?.(id, 'assistant', sanitizeToolMentions(replyTextRef.current))
+          onTurn?.(id, 'assistant', sanitizeVoiceTranscript(replyTextRef.current))
         }
       }
       if (event.type === 'response.done') {
+        const id = activeReplyIdRef.current
+        const draft = pendingGmailDraftRef.current
+        if (id && draft && gmailDraftConfirmationReplyIdRef.current === id) {
+          const extras = [
+            draft.subject ? `Subject: ${draft.subject}` : '',
+            draft.to ? `To: ${draft.to}` : '',
+            `[Open draft in Gmail](${draft.gmailUrl})`,
+          ]
+            .filter(Boolean)
+            .join('\n')
+          const current = replyTextRef.current.trim() || 'Draft saved in Gmail.'
+          onTurn?.(id, 'assistant', `${current}\n\n${extras}`)
+          pendingGmailDraftRef.current = null
+          gmailDraftConfirmationReplyIdRef.current = null
+        }
         activeReplyIdRef.current = null
       }
 
@@ -448,6 +535,8 @@ export default function OptiMateVoice({
     coordinatorRef.current.reset()
     handledToolCallIds.current.clear()
     activeReplyIdRef.current = null
+    pendingGmailDraftRef.current = null
+    gmailDraftConfirmationReplyIdRef.current = null
     setState('idle')
     setMicStream(null)
     setRemoteStream(null)
@@ -478,10 +567,13 @@ export default function OptiMateVoice({
         throw new Error('Voice helper is running but not signed in. Open it and sign in to OpenAI.')
       }
 
-      // 1. Server-built session config (instructions + read-only tools).
-      const sessionRes = await fetch(
-        `/api/optimate/realtime-session?auditId=${encodeURIComponent(String(auditId))}`,
-      )
+      // 1. Server-built session config (instructions + full OptiMate tools).
+      const sessionUrl = new URL('/api/optimate/realtime-session', window.location.origin)
+      sessionUrl.searchParams.set('auditId', String(auditId))
+      if (attachedEmailMessageId) {
+        sessionUrl.searchParams.set('attachedEmailMessageId', attachedEmailMessageId)
+      }
+      const sessionRes = await fetch(sessionUrl.toString())
       if (!sessionRes.ok) {
         const body = (await sessionRes.json().catch(() => ({}))) as { error?: string }
         throw new Error(body.error ?? `Could not build voice session (${sessionRes.status}).`)
@@ -493,21 +585,27 @@ export default function OptiMateVoice({
 
       setState('connecting')
 
-      // 2. Mint the ephemeral secret right before the offer. Use a calm semantic
-      //    VAD that detects turns but does NOT auto-create responses — we drive
-      //    the opening greeting and each reply explicitly, so she greets and then
-      //    waits for a question instead of monologuing.
+      // 2. Mint the ephemeral secret right before the offer. Use a slower
+      //    server-side VAD so natural pauses do not end the user's turn too soon.
+      //    Realtime owns response creation for spoken turns; we only create the
+      //    controlled opening greeting and post-tool follow-up responses.
       const secret = await provider.getSecret({
         auditId: String(auditId),
         session: {
           instructions: session.instructions,
           tools: session.tools,
-          // Mimic Brah's working Realtime turn detection exactly.
+          // Let Realtime wait longer before ending a user turn, and let it own
+          // response creation. Manually creating a response as soon as the
+          // transcript completed made tool turns unreliable (the model could say
+          // it created a Gmail draft without the function call completing) and
+          // made pauses feel like interruptions.
           turnDetection: {
-            type: 'semantic_vad',
-            eagerness: 'high',
+            type: 'server_vad',
+            threshold: 0.65,
+            prefix_padding_ms: 500,
+            silence_duration_ms: 1400,
             create_response: true,
-            interrupt_response: true,
+            interrupt_response: false,
           },
         },
       })
@@ -586,7 +684,7 @@ export default function OptiMateVoice({
       setState('error')
       stop()
     }
-  }, [auditId, provider, refreshHelperStatus, handleRealtimeEvent, stop])
+  }, [auditId, attachedEmailMessageId, provider, refreshHelperStatus, handleRealtimeEvent, stop])
 
   const toggleMute = useCallback(() => {
     const stream = streamRef.current
@@ -598,11 +696,38 @@ export default function OptiMateVoice({
 
   const active = state === 'connecting' || state === 'connected' || state === 'checking'
 
-  // Active call controls: red stop, mute, and the live waveform. Rendered into
-  // the host-provided container (under the account name) when one is given,
-  // otherwise inline as a fallback.
+  // Active call controls: compact ChatGPT-style orb plus mute/end controls.
+  // Rendered into the host-provided container (under the account name) when one
+  // is given, otherwise inline as a fallback.
   const controls = active ? (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 8 }}>
+      <style>{`
+        @keyframes optimateVoicePulse {
+          0%, 100% { transform: scale(0.92); opacity: 0.9; }
+          50% { transform: scale(1.18); opacity: 0.35; }
+        }
+      `}</style>
+      <VoiceConnectionOrb
+        micStream={micStream}
+        remoteStream={remoteStream}
+        active={state === 'connected'}
+        muted={muted}
+      />
+      {(state !== 'connected' || muted) && (
+        <span style={{ fontSize: 11, color: muted ? '#9ca3af' : '#4b5563', whiteSpace: 'nowrap' }}>
+          {state === 'connected' ? 'Muted' : 'Connecting…'}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={toggleMute}
+        disabled={state !== 'connected'}
+        title={muted ? 'Unmute' : 'Mute'}
+        aria-label={muted ? 'Unmute' : 'Mute'}
+        style={iconButtonStyle(muted ? '#9ca3af' : '#6b7280')}
+      >
+        <MicIcon muted={muted} />
+      </button>
       <button
         type="button"
         onClick={stop}
@@ -614,19 +739,6 @@ export default function OptiMateVoice({
           <rect x="2" y="2" width="8" height="8" rx="1.5" fill="currentColor" />
         </svg>
       </button>
-      <button
-        type="button"
-        onClick={toggleMute}
-        disabled={state !== 'connected'}
-        title={muted ? 'Unmute' : 'Mute'}
-        aria-label={muted ? 'Unmute' : 'Mute'}
-        style={iconButtonStyle(muted ? '#9ca3af' : '#6b7280')}
-      >
-        <MicIcon muted={muted} />
-      </button>
-      {state === 'connected' && (
-        <VoiceWaveform micStream={micStream} remoteStream={remoteStream} active={!muted} />
-      )}
     </div>
   ) : null
 

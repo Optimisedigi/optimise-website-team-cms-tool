@@ -18,8 +18,7 @@
 /**
  * Reasoning-effort levels for the GPT-5.5-class models served over the Codex
  * Responses backend. The Codex API takes this as a per-request
- * `reasoning.effort` value; it is NOT a separate model id. Only the
- * `openai-codex` adapter reads the `effort` field on a registry entry.
+ * `reasoning.effort` value.
  */
 export type CodexEffort = "low" | "medium" | "high" | "xhigh";
 
@@ -45,13 +44,9 @@ export const MODEL_REGISTRY = {
   "gpt-4o": { provider: "openai", model: "gpt-4o" },
 
   // GPT-5.5 over the Codex Responses backend, served by a ChatGPT
-  // subscription via Codex OAuth ("Sign in with ChatGPT"). Both entries use
-  // the SAME underlying model id `gpt-5.5`; they differ only by the
-  // per-request reasoning effort. `medium` is OpenAI's recommended balanced
-  // point and the OptiMate default; `low` is the cheaper/faster tier one
-  // notch down. The `effort` field is read only by the openai-codex adapter.
-  "gpt-5.5-codex-medium": { provider: "openai-codex", model: "gpt-5.5", effort: "medium" },
-  "gpt-5.5-codex-low": { provider: "openai-codex", model: "gpt-5.5", effort: "low" },
+  // subscription via Codex OAuth ("Sign in with ChatGPT"). Reasoning effort is
+  // selected per request, not baked into the model name.
+  "gpt-5.5-codex": { provider: "openai-codex", model: "gpt-5.5" },
 } as const;
 
 export type CanonicalModelName = keyof typeof MODEL_REGISTRY;
@@ -149,7 +144,6 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   { canonical: "claude-haiku-4.5", label: "Claude Haiku 4.5 (OAuth)", hint: "Fast and cheap. Good for simple chat replies." },
   { canonical: "kimi-k2.6", label: "Kimi K2.6", hint: "Long context, analytical. Default for autonomous runs." },
   { canonical: "minimax-m2.7", label: "MiniMax M2.7", hint: "Fallback option, agentic workflows." },
-  { canonical: "gpt-5.5-codex-medium", label: "GPT-5.5 Codex \u2014 medium (ChatGPT OAuth)", hint: "GPT-5.5 over Codex, balanced reasoning. Free via ChatGPT subscription." },
-  { canonical: "gpt-5.5-codex-low", label: "GPT-5.5 Codex \u2014 low (ChatGPT OAuth)", hint: "GPT-5.5 over Codex, faster/cheaper reasoning tier." },
+  { canonical: "gpt-5.5-codex", label: "GPT-5.5 Codex (ChatGPT OAuth)", hint: "GPT-5.5 over Codex. Reasoning is controlled per request." },
   { canonical: "claude-sonnet-4.5", label: "Claude Sonnet 4.5 (OAuth)", hint: "Previous Sonnet generation, kept for compatibility." },
 ];

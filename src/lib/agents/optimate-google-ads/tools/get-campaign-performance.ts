@@ -35,6 +35,13 @@ interface MetricRaw {
   impressions?: number;
   clicks?: number;
   conversions?: number;
+  conversionsByAction?: Record<string, number>;
+  conversionsByCategory?: Record<string, number>;
+  searchImpressionShare?: unknown;
+  searchBudgetLostIS?: unknown;
+  searchBudgetLostImpressionShare?: unknown;
+  searchRankLostIS?: unknown;
+  searchRankLostImpressionShare?: unknown;
   segment?: string;
 }
 
@@ -46,7 +53,7 @@ interface MetricsEnvelope {
 export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
   name: "get_campaign_performance",
   description:
-    "Per-campaign metrics for the linked account. Args: range (optional preset OR 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'/'YTD'/'QTD' literal; default LAST_7_DAYS), segment ('month'|'week'|'day' — when set, returns one row per (campaign, segment) pair instead of a single total). Returns rows with campaignId, name, status, spend, clicks, impressions, conversions, ctr, cpa.",
+    "Per-campaign metrics for the linked account. Args: range (optional preset OR 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'/'YTD'/'QTD' literal; default LAST_7_DAYS), segment ('month'|'week'|'day' — when set, returns one row per (campaign, segment) pair instead of a single total). Returns rows with campaignId, name, status, spend, clicks, impressions, conversions, conversionsByCategory (e.g. Phone Calls vs Form Submits when configured), ctr, cpa, searchImpressionShare, searchBudgetLostIS, searchRankLostIS.",
   inputSchema: {
     type: "object",
     properties: {
@@ -99,8 +106,10 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
     // ignores them once the dateRange carries the span.
     const dateRangeParam = customRangeForGrowthTools(resolved);
     const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
+    const conversionActionCategories = (ctx.context.conversionActionCategories as string | undefined) ?? "";
     const qs = new URLSearchParams({ customerId, dateRange: dateRangeParam });
     if (conversionActions) qs.set("conversionActions", conversionActions);
+    if (conversionActionCategories) qs.set("conversionActionCategories", conversionActionCategories);
     if (resolved.segment) qs.set("segment", resolved.segment);
 
     const res = await growthToolsGet<MetricsEnvelope>(
@@ -127,8 +136,13 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
         clicks,
         impressions,
         conversions: round2(conversions),
+        conversionsByAction: normaliseBreakdown(m.conversionsByAction),
+        conversionsByCategory: normaliseBreakdown(m.conversionsByCategory),
         ctr: impressions > 0 ? round2((clicks / impressions) * 100) : 0,
         cpa: conversions > 0 ? round2(spend / conversions) : null,
+        searchImpressionShare: parsePercent(m.searchImpressionShare),
+        searchBudgetLostIS: parsePercent(m.searchBudgetLostIS ?? m.searchBudgetLostImpressionShare),
+        searchRankLostIS: parsePercent(m.searchRankLostIS ?? m.searchRankLostImpressionShare),
       };
     });
 
@@ -152,6 +166,10 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
         ...(resolved.startDate ? { startDate: resolved.startDate, endDate: resolved.endDate } : {}),
         ...(resolved.coercedFrom ? { coercedFrom: resolved.coercedFrom, note: resolved.note } : {}),
         segmentation: resolved.segment ?? null,
+        conversionActionsApplied: conversionActions || null,
+        conversionScopeNote: conversionActions
+          ? "Conversions are filtered to the CMS default conversion actions for this client."
+          : "No CMS default conversion actions were configured, so Growth Tools returned its default conversion scope.",
         ...(segmentationUnavailable ? { segmentationUnavailable: true } : {}),
         campaigns: rows,
         count: rows.length,
@@ -159,6 +177,27 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
     };
   },
 };
+
+function normaliseBreakdown(value: unknown): Record<string, number> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, raw]) => [key, round2(Number(raw ?? 0))] as const)
+    .filter(([key, n]) => key.trim().length > 0 && Number.isFinite(n) && n !== 0);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function parsePercent(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return undefined;
+    return round2(value > 1 ? value : value * 100);
+  }
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "--" || trimmed === "< 10%") return undefined;
+  const numeric = Number(trimmed.replace(/[%<>,\s]/g, ""));
+  if (!Number.isFinite(numeric) || numeric < 0) return undefined;
+  return round2(trimmed.includes("%") || numeric > 1 ? numeric : numeric * 100);
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;

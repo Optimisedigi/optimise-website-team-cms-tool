@@ -12,6 +12,8 @@ import { fromOpenAI } from "../transformers/from-openai";
 import type { CallLLMOptions, LLMResponse } from "../types";
 import type { ProviderName } from "../registry";
 
+const DEFAULT_LLM_TIMEOUT_MS = 90_000;
+
 /**
  * True when an HTTP error body is OpenAI's "this model only allows the default
  * temperature" rejection. The proactive guard in toOpenAI() strips temperature
@@ -42,6 +44,7 @@ export async function callOpenAICompatible(
           ...auth.authHeader,
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(callOpts.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS),
       });
       if (!res.ok) {
         throw new HttpError(res.status, await res.text(), { headers: res.headers });
