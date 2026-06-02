@@ -2,8 +2,13 @@ import { NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { headers as nextHeaders } from 'next/headers'
-import { buildSystemPromptForAudit } from '@/lib/agents/optimate-google-ads'
 import {
+  buildSystemPromptForAudit,
+  buildSystemPromptForPortfolio,
+} from '@/lib/agents/optimate-google-ads'
+import {
+  getPortfolioRealtimeToolDefinitions,
+  getPortfolioVoiceToolNames,
   getRealtimeToolDefinitions,
   getVoiceToolNames,
 } from '@/lib/agents/optimate-google-ads/realtime-tools'
@@ -37,37 +42,46 @@ export async function GET(request: Request) {
     }
 
     const url = new URL(request.url)
+    const mode = url.searchParams.get('mode') === 'portfolio' ? 'portfolio' : 'audit'
     const auditId = url.searchParams.get('auditId')
-    if (!auditId) {
-      return NextResponse.json({ error: 'auditId is required' }, { status: 400 })
+    const customerId = url.searchParams.get('customerId')
+    const businessName = url.searchParams.get('businessName')
+    const selectedAccountRefs = parseSelectedAccountRefs(url.searchParams.get('selectedAccountRefs'))
+    if (mode === 'audit' && !auditId && !customerId) {
+      return NextResponse.json({ error: 'auditId or customerId is required' }, { status: 400 })
+    }
+    if (mode === 'portfolio' && selectedAccountRefs.length === 0) {
+      return NextResponse.json({ error: 'selectedAccountRefs is required' }, { status: 400 })
     }
     const attachedEmailMessageId = url.searchParams.get('attachedEmailMessageId')
 
-    let audit: Record<string, unknown> | null = null
-    try {
-      audit = (await payload.findByID({
-        collection: 'google-ads-audits',
-        id: auditId,
-        overrideAccess: true,
-        depth: 1,
-      })) as unknown as Record<string, unknown>
-    } catch {
-      audit = null
-    }
-    if (!audit) {
-      return NextResponse.json({ error: 'Audit not found' }, { status: 404 })
-    }
+    let basePrompt = ''
+    let tools: unknown[] = []
+    if (mode === 'portfolio') {
+      const pinnedMemory = await loadPinnedMemoryBlock([])
+      basePrompt = buildSystemPromptForPortfolio({
+        pinnedMemoryBlock: pinnedMemory.text,
+        recentMessages: [],
+      }) + buildSelectedAccountsVoiceScope(selectedAccountRefs)
+      tools = getPortfolioRealtimeToolDefinitions(getPortfolioVoiceToolNames())
+    } else {
+      const audit = await resolveAudit(payload, { auditId, customerId, businessName })
+      if (!audit) {
+        return NextResponse.json({ error: 'Audit not found' }, { status: 404 })
+      }
 
-    const client = await resolveLinkedClient(payload, audit)
-    const clientId = client?.id as string | number | undefined
-    const connectionFlags = await readClientConnectionFlags(clientId ?? null)
-    const pinnedMemory = await loadPinnedMemoryBlock(
-      clientId !== undefined && clientId !== null ? [clientId] : [],
-    )
-    const basePrompt = buildSystemPromptForAudit(audit as never, client as never, connectionFlags, {
-      pinnedMemoryBlock: pinnedMemory.text,
-      recentMessages: [],
-    })
+      const client = await resolveLinkedClient(payload, audit)
+      const clientId = client?.id as string | number | undefined
+      const connectionFlags = await readClientConnectionFlags(clientId ?? null)
+      const pinnedMemory = await loadPinnedMemoryBlock(
+        clientId !== undefined && clientId !== null ? [clientId] : [],
+      )
+      basePrompt = buildSystemPromptForAudit(audit as never, client as never, connectionFlags, {
+        pinnedMemoryBlock: pinnedMemory.text,
+        recentMessages: [],
+      })
+      tools = getRealtimeToolDefinitions(getVoiceToolNames())
+    }
 
     let attachedEmailContext = ''
     if (attachedEmailMessageId) {
@@ -122,9 +136,6 @@ export async function GET(request: Request) {
       'Only use memory tools when the user explicitly asks you to remember a durable preference, decision, ' +
       'or communication-style correction.'
 
-    const allowed = getVoiceToolNames()
-    const tools = getRealtimeToolDefinitions(allowed)
-
     return NextResponse.json({
       instructions: basePrompt + attachedEmailContext + voiceGuardrail,
       tools,
@@ -136,6 +147,63 @@ export async function GET(request: Request) {
       { status: 500 },
     )
   }
+}
+
+function parseSelectedAccountRefs(raw: string | null): string[] {
+  if (!raw) return []
+  return raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+}
+
+function buildSelectedAccountsVoiceScope(accountRefs: string[]): string {
+  return (
+    '\n\n--- SELECTED ACCOUNTS VOICE SCOPE ---\n' +
+    'This voice call is scoped to these selected account refs only: ' +
+    accountRefs.join(', ') +
+    '. When using portfolio tools that accept accountRefs, pass exactly these refs unless the user explicitly asks to widen scope. Keep answers about this selected set, not the whole portfolio.'
+  )
+}
+
+async function resolveAudit(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  input: { auditId: string | null; customerId: string | null; businessName: string | null },
+): Promise<Record<string, unknown> | null> {
+  if (input.auditId) {
+    try {
+      return (await payload.findByID({
+        collection: 'google-ads-audits',
+        id: input.auditId,
+        overrideAccess: true,
+        depth: 1,
+      })) as unknown as Record<string, unknown>
+    } catch {
+      // Fall through to customerId lookup. Some launcher rows are client-derived
+      // or lightweight audit rows that may not resolve by id in production yet.
+    }
+  }
+
+  const customerId = input.customerId?.trim()
+  if (!customerId) return null
+  const customerKey = customerId.replace(/-/g, '')
+  try {
+    const existing = await payload.find({
+      collection: 'google-ads-audits',
+      where: {
+        or: [{ customerId: { equals: customerId } }, { customerId: { equals: customerKey } }],
+      },
+      limit: 1,
+      depth: 1,
+      overrideAccess: true,
+    })
+    const found = existing.docs[0]
+    if (found) return found as unknown as Record<string, unknown>
+  } catch {
+    // Best-effort fallback only; do not create audit records from a voice session.
+  }
+
+  return null
 }
 
 async function resolveLinkedClient(

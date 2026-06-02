@@ -26,7 +26,10 @@ import { getTokenProvider } from '@/lib/realtime/token-provider'
 
 interface OptiMateVoiceProps {
   auditId: string | number
+  mode?: 'audit' | 'portfolio'
+  customerId?: string
   businessName?: string
+  selectedAccountRefs?: Array<string | number>
   /** Push/stream a spoken turn into the host chat thread. Same voiceId =
    *  update that message in place (used for streaming assistant deltas). */
   onTurn?: (voiceId: string, role: 'user' | 'assistant', text: string) => void
@@ -302,7 +305,10 @@ function VoiceConnectionOrb({
 
 export default function OptiMateVoice({
   auditId,
+  mode = 'audit',
+  customerId,
   businessName,
+  selectedAccountRefs = [],
   onTurn,
   onStatusChange,
   onAssistantMessage,
@@ -372,7 +378,15 @@ export default function OptiMateVoice({
         const res = await fetch('/api/optimate/realtime-tool', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ auditId, name, arguments: args }),
+          body: JSON.stringify({
+            auditId,
+            mode,
+            customerId,
+            businessName,
+            selectedAccountRefs,
+            name,
+            arguments: args,
+          }),
         })
         result = (await res.json()) as { ok: boolean; data?: unknown; error?: string }
       } catch (err) {
@@ -429,7 +443,7 @@ export default function OptiMateVoice({
           : { type: 'response.create' },
       )
     },
-    [auditId, sendEvent, requestResponse],
+    [auditId, businessName, customerId, mode, selectedAccountRefs, sendEvent, requestResponse],
   )
 
   const handleRealtimeEvent = useCallback(
@@ -570,6 +584,12 @@ export default function OptiMateVoice({
       // 1. Server-built session config (instructions + full OptiMate tools).
       const sessionUrl = new URL('/api/optimate/realtime-session', window.location.origin)
       sessionUrl.searchParams.set('auditId', String(auditId))
+      sessionUrl.searchParams.set('mode', mode)
+      if (customerId) sessionUrl.searchParams.set('customerId', customerId)
+      if (businessName) sessionUrl.searchParams.set('businessName', businessName)
+      if (selectedAccountRefs.length > 0) {
+        sessionUrl.searchParams.set('selectedAccountRefs', selectedAccountRefs.map(String).join(','))
+      }
       if (attachedEmailMessageId) {
         sessionUrl.searchParams.set('attachedEmailMessageId', attachedEmailMessageId)
       }
@@ -684,7 +704,7 @@ export default function OptiMateVoice({
       setState('error')
       stop()
     }
-  }, [auditId, attachedEmailMessageId, provider, refreshHelperStatus, handleRealtimeEvent, stop])
+  }, [auditId, attachedEmailMessageId, businessName, customerId, mode, provider, refreshHelperStatus, handleRealtimeEvent, selectedAccountRefs, stop])
 
   const toggleMute = useCallback(() => {
     const stream = streamRef.current

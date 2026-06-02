@@ -9,7 +9,7 @@
  * outside it, so a compromised/confused client cannot widen the surface.
  */
 
-import { getTools } from './index'
+import { getPortfolioTools, getTools } from './index'
 import type { CanonicalTool } from '../_shared/tool'
 
 /** A single Realtime function-tool definition (GA `tools[]` entry). */
@@ -32,9 +32,17 @@ export function getVoiceToolNames(): Set<string> {
 
 export const getVoiceReadToolNames = getVoiceToolNames
 
+export function getPortfolioVoiceToolNames(): Set<string> {
+  return new Set(getPortfolioTools().map((tool) => tool.name))
+}
+
 /** True when the name belongs to the registered OptiMate tool set. */
 export function isVoiceTool(name: string): boolean {
   return getVoiceToolNames().has(name)
+}
+
+export function isPortfolioVoiceTool(name: string): boolean {
+  return getPortfolioVoiceToolNames().has(name)
 }
 
 export const isVoiceReadTool = isVoiceTool
@@ -42,6 +50,12 @@ export const isVoiceReadTool = isVoiceTool
 /** Build the Realtime `tools` array for the allowed voice set. */
 export function getRealtimeToolDefinitions(allowed: Set<string>): RealtimeFunctionTool[] {
   return getTools()
+    .filter((tool) => allowed.has(tool.name))
+    .map(toRealtimeFunctionTool)
+}
+
+export function getPortfolioRealtimeToolDefinitions(allowed: Set<string>): RealtimeFunctionTool[] {
+  return getPortfolioTools()
     .filter((tool) => allowed.has(tool.name))
     .map(toRealtimeFunctionTool)
 }

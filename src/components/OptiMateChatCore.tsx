@@ -165,6 +165,8 @@ export interface OptiMateChatCoreProps {
   hideInput?: boolean
   /** Optional hidden context sent to the API before each user request, without showing it in the chat bubble. */
   messageContextPrefix?: string
+  /** Account refs selected for the synthetic selected-accounts portfolio tab. */
+  selectedAccountRefs?: Array<string | number>
   /**
    * Resume an existing chat thread on mount. When set, the component fetches
    * the thread's turns from /api/optimate-chat-history and seeds `messages`.
@@ -533,6 +535,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       fluid = false,
       hideInput = false,
       messageContextPrefix,
+      selectedAccountRefs = [],
       initialSessionId,
     },
     ref,
@@ -583,6 +586,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     const inputRef = useRef<HTMLTextAreaElement>(null)
     // Feature flag: render the voice CTA only when a provider is configured.
     const voiceEnabled = isVoiceEnabled()
+    const canUseVoice = voiceEnabled && (mode === 'audit' || selectedAccountRefs.length > 0)
     const imageInputRef = useRef<HTMLInputElement>(null)
     const storageScope = mode === 'portfolio' ? 'portfolio' : auditId
     const displayName = businessName || (mode === 'portfolio' ? 'Portfolio' : customerId) || 'Google Ads'
@@ -1341,10 +1345,13 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           {/* Anthropic credential pill removed per request — it was noisy and the
             credential state is managed on the agent-auth admin page. */}
           {!compact && <OptiMateToolsHelp compact={compact} />}
-          {hideInput && mode === 'audit' && voiceEnabled && (
+          {hideInput && canUseVoice && (
             <OptiMateVoice
               auditId={auditId}
+              mode={mode}
+              customerId={customerId}
               businessName={businessName}
+              selectedAccountRefs={selectedAccountRefs}
               onTurn={upsertVoiceTurn}
               onAssistantMessage={appendVoiceAssistantMessage}
               controlsContainer={voiceControlsEl}
@@ -2191,10 +2198,13 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     />
                   </svg>
                 </button>
-                {mode === 'audit' && voiceEnabled && (
+                {canUseVoice && (
                   <OptiMateVoice
                     auditId={auditId}
+                    mode={mode}
+                    customerId={customerId}
                     businessName={businessName}
+                    selectedAccountRefs={selectedAccountRefs}
                     onTurn={upsertVoiceTurn}
                     onAssistantMessage={appendVoiceAssistantMessage}
                     controlsContainer={voiceControlsEl}

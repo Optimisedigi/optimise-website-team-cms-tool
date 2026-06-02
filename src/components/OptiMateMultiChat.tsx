@@ -29,6 +29,7 @@ export type OptiMateChatTarget =
       businessName: string
       initialSessionId?: string
       messageContextPrefix?: string
+      selectedAccountRefs?: Array<string | number>
     }
 
 export interface OptiMateMultiChatHandle {
@@ -69,6 +70,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
     const selectedAccountsTarget = useMemo<OptiMateChatTarget | null>(() => {
       const auditTargets = targets.filter((t) => t.mode !== 'portfolio')
       if (auditTargets.length < 2) return null
+      const selectedAccountRefs = auditTargets.map((t) => t.id)
       const accountLines = auditTargets.map((t) => {
         const label = t.businessName || t.customerId
         const ref = String(t.id)
@@ -83,6 +85,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
           'Answer using only these selected Google Ads accounts unless the user explicitly asks to widen the scope. ' +
           'When the user asks for an email or draft, compare/summarise these selected accounts together and create one combined Gmail draft if requested.\n' +
           accountLines.join('\n'),
+        selectedAccountRefs,
       }
     }, [targets])
     const chatTargets = useMemo(
@@ -196,6 +199,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
           fluid={fluid}
           initialSessionId={t.initialSessionId}
           messageContextPrefix={t.mode === 'portfolio' ? t.messageContextPrefix : undefined}
+          selectedAccountRefs={t.mode === 'portfolio' ? t.selectedAccountRefs ?? [] : []}
         />
       )
     }
@@ -280,6 +284,7 @@ const OptiMateMultiChat = forwardRef<OptiMateMultiChatHandle, OptiMateMultiChatP
                   hideInput
                   initialSessionId={t.initialSessionId}
                   messageContextPrefix={t.mode === 'portfolio' ? t.messageContextPrefix : undefined}
+                  selectedAccountRefs={t.mode === 'portfolio' ? t.selectedAccountRefs ?? [] : []}
                 />
               </div>
             )

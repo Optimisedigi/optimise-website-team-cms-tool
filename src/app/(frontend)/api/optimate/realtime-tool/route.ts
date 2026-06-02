@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { headers as nextHeaders } from 'next/headers'
-import { getTools } from '@/lib/agents/optimate-google-ads'
+import { getPortfolioTools, getTools } from '@/lib/agents/optimate-google-ads'
 import { conversionActionsForClient } from '@/lib/agents/optimate-google-ads/config'
-import { isVoiceTool } from '@/lib/agents/optimate-google-ads/realtime-tools'
+import { isPortfolioVoiceTool, isVoiceTool } from '@/lib/agents/optimate-google-ads/realtime-tools'
 import type { CanonicalTool, ToolContext, ToolResultPayload } from '@/lib/agents/_shared/tool'
 
 export const runtime = 'nodejs'
@@ -39,16 +39,26 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as {
       auditId?: unknown
+      customerId?: unknown
+      businessName?: unknown
+      mode?: unknown
+      selectedAccountRefs?: unknown
       name?: unknown
       arguments?: unknown
     }
 
+    const mode = body.mode === 'portfolio' ? 'portfolio' : 'audit'
     const auditId = body.auditId
-    if (
-      (typeof auditId !== 'string' && typeof auditId !== 'number') ||
-      String(auditId).trim().length === 0
-    ) {
-      return NextResponse.json({ ok: false, error: 'auditId is required' }, { status: 400 })
+    const customerId = typeof body.customerId === 'string' ? body.customerId.trim() : ''
+    const businessName = typeof body.businessName === 'string' ? body.businessName.trim() : ''
+    const selectedAccountRefs = Array.isArray(body.selectedAccountRefs)
+      ? body.selectedAccountRefs.filter((value): value is string | number => typeof value === 'string' || typeof value === 'number')
+      : []
+    if (mode === 'audit' && ((typeof auditId !== 'string' && typeof auditId !== 'number') || String(auditId).trim().length === 0) && !customerId) {
+      return NextResponse.json({ ok: false, error: 'auditId or customerId is required' }, { status: 400 })
+    }
+    if (mode === 'portfolio' && selectedAccountRefs.length === 0) {
+      return NextResponse.json({ ok: false, error: 'selectedAccountRefs is required' }, { status: 400 })
     }
 
     const name = typeof body.name === 'string' ? body.name.trim() : ''
@@ -59,7 +69,7 @@ export async function POST(request: Request) {
     // Reject anything outside the registered voice allow-set BEFORE touching
     // the DB or the tool, so a confused/compromised client can never call an
     // unregistered function through speech.
-    if (!isVoiceTool(name)) {
+    if (mode === 'audit' && !isVoiceTool(name)) {
       return NextResponse.json(
         {
           ok: false,
@@ -69,23 +79,45 @@ export async function POST(request: Request) {
       )
     }
 
-    const args =
+    let args =
       body.arguments && typeof body.arguments === 'object' && !Array.isArray(body.arguments)
         ? (body.arguments as Record<string, unknown>)
         : {}
 
-    // Load the audit server-side. This is the source of truth for run context.
-    let audit: Record<string, unknown> | null = null
-    try {
-      audit = (await payload.findByID({
-        collection: 'google-ads-audits',
-        id: auditId as string,
-        overrideAccess: true,
-        depth: 1,
-      })) as unknown as Record<string, unknown>
-    } catch {
-      audit = null
+    if (mode === 'portfolio') {
+      if (!isPortfolioVoiceTool(name)) {
+        return NextResponse.json(
+          { ok: false, error: `Tool "${name}" is not available over portfolio voice.` },
+          { status: 403 },
+        )
+      }
+      if (
+        (name === 'get_portfolio_performance_summary' || name === 'get_portfolio_search_term_wastage') &&
+        !Array.isArray(args.accountRefs)
+      ) {
+        args = { ...args, accountRefs: selectedAccountRefs }
+      }
+      const tool = getPortfolioTools().find((t) => t.name === name) as CanonicalTool<unknown> | undefined
+      if (!tool || !isPortfolioVoiceTool(tool.name)) {
+        return NextResponse.json(
+          { ok: false, error: `Unknown or disallowed tool: ${name}` },
+          { status: 403 },
+        )
+      }
+      return executeTool(tool, args, {
+        agentName: 'optimate-google-ads',
+        agentRunId: `voice_${Date.now()}`,
+        context: {
+          mode: 'portfolio',
+          selectedAccountRefs,
+          userId: typeof user.id === 'number' ? user.id : Number(user.id),
+        },
+        log: (msg, meta) => console.log(`[optimate-portfolio-voice-tool] ${msg}`, meta ?? ''),
+      })
     }
+
+    // Load the audit server-side. This is the source of truth for run context.
+    const audit = await resolveAudit(payload, { auditId, customerId, businessName })
     if (!audit) {
       return NextResponse.json({ ok: false, error: 'Audit not found' }, { status: 404 })
     }
@@ -118,18 +150,7 @@ export async function POST(request: Request) {
       log: (msg, meta) => console.log(`[optimate-voice-tool] ${msg}`, meta ?? ''),
     }
 
-    let validated: unknown = args
-    try {
-      validated = tool.validate ? tool.validate(args) : args
-    } catch (err) {
-      return NextResponse.json(
-        { ok: false, error: `Invalid arguments: ${(err as Error).message}` },
-        { status: 400 },
-      )
-    }
-
-    const result: ToolResultPayload = await tool.execute(validated, ctx)
-    return NextResponse.json(result)
+    return executeTool(tool, args, ctx)
   } catch (err) {
     console.error('[optimate-realtime-tool] error:', err)
     return NextResponse.json(
@@ -143,6 +164,63 @@ export async function POST(request: Request) {
  * Resolve the client linked to this audit (directly or via its proposal).
  * Mirrors the text-chat route's resolution so voice + text share run context.
  */
+async function executeTool(
+  tool: CanonicalTool<unknown>,
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+): Promise<NextResponse> {
+  let validated: unknown = args
+  try {
+    validated = tool.validate ? tool.validate(args) : args
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, error: `Invalid arguments: ${(err as Error).message}` },
+      { status: 400 },
+    )
+  }
+
+  const result: ToolResultPayload = await tool.execute(validated, ctx)
+  return NextResponse.json(result)
+}
+
+async function resolveAudit(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  input: { auditId: unknown; customerId: string; businessName: string },
+): Promise<Record<string, unknown> | null> {
+  if (typeof input.auditId === 'string' || typeof input.auditId === 'number') {
+    try {
+      return (await payload.findByID({
+        collection: 'google-ads-audits',
+        id: input.auditId as string,
+        overrideAccess: true,
+        depth: 1,
+      })) as unknown as Record<string, unknown>
+    } catch {
+      // Fall through to customerId lookup/create fallback.
+    }
+  }
+
+  if (!input.customerId) return null
+  const customerKey = input.customerId.replace(/-/g, '')
+  try {
+    const existing = await payload.find({
+      collection: 'google-ads-audits',
+      where: {
+        or: [{ customerId: { equals: input.customerId } }, { customerId: { equals: customerKey } }],
+      },
+      limit: 1,
+      depth: 1,
+      overrideAccess: true,
+    })
+    const found = existing.docs[0]
+    if (found) return found as unknown as Record<string, unknown>
+  } catch {
+    // Best-effort fallback only; do not create audit records from a voice tool call.
+  }
+
+  return null
+}
+
 async function resolveLinkedClient(
   payload: Awaited<ReturnType<typeof getPayload>>,
   audit: Record<string, unknown>,
