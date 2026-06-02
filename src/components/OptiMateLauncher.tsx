@@ -662,22 +662,23 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   onClick={startPortfolioChat}
                   style={{
                     width: '100%',
-                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
                     padding: '10px 12px',
-                    border: '1px solid #bfdbfe',
+                    border: 'none',
                     borderRadius: 8,
-                    background: '#eff6ff',
-                    color: '#1e3a8a',
+                    background: '#2563eb',
+                    color: '#fff',
                     fontSize: 13,
-                    fontWeight: 600,
+                    fontWeight: 700,
                     cursor: 'pointer',
                     marginBottom: 10,
                   }}
                 >
-                  Portfolio analysis, all accounts
-                  <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: '#1d4ed8' }}>
-                    Start with no account selected and fetch compact summaries on demand.
-                  </span>
+                  <span aria-hidden="true">↗</span>
+                  Start portfolio chat
                 </button>
                 <input
                   type="text"

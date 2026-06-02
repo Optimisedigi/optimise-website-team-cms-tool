@@ -189,10 +189,13 @@ export async function GET() {
         continue;
       }
 
+      const businessName = typeof client.name === "string" && client.name.trim()
+        ? client.name.trim()
+        : `Google Ads ${customerId}`;
       const audit = await payload.create({
         collection: "google-ads-audits",
         data: {
-          businessName: typeof client.name === "string" ? client.name : "",
+          businessName,
           customerId,
           client: Number(client.id),
         },
@@ -201,7 +204,7 @@ export async function GET() {
 
       byCustomerId.set(key, {
         id: (audit as { id: string | number }).id,
-        businessName: typeof client.name === "string" ? client.name : undefined,
+        businessName,
         customerId,
         source: "client",
         clientId: client.id as string | number,
