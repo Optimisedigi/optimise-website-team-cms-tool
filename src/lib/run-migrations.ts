@@ -2619,12 +2619,29 @@ export async function runMigrations(
       FOREIGN KEY (\`created_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
     )`);
     await run("scheduled_agent_tasks.task_type", "ALTER TABLE `scheduled_agent_tasks` ADD `task_type` text DEFAULT 'agent-gmail-draft' NOT NULL");
+    await run("scheduled_agent_tasks.schedule_mode", "ALTER TABLE `scheduled_agent_tasks` ADD `schedule_mode` text DEFAULT 'manual_cron' NOT NULL");
+    await run("scheduled_agent_tasks.monthly_day", "ALTER TABLE `scheduled_agent_tasks` ADD `monthly_day` integer DEFAULT 1");
+    await run("scheduled_agent_tasks.time_of_day", "ALTER TABLE `scheduled_agent_tasks` ADD `time_of_day` text DEFAULT '09:00'");
     await run("scheduled_agent_tasks_task_type_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_task_type_idx` ON `scheduled_agent_tasks` (`task_type`)");
+    await run("scheduled_agent_tasks_schedule_mode_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_schedule_mode_idx` ON `scheduled_agent_tasks` (`schedule_mode`)");
     await run("scheduled_agent_tasks_audit_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_audit_idx` ON `scheduled_agent_tasks` (`audit_id`)");
     await run("scheduled_agent_tasks_client_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_client_idx` ON `scheduled_agent_tasks` (`client_id`)");
     await run("scheduled_agent_tasks_created_by_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_created_by_idx` ON `scheduled_agent_tasks` (`created_by_id`)");
     await run("scheduled_agent_tasks_next_run_at_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_next_run_at_idx` ON `scheduled_agent_tasks` (`next_run_at`)");
     await run("scheduled_agent_tasks_is_active_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_is_active_idx` ON `scheduled_agent_tasks` (`is_active`)");
+    await run("scheduled_agent_tasks_rels", `CREATE TABLE IF NOT EXISTS \`scheduled_agent_tasks_rels\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`order\` integer,
+      \`parent_id\` integer NOT NULL,
+      \`path\` text NOT NULL,
+      \`google_ads_audits_id\` integer,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`scheduled_agent_tasks\`(\`id\`) ON DELETE CASCADE,
+      FOREIGN KEY (\`google_ads_audits_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON DELETE CASCADE
+    )`);
+    await run("scheduled_agent_tasks_rels_order_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_rels_order_idx` ON `scheduled_agent_tasks_rels` (`order`)");
+    await run("scheduled_agent_tasks_rels_parent_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_rels_parent_idx` ON `scheduled_agent_tasks_rels` (`parent_id`)");
+    await run("scheduled_agent_tasks_rels_path_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_rels_path_idx` ON `scheduled_agent_tasks_rels` (`path`)");
+    await run("scheduled_agent_tasks_rels_google_ads_audits_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_rels_google_ads_audits_idx` ON `scheduled_agent_tasks_rels` (`google_ads_audits_id`)");
     await run("locked_docs_rels.scheduled_agent_tasks_id", "ALTER TABLE `payload_locked_documents_rels` ADD `scheduled_agent_tasks_id` integer REFERENCES `scheduled_agent_tasks`(`id`) ON DELETE CASCADE");
   
     // Per-user Gmail OAuth fields used by scheduled-agent-tasks to drop

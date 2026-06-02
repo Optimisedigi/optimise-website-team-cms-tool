@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { buildCronFromFriendlySchedule, computeNextRun } from "../lib/scheduled-task-schedule";
 import { hasValidApiKey } from "./api-key-access";
 
 /**
@@ -56,6 +57,34 @@ export const ScheduledAgentTasks: CollectionConfig = {
     },
   },
   defaultSort: "nextRunAt",
+  hooks: {
+    beforeValidate: [
+      ({ data, operation }) => {
+        if (!data) return data;
+        const cron = buildCronFromFriendlySchedule({
+          scheduleMode: data.scheduleMode,
+          monthlyDay: data.monthlyDay,
+          timeOfDay: data.timeOfDay,
+        });
+        if (cron) data.schedule = cron;
+
+        const shouldComputeNextRun =
+          operation === "create" ||
+          data.scheduleMode !== undefined ||
+          data.monthlyDay !== undefined ||
+          data.timeOfDay !== undefined ||
+          data.schedule !== undefined ||
+          data.timezone !== undefined;
+        if (shouldComputeNextRun && data.schedule) {
+          data.nextRunAt = computeNextRun(
+            String(data.schedule),
+            String(data.timezone || "Australia/Brisbane"),
+          ).toISOString();
+        }
+        return data;
+      },
+    ],
+  },
   fields: [
     {
       name: "title",
@@ -107,7 +136,18 @@ export const ScheduledAgentTasks: CollectionConfig = {
       index: true,
       admin: {
         description:
-          "Selected Google Ads account/client. Monthly budget tasks run for this account only.",
+          "Primary Google Ads account/client. Monthly budget tasks run for this plus any additional selected accounts below.",
+      },
+    },
+    {
+      name: "audits",
+      label: "Additional Google Ads accounts",
+      type: "relationship",
+      relationTo: "google-ads-audits" as any,
+      hasMany: true,
+      admin: {
+        description:
+          "Optional. Add more Google Ads accounts to process in the same scheduled task. Each account still gets its own separate Agent Approval.",
       },
     },
     {
@@ -141,10 +181,49 @@ export const ScheduledAgentTasks: CollectionConfig = {
       },
     },
     {
+      name: "scheduleMode",
+      type: "select",
+      required: true,
+      defaultValue: "monthly",
+      options: [
+        { label: "Monthly", value: "monthly" },
+        { label: "Advanced cron", value: "manual_cron" },
+      ],
+      admin: {
+        description: "Use Monthly for normal tasks. Advanced cron is available for custom schedules.",
+      },
+    },
+    {
+      name: "monthlyDay",
+      label: "Day of month",
+      type: "number",
+      min: 1,
+      max: 31,
+      defaultValue: 1,
+      admin: {
+        description: "For monthly schedules. Use 1 for the first day of each month.",
+        condition: (data) => data?.scheduleMode !== "manual_cron",
+      },
+    },
+    {
+      name: "timeOfDay",
+      label: "Time of day",
+      type: "text",
+      defaultValue: "09:00",
+      admin: {
+        description: "24-hour local time, e.g. 09:00. Converted to cron automatically.",
+        condition: (data) => data?.scheduleMode !== "manual_cron",
+      },
+    },
+    {
       name: "schedule",
       type: "text",
       required: true,
-      admin: { description: "Cron expression, e.g. '0 9 * * 1' for Mondays at 9am." },
+      defaultValue: "0 9 1 * *",
+      admin: {
+        description: "Generated cron expression. Use Advanced cron if you need to edit this manually.",
+        condition: (data) => data?.scheduleMode === "manual_cron",
+      },
     },
     {
       name: "timezone",
@@ -159,7 +238,8 @@ export const ScheduledAgentTasks: CollectionConfig = {
       required: true,
       index: true,
       admin: {
-        description: "Computed from schedule + timezone. Tick endpoint picks rows where this <= now.",
+        readOnly: true,
+        description: "Computed from the friendly schedule + timezone. Tick endpoint picks rows where this <= now.",
         date: { pickerAppearance: "dayAndTime" },
       },
     },

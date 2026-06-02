@@ -6777,9 +6777,13 @@ export interface ScheduledAgentTask {
    */
   prompt?: string | null;
   /**
-   * Selected Google Ads account/client. Monthly budget tasks run for this account only.
+   * Primary Google Ads account/client. Monthly budget tasks run for this plus any additional selected accounts below.
    */
   audit: number | GoogleAdsAudit;
+  /**
+   * Optional. Add more Google Ads accounts to process in the same scheduled task. Each account still gets its own separate Agent Approval.
+   */
+  audits?: (number | GoogleAdsAudit)[] | null;
   /**
    * Denormalised from audit.client for fast admin filtering.
    */
@@ -6793,7 +6797,19 @@ export interface ScheduledAgentTask {
    */
   recipientEmail?: string | null;
   /**
-   * Cron expression, e.g. '0 9 * * 1' for Mondays at 9am.
+   * Use Monthly for normal tasks. Advanced cron is available for custom schedules.
+   */
+  scheduleMode: 'monthly' | 'manual_cron';
+  /**
+   * For monthly schedules. Use 1 for the first day of each month.
+   */
+  monthlyDay?: number | null;
+  /**
+   * 24-hour local time, e.g. 09:00. Converted to cron automatically.
+   */
+  timeOfDay?: string | null;
+  /**
+   * Generated cron expression. Use Advanced cron if you need to edit this manually.
    */
   schedule: string;
   /**
@@ -10224,9 +10240,13 @@ export interface ScheduledAgentTasksSelect<T extends boolean = true> {
   agentName?: T;
   prompt?: T;
   audit?: T;
+  audits?: T;
   client?: T;
   createdBy?: T;
   recipientEmail?: T;
+  scheduleMode?: T;
+  monthlyDay?: T;
+  timeOfDay?: T;
   schedule?: T;
   timezone?: T;
   nextRunAt?: T;

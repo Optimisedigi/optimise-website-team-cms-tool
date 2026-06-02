@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { CronExpressionParser } from "cron-parser";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { runChatTurn } from "@/lib/agents/optimate-google-ads";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { createGmailDraft } from "@/lib/gmail-service";
 import { runMonthlyBudgetRecommendations } from "@/lib/google-ads-monthly-budget-recommendations";
+import { computeNextRun, selectedBudgetAuditIds } from "@/lib/scheduled-task-schedule";
 import type { Message } from "@/lib/agents/_shared/llm/types";
 
 export const maxDuration = 300;
@@ -18,6 +18,7 @@ interface ScheduledTaskRow {
   agentName: string;
   prompt: string;
   audit: number | { id: number };
+  audits?: Array<number | { id: number }> | null;
   client: number | { id: number };
   createdBy: number | { id: number };
   recipientEmail: string;
@@ -131,9 +132,10 @@ async function runOneTask(
 
   try {
     if (task.taskType === "monthly-budget-recommendations") {
+      const auditIds = selectedBudgetAuditIds(task.audits, auditId);
       const result = await runMonthlyBudgetRecommendations(payload, {
         triggeredBy: "scheduled-task",
-        auditIds: [auditId],
+        auditIds,
       });
 
       await payload.update({
@@ -257,22 +259,6 @@ async function runOneTask(
       error: message,
     };
   }
-}
-
-/**
- * Compute the next firing of a cron expression after `from`, evaluated in
- * the given IANA timezone.
- */
-export function computeNextRun(
-  cron: string,
-  timezone: string,
-  from: Date,
-): Date {
-  const it = CronExpressionParser.parse(cron, {
-    currentDate: from,
-    tz: timezone,
-  });
-  return it.next().toDate();
 }
 
 function resolveClientFromAudit(audit: unknown): { id?: string | number; name?: string | null } | null {
