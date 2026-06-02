@@ -2597,6 +2597,7 @@ export async function runMigrations(
     await run("scheduled_agent_tasks", `CREATE TABLE IF NOT EXISTS \`scheduled_agent_tasks\` (
       \`id\` integer PRIMARY KEY NOT NULL,
       \`title\` text NOT NULL,
+      \`task_type\` text DEFAULT 'agent-gmail-draft' NOT NULL,
       \`agent_name\` text DEFAULT 'optimate-google-ads' NOT NULL,
       \`prompt\` text NOT NULL,
       \`audit_id\` integer NOT NULL,
@@ -2617,6 +2618,8 @@ export async function runMigrations(
       FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
       FOREIGN KEY (\`created_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
     )`);
+    await run("scheduled_agent_tasks.task_type", "ALTER TABLE `scheduled_agent_tasks` ADD `task_type` text DEFAULT 'agent-gmail-draft' NOT NULL");
+    await run("scheduled_agent_tasks_task_type_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_task_type_idx` ON `scheduled_agent_tasks` (`task_type`)");
     await run("scheduled_agent_tasks_audit_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_audit_idx` ON `scheduled_agent_tasks` (`audit_id`)");
     await run("scheduled_agent_tasks_client_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_client_idx` ON `scheduled_agent_tasks` (`client_id`)");
     await run("scheduled_agent_tasks_created_by_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_created_by_idx` ON `scheduled_agent_tasks` (`created_by_id`)");

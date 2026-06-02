@@ -23,6 +23,7 @@ export const ScheduledAgentTasks: CollectionConfig = {
     useAsTitle: "title",
     defaultColumns: [
       "title",
+      "taskType",
       "agentName",
       "client",
       "createdBy",
@@ -32,7 +33,7 @@ export const ScheduledAgentTasks: CollectionConfig = {
     ],
     listSearchableFields: ["title", "agentName"],
     description:
-      "Recurring agent runs scheduled by users in chat. Output is delivered to the owner's Gmail Drafts.",
+      "Recurring agent/system runs. Agent email tasks create Gmail drafts; monthly budget tasks queue Agent Approvals for budget pushes.",
   },
   access: {
     read: ({ req }) => {
@@ -63,17 +64,39 @@ export const ScheduledAgentTasks: CollectionConfig = {
       admin: { description: "Plain-English label, e.g. 'Weekly Acme Ads summary'." },
     },
     {
+      name: "taskType",
+      type: "select",
+      required: true,
+      defaultValue: "agent-gmail-draft",
+      index: true,
+      options: [
+        { label: "Agent Gmail draft", value: "agent-gmail-draft" },
+        { label: "Monthly Google Ads budget approvals", value: "monthly-budget-recommendations" },
+      ],
+      admin: {
+        description:
+          "What the scheduler should run. Monthly budget tasks calculate recommendations and queue Agent Approvals instead of creating Gmail drafts.",
+      },
+    },
+    {
       name: "agentName",
       type: "text",
       required: true,
       defaultValue: "optimate-google-ads",
-      admin: { description: "Which agent runs this task each tick." },
+      admin: {
+        description: "Which agent runs this task each tick.",
+        condition: (data) => data?.taskType !== "monthly-budget-recommendations",
+      },
     },
     {
       name: "prompt",
       type: "textarea",
       required: true,
-      admin: { description: "The user message replayed to the agent on each run." },
+      defaultValue: "Run the scheduled OptiMate task.",
+      admin: {
+        description: "The user message replayed to the agent on each run. Not used by monthly budget approval tasks.",
+        condition: (data) => data?.taskType !== "monthly-budget-recommendations",
+      },
     },
     {
       name: "audit",
@@ -82,6 +105,10 @@ export const ScheduledAgentTasks: CollectionConfig = {
       hasMany: false,
       required: true,
       index: true,
+      admin: {
+        description:
+          "Selected Google Ads account/client. Monthly budget tasks run for this account only.",
+      },
     },
     {
       name: "client",
@@ -107,7 +134,11 @@ export const ScheduledAgentTasks: CollectionConfig = {
       name: "recipientEmail",
       type: "text",
       required: true,
-      admin: { description: "Where the Gmail draft is created (defaults to owner's email)." },
+      defaultValue: "not-used@scheduled-system.local",
+      admin: {
+        description: "Where the Gmail draft is created (defaults to owner's email). Not used by monthly budget approval tasks.",
+        condition: (data) => data?.taskType !== "monthly-budget-recommendations",
+      },
     },
     {
       name: "schedule",

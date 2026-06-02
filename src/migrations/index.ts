@@ -92,6 +92,7 @@ import * as migration_20260618_120000_add_clients_services from './20260618_1200
 import * as migration_20260619_120000_add_agent_memory_review_fields from './20260619_120000_add_agent_memory_review_fields';
 import * as migration_20260620_120000_add_optimate_chat_turns_mode from './20260620_120000_add_optimate_chat_turns_mode';
 import * as migration_20260621_120000_add_contact_phone_fields from './20260621_120000_add_contact_phone_fields';
+import * as migration_20260624_120000_add_scheduled_task_type from './20260624_120000_add_scheduled_task_type';
 
 export const migrations = [
   {
@@ -563,5 +564,10 @@ export const migrations = [
     up: migration_20260621_120000_add_contact_phone_fields.up,
     down: migration_20260621_120000_add_contact_phone_fields.down,
     name: '20260621_120000_add_contact_phone_fields'
+  },
+  {
+    up: migration_20260624_120000_add_scheduled_task_type.up,
+    down: migration_20260624_120000_add_scheduled_task_type.down,
+    name: '20260624_120000_add_scheduled_task_type'
   },
 ];

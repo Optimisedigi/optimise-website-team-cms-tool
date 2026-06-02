@@ -39,10 +39,6 @@
     {
       "path": "/api/goal-agents/watchdog",
       "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/google-ads-budgets/monthly-recommendations",
-      "schedule": "0 1 1 * *"
     }
   ],
   "functions": {

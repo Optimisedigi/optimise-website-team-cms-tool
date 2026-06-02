@@ -38,6 +38,9 @@ export const applyBudgetPushLive: ApplyHandler = async (payload, ctx): Promise<A
 
   const rawCampaigns = Array.isArray(payload.campaigns) ? (payload.campaigns as unknown[]) : [];
   if (rawCampaigns.length === 0) throw new Error("budget-push-live: campaigns array is empty");
+  const source = typeof payload.source === "string" && payload.source.trim()
+    ? payload.source.trim()
+    : "agent";
 
   const campaigns: PushCampaign[] = rawCampaigns.map((c, i) => {
     const co = c as Record<string, unknown>;
@@ -89,7 +92,11 @@ export const applyBudgetPushLive: ApplyHandler = async (payload, ctx): Promise<A
         await pl.update({
           collection: BUDGETS_COLLECTION,
           id: (existing.docs[0] as { id: number }).id,
-          data: { actualDailyBudget: c.dailyBudget, lastPushedAt: now } as never,
+          data: {
+            actualDailyBudget: c.dailyBudget,
+            lastPushedAt: now,
+            lastPushedSource: source,
+          } as never,
           overrideAccess: true,
         });
       }

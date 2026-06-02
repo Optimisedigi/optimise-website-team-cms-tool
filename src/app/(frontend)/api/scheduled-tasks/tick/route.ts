@@ -6,6 +6,7 @@ import config from "@/payload.config";
 import { runChatTurn } from "@/lib/agents/optimate-google-ads";
 import { getValidGmailToken } from "@/lib/agents/_shared/user-gmail-tokens";
 import { createGmailDraft } from "@/lib/gmail-service";
+import { runMonthlyBudgetRecommendations } from "@/lib/google-ads-monthly-budget-recommendations";
 import type { Message } from "@/lib/agents/_shared/llm/types";
 
 export const maxDuration = 300;
@@ -13,6 +14,7 @@ export const maxDuration = 300;
 interface ScheduledTaskRow {
   id: number;
   title: string;
+  taskType?: "agent-gmail-draft" | "monthly-budget-recommendations";
   agentName: string;
   prompt: string;
   audit: number | { id: number };
@@ -31,6 +33,7 @@ interface TickItemResult {
   status: "success" | "failed" | "skipped";
   error?: string;
   draftId?: string;
+  detail?: unknown;
 }
 
 const MAX_PER_TICK = 20;
@@ -127,6 +130,33 @@ async function runOneTask(
   const nextRunAt = computeNextRun(task.schedule, task.timezone, new Date());
 
   try {
+    if (task.taskType === "monthly-budget-recommendations") {
+      const result = await runMonthlyBudgetRecommendations(payload, {
+        triggeredBy: "scheduled-task",
+        auditIds: [auditId],
+      });
+
+      await payload.update({
+        collection: "scheduled-agent-tasks" as never,
+        id: taskId,
+        overrideAccess: true,
+        data: {
+          lastRunAt: new Date().toISOString(),
+          lastRunStatus: "success",
+          lastRunError: null,
+          lastDraftId: null,
+          nextRunAt: nextRunAt.toISOString(),
+        } as never,
+      });
+
+      return {
+        id: taskId,
+        title: task.title,
+        status: "success",
+        detail: result,
+      };
+    }
+
     // 1. Load audit + linked client (depth=1 so audit.client is populated).
     const audit = await payload.findByID({
       collection: "google-ads-audits",

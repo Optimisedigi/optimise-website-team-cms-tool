@@ -6753,7 +6753,7 @@ export interface UsageReport {
   createdAt: string;
 }
 /**
- * Recurring agent runs scheduled by users in chat. Output is delivered to the owner's Gmail Drafts.
+ * Recurring agent/system runs. Agent email tasks create Gmail drafts; monthly budget tasks queue Agent Approvals for budget pushes.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "scheduled-agent-tasks".
@@ -6765,13 +6765,20 @@ export interface ScheduledAgentTask {
    */
   title: string;
   /**
+   * What the scheduler should run. Monthly budget tasks calculate recommendations and queue Agent Approvals instead of creating Gmail drafts.
+   */
+  taskType: 'agent-gmail-draft' | 'monthly-budget-recommendations';
+  /**
    * Which agent runs this task each tick.
    */
-  agentName: string;
+  agentName?: string | null;
   /**
-   * The user message replayed to the agent on each run.
+   * The user message replayed to the agent on each run. Not used by monthly budget approval tasks.
    */
-  prompt: string;
+  prompt?: string | null;
+  /**
+   * Selected Google Ads account/client. Monthly budget tasks run for this account only.
+   */
   audit: number | GoogleAdsAudit;
   /**
    * Denormalised from audit.client for fast admin filtering.
@@ -6782,9 +6789,9 @@ export interface ScheduledAgentTask {
    */
   createdBy: number | User;
   /**
-   * Where the Gmail draft is created (defaults to owner's email).
+   * Where the Gmail draft is created (defaults to owner's email). Not used by monthly budget approval tasks.
    */
-  recipientEmail: string;
+  recipientEmail?: string | null;
   /**
    * Cron expression, e.g. '0 9 * * 1' for Mondays at 9am.
    */
@@ -10213,6 +10220,7 @@ export interface AgentApprovalQueueSelect<T extends boolean = true> {
  */
 export interface ScheduledAgentTasksSelect<T extends boolean = true> {
   title?: T;
+  taskType?: T;
   agentName?: T;
   prompt?: T;
   audit?: T;
