@@ -375,6 +375,10 @@ export async function GET(request: NextRequest) {
 
   // ── Client billing fields ──
   await run("clients.client_start_date", "ALTER TABLE `clients` ADD `client_start_date` text");
+  // Client logo upload FK. Only in the registry migration (20260617), never in
+  // the prod-applicable sweep/fast-list — so prod lacked `logo_id` and creating
+  // or saving a client 500'd.
+  await run("clients.logo_id", "ALTER TABLE `clients` ADD `logo_id` integer REFERENCES `media`(`id`) ON DELETE set null");
   await run("clients.historical_revenue", "ALTER TABLE `clients` ADD `historical_revenue` numeric");
   await run("clients.contract_id", "ALTER TABLE `clients` ADD `contract_id` integer REFERENCES `media`(`id`) ON DELETE set null");
 

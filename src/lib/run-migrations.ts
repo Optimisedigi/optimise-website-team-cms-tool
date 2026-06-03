@@ -986,6 +986,11 @@ export async function runMigrations(
     // Payload registry migration (20260616), never in this sweep — so prod
     // lacked the column and the OptiMate accounts route could not filter on it.
     await run("clients.gads_auto_is_managed_google_ads_account", "ALTER TABLE `clients` ADD `gads_auto_is_managed_google_ads_account` integer DEFAULT true");
+    // Client logo (upload FK → media). Only shipped in the registry migration
+    // (20260617), never in this sweep — so prod lacked the `logo_id` column and
+    // creating/saving ANY client 500'd (Payload's insert + read-back reference
+    // the column). See src/migrations/20260617_120000_add_client_logo.ts.
+    await run("clients.logo_id", "ALTER TABLE `clients` ADD `logo_id` integer REFERENCES `media`(`id`) ON DELETE set null");
     await run("clients.gads_auto_negative_sweep_enabled", "ALTER TABLE `clients` ADD `gads_auto_negative_sweep_enabled` integer DEFAULT false");
     await run("clients.gads_auto_negative_sweep_mode", "ALTER TABLE `clients` ADD `gads_auto_negative_sweep_mode` text DEFAULT 'review_first'");
     await run("clients.gads_auto_negative_sweep_weekday", "ALTER TABLE `clients` ADD `gads_auto_negative_sweep_weekday` text DEFAULT 'monday'");
