@@ -92,15 +92,33 @@ export async function warmMonthlyWasteRelevancyForClient(
     overrideAccess: true,
   });
 
-  const irrelevantSet = new Set<string>();
+  // Collect negatives with their match types intact. Each NKL keyword carries
+  // a structured matchType (exact/phrase/broad); forwarding it lets Growth
+  // Tools apply true Google Ads match semantics instead of substring-matching
+  // every term as BROAD (which over-credits irrelevant spend and craters the
+  // relevancy %). Dedup on (text|matchType).
+  const seen = new Set<string>();
+  const irrelevantKeywords: Array<{ text: string; matchType: "EXACT" | "PHRASE" | "BROAD" }> = [];
   for (const list of nkls.docs as any[]) {
     for (const kw of list?.keywords ?? []) {
-      if (typeof kw?.keyword === "string" && kw.keyword.trim()) {
-        irrelevantSet.add(kw.keyword.trim());
-      }
+      if (typeof kw?.keyword !== "string" || !kw.keyword.trim()) continue;
+      const text = kw.keyword.trim();
+      // matchType is required on the NKL keyword schema (default "exact").
+      // Fall back to EXACT for any malformed value rather than BROAD — BROAD
+      // is the over-aggressive default that caused the original over-flagging
+      // bug, so we never want to silently widen a keyword's reach here.
+      const mt = String(kw?.matchType ?? "").toUpperCase();
+      const matchType: "EXACT" | "PHRASE" | "BROAD" =
+        mt === "EXACT" || mt === "PHRASE" || mt === "BROAD" ? mt : "EXACT";
+      const dedupKey = `${text.toLowerCase()}|${matchType}`;
+      if (seen.has(dedupKey)) continue;
+      seen.add(dedupKey);
+      irrelevantKeywords.push({ text, matchType });
     }
   }
-  const irrelevantTerms = Array.from(irrelevantSet);
+  // Legacy bare-string list kept for the response's irrelevantTermCount and
+  // for backward compatibility with older Growth Tools deploys.
+  const irrelevantTerms = irrelevantKeywords.map((k) => k.text);
 
   // Pull the client's brand keywords so Growth Tools can compute the
   // per-month brand/generic split from search-term data.
@@ -188,6 +206,10 @@ export async function warmMonthlyWasteRelevancyForClient(
         },
         body: JSON.stringify({
           customerId: cleanCustomerId,
+          // Preferred: structured negatives with match types so Growth Tools
+          // applies true EXACT/PHRASE/BROAD matching.
+          irrelevantKeywords,
+          // Legacy field kept for older Growth Tools deploys (treated as BROAD).
           irrelevantTerms,
           brandKeywords,
           monthsBack: effectiveMonthsBack,
