@@ -1224,27 +1224,27 @@ $svg-close: "%3C/svg%3E";
   }
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1120px) {
   .od-kpi {
     padding: 10px 10px 9px;
   }
 
   .od-kpi__value {
-    font-size: clamp(15px, 1.35vw, 20px);
+    font-size: clamp(15px, 1.45vw, 20px);
     letter-spacing: -0.04em;
     line-height: 1.08;
     white-space: nowrap;
   }
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 980px) {
   .od-kpi__label {
     font-size: 10px;
     gap: 4px;
   }
 
   .od-kpi__value {
-    font-size: clamp(13px, 1.25vw, 17px);
+    font-size: clamp(13px, 1.35vw, 17px);
   }
 }
 

@@ -135,15 +135,29 @@ export async function GET() {
     // Global not configured yet, use defaults
   }
 
-  // Fetch business costs summary for dashboard card
-  let businessCostsSummary = { totalThisMonth: 0, uncategorisedCount: 0 };
+  const now = new Date();
+  const thisMonthDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const thisMonthKeyForCosts = `${thisMonthDate.getFullYear()}-${String(thisMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonthKeyForCosts = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonthStart = lastMonthDate.toISOString();
+  const lastMonthEnd = thisMonthDate.toISOString();
+
+  // Fetch business costs summaries for the dashboard: MTD for the topline KPI,
+  // last completed month for the detailed Costs card.
+  let businessCostsSummary = { totalThisMonth: 0, totalLastMonth: 0, uncategorisedCount: 0 };
   try {
-    const now_ = new Date();
-    const thisMonth = `${now_.getFullYear()}-${String(now_.getMonth() + 1).padStart(2, '0')}`;
-    const [bcThisMonth, bcUncat] = await Promise.all([
+    const [bcThisMonth, bcLastMonth, bcUncat] = await Promise.all([
       payload.find({
         collection: 'business-costs' as any,
-        where: { month: { equals: thisMonth } },
+        where: { month: { equals: thisMonthKeyForCosts } },
+        limit: 5000,
+        depth: 0,
+        overrideAccess: true,
+      }),
+      payload.find({
+        collection: 'business-costs' as any,
+        where: { month: { equals: lastMonthKeyForCosts } },
         limit: 5000,
         depth: 0,
         overrideAccess: true,
@@ -162,14 +176,14 @@ export async function GET() {
     ]);
     businessCostsSummary = {
       totalThisMonth: round(bcThisMonth.docs.reduce((sum: number, c: any) => sum + ((c.amount as number) || 0), 0)),
+      totalLastMonth: round(bcLastMonth.docs.reduce((sum: number, c: any) => sum + ((c.amount as number) || 0), 0)),
       uncategorisedCount: bcUncat.totalDocs,
     };
   } catch {
     // business-costs collection might not exist yet
   }
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const monthStart = thisMonthDate.toISOString();
 
   // Build date ranges for last 6 months (for chart)
   const monthRanges: { label: string; start: string; end: string }[] = [];
@@ -194,6 +208,12 @@ export async function GET() {
     compCount,
     contentCount,
     mediaCount,
+    lastMonthSeoCount,
+    lastMonthCroCount,
+    lastMonthKwCount,
+    lastMonthCompCount,
+    lastMonthContentCount,
+    lastMonthMediaCount,
     activeProposals,
     convertedProposals,
     totalProposals,
@@ -376,6 +396,14 @@ export async function GET() {
     payload.count({ collection: "competitor-analyses", where: { createdAt: { greater_than: monthStart } } }).catch(() => ({ totalDocs: 0 })),
     payload.count({ collection: "content-researches", where: { createdAt: { greater_than: monthStart } } }).catch(() => ({ totalDocs: 0 })),
     payload.count({ collection: "media", where: { createdAt: { greater_than: monthStart } } }).catch(() => ({ totalDocs: 0 })),
+
+    // Last completed month's counts for the detailed Costs card
+    payload.count({ collection: "seo-audits", where: { createdAt: { greater_than: lastMonthStart, less_than: lastMonthEnd } } }).catch(() => ({ totalDocs: 0 })),
+    payload.count({ collection: "cro-audits", where: { createdAt: { greater_than: lastMonthStart, less_than: lastMonthEnd } } }).catch(() => ({ totalDocs: 0 })),
+    payload.count({ collection: "keyword-snapshots", where: { createdAt: { greater_than: lastMonthStart, less_than: lastMonthEnd } } }).catch(() => ({ totalDocs: 0 })),
+    payload.count({ collection: "competitor-analyses", where: { createdAt: { greater_than: lastMonthStart, less_than: lastMonthEnd } } }).catch(() => ({ totalDocs: 0 })),
+    payload.count({ collection: "content-researches", where: { createdAt: { greater_than: lastMonthStart, less_than: lastMonthEnd } } }).catch(() => ({ totalDocs: 0 })),
+    payload.count({ collection: "media", where: { createdAt: { greater_than: lastMonthStart, less_than: lastMonthEnd } } }).catch(() => ({ totalDocs: 0 })),
 
     // Proposals — active (not declined, not converted)
     payload.count({
@@ -722,7 +750,7 @@ export async function GET() {
     mediaUploads: mediaCount.totalDocs,
   };
 
-  const apiCosts = {
+  const currentMonthApiCosts = {
     seoAudits: round(usage.seoAudits * COST_PER_AUD.seoAudit),
     croAudits: round(usage.croAudits * COST_PER_AUD.croAudit),
     keywords: round(usage.keywordSnapshots * COST_PER_AUD.keywordSnapshot),
@@ -731,11 +759,22 @@ export async function GET() {
     blogImages: round(usage.mediaUploads * COST_PER_AUD.blogImage),
   };
 
+  const lastMonthApiCosts = {
+    seoAudits: round(lastMonthSeoCount.totalDocs * COST_PER_AUD.seoAudit),
+    croAudits: round(lastMonthCroCount.totalDocs * COST_PER_AUD.croAudit),
+    keywords: round(lastMonthKwCount.totalDocs * COST_PER_AUD.keywordSnapshot),
+    competitors: round(lastMonthCompCount.totalDocs * COST_PER_AUD.competitorAnalysis),
+    content: round(lastMonthContentCount.totalDocs * COST_PER_AUD.contentResearch),
+    blogImages: round(lastMonthMediaCount.totalDocs * COST_PER_AUD.blogImage),
+  };
+
   const infraTotal = round(Object.values(INFRA_MONTHLY_AUD).reduce((a, b) => a + b, 0));
-  const apiTotal = round(Object.values(apiCosts).reduce((a, b) => a + b, 0));
+  const currentMonthApiTotal = round(Object.values(currentMonthApiCosts).reduce((a, b) => a + b, 0));
+  const lastMonthApiTotal = round(Object.values(lastMonthApiCosts).reduce((a, b) => a + b, 0));
   const llmTotal = round(Object.values(LLM_MONTHLY_AUD).reduce((a, b) => a + b, 0));
-  const totalCost = round(infraTotal + apiTotal + llmTotal);
-  const mtdCosts = round(totalCost + businessCostsSummary.totalThisMonth);
+  const currentMonthCost = round(infraTotal + currentMonthApiTotal + llmTotal);
+  const lastMonthCost = round(infraTotal + lastMonthApiTotal + llmTotal + businessCostsSummary.totalLastMonth);
+  const mtdCosts = round(currentMonthCost + businessCostsSummary.totalThisMonth);
 
   // Lead conversion: leads that reached "client" stage / total leads
   // Fetch agency yearly sales target — from the agency client's
@@ -826,13 +865,14 @@ export async function GET() {
     },
     usage,
     costs: {
-      api: apiCosts,
-      apiTotal,
+      period: lastMonthDate.toLocaleString("en-AU", { month: "long", year: "numeric" }),
+      api: lastMonthApiCosts,
+      apiTotal: lastMonthApiTotal,
       infrastructure: INFRA_MONTHLY_AUD,
       infraTotal,
       llm: LLM_MONTHLY_AUD,
       llmTotal,
-      total: totalCost,
+      total: lastMonthCost,
     },
     kpiMom,
     costHistory: historicalCounts,

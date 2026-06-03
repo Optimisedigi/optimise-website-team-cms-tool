@@ -127,6 +127,7 @@ interface DashboardData {
     mediaUploads: number
   }
   costs: {
+    period?: string
     api: Record<string, number>
     apiTotal: number
     infrastructure: Record<string, number>
@@ -140,6 +141,7 @@ interface DashboardData {
   activeLeads?: number
   businessCosts?: {
     totalThisMonth: number
+    totalLastMonth?: number
     uncategorisedCount: number
   }
   processes?: ProcessesData | null
@@ -796,7 +798,7 @@ const Dashboard = () => {
             <div className="od-box__head">
               <div>
                 <span className="od-box__eyebrow">Finance</span>
-                <span className="od-box__title">Costs — {data.month}</span>
+                <span className="od-box__title">Costs — {data.costs.period || data.month}</span>
               </div>
               <button className="od-costs__head-toggle" onClick={() => setCostDetailsOpen(!costDetailsOpen)} type="button">
                 {costDetailsOpen ? 'Hide details ⌃' : 'Show details ⌄'}
@@ -1158,7 +1160,7 @@ function CostBreakdown({ data, open }: { data: DashboardData; open: boolean }) {
     blogImages: data.usage.mediaUploads,
   }
 
-  const business = data.businessCosts?.totalThisMonth || 0
+  const business = data.businessCosts?.totalLastMonth ?? data.businessCosts?.totalThisMonth ?? 0
   const infra = data.costs.infraTotal
   const api = data.costs.apiTotal
   const llm = data.costs.llmTotal
