@@ -262,7 +262,7 @@ export interface RunChatTurnResult {
   confirmRequests: ConfirmRequestSummary[];
 }
 
-const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
+const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m3"];
 
 /**
  * Max output tokens per LLM call for chat turns.

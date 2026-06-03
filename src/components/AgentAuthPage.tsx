@@ -459,8 +459,8 @@ export default function AgentAuthPage() {
           <button onClick={() => handleProbe("kimi-k2.6")} style={ghostButtonStyle}>
             Probe Kimi K2.6 (API key)
           </button>
-          <button onClick={() => handleProbe("minimax-m2.7")} style={ghostButtonStyle}>
-            Probe MiniMax M2.7 (API key)
+          <button onClick={() => handleProbe("minimax-m3")} style={ghostButtonStyle}>
+            Probe MiniMax M3 (API key)
           </button>
           <button onClick={() => handleProbe("gpt-5.5-codex")} style={ghostButtonStyle}>
             Probe GPT-5.5 Codex (ChatGPT OAuth)

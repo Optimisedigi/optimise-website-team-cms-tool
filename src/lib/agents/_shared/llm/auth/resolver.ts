@@ -62,6 +62,7 @@ function envApiKeyFor(provider: ProviderName): string | undefined {
       // so this code stays portable; KIMI_API_KEY wins if both set.
       return process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY;
     case "minimax":
+    case "minimax-openai":
       return process.env.MINIMAX_API_KEY;
     case "openai":
       return process.env.OPENAI_API_KEY;
@@ -86,7 +87,7 @@ function apiKeyAuthHeader(
     // Anthropic API key auth uses x-api-key, not Authorization.
     return { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
   }
-  // OpenAI-compatible providers use Bearer.
+  // OpenAI/Anthropic-compatible third-party providers use Bearer.
   return { Authorization: `Bearer ${apiKey}` };
 }
 

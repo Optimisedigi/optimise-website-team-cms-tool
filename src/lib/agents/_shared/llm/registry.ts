@@ -28,6 +28,7 @@ export const MODEL_REGISTRY = {
   // ANTHROPIC_API_KEY when explicitly selected by the user.
   "claude-sonnet-4.6": { provider: "anthropic", model: "claude-sonnet-4-6" },
   "claude-sonnet-4.5": { provider: "anthropic", model: "claude-sonnet-4-5" },
+  "claude-opus-4-8": { provider: "anthropic", model: "claude-opus-4-8" },
   "claude-opus-4.7": { provider: "anthropic", model: "claude-opus-4-7" },
   "claude-haiku-4.5": { provider: "anthropic", model: "claude-haiku-4-5" },
 
@@ -35,8 +36,10 @@ export const MODEL_REGISTRY = {
   // K2.6 is the current flagship.
   "kimi-k2.6": { provider: "moonshot", model: "kimi-k2.6" },
 
-  // MiniMax (OpenAI-compatible). M2.7 is the current flagship.
-  "minimax-m2.7": { provider: "minimax", model: "MiniMax-M2.7" },
+  // MiniMax. M3 uses MiniMax's Anthropic-compatible API; M2.7 remains on
+  // the legacy OpenAI-compatible endpoint for stored-setting compatibility.
+  "minimax-m3": { provider: "minimax", model: "MiniMax-M3" },
+  "minimax-m2.7": { provider: "minimax-openai", model: "MiniMax-M2.7" },
 
   // OpenAI / GPT (OpenAI-compatible). API-key path billed to OPENAI_API_KEY.
   "gpt-5.5": { provider: "openai", model: "gpt-5.5" },
@@ -50,11 +53,17 @@ export const MODEL_REGISTRY = {
 } as const;
 
 export type CanonicalModelName = keyof typeof MODEL_REGISTRY;
-export type ProviderName = "anthropic" | "moonshot" | "minimax" | "openai" | "openai-codex";
+export type ProviderName = "anthropic" | "moonshot" | "minimax" | "minimax-openai" | "openai" | "openai-codex";
 
 export interface AnthropicProviderConfig {
   handler: "callAnthropic";
   supportsOAuth: true;
+}
+
+export interface AnthropicCompatibleProviderConfig {
+  handler: "callAnthropicCompatible";
+  baseUrl: string;
+  supportsOAuth: false;
 }
 
 export interface OpenAICompatibleProviderConfig {
@@ -72,6 +81,7 @@ export interface OpenAICodexProviderConfig {
 
 export type ProviderConfig =
   | AnthropicProviderConfig
+  | AnthropicCompatibleProviderConfig
   | OpenAICompatibleProviderConfig
   | OpenAICodexProviderConfig;
 
@@ -86,9 +96,15 @@ export const PROVIDER_CONFIG: Record<ProviderName, ProviderConfig> = {
     supportsOAuth: false,
   },
   minimax: {
+    handler: "callAnthropicCompatible",
+    // MiniMax M3 uses MiniMax's Anthropic-compatible international endpoint,
+    // matching the local ggcoder adapter.
+    baseUrl: "https://api.minimax.io/anthropic",
+    supportsOAuth: false,
+  },
+  "minimax-openai": {
     handler: "callOpenAICompatible",
-    // MiniMax international platform. China-only is api.minimax.chat; document
-    // here in case we need to switch per-account later.
+    // Legacy MiniMax OpenAI-compatible endpoint kept for minimax-m2.7.
     baseUrl: "https://api.minimaxi.chat/v1",
     supportsOAuth: false,
   },
@@ -124,7 +140,7 @@ export const DEFAULT_CHAT_MODEL: CanonicalModelName = "claude-sonnet-4.6";
  */
 export const DEFAULT_AUTONOMOUS_MODEL: CanonicalModelName = "kimi-k2.6";
 export const DEFAULT_AUTONOMOUS_FALLBACKS: CanonicalModelName[] = [
-  "minimax-m2.7",
+  "minimax-m3",
   "claude-sonnet-4.6",
 ];
 
@@ -140,10 +156,12 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   hint?: string;
 }> = [
   { canonical: "claude-sonnet-4.6", label: "Claude Sonnet 4.6 (OAuth)", hint: "Default. Best brand voice, free via Claude Max." },
-  { canonical: "claude-opus-4.7", label: "Claude Opus 4.7 (OAuth)", hint: "Heaviest reasoning. Use for complex investigations." },
+  { canonical: "claude-opus-4-8", label: "Claude Opus 4.8 (OAuth)", hint: "Latest Opus. Heaviest reasoning for complex investigations." },
   { canonical: "claude-haiku-4.5", label: "Claude Haiku 4.5 (OAuth)", hint: "Fast and cheap. Good for simple chat replies." },
   { canonical: "kimi-k2.6", label: "Kimi K2.6", hint: "Long context, analytical. Default for autonomous runs." },
-  { canonical: "minimax-m2.7", label: "MiniMax M2.7", hint: "Fallback option, agentic workflows." },
+  { canonical: "minimax-m3", label: "MiniMax M3", hint: "Latest MiniMax fallback for agentic workflows." },
   { canonical: "gpt-5.5-codex", label: "GPT-5.5 Codex (ChatGPT OAuth)", hint: "GPT-5.5 over Codex. Reasoning is controlled per request." },
+  { canonical: "claude-opus-4.7", label: "Claude Opus 4.7 (OAuth)", hint: "Previous Opus generation, kept for compatibility." },
+  { canonical: "minimax-m2.7", label: "MiniMax M2.7", hint: "Previous MiniMax generation, kept for compatibility." },
   { canonical: "claude-sonnet-4.5", label: "Claude Sonnet 4.5 (OAuth)", hint: "Previous Sonnet generation, kept for compatibility." },
 ];

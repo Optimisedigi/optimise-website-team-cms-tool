@@ -11048,22 +11048,26 @@ export interface OptimateSetting {
    */
   defaultChatModel:
     | 'claude-sonnet-4.6'
-    | 'claude-opus-4.7'
+    | 'claude-opus-4-8'
     | 'claude-haiku-4.5'
     | 'kimi-k2.6'
-    | 'minimax-m2.7'
+    | 'minimax-m3'
     | 'gpt-5.5-codex'
+    | 'claude-opus-4.7'
+    | 'minimax-m2.7'
     | 'claude-sonnet-4.5';
   /**
    * Model used for unattended runs (scheduled tasks, cron) where no human picks a model.
    */
   defaultAutonomousModel:
     | 'claude-sonnet-4.6'
-    | 'claude-opus-4.7'
+    | 'claude-opus-4-8'
     | 'claude-haiku-4.5'
     | 'kimi-k2.6'
-    | 'minimax-m2.7'
+    | 'minimax-m3'
     | 'gpt-5.5-codex'
+    | 'claude-opus-4.7'
+    | 'minimax-m2.7'
     | 'claude-sonnet-4.5';
   /**
    * Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.
@@ -11075,11 +11079,13 @@ export interface OptimateSetting {
   blogPrompterModel?:
     | (
         | 'claude-sonnet-4.6'
-        | 'claude-opus-4.7'
+        | 'claude-opus-4-8'
         | 'claude-haiku-4.5'
         | 'kimi-k2.6'
-        | 'minimax-m2.7'
+        | 'minimax-m3'
         | 'gpt-5.5-codex'
+        | 'claude-opus-4.7'
+        | 'minimax-m2.7'
         | 'claude-sonnet-4.5'
       )
     | null;
@@ -11089,11 +11095,13 @@ export interface OptimateSetting {
   invoiceAssistantModel?:
     | (
         | 'claude-sonnet-4.6'
-        | 'claude-opus-4.7'
+        | 'claude-opus-4-8'
         | 'claude-haiku-4.5'
         | 'kimi-k2.6'
-        | 'minimax-m2.7'
+        | 'minimax-m3'
         | 'gpt-5.5-codex'
+        | 'claude-opus-4.7'
+        | 'minimax-m2.7'
         | 'claude-sonnet-4.5'
       )
     | null;

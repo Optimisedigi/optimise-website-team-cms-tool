@@ -15,6 +15,7 @@
 import { MODEL_REGISTRY, PROVIDER_CONFIG, type CanonicalModelName } from "./registry";
 import { classifyError, isRetryable } from "./retry";
 import { callAnthropic } from "./providers/anthropic";
+import { callAnthropicCompatible } from "./providers/anthropic-compatible";
 import { callOpenAICompatible } from "./providers/openai-compatible";
 import { callOpenAICodex } from "./providers/openai-codex";
 import { NoCredentialError } from "./auth/types";
@@ -58,6 +59,13 @@ export async function callLLM(opts: CallLLMOptions): Promise<LLMResponse> {
           { ...opts, model: modelName },
           entry.model,
           { baseUrl: provCfg.baseUrl },
+        );
+      }
+      if (provCfg.handler === "callAnthropicCompatible") {
+        return await callAnthropicCompatible(
+          { ...opts, model: modelName },
+          entry.model,
+          { provider: entry.provider, baseUrl: provCfg.baseUrl },
         );
       }
       // callOpenAICompatible
