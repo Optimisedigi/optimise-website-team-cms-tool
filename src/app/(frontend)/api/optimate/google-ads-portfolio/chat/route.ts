@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       sessionId?: unknown;
       reasoningMode?: unknown;
       displayMessage?: unknown;
+      selectedAccountRefs?: unknown;
     };
     const sessionId =
       typeof body.sessionId === "string" && body.sessionId.trim().length > 0
@@ -72,6 +73,10 @@ export async function POST(request: Request) {
             (h.role === "user" || h.role === "assistant") &&
             typeof h.content === "string",
         )
+      : [];
+
+    const selectedAccountRefs = Array.isArray(body.selectedAccountRefs)
+      ? body.selectedAccountRefs.filter((value): value is string | number => typeof value === "string" || typeof value === "number")
       : [];
 
     const imageAttachments = parseImageAttachments(body.imageAttachments);
@@ -193,6 +198,7 @@ export async function POST(request: Request) {
       userId: typeof user.id === "number" ? user.id : Number(user.id),
       restrictExternalContextActions: hasUntrustedAttachedEmail,
       reasoningMode,
+      selectedAccountRefs,
     });
 
     const proposalIds = Array.isArray(result.proposals)

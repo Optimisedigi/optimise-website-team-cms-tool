@@ -99,6 +99,7 @@ export interface Config {
     'keyword-deep-dive-sessions': KeywordDeepDiveSession;
     'site-health-reports': SiteHealthReport;
     'forecast-scenarios': ForecastScenario;
+    'agency-kpi-snapshots': AgencyKpiSnapshot;
     'quarterly-organic-growth-snapshots': QuarterlyOrganicGrowthSnapshot;
     'ai-visibility-snapshots': AiVisibilitySnapshot;
     'serp-displacement-snapshots': SerpDisplacementSnapshot;
@@ -187,6 +188,7 @@ export interface Config {
     'keyword-deep-dive-sessions': KeywordDeepDiveSessionsSelect<false> | KeywordDeepDiveSessionsSelect<true>;
     'site-health-reports': SiteHealthReportsSelect<false> | SiteHealthReportsSelect<true>;
     'forecast-scenarios': ForecastScenariosSelect<false> | ForecastScenariosSelect<true>;
+    'agency-kpi-snapshots': AgencyKpiSnapshotsSelect<false> | AgencyKpiSnapshotsSelect<true>;
     'quarterly-organic-growth-snapshots': QuarterlyOrganicGrowthSnapshotsSelect<false> | QuarterlyOrganicGrowthSnapshotsSelect<true>;
     'ai-visibility-snapshots': AiVisibilitySnapshotsSelect<false> | AiVisibilitySnapshotsSelect<true>;
     'serp-displacement-snapshots': SerpDisplacementSnapshotsSelect<false> | SerpDisplacementSnapshotsSelect<true>;
@@ -327,7 +329,7 @@ export interface Client {
    */
   isActive?: boolean | null;
   /**
-   * Check if this is the agency itself (hides revenue fields)
+   * Check if this is the agency itself. Hidden on other clients once an agency client is already selected.
    */
   isAgency?: boolean | null;
   /**
@@ -477,19 +479,23 @@ export interface Client {
    */
   referredByContact?: string | null;
   /**
+   * Client billing type
+   */
+  clientType?: ('recurring' | 'one_off' | 'paused') | null;
+  /**
    * When this client started working with us
    */
   clientStartDate?: string | null;
   /**
-   * Monthly revenue amount ($)
+   * Net monthly revenue ($)
    */
   monthlyRetainer?: number | null;
   /**
-   * One-time setup fee ($). Counts toward Retainer Revenue YTD in the calendar year of clientStartDate.
+   * One-time, counts toward retainer YTD
    */
   setupFee?: number | null;
   /**
-   * Agency's share of this client's revenue, in percent. Use 50 if you split this client 50/50 with a partner. Contract amounts stay unchanged; every revenue figure (Retainer YTD, One-Off YTD, Billing Summary, Historical) is multiplied by this percentage. Defaults to 100.
+   * e.g. 50 for a 50/50 partner split
    */
   revenueSharePercent?: number | null;
   /**
@@ -594,13 +600,13 @@ export interface Client {
       }[]
     | null;
   /**
-   * Client contract document (legacy upload)
-   */
-  contract?: (number | null) | Media;
-  /**
    * URL of the signed contract PDF (from e-signature flow)
    */
   signedContractUrl?: string | null;
+  /**
+   * Client contract document (legacy upload)
+   */
+  contract?: (number | null) | Media;
   /**
    * Linked signed contract record
    */
@@ -3054,6 +3060,22 @@ export interface GoogleAdsAudit {
    */
   websiteUrl?: string | null;
   /**
+   * Link to existing client (optional)
+   */
+  client?: (number | null) | Client;
+  /**
+   * Link to client proposal (optional)
+   */
+  proposal?: (number | null) | ClientProposal;
+  /**
+   * 4-digit PIN for presentation, ad copy preview, and dashboard access. Can match the client PIN for consistency.
+   */
+  presentationPin?: string | null;
+  /**
+   * Toggle on and save to create a Client Proposal from this audit
+   */
+  createProposal?: boolean | null;
+  /**
    * Influences audit scoring weights and campaign proposal structure.
    */
   businessType?:
@@ -3787,22 +3809,6 @@ export interface GoogleAdsAudit {
    * Monthly budget total for budget management tab
    */
   monthlyBudget?: number | null;
-  /**
-   * 4-digit PIN for presentation, ad copy preview, and dashboard access. Can match the client PIN for consistency.
-   */
-  presentationPin?: string | null;
-  /**
-   * Link to existing client (optional)
-   */
-  client?: (number | null) | Client;
-  /**
-   * Link to client proposal (optional)
-   */
-  proposal?: (number | null) | ClientProposal;
-  /**
-   * Toggle on and save to create a Client Proposal from this audit
-   */
-  createProposal?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -4276,6 +4282,7 @@ export interface User {
         | 'negative-keyword-lists'
         | 'keyword-deep-dive-sessions'
         | 'site-health-reports'
+        | 'agency-kpi-snapshots'
         | 'ai-visibility-snapshots'
         | 'serp-displacement-snapshots'
         | 'serp-displacement-alerts'
@@ -4387,6 +4394,7 @@ export interface PermissionProfile {
         | 'negative-keyword-lists'
         | 'keyword-deep-dive-sessions'
         | 'site-health-reports'
+        | 'agency-kpi-snapshots'
         | 'ai-visibility-snapshots'
         | 'serp-displacement-snapshots'
         | 'serp-displacement-alerts'
@@ -6270,6 +6278,29 @@ export interface NegativeSweepCandidate {
   createdAt: string;
 }
 /**
+ * Monthly agency KPI snapshots used for dashboard month-on-month comparisons.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agency-kpi-snapshots".
+ */
+export interface AgencyKpiSnapshot {
+  id: number;
+  /**
+   * Month key in YYYY-MM format.
+   */
+  month: string;
+  activeClients: number;
+  activeLeads: number;
+  arr: number;
+  monthlyRetainer: number;
+  retainerYTD: number;
+  oneOffYTD: number;
+  leadConversion: number;
+  mtdCosts: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Ongoing organic growth snapshots for client hub reporting.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -6815,13 +6846,13 @@ export interface ScheduledAgentTask {
   /**
    * Generated cron expression. Use Advanced cron if you need to edit this manually.
    */
-  schedule: string;
+  schedule?: string | null;
   /**
    * IANA timezone used to evaluate the cron expression.
    */
   timezone: string;
   /**
-   * Computed from schedule + timezone. Tick endpoint picks rows where this <= now.
+   * Computed from the friendly schedule + timezone. Tick endpoint picks rows where this <= now.
    */
   nextRunAt: string;
   lastRunAt?: string | null;
@@ -7941,6 +7972,10 @@ export interface PayloadLockedDocument {
         value: number | ForecastScenario;
       } | null)
     | ({
+        relationTo: 'agency-kpi-snapshots';
+        value: number | AgencyKpiSnapshot;
+      } | null)
+    | ({
         relationTo: 'quarterly-organic-growth-snapshots';
         value: number | QuarterlyOrganicGrowthSnapshot;
       } | null)
@@ -8181,6 +8216,7 @@ export interface ClientsSelect<T extends boolean = true> {
   acquisitionDetail?: T;
   referredBy?: T;
   referredByContact?: T;
+  clientType?: T;
   clientStartDate?: T;
   monthlyRetainer?: T;
   setupFee?: T;
@@ -8223,8 +8259,8 @@ export interface ClientsSelect<T extends boolean = true> {
         amount?: T;
         id?: T;
       };
-  contract?: T;
   signedContractUrl?: T;
+  contract?: T;
   signedContract?: T;
   apiKey?: T;
   legacyNotes?: T;
@@ -9341,6 +9377,10 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
   slug?: T;
   customerId?: T;
   websiteUrl?: T;
+  client?: T;
+  proposal?: T;
+  presentationPin?: T;
+  createProposal?: T;
   businessType?: T;
   monthlySpend?: T;
   contactEmail?: T;
@@ -9523,10 +9563,6 @@ export interface GoogleAdsAuditsSelect<T extends boolean = true> {
         id?: T;
       };
   monthlyBudget?: T;
-  presentationPin?: T;
-  client?: T;
-  proposal?: T;
-  createProposal?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -9852,6 +9888,23 @@ export interface ForecastScenariosSelect<T extends boolean = true> {
   publishedAt?: T;
   notes?: T;
   clientSummary?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agency-kpi-snapshots_select".
+ */
+export interface AgencyKpiSnapshotsSelect<T extends boolean = true> {
+  month?: T;
+  activeClients?: T;
+  activeLeads?: T;
+  arr?: T;
+  monthlyRetainer?: T;
+  retainerYTD?: T;
+  oneOffYTD?: T;
+  leadConversion?: T;
+  mtdCosts?: T;
   updatedAt?: T;
   createdAt?: T;
 }

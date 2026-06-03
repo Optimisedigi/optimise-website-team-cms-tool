@@ -4,6 +4,7 @@ import { getPayload, createLocalReq } from 'payload'
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import { redirect } from 'next/navigation'
 import { getVisibleEntities, getCustomViewActions } from '../../../../../../lib/visible-entities'
+import AdminStepNavSetter from "@/components/AdminStepNavSetter";
 import { userHasFeature } from '../../../../../../lib/access'
 import SeoClientWorkspace from '../../../../../../components/SeoClientWorkspace'
 
@@ -20,7 +21,7 @@ export default async function Page({ params }: PageProps) {
 
   const { client: clientParam } = await params
   const byId = /^\d+$/.test(clientParam)
-    ? await payload.findByID({ collection: 'clients', id: clientParam, depth: 0, overrideAccess: false, select: { name: true, gscConnected: true } }).catch(() => null)
+    ? await payload.findByID({ collection: 'clients', id: clientParam, depth: 0, overrideAccess: false, select: { name: true, websiteUrl: true, gscConnected: true } }).catch(() => null)
     : null
   const client =
     byId ??
@@ -30,7 +31,7 @@ export default async function Page({ params }: PageProps) {
         where: { slug: { equals: clientParam } },
         limit: 1,
         depth: 0,
-        select: { name: true, gscConnected: true },
+        select: { name: true, websiteUrl: true, gscConnected: true },
       })
     ).docs[0]
 
@@ -50,8 +51,9 @@ export default async function Page({ params }: PageProps) {
       viewActions={viewActions}
       visibleEntities={visibleEntities}
     >
+      <AdminStepNavSetter items={[{ label: "Growth Tools", url: "/admin/growth-tools/seo" }, { label: "SEO", url: "/admin/growth-tools/seo" }, { label: "Client" }]} />
       <div className="gutter--left gutter--right" style={{ maxWidth: 1440 }}>
-        <SeoClientWorkspace client={{ id: client.id, name: client.name, gscConnected: !!client.gscConnected }} />
+        <SeoClientWorkspace client={{ id: client.id, name: client.name, websiteUrl: client.websiteUrl ?? null, gscConnected: !!client.gscConnected }} />
       </div>
     </DefaultTemplate>
   )

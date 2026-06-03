@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { reconcileApprovalNotifications } from "@/lib/agent-approval-notifications";
 
 /**
  * GET /api/notifications/unread-count
@@ -16,6 +17,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  await reconcileApprovalNotifications(payload);
 
   const result = await payload.count({
     collection: "notifications" as never,

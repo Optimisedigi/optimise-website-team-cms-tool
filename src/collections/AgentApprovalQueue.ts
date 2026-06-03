@@ -43,7 +43,7 @@ export const AgentApprovalQueue: CollectionConfig = {
   hooks: {
     afterChange: [
       async ({ doc, operation, req }) => {
-        if (operation === "create" && doc.status === "pending") {
+        if (doc.status === "pending") {
           await fanOutApprovalNotifications(req.payload, {
             approvalId: Number(doc.id),
             agentRunId: String(doc.agentRunId),

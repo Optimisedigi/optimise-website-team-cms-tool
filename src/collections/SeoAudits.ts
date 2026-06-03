@@ -85,6 +85,9 @@ export const SeoAudits: CollectionConfig = {
               required: true,
               admin: {
                 description: "The URL that was audited",
+                components: {
+                  Cell: "./components/list-cells/TitleAvatarCell",
+                },
               },
             },
             {
@@ -103,6 +106,9 @@ export const SeoAudits: CollectionConfig = {
                   max: 10,
                   admin: {
                     description: "Overall SEO score (0-10)",
+                    components: {
+                      Cell: "./components/list-cells/ScorePillCell",
+                    },
                   },
                 },
                 {
@@ -204,7 +210,6 @@ export const SeoAudits: CollectionConfig = {
       type: "text",
       unique: true,
       admin: {
-        position: "sidebar",
         description:
           "Custom URL slug for the report (e.g. 'acme-corp-feb-2026'). Auto-generated from website URL if left blank.",
       },
@@ -213,7 +218,6 @@ export const SeoAudits: CollectionConfig = {
       name: "reportPassword",
       type: "text",
       admin: {
-        position: "sidebar",
         description:
           "Set a password to protect this report. Share it with the client so they can view the report.",
       },
@@ -223,7 +227,6 @@ export const SeoAudits: CollectionConfig = {
       type: "relationship",
       relationTo: "clients",
       admin: {
-        position: "sidebar",
         description: "Link to existing client (optional)",
       },
     },
@@ -232,7 +235,6 @@ export const SeoAudits: CollectionConfig = {
       type: "relationship",
       relationTo: "client-proposals",
       admin: {
-        position: "sidebar",
         description: "Link to client proposal (optional)",
       },
     },
@@ -240,7 +242,6 @@ export const SeoAudits: CollectionConfig = {
       name: "visitorIp",
       type: "text",
       admin: {
-        position: "sidebar",
         description: "IP address of the visitor",
       },
     },
@@ -248,7 +249,6 @@ export const SeoAudits: CollectionConfig = {
       name: "visitorFingerprint",
       type: "text",
       admin: {
-        position: "sidebar",
         description: "Browser fingerprint hash",
       },
     },

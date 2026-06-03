@@ -4,6 +4,7 @@ import { getPayload, createLocalReq } from 'payload'
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import DeploymentDashboard from '../../../../components/DeploymentDashboard'
 import { getVisibleEntities, getCustomViewActions } from '../../../../lib/visible-entities'
+import AdminStepNavSetter from "@/components/AdminStepNavSetter";
 
 export default async function Page() {
   const payload = await getPayload({ config })
@@ -25,6 +26,7 @@ export default async function Page() {
       viewActions={viewActions}
       visibleEntities={visibleEntities}
     >
+      <AdminStepNavSetter items={[{ label: "Deployments" }]} />
       <div className="gutter--left gutter--right" style={{ maxWidth: 1440 }}>
         <DeploymentDashboard />
       </div>

@@ -114,7 +114,7 @@ const SidebarNavExtras = () => {
 
     if (canDeployments) {
       injectLink(
-        '#nav-group-Performance .nav-group__content',
+        '#nav-group-Settings .nav-group__content',
         'deployments',
         '/admin/deployments',
         ICONS.deployments,

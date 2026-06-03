@@ -191,7 +191,6 @@ export const CroAudits: CollectionConfig = {
       type: "text",
       unique: true,
       admin: {
-        position: "sidebar",
         description: "Unique URL slug for this CRO report. Auto-generated if left blank.",
       },
     },
@@ -200,7 +199,6 @@ export const CroAudits: CollectionConfig = {
       type: "relationship",
       relationTo: "clients",
       admin: {
-        position: "sidebar",
         description: "Link to existing client (optional)",
       },
     },
@@ -209,7 +207,6 @@ export const CroAudits: CollectionConfig = {
       type: "relationship",
       relationTo: "client-proposals",
       admin: {
-        position: "sidebar",
         description: "Link to client proposal (optional)",
       },
     },
@@ -217,7 +214,6 @@ export const CroAudits: CollectionConfig = {
       name: "customerEmail",
       type: "email",
       admin: {
-        position: "sidebar",
         description: "Email captured from gated form (if provided)",
       },
     },
@@ -225,7 +221,6 @@ export const CroAudits: CollectionConfig = {
       name: "visitorIp",
       type: "text",
       admin: {
-        position: "sidebar",
         description: "IP address of the visitor",
       },
     },
@@ -233,7 +228,6 @@ export const CroAudits: CollectionConfig = {
       name: "visitorFingerprint",
       type: "text",
       admin: {
-        position: "sidebar",
         description: "Browser fingerprint hash",
       },
     },

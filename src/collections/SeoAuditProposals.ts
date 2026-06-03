@@ -114,7 +114,12 @@ export const SeoAuditProposals: CollectionConfig = {
           name: "websiteUrl",
           type: "text",
           required: true,
-          admin: { description: "Website analysed" },
+          admin: {
+            description: "Website analysed",
+            components: {
+              Cell: "./components/list-cells/TitleAvatarCell",
+            },
+          },
         },
         {
           name: "gscSiteUrl",
@@ -200,7 +205,13 @@ export const SeoAuditProposals: CollectionConfig = {
       name: "status",
       type: "select",
       defaultValue: "pending",
-      admin: { readOnly: true, description: "Current run status" },
+      admin: {
+        readOnly: true,
+        description: "Current run status",
+        components: {
+          Cell: "./components/list-cells/StatusPillCell",
+        },
+      },
       options: [
         { label: "Pending", value: "pending" },
         { label: "Running", value: "running" },

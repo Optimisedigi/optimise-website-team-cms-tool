@@ -953,6 +953,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             history: messages.map(({ role, content }) => ({ role, content })),
             model: selectedModel,
             reasoningMode,
+            selectedAccountRefs: mode === 'portfolio' ? selectedAccountRefs : undefined,
             imageAttachments: currentImages.map((image) => ({
               name: image.name,
               mediaType: image.mediaType,

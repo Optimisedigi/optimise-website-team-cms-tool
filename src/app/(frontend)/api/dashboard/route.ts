@@ -38,6 +38,68 @@ const LLM_MONTHLY_AUD = {
   kimi: 0.0,          // Update when subscribed
 };
 
+type AgencyKpiSnapshotValues = {
+  activeClients: number;
+  activeLeads: number;
+  arr: number;
+  monthlyRetainer: number;
+  retainerYTD: number;
+  oneOffYTD: number;
+  leadConversion: number;
+  mtdCosts: number;
+};
+
+function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function previousMonthKey(date: Date): string {
+  return monthKey(new Date(date.getFullYear(), date.getMonth() - 1, 1));
+}
+
+function buildMomDelta(current: number, previous: number, suffix = ""): { text: string; dir: "up" | "down" | "flat" } {
+  const diff = round(current - previous);
+  if (diff === 0) return { text: "— MoM", dir: "flat" };
+  const dir = diff > 0 ? "up" : "down";
+  const arrow = diff > 0 ? "▲" : "▼";
+  const abs = Math.abs(diff);
+  const formatted = suffix === "%" ? `${abs.toFixed(abs % 1 === 0 ? 0 : 1)}%` : abs.toLocaleString("en-AU", { maximumFractionDigits: 0 });
+  return { text: `${arrow} ${formatted} MoM`, dir };
+}
+
+async function findAgencyKpiSnapshot(payload: any, key: string): Promise<any | null> {
+  const result = await payload.find({
+    collection: "agency-kpi-snapshots" as any,
+    where: { month: { equals: key } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  });
+  return result.docs[0] ?? null;
+}
+
+async function upsertAgencyKpiSnapshot(payload: any, key: string, values: AgencyKpiSnapshotValues): Promise<void> {
+  try {
+    const existing = await findAgencyKpiSnapshot(payload, key);
+    if (existing?.id) {
+      await payload.update({
+        collection: "agency-kpi-snapshots" as any,
+        id: existing.id,
+        data: values,
+        overrideAccess: true,
+      });
+      return;
+    }
+    await payload.create({
+      collection: "agency-kpi-snapshots" as any,
+      data: { month: key, ...values },
+      overrideAccess: true,
+    });
+  } catch (error) {
+    console.error("[dashboard] KPI snapshot upsert error:", error);
+  }
+}
+
 export async function GET() {
   try {
   const payload = await getPayload({ config });
@@ -184,11 +246,13 @@ export async function GET() {
           }
         }
 
-        // Build gscMonthly array: every month from Jan 2026 to current month (zeros for missing)
+        // Build a fixed 12-month rolling chart ending at the current month.
+        // Missing months are included as zero-value bars so the dashboard always
+        // shows one bar per month.
         const gscMonthly: { month: string; clicks: number; impressions: number }[] = [];
-        const chartStart = new Date(2026, 0, 1); // Jan 2026
-        const chartEnd = new Date(now.getFullYear(), now.getMonth(), 1); // current month
-        for (let d = new Date(chartStart); d <= chartEnd; d.setMonth(d.getMonth() + 1)) {
+        const chartStart = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+        for (let i = 0; i < 12; i += 1) {
+          const d = new Date(chartStart.getFullYear(), chartStart.getMonth() + i, 1);
           const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
           const snap = byMonth.get(key);
           gscMonthly.push({
@@ -671,6 +735,7 @@ export async function GET() {
   const apiTotal = round(Object.values(apiCosts).reduce((a, b) => a + b, 0));
   const llmTotal = round(Object.values(LLM_MONTHLY_AUD).reduce((a, b) => a + b, 0));
   const totalCost = round(infraTotal + apiTotal + llmTotal);
+  const mtdCosts = round(totalCost + businessCostsSummary.totalThisMonth);
 
   // Lead conversion: leads that reached "client" stage / total leads
   // Fetch agency yearly sales target — from the agency client's
@@ -710,6 +775,34 @@ export async function GET() {
     ? round((convertedLeadsCount / activeLeadsCount.totalDocs) * 100)
     : 0;
 
+  const currentKpiSnapshot: AgencyKpiSnapshotValues = {
+    activeClients: clientCount.totalDocs,
+    activeLeads: activeLeadsCount.totalDocs,
+    arr: annualisedAgencyRevenue,
+    monthlyRetainer: monthlyRetainerNet,
+    retainerYTD,
+    oneOffYTD,
+    leadConversion: conversionRate,
+    mtdCosts,
+  };
+
+  const thisMonthKey = monthKey(now);
+  const prevMonthKey = previousMonthKey(now);
+  const previousSnapshot = await findAgencyKpiSnapshot(payload, prevMonthKey).catch(() => null);
+  await upsertAgencyKpiSnapshot(payload, thisMonthKey, currentKpiSnapshot);
+  const kpiMom = previousSnapshot
+    ? {
+        activeClients: buildMomDelta(currentKpiSnapshot.activeClients, Number(previousSnapshot.activeClients ?? 0)),
+        activeLeads: buildMomDelta(currentKpiSnapshot.activeLeads, Number(previousSnapshot.activeLeads ?? 0)),
+        arr: buildMomDelta(currentKpiSnapshot.arr, Number(previousSnapshot.arr ?? 0)),
+        monthlyRetainer: buildMomDelta(currentKpiSnapshot.monthlyRetainer, Number(previousSnapshot.monthlyRetainer ?? 0)),
+        retainerYTD: buildMomDelta(currentKpiSnapshot.retainerYTD, Number(previousSnapshot.retainerYTD ?? 0)),
+        oneOffYTD: buildMomDelta(currentKpiSnapshot.oneOffYTD, Number(previousSnapshot.oneOffYTD ?? 0)),
+        leadConversion: buildMomDelta(currentKpiSnapshot.leadConversion, Number(previousSnapshot.leadConversion ?? 0), "%"),
+        mtdCosts: buildMomDelta(currentKpiSnapshot.mtdCosts, Number(previousSnapshot.mtdCosts ?? 0)),
+      }
+    : null;
+
   return NextResponse.json({
     gsc: gscBundle?.gsc || null,
     gscMonthly: gscBundle?.gscMonthly || [],
@@ -741,6 +834,7 @@ export async function GET() {
       llmTotal,
       total: totalCost,
     },
+    kpiMom,
     costHistory: historicalCounts,
     totalLeads: activeLeadsCount.totalDocs,
     activeLeads: activeLeadsCount.totalDocs,

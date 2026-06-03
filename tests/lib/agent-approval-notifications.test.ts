@@ -145,6 +145,30 @@ describe("fanOutApprovalNotifications", () => {
     expect(payload.logger.error).toHaveBeenCalled();
   });
 
+  it("does not unread an existing approval notification during duplicate fan-out", async () => {
+    payload.find.mockImplementation((args: { collection: string }) => {
+      if (args.collection === "users") {
+        return Promise.resolve({ docs: [{ id: 1 }] });
+      }
+      if (args.collection === "notifications") {
+        return Promise.resolve({ docs: [{ id: 10, readAt: "2026-06-03T00:00:00.000Z" }], totalDocs: 1 });
+      }
+      return Promise.resolve({ docs: [] });
+    });
+
+    const count = await fanOutApprovalNotifications(payload as never, {
+      approvalId: 1,
+      agentRunId: "r",
+      agentName: "a",
+      proposalType: "t",
+      title: "Y",
+    });
+
+    expect(count).toBe(0);
+    expect(payload.create).not.toHaveBeenCalled();
+    expect(payload.update).not.toHaveBeenCalled();
+  });
+
   it("includes relatedClient when clientId is supplied", async () => {
     payload.find.mockImplementation((args: { collection: string }) => {
       if (args.collection === "users") {
@@ -167,10 +191,10 @@ describe("fanOutApprovalNotifications", () => {
 });
 
 describe("clearApprovalNotifications", () => {
-  it("marks unread notifications matching the approval id as read and returns the count", async () => {
+  it("deletes notifications matching the approval id and returns the count", async () => {
     const payload = makePayload();
     payload.find.mockResolvedValue({ docs: [{ id: 1 }, { id: 2 }, { id: 3 }], totalDocs: 3 });
-    payload.update.mockResolvedValue({});
+    payload.delete.mockResolvedValue({});
 
     const count = await clearApprovalNotifications(payload as never, 42);
 
@@ -181,16 +205,14 @@ describe("clearApprovalNotifications", () => {
       and: [
         { kind: { equals: "agent-approval-pending" } },
         { relatedApproval: { equals: 42 } },
-        { readAt: { exists: false } },
       ],
     });
-    expect(payload.update).toHaveBeenCalledTimes(3);
-    expect(payload.update.mock.calls[0][0]).toMatchObject({
+    expect(payload.delete).toHaveBeenCalledTimes(3);
+    expect(payload.delete.mock.calls[0][0]).toMatchObject({
       collection: "notifications",
       id: 1,
       overrideAccess: true,
     });
-    expect(payload.update.mock.calls[0][0].data.readAt).toEqual(expect.any(String));
   });
 
   it("returns 0 and logs on delete failure", async () => {

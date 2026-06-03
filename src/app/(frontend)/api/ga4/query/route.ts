@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     }
 
     const clientId = req.nextUrl.searchParams.get("clientId");
-    const period = req.nextUrl.searchParams.get("period") || "30d";
+    const period = req.nextUrl.searchParams.get("period") || "12m";
 
     let client: any;
     if (clientId) {
@@ -83,8 +83,9 @@ export async function GET(req: NextRequest) {
       d.setMonth(d.getMonth() - 12);
       startDate = d.toISOString().slice(0, 10);
     } else {
-      // Default 30d
-      startDate = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - 12);
+      startDate = d.toISOString().slice(0, 10);
     }
 
     const report = await fetchGa4Report(

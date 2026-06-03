@@ -120,7 +120,7 @@ export const GoogleAdsAudits: CollectionConfig = {
   admin: {
     useAsTitle: "businessName",
     group: "Growth Tools",
-    defaultColumns: ["businessName", "overallScore", "auditStatus", "createdAt"],
+    defaultColumns: ["businessName", "customerId", "auditStatus", "overallScore", "createdAt"],
     description: "Google Ads audit pipeline. Requires client to grant access to the Optimise Digital MCC (manager account) before the audit can pull data.",
     hidden: hideUnlessFeature("google-ads-audits"),
   },
@@ -202,21 +202,29 @@ export const GoogleAdsAudits: CollectionConfig = {
           label: "Client Info",
           fields: [
             {
-              name: "businessName",
-              type: "text",
-              required: true,
-              admin: {
-                description: "Client business name",
-              },
-            },
-            {
-              name: "slug",
-              type: "text",
-              required: true,
-              unique: true,
-              admin: {
-                description: "URL-friendly identifier (auto-generated from business name)",
-              },
+              type: "row",
+              fields: [
+                {
+                  name: "businessName",
+                  type: "text",
+                  required: true,
+                  admin: {
+                    description: "Client business name",
+                    components: {
+                      Cell: "./components/list-cells/TitleAvatarCell",
+                    },
+                  },
+                },
+                {
+                  name: "slug",
+                  type: "text",
+                  required: true,
+                  unique: true,
+                  admin: {
+                    description: "URL-friendly identifier (auto-generated from business name)",
+                  },
+                },
+              ],
             },
             {
               type: "row",
@@ -234,6 +242,63 @@ export const GoogleAdsAudits: CollectionConfig = {
                   type: "text",
                   admin: {
                     description: "Client website URL",
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "client",
+                  type: "relationship",
+                  relationTo: "clients",
+                  admin: {
+                    description: "Link to existing client (optional)",
+                  },
+                },
+                {
+                  name: "proposal",
+                  type: "relationship",
+                  relationTo: "client-proposals",
+                  admin: {
+                    description: "Link to client proposal (optional)",
+                  },
+                },
+              ],
+            },
+            {
+              type: "row",
+              fields: [
+                {
+                  name: "presentationPin",
+                  type: "text",
+                  admin: {
+                    description: "4-digit PIN for presentation, ad copy preview, and dashboard access. Can match the client PIN for consistency.",
+                  },
+                  validate: (value: string | null | undefined) => {
+                    if (!value) return true;
+                    if (!/^\d{4}$/.test(value)) return "PIN must be exactly 4 digits";
+                    return true;
+                  },
+                  hooks: {
+                    beforeChange: [
+                      async ({ value, operation, req }) => {
+                        if (operation === "create" && !value) {
+                          return generateUniquePin(req.payload);
+                        }
+                        return value;
+                      },
+                    ],
+                  },
+                },
+                {
+                  name: "createProposal",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description:
+                      "Toggle on and save to create a Client Proposal from this audit",
                   },
                 },
               ],
@@ -268,14 +333,14 @@ export const GoogleAdsAudits: CollectionConfig = {
                     step: 1,
                   },
                 },
+                {
+                  name: "contactEmail",
+                  type: "email",
+                  admin: {
+                    description: "Client contact email (for sending audit email)",
+                  },
+                },
               ],
-            },
-            {
-              name: "contactEmail",
-              type: "email",
-              admin: {
-                description: "Client contact email (for sending audit email)",
-              },
             },
             {
               name: "conversionObjectives",
@@ -320,6 +385,9 @@ export const GoogleAdsAudits: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "Current audit pipeline status",
+                components: {
+                  Cell: "./components/list-cells/StatusPillCell",
+                },
               },
               options: [
                 { label: "Pending", value: "pending" },
@@ -393,6 +461,9 @@ export const GoogleAdsAudits: CollectionConfig = {
               admin: {
                 readOnly: true,
                 description: "Overall audit score (0-100)",
+                components: {
+                  Cell: "./components/list-cells/ScorePillCell",
+                },
               },
             },
             {
@@ -1806,57 +1877,5 @@ export const GoogleAdsAudits: CollectionConfig = {
       },
     },
 
-    // ── Sidebar fields ──
-    {
-      name: "presentationPin",
-      type: "text",
-      admin: {
-        position: "sidebar",
-        description: "4-digit PIN for presentation, ad copy preview, and dashboard access. Can match the client PIN for consistency.",
-      },
-      validate: (value: string | null | undefined) => {
-        if (!value) return true;
-        if (!/^\d{4}$/.test(value)) return "PIN must be exactly 4 digits";
-        return true;
-      },
-      hooks: {
-        beforeChange: [
-          async ({ value, operation, req }) => {
-            if (operation === "create" && !value) {
-              return generateUniquePin(req.payload);
-            }
-            return value;
-          },
-        ],
-      },
-    },
-    {
-      name: "client",
-      type: "relationship",
-      relationTo: "clients",
-      admin: {
-        position: "sidebar",
-        description: "Link to existing client (optional)",
-      },
-    },
-    {
-      name: "proposal",
-      type: "relationship",
-      relationTo: "client-proposals",
-      admin: {
-        position: "sidebar",
-        description: "Link to client proposal (optional)",
-      },
-    },
-    {
-      name: "createProposal",
-      type: "checkbox",
-      defaultValue: false,
-      admin: {
-        position: "sidebar",
-        description:
-          "Toggle on and save to create a Client Proposal from this audit",
-      },
-    },
   ],
 };

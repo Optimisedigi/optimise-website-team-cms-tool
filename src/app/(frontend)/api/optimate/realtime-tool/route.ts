@@ -91,7 +91,13 @@ export async function POST(request: Request) {
           { status: 403 },
         )
       }
-      if (name === 'get_portfolio_performance_summary' || name === 'get_portfolio_search_term_wastage') {
+      if (
+        name === 'get_portfolio_performance_summary' ||
+        name === 'get_portfolio_search_term_wastage' ||
+        name === 'get_selected_client_details' ||
+        name === 'get_portfolio_weekly_metric_table' ||
+        name === 'get_portfolio_monthly_performance_breakdown'
+      ) {
         args = { ...args, accountRefs: selectedAccountRefs }
       }
       const tool = getPortfolioTools().find((t) => t.name === name) as CanonicalTool<unknown> | undefined

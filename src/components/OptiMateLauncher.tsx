@@ -178,7 +178,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             color: '#fff',
             border: 'none',
             borderRadius: 24,
-            padding: '8px 14px 8px 8px',
+            padding: '0 14px 0 0',
             fontSize: 13,
             fontWeight: 600,
             cursor: 'pointer',
@@ -191,9 +191,9 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
           <img
             src="/optimate-icon.png"
             alt=""
-            width={28}
-            height={28}
-            style={{ borderRadius: '50%', display: 'block' }}
+            width={43}
+            height={43}
+            style={{ borderRadius: '50%', display: 'block', flex: '0 0 43px', border: '1px solid #000' }}
           />
           OptiMate
           {pomo.pillLabel && (

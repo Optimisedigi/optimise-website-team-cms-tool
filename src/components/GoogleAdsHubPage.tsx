@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { avatarColor, avatarInitial } from './clients-list/avatar-gradient'
 import RocketSplash from './RocketSplash'
 
 /**
@@ -54,13 +55,6 @@ const destinationFor = (c: ClientRow): string => {
     return `/admin/collections/google-ads-audits/${c.latestAudit.id}`
   }
   return `/admin/collections/clients/${c.id}#tab-${TAB_INDEX_GOOGLE_ADS}`
-}
-
-const scoreColor = (score: number | null) => {
-  if (score == null) return { bg: '#f3f4f6', fg: '#6b7280' }
-  if (score >= 80) return { bg: '#dcfce7', fg: '#166534' }
-  if (score >= 60) return { bg: '#fef3c7', fg: '#92400e' }
-  return { bg: '#fee2e2', fg: '#991b1b' }
 }
 
 const trendIcon = (trend: string | null, change: number | null) => {
@@ -127,7 +121,7 @@ const GoogleAdsHubPage = () => {
   if (loading) return <RocketSplash />
 
   return (
-    <div className="od-settings">
+    <div className="od-settings od-admin-list-style" style={{ maxWidth: 'none', width: '100%' }}>
       <h2 className="od-settings__title">Google Ads</h2>
       <p className="od-settings__subtitle">
         Manage Google Ads work across all clients. Click a client to open their
@@ -207,37 +201,30 @@ const GoogleAdsHubPage = () => {
       </div>
 
       {/* Client table */}
-      <div className="od-box" style={{ padding: 0, overflow: 'hidden' }}>
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: 13,
-          }}
-        >
-          <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+      <div className="table">
+        <table>
+          <thead>
             <tr>
-              <th style={thStyle}>Client</th>
-              <th style={thStyle}>Customer ID</th>
-              <th style={thStyle}>Created</th>
-              <th style={thStyle}>Latest score</th>
-              <th style={thStyle}>Trend</th>
-              <th style={thStyle}>Last audit</th>
-              <th style={thStyle}>Automation</th>
-              <th style={{ ...thStyle, textAlign: 'right', paddingRight: 16 }}></th>
+              <th className="cell-name">Client</th>
+              <th>Customer ID</th>
+              <th>Created</th>
+              <th>Latest score</th>
+              <th>Trend</th>
+              <th>Last audit</th>
+              <th>Automation</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ padding: 32, textAlign: 'center', color: '#6b7280' }}>
+                <td colSpan={8} style={{ padding: 32, textAlign: 'center' }} className="od-cell-muted">
                   No clients match the current filter.
                 </td>
               </tr>
             )}
             {filtered.map((c) => {
               const score = c.latestAudit?.overallScore ?? c.scoreTrajectory.latest
-              const colors = scoreColor(score)
               const automationCount = [
                 c.automation.dashboardEnabled,
                 c.automation.weeklyReportEnabled,
@@ -248,26 +235,34 @@ const GoogleAdsHubPage = () => {
               return (
                 <tr
                   key={c.id}
-                  style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
                   onClick={() => {
                     window.location.href = href
                   }}
                 >
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 600, color: '#0f172a' }}>{c.name}</div>
+                  <td className="cell-name">
+                    <div className="od-client-cell">
+                      <span
+                        className="od-client-cell__avatar"
+                        style={{ background: avatarColor(c.id, c.name) }}
+                      >
+                        {avatarInitial(c.name)}
+                      </span>
+                      <span className="od-client-cell__text">
+                        <span className="od-client-cell__name">{c.name}</span>
+                        <span className="od-client-cell__domain">{c.slug}</span>
+                      </span>
+                    </div>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {c.googleAdsCustomerId ? (
-                      <code style={{ fontSize: 12, color: '#475569' }}>
-                        {c.googleAdsCustomerId}
-                      </code>
+                      <code className="od-cell-slug">{c.googleAdsCustomerId}</code>
                     ) : (
-                      <span style={{ color: '#9ca3af' }}>Not set</span>
+                      <span className="od-cell-muted">Not set</span>
                     )}
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {c.createdAt ? (
-                      <span style={{ color: '#475569' }}>
+                      <span className="od-cell-muted">
                         {new Date(c.createdAt).toLocaleDateString('en-GB', {
                           day: '2-digit',
                           month: 'short',
@@ -275,38 +270,30 @@ const GoogleAdsHubPage = () => {
                         })}
                       </span>
                     ) : (
-                      <span style={{ color: '#9ca3af' }}>—</span>
+                      <span className="od-cell-muted">—</span>
                     )}
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {score != null ? (
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '2px 8px',
-                          borderRadius: 4,
-                          background: colors.bg,
-                          color: colors.fg,
-                          fontWeight: 600,
-                          fontSize: 12,
-                        }}
-                      >
-                        {score}
+                      <span className={`od-pill ${score >= 80 ? 'od-pill--green' : score >= 60 ? 'od-pill--amber' : 'od-pill--red'}`}>
+                        {score}/100
                       </span>
                     ) : (
-                      <span style={{ color: '#9ca3af' }}>—</span>
+                      <span className="od-cell-muted">—</span>
                     )}
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {trendIcon(c.scoreTrajectory.trend, c.scoreTrajectory.change)}
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {c.latestAudit ? (
                       <>
-                        <div style={{ color: '#0f172a' }}>
-                          {formatStatus(c.latestAudit.auditStatus)}
+                        <div>
+                          <span className={`od-pill ${c.latestAudit.auditStatus === 'completed' ? 'od-pill--green' : c.latestAudit.auditStatus === 'failed' ? 'od-pill--red' : 'od-pill--amber'}`}>
+                            {formatStatus(c.latestAudit.auditStatus)}
+                          </span>
                         </div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                        <div className="od-client-cell__domain">
                           {new Date(c.latestAudit.createdAt).toLocaleDateString('en-GB', {
                             day: '2-digit',
                             month: 'short',
@@ -315,17 +302,17 @@ const GoogleAdsHubPage = () => {
                         </div>
                       </>
                     ) : (
-                      <span style={{ color: '#9ca3af' }}>Never run</span>
+                      <span className="od-cell-muted">Never run</span>
                     )}
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {automationCount === 0 ? (
-                      <span style={{ color: '#9ca3af' }}>None</span>
+                      <span className="od-cell-muted">None</span>
                     ) : (
-                      <span style={{ color: '#0f172a' }}>{automationCount} / 4</span>
+                      <span>{automationCount} / 4</span>
                     )}
                   </td>
-                  <td style={{ ...tdStyle, textAlign: 'right', paddingRight: 16 }}>
+                  <td style={{ textAlign: 'right' }}>
                     <a
                       href={href}
                       onClick={(e) => e.stopPropagation()}
@@ -349,19 +336,5 @@ const GoogleAdsHubPage = () => {
   )
 }
 
-const thStyle: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '10px 12px',
-  fontSize: 12,
-  fontWeight: 600,
-  color: '#475569',
-  textTransform: 'uppercase',
-  letterSpacing: 0.3,
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: '12px',
-  verticalAlign: 'top',
-}
 
 export default GoogleAdsHubPage

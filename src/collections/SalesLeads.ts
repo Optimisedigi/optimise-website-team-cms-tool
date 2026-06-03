@@ -154,6 +154,9 @@ export const SalesLeads: CollectionConfig = {
                   required: true,
                   admin: {
                     description: "Business or prospect name",
+                    components: {
+                      Cell: "./components/list-cells/TitleAvatarCell",
+                    },
                   },
                 },
                 {
@@ -495,8 +498,10 @@ export const SalesLeads: CollectionConfig = {
       required: true,
       defaultValue: "new_lead",
       admin: {
-        position: "sidebar",
         description: "Current funnel stage",
+        components: {
+          Cell: "./components/list-cells/StatusPillCell",
+        },
       },
       options: [
         { label: "New Lead", value: "new_lead" },
@@ -512,7 +517,6 @@ export const SalesLeads: CollectionConfig = {
       name: "firstContactDate",
       type: "date",
       admin: {
-        position: "sidebar",
         description: "When this lead first came in",
       },
       hooks: {
@@ -530,7 +534,6 @@ export const SalesLeads: CollectionConfig = {
       name: "expectedCloseDate",
       type: "date",
       admin: {
-        position: "sidebar",
         description: "Expected close date",
       },
     },
@@ -539,7 +542,6 @@ export const SalesLeads: CollectionConfig = {
       type: "select",
       defaultValue: "medium",
       admin: {
-        position: "sidebar",
         description: "Lead priority",
       },
       options: [

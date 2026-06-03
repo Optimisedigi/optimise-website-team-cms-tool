@@ -7,6 +7,7 @@ import SeoMigrationCheckView, { type MigrationResult } from './SeoMigrationCheck
 interface ClientSummary {
   id: number | string
   name: string
+  websiteUrl?: string | null
   gscConnected?: boolean
 }
 
@@ -40,6 +41,23 @@ type ApiRecord = Record<string, unknown>
 const textValue = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined)
 const numberValue = (value: unknown): number | null => (typeof value === 'number' ? value : null)
 const idValue = (value: unknown): string | number => (typeof value === 'string' || typeof value === 'number' ? value : '')
+
+const hostnameFromUrl = (value?: string | null): string | null => {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  try {
+    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`)
+    return url.hostname.replace(/^www\./, '').toLowerCase()
+  } catch {
+    return null
+  }
+}
+
+const internalLinkBelongsToHost = (doc: ApiRecord, host: string): boolean => {
+  const sourceHost = hostnameFromUrl(textValue(doc.sourceUrl))
+  const targetHost = hostnameFromUrl(textValue(doc.targetUrl))
+  return sourceHost === host || targetHost === host
+}
 
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: 'audits', label: 'SEO audit scores' },
@@ -152,7 +170,7 @@ const SeoClientWorkspace = ({ client }: SeoClientWorkspaceProps) => {
             />
           )}
           {activeTab === 'migration' && <MigrationTab client={client} />}
-          {activeTab === 'internalLinks' && <InternalLinksTab clientId={client.id} />}
+          {activeTab === 'internalLinks' && <InternalLinksTab client={client} />}
           {activeTab === 'quarterly' && (
             <RecordList
               clientId={client.id}
@@ -199,6 +217,7 @@ const RecordList = ({
   mapRecord,
   extraLinks = [],
   unfiltered = false,
+  filterRecord,
 }: {
   clientId: string | number
   collection: string
@@ -207,6 +226,7 @@ const RecordList = ({
   mapRecord: (doc: ApiRecord) => RecordRow
   extraLinks?: Array<{ label: string; href: string }>
   unfiltered?: boolean
+  filterRecord?: (doc: ApiRecord) => boolean
 }) => {
   const [rows, setRows] = useState<RecordRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -214,14 +234,17 @@ const RecordList = ({
   useEffect(() => {
     setLoading(true)
     const query = unfiltered
-      ? `sort=-createdAt&limit=25&depth=0`
+      ? `sort=-createdAt&limit=500&depth=0`
       : `where[client][equals]=${encodeURIComponent(String(clientId))}&sort=-createdAt&limit=25&depth=0`
     fetch(`/api/${collection}?${query}`)
       .then((res) => (res.ok ? res.json() : { docs: [] }))
-      .then((data) => setRows(Array.isArray(data.docs) ? data.docs.map(mapRecord) : []))
+      .then((data) => {
+        const docs = Array.isArray(data.docs) ? data.docs : []
+        setRows(docs.filter((doc: ApiRecord) => filterRecord?.(doc) ?? true).map(mapRecord))
+      })
       .catch(() => setRows([]))
       .finally(() => setLoading(false))
-  }, [clientId, collection, mapRecord, unfiltered])
+  }, [clientId, collection, filterRecord, mapRecord, unfiltered])
 
   return (
     <div>
@@ -378,16 +401,25 @@ const MigrationTab = ({ client }: { client: ClientSummary }) => {
   )
 }
 
-const InternalLinksTab = ({ clientId }: { clientId: string | number }) => (
-  <RecordList
-    clientId={clientId}
-    collection="internal-link-suggestions"
-    title="Internal link suggestions"
-    description="Review internal link suggestions inline. These are currently global records because this collection has no client field yet."
-    mapRecord={mapInternalLinkRecord}
-    unfiltered
-  />
-)
+const InternalLinksTab = ({ client }: { client: ClientSummary }) => {
+  const clientHost = hostnameFromUrl(client.websiteUrl)
+
+  return (
+    <RecordList
+      clientId={client.id}
+      collection="internal-link-suggestions"
+      title="Internal link suggestions"
+      description={
+        clientHost
+          ? `Review internal link suggestions for ${clientHost}.`
+          : 'Review internal link suggestions. Add a client website URL to filter this list.'
+      }
+      mapRecord={mapInternalLinkRecord}
+      filterRecord={clientHost ? (doc) => internalLinkBelongsToHost(doc, clientHost) : () => false}
+      unfiltered
+    />
+  )
+}
 
 const SectionHeader = ({
   title,

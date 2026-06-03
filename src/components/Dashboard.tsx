@@ -19,6 +19,7 @@ interface GscData {
   ctrChange?: number
   uniqueKeywords?: number
   uniquePages?: number
+  topKeywords?: { query?: string; clicks?: number; impressions?: number; ctr?: number; position?: number }[]
   periodStart?: string
   periodEnd?: string
   clientId?: string
@@ -59,14 +60,16 @@ interface RecentProcess {
 }
 
 interface XeroInvoice {
+  invoiceId?: string
   invoiceNumber: string
   contact: { name: string }
+  description?: string
   total: number
   amountDue: number
-  dueDate: string
+  dueDate?: string
   status: string
-  isOverdue: boolean
-  reference: string
+  isOverdue?: boolean
+  reference?: string
 }
 
 interface XeroInvoiceSummary {
@@ -76,6 +79,7 @@ interface XeroInvoiceSummary {
   unpaidCount: number
   draftCount: number
   recentInvoices: XeroInvoice[]
+  draftInvoices?: XeroInvoice[]
 }
 
 interface XeroScheduledSend {
@@ -142,6 +146,16 @@ interface DashboardData {
   salesTarget?: {
     target: number
   } | null
+  kpiMom?: {
+    activeClients?: KpiDelta
+    activeLeads?: KpiDelta
+    arr?: KpiDelta
+    monthlyRetainer?: KpiDelta
+    retainerYTD?: KpiDelta
+    oneOffYTD?: KpiDelta
+    leadConversion?: KpiDelta
+    mtdCosts?: KpiDelta
+  }
   breakdowns?: {
     monthlyRetainer: Array<{
       clientName: string
@@ -319,11 +333,13 @@ function KpiCardTooltip({
   value,
   rows,
   dotColor,
+  delta,
 }: {
   label: string
   value: string
   rows: React.ReactNode[]
   dotColor?: string
+  delta?: KpiDelta
 }) {
   const hasRows = rows.length > 0
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -374,6 +390,7 @@ function KpiCardTooltip({
         {label}
       </div>
       <div className="od-kpi__value">{value}</div>
+      {delta && <div className={`od-kpi__delta od-kpi__delta--${delta.dir}`}>{delta.text}</div>}
       {mounted && hasRows && open && coords &&
         createPortal(
           <div
@@ -393,6 +410,40 @@ function KpiCardTooltip({
 }
 
 // ─── Helpers ──────────────────────────────────────────────
+
+const hiddenActivityTypes = new Set([
+  'agent_reasoning',
+  'agent_tool_call',
+  'agent_final_output',
+  'agent_fallback',
+  'agent_failover',
+  'oauth_success',
+  'agent_auth_event',
+])
+
+const hiddenActivityText = [
+  'agent reasoning',
+  'agent tool call',
+  'agent tool calls',
+  'agent final output',
+  'agent fallback',
+  'agents fallback',
+  'agent failover',
+  'agents failover',
+  'oauth success',
+  'provider-failover',
+  'provider failover',
+  'moonshot: provider-failover',
+  '[auth]',
+]
+
+function isDashboardActivityVisible(entry: ActivityEntry): boolean {
+  const normalizedType = entry.type.toLowerCase().replaceAll('-', '_')
+  if (hiddenActivityTypes.has(normalizedType)) return false
+
+  const searchable = `${entry.type} ${entry.title} ${entry.description || ''}`.toLowerCase()
+  return !hiddenActivityText.some((text) => searchable.includes(text))
+}
 
 const typeLabels: Record<string, string> = {
   blog_published: 'Blog',
@@ -515,6 +566,7 @@ const Dashboard = () => {
   const [xeroInvoices, setXeroInvoices] = useState<XeroInvoiceSummary | null>(null)
   const [xeroScheduled, setXeroScheduled] = useState<XeroScheduledSend[]>([])
   const [xeroLoading, setXeroLoading] = useState(true)
+  const [costDetailsOpen, setCostDetailsOpen] = useState(true)
   const [statementsSummary, setStatementsSummary] = useState<{ pendingCount: number; totalOutstanding: number } | null>(null)
 
   const fetchDashboard = () => {
@@ -615,35 +667,31 @@ const Dashboard = () => {
         </a>
       </div>
 
-      {/* Yearly Sales Target Progress Bar */}
-      {data.salesTarget && data.salesTarget.target > 0 && (
-        <YearlySalesTargetBar
-          target={data.salesTarget.target}
-          current={data.ytdRevenue}
-        />
-      )}
-
       {/* Topline KPI strip — 8 individual cards, full width above layout grid */}
       <div className="od-kpi-strip">
             <KpiCard
               label="Active Clients"
               dotColor="#6366f1"
               value={String(data.activeClients)}
+              delta={data.kpiMom?.activeClients}
             />
             <KpiCard
               label="Active Leads"
               dotColor="#7c3aed"
               value={String(data.activeLeads ?? data.totalLeads ?? 0)}
+              delta={data.kpiMom?.activeLeads}
             />
             <KpiCard
               label="ARR"
               dotColor="#0d9488"
               value={`$${fmt0(data.annualisedAgencyRevenue ?? 0)}`}
+              delta={data.kpiMom?.arr}
             />
             <KpiCardTooltip
               label="Monthly Retainer"
               dotColor="#7c3aed"
               value={`$${fmt0(data.monthlyRetainerNet ?? 0)}`}
+              delta={data.kpiMom?.monthlyRetainer}
               rows={(data.breakdowns?.monthlyRetainer ?? []).map((row, i) => (
                 <div key={i} className="od-stat-tooltip__row">
                   <span className="od-stat-tooltip__name">
@@ -667,6 +715,7 @@ const Dashboard = () => {
             <KpiCardTooltip
               label="Retainer Rev. YTD"
               value={`$${fmt0(data.retainerYTD ?? 0)}`}
+              delta={data.kpiMom?.retainerYTD}
               rows={(data.breakdowns?.retainerYTD ?? []).map((row, i) => (
                 <div key={i} className="od-stat-tooltip__row">
                   <span className="od-stat-tooltip__name">
@@ -704,6 +753,7 @@ const Dashboard = () => {
             <KpiCardTooltip
               label="One-Off Projects YTD"
               value={`$${fmt0(data.oneOffYTD ?? 0)}`}
+              delta={data.kpiMom?.oneOffYTD}
               rows={(data.breakdowns?.oneOffYTD ?? []).map((row, i) => (
                 <div key={i} className="od-stat-tooltip__row">
                   <span className="od-stat-tooltip__name">{row.clientName}</span>
@@ -716,13 +766,23 @@ const Dashboard = () => {
             <KpiCard
               label="Lead Conversion"
               value={`${data.proposals.conversionRate}%`}
+              delta={data.kpiMom?.leadConversion}
             />
             <KpiCard
               label="MTD Costs"
               dotColor="#f59e0b"
               value={`$${fmt0(data.costs.total + (data.businessCosts?.totalThisMonth || 0))}`}
+              delta={data.kpiMom?.mtdCosts}
             />
       </div>
+
+      {/* Yearly Sales Target Progress Bar */}
+      {data.salesTarget && data.salesTarget.target > 0 && (
+        <YearlySalesTargetBar
+          target={data.salesTarget.target}
+          current={data.ytdRevenue}
+        />
+      )}
 
       <div className="od-dash__layout">
         {/* ── Left Column ── */}
@@ -738,14 +798,12 @@ const Dashboard = () => {
                 <span className="od-box__eyebrow">Finance</span>
                 <span className="od-box__title">Costs — {data.month}</span>
               </div>
-              <span className="od-box__period">AUD</span>
+              <button className="od-costs__head-toggle" onClick={() => setCostDetailsOpen(!costDetailsOpen)} type="button">
+                {costDetailsOpen ? 'Hide details ⌃' : 'Show details ⌄'}
+              </button>
             </div>
             <div className="od-box__body">
-              {/* Stacked bar chart */}
-              <CostChart history={data.costHistory} />
-
-              {/* Cost summary — 3 columns + total + collapsible details */}
-              <CostBreakdown data={data} />
+              <CostBreakdown data={data} open={costDetailsOpen} />
             </div>
           </div>
 
@@ -761,16 +819,22 @@ const Dashboard = () => {
                   Categorise &rarr;
                 </a>
               </div>
-              <div className="od-box__stats od-box__stats--2" style={{ padding: '16px 20px' }}>
-                <div className="od-box__stat">
-                  <span className="od-box__stat-value">${data.businessCosts.totalThisMonth.toFixed(2)}</span>
-                  <span className="od-box__stat-label">Total This Month (AUD)</span>
-                </div>
-                <div className="od-box__stat">
-                  <span className="od-box__stat-value" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
-                    {data.businessCosts.uncategorisedCount}
-                  </span>
-                  <span className="od-box__stat-label">Uncategorised</span>
+              <div className="od-box__body od-card-pad">
+                <div className="od-gsc-stats od-gsc-stats--2">
+                  <div className="od-stat">
+                    <div className="k">Total This Month</div>
+                    <div className="v">${data.businessCosts.totalThisMonth.toFixed(0)}</div>
+                    <div className="d">AUD</div>
+                  </div>
+                  <div className="od-stat">
+                    <div className="k">Uncategorised</div>
+                    <div className="v" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
+                      {data.businessCosts.uncategorisedCount}
+                    </div>
+                    <div className="d" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
+                      {data.businessCosts.uncategorisedCount > 0 ? '⚠ Needs review' : 'All categorised'}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -778,9 +842,6 @@ const Dashboard = () => {
 
           {/* Outstanding Invoices & Scheduled Sends */}
           <XeroInvoicesCard invoices={xeroInvoices} scheduled={xeroScheduled} loading={xeroLoading} onRefresh={fetchXeroData} />
-
-          {/* Google Analytics */}
-          <Ga4Card />
         </div>
 
         {/* ── Right Column ── */}
@@ -827,6 +888,9 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Google Analytics (full width) */}
+      <Ga4Card />
+
       {/* ── Sales Funnel (full-width below main grid) ── */}
       <SalesFunnelDashboard />
 
@@ -853,6 +917,8 @@ function GscCard({
   onSeed: () => void
   seeding: boolean
 }) {
+  const [chartPeriod, setChartPeriod] = useState<'30d' | '90d' | '12m'>('90d')
+
   if (!gsc || (!gsc.totalClicks && !gsc.gscConnected)) {
     return (
       <div className="od-box od-box--muted">
@@ -866,21 +932,14 @@ function GscCard({
           <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: '0 0 12px' }}>
             Connect GSC in Settings &rarr; Integrations to see search performance data.
           </p>
-          <button
-            className="od-gsc__refresh"
-            onClick={onSeed}
-            disabled={seeding}
-            type="button"
-            style={{ fontSize: 12 }}
-          >
-            {seeding ? 'Seeding...' : 'Seed Demo Data'}
-          </button>
+
         </div>
       </div>
     )
   }
 
   const hasSnapshot = (gsc.totalClicks ?? 0) > 0 || (gsc.totalImpressions ?? 0) > 0
+  const visibleGscMonthly = gscMonthly.slice(-(chartPeriod === '30d' ? 1 : chartPeriod === '90d' ? 3 : 12))
 
   return (
     <div className="od-box">
@@ -890,6 +949,20 @@ function GscCard({
           <span className="od-box__title">Google Search Console</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {gscMonthly.length > 0 && (
+            <div className="od-seg">
+              {(['30d', '90d', '12m'] as const).map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  onClick={() => setChartPeriod(period)}
+                  className={chartPeriod === period ? 'od-seg--active' : undefined}
+                >
+                  {period}
+                </button>
+              ))}
+            </div>
+          )}
           {gsc.periodStart && gsc.periodEnd && (
             <span className="od-box__period">
               {new Date(gsc.periodStart).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
@@ -899,28 +972,19 @@ function GscCard({
           )}
           <button
             className="od-gsc__refresh"
-            onClick={onSeed}
-            disabled={seeding}
-            type="button"
-            title="Re-seed 13 months of demo data"
-            style={{ fontSize: 11 }}
-          >
-            {seeding ? 'Seeding...' : 'Re-seed'}
-          </button>
-          <button
-            className="od-gsc__refresh"
             onClick={onRefresh}
             disabled={refreshing}
             type="button"
             title="Refresh GSC data"
           >
-            {refreshing ? 'Syncing...' : 'Refresh'}
+            {refreshing ? 'Syncing...' : '↻ Refresh'}
           </button>
+
         </div>
       </div>
 
       {hasSnapshot ? (
-        <>
+        <div className="od-box__body od-card-pad">
           <div className="od-gsc-stats">
             <div className="od-stat">
               <div className="k">Clicks</div>
@@ -943,17 +1007,17 @@ function GscCard({
               <StatDelta value={gsc.positionChange} suffix="" inverted />
             </div>
             <div className="od-stat">
-              <div className="k">Unique Keywords</div>
+              <div className="k">Keywords</div>
               <div className="v">{(gsc.uniqueKeywords ?? 0).toLocaleString()}</div>
             </div>
             <div className="od-stat">
-              <div className="k">Unique Pages</div>
+              <div className="k">Pages</div>
               <div className="v">{(gsc.uniquePages ?? 0).toLocaleString()}</div>
             </div>
           </div>
 
-          {gscMonthly.length > 0 && <GscChart data={gscMonthly} />}
-        </>
+          {visibleGscMonthly.length > 0 && <GscChart data={visibleGscMonthly} />}
+        </div>
       ) : (
         <div className="od-box__body" style={{ padding: '24px 20px', textAlign: 'center' }}>
           <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>
@@ -967,174 +1031,39 @@ function GscCard({
 
 // ─── GSC Monthly Chart (dual lines, pure CSS/SVG) ──────
 
-function formatCompact(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M'
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k'
-  return n.toString()
-}
-
 function GscChart({ data }: { data: GscMonthlyEntry[] }) {
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
-  const maxImpressions = Math.max(...data.map((d) => d.impressions), 1)
   const maxClicks = Math.max(...data.map((d) => d.clicks), 1)
-  const chartHeight = 180
-  const count = data.length
-  const step = count > 0 ? 100 / count : 100
-  const barWidth = count > 0 ? Math.min(100 / count * 0.6, 10) : 6
 
-  // Build SVG polyline points for impressions line (right axis)
-  const impressionPoints = data.map((d, i) => {
-    const x = (i + 0.5) * step
-    const y = chartHeight - (d.impressions / maxImpressions) * (chartHeight - 20)
-    return `${x},${y}`
+  const maxImpressions = Math.max(...data.map((d) => d.impressions), 1)
+  const points = data.map((entry, index) => {
+    const x = data.length === 1 ? 50 : (index / (data.length - 1)) * 100
+    const y = 100 - (entry.impressions / maxImpressions) * 86
+    return `${x},${Math.max(8, y)}`
   }).join(' ')
 
-  // Y axis tick values
-  const clickTicks = [0, Math.round(maxClicks / 2), Math.round(maxClicks)]
-  const impTicks = [0, Math.round(maxImpressions / 2), Math.round(maxImpressions)]
-
   return (
-    <div className="od-gsc-chart">
-      <div style={{ display: 'flex', gap: 0 }}>
-        {/* Left Y axis (Clicks) */}
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end', paddingRight: 4, fontSize: 9, color: 'var(--theme-elevation-400)', width: 36, flexShrink: 0, height: chartHeight }}>
-          <span>{formatCompact(clickTicks[2])}</span>
-          <span>{formatCompact(clickTicks[1])}</span>
-          <span>0</span>
-        </div>
-
-        <div
-          className="od-gsc-chart__area"
-          style={{ height: chartHeight, position: 'relative', flex: 1 }}
-          onMouseLeave={() => setHoveredIdx(null)}
-        >
-          {/* Invisible hover zones */}
-          {data.map((_, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                left: `${i * step}%`,
-                width: `${step}%`,
-                top: 0,
-                bottom: 0,
-              }}
-              onMouseEnter={() => setHoveredIdx(i)}
-            />
-          ))}
-
-          {/* Hover tooltip */}
-          {hoveredIdx !== null && data[hoveredIdx] && (
-            <div
-              style={{
-                position: 'absolute',
-                left: `${(hoveredIdx + 0.5) * step}%`,
-                top: 0,
-                transform: 'translateX(-50%)',
-                background: 'rgba(26, 26, 46, 0.5)',
-                backdropFilter: 'blur(8px)',
-                color: '#fff',
-                borderRadius: 8,
-                padding: '10px 14px',
-                fontSize: 12,
-                lineHeight: 1.6,
-                whiteSpace: 'nowrap',
-                pointerEvents: 'none',
-                zIndex: 10,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                border: '1px solid rgba(255,255,255,0.1)',
-              }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 13 }}>
-                {data[hoveredIdx].month}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366f1', flexShrink: 0 }} />
-                Clicks: <strong>{data[hoveredIdx].clicks.toLocaleString()}</strong>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#74B3A8', flexShrink: 0 }} />
-                Impressions: <strong>{data[hoveredIdx].impressions.toLocaleString()}</strong>
-              </div>
-            </div>
-          )}
-
-          <svg
-            viewBox={`0 0 100 ${chartHeight}`}
-            preserveAspectRatio="none"
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-          >
-            {/* Click bars (left axis) */}
-            {data.map((d, i) => {
-              const x = (i + 0.5) * step
-              const barH = (d.clicks / maxClicks) * (chartHeight - 20)
-              return (
-                <rect
-                  key={i}
-                  x={x - barWidth / 2}
-                  y={chartHeight - barH}
-                  width={barWidth}
-                  height={barH}
-                  fill={hoveredIdx === i ? '#818cf8' : '#6366f1'}
-                  rx="1"
-                  vectorEffect="non-scaling-stroke"
-                />
-              )
-            })}
-            {/* Impressions line (right axis) */}
-            <polyline
-              points={impressionPoints}
-              fill="none"
-              stroke="#74B3A8"
-              strokeWidth="2"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-
-          {/* Hover dot on line */}
-          {hoveredIdx !== null && (
-            <svg
-              viewBox={`0 0 100 ${chartHeight}`}
-              preserveAspectRatio="none"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-            >
-              <circle
-                cx={(hoveredIdx + 0.5) * step}
-                cy={chartHeight - (data[hoveredIdx].impressions / maxImpressions) * (chartHeight - 20)}
-                r="3"
-                fill="#74B3A8"
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-          )}
-        </div>
-
-        {/* Right Y axis (Impressions) */}
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', paddingLeft: 4, fontSize: 9, color: 'var(--theme-elevation-400)', width: 40, flexShrink: 0, height: chartHeight }}>
-          <span>{formatCompact(impTicks[2])}</span>
-          <span>{formatCompact(impTicks[1])}</span>
-          <span>0</span>
-        </div>
-      </div>
-
-      {/* X-axis labels */}
-      <div className="od-gsc-chart__labels" style={{ marginLeft: 36, marginRight: 40 }}>
-        {data.map((entry) => (
-          <div key={entry.month} className="od-gsc-chart__label" style={{ width: `${100 / count}%` }}>
-            {entry.month}
-          </div>
+    <div className="od-gsc-chart od-gsc-chart--mockup">
+      <div className="od-gsc-bars">
+        <svg className="od-gsc-bars__line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points={points} fill="none" stroke="#6366f1" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        </svg>
+        {data.map((entry, index) => (
+          <div
+            key={entry.month}
+            className={`od-gsc-bars__bar${index % 3 === 2 ? ' od-gsc-bars__bar--dark' : ''}`}
+            style={{ height: `${Math.max(8, (entry.clicks / maxClicks) * 92)}%` }}
+            title={`${entry.month}: ${entry.clicks.toLocaleString()} clicks · ${entry.impressions.toLocaleString()} impressions`}
+          />
         ))}
       </div>
-
-      {/* Legend */}
       <div className="od-chart__legend">
         <span className="od-chart__legend-item">
-          <span className="od-chart__legend-dot" style={{ background: '#6366f1', borderRadius: 2 }} />
-          Clicks
+          <span className="od-chart__legend-dot" style={{ background: '#74B3A8' }} />
+          Clicks (bars)
         </span>
         <span className="od-chart__legend-item">
-          <span className="od-chart__legend-dot" style={{ background: '#74B3A8' }} />
-          Impressions
+          <span className="od-chart__legend-dot" style={{ background: '#6366f1' }} />
+          Impressions (line)
         </span>
       </div>
     </div>
@@ -1217,11 +1146,9 @@ function CostChart({ history }: { history: CostHistoryEntry[] }) {
   )
 }
 
-// ─── Cost Breakdown (3 columns + collapsible details) ─────
+// ─── Cost Breakdown (mockup card) ──────────────────────────
 
-function CostBreakdown({ data }: { data: DashboardData }) {
-  const [open, setOpen] = useState(false)
-
+function CostBreakdown({ data, open }: { data: DashboardData; open: boolean }) {
   const countMap: Record<string, number> = {
     seoAudits: data.usage.seoAudits,
     croAudits: data.usage.croAudits,
@@ -1235,76 +1162,62 @@ function CostBreakdown({ data }: { data: DashboardData }) {
   const infra = data.costs.infraTotal
   const api = data.costs.apiTotal
   const llm = data.costs.llmTotal
-  const stackTotal = business + infra + api + llm
-  const pct = (n: number) => (stackTotal > 0 ? (n / stackTotal) * 100 : 0)
+  const total = business + infra + api + llm
+  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0)
+  const groups = [
+    { key: 'business', label: 'Business', value: business, color: CHART_COLORS.business },
+    { key: 'infra', label: 'Infra', value: infra, color: CHART_COLORS.infrastructure },
+    { key: 'api', label: 'API', value: api, color: CHART_COLORS.api },
+    { key: 'llm', label: 'LLM', value: llm, color: CHART_COLORS.llm },
+  ]
 
   return (
     <div className="od-costs">
-      {/* Compact inline summary: Total | Business | Infrastructure | API | LLM */}
       <div className="od-costs__summary-row">
         <div className="od-costs__summary od-costs__summary--total">
           <span className="od-costs__summary-label">Total</span>
-          <span className="od-costs__summary-value">${(data.costs.total + business).toFixed(2)}</span>
+          <span className="od-costs__summary-value">${total.toFixed(2)}</span>
           <span className="od-costs__summary-sub">AUD / month</span>
         </div>
-        <div className="od-costs__summary">
-          <span className="od-costs__summary-label">
-            <span className="od-costs__summary-dot" style={{ background: CHART_COLORS.business }} />
-            Business
-          </span>
-          <span className="od-costs__summary-value">${business.toFixed(2)}</span>
-        </div>
-        <div className="od-costs__summary">
-          <span className="od-costs__summary-label">
-            <span className="od-costs__summary-dot" style={{ background: CHART_COLORS.infrastructure }} />
-            Infra
-          </span>
-          <span className="od-costs__summary-value">${infra.toFixed(2)}</span>
-        </div>
-        <div className="od-costs__summary">
-          <span className="od-costs__summary-label">
-            <span className="od-costs__summary-dot" style={{ background: CHART_COLORS.api }} />
-            API
-          </span>
-          <span className="od-costs__summary-value">${api.toFixed(2)}</span>
-        </div>
-        <div className="od-costs__summary">
-          <span className="od-costs__summary-label">
-            <span className="od-costs__summary-dot" style={{ background: CHART_COLORS.llm }} />
-            LLM
-          </span>
-          <span className="od-costs__summary-value">${llm.toFixed(2)}</span>
-        </div>
+        {groups.map((group) => (
+          <div key={group.key} className="od-costs__summary">
+            <span className="od-costs__summary-label">
+              <span className="od-costs__summary-dot" style={{ background: group.color }} />
+              {group.label}
+            </span>
+            <span className="od-costs__summary-value">${group.value.toFixed(2)}</span>
+          </div>
+        ))}
       </div>
 
-      {/* Current-month composition (real data) */}
-      {stackTotal > 0 && (
-        <div className="od-stackbar">
-          <span style={{ width: `${pct(business)}%`, background: CHART_COLORS.business }} title={`Business $${business.toFixed(2)}`} />
-          <span style={{ width: `${pct(infra)}%`, background: CHART_COLORS.infrastructure }} title={`Infra $${infra.toFixed(2)}`} />
-          <span style={{ width: `${pct(api)}%`, background: CHART_COLORS.api }} title={`API $${api.toFixed(2)}`} />
-          <span style={{ width: `${pct(llm)}%`, background: CHART_COLORS.llm }} title={`LLM $${llm.toFixed(2)}`} />
+      {total > 0 && (
+        <div className="od-stackbar" aria-label="Cost category split">
+          {groups.map((group) => (
+            <span
+              key={group.key}
+              style={{ width: `${pct(group.value)}%`, background: group.color }}
+              title={`${group.label} $${group.value.toFixed(2)}`}
+            />
+          ))}
         </div>
       )}
 
-      {/* Collapsible details toggle */}
-      <button
-        className="od-costs__toggle"
-        onClick={() => setOpen(!open)}
-        type="button"
-      >
-        {open ? 'Hide details' : 'View details'}
-        <span className={`od-costs__toggle-arrow ${open ? 'od-costs__toggle-arrow--open' : ''}`}>&#9662;</span>
-      </button>
-
-      {/* Collapsible detail rows — 4 columns matching summary */}
       {open && (
         <div className="od-costs__details">
           <div className="od-costs__detail-row">
-            {/* Empty first column (aligns under Total) */}
-            <div className="od-costs__col" />
+            <div className="od-costs__col">
+              <div className="od-costs__section">
+                <span className="od-costs__section-dot" style={{ background: CHART_COLORS.business }} />
+                Business
+              </div>
+              <div className="od-costs__grid">
+                <div className="od-costs__row">
+                  <span className="od-costs__label">Categorised business costs</span>
+                  <span className="od-costs__value">${business.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
 
-            {/* Infrastructure details */}
             <div className="od-costs__col">
               <div className="od-costs__section">
                 <span className="od-costs__section-dot" style={{ background: CHART_COLORS.infrastructure }} />
@@ -1314,17 +1227,16 @@ function CostBreakdown({ data }: { data: DashboardData }) {
                 {Object.entries(data.costs.infrastructure).map(([key, cost]) => (
                   <div key={key} className="od-costs__row">
                     <span className="od-costs__label">{infraLabels[key] || key}</span>
-                    <span className="od-costs__value">${(cost as number).toFixed(2)}</span>
+                    <span className="od-costs__value">${cost.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* API Usage details */}
             <div className="od-costs__col">
               <div className="od-costs__section">
                 <span className="od-costs__section-dot" style={{ background: CHART_COLORS.api }} />
-                API Usage
+                API
               </div>
               <div className="od-costs__grid">
                 {Object.entries(data.costs.api).map(([key, cost]) => (
@@ -1333,23 +1245,22 @@ function CostBreakdown({ data }: { data: DashboardData }) {
                       {apiLabels[key] || key}
                       <span className="od-costs__count">&times;{countMap[key] ?? 0}</span>
                     </span>
-                    <span className="od-costs__value">${(cost as number).toFixed(2)}</span>
+                    <span className="od-costs__value">${cost.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* LLM Models details */}
             <div className="od-costs__col">
               <div className="od-costs__section">
                 <span className="od-costs__section-dot" style={{ background: CHART_COLORS.llm }} />
-                LLM Models
+                LLM
               </div>
               <div className="od-costs__grid">
                 {Object.entries(data.costs.llm).map(([key, cost]) => (
                   <div key={key} className="od-costs__row">
                     <span className="od-costs__label">{llmLabels[key] || key}</span>
-                    <span className="od-costs__value">${(cost as number).toFixed(2)}</span>
+                    <span className="od-costs__value">${cost.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -1363,27 +1274,37 @@ function CostBreakdown({ data }: { data: DashboardData }) {
 
 // ─── Activity Feed ────────────────────────────────────────
 
+function activityIcon(type: string): string {
+  if (type.includes('proposal')) return '📄'
+  if (type.includes('invoice') || type.includes('cost')) return '💰'
+  if (type.includes('agent') || type.includes('google')) return '🤖'
+  if (type.includes('deploy')) return '🚢'
+  if (type.includes('gsc') || type.includes('analytics')) return '📊'
+  return '✅'
+}
+
 function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
+  const visibleEntries = entries.filter(isDashboardActivityVisible)
+
   return (
     <div className="od-box od-box--feed">
       <div className="od-box__head">
-        <span className="od-box__title">Activity Feed</span>
+        <span className="od-box__title">Activity</span>
         <a href="/admin/collections/activity-log" className="od-feed__see-all">
-          See all activity
+          See all
         </a>
       </div>
-      {entries.length === 0 ? (
+      {visibleEntries.length === 0 ? (
         <div style={{ padding: '24px 20px', color: 'var(--theme-elevation-400)', fontSize: 13 }}>
           No recent activity
         </div>
       ) : (
         <div className="od-feed">
-          {entries.map((entry) => (
+          {visibleEntries.map((entry) => (
             <div key={entry.id} className="od-feed__item">
-              <div className="od-feed__dot" />
+              <div className="od-feed__dot">{activityIcon(entry.type)}</div>
               <div className="od-feed__body">
                 <div className="od-feed__title">
-                  <span className="od-feed__badge">{typeLabels[entry.type] || entry.type}</span>
                   {entry.title}
                 </div>
                 {entry.description && (
@@ -1391,6 +1312,8 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
                 )}
                 <div className="od-feed__meta">
                   {entry.user?.name || entry.user?.email || 'System'}
+                  {' \u00B7 '}
+                  {typeLabels[entry.type] || entry.type}
                   {entry.client?.name ? ` \u00B7 ${entry.client.name}` : ''}
                   {' \u00B7 '}
                   {timeAgo(entry.createdAt)}
@@ -1428,7 +1351,7 @@ interface Ga4Data {
 function Ga4Card() {
   const [data, setData] = useState<Ga4Data | null>(null)
   const [loading, setLoading] = useState(true)
-  const [period, setPeriod] = useState('30d')
+  const [period, setPeriod] = useState('12m')
 
   useEffect(() => {
     setLoading(true)
@@ -1637,20 +1560,7 @@ function XeroInvoicesCard({
     )
   }
 
-  const daysUntil = (dateStr: string) => {
-    const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    return diff
-  }
-
-  const sortedScheduled = [...scheduled].sort((a, b) => {
-    if (a.status !== b.status) return a.status === 'scheduled' ? -1 : 1
-    if (!a.sendDate) return 1
-    if (!b.sendDate) return -1
-    return new Date(a.sendDate).getTime() - new Date(b.sendDate).getTime()
-  })
-
-  const thStyle: React.CSSProperties = { padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap', fontSize: 12 }
-  const tdStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 12, whiteSpace: 'nowrap' }
+  const displayedInvoices = [...invoices.recentInvoices, ...(invoices.draftInvoices || [])]
 
   return (
     <>
@@ -1659,105 +1569,70 @@ function XeroInvoicesCard({
         <div className="od-box__head">
           <div>
             <span className="od-box__eyebrow">Finance</span>
-            <span className="od-box__title">Outstanding Invoices</span>
+            <span className="od-box__title">Outstanding Invoices & Scheduled Sends</span>
           </div>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            style={{
-              fontSize: 12,
-              color: 'var(--theme-elevation-500)',
-              background: 'none',
-              border: 'none',
-              cursor: refreshing ? 'not-allowed' : 'pointer',
-              opacity: refreshing ? 0.5 : 1,
-              padding: 0,
-            }}
-          >
-            {refreshing ? 'Refreshing...' : 'Refresh ↻'}
+          <button type="button" onClick={handleRefresh} disabled={refreshing} className="od-gsc__refresh">
+            {refreshing ? 'Refreshing...' : '↻ Refresh'}
           </button>
         </div>
 
         {/* KPI stats */}
-        <div className="od-box__stats od-box__stats--4">
-          <div className="od-box__stat">
-            <span className="od-box__stat-value">${invoices.totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <span className="od-box__stat-label">Outstanding</span>
-          </div>
-          <div className="od-box__stat">
-            <span className="od-box__stat-value" style={invoices.totalOverdue > 0 ? { color: '#ef4444' } : {}}>
-              ${invoices.totalOverdue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <span className="od-box__stat-label">Overdue</span>
-          </div>
-          <div className="od-box__stat">
-            <span className="od-box__stat-value">{invoices.unpaidCount}</span>
-            <span className="od-box__stat-label">Unpaid</span>
-          </div>
-          <div className="od-box__stat">
-            <span className="od-box__stat-value" style={invoices.overdueCount > 0 ? { color: '#ef4444' } : {}}>
-              {invoices.overdueCount}
-            </span>
-            <span className="od-box__stat-label">Overdue</span>
+        <div className="od-box__body od-card-pad od-card-pad--bottom-tight">
+          <div className="od-gsc-stats od-gsc-stats--3">
+            <div className="od-stat">
+              <div className="k">Outstanding</div>
+              <div className="v">${invoices.totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+              <div className="d">{displayedInvoices.length} invoices</div>
+            </div>
+            <div className="od-stat">
+              <div className="k">Overdue</div>
+              <div className="v" style={invoices.totalOverdue > 0 ? { color: '#ef4444' } : {}}>
+                ${invoices.totalOverdue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </div>
+              <div className={invoices.totalOverdue > 0 ? 'd down' : 'd'}>{invoices.totalOverdue > 0 ? 'Needs follow-up' : 'Clear'}</div>
+            </div>
+            <div className="od-stat">
+              <div className="k">Scheduled</div>
+              <div className="v">{scheduled.length}</div>
+              <div className="d">send{scheduled.length === 1 ? '' : 's'}</div>
+            </div>
           </div>
         </div>
 
         {/* Invoice table */}
-        {invoices.recentInvoices.length > 0 ? (
+        {displayedInvoices.length > 0 ? (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table className="od-table">
               <thead>
-                <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <th style={thStyle}>Client</th>
-                  <th style={thStyle}>Invoice #</th>
-                  <th style={thStyle}>Description</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>Amount Due</th>
-                  <th style={thStyle}>Due Date</th>
-                  <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
+                <tr>
+                  <th>Client</th>
+                  <th>Invoice</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th className="num">Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {invoices.recentInvoices.map((inv) => {
-                  const overdue = inv.isOverdue
+                {displayedInvoices.map((inv) => {
+                  const overdue = Boolean(inv.isOverdue)
+                  const isDraft = inv.status === 'DRAFT'
+                  const href = inv.invoiceId ? `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${inv.invoiceId}` : null
+                  const invoiceLabel = href ? (
+                    <a href={href} target="_blank" rel="noopener noreferrer">
+                      {inv.invoiceNumber}
+                    </a>
+                  ) : inv.invoiceNumber
                   return (
-                    <tr
-                      key={inv.invoiceNumber}
-                      style={{
-                        borderBottom: '1px solid var(--theme-elevation-50)',
-                        background: overdue ? 'rgba(239, 68, 68, 0.04)' : undefined,
-                      }}
-                    >
-                      <td style={{ ...tdStyle, fontWeight: 500, color: 'var(--theme-elevation-700)' }}>
-                        {inv.contact.name}
-                      </td>
-                      <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
-                        {inv.invoiceNumber}
-                      </td>
-                      <td style={{ ...tdStyle, color: 'var(--theme-elevation-500)' }}>
-                        {inv.reference || '—'}
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
-                        ${inv.amountDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td style={tdStyle}>
-                        {new Date(inv.dueDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '2px 8px',
-                            borderRadius: 9999,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: overdue ? '#fef2f2' : inv.status === 'DRAFT' ? '#f3f4f6' : '#f0fdf4',
-                            color: overdue ? '#b91c1c' : inv.status === 'DRAFT' ? '#6b7280' : '#15803d',
-                          }}
-                        >
-                          {overdue ? 'Overdue' : inv.status === 'DRAFT' ? 'Draft' : 'Unpaid'}
+                    <tr key={`${inv.status}-${inv.invoiceId || inv.invoiceNumber}`}>
+                      <td className="t-strong">{inv.contact.name}</td>
+                      <td className="t-muted">{invoiceLabel}</td>
+                      <td>{inv.description || inv.reference || (isDraft ? 'Draft invoice' : 'Outstanding invoice')}</td>
+                      <td>
+                        <span className={`od-pill ${overdue ? 'od-pill--red' : isDraft ? 'od-pill--amber' : 'od-pill--green'}`}>
+                          {overdue ? 'Overdue' : isDraft ? 'Draft' : 'Due'}
                         </span>
                       </td>
+                      <td className="num t-strong">${(inv.amountDue || inv.total || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
                     </tr>
                   )
                 })}
@@ -1767,107 +1642,7 @@ function XeroInvoicesCard({
         ) : (
           <div style={{ padding: '16px 20px', textAlign: 'center' }}>
             <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
-              No unpaid invoices 🎉
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Drafts & Scheduled */}
-      <div className="od-box">
-        <div className="od-box__head">
-          <span className="od-box__title">Drafts & Scheduled</span>
-        </div>
-
-        {sortedScheduled.length > 0 ? (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <th style={thStyle}>Client</th>
-                  <th style={thStyle}>Description</th>
-                  <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
-                  <th style={thStyle}>Send Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedScheduled.map((send) => {
-                  const days = send.sendDate ? daysUntil(send.sendDate) : null
-                  const isUrgent = days !== null && days <= 3 && days >= 0
-                  const isPast = days !== null && days < 0
-                  return (
-                    <tr
-                      key={send.invoiceId}
-                      style={{
-                        borderBottom: '1px solid var(--theme-elevation-50)',
-                        background: isUrgent ? 'rgba(245, 158, 11, 0.06)' : undefined,
-                      }}
-                    >
-                      <td style={{ ...tdStyle, fontWeight: 500, color: 'var(--theme-elevation-700)' }}>
-                        {send.contact}
-                      </td>
-                      <td style={tdStyle}>
-                        <a
-                          href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${send.invoiceId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ color: 'inherit', textDecoration: 'none' }}
-                          onMouseOver={(e) => (e.currentTarget.style.textDecoration = 'underline')}
-                          onMouseOut={(e) => (e.currentTarget.style.textDecoration = 'none')}
-                        >
-                          {send.description}
-                        </a>
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '2px 8px',
-                            borderRadius: 9999,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: send.status === 'scheduled' ? '#eff6ff' : '#f3f4f6',
-                            color: send.status === 'scheduled' ? '#2563eb' : '#6b7280',
-                          }}
-                        >
-                          {send.status === 'scheduled' ? 'Scheduled' : 'Draft'}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>
-                        {send.sendDate ? (
-                          <>
-                            {new Date(send.sendDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
-                            {days !== null && (
-                              <span
-                                style={{
-                                  marginLeft: 8,
-                                  display: 'inline-block',
-                                  padding: '2px 8px',
-                                  borderRadius: 9999,
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  background: isPast ? '#fef2f2' : isUrgent ? '#fffbeb' : '#f3f4f6',
-                                  color: isPast ? '#b91c1c' : isUrgent ? '#b45309' : '#6b7280',
-                                }}
-                              >
-                                {isPast ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days}d`}
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span style={{ color: 'var(--theme-elevation-300)', fontSize: 12 }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ padding: '16px 20px', textAlign: 'center' }}>
-            <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
-              No drafts or scheduled sends
+              No unpaid or draft invoices 🎉
             </p>
           </div>
         )}
@@ -1908,105 +1683,39 @@ function ProcessesCard({ processes }: { processes?: ProcessesData | null }) {
         </a>
       </div>
 
-      {/* Status counts */}
-      <div className="od-box__stats od-box__stats--4">
-        <div className="od-box__stat">
-          <span className="od-box__stat-value" style={{ color: '#1d4ed8' }}>{processes.active}</span>
-          <span className="od-box__stat-label">Active</span>
+      <div className="od-box__body od-card-pad od-processes">
+        <div className="od-processes__pills">
+          <span className="od-pill od-pill--green">{processes.active} On track</span>
+          <span className="od-pill od-pill--amber">{processes.onHold} At risk</span>
+          <span className="od-pill od-pill--gray">{processes.completed} Done</span>
         </div>
-        <div className="od-box__stat">
-          <span className="od-box__stat-value" style={{ color: '#6b7280' }}>{processes.notStarted}</span>
-          <span className="od-box__stat-label">Not Started</span>
-        </div>
-        <div className="od-box__stat">
-          <span className="od-box__stat-value" style={{ color: '#15803d' }}>{processes.completed}</span>
-          <span className="od-box__stat-label">Completed</span>
-        </div>
-        <div className="od-box__stat">
-          <span className="od-box__stat-value" style={{ color: '#b45309' }}>{processes.onHold}</span>
-          <span className="od-box__stat-label">On Hold</span>
-        </div>
-      </div>
 
-      {/* Recent processes table */}
-      {processes.recentProcesses.length > 0 ? (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>Process</th>
-                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>Phase</th>
-                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>Status</th>
-                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap', minWidth: 100 }}>Progress</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {processes.recentProcesses.map((proc) => {
-                const statusInfo = PROCESS_STATUS_COLORS[proc.overallStatus] || PROCESS_STATUS_COLORS.not_started
-                return (
-                  <tr key={proc.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '8px 12px', fontWeight: 500, color: '#111827', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <a
-                        href={`/admin/collections/client-processes/${proc.id}`}
-                        style={{ color: '#111827', textDecoration: 'none' }}
-                        onMouseEnter={(e) => { (e.target as HTMLElement).style.textDecoration = 'underline' }}
-                        onMouseLeave={(e) => { (e.target as HTMLElement).style.textDecoration = 'none' }}
-                      >
-                        {proc.processTitle}
-                      </a>
-                    </td>
-                    <td style={{ padding: '8px 12px', color: '#6b7280', whiteSpace: 'nowrap', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {proc.currentPhase || '\u2014'}
-                    </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        fontSize: 10,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.04em',
-                        background: statusInfo.bg,
-                        color: statusInfo.color,
-                        whiteSpace: 'nowrap',
-                      }}>
-                        {statusInfo.label}
-                      </span>
-                    </td>
-                    <td style={{ padding: '8px 12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ flex: 1, height: 6, borderRadius: 3, background: '#e5e7eb', overflow: 'hidden' }}>
-                          <div style={{
-                            width: `${proc.completionPercentage}%`,
-                            height: '100%',
-                            borderRadius: 3,
-                            background: proc.completionPercentage === 100 ? '#22c55e' : '#468D8B',
-                            transition: 'width 300ms',
-                          }} />
-                        </div>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', minWidth: 28, textAlign: 'right' }}>
-                          {proc.completionPercentage}%
-                        </span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#9ca3af', fontSize: 11, whiteSpace: 'nowrap' }}>
-                      {timeAgo(proc.updatedAt)}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : total === 0 ? (
-        <div style={{ padding: '16px 20px', textAlign: 'center' }}>
-          <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
-            No processes created yet. Start one from a client or template.
-          </p>
-        </div>
-      ) : null}
+        {processes.recentProcesses.length > 0 ? (
+          <div className="od-processes__list">
+            {processes.recentProcesses.slice(0, 3).map((proc) => {
+              const statusInfo = PROCESS_STATUS_COLORS[proc.overallStatus] || PROCESS_STATUS_COLORS.not_started
+              return (
+                <a key={proc.id} href={`/admin/collections/client-processes/${proc.id}`} className="od-processes__item">
+                  <div className="od-processes__row">
+                    <b>{proc.processTitle}</b>
+                    <span>{proc.completionPercentage}%</span>
+                  </div>
+                  <div className="od-mini-prog">
+                    <span style={{ width: `${proc.completionPercentage}%` }} />
+                  </div>
+                  <div className="od-processes__meta">{proc.currentPhase || statusInfo.label} · {timeAgo(proc.updatedAt)}</div>
+                </a>
+              )
+            })}
+          </div>
+        ) : total === 0 ? (
+          <div style={{ padding: '16px 0', textAlign: 'center' }}>
+            <p style={{ color: 'var(--theme-elevation-400)', fontSize: 13, margin: 0 }}>
+              No processes created yet. Start one from a client or template.
+            </p>
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -2045,13 +1754,13 @@ function ActionItems({
   uncategorisedCosts: number
   pendingStatements: number
 }) {
-  const items: { label: string; detail: string; href: string; pill?: string; pillColor?: string }[] = [
+  const items: { label: string; detail: string; href: string; pill?: string; pillClass: string }[] = [
     {
       label: 'Review OptiMate approvals',
       detail: 'Agent actions awaiting sign-off',
       href: '/admin/collections/agent-approval-queue',
-      pill: 'Agent',
-      pillColor: '#7c3aed',
+      pill: 'Open',
+      pillClass: 'od-pill--blue',
     },
     {
       label: 'Invoice statements',
@@ -2059,8 +1768,8 @@ function ActionItems({
         ? `${pendingStatements} client${pendingStatements === 1 ? '' : 's'} awaiting approval`
         : 'No pending statements',
       href: '/admin/finance/invoice-statements',
-      pill: pendingStatements > 0 ? String(pendingStatements) : undefined,
-      pillColor: '#f59e0b',
+      pill: pendingStatements > 0 ? 'Due' : undefined,
+      pillClass: 'od-pill--amber',
     },
     {
       label: 'Categorise business costs',
@@ -2068,15 +1777,15 @@ function ActionItems({
         ? `${uncategorisedCosts} uncategorised transaction${uncategorisedCosts === 1 ? '' : 's'}`
         : 'All costs categorised',
       href: '/admin/finance/costs',
-      pill: uncategorisedCosts > 0 ? String(uncategorisedCosts) : undefined,
-      pillColor: '#ef4444',
+      pill: uncategorisedCosts > 0 ? 'Later' : undefined,
+      pillClass: 'od-pill--gray',
     },
     {
       label: 'Client health check',
       detail: 'Review clients without recent activity',
       href: '/admin/collections/clients',
-      pill: 'Review',
-      pillColor: '#6b7280',
+      pill: 'Urgent',
+      pillClass: 'od-pill--red',
     },
   ]
 
@@ -2084,45 +1793,16 @@ function ActionItems({
     <div className="od-box">
       <div className="od-box__head">
         <span className="od-box__title">Action Items</span>
-        <span className="od-box__badge">Weekly</span>
+        <span className="od-pill od-pill--amber">{items.length}</span>
       </div>
-      <div className="od-box__body">
+      <div className="od-box__body od-box__body--flush-top od-card-pad">
         {items.map((item, i) => (
-          <a
-            key={i}
-            href={item.href}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              padding: '12px 18px',
-              borderBottom: i < items.length - 1 ? '1px solid #f3f4f6' : 'none',
-              textDecoration: 'none',
-              color: 'inherit',
-              transition: 'background 150ms',
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f9fafb' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '' }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>{item.label}</div>
-              <div style={{ fontSize: 11, color: '#6b7280' }}>{item.detail}</div>
+          <a key={i} href={item.href} className="od-toggle-row">
+            <div className="od-toggle-row__info">
+              <b>{item.label}</b>
+              <small>{item.detail}</small>
             </div>
-            {item.pill && (
-              <span style={{
-                flexShrink: 0,
-                fontSize: 10,
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: 9999,
-                background: item.pillColor ? `${item.pillColor}18` : '#f3f4f6',
-                color: item.pillColor ?? '#6b7280',
-                whiteSpace: 'nowrap',
-              }}>
-                {item.pill}
-              </span>
-            )}
+            {item.pill && <span className={`od-pill ${item.pillClass}`}>{item.pill}</span>}
           </a>
         ))}
       </div>
@@ -2134,7 +1814,6 @@ function ActionItems({
 
 function YearlySalesTargetBar({ target, current }: { target: number; current: number }) {
   const percentage = Math.min(100, Math.round((current / target) * 100))
-  const remaining = target - current
   const now = new Date()
   // Year-end is implicit — the target is by definition for the current
   // calendar year (Jan 1 → Dec 31).
@@ -2144,73 +1823,46 @@ function YearlySalesTargetBar({ target, current }: { target: number; current: nu
     1,
     Math.ceil((yearEnd.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)),
   )
-  const elapsedDays = Math.ceil((now.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24))
+  const elapsedDays = Math.max(
+    0,
+    Math.ceil((now.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)),
+  )
   const daysRemaining = Math.max(0, totalDays - elapsedDays)
   const pacePercent = Math.min(100, Math.round((elapsedDays / totalDays) * 100))
   const expectedAmount = Math.round((elapsedDays / totalDays) * target)
+  const paceDelta = current - expectedAmount
+  const shortMoney = (value: number) => {
+    const abs = Math.abs(value)
+    const formatted = abs >= 1000
+      ? `$${Math.round(abs / 1000).toLocaleString('en-AU')}k`
+      : `$${Math.round(abs).toLocaleString('en-AU')}`
+    return value < 0 ? `-${formatted}` : formatted
+  }
 
   return (
-    <div style={{
-      background: '#ffffff',
-      border: '1px solid #e5e7eb',
-      borderRadius: 10,
-      padding: '16px 20px',
-      marginBottom: 20,
-      overflow: 'hidden',
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' as const, gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
-            🎯 Yearly Sales Target
-          </span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: percentage >= 100 ? '#22c55e' : '#6b7280' }}>
-            {percentage}%
+    <div className="od-box" style={{ marginTop: 16, marginBottom: 16 }}>
+      <div className="od-box__body" style={{ padding: '16px 18px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, gap: 12, flexWrap: 'wrap' as const }}>
+          <b style={{ fontSize: 13, color: 'var(--od-t1)' }}>Yearly Sales Target</b>
+          <span style={{ color: 'var(--od-t3)', fontSize: 12 }}>
+            {shortMoney(current)} of {shortMoney(target)} ·{' '}
+            <b style={{ color: 'var(--od-green)' }}>{percentage}%</b> ·{' '}
+            <b style={{ color: 'var(--od-t2)' }}>{daysRemaining} days remaining</b>
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7280', flexWrap: 'wrap' as const }}>
-          <span>
-            <strong style={{ color: '#111827' }}>${current.toLocaleString('en-AU', { maximumFractionDigits: 0 })}</strong> / ${target.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
-          </span>
-          <span>
-            {remaining > 0 ? `$${remaining.toLocaleString('en-AU', { maximumFractionDigits: 0 })} to go` : '🎉 Target reached!'}
-          </span>
-          <span>
-            {daysRemaining} days left
+        <div style={{ position: 'relative', height: 10, borderRadius: 20, background: '#eef0f3', overflow: 'visible' }}>
+          <div style={{ width: `${percentage}%`, height: '100%', borderRadius: 20, background: 'linear-gradient(90deg, #468d8b, #74b3a8)' }} />
+          <div title="Expected pace" style={{ position: 'absolute', top: -3, left: `${pacePercent}%`, width: 2, height: 16, background: 'var(--od-accent)', borderRadius: 2 }} />
+        </div>
+        <div style={{ marginTop: 8, fontSize: 11.5 }}>
+          <span style={{ color: 'var(--od-accent)', fontWeight: 600 }}>Expected to date: {shortMoney(expectedAmount)}</span>{' '}
+          <span style={{ color: 'var(--od-t3)' }}>
+            ·{' '}
+            <b style={{ color: paceDelta >= 0 ? 'var(--od-green)' : 'var(--od-red)' }}>
+              {paceDelta >= 0 ? `${shortMoney(paceDelta)} ahead of pace` : `${shortMoney(Math.abs(paceDelta))} behind pace`}
+            </b>
           </span>
         </div>
-      </div>
-      {/* Progress bar */}
-      <div style={{
-        height: 12,
-        background: '#f3f4f6',
-        borderRadius: 6,
-        overflow: 'hidden',
-        position: 'relative',
-      }}>
-        <div style={{
-          height: '100%',
-          width: `${percentage}%`,
-          background: percentage >= 100 ? '#22c55e' : 'linear-gradient(90deg, #22c55e, #4ade80)',
-          borderRadius: 6,
-          transition: 'width 1s ease-in-out',
-        }} />
-        {/* Pace marker — where you should be based on time elapsed */}
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: `${pacePercent}%`,
-          width: 2,
-          height: '100%',
-          background: '#9ca3af',
-          opacity: 0.6,
-        }} />
-      </div>
-      <div style={{ position: 'relative', marginTop: 4, fontSize: 10, color: '#9ca3af', height: 14 }}>
-        <span style={{ position: 'absolute', left: 0 }}>Jan</span>
-        <span style={{ position: 'absolute', left: `${pacePercent}%`, transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
-          ▲ ${expectedAmount.toLocaleString()} expected
-        </span>
-        <span style={{ position: 'absolute', right: 0 }}>Dec 31</span>
       </div>
     </div>
   )

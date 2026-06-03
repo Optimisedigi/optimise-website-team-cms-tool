@@ -14,6 +14,7 @@ import config from "@/payload.config";
 import ApprovalActions from "./Actions";
 import { isAdmin } from "@/lib/access";
 import { getVisibleEntities, getCustomViewActions } from "@/lib/visible-entities";
+import AdminStepNavSetter from "@/components/AdminStepNavSetter";
 
 export const dynamic = "force-dynamic";
 
@@ -229,6 +230,7 @@ export default async function ApprovalReviewPage({
       viewActions={getCustomViewActions(payload)}
       visibleEntities={getVisibleEntities(payload, user)}
     >
+      <AdminStepNavSetter items={[{ label: "Agent Approvals", url: "/admin/agent-approvals" }, { label: "Review" }]} />
       <div className="gutter--left gutter--right">
         <div style={PAGE_STYLE}>
           <div style={{ marginBottom: 12 }}>

@@ -92,6 +92,8 @@ import * as migration_20260618_120000_add_clients_services from './20260618_1200
 import * as migration_20260619_120000_add_agent_memory_review_fields from './20260619_120000_add_agent_memory_review_fields';
 import * as migration_20260620_120000_add_optimate_chat_turns_mode from './20260620_120000_add_optimate_chat_turns_mode';
 import * as migration_20260621_120000_add_contact_phone_fields from './20260621_120000_add_contact_phone_fields';
+import * as migration_20260622_120000_add_client_type from './20260622_120000_add_client_type';
+import * as migration_20260623_120000_add_agency_kpi_snapshots from './20260623_120000_add_agency_kpi_snapshots';
 import * as migration_20260624_120000_add_scheduled_task_type from './20260624_120000_add_scheduled_task_type';
 import * as migration_20260625_120000_add_scheduled_task_friendly_schedule from './20260625_120000_add_scheduled_task_friendly_schedule';
 import * as migration_20260626_120000_add_scheduled_task_clients_covered from './20260626_120000_add_scheduled_task_clients_covered';
@@ -566,6 +568,16 @@ export const migrations = [
     up: migration_20260621_120000_add_contact_phone_fields.up,
     down: migration_20260621_120000_add_contact_phone_fields.down,
     name: '20260621_120000_add_contact_phone_fields'
+  },
+  {
+    up: migration_20260622_120000_add_client_type.up,
+    down: migration_20260622_120000_add_client_type.down,
+    name: '20260622_120000_add_client_type'
+  },
+  {
+    up: migration_20260623_120000_add_agency_kpi_snapshots.up,
+    down: migration_20260623_120000_add_agency_kpi_snapshots.down,
+    name: '20260623_120000_add_agency_kpi_snapshots'
   },
   {
     up: migration_20260624_120000_add_scheduled_task_type.up,

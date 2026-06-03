@@ -162,6 +162,7 @@ export async function markApplied(id: number): Promise<void> {
     data: { status: "applied", appliedAt: new Date().toISOString() },
     overrideAccess: true,
   });
+  await clearApprovalNotifications(payload, id);
 }
 
 export async function markFailed(id: number, error: string): Promise<void> {
@@ -173,4 +174,5 @@ export async function markFailed(id: number, error: string): Promise<void> {
     data: { status: "failed", applyError: error.slice(0, 4000) },
     overrideAccess: true,
   });
+  await clearApprovalNotifications(payload, id);
 }

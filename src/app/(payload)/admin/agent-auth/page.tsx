@@ -13,6 +13,7 @@ import { DefaultTemplate } from "@payloadcms/next/templates";
 import config from "@/payload.config";
 import AgentAuthPage from "@/components/AgentAuthPage";
 import { getVisibleEntities, getCustomViewActions } from "@/lib/visible-entities";
+import AdminStepNavSetter from "@/components/AdminStepNavSetter";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function Page() {
       viewActions={getCustomViewActions(payload)}
       visibleEntities={getVisibleEntities(payload, user)}
     >
+      <AdminStepNavSetter items={[{ label: "Agent Auth" }]} />
       <div className="gutter--left gutter--right">
         <AgentAuthPage />
       </div>

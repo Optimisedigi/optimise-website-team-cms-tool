@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { avatarColor, avatarInitial } from './clients-list/avatar-gradient'
 import RocketSplash from './RocketSplash'
 
 /**
@@ -27,13 +28,6 @@ interface ClientRow {
 }
 
 const destinationFor = (c: ClientRow): string => `/admin/growth-tools/seo/${c.slug || c.id}`
-
-const scoreColor = (score: number | null) => {
-  if (score == null) return { bg: '#f3f4f6', fg: '#6b7280' }
-  if (score >= 8) return { bg: '#dcfce7', fg: '#166534' }
-  if (score >= 5) return { bg: '#fef3c7', fg: '#92400e' }
-  return { bg: '#fee2e2', fg: '#991b1b' }
-}
 
 const SeoHubPage = () => {
   const [clients, setClients] = useState<ClientRow[]>([])
@@ -75,7 +69,7 @@ const SeoHubPage = () => {
   if (loading) return <RocketSplash />
 
   return (
-    <div className="od-settings">
+    <div className="od-settings od-admin-list-style" style={{ maxWidth: 'none', width: '100%' }}>
       <h2 className="od-settings__title">SEO</h2>
       <p className="od-settings__subtitle">
         SEO tooling across all clients. Click a client to open their SEO workspace —
@@ -140,81 +134,71 @@ const SeoHubPage = () => {
       </div>
 
       {/* Client table */}
-      <div className="od-box" style={{ padding: 0, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+      <div className="table">
+        <table>
+          <thead>
             <tr>
-              <th style={thStyle}>Client</th>
-              <th style={thStyle}>Search Console</th>
-              <th style={thStyle}>Latest audit score</th>
-              <th style={thStyle}>SEO records</th>
-              <th style={{ ...thStyle, textAlign: 'right', paddingRight: 16 }}></th>
+              <th className="cell-name">Client</th>
+              <th>Search Console</th>
+              <th>Latest audit score</th>
+              <th>SEO records</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ padding: 32, textAlign: 'center', color: '#6b7280' }}>
+                <td colSpan={5} style={{ padding: 32, textAlign: 'center' }} className="od-cell-muted">
                   No clients match the current filter.
                 </td>
               </tr>
             )}
             {filtered.map((c) => {
               const href = destinationFor(c)
-              const colors = scoreColor(c.latestSeoAudit?.overallScore ?? null)
+              const score = c.latestSeoAudit?.overallScore ?? null
               return (
                 <tr
                   key={c.id}
-                  style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
                   onClick={() => {
                     window.location.href = href
                   }}
                 >
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: 600, color: '#0f172a' }}>{c.name}</div>
-                  </td>
-                  <td style={tdStyle}>
-                    {c.gscConnected ? (
+                  <td className="cell-name">
+                    <div className="od-client-cell">
                       <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '2px 8px',
-                          borderRadius: 4,
-                          background: '#dcfce7',
-                          color: '#166534',
-                          fontWeight: 600,
-                          fontSize: 12,
-                        }}
+                        className="od-client-cell__avatar"
+                        style={{ background: avatarColor(c.id, c.name) }}
                       >
-                        Connected
+                        {avatarInitial(c.name)}
                       </span>
+                      <span className="od-client-cell__text">
+                        <span className="od-client-cell__name">{c.name}</span>
+                        <span className="od-client-cell__domain">{c.slug}</span>
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    {c.gscConnected ? (
+                      <span className="od-pill od-pill--green">Connected</span>
                     ) : (
-                      <span style={{ color: '#9ca3af' }}>Not connected</span>
+                      <span className="od-cell-muted">Not connected</span>
                     )}
                   </td>
-                  <td style={tdStyle}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        minWidth: 38,
-                        textAlign: 'center',
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        background: colors.bg,
-                        color: colors.fg,
-                        fontWeight: 700,
-                        fontSize: 12,
-                      }}
-                    >
-                      {c.latestSeoAudit?.overallScore ?? '—'}
-                    </span>
+                  <td>
+                    {score != null ? (
+                      <span className={`od-pill ${score >= 8 ? 'od-pill--green' : score >= 5 ? 'od-pill--amber' : 'od-pill--red'}`}>
+                        {score}/10
+                      </span>
+                    ) : (
+                      <span className="od-cell-muted">—</span>
+                    )}
                   </td>
-                  <td style={tdStyle}>
-                    <span style={{ color: '#475569', fontSize: 12 }}>
+                  <td>
+                    <span className="od-cell-muted">
                       Audits {c.counts.seoAudits} · Migrations {c.counts.migrations} · Links {c.counts.internalLinks} · Quarterly {c.counts.quarterlySnapshots} · Health {c.counts.siteHealthReports}
                     </span>
                   </td>
-                  <td style={{ ...tdStyle, textAlign: 'right', paddingRight: 16 }}>
+                  <td style={{ textAlign: 'right' }}>
                     <a
                       href={href}
                       onClick={(e) => e.stopPropagation()}
@@ -233,19 +217,5 @@ const SeoHubPage = () => {
   )
 }
 
-const thStyle: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '10px 12px',
-  fontSize: 12,
-  fontWeight: 600,
-  color: '#475569',
-  textTransform: 'uppercase',
-  letterSpacing: 0.3,
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: '12px',
-  verticalAlign: 'top',
-}
 
 export default SeoHubPage

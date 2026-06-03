@@ -265,6 +265,9 @@ export const Contracts: CollectionConfig = {
               required: true,
               admin: {
                 description: "Title for this contract (e.g. 'SEO Retainer Agreement')",
+                components: {
+                  Cell: "./components/list-cells/TitleAvatarCell",
+                },
               },
             },
             {
@@ -889,8 +892,10 @@ export const Contracts: CollectionConfig = {
       type: "select",
       defaultValue: "draft",
       admin: {
-        position: "sidebar",
         description: "Contract status",
+        components: {
+          Cell: "./components/list-cells/StatusPillCell",
+        },
       },
       options: [
         { label: "Draft", value: "draft" },
@@ -903,7 +908,6 @@ export const Contracts: CollectionConfig = {
       type: "text",
       unique: true,
       admin: {
-        position: "sidebar",
         readOnly: true,
         description: "Secure token for client signing link",
       },
@@ -912,7 +916,6 @@ export const Contracts: CollectionConfig = {
       name: "signingTokenExpiresAt",
       type: "date",
       admin: {
-        position: "sidebar",
         readOnly: true,
         description: "When the signing link expires",
       },
@@ -921,7 +924,6 @@ export const Contracts: CollectionConfig = {
       name: "sentAt",
       type: "date",
       admin: {
-        position: "sidebar",
         readOnly: true,
         description: "When contract was sent to client",
       },
@@ -931,7 +933,6 @@ export const Contracts: CollectionConfig = {
       type: "checkbox",
       defaultValue: false,
       admin: {
-        position: "sidebar",
         description: "Mark as a template contract (e.g. Google Ads). Duplicate to create new contracts.",
       },
     },
@@ -939,7 +940,6 @@ export const Contracts: CollectionConfig = {
       name: "templateLabel",
       type: "text",
       admin: {
-        position: "sidebar",
         description:
           "Short label shown on the 'Create from Template' button (e.g. 'E-Commerce', 'Google Ads'). Falls back to the contract title if blank.",
         condition: (data) => Boolean(data?.isTemplate),
@@ -950,7 +950,6 @@ export const Contracts: CollectionConfig = {
       type: "date",
       index: true,
       admin: {
-        position: "sidebar",
         readOnly: true,
         description:
           "Soft-delete timestamp. Trashed contracts are hidden from the default list and auto-purged 30 days after this date.",

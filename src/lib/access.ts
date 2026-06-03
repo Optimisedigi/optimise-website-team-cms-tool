@@ -69,6 +69,7 @@ export const FEATURE_KEYS = [
   { label: "Negative Keyword Submits", value: "keyword-deep-dive-sessions" },
   { label: "Site Health Reports", value: "site-health-reports" },
   // Reports
+  { label: "Agency KPI Snapshots", value: "agency-kpi-snapshots" },
   { label: "AI Visibility", value: "ai-visibility-snapshots" },
   { label: "SERP Displacement", value: "serp-displacement-snapshots" },
   { label: "SERP Displacement Alerts", value: "serp-displacement-alerts" },

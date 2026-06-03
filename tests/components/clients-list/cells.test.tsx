@@ -13,6 +13,8 @@ import SlugCell from "@/components/clients-list/SlugCell";
 import PinCell from "@/components/clients-list/PinCell";
 import AccountManagerCell from "@/components/clients-list/AccountManagerCell";
 import MonthsActiveCell from "@/components/clients-list/MonthsActiveCell";
+import TitleAvatarCell from "@/components/list-cells/TitleAvatarCell";
+import StatusPillCell from "@/components/list-cells/StatusPillCell";
 
 function props(cellData: unknown, rowData: Record<string, unknown> = {}): DefaultCellComponentProps {
   return { cellData, rowData } as unknown as DefaultCellComponentProps;
@@ -83,6 +85,53 @@ describe("StatusCell", () => {
     render(<StatusCell {...props(false)} />);
     const pill = screen.getByText("Inactive");
     expect(pill.className).toContain("od-pill--gray");
+  });
+});
+
+describe("TitleAvatarCell", () => {
+  it("renders the title, subtitle, and avatar initial", () => {
+    render(
+      <TitleAvatarCell
+        {...props("Acme Proposal", {
+          id: 7,
+          businessName: "Acme Proposal",
+          websiteUrl: "https://www.acme.com.au/services",
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Acme Proposal")).toBeTruthy();
+    expect(screen.getByText("acme.com.au")).toBeTruthy();
+    expect(screen.getByText("A")).toBeTruthy();
+  });
+
+  it("falls back to row title fields and contact subtitle", () => {
+    render(
+      <TitleAvatarCell
+        {...props(null, {
+          contractTitle: "SEO Retainer",
+          clientName: "Acme Pty Ltd",
+        })}
+      />,
+    );
+
+    expect(screen.getByText("SEO Retainer")).toBeTruthy();
+    expect(screen.getByText("Acme Pty Ltd")).toBeTruthy();
+    expect(screen.getByText("S")).toBeTruthy();
+  });
+});
+
+describe("StatusPillCell", () => {
+  it.each([
+    ["client", "Client", "od-pill--green"],
+    ["proposal_sent", "Proposal Sent", "od-pill--blue"],
+    ["draft", "Draft", "od-pill--amber"],
+    ["lost", "Lost", "od-pill--red"],
+    ["unknown", "Unknown", "od-pill--gray"],
+  ])("maps %s to %s with %s", (status, label, className) => {
+    render(<StatusPillCell {...props(status)} />);
+    const pill = screen.getByText(label);
+    expect(pill.className).toContain(className);
   });
 });
 

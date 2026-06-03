@@ -6,8 +6,10 @@ import { default as default_50b91e94cbd399a9e8db44292fbb507f } from '../../../co
 import { default as default_71c8c06dc8caa5debc23ed3566764a63 } from '../../../components/clients-list/SlugCell'
 import { default as default_a04d3e5e4f63cb4971cc6756d558eb31 } from '../../../components/clients-list/PinCell'
 import { default as default_4688024c692ee599e6afafd55990ce14 } from '../../../components/clients-list/StatusCell'
+import { default as default_3bdd599103664c7cbba890063d6642e9 } from '../../../components/AgencyClientToggleField'
 import { default as default_a9f880a6de06ab5f693a05644fa1793e } from '../../../components/clients-list/AccountManagerCell'
 import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../components/MonthlyRetainerCell'
+import { default as default_c5ea9fe7cd59f6fed2f187082f64a9ed } from '../../../components/ClientSignedContractButton'
 import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../components/ClientNotesTable'
 import { default as default_9ac394c54993eebab40c6ee07594e90a } from '../../../components/admin/DiscoveryBriefingPanel'
 import { default as default_30019ca76d88f22be3a9fab3c840976c } from '../../../components/AccountTimelineTable'
@@ -56,7 +58,7 @@ import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../co
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
 import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
 import { default as default_a78435ccde604fd147bece248584301d } from '../../../components/ClientsShowInactiveToggle'
-import { default as default_9107dac15c298ad46889bb6460266637 } from '../../../components/ClientsRowClick'
+import { default as default_81632eb6d14ae90ef8820b753fa1481c } from '../../../components/list-cells/TitleAvatarCell'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_da47157ebc74588a3650c3de3faf920e } from '../../../components/MockupUpload'
 import { default as default_4808f60d67a4d4319c17f3cb600a5cd7 } from '../../../components/RunAuditsButton'
@@ -68,6 +70,7 @@ import { default as default_00f2f68e89ac94a9115ac79e7355850c } from '../../../co
 import { default as default_ee85e12563a2c76fb90347c827ce2e2c } from '../../../components/KeywordCategoryExcluder'
 import { default as default_0f5835a1721ce9d158589c56d0c0fb9d } from '../../../components/CreateContractButton'
 import { default as default_370a80b2909b592994cb28c05355bc3c } from '../../../components/ClientProposalPresentationLink'
+import { default as default_33e9e93052cb7fdced4d4ea759ce075e } from '../../../components/list-cells/StatusPillCell'
 import { default as default_738341866dd8b4c979498c49c4000ba9 } from '../../../components/ProposalsShowConvertedToggle'
 import { default as default_94eaeab32c437efb583ff77d2696f2b2 } from '../../../components/TierTableGridEditor'
 import { default as default_dc498ed93a93c18e4342ff8a50ddd9ec } from '../../../components/AgencySignButton'
@@ -103,6 +106,7 @@ import { default as default_6c751ab69932cc559e5c82f606fdbdb0 } from '../../../co
 import { default as default_72255986d47c1b790f52db8aabe6d202 } from '../../../components/InternalLinkSuggestionsListView'
 import { default as default_3d6cbb93c24934a6d54420e5106bbab0 } from '../../../components/ViewReportLink'
 import { default as default_5ee4907bc6cc2a02fa1a48dea9e62484 } from '../../../components/DownloadMarkdownButton'
+import { default as default_6a6579ed9c81292b1d31ba8142d10a4a } from '../../../components/list-cells/ScorePillCell'
 import { default as default_de1a75fccaf9600fa4b51a4cd773908e } from '../../../components/ViewSeoAuditProposalLink'
 import { default as default_8ec23d6183bad000dc1750353ed54267 } from '../../../components/CopySeoProposalEmailButton'
 import { default as default_96a982169d7094c7232bb687c5c863a6 } from '../../../components/RunGoogleAdsAuditButton'
@@ -163,6 +167,8 @@ import { default as default_2e2d792095b9faaa93311c4bd3638e8e } from '../../../co
 import { default as default_8c91d6ed757c0622a0f1976e63b1d36b } from '../../../components/PayloadShiftSelect'
 import { default as default_d3b30bd20de808698cb99493727faafc } from '../../../components/ShowPasswordToggle'
 import { default as default_54545d17487007f83f65ecb3f857577d } from '../../../components/RoleBodyClass'
+import { default as default_53051385132d7c282b9e348f060d29d1 } from '../../../components/ResetDocumentTabsOnOpen'
+import { default as default_e842b8d1d5d4fd0e0c4e3c9f6c6394a5 } from '../../../components/ListRowClick'
 import { VercelBlobClientUploadHandler as VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e } from '@payloadcms/storage-vercel-blob/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
@@ -175,8 +181,10 @@ export const importMap = {
   "./components/clients-list/SlugCell#default": default_71c8c06dc8caa5debc23ed3566764a63,
   "./components/clients-list/PinCell#default": default_a04d3e5e4f63cb4971cc6756d558eb31,
   "./components/clients-list/StatusCell#default": default_4688024c692ee599e6afafd55990ce14,
+  "./components/AgencyClientToggleField#default": default_3bdd599103664c7cbba890063d6642e9,
   "./components/clients-list/AccountManagerCell#default": default_a9f880a6de06ab5f693a05644fa1793e,
   "./components/MonthlyRetainerCell#default": default_1048d3ef8844cd92abe61dc0b4e55a00,
+  "./components/ClientSignedContractButton#default": default_c5ea9fe7cd59f6fed2f187082f64a9ed,
   "./components/ClientNotesTable#default": default_0c04cad98ec5e03879ab56990698fc12,
   "./components/admin/DiscoveryBriefingPanel#default": default_9ac394c54993eebab40c6ee07594e90a,
   "./components/AccountTimelineTable#default": default_30019ca76d88f22be3a9fab3c840976c,
@@ -225,7 +233,7 @@ export const importMap = {
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
   "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,
   "./components/ClientsShowInactiveToggle#default": default_a78435ccde604fd147bece248584301d,
-  "./components/ClientsRowClick#default": default_9107dac15c298ad46889bb6460266637,
+  "./components/list-cells/TitleAvatarCell#default": default_81632eb6d14ae90ef8820b753fa1481c,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/MockupUpload#default": default_da47157ebc74588a3650c3de3faf920e,
   "./components/RunAuditsButton#default": default_4808f60d67a4d4319c17f3cb600a5cd7,
@@ -237,6 +245,7 @@ export const importMap = {
   "./components/KeywordCategoryExcluder#default": default_ee85e12563a2c76fb90347c827ce2e2c,
   "./components/CreateContractButton#default": default_0f5835a1721ce9d158589c56d0c0fb9d,
   "/components/ClientProposalPresentationLink#default": default_370a80b2909b592994cb28c05355bc3c,
+  "./components/list-cells/StatusPillCell#default": default_33e9e93052cb7fdced4d4ea759ce075e,
   "./components/ProposalsShowConvertedToggle#default": default_738341866dd8b4c979498c49c4000ba9,
   "./components/TierTableGridEditor#default": default_94eaeab32c437efb583ff77d2696f2b2,
   "./components/AgencySignButton#default": default_dc498ed93a93c18e4342ff8a50ddd9ec,
@@ -272,6 +281,7 @@ export const importMap = {
   "./components/InternalLinkSuggestionsListView#default": default_72255986d47c1b790f52db8aabe6d202,
   "./components/ViewReportLink#default": default_3d6cbb93c24934a6d54420e5106bbab0,
   "./components/DownloadMarkdownButton#default": default_5ee4907bc6cc2a02fa1a48dea9e62484,
+  "./components/list-cells/ScorePillCell#default": default_6a6579ed9c81292b1d31ba8142d10a4a,
   "./components/ViewSeoAuditProposalLink#default": default_de1a75fccaf9600fa4b51a4cd773908e,
   "./components/CopySeoProposalEmailButton#default": default_8ec23d6183bad000dc1750353ed54267,
   "./components/RunGoogleAdsAuditButton#default": default_96a982169d7094c7232bb687c5c863a6,
@@ -332,6 +342,8 @@ export const importMap = {
   "./components/PayloadShiftSelect#default": default_8c91d6ed757c0622a0f1976e63b1d36b,
   "./components/ShowPasswordToggle#default": default_d3b30bd20de808698cb99493727faafc,
   "./components/RoleBodyClass#default": default_54545d17487007f83f65ecb3f857577d,
+  "./components/ResetDocumentTabsOnOpen#default": default_53051385132d7c282b9e348f060d29d1,
+  "./components/ListRowClick#default": default_e842b8d1d5d4fd0e0c4e3c9f6c6394a5,
   "@payloadcms/storage-vercel-blob/client#VercelBlobClientUploadHandler": VercelBlobClientUploadHandler_16c82c5e25f430251a3e3ba57219ff4e,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

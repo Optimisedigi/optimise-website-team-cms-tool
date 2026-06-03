@@ -63,6 +63,9 @@ import { soulSet } from "./tools/soul-set";
 import { getPortfolioAccountInventory } from "./tools/get-portfolio-account-inventory";
 import { getPortfolioPerformanceSummary } from "./tools/get-portfolio-performance-summary";
 import { getPortfolioSearchTermWastage } from "./tools/get-portfolio-search-term-wastage";
+import { getSelectedClientDetails } from "./tools/get-selected-client-details";
+import { getPortfolioWeeklyMetricTable } from "./tools/get-portfolio-weekly-metric-table";
+import { getPortfolioMonthlyPerformanceBreakdown } from "./tools/get-portfolio-monthly-performance-breakdown";
 import { resetProposalCounter } from "./tools/_propose-helpers";
 import { readClientConnectionFlags } from "./tools/_client-tokens";
 import { loadPinnedMemoryBlock } from "./memory-loader";
@@ -160,6 +163,9 @@ export function getPortfolioTools(options?: { restrictExternalContextActions?: b
     getPortfolioAccountInventory as unknown as CanonicalTool<unknown>,
     getPortfolioPerformanceSummary as unknown as CanonicalTool<unknown>,
     getPortfolioSearchTermWastage as unknown as CanonicalTool<unknown>,
+    getSelectedClientDetails as unknown as CanonicalTool<unknown>,
+    getPortfolioWeeklyMetricTable as unknown as CanonicalTool<unknown>,
+    getPortfolioMonthlyPerformanceBreakdown as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
     requestConfirmTool as unknown as CanonicalTool<unknown>,
     memorySearch as unknown as CanonicalTool<unknown>,
@@ -220,6 +226,7 @@ export interface RunPortfolioChatTurnInput {
   userId?: number;
   restrictExternalContextActions?: boolean;
   reasoningMode?: ReasoningMode;
+  selectedAccountRefs?: Array<string | number>;
 }
 
 export interface ProposalSummary {
@@ -282,7 +289,7 @@ const DEFAULT_FALLBACKS = ["kimi-k2.6", "minimax-m2.7"];
 const CHAT_MAX_TOKENS = 8192;
 
 export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Promise<RunChatTurnResult> {
-  const { messages, modelOverride, userId, restrictExternalContextActions, reasoningMode } = input;
+  const { messages, modelOverride, userId, restrictExternalContextActions, reasoningMode, selectedAccountRefs } = input;
   const pinnedMemory = await loadPinnedMemoryBlock([]);
   const systemPrompt = buildSystemPromptForPortfolio({
     pinnedMemoryBlock: pinnedMemory.text,
@@ -306,6 +313,7 @@ export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Pr
     reasoningMode,
     context: {
       mode: "portfolio",
+      ...(selectedAccountRefs && selectedAccountRefs.length > 0 ? { selectedAccountRefs } : {}),
       ...(userId !== undefined ? { userId } : {}),
     },
   });

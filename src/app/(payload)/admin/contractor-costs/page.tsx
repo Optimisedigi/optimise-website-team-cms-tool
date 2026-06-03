@@ -5,6 +5,7 @@ import { DefaultTemplate } from '@payloadcms/next/templates'
 import { redirect } from 'next/navigation'
 import ContractorCostsPage from '../../../../components/ContractorCostsPage'
 import { getVisibleEntities, getCustomViewActions } from '../../../../lib/visible-entities'
+import AdminStepNavSetter from "@/components/AdminStepNavSetter";
 import { userHasFeature } from '../../../../lib/access'
 
 export default async function Page() {
@@ -33,6 +34,7 @@ export default async function Page() {
       viewActions={viewActions}
       visibleEntities={visibleEntities}
     >
+      <AdminStepNavSetter items={[{ label: "Contractor Costs" }]} />
       <div className="gutter--left gutter--right" style={{ maxWidth: 1440 }}>
         <ContractorCostsPage />
       </div>

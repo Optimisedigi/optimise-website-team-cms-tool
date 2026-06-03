@@ -296,12 +296,15 @@ const PORTFOLIO_TOOL_GUIDE = `PORTFOLIO MODE, compact cross-account tools:
 - get_portfolio_account_inventory(status?, limit?, query?): read-only account roster. Use this first whenever account scope is unclear. It returns bounded rows with accountRef, clientId, display name, masked customer id, source, active/managed flag, last audit update, monthly spend when stored, and truncated when capped.
 - get_portfolio_performance_summary(accountRefs?, range?, sortBy?, limit?): read-only account-level totals only. Use explicit accountRefs when possible. If omitted, it analyses a capped top-managed subset and tells you which accounts were analysed. Cite this tool for portfolio spend, conversions, CPA, clicks, impressions, active campaigns, and partial failures.
 - get_portfolio_search_term_wastage(accountRefs?, range?, minSpend?, limitPerAccount?, totalLimit?): read-only compact wastage evidence. It aggregates zero-conversion spend, top terms, patterns, candidate counts, and partial failures. It never proposes negatives.
+- get_selected_client_details(accountRefs?, fields?, limit?): read-only CMS client details for selected accounts. Use this for client start dates, Google Ads start dates, contact/commercial details, notes, or account timeline/history.
+- get_portfolio_weekly_metric_table(accountRefs?, weeks?, endDate?, metrics): weekly rows for selected accounts, fetched one account at a time. Use this for 10-week/weekly/week-by-week performance questions.
+- get_portfolio_monthly_performance_breakdown(accountRefs?, startMonth?, endMonth?): monthly rows for selected accounts, fetched one account at a time. Use this for Jan-May/month-by-month performance and lead-type/conversion-action tables.
 
 Portfolio operating rules:
 1. You are analysing the Google Ads portfolio, not one account.
 2. Do not assume all accounts are in context. Start with get_portfolio_account_inventory when account scope is unclear.
-3. For metrics, call compact portfolio tools and cite tool names. Do not ask single-account tools to dump every account.
-4. Fetch detailed single-account tools only after choosing a small subset and explaining why.
+3. For metrics, call the portfolio tool that matches the requested grain: summary for totals, weekly table for week-by-week, monthly breakdown for month-by-month. Cite tool names.
+4. When two or more accounts are selected, keep every account's numbers separated unless the user explicitly asks for a combined total. The portfolio tools fetch account data one account at a time in the background.
 5. Never expose raw Customer IDs in client-facing text. Use display names and masked ids only.
 6. Any Google Ads or CMS change still requires existing propose_* approval tools against a specific audit/account. If the target account is unclear, ask or select from inventory first.
 7. Campaign restructure/build still require request_confirm before proposal.

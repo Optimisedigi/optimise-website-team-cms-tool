@@ -1,14 +1,15 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useNav, useAuth } from '@payloadcms/ui'
 import { userHasFeature, type FeatureSlug } from '../lib/access'
 
-const MINI_WIDTH = 48
+const MINI_WIDTH = 64
 const BG = '#1a1a2e'
 
 type MiniIcon = {
   label: string
+  shortLabel: string
   href: string
   // Omit to show the entry for any logged-in user (used for nav links that
   // aren't feature-gated, e.g. Agent Approvals).
@@ -19,6 +20,7 @@ type MiniIcon = {
 const icons: MiniIcon[] = [
   {
     label: 'Dashboard',
+    shortLabel: 'Home',
     href: '/admin',
     feature: 'nav:dashboard',
     svg: (
@@ -30,6 +32,7 @@ const icons: MiniIcon[] = [
   },
   {
     label: 'Clients',
+    shortLabel: 'Clients',
     href: '/admin/collections/clients',
     feature: 'clients',
     svg: (
@@ -43,6 +46,7 @@ const icons: MiniIcon[] = [
   },
   {
     label: 'Proposals',
+    shortLabel: 'Props',
     href: '/admin/collections/client-proposals',
     feature: 'client-proposals',
     svg: (
@@ -57,6 +61,7 @@ const icons: MiniIcon[] = [
   },
   {
     label: 'Blog Posts',
+    shortLabel: 'Content',
     href: '/admin/collections/blog-posts',
     feature: 'blog-posts',
     svg: (
@@ -68,6 +73,7 @@ const icons: MiniIcon[] = [
   },
   {
     label: 'Blog Prompter',
+    shortLabel: 'Prompts',
     href: '/admin/blog/prompter',
     feature: 'blog-prompts',
     svg: (
@@ -81,6 +87,7 @@ const icons: MiniIcon[] = [
   },
   {
     label: 'Google Ads',
+    shortLabel: 'Ads',
     href: '/admin/google-ads',
     feature: 'nav:google-ads',
     svg: (
@@ -92,6 +99,7 @@ const icons: MiniIcon[] = [
   },
   {
     label: 'Search Console',
+    shortLabel: 'GSC',
     href: '/admin/performance/search-console',
     feature: 'nav:search-console',
     svg: (
@@ -102,6 +110,7 @@ const icons: MiniIcon[] = [
   },
   {
     label: 'Agent Approvals',
+    shortLabel: 'Agent',
     href: '/admin/agent-approvals',
     // No feature key — surfaced for any logged-in user, mirroring the
     // SidebarNavExtras pattern (the page itself does its own auth check).
@@ -124,6 +133,7 @@ const CollapseIcon = () => (
 
 const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter()
+  const pathname = usePathname()
   const { navOpen, setNavOpen } = useNav()
   const { user } = useAuth()
 
@@ -166,66 +176,50 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              padding: '12px 0 16px',
+              padding: '12px 0 10px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
             <img
-              src="/optimise-digital-rocket.png"
+              src="/optimise-rocket-logo-white.webp"
               alt="Home"
-              style={{ width: 28, height: 28, objectFit: 'contain' }}
+              style={{ width: 30, height: 30, objectFit: 'contain' }}
             />
           </button>
 
           {/* Divider */}
-          <div style={{ width: 24, height: 1, background: 'rgba(255,255,255,0.12)', marginBottom: 8 }} />
+          <div style={{ width: 30, height: 1, background: 'rgba(255,255,255,0.12)', marginBottom: 8 }} />
 
           {/* Nav icons */}
-          {visibleIcons.map((item) => (
-            <button
-              key={item.href}
-              type="button"
-              onClick={(e) => { e.stopPropagation(); router.push(item.href) }}
-              title={item.label}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'rgba(255, 255, 255, 0.55)',
-                padding: '10px 0',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'color 150ms',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = '#fff' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.55)' }}
-            >
-              {item.svg}
-            </button>
-          ))}
+          <div className="mini-sidebar__rail">
+            {visibleIcons.map((item) => {
+              const isActive = item.href === '/admin'
+                ? pathname === '/admin'
+                : pathname?.startsWith(item.href)
 
-          {/* Spacer */}
-          <div style={{ flex: 1 }} />
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); router.push(item.href) }}
+                  title={item.label}
+                  className={`mini-sidebar__item${isActive ? ' mini-sidebar__item--active' : ''}`}
+                >
+                  <span className="mini-sidebar__icon">{item.svg}</span>
+                  <span className="mini-sidebar__label">{item.shortLabel}</span>
+                </button>
+              )
+            })}
+          </div>
 
           {/* Expand toggle */}
           <button
             type="button"
             title="Open sidebar"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'rgba(255, 255, 255, 0.45)',
-              padding: '14px 0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'color 150ms',
-            }}
+            onClick={(e) => { e.stopPropagation(); toggleNav() }}
+            className="mini-sidebar__expand"
             onMouseEnter={(e) => { e.currentTarget.style.color = '#fff' }}
             onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.45)' }}
           >

@@ -158,11 +158,9 @@ export const Clients: CollectionConfig = {
     hidden: hideUnlessFeature("clients"),
     components: {
       // Renders the "Active only / Show inactive" toggle above the list table
-      // (flips ?showInactive, read by the baseListFilter below) and mounts the
-      // row-click enhancer that makes each list row open the client edit page.
+      // (flips ?showInactive, read by the baseListFilter below).
       beforeListTable: [
         "./components/ClientsShowInactiveToggle",
-        "./components/ClientsRowClick",
       ],
     },
     // Hide inactive clients from the default list view — deactivated clients
@@ -620,9 +618,31 @@ export const Clients: CollectionConfig = {
                   name: "isAgency",
                   type: "checkbox",
                   defaultValue: false,
+                  validate: async (value, { id, req }) => {
+                    if (!value) return true;
+                    const existingAgencyClients = await req.payload.find({
+                      collection: "clients",
+                      where: {
+                        and: [
+                          { isAgency: { equals: true } },
+                          ...(id ? [{ id: { not_equals: id } }] : []),
+                        ],
+                      },
+                      limit: 1,
+                      depth: 0,
+                      overrideAccess: true,
+                    });
+
+                    const existingAgencyClient = existingAgencyClients.docs[0];
+                    if (!existingAgencyClient) return true;
+                    return `Agency client is already set to ${(existingAgencyClient as { name?: string }).name || `client #${existingAgencyClient.id}`}.`;
+                  },
                   admin: {
-                    description: "Check if this is the agency itself (hides revenue fields)",
+                    description: "Check if this is the agency itself. Hidden on other clients once an agency client is already selected.",
                     width: "50%",
+                    components: {
+                      Field: "./components/AgencyClientToggleField",
+                    },
                   },
                 },
               ],
@@ -960,65 +980,96 @@ export const Clients: CollectionConfig = {
               },
               fields: [
             {
-              name: "clientStartDate",
-              type: "date",
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description: "When this client started working with us",
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-              },
-            },
-            {
-              name: "monthlyRetainer",
-              type: "number",
-              min: 0,
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description: "Monthly revenue amount ($)",
-                step: 1,
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-                components: {
-                  Cell: "./components/MonthlyRetainerCell",
+              type: "row",
+              fields: [
+                {
+                  name: "clientType",
+                  type: "select",
+                  defaultValue: "recurring",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description: "Client billing type",
+                    width: "50%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                  options: [
+                    { label: "Recurring", value: "recurring" },
+                    { label: "One-off", value: "one_off" },
+                    { label: "Paused", value: "paused" },
+                  ],
                 },
-              },
+                {
+                  name: "clientStartDate",
+                  type: "date",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description: "When this client started working with us",
+                    width: "50%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                },
+              ],
             },
             {
-              name: "setupFee",
-              type: "number",
-              min: 0,
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description:
-                  "One-time setup fee ($). Counts toward Retainer Revenue YTD in the calendar year of clientStartDate.",
-                step: 1,
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-              },
-            },
-            {
-              name: "revenueSharePercent",
-              type: "number",
-              defaultValue: 100,
-              min: 1,
-              max: 100,
-              access: sensitiveFieldAccess("clients"),
-              admin: {
-                description:
-                  "Agency's share of this client's revenue, in percent. Use 50 if you split this client 50/50 with a partner. Contract amounts stay unchanged; every revenue figure (Retainer YTD, One-Off YTD, Billing Summary, Historical) is multiplied by this percentage. Defaults to 100.",
-                step: 1,
-                condition: conditionRequiresFeature(
-                  "clients",
-                  (data: any) => !data?.isAgency,
-                ),
-              },
+              type: "row",
+              fields: [
+                {
+                  name: "monthlyRetainer",
+                  type: "number",
+                  min: 0,
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description: "Net monthly revenue ($)",
+                    step: 1,
+                    width: "33%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                    components: {
+                      Cell: "./components/MonthlyRetainerCell",
+                    },
+                  },
+                },
+                {
+                  name: "setupFee",
+                  type: "number",
+                  min: 0,
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description: "One-time, counts toward retainer YTD",
+                    step: 1,
+                    width: "33%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                },
+                {
+                  name: "revenueSharePercent",
+                  type: "number",
+                  defaultValue: 100,
+                  min: 1,
+                  max: 100,
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description: "e.g. 50 for a 50/50 partner split",
+                    step: 1,
+                    width: "33%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                },
+              ],
             },
             {
               name: "yearlyTargets",
@@ -1358,12 +1409,13 @@ export const Clients: CollectionConfig = {
               ],
             },
             {
-              name: "contract",
-              type: "upload",
-              relationTo: "media",
-              access: sensitiveFieldAccess("clients"),
+              name: "signedContractButton",
+              label: "Signed Contract",
+              type: "ui",
               admin: {
-                description: "Client contract document (legacy upload)",
+                components: {
+                  Field: "./components/ClientSignedContractButton",
+                },
                 condition: conditionRequiresFeature(
                   "clients",
                   (data: any) => !data?.isAgency,
@@ -1375,6 +1427,7 @@ export const Clients: CollectionConfig = {
               type: "text",
               access: sensitiveFieldAccess("clients"),
               admin: {
+                hidden: true,
                 readOnly: true,
                 description: "URL of the signed contract PDF (from e-signature flow)",
                 condition: conditionRequiresFeature(
@@ -1384,18 +1437,38 @@ export const Clients: CollectionConfig = {
               },
             },
             {
-              name: "signedContract",
-              type: "relationship",
-              relationTo: "contracts",
-              access: sensitiveFieldAccess("clients"),
+              type: "collapsible",
+              label: "Legacy Contract Attachment",
               admin: {
-                readOnly: true,
-                description: "Linked signed contract record",
+                initCollapsed: true,
+                description:
+                  "Legacy upload/link fields. Most clients use virtual signed contracts, so this can usually stay collapsed.",
                 condition: conditionRequiresFeature(
                   "clients",
                   (data: any) => !data?.isAgency,
                 ),
               },
+              fields: [
+                {
+                  name: "contract",
+                  type: "upload",
+                  relationTo: "media",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description: "Client contract document (legacy upload)",
+                  },
+                },
+                {
+                  name: "signedContract",
+                  type: "relationship",
+                  relationTo: "contracts",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    readOnly: true,
+                    description: "Linked signed contract record",
+                  },
+                },
+              ],
             },
               ],
             },

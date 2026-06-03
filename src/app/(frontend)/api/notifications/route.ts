@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { reconcileApprovalNotifications } from "@/lib/agent-approval-notifications";
 
 /**
  * GET /api/notifications
@@ -19,6 +20,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  await reconcileApprovalNotifications(payload);
 
   const url = new URL(req.url);
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10), 100);

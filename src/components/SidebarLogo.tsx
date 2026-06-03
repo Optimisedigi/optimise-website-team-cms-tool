@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@payloadcms/ui";
+import { usePathname } from "next/navigation";
 import { userHasFeature } from "../lib/access";
 
 const IconChart = () => (
@@ -19,46 +20,49 @@ const IconSearch = () => (
 
 const SidebarLogo = () => {
   const { user } = useAuth();
+  const pathname = usePathname();
   const showDashboard = userHasFeature(user, "nav:dashboard");
+  const dashboardActive = pathname === "/admin";
   const showAnalytics = userHasFeature(user, "nav:google-analytics");
   const showSearchConsole = userHasFeature(user, "nav:search-console");
-  // Hide the entire Performance group if the user has none of the items;
-  // SidebarNavExtras appends Deployments here so include that too.
-  const showPerfGroup = showAnalytics || showSearchConsole || userHasFeature(user, "nav:deployments");
+  // Hide the entire Performance group if the user has none of the items.
+  const showPerfGroup = showAnalytics || showSearchConsole;
 
   return (
     <>
-      {/* Logo wrapper — fixed 60px height with the image vertically centered
-          so its midline lines up with the collapse-button midline
-          (collapse btn: top:12 + 8 padding + 10 (half of 20px svg) = 30px). */}
-      <div
-        style={{
-          height: 60,
-          padding: "0 8px 0 4px",
-          display: "flex",
-          alignItems: "center",
-          overflow: "visible",
-        }}
-      >
-        <img
-          src="/optimise-digital-logo-white-no-rocket.png"
-          alt="Optimise Digital"
+      <div className="sidebar-sticky-head">
+        {/* Logo wrapper — fixed 60px height with the image vertically centered
+            so its midline lines up with the collapse-button midline
+            (collapse btn: top:12 + 8 padding + 10 (half of 20px svg) = 30px). */}
+        <div
           style={{
-            maxWidth: 170,
-            width: "100%",
-            height: "auto",
-            objectFit: "contain",
+            height: 60,
+            padding: "0 8px 0 4px",
+            display: "flex",
+            alignItems: "center",
+            overflow: "visible",
           }}
-        />
-      </div>
-      {showDashboard && (
-        <a
-          href="/admin"
-          className="sidebar-dashboard-link"
         >
-          Dashboard
-        </a>
-      )}
+          <img
+            src="/optimise-digital-logo-white-no-rocket.png"
+            alt="Optimise Digital"
+            style={{
+              maxWidth: 170,
+              width: "100%",
+              height: "auto",
+              objectFit: "contain",
+            }}
+          />
+        </div>
+        {showDashboard && (
+          <a
+            href="/admin"
+            className={`sidebar-dashboard-link${dashboardActive ? " sidebar-dashboard-link--active" : ""}`}
+          >
+            Dashboard
+          </a>
+        )}
+      </div>
       {showPerfGroup && (
         <div id="nav-group-Performance" className="nav-group sidebar-extras__group">
           <button type="button" className="nav-group__toggle" tabIndex={-1}>

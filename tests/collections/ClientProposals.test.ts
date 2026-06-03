@@ -85,10 +85,10 @@ describe("ClientProposals Collection", () => {
     expect(field.required).toBe(true);
   });
 
-  it("should have proposalStatus field in sidebar with correct options", () => {
+  it("should have proposalStatus field in the main compact form with correct options", () => {
     const field = findField(ClientProposals.fields, "proposalStatus");
     expect(field).toBeDefined();
-    expect(field.admin?.position).toBe("sidebar");
+    expect(field.admin?.position).toBeUndefined();
     expect(field.defaultValue).toBe("draft");
     const values = field.options.map((o: any) => o.value);
     expect(values).toContain("draft");
@@ -97,19 +97,19 @@ describe("ClientProposals Collection", () => {
     expect(values).toContain("declined");
   });
 
-  it("should have convertToClient checkbox in sidebar", () => {
+  it("should have convertToClient checkbox in the main compact form", () => {
     const field = findField(ClientProposals.fields, "convertToClient");
     expect(field).toBeDefined();
     expect(field.type).toBe("checkbox");
     expect(field.defaultValue).toBe(false);
-    expect(field.admin?.position).toBe("sidebar");
+    expect(field.admin?.position).toBeUndefined();
   });
 
-  it("should have proposalPin field in sidebar", () => {
+  it("should have proposalPin field in the main compact form", () => {
     const field = findField(ClientProposals.fields, "proposalPin");
     expect(field).toBeDefined();
     expect(field.unique).toBe(true);
-    expect(field.admin?.position).toBe("sidebar");
+    expect(field.admin?.position).toBeUndefined();
   });
 
   it("should have access controls requiring authentication", () => {

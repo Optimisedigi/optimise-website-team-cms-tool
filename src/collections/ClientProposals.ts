@@ -867,6 +867,7 @@ export const ClientProposals: CollectionConfig = {
     useAsTitle: "businessName",
     group: "Clients",
     description: "Proposals for prospective clients",
+    defaultColumns: ["businessName", "websiteUrl", "proposalStatus", "contactName", "updatedAt"],
     hidden: hideUnlessFeature("client-proposals"),
     components: {
       // Renders the Prospects-only / Include-converted toggle above the
@@ -908,6 +909,9 @@ export const ClientProposals: CollectionConfig = {
               required: true,
               admin: {
                 description: "Prospect business name",
+                components: {
+                  Cell: "./components/list-cells/TitleAvatarCell",
+                },
               },
             },
             {
@@ -2402,8 +2406,10 @@ export const ClientProposals: CollectionConfig = {
       type: "select",
       defaultValue: "draft",
       admin: {
-        position: "sidebar",
         description: "Current stage of this proposal",
+        components: {
+          Cell: "./components/list-cells/StatusPillCell",
+        },
       },
       options: [
         { label: "Draft", value: "draft" },
@@ -2418,7 +2424,6 @@ export const ClientProposals: CollectionConfig = {
       type: "checkbox",
       defaultValue: false,
       admin: {
-        position: "sidebar",
         description:
           "Toggle on and save to create a Sales Lead from this proposal (stage: Proposal Sent). Useful for tracking prospects through the funnel even before they convert.",
       },
@@ -2428,7 +2433,6 @@ export const ClientProposals: CollectionConfig = {
       type: "relationship",
       relationTo: "sales-leads",
       admin: {
-        position: "sidebar",
         description:
           "Linked sales lead (set automatically when “Start as lead” is toggled)",
         readOnly: true,
@@ -2439,7 +2443,6 @@ export const ClientProposals: CollectionConfig = {
       type: "checkbox",
       defaultValue: false,
       admin: {
-        position: "sidebar",
         description:
           "Toggle on and save to create an active Client from this proposal",
       },
@@ -2449,7 +2452,6 @@ export const ClientProposals: CollectionConfig = {
       type: "relationship",
       relationTo: "clients",
       admin: {
-        position: "sidebar",
         description: "Linked client (set automatically on conversion)",
         readOnly: true,
       },
@@ -2459,7 +2461,6 @@ export const ClientProposals: CollectionConfig = {
       type: "text",
       unique: true,
       admin: {
-        position: "sidebar",
         description:
           "4-digit PIN for prospect report access (auto-generated)",
       },

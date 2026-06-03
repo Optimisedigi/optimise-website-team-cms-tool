@@ -83,6 +83,7 @@ import { ForecastScenarios } from "./collections/ForecastScenarios";
 import { ClientValueLedgerItems } from "./collections/ClientValueLedgerItems";
 import { ClientPortalRequests } from "./collections/ClientPortalRequests";
 import { QuarterlyOrganicGrowthSnapshots } from "./collections/QuarterlyOrganicGrowthSnapshots";
+import { AgencyKpiSnapshots } from "./collections/AgencyKpiSnapshots";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -116,7 +117,7 @@ export default buildConfig({
       beforeNav: ["./components/AdminNavSetup"],
       beforeNavLinks: ["./components/SidebarLogo"],
       afterNavLinks: ["./components/SidebarNavExtras"],
-      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass"],
+      providers: ["./components/ViewportMeta", "./components/RocketLoader", "./components/FirstLoginSetup", "./components/DashboardGate", "./components/NavigationRecovery", "./components/MiniSidebar", "./components/OptiMateLauncher", "./components/PayloadShiftSelect", "./components/ShowPasswordToggle", "./components/RoleBodyClass", "./components/ResetDocumentTabsOnOpen", "./components/ListRowClick"],
       beforeDashboard: ["./components/Dashboard"],
     },
   },
@@ -130,7 +131,7 @@ export default buildConfig({
     // Audits
     SeoAudits, SeoAuditProposals, CroAudits, GoogleAdsAudits, TagSetupAudits, KeywordSnapshots, CompetitorAnalyses, ContentResearches, GscAlerts, GscIndexingAudits, SeoMigrationChecks, NegativeSweepCandidates, NegativeKeywordLists, KeywordDeepDiveSessions, SiteHealthReports,
     // Reports
-    ForecastScenarios, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
+    ForecastScenarios, AgencyKpiSnapshots, QuarterlyOrganicGrowthSnapshots, AiVisibilitySnapshots, SerpDisplacementSnapshots, SerpDisplacementAlerts,
     // Finance
     BusinessCosts, CostCategories, CostRules, InvoiceStatementDrafts,
     Contractors, ContractorTimeEntries, ContractorPayments,

@@ -91,35 +91,35 @@ describe("GoogleAdsAudits Collection", () => {
     expect(field.max).toBe(100);
   });
 
-  it("should have presentationPin field in sidebar", () => {
+  it("should have presentationPin field in the main compact form", () => {
     const field = findField(GoogleAdsAudits.fields, "presentationPin");
     expect(field).toBeDefined();
     // Note: uniqueness was removed (commit 6c2acce) — PINs can repeat.
-    expect(field.admin?.position).toBe("sidebar");
+    expect(field.admin?.position).toBeUndefined();
   });
 
-  it("should have client relationship in sidebar", () => {
+  it("should have client relationship in the main compact form", () => {
     const field = findField(GoogleAdsAudits.fields, "client");
     expect(field).toBeDefined();
     expect(field.type).toBe("relationship");
     expect(field.relationTo).toBe("clients");
-    expect(field.admin?.position).toBe("sidebar");
+    expect(field.admin?.position).toBeUndefined();
   });
 
-  it("should have proposal relationship in sidebar", () => {
+  it("should have proposal relationship in the main compact form", () => {
     const field = findField(GoogleAdsAudits.fields, "proposal");
     expect(field).toBeDefined();
     expect(field.type).toBe("relationship");
     expect(field.relationTo).toBe("client-proposals");
-    expect(field.admin?.position).toBe("sidebar");
+    expect(field.admin?.position).toBeUndefined();
   });
 
-  it("should have createProposal checkbox in sidebar", () => {
+  it("should have createProposal checkbox in the main compact form", () => {
     const field = findField(GoogleAdsAudits.fields, "createProposal");
     expect(field).toBeDefined();
     expect(field.type).toBe("checkbox");
     expect(field.defaultValue).toBe(false);
-    expect(field.admin?.position).toBe("sidebar");
+    expect(field.admin?.position).toBeUndefined();
   });
 
   it("should have auditStatus with correct options", () => {

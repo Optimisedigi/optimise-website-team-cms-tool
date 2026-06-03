@@ -10,6 +10,7 @@ import { getPayload, createLocalReq } from "payload";
 import { DefaultTemplate } from "@payloadcms/next/templates";
 import config from "@/payload.config";
 import { getVisibleEntities, getCustomViewActions } from "@/lib/visible-entities";
+import AdminStepNavSetter from "@/components/AdminStepNavSetter";
 import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
 
 export const dynamic = "force-dynamic";
@@ -131,6 +132,7 @@ export default async function AgentApprovalsListPage({
       viewActions={getCustomViewActions(payload)}
       visibleEntities={getVisibleEntities(payload, user)}
     >
+      <AdminStepNavSetter items={[{ label: "Agent Approvals" }]} />
       <div className="gutter--left gutter--right">
         <div style={PAGE_STYLE}>
           <div
