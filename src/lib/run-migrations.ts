@@ -1651,6 +1651,22 @@ export async function runMigrations(
     await run("add_proposal_max_industry_verticals", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_max_industry_verticals` numeric");
     await run("add_proposal_max_ad_groups_per_campaign", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_max_ad_groups_per_campaign` numeric");
     await run("add_proposal_primary_focus", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_primary_focus` text");
+
+    // ── Campaign Proposal geo-isolation + labelling config fields ──
+    // These shipped in the collection config but were never added to this
+    // sweep, so prod's google_ads_audits lacked the columns. Any audit insert
+    // (including the lightweight on-demand audit the OptiMate accounts route
+    // creates for managed client-only accounts) references them and rolls back,
+    // which is why a managed account with no audit row never appeared in the
+    // OptiMate account picker.
+    await run("add_proposal_geo_isolation_mode", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_geo_isolation_mode` text DEFAULT 'off'");
+    await run("add_proposal_near_me_strategy", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_near_me_strategy` text DEFAULT 'include_in_local_only'");
+    await run("add_proposal_geo_negative_strategy", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_geo_negative_strategy` text DEFAULT 'keyword_and_location'");
+    await run("add_proposal_preserve_keyword_cpc", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_preserve_keyword_cpc` integer DEFAULT true");
+    await run("add_proposal_phrase_match_requires_approval", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_phrase_match_requires_approval` integer DEFAULT true");
+    await run("add_proposal_created_by_label", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_created_by_label` text DEFAULT 'Created by Optimise Digital'");
+    await run("add_proposal_pending_activation_label", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_pending_activation_label` text DEFAULT 'Pending activation - Optimise Digital'");
+    await run("add_proposal_activated_label", "ALTER TABLE `google_ads_audits` ADD COLUMN `proposal_activated_label` text DEFAULT 'Activated by Optimise Digital'");
   
     // ── Approved campaign structure (CSV import) ──
     await run("add_approved_campaign_structure", "ALTER TABLE `google_ads_audits` ADD COLUMN `approved_campaign_structure` text");

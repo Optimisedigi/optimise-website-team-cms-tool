@@ -981,6 +981,21 @@ export async function GET(request: NextRequest) {
   await run("agency_kpi_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS \`agency_kpi_snapshots_created_at_idx\` ON \`agency_kpi_snapshots\` (\`created_at\`)");
   await run("locked_docs_rels.agency_kpi_snapshots_id", "ALTER TABLE \`payload_locked_documents_rels\` ADD \`agency_kpi_snapshots_id\` integer REFERENCES \`agency_kpi_snapshots\`(\`id\`) ON DELETE cascade");
 
+  // google_ads_audits campaign-proposal geo/labelling config columns. Shipped
+  // in the collection config but never in the prod sweep, so prod lacked them
+  // and ANY audit insert rolled back — including the lightweight on-demand audit
+  // the OptiMate accounts route creates for managed client-only accounts, which
+  // is why such accounts never appeared in the picker. Added to the GET
+  // fast-list so it reliably applies.
+  await run("add_proposal_geo_isolation_mode", "ALTER TABLE \`google_ads_audits\` ADD COLUMN \`proposal_geo_isolation_mode\` text DEFAULT 'off'");
+  await run("add_proposal_near_me_strategy", "ALTER TABLE \`google_ads_audits\` ADD COLUMN \`proposal_near_me_strategy\` text DEFAULT 'include_in_local_only'");
+  await run("add_proposal_geo_negative_strategy", "ALTER TABLE \`google_ads_audits\` ADD COLUMN \`proposal_geo_negative_strategy\` text DEFAULT 'keyword_and_location'");
+  await run("add_proposal_preserve_keyword_cpc", "ALTER TABLE \`google_ads_audits\` ADD COLUMN \`proposal_preserve_keyword_cpc\` integer DEFAULT true");
+  await run("add_proposal_phrase_match_requires_approval", "ALTER TABLE \`google_ads_audits\` ADD COLUMN \`proposal_phrase_match_requires_approval\` integer DEFAULT true");
+  await run("add_proposal_created_by_label", "ALTER TABLE \`google_ads_audits\` ADD COLUMN \`proposal_created_by_label\` text DEFAULT 'Created by Optimise Digital'");
+  await run("add_proposal_pending_activation_label", "ALTER TABLE \`google_ads_audits\` ADD COLUMN \`proposal_pending_activation_label\` text DEFAULT 'Pending activation - Optimise Digital'");
+  await run("add_proposal_activated_label", "ALTER TABLE \`google_ads_audits\` ADD COLUMN \`proposal_activated_label\` text DEFAULT 'Activated by Optimise Digital'");
+
   let tables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
