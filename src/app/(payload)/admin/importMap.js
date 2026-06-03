@@ -58,6 +58,7 @@ import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../co
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
 import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
 import { default as default_a78435ccde604fd147bece248584301d } from '../../../components/ClientsShowInactiveToggle'
+import { GlimmerSaveButton as GlimmerSaveButton_8b8a72c580a11ddd0bbaa823ddd7ff94 } from '../../../components/GlimmerSaveButton'
 import { default as default_81632eb6d14ae90ef8820b753fa1481c } from '../../../components/list-cells/TitleAvatarCell'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { default as default_da47157ebc74588a3650c3de3faf920e } from '../../../components/MockupUpload'
@@ -233,6 +234,7 @@ export const importMap = {
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
   "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,
   "./components/ClientsShowInactiveToggle#default": default_a78435ccde604fd147bece248584301d,
+  "./components/GlimmerSaveButton#GlimmerSaveButton": GlimmerSaveButton_8b8a72c580a11ddd0bbaa823ddd7ff94,
   "./components/list-cells/TitleAvatarCell#default": default_81632eb6d14ae90ef8820b753fa1481c,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./components/MockupUpload#default": default_da47157ebc74588a3650c3de3faf920e,

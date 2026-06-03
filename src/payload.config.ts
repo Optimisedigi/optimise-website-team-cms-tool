@@ -4,7 +4,7 @@ import { MarkdownPasteFeature } from "./lib/markdown-paste-feature";
 import { vercelBlobStorage } from "@payloadcms/storage-vercel-blob";
 import path from "path";
 import { buildConfig } from "payload";
-import type { CollectionConfig } from "payload";
+import type { CollectionConfig, GlobalConfig } from "payload";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
 
@@ -151,10 +151,39 @@ export default buildConfig({
           ...collection.admin?.pagination,
           defaultLimit: collection.admin?.pagination?.defaultLimit ?? 25,
         },
+        components: {
+          ...collection.admin?.components,
+          edit: {
+            ...collection.admin?.components?.edit,
+            // Replace the default Save button everywhere with one that swaps the
+            // "saved successfully" toast for an in-bar glimmer + "Saved" label.
+            // Per-collection SaveButton overrides are preserved if one is set.
+            SaveButton:
+              collection.admin?.components?.edit?.SaveButton ??
+              "./components/GlimmerSaveButton#GlimmerSaveButton",
+          },
+        },
       },
     }
   }),
-  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates, CronSettings, OptiMateSettings, BlogSettings],
+  globals: [SheetsAuth, CalendarAuth, ApiCostRates, EmailTemplates, CronSettings, OptiMateSettings, BlogSettings].map((g) => {
+    const global = g as GlobalConfig
+    return {
+      ...global,
+      admin: {
+        ...global.admin,
+        components: {
+          ...global.admin?.components,
+          elements: {
+            ...global.admin?.components?.elements,
+            SaveButton:
+              global.admin?.components?.elements?.SaveButton ??
+              "./components/GlimmerSaveButton#GlimmerSaveButton",
+          },
+        },
+      },
+    }
+  }),
   editor: lexicalEditor({
     features: ({ defaultFeatures }) => [...defaultFeatures, MarkdownPasteFeature()],
   }),
