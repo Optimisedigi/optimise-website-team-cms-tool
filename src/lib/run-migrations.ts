@@ -3384,6 +3384,14 @@ export async function runMigrations(
       "clients_additional_contacts_parent_id_idx",
       "CREATE INDEX IF NOT EXISTS `clients_additional_contacts_parent_id_idx` ON `clients_additional_contacts` (`_parent_id`)",
     );
+    // Contact phone fields (2026-06-21). Added to the collection config after
+    // both tables already existed in prod, but only shipped in the registry
+    // migration — never as ALTERs here — so prod lacked these columns and saving
+    // ANY client 500'd on the clients insert. (The CREATE TABLE above only
+    // includes contact_phone for fresh DBs; existing prod tables need the
+    // ALTER.) See src/migrations/20260621_120000_add_contact_phone_fields.ts.
+    await run("clients.contact_phone", "ALTER TABLE `clients` ADD `contact_phone` text");
+    await run("clients_additional_contacts.phone", "ALTER TABLE `clients_additional_contacts` ADD `phone` text");
 
     // ── Optional engagement end date on contracts (2026-05-25). When set, the
     // cover page renders an "End Date:" line below the effective date on the

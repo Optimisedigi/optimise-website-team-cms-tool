@@ -379,6 +379,11 @@ export async function GET(request: NextRequest) {
   // the prod-applicable sweep/fast-list — so prod lacked `logo_id` and creating
   // or saving a client 500'd.
   await run("clients.logo_id", "ALTER TABLE `clients` ADD `logo_id` integer REFERENCES `media`(`id`) ON DELETE set null");
+  // Contact phone fields (2026-06-21). Only in the registry migration, never in
+  // the prod-applicable sweep/fast-list — so prod lacked these columns and
+  // saving any client 500'd on the clients insert.
+  await run("clients.contact_phone", "ALTER TABLE `clients` ADD `contact_phone` text");
+  await run("clients_additional_contacts.phone", "ALTER TABLE `clients_additional_contacts` ADD `phone` text");
   await run("clients.historical_revenue", "ALTER TABLE `clients` ADD `historical_revenue` numeric");
   await run("clients.contract_id", "ALTER TABLE `clients` ADD `contract_id` integer REFERENCES `media`(`id`) ON DELETE set null");
 
