@@ -6,6 +6,19 @@ import { hasValidApiKey } from "@/collections/api-key-access";
 // Collection slug type (use 'as any' to bypass strict type checking for new collections)
 const BUDGETS_COLLECTION = "google-ads-campaign-budgets" as any;
 
+type BudgetMetricsRange = "THIS_MONTH" | "LAST_MONTH" | "LAST_30_DAYS" | "LAST_60_DAYS";
+
+function parseMetricsRange(value: string | null): BudgetMetricsRange {
+  return value === "LAST_MONTH" || value === "LAST_30_DAYS" || value === "LAST_60_DAYS"
+    ? value
+    : "THIS_MONTH";
+}
+
+function numberValue(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function parseImpressionShare(value: unknown): number | undefined {
   if (typeof value === "number") {
     if (!Number.isFinite(value) || value < 0) return undefined;
@@ -19,6 +32,57 @@ function parseImpressionShare(value: unknown): number | undefined {
   return trimmed.includes("%") || numeric > 1 ? numeric / 100 : numeric;
 }
 
+function buildRecommendationSignals(
+  campaigns: any[],
+  last60ByCampaign: Map<string, any>,
+): Map<string, { action: "increase" | "decrease" | "hold"; score: number; reason: string; cpa: number | null; conversions: number }> {
+  const rows = campaigns.map((campaign) => {
+    const last60 = last60ByCampaign.get(String(campaign.campaignId)) ?? campaign;
+    const conversions = numberValue(last60.conversions);
+    const spend = numberValue(last60.cost ?? last60.spend);
+    const cpa = conversions > 0 ? spend / conversions : null;
+    const budgetPercentage = numberValue(campaign.budgetPercentage);
+    return { campaign, conversions, spend, cpa, budgetPercentage };
+  });
+
+  const cpaValues = rows.map((row) => row.cpa).filter((value): value is number => value !== null && value > 0);
+  const minCpa = cpaValues.length > 0 ? Math.min(...cpaValues) : 0;
+  const maxCpa = cpaValues.length > 0 ? Math.max(...cpaValues) : 0;
+  const maxConversions = rows.reduce((max, row) => Math.max(max, row.conversions), 0);
+  const totalBudgetPercentage = rows.reduce((sum, row) => sum + Math.max(0, row.budgetPercentage), 0) || 100;
+
+  const rawScores = rows.map((row) => {
+    const convScore = maxConversions > 0 ? row.conversions / maxConversions : 0;
+    let cpaScore = 0;
+    if (row.cpa !== null && row.cpa > 0) {
+      cpaScore = maxCpa === minCpa ? 1 : (maxCpa - row.cpa) / (maxCpa - minCpa);
+    }
+    return {
+      ...row,
+      performanceScore: row.conversions > 0 ? (convScore * 0.45) + (cpaScore * 0.55) : 0,
+    };
+  });
+
+  const totalPerformanceScore = rawScores.reduce((sum, row) => sum + row.performanceScore, 0);
+  const signals = new Map<string, { action: "increase" | "decrease" | "hold"; score: number; reason: string; cpa: number | null; conversions: number }>();
+
+  for (const row of rawScores) {
+    const currentShare = Math.max(0, row.budgetPercentage) / totalBudgetPercentage;
+    const deservedShare = totalPerformanceScore > 0 ? row.performanceScore / totalPerformanceScore : currentShare;
+    const score = Math.round((deservedShare - currentShare) * 1000) / 10;
+    const action = score >= 5 ? "increase" : score <= -5 ? "decrease" : "hold";
+    const cpaText = row.cpa === null ? "no CPA" : `$${row.cpa.toFixed(0)} CPA`;
+    const reason = action === "increase"
+      ? `Increase: last 60 days show ${row.conversions.toFixed(0)} conversions at ${cpaText}, stronger than its current allocation.`
+      : action === "decrease"
+        ? `Decrease: last 60 days performance is weaker than its current allocation (${row.conversions.toFixed(0)} conversions, ${cpaText}).`
+        : `Hold: last 60 days performance broadly matches its current allocation (${row.conversions.toFixed(0)} conversions, ${cpaText}).`;
+    signals.set(String(row.campaign.campaignId), { action, score, reason, cpa: row.cpa, conversions: row.conversions });
+  }
+
+  return signals;
+}
+
 /**
  * GET /api/google-ads-budgets/[id]/list
  * List campaign budgets with 30-day metrics for a Google Ads audit.
@@ -30,6 +94,8 @@ export async function GET(
 ) {
   const { id } = await params;
   const auditId = Number(id);
+  const metricsRange = parseMetricsRange(req.nextUrl.searchParams.get("range"));
+  const competitiveRange: BudgetMetricsRange = metricsRange === "THIS_MONTH" ? "LAST_30_DAYS" : metricsRange;
 
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
@@ -90,23 +156,28 @@ export async function GET(
   const growthToolsUrl = process.env.GROWTH_TOOLS_URL;
   const internalApiKey = process.env.INTERNAL_API_KEY;
   if (growthToolsUrl && internalApiKey) {
+    const resolvedInternalApiKey = internalApiKey;
     try {
-      // Fetch THIS_MONTH data for actual MTD spend
-      const response = await fetch(
-        `${growthToolsUrl}/api/google-ads/campaign-budgets/list`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-internal-key": internalApiKey,
-          },
-          body: JSON.stringify({
-            customerId: customerId.replace(/-/g, ""),
-            dateRange: "THIS_MONTH",
-            ...(conversionActions.length > 0 && { conversionActions }),
-          }),
-        }
-      );
+      async function fetchCampaignBudgetMetrics(dateRange: BudgetMetricsRange) {
+        const response = await fetch(
+          `${growthToolsUrl}/api/google-ads/campaign-budgets/list`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-internal-key": resolvedInternalApiKey,
+            },
+            body: JSON.stringify({
+              customerId: customerId.replace(/-/g, ""),
+              dateRange,
+              ...(conversionActions.length > 0 && { conversionActions }),
+            }),
+          }
+        );
+        return response;
+      }
+
+      const response = await fetchCampaignBudgetMetrics(metricsRange);
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -123,6 +194,34 @@ export async function GET(
 
       const result = await response.json();
       const campaigns = result.campaigns || [];
+
+      const competitiveByCampaign = new Map<string, any>();
+      if (competitiveRange !== metricsRange) {
+        try {
+          const competitiveResponse = await fetchCampaignBudgetMetrics(competitiveRange);
+          if (competitiveResponse.ok) {
+            const competitiveResult = await competitiveResponse.json();
+            for (const campaign of competitiveResult.campaigns || []) {
+              competitiveByCampaign.set(String(campaign.campaignId), campaign);
+            }
+          }
+        } catch {
+          /* Competitive metrics are helpful but non-critical. */
+        }
+      }
+
+      const last60ByCampaign = new Map<string, any>();
+      try {
+        const last60Response = await fetchCampaignBudgetMetrics("LAST_60_DAYS");
+        if (last60Response.ok) {
+          const last60Result = await last60Response.json();
+          for (const campaign of last60Result.campaigns || []) {
+            last60ByCampaign.set(String(campaign.campaignId), campaign);
+          }
+        }
+      } catch {
+        /* Recommendation signal falls back to saved recommendation fields. */
+      }
 
       // Map Growth Tools bid strategy names to collection values
       function mapBidStrategy(raw: string): string {
@@ -211,6 +310,12 @@ export async function GET(
         }
       } catch { /* no saved data */ }
 
+      const campaignsForSignals = campaigns.map((campaign: any) => ({
+        ...campaign,
+        budgetPercentage: savedMap.get(campaign.campaignId)?.budgetPercentage ?? 0,
+      }));
+      const recommendationSignals = buildRecommendationSignals(campaignsForSignals, last60ByCampaign);
+
       // Normalize for frontend component, merging saved allocations.
       // `searchImpressionShare` and `searchBudgetLostIS` are pass-through from
       // Growth Tools when present (Search/Shopping). They power the
@@ -218,9 +323,16 @@ export async function GET(
       const normalized = campaigns.map((c: any) => {
         const saved = savedMap.get(c.campaignId);
         // Growth Tools may emit either snake_case or camelCase; accept both.
+        const competitive = competitiveByCampaign.get(String(c.campaignId));
+        const signal = recommendationSignals.get(String(c.campaignId));
         const rawSearchIS =
+          competitive?.searchImpressionShare ??
+          competitive?.search_impression_share ??
           c.searchImpressionShare ?? c.search_impression_share;
         const rawBudgetLostIS =
+          competitive?.searchBudgetLostIS ??
+          competitive?.search_budget_lost_impression_share ??
+          competitive?.budgetLostImpressionShare ??
           c.searchBudgetLostIS ??
           c.search_budget_lost_impression_share ??
           c.budgetLostImpressionShare;
@@ -248,6 +360,11 @@ export async function GET(
           channelType: c.channelType,
           searchImpressionShare: parseImpressionShare(rawSearchIS),
           searchBudgetLostIS: parseImpressionShare(rawBudgetLostIS),
+          recommendationAction: signal?.action ?? "hold",
+          recommendationScore: signal?.score ?? 0,
+          recommendationReason: signal?.reason ?? null,
+          recommendationCpaLast60: signal?.cpa ?? null,
+          recommendationConversionsLast60: signal?.conversions ?? 0,
           // Advisory monthly recommendation (read-only; set by the monthly cron).
           recommendedDailyBudget: saved?.recommendedDailyBudget ?? null,
           recommendationGeneratedAt: saved?.recommendationGeneratedAt ?? null,
@@ -259,6 +376,9 @@ export async function GET(
         campaigns: normalized,
         totalCount: normalized.length,
         monthlyBudget: audit.monthlyBudget || 0,
+        range: metricsRange,
+        competitiveRange,
+        recommendationRange: "LAST_60_DAYS",
       });
     } catch (e: any) {
       console.error("[GoogleAdsBudgets] List error:", e.message);

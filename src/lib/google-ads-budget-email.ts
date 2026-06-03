@@ -46,6 +46,14 @@ export interface BudgetCampaign {
    * Sourced from `metrics.search_budget_lost_impression_share`.
    */
   searchBudgetLostIS?: number;
+  /** Last-60-days allocation recommendation for the budget table. */
+  recommendationAction?: 'increase' | 'decrease' | 'hold';
+  /** Positive means under-allocated vs performance, negative means over-allocated. */
+  recommendationScore?: number;
+  /** Human-readable reason for the recommendation action. */
+  recommendationReason?: string;
+  recommendationCpaLast60?: number | null;
+  recommendationConversionsLast60?: number;
   /**
    * Advisory recommended daily budget from the monthly recommendation engine
    * (last month's conversions / CPA / spend). Read-only — never auto-applied

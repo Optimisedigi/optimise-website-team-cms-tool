@@ -17,6 +17,7 @@ import {
 } from '@/lib/google-ads-budget-email';
 
 type CampaignFilter = 'enabled' | 'paused' | 'all';
+type BudgetMetricsRange = 'THIS_MONTH' | 'LAST_MONTH' | 'LAST_60_DAYS';
 
 /** Shape returned by /api/google-ads-budgets/[id]/ad-groups. Kept in sync
  *  with the AdGroupRow type in that route handler. */
@@ -37,6 +38,22 @@ interface AdGroupRow {
  *  "Limited by budget" badge. 10% is the threshold the Google Ads UI itself
  *  uses for its column highlighting — below that, daily noise dominates. */
 const LIMITED_BY_BUDGET_THRESHOLD = 0.1;
+const BUDGET_TABLE_COLUMNS = '32px minmax(280px, 1fr) 46px 66px 68px 68px 52px 44px 58px 72px 54px 62px';
+const AD_GROUP_TABLE_COLUMNS = 'minmax(240px, 1fr) 66px 56px 48px 44px 58px 62px';
+
+function formatPercentMetric(value: number | undefined): string {
+  return typeof value === 'number' ? `${(value * 100).toFixed(0)}%` : '—';
+}
+
+function budgetRestrictionLabel(searchBudgetLostIS: number | undefined): { label: string; color: string; background: string; border: string } {
+  if (typeof searchBudgetLostIS !== 'number') {
+    return { label: 'Unknown', color: '#64748b', background: '#f8fafc', border: '#e2e8f0' };
+  }
+  if (searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD) {
+    return { label: 'Restricted', color: '#b45309', background: '#fef3c7', border: '#fde68a' };
+  }
+  return { label: 'Not restricted', color: '#166534', background: '#f0fdf4', border: '#bbf7d0' };
+}
 
 const BID_STRATEGIES = [
   { label: 'Manual CPC', value: 'manual_cpc' },
@@ -86,6 +103,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     body: string;
   }>>([]);
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('enabled');
+  const [metricsRange, setMetricsRange] = useState<BudgetMetricsRange>('THIS_MONTH');
   // "Show ad groups" toggle. Per spec, toggling on does NOT auto-expand any
   // campaign; it just enables the ad-group sub-table inside each campaign's
   // expanded panel. Ad groups are fetched lazily on first expand and cached.
@@ -95,9 +113,16 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
   >({});
   const [adGroupsLoading, setAdGroupsLoading] = useState<Record<string, boolean>>({});
   const [adGroupsError, setAdGroupsError] = useState<Record<string, string | null>>({});
+  const [adGroupsWarning, setAdGroupsWarning] = useState<Record<string, string | null>>({});
   const [businessName, setBusinessName] = useState('Client');
   const [clientSlug, setClientSlug] = useState('');
   const [clientPin, setClientPin] = useState('');
+  const [recommendationTooltip, setRecommendationTooltip] = useState<{
+    campaignId: string;
+    x: number;
+    y: number;
+    lines: string[];
+  } | null>(null);
   const auditLoaded = useRef(false);
 
   // Load audit data (monthly budget + business name + client slug + pin) once on mount
@@ -142,6 +167,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     if (adGroupsByCampaign[campaignId] || adGroupsLoading[campaignId]) return;
     setAdGroupsLoading(prev => ({ ...prev, [campaignId]: true }));
     setAdGroupsError(prev => ({ ...prev, [campaignId]: null }));
+    setAdGroupsWarning(prev => ({ ...prev, [campaignId]: null }));
     try {
       const res = await fetch(
         `/api/google-ads-budgets/${id}/ad-groups?campaignId=${encodeURIComponent(campaignId)}`,
@@ -155,6 +181,9 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
         ...prev,
         [campaignId]: Array.isArray(data?.adGroups) ? data.adGroups : [],
       }));
+      if (data?.warning) {
+        setAdGroupsWarning(prev => ({ ...prev, [campaignId]: data.warning }));
+      }
     } catch (err: any) {
       setAdGroupsError(prev => ({
         ...prev,
@@ -218,7 +247,14 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
             standaloneBudget: c.standaloneBudget ?? 0,
             standaloneStartDate: c.standaloneStartDate ?? null,
             standaloneEndDate: c.standaloneEndDate ?? null,
+            searchImpressionShare: c.searchImpressionShare ?? undefined,
+            searchBudgetLostIS: c.searchBudgetLostIS ?? undefined,
             recommendedDailyBudget: c.recommendedDailyBudget ?? undefined,
+            recommendationAction: c.recommendationAction ?? 'hold',
+            recommendationScore: c.recommendationScore ?? 0,
+            recommendationReason: c.recommendationReason ?? null,
+            recommendationCpaLast60: c.recommendationCpaLast60 ?? null,
+            recommendationConversionsLast60: c.recommendationConversionsLast60 ?? 0,
             recommendationGeneratedAt: c.recommendationGeneratedAt ?? null,
           }));
           setCampaigns(recalculateBudgets(loaded, budget));
@@ -236,7 +272,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     setError(null);
 
     try {
-      const res = await fetch(`/api/google-ads-budgets/${id}/list`, {
+      const res = await fetch(`/api/google-ads-budgets/${id}/list?range=${metricsRange}`, {
         credentials: 'include',
       });
 
@@ -279,7 +315,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     } finally {
       setSyncing(false);
     }
-  }, [id, monthlyTotal, recalculateBudgets]);
+  }, [id, monthlyTotal, metricsRange, recalculateBudgets]);
 
   // On mount: always sync from Google Ads to get fresh MTD spend data
   // The list endpoint merges saved CMS allocations into its response
@@ -700,6 +736,17 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
     // Only run once on mount — do not re-fetch when monthlyTotal changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const rangeChangeLoaded = useRef(false);
+  useEffect(() => {
+    if (!id || !initialLoadDone.current) return;
+    if (!rangeChangeLoaded.current) {
+      rangeChangeLoaded.current = true;
+      return;
+    }
+    syncFromGoogleAds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, metricsRange]);
 
   const totalPercentage = useMemo(() =>
     campaigns.filter(c => c.enabled && !c.standalone).reduce((sum, c) => sum + c.budgetPercentage, 0),
@@ -1196,6 +1243,31 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               </button>
             ))}
           </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([
+              { key: 'THIS_MONTH' as BudgetMetricsRange, label: 'MTD' },
+              { key: 'LAST_MONTH' as BudgetMetricsRange, label: 'Last month' },
+              { key: 'LAST_60_DAYS' as BudgetMetricsRange, label: 'Last 60 days' },
+            ]).map(range => (
+              <button
+                key={range.key}
+                onClick={() => setMetricsRange(range.key)}
+                disabled={syncing || loading}
+                style={{
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  fontWeight: metricsRange === range.key ? 600 : 400,
+                  background: metricsRange === range.key ? '#2563eb' : '#f1f5f9',
+                  color: metricsRange === range.key ? '#fff' : '#64748b',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: syncing || loading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {range.label}
+              </button>
+            ))}
+          </div>
           {/* Show ad groups toggle. When ON, expanding a campaign also
               fetches and renders its ad groups inline. Toggling on does NOT
               auto-expand anything — the user still clicks each campaign to
@@ -1244,18 +1316,21 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
           }} />
         </div>
 
-        <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
           {/* Table Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '36px 2.2fr 0.7fr 0.8fr 0.8fr 0.9fr 0.7fr 0.6fr 0.8fr', gap: 8, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+          <div style={{ display: 'grid', minWidth: 1010, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '10px 10px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
             <div></div>
             <div>Campaign</div>
-            <div style={{ textAlign: 'right' }}>% Split</div>
-            <div style={{ textAlign: 'right' }}>MTD Spend</div>
-            <div style={{ textAlign: 'right' }}>New Daily</div>
-            <div style={{ textAlign: 'right' }} title="Recommended daily budget from last month's conversions, CPA and spend. Advisory only — click to apply, then push.">Recommended</div>
-            <div style={{ textAlign: 'right' }}>Avg CPC</div>
+            <div style={{ textAlign: 'right' }}>%</div>
+            <div style={{ textAlign: 'right' }}>MTD</div>
+            <div style={{ textAlign: 'right' }}>Daily</div>
+            <div style={{ textAlign: 'right' }} title="Recommended daily budget from last month's conversions, CPA and spend. Advisory only — click to apply, then push.">Rec.</div>
+            <div style={{ textAlign: 'right' }}>CPC</div>
             <div style={{ textAlign: 'right' }}>Conv.</div>
-            <div style={{ textAlign: 'right' }}>Cost / Conv</div>
+            <div style={{ textAlign: 'right' }}>CPA</div>
+            <div style={{ textAlign: 'right' }} title="Budget status based on Search Budget Lost Impression Share.">Budget</div>
+            <div style={{ textAlign: 'right' }} title="Search Impression Share">Search IS</div>
+            <div style={{ textAlign: 'right' }} title="Search Impression Share lost due to budget">Lost IS</div>
           </div>
 
           {(() => {
@@ -1293,11 +1368,23 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
               const isEditingStrategy = editingCampaign === campaign.campaignId && editField === 'bidStrategy';
               const isExpanded = expandedCampaign === campaign.campaignId;
               const budgetDiff = campaign.actualDailyBudget ? campaign.calculatedDailyBudget - campaign.actualDailyBudget : null;
+              const restriction = budgetRestrictionLabel(campaign.searchBudgetLostIS);
+              const recommendationLines = [
+                campaign.recommendationReason || 'Last 60 days recommendation signal.',
+                typeof campaign.recommendationCpaLast60 === 'number' ? `Last 60d CPA: $${campaign.recommendationCpaLast60.toFixed(0)}` : 'Last 60d CPA: unavailable',
+                `Last 60d conversions: ${(campaign.recommendationConversionsLast60 ?? 0).toFixed(0)}`,
+                typeof campaign.searchBudgetLostIS === 'number'
+                  ? `Budget-lost pressure: ${(campaign.searchBudgetLostIS * 100).toFixed(0)}%`
+                  : 'Budget-lost pressure: unavailable from Google Ads/Growth Tools',
+                typeof campaign.searchImpressionShare === 'number'
+                  ? `Search impression share: ${(campaign.searchImpressionShare * 100).toFixed(0)}%`
+                  : 'Search impression share: unavailable from Google Ads/Growth Tools',
+              ];
 
               return (
                 <div key={campaign.campaignId} style={{ borderBottom: index < filtered.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                   <div
-                    style={{ display: 'grid', gridTemplateColumns: '36px 2.2fr 0.7fr 0.8fr 0.8fr 0.9fr 0.7fr 0.6fr 0.8fr', gap: 8, padding: '12px 16px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
+                    style={{ display: 'grid', minWidth: 1010, gridTemplateColumns: BUDGET_TABLE_COLUMNS, gap: 4, padding: '10px 10px', alignItems: 'center', cursor: 'pointer', background: isExpanded ? '#f8fafc' : !campaign.enabled ? '#fafafa' : 'transparent', opacity: campaign.enabled ? 1 : 0.5 }}
                     onClick={() => {
                       const next = isExpanded ? null : campaign.campaignId;
                       setExpandedCampaign(next);
@@ -1326,39 +1413,9 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                     </div>
 
                     <div style={{ minWidth: 0 }}>
-                      <div title={campaign.campaignName} style={{ fontWeight: 500, color: campaign.enabled ? '#1e293b' : '#94a3b8', display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.3, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 10, color: '#94a3b8', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)', marginTop: 3, flexShrink: 0 }}>▶</span>
-                        <span style={{ wordBreak: 'break-word' }}>{campaign.campaignName}</span>
-                        {typeof campaign.searchBudgetLostIS === 'number' &&
-                          campaign.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD && (
-                            <span
-                              title={`Search Budget Lost IS: ${(campaign.searchBudgetLostIS * 100).toFixed(0)}%. This campaign is losing impressions because its daily budget is capped.${
-                                typeof campaign.searchImpressionShare === 'number'
-                                  ? ` Current Search IS: ${(campaign.searchImpressionShare * 100).toFixed(0)}%.`
-                                  : ''
-                              }`}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                padding: '2px 8px',
-                                fontSize: 10,
-                                fontWeight: 600,
-                                color: '#b45309',
-                                background: '#fef3c7',
-                                border: '1px solid #fde68a',
-                                borderRadius: 10,
-                                whiteSpace: 'nowrap',
-                                marginTop: 1,
-                              }}
-                            >
-                              Limited by budget — {(campaign.searchBudgetLostIS * 100).toFixed(0)}%
-                              {typeof campaign.searchImpressionShare === 'number' && (
-                                <span style={{ marginLeft: 6, color: '#92400e', fontWeight: 500 }}>
-                                  (IS {(campaign.searchImpressionShare * 100).toFixed(0)}%)
-                                </span>
-                              )}
-                            </span>
-                          )}
+                      <div title={campaign.campaignName} style={{ fontWeight: 500, color: campaign.enabled ? '#1e293b' : '#94a3b8', display: 'flex', alignItems: 'center', gap: 6, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        <span style={{ fontSize: 10, color: '#94a3b8', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)', flexShrink: 0 }}>▶</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{campaign.campaignName}</span>
                       </div>
                       {budgetDiff !== null && Math.abs(budgetDiff) > 0.01 && (
                         <div style={{ fontSize: 10, color: '#d97706', marginLeft: 16 }}>
@@ -1398,25 +1455,33 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                       <span style={{ fontWeight: 700, color: '#059669', fontSize: 14 }}>${campaign.calculatedDailyBudget.toFixed(2)}</span>
                     </div>
 
-                    {/* Recommended (advisory; click to apply into the % split) */}
+                    {/* Recommendation score: last 60 days CPA/conversions vs current allocation */}
                     <div style={{ textAlign: 'right' }}>
-                      {typeof campaign.recommendedDailyBudget === 'number' ? (
-                        <span
-                          onClick={(e) => { e.stopPropagation(); applyRecommendation(campaign); }}
-                          title={
-                            `Recommended $${campaign.recommendedDailyBudget.toFixed(2)}/day based on last month` +
-                            (campaign.recommendationGeneratedAt
-                              ? ` (generated ${new Date(campaign.recommendationGeneratedAt).toLocaleDateString()})`
-                              : '') +
-                            '. Click to apply into the % split — still requires Push to send to Google Ads.'
-                          }
-                          style={{ fontSize: 13, fontWeight: 600, color: '#7c3aed', cursor: 'pointer', textDecoration: 'underline dotted' }}
-                        >
-                          ${campaign.recommendedDailyBudget.toFixed(2)}
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: 12, color: '#cbd5e1' }} title="No recommendation yet. Generated monthly from last month's performance.">—</span>
-                      )}
+                      <span
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setRecommendationTooltip({
+                            campaignId: campaign.campaignId,
+                            x: rect.left + rect.width / 2,
+                            y: rect.top,
+                            lines: recommendationLines,
+                          });
+                        }}
+                        onMouseLeave={() => setRecommendationTooltip(null)}
+                        style={{
+                          display: 'inline-block',
+                          padding: '2px 6px',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: campaign.recommendationAction === 'increase' ? '#166534' : campaign.recommendationAction === 'decrease' ? '#991b1b' : '#64748b',
+                          background: campaign.recommendationAction === 'increase' ? '#f0fdf4' : campaign.recommendationAction === 'decrease' ? '#fef2f2' : '#f8fafc',
+                          border: `1px solid ${campaign.recommendationAction === 'increase' ? '#bbf7d0' : campaign.recommendationAction === 'decrease' ? '#fecaca' : '#e2e8f0'}`,
+                          borderRadius: 9,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {campaign.recommendationAction === 'increase' ? '↑' : campaign.recommendationAction === 'decrease' ? '↓' : '→'} {Math.abs(campaign.recommendationScore ?? 0).toFixed(1)} <span style={{ opacity: 0.75 }}>ⓘ</span>
+                      </span>
                     </div>
 
                     {/* Avg CPC */}
@@ -1432,6 +1497,28 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                     {/* Cost / Conversion */}
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: 13, color: '#64748b' }}>{formatCostPerConv(campaign.mtdSpend || 0, campaign.conversions || 0)}</span>
+                    </div>
+
+                    {/* Budget restriction */}
+                    <div style={{ textAlign: 'right' }}>
+                      <span
+                        title="Based on Search Budget Lost Impression Share"
+                        style={{ display: 'inline-block', padding: '2px 6px', fontSize: 10, fontWeight: 600, color: restriction.color, background: restriction.background, border: `1px solid ${restriction.border}`, borderRadius: 9, whiteSpace: 'nowrap' }}
+                      >
+                        {restriction.label}
+                      </span>
+                    </div>
+
+                    {/* Impression share */}
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 13, color: '#64748b' }}>{formatPercentMetric(campaign.searchImpressionShare)}</span>
+                    </div>
+
+                    {/* Impression share lost due to budget */}
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 13, color: typeof campaign.searchBudgetLostIS === 'number' && campaign.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD ? '#b45309' : '#64748b', fontWeight: typeof campaign.searchBudgetLostIS === 'number' && campaign.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD ? 600 : 400 }}>
+                        {formatPercentMetric(campaign.searchBudgetLostIS)}
+                      </span>
                     </div>
                   </div>
 
@@ -1516,6 +1603,7 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                         const rows = adGroupsByCampaign[campaign.campaignId];
                         const loadingAg = adGroupsLoading[campaign.campaignId];
                         const errorAg = adGroupsError[campaign.campaignId];
+                        const warningAg = adGroupsWarning[campaign.campaignId];
                         return (
                           <div style={{ marginTop: 4, marginBottom: 12, padding: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8 }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -1547,12 +1635,17 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                                 {errorAg}
                               </div>
                             )}
-                            {!loadingAg && !errorAg && rows && rows.length === 0 && (
+                            {!loadingAg && !errorAg && warningAg && (
+                              <div style={{ padding: 12, fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6 }}>
+                                {warningAg}
+                              </div>
+                            )}
+                            {!loadingAg && !errorAg && !warningAg && rows && rows.length === 0 && (
                               <div style={{ padding: 12, fontSize: 12, color: '#64748b', textAlign: 'center' }}>No ad groups returned for this campaign.</div>
                             )}
                             {!loadingAg && !errorAg && rows && rows.length > 0 && (
-                              <div style={{ border: '1px solid #f1f5f9', borderRadius: 6, overflow: 'hidden' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 0.75fr 0.75fr 0.7fr 0.65fr 0.7fr 0.85fr', gap: 8, padding: '8px 12px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', fontSize: 11, fontWeight: 600, color: '#64748b' }}>
+                              <div style={{ border: '1px solid #f1f5f9', borderRadius: 6, overflowX: 'auto', overflowY: 'hidden' }}>
+                                <div style={{ display: 'grid', minWidth: 590, gridTemplateColumns: AD_GROUP_TABLE_COLUMNS, gap: 4, padding: '8px 10px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', fontSize: 10, fontWeight: 600, color: '#64748b' }}>
                                   <div>Ad Group</div>
                                   <div style={{ textAlign: 'right' }}>MTD Spend</div>
                                   <div style={{ textAlign: 'right' }}>Impr.</div>
@@ -1564,10 +1657,10 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
                                 {rows.map((ag, agIdx) => (
                                   <div
                                     key={ag.adGroupId}
-                                    style={{ display: 'grid', gridTemplateColumns: '2.2fr 0.75fr 0.75fr 0.7fr 0.65fr 0.7fr 0.85fr', gap: 8, padding: '8px 12px', alignItems: 'center', borderBottom: agIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: 12 }}
+                                    style={{ display: 'grid', minWidth: 590, gridTemplateColumns: AD_GROUP_TABLE_COLUMNS, gap: 4, padding: '8px 10px', alignItems: 'center', borderBottom: agIdx < rows.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: 12 }}
                                   >
-                                    <div style={{ minWidth: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                      <span style={{ wordBreak: 'break-word' }}>{ag.adGroupName}</span>
+                                    <div style={{ minWidth: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} title={ag.adGroupName}>{ag.adGroupName}</span>
                                       {typeof ag.searchBudgetLostIS === 'number' &&
                                         ag.searchBudgetLostIS >= LIMITED_BY_BUDGET_THRESHOLD && (
                                           <span
@@ -1691,6 +1784,35 @@ const GoogleAdsBudgetManagementInner = ({ auditId }: GoogleAdsBudgetManagementPr
           })()}
         </div>
       </div>
+
+      {recommendationTooltip && (
+        <div
+          style={{
+            position: 'fixed',
+            left: recommendationTooltip.x,
+            top: recommendationTooltip.y - 10,
+            transform: 'translate(-50%, -100%)',
+            zIndex: 10000,
+            width: 320,
+            maxWidth: 'calc(100vw - 24px)',
+            padding: 12,
+            background: '#0f172a',
+            color: '#fff',
+            borderRadius: 8,
+            boxShadow: '0 12px 30px rgba(15, 23, 42, 0.35)',
+            fontSize: 12,
+            lineHeight: 1.45,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>Why this recommendation?</div>
+          {recommendationTooltip.lines.map((line, i) => (
+            <div key={`${recommendationTooltip.campaignId}-${i}`} style={{ marginTop: i === 0 ? 0 : 4 }}>
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Email Modal */}
       {showEmailModal && (

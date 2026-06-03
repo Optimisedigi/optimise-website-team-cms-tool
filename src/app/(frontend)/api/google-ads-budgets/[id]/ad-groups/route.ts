@@ -31,6 +31,12 @@ interface AdGroupRow {
   searchBudgetLostIS?: number;
 }
 
+function isInvalidGaqlMetricError(status: number, detail: string): boolean {
+  return status >= 400 &&
+    detail.includes("Google Ads GAQL error") &&
+    detail.includes("INVALID_ARGUMENT");
+}
+
 function parseImpressionShare(value: unknown): number | undefined {
   if (typeof value === "number") {
     if (!Number.isFinite(value) || value < 0) return undefined;
@@ -123,6 +129,9 @@ export async function GET(
     );
   }
 
+  const resolvedCustomerId = customerId;
+  const resolvedInternalApiKey = internalApiKey;
+
   const dashboardConversionActions: string =
     linkedClient?.dashboardConversionActions || "";
   const conversionActions: string[] = dashboardConversionActions
@@ -130,24 +139,30 @@ export async function GET(
     .map((s) => s.trim())
     .filter(Boolean);
 
-  let upstream: Response;
-  try {
-    upstream = await fetch(
+  async function fetchAdGroupsFromGrowthTools(includeCompetitiveMetrics: boolean): Promise<Response> {
+    return fetch(
       `${growthToolsUrl}/api/google-ads/ad-groups/list`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-internal-key": internalApiKey,
+          "x-internal-key": resolvedInternalApiKey,
         },
         body: JSON.stringify({
-          customerId: customerId.replace(/-/g, ""),
+          customerId: resolvedCustomerId.replace(/-/g, ""),
           campaignId,
           dateRange: "THIS_MONTH",
+          includeCompetitiveMetrics,
+          includeImpressionShare: includeCompetitiveMetrics,
           ...(conversionActions.length > 0 && { conversionActions }),
         }),
       },
     );
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await fetchAdGroupsFromGrowthTools(true);
   } catch (err: any) {
     return NextResponse.json(
       {
@@ -169,14 +184,46 @@ export async function GET(
 
   if (!upstream.ok) {
     const detail = await upstream.text().catch(() => "");
-    return NextResponse.json(
-      {
-        error: `Growth Tools failed (${upstream.status})${
-          detail ? `: ${detail.slice(0, 240)}` : ""
-        }`,
-      },
-      { status: 502 },
-    );
+    if (isInvalidGaqlMetricError(upstream.status, detail)) {
+      try {
+        upstream = await fetchAdGroupsFromGrowthTools(false);
+      } catch (err: any) {
+        return NextResponse.json(
+          {
+            error: `Failed to reach Growth Tools: ${err?.message || "network error"}`,
+          },
+          { status: 502 },
+        );
+      }
+      if (!upstream.ok) {
+        const retryDetail = await upstream.text().catch(() => "");
+        if (isInvalidGaqlMetricError(upstream.status, retryDetail)) {
+          return NextResponse.json({
+            ok: true,
+            campaignId,
+            adGroups: [],
+            warning: "Ad-group view is temporarily unavailable because Growth Tools is requesting a Google Ads metric this account/campaign type does not support.",
+          });
+        }
+        return NextResponse.json(
+          {
+            error: `Growth Tools failed (${upstream.status})${
+              retryDetail ? `: ${retryDetail.slice(0, 240)}` : ""
+            }`,
+          },
+          { status: 502 },
+        );
+      }
+    } else {
+      return NextResponse.json(
+        {
+          error: `Growth Tools failed (${upstream.status})${
+            detail ? `: ${detail.slice(0, 240)}` : ""
+          }`,
+        },
+        { status: 502 },
+      );
+    }
   }
 
   let body: any;
