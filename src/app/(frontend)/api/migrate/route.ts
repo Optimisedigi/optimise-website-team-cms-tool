@@ -937,6 +937,13 @@ export async function GET(request: NextRequest) {
   await run("consolidation_candidates_client_status_idx", "CREATE INDEX IF NOT EXISTS \`consolidation_candidates_client_status_idx\` ON \`consolidation_candidates\` (\`client\`, \`status\`)");
   await run("locked_docs_rels.consolidation_candidates_id", "ALTER TABLE \`payload_locked_documents_rels\` ADD \`consolidation_candidates_id\` integer REFERENCES \`consolidation_candidates\`(\`id\`) ON DELETE cascade");
 
+  // optimate_settings.chat_history_token_limit (2026-06-29). Field added to the
+  // OptiMate Settings global after its table was created, so existing prod
+  // tables lack the column and saving the global 500s. Included in the GET list
+  // (not just the POST sweep) because the full POST sweep can time out before
+  // reaching it. See src/migrations/20260629_120000_add_optimate_chat_history_token_limit.ts.
+  await run("optimate_settings.chat_history_token_limit", "ALTER TABLE \`optimate_settings\` ADD \`chat_history_token_limit\` numeric DEFAULT 6000");
+
   let tables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
