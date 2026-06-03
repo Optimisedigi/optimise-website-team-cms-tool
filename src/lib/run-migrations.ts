@@ -3952,6 +3952,34 @@ export async function runMigrations(
     await run("seo_migration_checks_created_at_idx", "CREATE INDEX IF NOT EXISTS `seo_migration_checks_created_at_idx` ON `seo_migration_checks` (`created_at`)");
     await run("seo_migration_checks_updated_at_idx", "CREATE INDEX IF NOT EXISTS `seo_migration_checks_updated_at_idx` ON `seo_migration_checks` (`updated_at`)");
     await run("locked_docs_rels.seo_migration_checks_id", "ALTER TABLE `payload_locked_documents_rels` ADD `seo_migration_checks_id` integer REFERENCES `seo_migration_checks`(`id`) ON DELETE cascade");
+
+    // ── Agency KPI Snapshots (monthly agency KPI cache, 2026-06-28) ──
+    // The collection ships in the Payload config but was only added to the
+    // generated migration file, never to this inline sweep that /api/migrate
+    // runs in production. Result: the `agency_kpi_snapshots` table and its
+    // `agency_kpi_snapshots_id` column on payload_locked_documents_rels are
+    // missing in prod, so Payload's document-lock query (run on ANY document
+    // write, including the Gmail token refresh) throws `no such column` and
+    // surfaces as "Gmail token refresh failed". Keep in sync with
+    // src/migrations/20260628_120000_add_agency_kpi_snapshots.ts.
+    await run("agency_kpi_snapshots", `CREATE TABLE IF NOT EXISTS \`agency_kpi_snapshots\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`month\` text NOT NULL,
+      \`active_clients\` numeric DEFAULT 0 NOT NULL,
+      \`active_leads\` numeric DEFAULT 0 NOT NULL,
+      \`arr\` numeric DEFAULT 0 NOT NULL,
+      \`monthly_retainer\` numeric DEFAULT 0 NOT NULL,
+      \`retainer_ytd\` numeric DEFAULT 0 NOT NULL,
+      \`one_off_ytd\` numeric DEFAULT 0 NOT NULL,
+      \`lead_conversion\` numeric DEFAULT 0 NOT NULL,
+      \`mtd_costs\` numeric DEFAULT 0 NOT NULL,
+      \`updated_at\` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      \`created_at\` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+    )`);
+    await run("agency_kpi_snapshots_month_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `agency_kpi_snapshots_month_idx` ON `agency_kpi_snapshots` (`month`)");
+    await run("agency_kpi_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `agency_kpi_snapshots_updated_at_idx` ON `agency_kpi_snapshots` (`updated_at`)");
+    await run("agency_kpi_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `agency_kpi_snapshots_created_at_idx` ON `agency_kpi_snapshots` (`created_at`)");
+    await run("locked_docs_rels.agency_kpi_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agency_kpi_snapshots_id` integer REFERENCES `agency_kpi_snapshots`(`id`) ON DELETE cascade");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

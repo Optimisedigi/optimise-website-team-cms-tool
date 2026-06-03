@@ -944,6 +944,32 @@ export async function GET(request: NextRequest) {
   // reaching it. See src/migrations/20260629_120000_add_optimate_chat_history_token_limit.ts.
   await run("optimate_settings.chat_history_token_limit", "ALTER TABLE \`optimate_settings\` ADD \`chat_history_token_limit\` numeric DEFAULT 6000");
 
+  // agency_kpi_snapshots (2026-06-28). Collection shipped in the Payload config
+  // but was never added to the POST sweep, so prod lacks both the table and its
+  // payload_locked_documents_rels FK column. The missing FK column breaks the
+  // document-lock query on ANY document write (surfaced as "Gmail token refresh
+  // failed"). Added here in the GET fast-list because the full POST sweep can
+  // time out before reaching the new statements.
+  // See src/migrations/20260628_120000_add_agency_kpi_snapshots.ts.
+  await run("agency_kpi_snapshots", `CREATE TABLE IF NOT EXISTS \`agency_kpi_snapshots\` (
+    \`id\` integer PRIMARY KEY NOT NULL,
+    \`month\` text NOT NULL,
+    \`active_clients\` numeric DEFAULT 0 NOT NULL,
+    \`active_leads\` numeric DEFAULT 0 NOT NULL,
+    \`arr\` numeric DEFAULT 0 NOT NULL,
+    \`monthly_retainer\` numeric DEFAULT 0 NOT NULL,
+    \`retainer_ytd\` numeric DEFAULT 0 NOT NULL,
+    \`one_off_ytd\` numeric DEFAULT 0 NOT NULL,
+    \`lead_conversion\` numeric DEFAULT 0 NOT NULL,
+    \`mtd_costs\` numeric DEFAULT 0 NOT NULL,
+    \`updated_at\` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    \`created_at\` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+  )`);
+  await run("agency_kpi_snapshots_month_idx", "CREATE UNIQUE INDEX IF NOT EXISTS \`agency_kpi_snapshots_month_idx\` ON \`agency_kpi_snapshots\` (\`month\`)");
+  await run("agency_kpi_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS \`agency_kpi_snapshots_updated_at_idx\` ON \`agency_kpi_snapshots\` (\`updated_at\`)");
+  await run("agency_kpi_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS \`agency_kpi_snapshots_created_at_idx\` ON \`agency_kpi_snapshots\` (\`created_at\`)");
+  await run("locked_docs_rels.agency_kpi_snapshots_id", "ALTER TABLE \`payload_locked_documents_rels\` ADD \`agency_kpi_snapshots_id\` integer REFERENCES \`agency_kpi_snapshots\`(\`id\`) ON DELETE cascade");
+
   let tables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
