@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { validateDashboardToken } from "../../verify/route";
 
 /**
  * POST /api/dashboard/monthly-waste-relevancy/clear
@@ -11,28 +12,52 @@ import config from "@/payload.config";
  * credited (the auto-clear hook on `negative-keyword-lists` covers most
  * cases — this is the safety hatch).
  *
- * Auth: Payload user session (agency-only — clients on PIN-gated dashboards
- * never see this button).
+ * Auth: accepts EITHER a Payload admin session OR the `dashboard_token`
+ * cookie (validated against the posted slug) — the "Refresh history" button
+ * lives on the PIN-gated dashboard, where there is no admin session, so the
+ * read endpoint's cookie auth is the right gate. The button is still only
+ * rendered when a clientId is present (agency view).
  */
 export async function POST(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
-  const { user } = await payload.auth({ headers: req.headers });
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let body: { clientId?: number | string };
+  let body: { clientId?: number | string; slug?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  // Either an authenticated admin session or a valid dashboard token for the
+  // posted slug is accepted.
+  const { user } = await payload.auth({ headers: req.headers });
+  const token = req.cookies.get("dashboard_token")?.value;
+  const slug = typeof body.slug === "string" ? body.slug : undefined;
+  const hasDashboardToken = !!slug && validateDashboardToken(token, slug);
+  if (!user && !hasDashboardToken) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const clientId = Number(body.clientId);
   if (!clientId || Number.isNaN(clientId)) {
     return NextResponse.json({ error: "clientId is required" }, { status: 400 });
+  }
+
+  // When authorised only by the dashboard token (no admin session), bind the
+  // token's slug to the target clientId so a valid token for one client can't
+  // wipe another client's cache. Admin sessions skip this — they may clear any
+  // client.
+  if (!user && hasDashboardToken) {
+    const client = await payload.findByID({
+      collection: "clients",
+      id: clientId,
+      depth: 0,
+      overrideAccess: true,
+    }).catch(() => null);
+    if (!client || (client as { slug?: string }).slug !== slug) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   try {

@@ -42,6 +42,9 @@ interface ProgressTabProps {
    *  "Refresh historical relevancy" button to know which client's
    *  cache to wipe. When absent, the button is hidden. */
   clientId?: number | string;
+  /** Dashboard slug — used to authenticate the clear-cache request via the
+   *  PIN dashboard_token cookie (no admin session on the public dashboard). */
+  slug?: string;
 }
 
 type ProgressMetric = "spend" | "conversions" | "cpa" | "wasteRate" | "relevancy";
@@ -565,6 +568,7 @@ export function ProgressTab({
   trendTotalSpend,
   monthlyWasteRelevancy,
   clientId,
+  slug,
 }: ProgressTabProps) {
   // Agency-only: detect a logged-in Payload session so the cache-refresh
   // button is hidden on PIN-gated client-facing dashboards.
@@ -592,7 +596,7 @@ export function ProgressTab({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ clientId }),
+        body: JSON.stringify({ clientId, slug }),
       });
       if (!r.ok) {
         const data = await r.json().catch(() => ({}));
@@ -604,7 +608,7 @@ export function ProgressTab({
     } finally {
       setClearingCache(false);
     }
-  }, [clientId]);
+  }, [clientId, slug]);
 
   // Multi-select: 1–3 metrics. Default to conversions only (matches the
   // previous single-metric default). Clicking a chip toggles — unless that
