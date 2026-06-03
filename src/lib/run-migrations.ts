@@ -3677,6 +3677,14 @@ export async function runMigrations(
       "optimate_settings.invoice_assistant_model",
       "ALTER TABLE `optimate_settings` ADD `invoice_assistant_model` text",
     );
+    // Chat history token budget (2026-06-29). Added to the global config after
+    // the table was first created, so existing prod tables lack the column and
+    // saving OptiMate Settings 500s without this. Mirrors
+    // src/migrations/20260629_120000_add_optimate_chat_history_token_limit.ts.
+    await run(
+      "optimate_settings.chat_history_token_limit",
+      "ALTER TABLE `optimate_settings` ADD `chat_history_token_limit` numeric DEFAULT 6000",
+    );
 
     // ── google_ads_campaign_budgets monthly recommendation fields (2026-06-08) ──
     // Advisory recommended daily budgets set by the monthly recommendation cron.
