@@ -6785,9 +6785,13 @@ export interface ScheduledAgentTask {
    */
   audits?: (number | GoogleAdsAudit)[] | null;
   /**
-   * Denormalised from audit.client for fast admin filtering.
+   * Primary client for ownership/filtering. All automated clients are shown in Clients covered.
    */
   client: number | Client;
+  /**
+   * Automatically derived from the primary and additional Google Ads accounts selected above.
+   */
+  clientsCovered?: (number | Client)[] | null;
   /**
    * Owner. Only this user (or an admin) can edit/pause.
    */
@@ -10242,6 +10246,7 @@ export interface ScheduledAgentTasksSelect<T extends boolean = true> {
   audit?: T;
   audits?: T;
   client?: T;
+  clientsCovered?: T;
   createdBy?: T;
   recipientEmail?: T;
   scheduleMode?: T;

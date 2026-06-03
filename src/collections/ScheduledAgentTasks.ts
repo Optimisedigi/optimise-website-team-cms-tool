@@ -1,6 +1,46 @@
-import type { CollectionConfig } from "payload";
+import type { CollectionConfig, Payload } from "payload";
 import { buildCronFromFriendlySchedule, computeNextRun } from "../lib/scheduled-task-schedule";
 import { hasValidApiKey } from "./api-key-access";
+
+type RelationshipValue = number | string | { id?: number | string } | null | undefined;
+
+function relationshipId(value: RelationshipValue): number | string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "object") return value.id ?? null;
+  return value;
+}
+
+function collectAuditIds(
+  primaryAudit: RelationshipValue,
+  additionalAudits: RelationshipValue[] | null | undefined,
+): Array<number | string> {
+  const ids = new Set<number | string>();
+  const primaryId = relationshipId(primaryAudit);
+  if (primaryId !== null) ids.add(primaryId);
+  for (const audit of additionalAudits ?? []) {
+    const id = relationshipId(audit);
+    if (id !== null) ids.add(id);
+  }
+  return Array.from(ids);
+}
+
+async function resolveCoveredClientIds(
+  payload: Payload,
+  auditIds: Array<number | string>,
+): Promise<Array<number | string>> {
+  const clientIds = new Set<number | string>();
+  for (const auditId of auditIds) {
+    const audit = await payload.findByID({
+      collection: "google-ads-audits" as never,
+      id: auditId,
+      depth: 0,
+      overrideAccess: true,
+    }) as { client?: RelationshipValue } | null;
+    const clientId = relationshipId(audit?.client);
+    if (clientId !== null) clientIds.add(clientId);
+  }
+  return Array.from(clientIds);
+}
 
 /**
  * Scheduled Agent Tasks.
@@ -27,6 +67,7 @@ export const ScheduledAgentTasks: CollectionConfig = {
       "taskType",
       "agentName",
       "client",
+      "clientsCovered",
       "createdBy",
       "isActive",
       "nextRunAt",
@@ -59,7 +100,7 @@ export const ScheduledAgentTasks: CollectionConfig = {
   defaultSort: "nextRunAt",
   hooks: {
     beforeValidate: [
-      ({ data, operation }) => {
+      async ({ data, operation, originalDoc, req }) => {
         if (!data) return data;
         const cron = buildCronFromFriendlySchedule({
           scheduleMode: data.scheduleMode,
@@ -80,6 +121,11 @@ export const ScheduledAgentTasks: CollectionConfig = {
             String(data.schedule),
             String(data.timezone || "Australia/Brisbane"),
           ).toISOString();
+        }
+
+        const auditIds = collectAuditIds(data.audit ?? originalDoc?.audit, data.audits ?? originalDoc?.audits);
+        if (auditIds.length > 0) {
+          data.clientsCovered = await resolveCoveredClientIds(req.payload, auditIds);
         }
         return data;
       },
@@ -158,7 +204,18 @@ export const ScheduledAgentTasks: CollectionConfig = {
       required: true,
       index: true,
       admin: {
-        description: "Denormalised from audit.client for fast admin filtering.",
+        description: "Primary client for ownership/filtering. All automated clients are shown in Clients covered.",
+      },
+    },
+    {
+      name: "clientsCovered",
+      label: "Clients covered",
+      type: "relationship",
+      relationTo: "clients" as any,
+      hasMany: true,
+      admin: {
+        readOnly: true,
+        description: "Automatically derived from the primary and additional Google Ads accounts selected above.",
       },
     },
     {

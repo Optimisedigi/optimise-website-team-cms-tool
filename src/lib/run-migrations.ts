@@ -2635,13 +2635,40 @@ export async function runMigrations(
       \`parent_id\` integer NOT NULL,
       \`path\` text NOT NULL,
       \`google_ads_audits_id\` integer,
+      \`clients_id\` integer,
       FOREIGN KEY (\`parent_id\`) REFERENCES \`scheduled_agent_tasks\`(\`id\`) ON DELETE CASCADE,
-      FOREIGN KEY (\`google_ads_audits_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON DELETE CASCADE
+      FOREIGN KEY (\`google_ads_audits_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON DELETE CASCADE,
+      FOREIGN KEY (\`clients_id\`) REFERENCES \`clients\`(\`id\`) ON DELETE CASCADE
     )`);
+    await run("scheduled_agent_tasks_rels.clients_id", "ALTER TABLE `scheduled_agent_tasks_rels` ADD `clients_id` integer REFERENCES `clients`(`id`) ON DELETE CASCADE");
     await run("scheduled_agent_tasks_rels_order_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_rels_order_idx` ON `scheduled_agent_tasks_rels` (`order`)");
     await run("scheduled_agent_tasks_rels_parent_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_rels_parent_idx` ON `scheduled_agent_tasks_rels` (`parent_id`)");
     await run("scheduled_agent_tasks_rels_path_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_rels_path_idx` ON `scheduled_agent_tasks_rels` (`path`)");
     await run("scheduled_agent_tasks_rels_google_ads_audits_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_rels_google_ads_audits_idx` ON `scheduled_agent_tasks_rels` (`google_ads_audits_id`)");
+    await run("scheduled_agent_tasks_rels_clients_idx", "CREATE INDEX IF NOT EXISTS `scheduled_agent_tasks_rels_clients_idx` ON `scheduled_agent_tasks_rels` (`clients_id`)");
+    await run("scheduled_agent_tasks.clientsCovered.primary", `INSERT INTO \`scheduled_agent_tasks_rels\` (\`parent_id\`, \`path\`, \`clients_id\`)
+      SELECT task.\`id\`, 'clientsCovered', audit.\`client_id\`
+      FROM \`scheduled_agent_tasks\` task
+      JOIN \`google_ads_audits\` audit ON audit.\`id\` = task.\`audit_id\`
+      WHERE audit.\`client_id\` IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM \`scheduled_agent_tasks_rels\` rel
+          WHERE rel.\`parent_id\` = task.\`id\`
+            AND rel.\`path\` = 'clientsCovered'
+            AND rel.\`clients_id\` = audit.\`client_id\`
+        )`);
+    await run("scheduled_agent_tasks.clientsCovered.additional", `INSERT INTO \`scheduled_agent_tasks_rels\` (\`parent_id\`, \`path\`, \`clients_id\`)
+      SELECT DISTINCT rel.\`parent_id\`, 'clientsCovered', audit.\`client_id\`
+      FROM \`scheduled_agent_tasks_rels\` rel
+      JOIN \`google_ads_audits\` audit ON audit.\`id\` = rel.\`google_ads_audits_id\`
+      WHERE rel.\`path\` = 'audits'
+        AND audit.\`client_id\` IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM \`scheduled_agent_tasks_rels\` existing
+          WHERE existing.\`parent_id\` = rel.\`parent_id\`
+            AND existing.\`path\` = 'clientsCovered'
+            AND existing.\`clients_id\` = audit.\`client_id\`
+        )`);
     await run("locked_docs_rels.scheduled_agent_tasks_id", "ALTER TABLE `payload_locked_documents_rels` ADD `scheduled_agent_tasks_id` integer REFERENCES `scheduled_agent_tasks`(`id`) ON DELETE CASCADE");
   
     // Per-user Gmail OAuth fields used by scheduled-agent-tasks to drop
