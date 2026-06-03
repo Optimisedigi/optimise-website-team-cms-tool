@@ -696,7 +696,33 @@ export default function OptiMateVoice({
         },
       })
       if (!sdpRes.ok) {
-        throw new Error(`Realtime call failed (${sdpRes.status}): ${await sdpRes.text()}`)
+        // Surface enough for diagnosis: OpenAI's request id (for support / log
+        // correlation), the model the secret was minted against (a retired
+        // realtime model is a common 500 cause), and any structured error
+        // detail OpenAI returns. The /realtime/calls body is usually plain
+        // text ("Internal Server Error") but can be JSON ({ error: { ... } }).
+        const rawBody = await sdpRes.text()
+        const requestId =
+          sdpRes.headers.get('x-request-id') ?? sdpRes.headers.get('openai-request-id')
+        let detail = rawBody.trim()
+        try {
+          const parsed = JSON.parse(rawBody) as { error?: { message?: string; code?: string } }
+          if (parsed.error?.message) {
+            detail = parsed.error.code
+              ? `${parsed.error.message} (${parsed.error.code})`
+              : parsed.error.message
+          }
+        } catch {
+          // Non-JSON body — keep the raw text as-is.
+        }
+        const parts = [
+          `Realtime call failed (${sdpRes.status})`,
+          detail ? `: ${detail}` : '',
+          ` [model: ${secret.model}`,
+          requestId ? `, request id: ${requestId}` : '',
+          ']',
+        ]
+        throw new Error(parts.join(''))
       }
       await pc.setRemoteDescription({ type: 'answer', sdp: await sdpRes.text() })
     } catch (err) {
