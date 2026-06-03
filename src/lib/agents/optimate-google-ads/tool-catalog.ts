@@ -214,6 +214,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
   // Propose — budgets
   propose_budget_update: "propose-budget",
   propose_budget_push_live: "propose-budget",
+  propose_all_campaign_budget_push: "propose-budget",
 
   // Propose — negatives
   propose_negative_keywords: "propose-negatives",

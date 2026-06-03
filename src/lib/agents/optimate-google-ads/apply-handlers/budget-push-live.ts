@@ -13,6 +13,7 @@
  */
 
 import type { ApplyHandler, ApplyHandlerResult } from "@/lib/agents/_shared/apply-dispatcher";
+import { assertCampaignsExistForCustomer } from "../tools/_campaign-validation";
 import { resolveCustomerId, postGrowthTools } from "./_helpers";
 
 const BUDGETS_COLLECTION: any = "google-ads-campaign-budgets";
@@ -57,6 +58,7 @@ export const applyBudgetPushLive: ApplyHandler = async (payload, ctx): Promise<A
   });
 
   const { customerId } = await resolveCustomerId(pl, auditIdNum);
+  await assertCampaignsExistForCustomer(customerId, campaigns.map((campaign) => ({ ...campaign, campaignName: campaign.campaignId })));
 
   const res = await postGrowthTools("/api/google-ads/campaign-budgets/push", {
     customerId,

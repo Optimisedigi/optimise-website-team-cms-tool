@@ -9,6 +9,7 @@
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
 import { agentApprovalPath } from "@/lib/agents/_shared/admin-paths";
+import { assertCampaignsExistForCustomer } from "./_campaign-validation";
 import { queueProposal, buildInternalMarkdown, mdTable } from "./_propose-helpers";
 
 interface PushCampaignIn {
@@ -28,7 +29,7 @@ interface ProposeBudgetPushArgs {
 export const proposeBudgetPushLive: CanonicalTool<ProposeBudgetPushArgs> = {
   name: "propose_budget_push_live",
   description:
-    "Queue a live push of daily campaign budgets to Google Ads for human approval. Each campaign needs a campaignId, campaignName, and the new dailyBudget (in account currency). Optional bidStrategy/bidStrategyId update.",
+    "Queue a live push of daily campaign budgets to Google Ads for human approval. Each campaign must use an exact campaignId returned by get_campaign_performance, plus campaignName and the new dailyBudget (in account currency). Optional bidStrategy/bidStrategyId update.",
   inputSchema: {
     type: "object",
     properties: {
@@ -95,8 +96,15 @@ export const proposeBudgetPushLive: CanonicalTool<ProposeBudgetPushArgs> = {
     const clientId = ctx.context.clientId as string | number | undefined;
     const customerId = ctx.context.customerId as string | undefined;
 
-    const totalDaily = args.campaigns.reduce((s, c) => s + c.dailyBudget, 0);
-    const rows = args.campaigns.map((c) => [
+    let verifiedCampaigns: PushCampaignIn[];
+    try {
+      verifiedCampaigns = await assertCampaignsExistForCustomer(customerId, args.campaigns);
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+
+    const totalDaily = verifiedCampaigns.reduce((s, c) => s + c.dailyBudget, 0);
+    const rows = verifiedCampaigns.map((c) => [
       c.campaignName,
       `$${c.dailyBudget.toFixed(2)}/day`,
       c.bidStrategy ?? "—",
@@ -116,11 +124,11 @@ export const proposeBudgetPushLive: CanonicalTool<ProposeBudgetPushArgs> = {
         agentRunId: ctx.agentRunId,
         triggeredByUserId: ctx.context.userId as number | undefined,
         proposalType: "budget-push-live",
-        title: `Push daily budgets to ${args.campaigns.length} campaign${args.campaigns.length === 1 ? "" : "s"}`,
+        title: `Push daily budgets to ${verifiedCampaigns.length} campaign${verifiedCampaigns.length === 1 ? "" : "s"}`,
         clientId,
         proposalPayload: {
           auditId: auditId ?? null,
-          campaigns: args.campaigns,
+          campaigns: verifiedCampaigns,
         },
         rendered: { internalMarkdown },
       });

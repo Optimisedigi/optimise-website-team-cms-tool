@@ -29,6 +29,7 @@ import { proposeNklUpdate } from "./tools/propose-nkl-update";
 import { proposeNklPushLive } from "./tools/propose-nkl-push-live";
 import { proposeBudgetUpdate } from "./tools/propose-budget-update";
 import { proposeBudgetPushLive } from "./tools/propose-budget-push-live";
+import { proposeAllCampaignBudgetPush } from "./tools/propose-all-campaign-budget-push";
 import { proposeAdCopyGenerate } from "./tools/propose-ad-copy-generate";
 import { proposeAdCopyDeploy } from "./tools/propose-ad-copy-deploy";
 import { getGa4Overview } from "./tools/get-ga4-overview";
@@ -82,6 +83,7 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "propose_nkl_push_live",
   "propose_budget_update",
   "propose_budget_push_live",
+  "propose_all_campaign_budget_push",
   "propose_ad_copy_generate",
   "propose_ad_copy_deploy",
   "propose_campaign_restructure",
@@ -113,6 +115,7 @@ export function getTools(options?: { restrictExternalContextActions?: boolean })
     proposeNklPushLive as unknown as CanonicalTool<unknown>,
     proposeBudgetUpdate as unknown as CanonicalTool<unknown>,
     proposeBudgetPushLive as unknown as CanonicalTool<unknown>,
+    proposeAllCampaignBudgetPush as unknown as CanonicalTool<unknown>,
     proposeAdCopyGenerate as unknown as CanonicalTool<unknown>,
     proposeAdCopyDeploy as unknown as CanonicalTool<unknown>,
     getGa4Overview as unknown as CanonicalTool<unknown>,
