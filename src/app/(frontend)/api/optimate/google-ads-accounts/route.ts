@@ -16,6 +16,7 @@ interface ClientAccountRecord {
   name?: string | null;
   googleAdsCustomerId?: string | null;
   isActive?: boolean | null;
+  gadsAuto?: { isManagedGoogleAdsAccount?: boolean | null } | null;
 }
 
 interface AuditAccountRecord {
@@ -84,6 +85,7 @@ export async function GET() {
         name: true,
         googleAdsCustomerId: true,
         isActive: true,
+        gadsAuto: true,
       } as any,
     });
 
@@ -93,10 +95,19 @@ export async function GET() {
     const clientDocs = clientResult.docs as unknown as ClientAccountRecord[];
     for (const client of clientDocs) {
       rawClientsById.set(String(client.id), client);
-      if (client.isActive !== false) {
-        managedClientIds.add(String(client.id));
-      } else {
+      // A client's Google Ads account is hidden from OptiMate when EITHER the
+      // client is inactive OR its "managed Google Ads account" toggle is
+      // explicitly off (gadsAuto.isManagedGoogleAdsAccount === false). The
+      // toggle lets us keep the customer ID on record for MCC visibility while
+      // excluding accounts we can see but do not manage. (The managed-toggle
+      // filtering was removed in 1595cae to dodge a schema 500 before the
+      // column shipped; restored here now the column exists.)
+      const isInactive = client.isActive === false;
+      const isUnmanaged = client.gadsAuto?.isManagedGoogleAdsAccount === false;
+      if (isInactive || isUnmanaged) {
         unmanagedClientIds.add(String(client.id));
+      } else {
+        managedClientIds.add(String(client.id));
       }
     }
 

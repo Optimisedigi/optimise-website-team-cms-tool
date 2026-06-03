@@ -944,6 +944,13 @@ export async function GET(request: NextRequest) {
   // reaching it. See src/migrations/20260629_120000_add_optimate_chat_history_token_limit.ts.
   await run("optimate_settings.chat_history_token_limit", "ALTER TABLE \`optimate_settings\` ADD \`chat_history_token_limit\` numeric DEFAULT 6000");
 
+  // clients.gads_auto_is_managed_google_ads_account (2026-06-16). The "managed
+  // Google Ads account" toggle hides a client's account from OptiMate / active
+  // account pickers when off. Only shipped in the registry migration, never in
+  // the POST sweep, so prod lacked the column and the OptiMate accounts route
+  // could not filter on it. Added to the GET fast-list so it reliably applies.
+  await run("clients.gads_auto_is_managed_google_ads_account", "ALTER TABLE \`clients\` ADD \`gads_auto_is_managed_google_ads_account\` integer DEFAULT true");
+
   // agency_kpi_snapshots (2026-06-28). Collection shipped in the Payload config
   // but was never added to the POST sweep, so prod lacks both the table and its
   // payload_locked_documents_rels FK column. The missing FK column breaks the

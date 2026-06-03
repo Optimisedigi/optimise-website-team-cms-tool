@@ -980,6 +980,12 @@ export async function runMigrations(
     await run("locked_docs_rels.gsc_daily_id", "ALTER TABLE `payload_locked_documents_rels` ADD `gsc_daily_id` integer REFERENCES `gsc_daily`(`id`) ON DELETE cascade");
   
     // ── Google Ads Automations on Clients (dbName: gads_auto / gads_trajectory) ──
+    // "Managed Google Ads account" toggle. When false, the client's Google Ads
+    // account is hidden from OptiMate and active account pickers while the
+    // customer ID stays on record for MCC visibility. Only shipped in the
+    // Payload registry migration (20260616), never in this sweep — so prod
+    // lacked the column and the OptiMate accounts route could not filter on it.
+    await run("clients.gads_auto_is_managed_google_ads_account", "ALTER TABLE `clients` ADD `gads_auto_is_managed_google_ads_account` integer DEFAULT true");
     await run("clients.gads_auto_negative_sweep_enabled", "ALTER TABLE `clients` ADD `gads_auto_negative_sweep_enabled` integer DEFAULT false");
     await run("clients.gads_auto_negative_sweep_mode", "ALTER TABLE `clients` ADD `gads_auto_negative_sweep_mode` text DEFAULT 'review_first'");
     await run("clients.gads_auto_negative_sweep_weekday", "ALTER TABLE `clients` ADD `gads_auto_negative_sweep_weekday` text DEFAULT 'monday'");
