@@ -53,7 +53,12 @@ export default function MonthlyNegativeKeywordsLink() {
         const res = await fetch(`/api/google-ads-audits/${id}?depth=0`, { credentials: 'include' })
         const audit = res.ok ? await res.json() : null
         const auditClient = typeof audit?.client === 'object' ? audit.client?.id : audit?.client
-        if (auditClient) await fetchClient(auditClient)
+        if (auditClient) {
+          await fetchClient(auditClient)
+        } else {
+          setResolvedClient(null)
+          setLoading(false)
+        }
       } catch {
         setResolvedClient(null)
         setLoading(false)
