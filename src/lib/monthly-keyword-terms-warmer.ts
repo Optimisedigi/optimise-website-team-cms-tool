@@ -185,6 +185,7 @@ export async function warmMonthlyKeywordTermsForClient(
     }
   }
 
+  const remainingMissingMonths = completeMonths.filter((month) => !cache.has(month))
   const months = completeMonths
     .map((month) => {
       const row = cache.get(month)
@@ -206,6 +207,6 @@ export async function warmMonthlyKeywordTermsForClient(
     error,
     months,
     selections: await fetchSelections(payload, clientId),
-    missingMonths,
+    missingMonths: remainingMissingMonths,
   }
 }

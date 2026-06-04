@@ -34,7 +34,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [lastLoadSummary, setLastLoadSummary] = useState<{ misses?: number; missingMonths?: string[] } | null>(null)
+  const [lastLoadSummary, setLastLoadSummary] = useState<{ misses?: number; missingMonths?: string[]; error?: string } | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
@@ -50,6 +50,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       setLastLoadSummary({
         misses: typeof data.misses === 'number' ? data.misses : undefined,
         missingMonths: Array.isArray(data.missingMonths) ? data.missingMonths : undefined,
+        error: typeof data.error === 'string' ? data.error : undefined,
       })
       const nextSelections: Record<string, Selection> = {}
       for (const selection of Array.isArray(data.selections) ? data.selections : []) {
@@ -238,8 +239,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.5 }}>
             Press <strong>Refresh</strong> to fetch missing complete months. If this still stays empty, check that the linked client has the right Google Ads customer ID, Growth Tools has deployed the monthly search terms endpoint, and the account has complete-month spend with terms meeting ≥1 click or ≥5 impressions.
           </div>
+          {lastLoadSummary?.error && (
+            <div style={{ marginTop: 8, padding: 8, borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 12 }}>
+              Upstream error: {lastLoadSummary.error}
+            </div>
+          )}
           {lastLoadSummary?.missingMonths && lastLoadSummary.missingMonths.length > 0 && (
-            <div style={{ marginTop: 6, fontSize: 12 }}>Last refresh still had {lastLoadSummary.missingMonths.length} missing month(s).</div>
+            <div style={{ marginTop: 6, fontSize: 12 }}>After the last refresh, {lastLoadSummary.missingMonths.length} complete month(s) are still missing from the cache.</div>
           )}
         </div>
       )}
