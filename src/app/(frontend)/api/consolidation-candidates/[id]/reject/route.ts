@@ -11,7 +11,7 @@ export async function POST(
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
-  const user = (req as any).user;
+  const { user } = await payload.auth({ headers: req.headers });
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
