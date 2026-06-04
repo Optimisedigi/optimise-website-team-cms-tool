@@ -69,12 +69,22 @@ function RocketSplash() {
 interface SlotsByDay {
   dateKey: string
   label: string
+  timezoneLabel: string
   slots: { iso: string; timeLabel: string }[]
+}
+
+function getTimeZoneLabel(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-AU', {
+    timeZone: timezone,
+    timeZoneName: 'short',
+  }).formatToParts(date)
+  return parts.find((part) => part.type === 'timeZoneName')?.value || timezone
 }
 
 function groupSlotsByDay(slots: string[], timezone: string): SlotsByDay[] {
   const groups: Record<string, { iso: string; timeLabel: string }[]> = {}
   const dateLabels: Record<string, string> = {}
+  const timezoneLabels: Record<string, string> = {}
 
   for (const iso of slots) {
     const d = new Date(iso)
@@ -104,6 +114,7 @@ function groupSlotsByDay(slots: string[], timezone: string): SlotsByDay[] {
     if (!groups[dateKey]) {
       groups[dateKey] = []
       dateLabels[dateKey] = label
+      timezoneLabels[dateKey] = getTimeZoneLabel(d, timezone)
     }
     groups[dateKey].push({ iso, timeLabel })
   }
@@ -113,10 +124,60 @@ function groupSlotsByDay(slots: string[], timezone: string): SlotsByDay[] {
     .map((dateKey) => ({
       dateKey,
       label: dateLabels[dateKey],
+      timezoneLabel: timezoneLabels[dateKey],
       slots: groups[dateKey].sort(
         (a, b) => new Date(a.iso).getTime() - new Date(b.iso).getTime()
       ),
     }))
+}
+
+type MeetingTopicBlock =
+  | { type: 'paragraph'; text: string }
+  | { type: 'list'; items: string[] }
+
+function renderFormattedMeetingTopic(text: string) {
+  const blocks: MeetingTopicBlock[] = []
+  const lines = text.split(/\r?\n/)
+  let listItems: string[] = []
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      blocks.push({ type: 'list', items: listItems })
+      listItems = []
+    }
+  }
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) {
+      flushList()
+      continue
+    }
+
+    const bulletMatch = trimmed.match(/^(?:[-*•]|\d+[.)])\s+(.+)$/)
+    if (bulletMatch) {
+      listItems.push(bulletMatch[1])
+      continue
+    }
+
+    flushList()
+    blocks.push({ type: 'paragraph', text: trimmed })
+  }
+  flushList()
+
+  return blocks.map((block, index) => {
+    if (block.type === 'list') {
+      return (
+        <ul key={`list-${index}`} style={styles.topicList}>
+          {block.items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`}>{item}</li>
+          ))}
+        </ul>
+      )
+    }
+
+    return <p key={`paragraph-${index}`} style={styles.topicParagraph}>{block.text}</p>
+  })
 }
 
 export default function ScheduleResponseClient({ token }: { token: string }) {
@@ -368,9 +429,10 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
             )}
           </div>
           {data.meetingTopic && (
-            <p style={styles.topic}>
-              <strong>What's covered:</strong> {data.meetingTopic}
-            </p>
+            <div style={styles.topic}>
+              <p style={styles.topicHeading}>What's covered:</p>
+              <div>{renderFormattedMeetingTopic(data.meetingTopic)}</div>
+            </div>
           )}
           {data.attendeeEmails && data.attendeeEmails.length > 0 && (
             <p style={styles.attendeesLine}>
@@ -397,7 +459,7 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
                     <div style={styles.timeSectionHeader}>
                       <div style={styles.timeSectionTitleBlock}>
                         <p style={styles.timeSectionLabel}>{group.label}</p>
-                        <p style={styles.timeSectionMeta}>{data.durationMinutes} min meeting ({data.timezone})</p>
+                        <p style={styles.timeSectionMeta}>{data.durationMinutes} min meeting ({group.timezoneLabel})</p>
                       </div>
                       <button
                         type="button"
@@ -504,7 +566,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column' as const,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 2,
   },
   logoEyebrow: {
     margin: 0,
@@ -512,6 +574,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     color: '#64748b',
     letterSpacing: '0.03em',
+    transform: 'translateX(-2px)',
   },
   card: {
     width: '100%',
@@ -545,6 +608,25 @@ const styles: Record<string, React.CSSProperties> = {
   },
   topic: {
     margin: '0 0 6px',
+    fontSize: 13,
+    color: '#64748b',
+    lineHeight: 1.45,
+  },
+  topicHeading: {
+    margin: '0 0 4px',
+    fontSize: 13,
+    fontWeight: 700,
+    color: '#334155',
+  },
+  topicParagraph: {
+    margin: '0 0 4px',
+    fontSize: 13,
+    color: '#64748b',
+    lineHeight: 1.45,
+  },
+  topicList: {
+    margin: '0 0 4px 18px',
+    padding: 0,
     fontSize: 13,
     color: '#64748b',
     lineHeight: 1.45,
@@ -612,7 +694,7 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.5px',
   },
   timeSectionMeta: {
-    margin: '2px 0 0',
+    margin: '-1px 0 0',
     fontSize: 11,
     color: '#94a3b8',
   },
