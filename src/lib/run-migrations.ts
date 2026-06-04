@@ -2151,6 +2151,7 @@ export async function runMigrations(
       \`id\` integer PRIMARY KEY NOT NULL,
       \`name\` text NOT NULL,
       \`email\` text NOT NULL,
+      \`internal_confirmed\` integer DEFAULT 0,
       \`token\` text,
       \`responded\` integer DEFAULT 0,
       \`responded_at\` text,
@@ -2187,6 +2188,7 @@ export async function runMigrations(
       \`id\` text PRIMARY KEY NOT NULL,
       \`name\` text NOT NULL,
       \`email\` text NOT NULL,
+      \`internal_confirmed\` integer DEFAULT 0,
       \`token\` text,
       \`responded\` integer DEFAULT 0,
       \`responded_at\` text,
@@ -2200,6 +2202,7 @@ export async function runMigrations(
     await run("att_idx_order", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_attendees_order_idx` ON `meeting_schedulers_attendees` (`_order`)");
     await run("att_idx_parent", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_attendees_parent_idx` ON `meeting_schedulers_attendees` (`_parent_id`)");
     await run("att_idx_token", "CREATE UNIQUE INDEX IF NOT EXISTS `meeting_schedulers_attendees_token_idx` ON `meeting_schedulers_attendees` (`token`)");
+    await run("meeting_schedulers_attendees_internal_confirmed", "ALTER TABLE `meeting_schedulers_attendees` ADD `internal_confirmed` integer DEFAULT 0");
   
     // --- Negative List Builder (JSON column on google_ads_audits) ---
     await run("gads_negative_list_builder", "ALTER TABLE `google_ads_audits` ADD `negative_list_builder` text");
