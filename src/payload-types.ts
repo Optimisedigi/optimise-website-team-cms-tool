@@ -97,6 +97,7 @@ export interface Config {
     'negative-sweep-candidates': NegativeSweepCandidate;
     'negative-keyword-lists': NegativeKeywordList;
     'keyword-deep-dive-sessions': KeywordDeepDiveSession;
+    'monthly-keyword-selections': MonthlyKeywordSelection;
     'site-health-reports': SiteHealthReport;
     'forecast-scenarios': ForecastScenario;
     'agency-kpi-snapshots': AgencyKpiSnapshot;
@@ -127,6 +128,7 @@ export interface Config {
     'google-ads-ad-extensions': GoogleAdsAdExtension;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCache;
     'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCache;
+    'monthly-keyword-terms-cache': MonthlyKeywordTermsCache;
     'agent-credentials': AgentCredential;
     'contract-reminders': ContractReminder;
     notifications: Notification;
@@ -186,6 +188,7 @@ export interface Config {
     'negative-sweep-candidates': NegativeSweepCandidatesSelect<false> | NegativeSweepCandidatesSelect<true>;
     'negative-keyword-lists': NegativeKeywordListsSelect<false> | NegativeKeywordListsSelect<true>;
     'keyword-deep-dive-sessions': KeywordDeepDiveSessionsSelect<false> | KeywordDeepDiveSessionsSelect<true>;
+    'monthly-keyword-selections': MonthlyKeywordSelectionsSelect<false> | MonthlyKeywordSelectionsSelect<true>;
     'site-health-reports': SiteHealthReportsSelect<false> | SiteHealthReportsSelect<true>;
     'forecast-scenarios': ForecastScenariosSelect<false> | ForecastScenariosSelect<true>;
     'agency-kpi-snapshots': AgencyKpiSnapshotsSelect<false> | AgencyKpiSnapshotsSelect<true>;
@@ -216,6 +219,7 @@ export interface Config {
     'google-ads-ad-extensions': GoogleAdsAdExtensionsSelect<false> | GoogleAdsAdExtensionsSelect<true>;
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCacheSelect<false> | NegativeKeywordAvoidedSpendCacheSelect<true>;
     'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCacheSelect<false> | NegativeKeywordMonthlyWasteRelevancyCacheSelect<true>;
+    'monthly-keyword-terms-cache': MonthlyKeywordTermsCacheSelect<false> | MonthlyKeywordTermsCacheSelect<true>;
     'agent-credentials': AgentCredentialsSelect<false> | AgentCredentialsSelect<true>;
     'contract-reminders': ContractRemindersSelect<false> | ContractRemindersSelect<true>;
     notifications: NotificationsSelect<false> | NotificationsSelect<true>;
@@ -6282,6 +6286,44 @@ export interface NegativeSweepCandidate {
   createdAt: string;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "monthly-keyword-selections".
+ */
+export interface MonthlyKeywordSelection {
+  id: number;
+  /**
+   * The client this month-on-month review belongs to.
+   */
+  client: number | Client;
+  status: 'active' | 'archived';
+  /**
+   * Human decisions for raw monthly search terms.
+   */
+  selections?:
+    | {
+        /**
+         * Month in YYYY-MM format.
+         */
+        yearMonth: string;
+        /**
+         * The raw Google Ads search term.
+         */
+        searchTerm: string;
+        /**
+         * The negative keyword the reviewer wants to add.
+         */
+        negativeKeyword: string;
+        matchType: 'broad' | 'phrase' | 'exact';
+        decision: 'pending' | 'approved' | 'skipped';
+        appliedToNKL?: (number | null) | NegativeKeywordList;
+        appliedAt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Monthly agency KPI snapshots used for dashboard month-on-month comparisons.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -7437,6 +7479,48 @@ export interface NegativeKeywordMonthlyWasteRelevancyCache {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "monthly-keyword-terms-cache".
+ */
+export interface MonthlyKeywordTermsCache {
+  id: number;
+  client: number | Client;
+  /**
+   * Complete calendar month in YYYY-MM format.
+   */
+  yearMonth: string;
+  /**
+   * Qualifying search terms for this complete month.
+   */
+  terms:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Workflow marker: the team has finished reviewing this month.
+   */
+  reviewComplete?: boolean | null;
+  /**
+   * ISO timestamp for when reviewComplete was last enabled.
+   */
+  reviewCompletedAt?: string | null;
+  /**
+   * User who marked this month complete.
+   */
+  reviewCompletedBy?: (number | null) | User;
+  /**
+   * ISO timestamp when this complete month was fetched from Growth Tools.
+   */
+  fetchedAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "agent-credentials".
  */
 export interface AgentCredential {
@@ -7976,6 +8060,10 @@ export interface PayloadLockedDocument {
         value: number | KeywordDeepDiveSession;
       } | null)
     | ({
+        relationTo: 'monthly-keyword-selections';
+        value: number | MonthlyKeywordSelection;
+      } | null)
+    | ({
         relationTo: 'site-health-reports';
         value: number | SiteHealthReport;
       } | null)
@@ -8094,6 +8182,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'negative-keyword-monthly-waste-relevancy-cache';
         value: number | NegativeKeywordMonthlyWasteRelevancyCache;
+      } | null)
+    | ({
+        relationTo: 'monthly-keyword-terms-cache';
+        value: number | MonthlyKeywordTermsCache;
       } | null)
     | ({
         relationTo: 'agent-credentials';
@@ -9819,6 +9911,28 @@ export interface KeywordDeepDiveSessionsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "monthly-keyword-selections_select".
+ */
+export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
+  client?: T;
+  status?: T;
+  selections?:
+    | T
+    | {
+        yearMonth?: T;
+        searchTerm?: T;
+        negativeKeyword?: T;
+        matchType?: T;
+        decision?: T;
+        appliedToNKL?: T;
+        appliedAt?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "site-health-reports_select".
  */
 export interface SiteHealthReportsSelect<T extends boolean = true> {
@@ -10559,6 +10673,21 @@ export interface NegativeKeywordMonthlyWasteRelevancyCacheSelect<T extends boole
   brandExcludedSpend?: T;
   brandSpend?: T;
   isFinal?: T;
+  fetchedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "monthly-keyword-terms-cache_select".
+ */
+export interface MonthlyKeywordTermsCacheSelect<T extends boolean = true> {
+  client?: T;
+  yearMonth?: T;
+  terms?: T;
+  reviewComplete?: T;
+  reviewCompletedAt?: T;
+  reviewCompletedBy?: T;
   fetchedAt?: T;
   updatedAt?: T;
   createdAt?: T;

@@ -1011,6 +1011,55 @@ export async function GET(request: NextRequest) {
   await run("nkl_waste_relevancy_cache.competitor_excluded_spend", "ALTER TABLE \`negative_keyword_monthly_waste_relevancy_cache\` ADD \`competitor_excluded_spend\` numeric DEFAULT 0");
   await run("nkl_waste_relevancy_cache.brand_excluded_spend", "ALTER TABLE \`negative_keyword_monthly_waste_relevancy_cache\` ADD \`brand_excluded_spend\` numeric DEFAULT 0");
 
+  // Month-on-month keyword selection (2026-07-01). New per-client selection doc
+  // plus immutable complete-month search-term cache. Kept in the GET fast-list
+  // because the full POST sweep can time out in production.
+  await run("monthly_keyword_selections", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_selections\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`status\` text DEFAULT 'active',
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  )`);
+  await run("monthly_keyword_selections_selections", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_selections_selections\` (
+    \`_order\` integer NOT NULL,
+    \`_parent_id\` integer NOT NULL,
+    \`id\` text PRIMARY KEY NOT NULL,
+    \`year_month\` text NOT NULL,
+    \`search_term\` text NOT NULL,
+    \`negative_keyword\` text NOT NULL,
+    \`match_type\` text DEFAULT 'exact' NOT NULL,
+    \`decision\` text DEFAULT 'pending' NOT NULL,
+    \`applied_to_n_k_l_id\` integer,
+    \`applied_at\` text,
+    FOREIGN KEY (\`_parent_id\`) REFERENCES \`monthly_keyword_selections\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    FOREIGN KEY (\`applied_to_n_k_l_id\`) REFERENCES \`negative_keyword_lists\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("monthly_keyword_terms_cache", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_terms_cache\` (
+    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    \`client_id\` integer NOT NULL,
+    \`year_month\` text NOT NULL,
+    \`terms\` text NOT NULL,
+    \`review_complete\` integer DEFAULT false,
+    \`review_completed_at\` text,
+    \`review_completed_by_id\` integer,
+    \`fetched_at\` text NOT NULL,
+    \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+    FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+    FOREIGN KEY (\`review_completed_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+  )`);
+  await run("monthly_keyword_selections_client_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `monthly_keyword_selections_client_idx` ON `monthly_keyword_selections` (`client_id`)");
+  await run("monthly_keyword_selections_status_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selections_status_idx` ON `monthly_keyword_selections` (`status`)");
+  await run("monthly_keyword_selections_selections_parent_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selections_selections_parent_idx` ON `monthly_keyword_selections_selections` (`_parent_id`)");
+  await run("monthly_keyword_selections_selections_order_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selections_selections_order_idx` ON `monthly_keyword_selections_selections` (`_order`)");
+  await run("monthly_keyword_terms_cache_client_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_client_idx` ON `monthly_keyword_terms_cache` (`client_id`)");
+  await run("monthly_keyword_terms_cache_year_month_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_year_month_idx` ON `monthly_keyword_terms_cache` (`year_month`)");
+  await run("monthly_keyword_terms_cache_client_month_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_client_month_idx` ON `monthly_keyword_terms_cache` (`client_id`, `year_month`)");
+  await run("locked_docs_rels.monthly_keyword_selections_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_selections_id` integer REFERENCES `monthly_keyword_selections`(`id`) ON DELETE cascade");
+  await run("locked_docs_rels.monthly_keyword_terms_cache_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_terms_cache_id` integer REFERENCES `monthly_keyword_terms_cache`(`id`) ON DELETE cascade");
+
   let tables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");

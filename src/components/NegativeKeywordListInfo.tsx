@@ -129,15 +129,23 @@ export default function NegativeKeywordListInfo() {
   const [showSetup, setShowSetup] = useState(false)
   const [showScript, setShowScript] = useState(false)
   const [clientSlug, setClientSlug] = useState<string | null>(clientObj?.slug || null)
+  const [clientCustomerId, setClientCustomerId] = useState<string | null>(clientObj?.googleAdsCustomerId || null)
 
-  // Fetch client slug if not populated
+  // Fetch client fields if not populated
   useEffect(() => {
-    if (clientSlug || !clientId) return
+    if ((clientSlug && clientCustomerId) || !clientId) return
     fetch(`/api/clients/${clientId}?depth=0`)
       .then((r) => r.ok ? r.json() : null)
-      .then((c) => { if (c?.slug) setClientSlug(c.slug) })
+      .then((c) => {
+        if (c?.slug) setClientSlug(c.slug)
+        if (c?.googleAdsCustomerId) setClientCustomerId(c.googleAdsCustomerId)
+      })
       .catch(() => {})
-  }, [clientId, clientSlug])
+  }, [clientId, clientSlug, clientCustomerId])
+
+  const monthlySelectionUrl = clientId && clientSlug && clientCustomerId
+    ? `/admin/monthly-keyword-selection?clientId=${encodeURIComponent(String(clientId))}&customerId=${encodeURIComponent(clientCustomerId)}&slug=${encodeURIComponent(clientSlug)}`
+    : null
 
   const clientViewUrl = clientSlug && listName
     ? `${window.location.origin}/${clientSlug}/negative-keywords/${slugify(listName)}`
@@ -180,6 +188,21 @@ export default function NegativeKeywordListInfo() {
           <strong>Dashboard cache:</strong> any change to the keywords on this list automatically wipes the per-client historical Keyword Relevancy / Non-Converting Spend cache, so past months get re-credited on the next dashboard view. There's also a <em>Refresh history</em> button on the Progress tab if you ever want to force a re-pull manually.
         </div>
       </div>
+
+      {monthlySelectionUrl && (
+        <div style={{ marginBottom: 14, padding: '10px 14px', background: '#ecfdf5', borderRadius: 6, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>Month-on-Month Keyword Selection</div>
+            <div style={{ fontSize: 11, color: '#166534' }}>Review complete-month search terms and apply approved negatives to any active list for this client.</div>
+          </div>
+          <a
+            href={monthlySelectionUrl}
+            style={{ padding: '6px 10px', borderRadius: 5, background: '#15803d', color: '#fff', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}
+          >
+            Open Review
+          </a>
+        </div>
+      )}
 
       {/* Client share link */}
       {clientViewUrl && (

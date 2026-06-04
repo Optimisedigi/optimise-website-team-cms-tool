@@ -1,48 +1,8 @@
 'use client'
 
-import { useDocumentInfo, useField } from '@payloadcms/ui'
+import { useDocumentInfo } from '@payloadcms/ui'
 import { useState } from 'react'
-
-/**
- * Parse bulk keywords input. Rules:
- * - One keyword per line
- * - 'keyword' = phrase match
- * - "keyword" = phrase match (alternative syntax)
- * - Everything else = exact match (default)
- * - Empty lines are skipped
- * - Duplicates are skipped
- */
-function parseKeywords(text: string): Array<{ keyword: string; matchType: string }> {
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
-  const seen = new Set<string>()
-  const result: Array<{ keyword: string; matchType: string }> = []
-
-  for (const line of lines) {
-    let keyword = line
-    let matchType = 'exact'
-
-    // 'keyword' = phrase match
-    if (keyword.startsWith("'") && keyword.endsWith("'")) {
-      keyword = keyword.slice(1, -1).trim()
-      matchType = 'phrase'
-    }
-    // "keyword" = phrase match (alternative)
-    else if (keyword.startsWith('"') && keyword.endsWith('"')) {
-      keyword = keyword.slice(1, -1).trim()
-      matchType = 'phrase'
-    }
-
-    if (!keyword) continue
-
-    const key = `${keyword.toLowerCase()}|${matchType}`
-    if (seen.has(key)) continue
-    seen.add(key)
-
-    result.push({ keyword, matchType })
-  }
-
-  return result
-}
+import { parseNegativeKeywords } from '../lib/parse-negative-keywords'
 
 export default function NegativeKeywordBulkAdd() {
   const { initialData } = useDocumentInfo()
@@ -53,7 +13,7 @@ export default function NegativeKeywordBulkAdd() {
   const [result, setResult] = useState<string | null>(null)
 
   const existingKeywords: any[] = data?.keywords || []
-  const parsed = text.trim() ? parseKeywords(text) : []
+  const parsed = text.trim() ? parseNegativeKeywords(text) : []
 
   const handleAdd = async () => {
     if (parsed.length === 0 || !data?.id) return
