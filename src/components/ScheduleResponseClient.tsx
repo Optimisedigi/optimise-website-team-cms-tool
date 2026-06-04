@@ -367,54 +367,65 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
               </span>
             )}
           </div>
-          {data.meetingTopic && <p style={styles.topic}>{data.meetingTopic}</p>}
+          {data.meetingTopic && (
+            <p style={styles.topic}>
+              <strong>What's covered:</strong> {data.meetingTopic}
+            </p>
+          )}
           {data.attendeeEmails && data.attendeeEmails.length > 0 && (
             <p style={styles.attendeesLine}>
               <strong>Attendees:</strong> {data.attendeeEmails.join(', ')}
             </p>
           )}
 
-          <p style={styles.instructions}>
-            Select every time that works for you below. Once everyone has responded, we'll automatically match availability and send a calendar invite for the first slot that works for all attendees.
-          </p>
+          <div style={styles.availabilityPanel}>
+            <p style={styles.instructions}>
+              Select every time that works for you below. Once everyone has responded, we'll automatically match availability and send a calendar invite for the first slot that works for all attendees.
+            </p>
 
-          <div style={styles.daysGrid}>
-            {dayGroups.map((group) => {
-              const allDaySlotsSelected = group.slots.every((slot) => selectedSlots.has(slot.iso))
+            <div
+              style={{
+                ...styles.daysGrid,
+                gridTemplateColumns: dayGroups.length > 1 ? 'repeat(2, minmax(0, 1fr))' : '1fr',
+              }}
+            >
+              {dayGroups.map((group) => {
+                const allDaySlotsSelected = group.slots.every((slot) => selectedSlots.has(slot.iso))
 
-              return (
-                <div key={group.dateKey} style={styles.timeSection}>
-                  <div style={styles.timeSectionHeader}>
-                    <div style={styles.timeSectionTitleBlock}>
-                      <p style={styles.timeSectionLabel}>{group.label}</p>
-                      <p style={styles.timeSectionMeta}>{data.durationMinutes} min meeting ({data.timezone})</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => toggleDaySlots(group.slots)}
-                      style={styles.selectDayButton}
-                    >
-                      {allDaySlotsSelected ? 'Clear all' : 'Select all'}
-                    </button>
-                  </div>
-                  <div style={styles.timeGrid}>
-                    {group.slots.map((slot) => (
+                return (
+                  <div key={group.dateKey} style={styles.timeSection}>
+                    <div style={styles.timeSectionHeader}>
+                      <div style={styles.timeSectionTitleBlock}>
+                        <p style={styles.timeSectionLabel}>{group.label}</p>
+                        <p style={styles.timeSectionMeta}>{data.durationMinutes} min meeting ({data.timezone})</p>
+                      </div>
                       <button
-                        key={slot.iso}
                         type="button"
-                        onClick={() => toggleSlot(slot.iso)}
-                        style={{
-                          ...styles.timeSlot,
-                          ...(selectedSlots.has(slot.iso) ? styles.timeSlotActive : {}),
-                        }}
+                        onClick={() => toggleDaySlots(group.slots)}
+                        style={styles.selectDayButton}
                       >
-                        {slot.timeLabel}
+                        {allDaySlotsSelected ? 'Clear all' : 'Select all'}
                       </button>
-                    ))}
+                    </div>
+                    <div style={styles.timeGrid}>
+                      {group.slots.map((slot) => (
+                        <button
+                          key={slot.iso}
+                          type="button"
+                          onClick={() => toggleSlot(slot.iso)}
+                          style={{
+                            ...styles.timeSlot,
+                            ...(selectedSlots.has(slot.iso) ? styles.timeSlotActive : {}),
+                          }}
+                        >
+                          {slot.timeLabel}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
 
           {error && <p style={styles.errorText}>{error}</p>}
@@ -554,8 +565,15 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#64748b',
     whiteSpace: 'nowrap' as const,
   },
+  availabilityPanel: {
+    margin: '20px 0 4px',
+    padding: '12px',
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
+    borderRadius: 10,
+  },
   instructions: {
-    margin: '20px 0 14px',
+    margin: '0 0 12px',
     padding: '8px 12px',
     background: '#eff6ff',
     borderLeft: '3px solid #2563eb',
@@ -566,13 +584,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   daysGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
     gap: 10,
-    marginBottom: 4,
   },
   timeSection: {
     padding: '10px 10px',
-    background: '#ffffff',
+    background: '#f8fafc',
     borderRadius: 8,
     border: '1px solid #e2e8f0',
   },
