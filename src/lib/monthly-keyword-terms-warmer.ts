@@ -154,7 +154,13 @@ export async function warmMonthlyKeywordTermsForClient(
           error = `Growth Tools ${res.status}`
         } else {
           const data = await res.json()
+          if (data?.success === false) {
+            error = typeof data.error === 'string' ? data.error : 'Growth Tools returned an unsuccessful monthly search terms response'
+          }
           const upstreamMonths = Array.isArray(data?.months) ? data.months : []
+          if (!error && upstreamMonths.length === 0) {
+            error = 'Growth Tools returned no monthly search term months'
+          }
           const fetchedAt = new Date().toISOString()
           const upstreamByMonth = new Map<string, unknown>(
             upstreamMonths
