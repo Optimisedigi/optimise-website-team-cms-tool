@@ -1200,7 +1200,23 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 12: Match Type Variants ──
+        // ── Tab 12: Monthly Negative KWs ──
+        {
+          label: "Monthly negative KWs",
+          fields: [
+            {
+              name: "monthlyNegativeKeywords",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/MonthlyNegativeKeywordsLink",
+                },
+              },
+            },
+          ],
+        },
+
+        // ── Tab 13: Match Type Variants ──
         {
           label: "Match Type Variants",
           fields: [
@@ -1216,7 +1232,7 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
-        // ── Tab 13: Negative Keyword Submits ──
+        // ── Tab 14: Negative Keyword Submits ──
         // Submissions the client makes from the Google Ads dashboard's
         // Keyword Deep Dive tool. Team reviews here and applies keywords to
         // a Negative Keyword List from the submission's edit view.
