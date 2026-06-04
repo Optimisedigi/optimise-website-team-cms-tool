@@ -8,7 +8,7 @@ export const MonthlyKeywordTermsCache: CollectionConfig = {
     plural: 'Monthly Keyword Terms Cache',
   },
   admin: {
-    hidden: hideUnlessFeature('negative-keyword-lists'),
+    hidden: true,
     group: 'Growth Tools',
     useAsTitle: 'yearMonth',
     defaultColumns: ['client', 'yearMonth', 'reviewComplete', 'fetchedAt'],
