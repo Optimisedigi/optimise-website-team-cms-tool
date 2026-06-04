@@ -7,6 +7,7 @@ type Attendee = {
   name: string
   email: string
   token: string
+  internalConfirmed: boolean
 }
 
 function extractAttendees(fields: Record<string, any>): Attendee[] {
@@ -16,6 +17,7 @@ function extractAttendees(fields: Record<string, any>): Attendee[] {
     const hasRow =
       fields[`attendees.${i}.name`] !== undefined ||
       fields[`attendees.${i}.email`] !== undefined ||
+      fields[`attendees.${i}.internalConfirmed`] !== undefined ||
       fields[`attendees.${i}.id`] !== undefined ||
       fields[`attendees.${i}.token`] !== undefined
     if (!hasRow) break
@@ -23,6 +25,7 @@ function extractAttendees(fields: Record<string, any>): Attendee[] {
       name: fields[`attendees.${i}.name`]?.value ?? '',
       email: fields[`attendees.${i}.email`]?.value ?? '',
       token: fields[`attendees.${i}.token`]?.value ?? '',
+      internalConfirmed: !!fields[`attendees.${i}.internalConfirmed`]?.value,
     })
     i++
   }
@@ -59,7 +62,7 @@ export default function CopyScheduleEmailButton() {
     const topic = (data.topic || '').trim()
     const subj = `${title}: please pick your available times`
 
-    const linkAttendees = data.attendees.filter((a) => a.email && a.token)
+    const linkAttendees = data.attendees.filter((a) => a.email && a.token && !a.internalConfirmed)
 
     const plainParts: string[] = [
       'Hi team,',
@@ -85,7 +88,7 @@ export default function CopyScheduleEmailButton() {
     const baseUrl = window.location.origin
     const title = data.title || 'Meeting'
     const topic = (data.topic || '').trim()
-    const linkAttendees = data.attendees.filter((a) => a.email && a.token)
+    const linkAttendees = data.attendees.filter((a) => a.email && a.token && !a.internalConfirmed)
     const esc = (s: string) =>
       s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -144,7 +147,7 @@ export default function CopyScheduleEmailButton() {
     }
   }
 
-  const recipients = data.attendees.map((a) => a.email).filter(Boolean).join(', ')
+  const recipients = data.attendees.filter((a) => !a.internalConfirmed).map((a) => a.email).filter(Boolean).join(', ')
 
   if (!id) return null
 

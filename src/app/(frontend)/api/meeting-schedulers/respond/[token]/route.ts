@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
@@ -5,6 +6,7 @@ import { createCalendarEvent } from "@/lib/calendar-service";
 import {
   generateScheduleConfirmedEmail,
   generateNoMatchEmail,
+  generateScheduleInviteEmail,
 } from "@/lib/schedule-email";
 import { logActivity } from "@/lib/activity-log";
 
@@ -75,6 +77,19 @@ function formatSlotForEmail(
   };
 }
 
+function getBaseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SERVER_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3004")
+  ).replace(/\/$/, "");
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 // GET: Fetch meeting data for an attendee's booking page
 export async function GET(
   req: NextRequest,
@@ -103,6 +118,7 @@ export async function GET(
     generatedSlots: doc.generatedSlots || [],
     attendeeName: attendee.name,
     attendeeEmail: attendee.email,
+    attendeeEmails: (doc.attendees || []).map((a: any) => a.email).filter(Boolean),
     responded: attendee.responded || false,
     selectedSlots: attendee.selectedSlots || [],
     status: doc.status,
@@ -116,7 +132,13 @@ export async function POST(
 ) {
   const { token } = await params;
 
-  let body: { selectedSlots: string[] };
+  let body: {
+    selectedSlots: string[];
+    additionalAttendee?: {
+      name?: string;
+      email?: string;
+    };
+  };
   try {
     body = await req.json();
   } catch {
@@ -162,6 +184,21 @@ export async function POST(
     );
   }
 
+  const additionalAttendeeName = body.additionalAttendee?.name?.trim() || "";
+  const additionalAttendeeEmail = body.additionalAttendee?.email?.trim().toLowerCase() || "";
+  if ((additionalAttendeeName || additionalAttendeeEmail) && (!additionalAttendeeName || !additionalAttendeeEmail)) {
+    return NextResponse.json(
+      { error: "Add both a first name and email for the extra attendee." },
+      { status: 400 }
+    );
+  }
+  if (additionalAttendeeEmail && !isValidEmail(additionalAttendeeEmail)) {
+    return NextResponse.json(
+      { error: "Enter a valid email for the extra attendee." },
+      { status: 400 }
+    );
+  }
+
   // Update this attendee's response
   const now = new Date().toISOString();
   const updatedAttendees = doc.attendees.map((a: any) => {
@@ -175,6 +212,24 @@ export async function POST(
     }
     return a;
   });
+
+  const existingAdditionalAttendee = additionalAttendeeEmail
+    ? updatedAttendees.find(
+        (a: any) => String(a.email || "").toLowerCase() === additionalAttendeeEmail
+      )
+    : null;
+  const newAdditionalAttendee = additionalAttendeeEmail && !existingAdditionalAttendee
+    ? {
+        name: additionalAttendeeName,
+        email: additionalAttendeeEmail,
+        token: crypto.randomBytes(32).toString("hex"),
+        responded: false,
+        selectedSlots: [],
+      }
+    : null;
+  if (newAdditionalAttendee) {
+    updatedAttendees.push(newAdditionalAttendee);
+  }
 
   // Check if all attendees have now responded
   const allResponded = updatedAttendees.every((a: any) => a.responded);
@@ -230,6 +285,52 @@ export async function POST(
     data: updateData,
     overrideAccess: true,
   });
+
+  if (newAdditionalAttendee && process.env.BREVO_API_KEY) {
+    const fromEmail =
+      process.env.SCHEDULE_FROM_EMAIL || "meetings@optimisedigital.online";
+    const scheduleUrl = `${getBaseUrl()}/schedule/${newAdditionalAttendee.token}`;
+
+    try {
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": process.env.BREVO_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: "Optimise Digital", email: fromEmail },
+          to: [{ email: newAdditionalAttendee.email, name: newAdditionalAttendee.name }],
+          subject: `Meeting scheduling: ${doc.title}`,
+          htmlContent: generateScheduleInviteEmail({
+            recipientName: newAdditionalAttendee.name,
+            meetingTitle: doc.title,
+            meetingTopic: doc.meetingTopic,
+            durationMinutes: doc.durationMinutes || "30",
+            attendeeEmails: updatedAttendees.map((a: any) => a.email).filter(Boolean),
+            scheduleUrl,
+          }),
+        }),
+      });
+
+      if (res.ok) {
+        const attendeesWithSentAt = updatedAttendees.map((a: any) =>
+          a.token === newAdditionalAttendee.token ? { ...a, emailSentAt: now } : a
+        );
+        await payload.update({
+          collection: "meeting-schedulers" as any,
+          id: doc.id,
+          data: { attendees: attendeesWithSentAt, status: newStatus },
+          overrideAccess: true,
+        });
+      } else {
+        const text = await res.text();
+        console.error(`[brevo] Additional attendee invite error for ${newAdditionalAttendee.email}:`, text);
+      }
+    } catch (err) {
+      console.error(`[brevo] Additional attendee invite failed for ${newAdditionalAttendee.email}:`, err);
+    }
+  }
 
   // Send confirmation or no-match emails
   if (allResponded && process.env.BREVO_API_KEY) {

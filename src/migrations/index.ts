@@ -100,6 +100,7 @@ import * as migration_20260628_120000_add_agency_kpi_snapshots from './20260628_
 import * as migration_20260629_120000_add_optimate_chat_history_token_limit from './20260629_120000_add_optimate_chat_history_token_limit';
 import * as migration_20260630_120000_add_relevancy_exclusion_buckets from './20260630_120000_add_relevancy_exclusion_buckets';
 import * as migration_20260701_120000_add_monthly_keyword_selection from './20260701_120000_add_monthly_keyword_selection';
+import * as migration_20260604_120000_add_internal_confirmed_meeting_attendees from './20260604_120000_add_internal_confirmed_meeting_attendees';
 
 export const migrations = [
   {
@@ -611,5 +612,10 @@ export const migrations = [
     up: migration_20260701_120000_add_monthly_keyword_selection.up,
     down: migration_20260701_120000_add_monthly_keyword_selection.down,
     name: '20260701_120000_add_monthly_keyword_selection'
+  },
+  {
+    up: migration_20260604_120000_add_internal_confirmed_meeting_attendees.up,
+    down: migration_20260604_120000_add_internal_confirmed_meeting_attendees.down,
+    name: '20260604_120000_add_internal_confirmed_meeting_attendees'
   },
 ];

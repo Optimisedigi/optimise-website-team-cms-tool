@@ -61,7 +61,7 @@ export async function POST(
   const results: { email: string; ok: boolean; error?: string }[] = [];
 
   for (const attendee of doc.attendees) {
-    if (!attendee.email || !attendee.token) continue;
+    if (!attendee.email || !attendee.token || attendee.internalConfirmed) continue;
 
     const scheduleUrl = `${baseUrl}/schedule/${attendee.token}`;
 
@@ -81,6 +81,7 @@ export async function POST(
             meetingTitle: doc.title,
             meetingTopic: doc.meetingTopic,
             durationMinutes: doc.durationMinutes || "30",
+            attendeeEmails: doc.attendees.map((a: any) => a.email).filter(Boolean),
             scheduleUrl,
           }),
         }),

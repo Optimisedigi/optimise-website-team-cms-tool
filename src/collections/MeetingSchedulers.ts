@@ -47,25 +47,35 @@ export const MeetingSchedulers: CollectionConfig = {
             `dateOverrides=${JSON.stringify((data as any)?.dateOverrides)?.slice(0, 500)}`
           );
         } catch {}
+        const generatedSlots = Array.isArray(data?.generatedSlots)
+          ? data.generatedSlots
+          : Array.isArray((originalDoc as any)?.generatedSlots)
+            ? (originalDoc as any).generatedSlots
+            : [];
+        const prepareAttendee = (attendee: any) => {
+          if (!attendee.token) {
+            attendee.token = crypto.randomBytes(32).toString("hex");
+          }
+          if (attendee.internalConfirmed) {
+            attendee.responded = true;
+            attendee.respondedAt = attendee.respondedAt || new Date().toISOString();
+            attendee.selectedSlots = generatedSlots;
+          }
+        };
+
         if (operation === "create" && data) {
           if (!data.slug) {
             data.slug = crypto.randomBytes(16).toString("hex");
           }
-          // Generate unique tokens for each attendee
           if (data.attendees && Array.isArray(data.attendees)) {
             for (const attendee of data.attendees) {
-              if (!attendee.token) {
-                attendee.token = crypto.randomBytes(32).toString("hex");
-              }
+              prepareAttendee(attendee);
             }
           }
         }
-        // Also generate tokens for newly added attendees on update
         if (operation === "update" && data?.attendees && Array.isArray(data.attendees)) {
           for (const attendee of data.attendees) {
-            if (!attendee.token) {
-              attendee.token = crypto.randomBytes(32).toString("hex");
-            }
+            prepareAttendee(attendee);
           }
         }
         return data;
@@ -273,6 +283,14 @@ export const MeetingSchedulers: CollectionConfig = {
                       admin: { width: "50%" },
                     },
                   ],
+                },
+                {
+                  name: "internalConfirmed",
+                  type: "checkbox",
+                  defaultValue: false,
+                  admin: {
+                    description: "Internal team member — already available for generated slots. Included in attendee lists, but no scheduling invite is sent.",
+                  },
                 },
                 {
                   name: "token",

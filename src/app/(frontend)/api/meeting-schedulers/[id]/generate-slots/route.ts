@@ -53,12 +53,26 @@ export async function POST(
       dateOverrides: (scheduler as any).dateOverrides,
     });
 
+    const now = new Date().toISOString();
+    const attendees = Array.isArray((scheduler as any).attendees)
+      ? (scheduler as any).attendees.map((attendee: any) => {
+          if (!attendee.internalConfirmed) return attendee;
+          return {
+            ...attendee,
+            responded: true,
+            respondedAt: attendee.respondedAt || now,
+            selectedSlots: slots,
+          };
+        })
+      : undefined;
+
     await payload.update({
       collection: "meeting-schedulers" as any,
       id,
       data: {
         generatedSlots: slots,
-        slotsGeneratedAt: new Date().toISOString(),
+        slotsGeneratedAt: now,
+        ...(attendees ? { attendees } : {}),
         status: "slots_generated",
       } as any,
     });

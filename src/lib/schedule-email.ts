@@ -10,7 +10,18 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function getPublicBaseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SERVER_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "https://cms.optimisedigital.online")
+  ).replace(/\/$/, "");
+}
+
 function baseTemplate(content: string): string {
+  const logoUrl = `${getPublicBaseUrl()}/optimise-digital-logo-white.png`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -25,19 +36,12 @@ function baseTemplate(content: string): string {
         <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
           <tr>
             <td style="background:#1e293b;padding:24px 32px;">
-              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:600;">Optimise Digital</h1>
+              <img src="${escapeHtml(logoUrl)}" alt="Optimise Digital" width="180" style="display:block;width:180px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;">
             </td>
           </tr>
           <tr>
             <td style="padding:32px;">
               ${content}
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
-              <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">
-                Optimise Digital Pty Ltd
-              </p>
             </td>
           </tr>
         </table>
@@ -53,10 +57,15 @@ export function generateScheduleInviteEmail(opts: {
   meetingTitle: string;
   meetingTopic?: string;
   durationMinutes: string;
+  attendeeEmails: string[];
   scheduleUrl: string;
 }): string {
+  const attendeeEmails = opts.attendeeEmails.filter((email) => email.trim().length > 0);
+  const attendeesLine = attendeeEmails.length > 0
+    ? `<p style="margin:0 0 8px;font-size:14px;color:#64748b;"><strong style="color:#1e293b;">Attendees:</strong> ${escapeHtml(attendeeEmails.join(", "))}</p>`
+    : "";
   const topicLine = opts.meetingTopic
-    ? `<p style="margin:0 0 16px;font-size:14px;color:#64748b;">${escapeHtml(opts.meetingTopic)}</p>`
+    ? `<p style="margin:0 0 16px;font-size:14px;color:#64748b;"><strong style="color:#1e293b;">What's covered:</strong> ${escapeHtml(opts.meetingTopic)}</p>`
     : "";
 
   const content = `
@@ -67,9 +76,10 @@ export function generateScheduleInviteEmail(opts: {
     <p style="margin:0 0 8px;font-size:14px;color:#64748b;">
       <strong style="color:#1e293b;">Meeting:</strong> ${escapeHtml(opts.meetingTitle)}
     </p>
-    <p style="margin:0 0 16px;font-size:14px;color:#64748b;">
+    <p style="margin:0 0 8px;font-size:14px;color:#64748b;">
       <strong style="color:#1e293b;">Duration:</strong> ${escapeHtml(opts.durationMinutes)} minutes
     </p>
+    ${attendeesLine}
     ${topicLine}
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>

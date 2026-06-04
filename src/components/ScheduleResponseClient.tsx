@@ -10,6 +10,7 @@ interface MeetingData {
   generatedSlots: string[]
   attendeeName: string
   attendeeEmail?: string
+  attendeeEmails?: string[]
   responded: boolean
   selectedSlots: string[]
   status: string
@@ -129,6 +130,8 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
     confirmed?: boolean
     matchedSlot?: string
   } | null>(null)
+  const [additionalAttendeeName, setAdditionalAttendeeName] = useState('')
+  const [additionalAttendeeEmail, setAdditionalAttendeeEmail] = useState('')
 
   useEffect(() => {
     fetch(`/api/meeting-schedulers/respond/${token}`)
@@ -164,14 +167,38 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
     })
   }
 
+  const toggleDaySlots = (slots: { iso: string }[]) => {
+    setSelectedSlots((prev) => {
+      const next = new Set(prev)
+      const allSelected = slots.every((slot) => next.has(slot.iso))
+      for (const slot of slots) {
+        if (allSelected) {
+          next.delete(slot.iso)
+        } else {
+          next.add(slot.iso)
+        }
+      }
+      return next
+    })
+  }
+
   const handleSubmit = async () => {
     if (selectedSlots.size === 0) return
     setSubmitting(true)
+    setError(null)
     try {
+      const additionalAttendee = {
+        name: additionalAttendeeName.trim(),
+        email: additionalAttendeeEmail.trim(),
+      }
       const res = await fetch(`/api/meeting-schedulers/respond/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selectedSlots: Array.from(selectedSlots) }),
+        body: JSON.stringify({
+          selectedSlots: Array.from(selectedSlots),
+          additionalAttendee:
+            additionalAttendee.name || additionalAttendee.email ? additionalAttendee : undefined,
+        }),
       })
       const result = await res.json()
       if (res.ok) {
@@ -338,35 +365,73 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
           <p style={styles.meta}>
             {data.durationMinutes} min meeting ({data.timezone})
           </p>
+          {data.attendeeEmails && data.attendeeEmails.length > 0 && (
+            <p style={styles.attendeesLine}>
+              <strong>Attendees:</strong> {data.attendeeEmails.join(', ')}
+            </p>
+          )}
 
           <p style={styles.instructions}>
             Select every time that works for you below. Once everyone has responded, we'll automatically match availability and send a calendar invite for the first slot that works for all attendees.
           </p>
 
           <div style={styles.daysGrid}>
-            {dayGroups.map((group) => (
-              <div key={group.dateKey} style={styles.timeSection}>
-                <p style={styles.timeSectionLabel}>{group.label}</p>
-                <div style={styles.timeGrid}>
-                  {group.slots.map((slot) => (
+            {dayGroups.map((group) => {
+              const allDaySlotsSelected = group.slots.every((slot) => selectedSlots.has(slot.iso))
+
+              return (
+                <div key={group.dateKey} style={styles.timeSection}>
+                  <div style={styles.timeSectionHeader}>
+                    <p style={styles.timeSectionLabel}>{group.label}</p>
                     <button
-                      key={slot.iso}
                       type="button"
-                      onClick={() => toggleSlot(slot.iso)}
-                      style={{
-                        ...styles.timeSlot,
-                        ...(selectedSlots.has(slot.iso) ? styles.timeSlotActive : {}),
-                      }}
+                      onClick={() => toggleDaySlots(group.slots)}
+                      style={styles.selectDayButton}
                     >
-                      {slot.timeLabel}
+                      {allDaySlotsSelected ? 'Clear all' : 'Select all'}
                     </button>
-                  ))}
+                  </div>
+                  <div style={styles.timeGrid}>
+                    {group.slots.map((slot) => (
+                      <button
+                        key={slot.iso}
+                        type="button"
+                        onClick={() => toggleSlot(slot.iso)}
+                        style={{
+                          ...styles.timeSlot,
+                          ...(selectedSlots.has(slot.iso) ? styles.timeSlotActive : {}),
+                        }}
+                      >
+                        {slot.timeLabel}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {error && <p style={styles.errorText}>{error}</p>}
+
+          <div style={styles.additionalAttendeeBox}>
+            <p style={styles.additionalAttendeeTitle}>Should anyone else be in this meeting?</p>
+            <div style={styles.additionalAttendeeGrid}>
+              <input
+                type="text"
+                value={additionalAttendeeName}
+                onChange={(event) => setAdditionalAttendeeName(event.target.value)}
+                placeholder="First name"
+                style={styles.additionalAttendeeInput}
+              />
+              <input
+                type="email"
+                value={additionalAttendeeEmail}
+                onChange={(event) => setAdditionalAttendeeEmail(event.target.value)}
+                placeholder="Email"
+                style={styles.additionalAttendeeInput}
+              />
+            </div>
+          </div>
 
           {selectedSlots.size > 0 && (
             <button
@@ -405,7 +470,7 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 960,
     padding: '6px 4px 14px',
     display: 'flex',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
   },
   card: {
     width: '100%',
@@ -416,7 +481,7 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
   },
   logo: {
-    height: 22,
+    height: 15.4,
     width: 'auto',
     display: 'block',
   },
@@ -444,9 +509,15 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.45,
   },
   meta: {
-    margin: '0 0 12px',
+    margin: '0 0 8px',
     fontSize: 12,
     color: '#94a3b8',
+  },
+  attendeesLine: {
+    margin: '0 0 12px',
+    fontSize: 12,
+    color: '#64748b',
+    lineHeight: 1.45,
   },
   attendeeBadge: {
     fontSize: 12,
@@ -454,7 +525,7 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap' as const,
   },
   instructions: {
-    margin: '0 0 14px',
+    margin: '20px 0 14px',
     padding: '8px 12px',
     background: '#eff6ff',
     borderLeft: '3px solid #2563eb',
@@ -475,19 +546,40 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     border: '1px solid #e2e8f0',
   },
-  timeSectionLabel: {
+  timeSectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
     margin: '0 0 8px',
+  },
+  timeSectionLabel: {
+    margin: 0,
     fontSize: 12,
     fontWeight: 600,
     color: '#334155',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
-    textAlign: 'center' as const,
+  },
+  selectDayButton: {
+    flex: '0 0 auto',
+    padding: '4px 8px',
+    border: '1px solid #bfdbfe',
+    borderRadius: 999,
+    background: '#eff6ff',
+    color: '#1d4ed8',
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer',
   },
   timeGrid: {
-    display: 'flex',
-    flexDirection: 'column' as const,
+    display: 'grid',
+    gridTemplateRows: 'repeat(3, auto)',
+    gridAutoFlow: 'column' as const,
+    gridAutoColumns: 'minmax(82px, 1fr)',
     gap: 5,
+    overflowX: 'auto' as const,
+    paddingBottom: 2,
   },
   timeSlot: {
     padding: '6px 10px',
@@ -505,6 +597,34 @@ const styles: Record<string, React.CSSProperties> = {
     border: '2px solid #2563eb',
     background: '#dbeafe',
     color: '#1e40af',
+  },
+  additionalAttendeeBox: {
+    marginTop: 16,
+    padding: '12px',
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: 8,
+  },
+  additionalAttendeeTitle: {
+    margin: '0 0 10px',
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#334155',
+  },
+  additionalAttendeeGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: 8,
+  },
+  additionalAttendeeInput: {
+    width: '100%',
+    boxSizing: 'border-box' as const,
+    padding: '10px 12px',
+    border: '1px solid #cbd5e1',
+    borderRadius: 6,
+    color: '#0f172a',
+    fontSize: 14,
+    background: '#ffffff',
   },
   confirmButton: {
     width: '100%',

@@ -11,6 +11,7 @@ type AttendeeData = {
   name: string
   email: string
   token: string
+  internalConfirmed: boolean
   responded: boolean
   respondedAt: string | null
   emailSentAt: string | null
@@ -28,6 +29,7 @@ function extractAttendees(fields: Record<string, any>, basePath: string): Attend
     const hasRow =
       fields[`${basePath}.${i}.name`] !== undefined ||
       fields[`${basePath}.${i}.email`] !== undefined ||
+      fields[`${basePath}.${i}.internalConfirmed`] !== undefined ||
       fields[`${basePath}.${i}.id`] !== undefined
     if (!hasRow) break
 
@@ -35,6 +37,7 @@ function extractAttendees(fields: Record<string, any>, basePath: string): Attend
       name: fields[`${basePath}.${i}.name`]?.value ?? '',
       email: fields[`${basePath}.${i}.email`]?.value ?? '',
       token: fields[`${basePath}.${i}.token`]?.value ?? '',
+      internalConfirmed: !!fields[`${basePath}.${i}.internalConfirmed`]?.value,
       responded: !!fields[`${basePath}.${i}.responded`]?.value,
       respondedAt: fields[`${basePath}.${i}.respondedAt`]?.value ?? null,
       emailSentAt: fields[`${basePath}.${i}.emailSentAt`]?.value ?? null,
@@ -191,6 +194,13 @@ export default function MeetingSchedulerAttendeesTable(_props: any) {
   )
 
   const statusBadge = (attendee: AttendeeData) => {
+    if (attendee.internalConfirmed) {
+      return (
+        <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#ede9fe', color: '#5b21b6', fontWeight: 600 }}>
+          Internal
+        </span>
+      )
+    }
     if (attendee.responded) {
       return (
         <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#dcfce7', color: '#166534', fontWeight: 600 }}>
@@ -251,7 +261,7 @@ export default function MeetingSchedulerAttendeesTable(_props: any) {
                 borderBottom: '2px solid var(--theme-elevation-200)',
               }}
             >
-              {['#', 'Name', 'Email', 'Status', ''].map((col, idx) => (
+              {['#', 'Name', 'Email', 'Internal', 'Status', ''].map((col, idx) => (
                 <th
                   key={idx}
                   style={{
@@ -262,8 +272,8 @@ export default function MeetingSchedulerAttendeesTable(_props: any) {
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
                     color: 'var(--theme-elevation-500)',
-                    borderRight: idx < 4 ? '1px solid var(--theme-elevation-150)' : 'none',
-                    width: idx === 0 ? 40 : idx === 3 ? 100 : idx === 4 ? 50 : undefined,
+                    borderRight: idx < 5 ? '1px solid var(--theme-elevation-150)' : 'none',
+                    width: idx === 0 ? 40 : idx === 3 ? 80 : idx === 4 ? 100 : idx === 5 ? 50 : undefined,
                   }}
                 >
                   {col}
@@ -275,7 +285,7 @@ export default function MeetingSchedulerAttendeesTable(_props: any) {
             {attendees.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   style={{
                     padding: '24px 16px',
                     textAlign: 'center',
@@ -324,6 +334,21 @@ export default function MeetingSchedulerAttendeesTable(_props: any) {
                       placeholder="email@example.com"
                       type="email"
                       onKeyDown={(e) => handleKeyDown(e, i, 'email')}
+                    />
+                  </td>
+                  <td
+                    style={{
+                      padding: '4px 8px',
+                      borderRight: '1px solid var(--theme-elevation-100)',
+                      textAlign: 'center',
+                      width: 80,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={att.internalConfirmed}
+                      onChange={(e) => updateValue(`${path}.${i}.internalConfirmed`, e.target.checked)}
+                      title="Internal team member — already available for generated slots"
                     />
                   </td>
                   <td

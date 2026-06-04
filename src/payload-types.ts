@@ -5858,6 +5858,10 @@ export interface MeetingScheduler {
     | {
         name: string;
         email: string;
+        /**
+         * Internal team member — already available for generated slots. Included in attendee lists, but no scheduling invite is sent.
+         */
+        internalConfirmed?: boolean | null;
         token?: string | null;
         responded?: boolean | null;
         respondedAt?: string | null;
@@ -9232,6 +9236,7 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
     | {
         name?: T;
         email?: T;
+        internalConfirmed?: T;
         token?: T;
         responded?: T;
         respondedAt?: T;
