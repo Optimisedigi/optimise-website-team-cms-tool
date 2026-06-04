@@ -7,7 +7,9 @@ import { default as default_71c8c06dc8caa5debc23ed3566764a63 } from '../../../co
 import { default as default_a04d3e5e4f63cb4971cc6756d558eb31 } from '../../../components/clients-list/PinCell'
 import { default as default_4688024c692ee599e6afafd55990ce14 } from '../../../components/clients-list/StatusCell'
 import { default as default_3bdd599103664c7cbba890063d6642e9 } from '../../../components/AgencyClientToggleField'
+import { GoogleAdsCustomerIdField as GoogleAdsCustomerIdField_1fbf8a605f93366d7cd9734a76ac1d6b } from '../../../components/GoogleAdsCustomerIdField'
 import { default as default_a9f880a6de06ab5f693a05644fa1793e } from '../../../components/clients-list/AccountManagerCell'
+import { default as default_b01924fac7c8fdeb53e1e3279533a6b2 } from '../../../components/AccountManagersField'
 import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../components/MonthlyRetainerCell'
 import { default as default_c5ea9fe7cd59f6fed2f187082f64a9ed } from '../../../components/ClientSignedContractButton'
 import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../components/ClientNotesTable'
@@ -44,6 +46,7 @@ import { default as default_fb5d37b90851b3851c29f4b754a04aca } from '../../../co
 import { default as default_f8ff81df36cdd226fcc591df68ba8486 } from '../../../components/ViewAccountStructureButton'
 import { default as default_1bf9b6022af35fb04791a726c14020b8 } from '../../../components/ClientBudgetManagementInline'
 import { default as default_6dfadcdca189a18cf07afd7b4bca75a0 } from '../../../components/OpenNegativeListBuilderButton'
+import { default as default_e3ff373e40e064a400e9d6ab9c64a0d6 } from '../../../components/MonthlyNegativeKeywordsLink'
 import { default as default_9a6fa17f5e805092dba3f3e2a06a6122 } from '../../../components/GoogleAdsMatchTypeVariants'
 import { default as default_d4ebfcd7dcd43ec537c0f248f26cef22 } from '../../../components/ViewGoogleDashboardButton'
 import { default as default_c48582730ce567b18023caac0e161ded } from '../../../components/RunNegativeSweepButton'
@@ -58,6 +61,7 @@ import { default as default_c1ac710d288beee1f124dc7c494f485d } from '../../../co
 import { default as default_3a3a415e629d2073f7ef9d3759b5b3c7 } from '../../../components/ClientPresentationLink'
 import { default as default_d3fc69a0169840ff54015daafd7085a2 } from '../../../components/ClientToolsTab'
 import { default as default_a78435ccde604fd147bece248584301d } from '../../../components/ClientsShowInactiveToggle'
+import { default as default_72d189b1b13bf8e4b8caa39292a6941b } from '../../../components/ClientsBulkAssignManager'
 import { GlimmerSaveButton as GlimmerSaveButton_8b8a72c580a11ddd0bbaa823ddd7ff94 } from '../../../components/GlimmerSaveButton'
 import { default as default_81632eb6d14ae90ef8820b753fa1481c } from '../../../components/list-cells/TitleAvatarCell'
 import { TextStateFeatureClient as TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
@@ -183,7 +187,9 @@ export const importMap = {
   "./components/clients-list/PinCell#default": default_a04d3e5e4f63cb4971cc6756d558eb31,
   "./components/clients-list/StatusCell#default": default_4688024c692ee599e6afafd55990ce14,
   "./components/AgencyClientToggleField#default": default_3bdd599103664c7cbba890063d6642e9,
+  "./components/GoogleAdsCustomerIdField#GoogleAdsCustomerIdField": GoogleAdsCustomerIdField_1fbf8a605f93366d7cd9734a76ac1d6b,
   "./components/clients-list/AccountManagerCell#default": default_a9f880a6de06ab5f693a05644fa1793e,
+  "./components/AccountManagersField#default": default_b01924fac7c8fdeb53e1e3279533a6b2,
   "./components/MonthlyRetainerCell#default": default_1048d3ef8844cd92abe61dc0b4e55a00,
   "./components/ClientSignedContractButton#default": default_c5ea9fe7cd59f6fed2f187082f64a9ed,
   "./components/ClientNotesTable#default": default_0c04cad98ec5e03879ab56990698fc12,
@@ -220,6 +226,7 @@ export const importMap = {
   "./components/ViewAccountStructureButton#default": default_f8ff81df36cdd226fcc591df68ba8486,
   "./components/ClientBudgetManagementInline#default": default_1bf9b6022af35fb04791a726c14020b8,
   "./components/OpenNegativeListBuilderButton#default": default_6dfadcdca189a18cf07afd7b4bca75a0,
+  "./components/MonthlyNegativeKeywordsLink#default": default_e3ff373e40e064a400e9d6ab9c64a0d6,
   "./components/GoogleAdsMatchTypeVariants#default": default_9a6fa17f5e805092dba3f3e2a06a6122,
   "./components/ViewGoogleDashboardButton#default": default_d4ebfcd7dcd43ec537c0f248f26cef22,
   "./components/RunNegativeSweepButton#default": default_c48582730ce567b18023caac0e161ded,
@@ -234,6 +241,7 @@ export const importMap = {
   "/components/ClientPresentationLink#default": default_3a3a415e629d2073f7ef9d3759b5b3c7,
   "./components/ClientToolsTab#default": default_d3fc69a0169840ff54015daafd7085a2,
   "./components/ClientsShowInactiveToggle#default": default_a78435ccde604fd147bece248584301d,
+  "./components/ClientsBulkAssignManager#default": default_72d189b1b13bf8e4b8caa39292a6941b,
   "./components/GlimmerSaveButton#GlimmerSaveButton": GlimmerSaveButton_8b8a72c580a11ddd0bbaa823ddd7ff94,
   "./components/list-cells/TitleAvatarCell#default": default_81632eb6d14ae90ef8820b753fa1481c,
   "@payloadcms/richtext-lexical/client#TextStateFeatureClient": TextStateFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,

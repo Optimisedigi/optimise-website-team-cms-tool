@@ -161,6 +161,8 @@ export const Clients: CollectionConfig = {
       // (flips ?showInactive, read by the baseListFilter below).
       beforeListTable: [
         "./components/ClientsShowInactiveToggle",
+        // Bulk-assign account managers to the rows selected in the list.
+        "./components/ClientsBulkAssignManager",
       ],
     },
     // Hide inactive clients from the default list view — deactivated clients
@@ -678,10 +680,21 @@ export const Clients: CollectionConfig = {
                 {
                   name: "googleAdsCustomerId",
                   type: "text",
+                  hooks: {
+                    beforeChange: [
+                      ({ value }) =>
+                        typeof value === "string"
+                          ? value.replace(/\D/g, "").slice(0, 10)
+                          : value,
+                    ],
+                  },
                   admin: {
                     description:
                       "Google Ads customer ID (e.g. 955-493-5739). Client must grant MCC access.",
                     width: "33%",
+                    components: {
+                      Field: "./components/GoogleAdsCustomerIdField#GoogleAdsCustomerIdField",
+                    },
                   },
                 },
                 {
@@ -825,6 +838,7 @@ export const Clients: CollectionConfig = {
                 description: "Team members managing this client. They receive notifications for ad copy approvals, audits, etc.",
                 components: {
                   Cell: "./components/clients-list/AccountManagerCell",
+                  Field: "./components/AccountManagersField#default",
                 },
               },
               fields: [
@@ -2033,6 +2047,16 @@ export const Clients: CollectionConfig = {
               on: "client",
               admin: {
                 description: "Negative keyword lists managed for this client",
+              },
+            },
+            {
+              name: "monthlyNegativeKeywords",
+              type: "ui",
+              admin: {
+                condition: (data: any) => !!data?.googleAdsCustomerId && !!data?.slug,
+                components: {
+                  Field: "./components/MonthlyNegativeKeywordsLink",
+                },
               },
             },
 

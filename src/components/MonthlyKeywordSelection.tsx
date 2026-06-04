@@ -180,7 +180,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     <div style={{ padding: 24, color: 'var(--theme-text)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 18 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 28 }}>Month-on-Month Keyword Selection</h1>
+          <h1 style={{ margin: 0, fontSize: 28 }}>Monthly negative KWs</h1>
           <p style={{ margin: '6px 0 0', color: 'var(--theme-elevation-600)' }}>Complete months only. Review terms, approve negatives, then apply them to an active NKL.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

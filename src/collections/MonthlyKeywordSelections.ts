@@ -1,14 +1,14 @@
 import type { CollectionConfig } from 'payload'
-import { adminOnlyDelete, canAccess, hideUnlessFeature } from '../lib/access'
+import { adminOnlyDelete, canAccess } from '../lib/access'
 
 export const MonthlyKeywordSelections: CollectionConfig = {
   slug: 'monthly-keyword-selections',
   labels: {
-    singular: 'Monthly Keyword Selection',
-    plural: 'Monthly Keyword Selections',
+    singular: 'Monthly negative KWs',
+    plural: 'Monthly negative KWs',
   },
   admin: {
-    hidden: hideUnlessFeature('negative-keyword-lists'),
+    hidden: true,
     group: 'Growth Tools',
     useAsTitle: 'client',
     defaultColumns: ['client', 'status', 'updatedAt'],

@@ -192,7 +192,7 @@ export default function NegativeKeywordListInfo() {
       {monthlySelectionUrl && (
         <div style={{ marginBottom: 14, padding: '10px 14px', background: '#ecfdf5', borderRadius: 6, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>Month-on-Month Keyword Selection</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>Monthly negative KWs</div>
             <div style={{ fontSize: 11, color: '#166534' }}>Review complete-month search terms and apply approved negatives to any active list for this client.</div>
           </div>
           <a
