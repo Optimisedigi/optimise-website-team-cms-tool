@@ -1001,6 +1001,16 @@ export async function GET(request: NextRequest) {
   await run("add_proposal_pending_activation_label", "ALTER TABLE \`google_ads_audits\` ADD COLUMN \`proposal_pending_activation_label\` text DEFAULT 'Pending activation - Optimise Digital'");
   await run("add_proposal_activated_label", "ALTER TABLE \`google_ads_audits\` ADD COLUMN \`proposal_activated_label\` text DEFAULT 'Activated by Optimise Digital'");
 
+  // relevancy-exclusion buckets (2026-06-30). Per-NKL relevancyExclusion tag
+  // plus the two per-month cache columns that keep competitor / brand negative
+  // spend out of the default dashboard Keyword Relevancy %. Shipped in the
+  // registry migration (20260630_120000_add_relevancy_exclusion_buckets) but,
+  // per this file's pattern, also added to the GET fast-list so it reliably
+  // applies in prod without the full POST sweep timing out first.
+  await run("negative_keyword_lists.relevancy_exclusion", "ALTER TABLE \`negative_keyword_lists\` ADD \`relevancy_exclusion\` text DEFAULT 'none'");
+  await run("nkl_waste_relevancy_cache.competitor_excluded_spend", "ALTER TABLE \`negative_keyword_monthly_waste_relevancy_cache\` ADD \`competitor_excluded_spend\` numeric DEFAULT 0");
+  await run("nkl_waste_relevancy_cache.brand_excluded_spend", "ALTER TABLE \`negative_keyword_monthly_waste_relevancy_cache\` ADD \`brand_excluded_spend\` numeric DEFAULT 0");
+
   let tables: string[] = [];
   try {
     const tablesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
