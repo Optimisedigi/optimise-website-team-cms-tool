@@ -98,6 +98,7 @@ import * as migration_20260626_120000_add_scheduled_task_clients_covered from '.
 import * as migration_20260627_120000_add_client_type from './20260627_120000_add_client_type';
 import * as migration_20260628_120000_add_agency_kpi_snapshots from './20260628_120000_add_agency_kpi_snapshots';
 import * as migration_20260629_120000_add_optimate_chat_history_token_limit from './20260629_120000_add_optimate_chat_history_token_limit';
+import * as migration_20260630_120000_add_relevancy_exclusion_buckets from './20260630_120000_add_relevancy_exclusion_buckets';
 
 export const migrations = [
   {
@@ -599,5 +600,10 @@ export const migrations = [
     up: migration_20260629_120000_add_optimate_chat_history_token_limit.up,
     down: migration_20260629_120000_add_optimate_chat_history_token_limit.down,
     name: '20260629_120000_add_optimate_chat_history_token_limit'
+  },
+  {
+    up: migration_20260630_120000_add_relevancy_exclusion_buckets.up,
+    down: migration_20260630_120000_add_relevancy_exclusion_buckets.down,
+    name: '20260630_120000_add_relevancy_exclusion_buckets'
   },
 ];

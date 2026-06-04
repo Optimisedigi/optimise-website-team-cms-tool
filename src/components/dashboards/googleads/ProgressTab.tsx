@@ -585,6 +585,12 @@ export function ProgressTab({
   }, []);
 
   const [clearingCache, setClearingCache] = useState(false);
+  // Competitor / brand negatives are excluded from the relevancy % by default
+  // (they block non-converting-but-not-irrelevant traffic). Toggle them on to
+  // fold that spend back into the metric — useful for showing a client the
+  // full picture. Default OFF.
+  const [includeCompetitor, setIncludeCompetitor] = useState(false);
+  const [includeBrand, setIncludeBrand] = useState(false);
   const handleClearRelevancyCache = useCallback(async () => {
     if (!clientId) return;
     if (!window.confirm("Clear the historical Keyword Relevancy cache for this client? Past months will re-pull from Google Ads on the next dashboard load.")) {
@@ -712,9 +718,15 @@ export function ProgressTab({
           historical.totalSpend - (historical.brandSpend || 0),
         );
         const relevancyDenominator = nonBrandSpend > 0 ? nonBrandSpend : historical.totalSpend;
+        // Default numerator counts only normal irrelevant spend. Optionally
+        // fold in competitor / brand excluded spend when the toggles are on.
+        const countedIrrelevant =
+          historical.irrelevantSpend +
+          (includeCompetitor ? historical.competitorExcludedSpend || 0 : 0) +
+          (includeBrand ? historical.brandExcludedSpend || 0 : 0);
         relevancy = Math.max(
           0,
-          Math.min(100, 100 - (historical.irrelevantSpend / relevancyDenominator) * 100),
+          Math.min(100, 100 - (countedIrrelevant / relevancyDenominator) * 100),
         );
       } else if (historical) {
         // Month exists in the historical pull but had zero spend.
@@ -741,7 +753,18 @@ export function ProgressTab({
         relevancy,
       };
     });
-  }, [monthlyTrend, wasteByMonth, trendWaste, trendIrrelevant]);
+  }, [monthlyTrend, wasteByMonth, trendWaste, trendIrrelevant, includeCompetitor, includeBrand]);
+
+  // Whether the client has any competitor / brand excluded spend in the
+  // trend window — only then is it worth showing the fold-in toggles.
+  const hasCompetitorExcluded = useMemo(
+    () => (monthlyWasteRelevancy || []).some((m) => (m.competitorExcludedSpend || 0) > 0),
+    [monthlyWasteRelevancy],
+  );
+  const hasBrandExcluded = useMemo(
+    () => (monthlyWasteRelevancy || []).some((m) => (m.brandExcludedSpend || 0) > 0),
+    [monthlyWasteRelevancy],
+  );
 
   // The chart now consumes ALL metric values per point (it picks the ones
   // listed in `metrics`). One row per month with every metric pre-computed.
@@ -844,6 +867,34 @@ export function ProgressTab({
                 }`}
               >
                 {clearingCache ? "Refreshing…" : "↻ Refresh history"}
+              </button>
+            )}
+            {selectedMetrics.includes("relevancy") && hasCompetitorExcluded && (
+              <button
+                type="button"
+                onClick={() => setIncludeCompetitor((v) => !v)}
+                title="Fold competitor-negative spend back into Keyword Relevancy %. Off by default — competitor terms are blocked but not counted as irrelevant."
+                className={`text-[11px] font-medium px-2 py-1 rounded border transition-colors ${
+                  includeCompetitor
+                    ? "bg-violet-50 text-violet-700 border-violet-300"
+                    : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                }`}
+              >
+                {includeCompetitor ? "✓ " : "+ "}Competitor
+              </button>
+            )}
+            {selectedMetrics.includes("relevancy") && hasBrandExcluded && (
+              <button
+                type="button"
+                onClick={() => setIncludeBrand((v) => !v)}
+                title="Fold brand-negative spend back into Keyword Relevancy %. Off by default."
+                className={`text-[11px] font-medium px-2 py-1 rounded border transition-colors ${
+                  includeBrand
+                    ? "bg-violet-50 text-violet-700 border-violet-300"
+                    : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                }`}
+              >
+                {includeBrand ? "✓ " : "+ "}Brand
               </button>
             )}
           </div>

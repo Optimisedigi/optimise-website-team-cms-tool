@@ -81,7 +81,23 @@ export const NegativeKeywordMonthlyWasteRelevancyCache: CollectionConfig = {
       required: true,
       defaultValue: 0,
       admin: {
-        description: "Cost on terms currently in the client's NKL set.",
+        description: "Cost on terms blocked by NORMAL negatives (counts against relevancy).",
+      },
+    },
+    {
+      name: "competitorExcludedSpend",
+      type: "number",
+      defaultValue: 0,
+      admin: {
+        description: "Cost on terms blocked only by competitor-tagged NKLs. Excluded from the default relevancy %; foldable in via the dashboard competitor toggle.",
+      },
+    },
+    {
+      name: "brandExcludedSpend",
+      type: "number",
+      defaultValue: 0,
+      admin: {
+        description: "Cost on terms blocked only by brand-tagged NKLs. Excluded from the default relevancy %; foldable in via the dashboard brand toggle.",
       },
     },
     {

@@ -60,7 +60,12 @@ export const NegativeKeywordLists: CollectionConfig = {
           const prevSet = keysOf(prevKw);
           const nextSet = keysOf(nextKw);
           const setsDiffer = prevSet.size !== nextSet.size || [...nextSet].some((k) => !prevSet.has(k));
-          if (clientId && setsDiffer) {
+          // Changing the relevancy-exclusion tag re-buckets this list's spend
+          // (normal vs competitor vs brand) without touching keywords, so it
+          // must also invalidate the cache.
+          const exclusionChanged =
+            (previousDoc?.relevancyExclusion ?? "none") !== (doc?.relevancyExclusion ?? "none");
+          if (clientId && (setsDiffer || exclusionChanged)) {
             await req.payload.delete({
               collection: "negative-keyword-monthly-waste-relevancy-cache",
               where: { client: { equals: clientId } },
@@ -307,6 +312,20 @@ export const NegativeKeywordLists: CollectionConfig = {
       defaultValue: true,
       admin: {
         description: "Inactive lists are excluded from the Google Ads sync",
+      },
+    },
+    {
+      name: "relevancyExclusion",
+      type: "select",
+      defaultValue: "none",
+      options: [
+        { label: "Count against relevancy (default)", value: "none" },
+        { label: "Exclude as competitor", value: "competitor" },
+        { label: "Exclude as brand", value: "brand" },
+      ],
+      admin: {
+        description:
+          "Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor' or 'brand' for negatives that block non-converting-but-not-irrelevant traffic (e.g. competitor brand terms) — their spend is kept out of the default relevancy % but can be toggled back on per-category in the dashboard. The keywords are still synced to Google Ads regardless.",
       },
     },
     {

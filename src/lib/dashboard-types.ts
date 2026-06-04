@@ -203,6 +203,12 @@ export interface GoogleAdsDashboardMonthlyWasteRelevancy {
    *  set today). The trend tells the story "how much budget would today's
    *  NKL have saved each month if it had been in place then." */
   irrelevantSpend: number;
+  /** Spend blocked only by competitor-tagged NKLs. Kept out of the default
+   *  relevancy % — folded back in when the dashboard competitor toggle is on. */
+  competitorExcludedSpend?: number;
+  /** Spend blocked only by brand-tagged NKLs. Kept out of the default
+   *  relevancy % — folded back in when the dashboard brand toggle is on. */
+  brandExcludedSpend?: number;
   /** Spend on search terms matching the client's brand keywords (substring
    *  match). Drives the Overview tab's Monthly Performance brand/generic
    *  split. Zero when the client has no brand keywords configured. */

@@ -4490,6 +4490,10 @@ export interface NegativeKeywordList {
    */
   isActive?: boolean | null;
   /**
+   * Whether this list's keywords count against the dashboard Keyword Relevancy %. Keep 'none' for genuinely irrelevant negatives. Choose 'competitor' or 'brand' for negatives that block non-converting-but-not-irrelevant traffic (e.g. competitor brand terms) — their spend is kept out of the default relevancy % but can be toggled back on per-category in the dashboard. The keywords are still synced to Google Ads regardless.
+   */
+  relevancyExclusion?: ('none' | 'competitor' | 'brand') | null;
+  /**
    * Where this list originated: 'nlb' (Negative List Builder) or 'deep_dive' (Keyword Deep Dive)
    */
   source?: string | null;
@@ -7405,9 +7409,17 @@ export interface NegativeKeywordMonthlyWasteRelevancyCache {
    */
   nonConvertingSpend: number;
   /**
-   * Cost on terms currently in the client's NKL set.
+   * Cost on terms blocked by NORMAL negatives (counts against relevancy).
    */
   irrelevantSpend: number;
+  /**
+   * Cost on terms blocked only by competitor-tagged NKLs. Excluded from the default relevancy %; foldable in via the dashboard competitor toggle.
+   */
+  competitorExcludedSpend?: number | null;
+  /**
+   * Cost on terms blocked only by brand-tagged NKLs. Excluded from the default relevancy %; foldable in via the dashboard brand toggle.
+   */
+  brandExcludedSpend?: number | null;
   /**
    * Cost on search terms matching the client's brand keywords (substring match).
    */
@@ -9777,6 +9789,7 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
       };
   keywordCount?: T;
   isActive?: T;
+  relevancyExclusion?: T;
   source?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -10542,6 +10555,8 @@ export interface NegativeKeywordMonthlyWasteRelevancyCacheSelect<T extends boole
   totalSpend?: T;
   nonConvertingSpend?: T;
   irrelevantSpend?: T;
+  competitorExcludedSpend?: T;
+  brandExcludedSpend?: T;
   brandSpend?: T;
   isFinal?: T;
   fetchedAt?: T;
