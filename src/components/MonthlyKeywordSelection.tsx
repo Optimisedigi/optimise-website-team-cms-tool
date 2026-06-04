@@ -34,6 +34,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [lastLoadSummary, setLastLoadSummary] = useState<{ misses?: number; missingMonths?: string[] } | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
@@ -46,6 +47,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to load monthly keyword selection')
       setMonths(Array.isArray(data.months) ? data.months : [])
+      setLastLoadSummary({
+        misses: typeof data.misses === 'number' ? data.misses : undefined,
+        missingMonths: Array.isArray(data.missingMonths) ? data.missingMonths : undefined,
+      })
       const nextSelections: Record<string, Selection> = {}
       for (const selection of Array.isArray(data.selections) ? data.selections : []) {
         nextSelections[selectionKey(selection.yearMonth, selection.searchTerm)] = selection
@@ -200,6 +205,24 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       </div>
 
       {message && <div style={{ marginBottom: 16, padding: 10, borderRadius: 6, background: '#fef3c7', color: '#92400e' }}>{message}</div>}
+
+      {loading && months.length === 0 && (
+        <div style={{ marginBottom: 16, padding: 14, borderRadius: 8, border: '1px solid var(--theme-elevation-150)', background: 'var(--theme-elevation-50)', color: 'var(--theme-elevation-700)' }}>
+          Pulling complete-month search terms from Google Ads. The first load can take a little while.
+        </div>
+      )}
+
+      {!loading && months.length === 0 && (
+        <div style={{ marginBottom: 16, padding: 14, borderRadius: 8, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
+          <strong>No monthly search terms loaded yet.</strong>
+          <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.5 }}>
+            Press <strong>Refresh</strong> to fetch missing complete months. If this still stays empty, check that the linked client has the right Google Ads customer ID, Growth Tools has deployed the monthly search terms endpoint, and the account has complete-month spend with terms meeting ≥1 click or ≥5 impressions.
+          </div>
+          {lastLoadSummary?.missingMonths && lastLoadSummary.missingMonths.length > 0 && (
+            <div style={{ marginTop: 6, fontSize: 12 }}>Last refresh still had {lastLoadSummary.missingMonths.length} missing month(s).</div>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 20 }}>
         {months.map((month) => (
