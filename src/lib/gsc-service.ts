@@ -202,12 +202,14 @@ export async function fetchBrandedAnalytics(
     });
 
     const brandRows = brandRes.data.rows || [];
-    let brandClicks = 0, brandImpressions = 0, brandCtrSum = 0, brandPosSum = 0;
+    let brandClicks = 0, brandImpressions = 0, brandPosWeighted = 0;
     for (const row of brandRows) {
+      const impressions = row.impressions || 0;
       brandClicks += row.clicks || 0;
-      brandImpressions += row.impressions || 0;
-      brandCtrSum += row.ctr || 0;
-      brandPosSum += row.position || 0;
+      brandImpressions += impressions;
+      // Position is averaged impression-weighted (a query seen 1000x should
+      // dominate one seen 5x); a flat per-row mean misreports badly.
+      brandPosWeighted += (row.position || 0) * impressions;
     }
 
     // Non-brand queries — query matches none of the brand terms (regex NOR).
@@ -226,12 +228,12 @@ export async function fetchBrandedAnalytics(
     });
 
     const nonBrandRows = nonBrandRes.data.rows || [];
-    let nbClicks = 0, nbImpressions = 0, nbCtrSum = 0, nbPosSum = 0;
+    let nbClicks = 0, nbImpressions = 0, nbPosWeighted = 0;
     for (const row of nonBrandRows) {
+      const impressions = row.impressions || 0;
       nbClicks += row.clicks || 0;
-      nbImpressions += row.impressions || 0;
-      nbCtrSum += row.ctr || 0;
-      nbPosSum += row.position || 0;
+      nbImpressions += impressions;
+      nbPosWeighted += (row.position || 0) * impressions;
     }
 
     const topQueries = nonBrandRows.slice(0, 10).map((row: searchconsole_v1.Schema$ApiDataRow) => ({
@@ -242,28 +244,26 @@ export async function fetchBrandedAnalytics(
       position: Math.round((row.position || 0) * 10) / 10,
     }));
 
-    const brandCount = brandRows.length;
-    const nbCount = nonBrandRows.length;
-
     return {
       brand: {
         clicks: brandClicks,
         impressions: brandImpressions,
-        ctr: brandCount > 0
-          ? Math.round((brandCtrSum / brandCount) * 10000) / 100
+        // CTR is clicks/impressions by definition, not a mean of per-query CTRs.
+        ctr: brandImpressions > 0
+          ? Math.round((brandClicks / brandImpressions) * 10000) / 100
           : 0,
-        position: brandCount > 0
-          ? Math.round((brandPosSum / brandCount) * 10) / 10
+        position: brandImpressions > 0
+          ? Math.round((brandPosWeighted / brandImpressions) * 10) / 10
           : 0,
       },
       nonBrand: {
         clicks: nbClicks,
         impressions: nbImpressions,
-        ctr: nbCount > 0
-          ? Math.round((nbCtrSum / nbCount) * 10000) / 100
+        ctr: nbImpressions > 0
+          ? Math.round((nbClicks / nbImpressions) * 10000) / 100
           : 0,
-        position: nbCount > 0
-          ? Math.round((nbPosSum / nbCount) * 10) / 10
+        position: nbImpressions > 0
+          ? Math.round((nbPosWeighted / nbImpressions) * 10) / 10
           : 0,
         topQueries,
       },
