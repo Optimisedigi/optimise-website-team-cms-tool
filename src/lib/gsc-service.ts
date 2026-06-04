@@ -13,6 +13,12 @@ function getOAuth2Client() {
   );
 }
 
+/** Escape RE2 metacharacters so a literal brand term is safe inside a Search
+ * Console `includingRegex` / `excludingRegex` pattern. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * Generate the Google OAuth consent URL for GSC access.
  *
@@ -162,21 +168,24 @@ export async function fetchBrandedAnalytics(
   oauth2Client.setCredentials({ access_token: accessToken });
   const searchconsole = google.searchconsole({ version: "v1", auth: oauth2Client });
 
-  // Build brand filter: query contains any brand term (OR logic via multiple filters)
-  const brandFilters = brandTerms.map((term) => ({
-    dimension: "query" as const,
-    operator: "contains" as const,
-    expression: term.trim().toLowerCase(),
-  }));
+  // Build a single regex matching ANY brand term (true OR). The Search Console
+  // API does NOT support a `groupType: "or"` filter group — it only accepts
+  // "and" — so an OR across multiple `contains` filters returns HTTP 400.
+  // `includingRegex` / `excludingRegex` give correct OR / NOR semantics in one
+  // filter. Brand terms are regex-escaped since they now go into a pattern.
+  const brandRegex = brandTerms
+    .map((term) => escapeRegExp(term.trim().toLowerCase()))
+    .filter((t) => t.length > 0)
+    .join("|");
 
-  const nonBrandFilters = brandTerms.map((term) => ({
-    dimension: "query" as const,
-    operator: "notContains" as const,
-    expression: term.trim().toLowerCase(),
-  }));
+  // All brand terms were blank after trimming — an empty regex would match
+  // everything (brand) / nothing (non-brand), silently mislabelling the split.
+  if (!brandRegex) {
+    return { brand: null, nonBrand: null };
+  }
 
   try {
-    // Brand queries — use OR group (any brand term matches)
+    // Brand queries — query matches any brand term (regex OR).
     const brandRes = await searchconsole.searchanalytics.query({
       siteUrl,
       requestBody: {
@@ -184,9 +193,11 @@ export async function fetchBrandedAnalytics(
         endDate,
         dimensions: ["query"],
         dimensionFilterGroups: [
-          { groupType: "or", filters: brandFilters },
+          { filters: [{ dimension: "query", operator: "includingRegex", expression: brandRegex }] },
         ],
-        rowLimit: 25,
+        // Sum over ALL matching queries, not just the top 25 — otherwise the
+        // long-tail impressions are dropped and totals undercount badly.
+        rowLimit: 25000,
       },
     });
 
@@ -199,7 +210,7 @@ export async function fetchBrandedAnalytics(
       brandPosSum += row.position || 0;
     }
 
-    // Non-brand queries — AND group (none of the brand terms match)
+    // Non-brand queries — query matches none of the brand terms (regex NOR).
     const nonBrandRes = await searchconsole.searchanalytics.query({
       siteUrl,
       requestBody: {
@@ -207,9 +218,10 @@ export async function fetchBrandedAnalytics(
         endDate,
         dimensions: ["query"],
         dimensionFilterGroups: [
-          { groupType: "and", filters: nonBrandFilters },
+          { filters: [{ dimension: "query", operator: "excludingRegex", expression: brandRegex }] },
         ],
-        rowLimit: 25,
+        // Sum over ALL matching queries (see brand query above).
+        rowLimit: 25000,
       },
     });
 
