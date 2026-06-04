@@ -2,6 +2,7 @@
 
 import { useAllFormFields, useDocumentInfo } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
+import { MonthlyKeywordSelection } from './MonthlyKeywordSelection'
 
 type ClientLinkData = {
   clientId: string
@@ -82,24 +83,12 @@ export default function MonthlyNegativeKeywordsLink() {
     )
   }
 
-  const href = `/admin/monthly-keyword-selection?clientId=${encodeURIComponent(resolvedClient.clientId)}&customerId=${encodeURIComponent(resolvedClient.customerId)}&slug=${encodeURIComponent(resolvedClient.slug)}`
-
   return (
-    <div style={{ margin: '12px 0 20px', padding: 14, border: '1px solid #bbf7d0', borderRadius: 8, background: '#ecfdf5' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>Monthly negative KWs</div>
-          <div style={{ fontSize: 12, color: '#166534', marginTop: 2 }}>
-            Review complete-month search terms and apply approved negatives to this client&apos;s active lists.
-          </div>
-        </div>
-        <a
-          href={href}
-          style={{ padding: '8px 12px', borderRadius: 6, background: '#15803d', color: '#fff', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}
-        >
-          Open monthly negative KWs
-        </a>
-      </div>
-    </div>
+    <MonthlyKeywordSelection
+      clientId={resolvedClient.clientId}
+      customerId={resolvedClient.customerId}
+      slug={resolvedClient.slug}
+      isAdmin
+    />
   )
 }
