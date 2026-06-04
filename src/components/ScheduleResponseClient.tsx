@@ -180,9 +180,15 @@ function renderFormattedMeetingTopic(text: string) {
   })
 }
 
-export default function ScheduleResponseClient({ token }: { token: string }) {
-  const [data, setData] = useState<MeetingData | null>(null)
-  const [loading, setLoading] = useState(true)
+export default function ScheduleResponseClient({
+  token,
+  previewData,
+}: {
+  token: string
+  previewData?: MeetingData
+}) {
+  const [data, setData] = useState<MeetingData | null>(previewData || null)
+  const [loading, setLoading] = useState(!previewData)
   const [error, setError] = useState<string | null>(null)
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
@@ -194,8 +200,25 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
   const [additionalAttendeeName, setAdditionalAttendeeName] = useState('')
   const [additionalAttendeeEmail, setAdditionalAttendeeEmail] = useState('')
   const [showAdditionalAttendee, setShowAdditionalAttendee] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
+    const updateIsMobile = () => setIsMobile(window.innerWidth < 760)
+    updateIsMobile()
+    window.addEventListener('resize', updateIsMobile)
+    return () => window.removeEventListener('resize', updateIsMobile)
+  }, [])
+
+  useEffect(() => {
+    if (previewData) {
+      setLoading(false)
+      if (previewData.responded) {
+        setSubmitted(true)
+        setSelectedSlots(new Set(previewData.selectedSlots))
+      }
+      return
+    }
+
     fetch(`/api/meeting-schedulers/respond/${token}`)
       .then((r) => {
         if (!r.ok) throw new Error('Not found')
@@ -210,7 +233,7 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
       })
       .catch(() => setError('This scheduling link is not valid or has expired.'))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [token, previewData])
 
   const dayGroups = useMemo(() => {
     if (!data) return []
@@ -408,8 +431,101 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
     )
   }
 
+  const meetingDetails = (
+    <section style={{ ...styles.meetingPanel, ...(isMobile ? styles.mobileMeetingPanel : {}) }}>
+      <div style={styles.titleRow}>
+        <p style={styles.kicker}>Meeting details</p>
+        {data.attendeeEmail && (
+          <span style={styles.attendeeBadge}>
+            Private link for <strong>{data.attendeeEmail}</strong>
+          </span>
+        )}
+      </div>
+      <h2 style={styles.title}>{data.title}</h2>
+      <div style={styles.metaChips}>
+        <span style={styles.metaChip}>{data.durationMinutes}min meeting</span>
+        <span style={styles.metaChip}>Calendar invite sent after match</span>
+      </div>
+      {data.meetingTopic && (
+        <div style={styles.topic}>
+          <p style={styles.topicHeading}>What's covered</p>
+          <div>{renderFormattedMeetingTopic(data.meetingTopic)}</div>
+        </div>
+      )}
+      {data.attendeeEmails && data.attendeeEmails.length > 0 && (
+        <div style={styles.attendeesLine}>
+          <strong>Attendees:</strong>
+          <div style={styles.attendeesList}>
+            {data.attendeeEmails.map((email) => (
+              <span key={email}>{email}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+
+  const availabilitySelector = (
+    <section style={{ ...styles.availabilityPanel, ...(isMobile ? styles.mobileAvailabilityPanel : {}) }}>
+      <div style={styles.availabilityHeader}>
+        <div style={styles.availabilityHeadingBlock}>
+          <p style={styles.kicker}>Availability</p>
+          <h3 style={styles.availabilityTitle}>Select your free calendar times</h3>
+        </div>
+        <span style={styles.selectionCount}>{selectedSlots.size} selected</span>
+      </div>
+      <p style={styles.instructions}>
+        Once everyone has responded, we'll match availability and send a calendar invite for the first slot that works for all attendees.
+      </p>
+
+      <div
+        style={{
+          ...styles.daysGrid,
+          gridTemplateColumns: dayGroups.length > 1 ? 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))' : '1fr',
+        }}
+      >
+        {dayGroups.map((group) => {
+          const allDaySlotsSelected = group.slots.every((slot) => selectedSlots.has(slot.iso))
+
+          return (
+            <div key={group.dateKey} style={{ ...styles.timeSection, ...(isMobile ? styles.mobileTimeSection : {}) }}>
+              <div style={styles.timeSectionHeader}>
+                <div style={styles.timeSectionTitleBlock}>
+                  <p style={styles.timeSectionLabel}>{group.label}</p>
+                  <p style={styles.timeSectionMeta}>{data.durationMinutes} min meeting ({group.timezoneLabel})</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleDaySlots(group.slots)}
+                  style={styles.selectDayButton}
+                >
+                  {allDaySlotsSelected ? 'Clear all' : 'Select all'}
+                </button>
+              </div>
+              <div style={styles.timeGrid}>
+                {group.slots.map((slot) => (
+                  <button
+                    key={slot.iso}
+                    type="button"
+                    onClick={() => toggleSlot(slot.iso)}
+                    style={{
+                      ...styles.timeSlot,
+                      ...(selectedSlots.has(slot.iso) ? styles.timeSlotActive : {}),
+                    }}
+                  >
+                    {slot.timeLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+
   return (
-    <div style={styles.wrapper}>
+    <div style={{ ...styles.wrapper, ...(isMobile ? styles.mobileWrapper : {}) }}>
       <div style={styles.siteHeader}>
         <p style={styles.logoEyebrow}>Meeting scheduler by</p>
         <img
@@ -418,77 +534,14 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
           style={styles.logo}
         />
       </div>
-      <div style={styles.card}>
-        <div style={styles.body}>
-          <div style={styles.titleRow}>
-            <h2 style={styles.title}>{data.title}</h2>
-            {data.attendeeEmail && (
-              <span style={styles.attendeeBadge}>
-                Booking for <strong>{data.attendeeEmail}</strong>. This link is unique to you.
-              </span>
-            )}
-          </div>
-          {data.meetingTopic && (
-            <div style={styles.topic}>
-              <p style={styles.topicHeading}>What's covered:</p>
-              <div>{renderFormattedMeetingTopic(data.meetingTopic)}</div>
+      <div style={{ ...styles.card, ...(isMobile ? styles.mobileCard : {}) }}>
+        <div style={{ ...styles.body, ...(isMobile ? styles.mobileBody : {}) }}>
+          {isMobile ? availabilitySelector : (
+            <div style={styles.contentGrid}>
+              {meetingDetails}
+              {availabilitySelector}
             </div>
           )}
-          {data.attendeeEmails && data.attendeeEmails.length > 0 && (
-            <p style={styles.attendeesLine}>
-              <strong>Attendees:</strong> {data.attendeeEmails.join(', ')}
-            </p>
-          )}
-
-          <div style={styles.availabilityPanel}>
-            <p style={styles.instructions}>
-              Select every time that works for you below. Once everyone has responded, we'll automatically match availability and send a calendar invite for the first slot that works for all attendees.
-            </p>
-
-            <div
-              style={{
-                ...styles.daysGrid,
-                gridTemplateColumns: dayGroups.length > 1 ? 'repeat(2, minmax(0, 1fr))' : '1fr',
-              }}
-            >
-              {dayGroups.map((group) => {
-                const allDaySlotsSelected = group.slots.every((slot) => selectedSlots.has(slot.iso))
-
-                return (
-                  <div key={group.dateKey} style={styles.timeSection}>
-                    <div style={styles.timeSectionHeader}>
-                      <div style={styles.timeSectionTitleBlock}>
-                        <p style={styles.timeSectionLabel}>{group.label}</p>
-                        <p style={styles.timeSectionMeta}>{data.durationMinutes} min meeting ({group.timezoneLabel})</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => toggleDaySlots(group.slots)}
-                        style={styles.selectDayButton}
-                      >
-                        {allDaySlotsSelected ? 'Clear all' : 'Select all'}
-                      </button>
-                    </div>
-                    <div style={styles.timeGrid}>
-                      {group.slots.map((slot) => (
-                        <button
-                          key={slot.iso}
-                          type="button"
-                          onClick={() => toggleSlot(slot.iso)}
-                          style={{
-                            ...styles.timeSlot,
-                            ...(selectedSlots.has(slot.iso) ? styles.timeSlotActive : {}),
-                          }}
-                        >
-                          {slot.timeLabel}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
 
           {error && <p style={styles.errorText}>{error}</p>}
 
@@ -542,6 +595,8 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
                 : `Submit availability (${selectedSlots.size} selected)`}
             </button>
           )}
+
+          {isMobile && meetingDetails}
         </div>
       </div>
     </div>
@@ -551,17 +606,17 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
     minHeight: '100vh',
-    background: '#ffffff',
+    background: 'linear-gradient(180deg, #ffffff 0%, #f8f9fb 56%, #eef4fb 100%)',
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
-    padding: '16px 16px 40px',
+    padding: '20px 16px 48px',
     fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
   },
   siteHeader: {
     width: '100%',
-    maxWidth: 960,
-    padding: '0 4px 14px',
+    maxWidth: 1180,
+    padding: '0 4px 16px',
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
@@ -570,66 +625,106 @@ const styles: Record<string, React.CSSProperties> = {
   },
   logoEyebrow: {
     margin: 0,
-    fontSize: 11,
-    fontWeight: 600,
-    color: '#64748b',
-    letterSpacing: '0.03em',
+    fontSize: 13,
+    fontWeight: 700,
+    color: '#476788',
+    letterSpacing: '0.08em',
     transform: 'translateX(-4px)',
   },
   card: {
     width: '100%',
-    maxWidth: 960,
-    background: '#f1f5f9',
-    borderRadius: 12,
+    maxWidth: 1180,
+    background: '#ffffff',
+    borderRadius: 24,
     overflow: 'hidden',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+    border: '1px solid #e7edf6',
+    boxShadow: '0 4px 5px rgba(71,103,136,0.04), 0 8px 15px rgba(71,103,136,0.03), 0 30px 50px rgba(71,103,136,0.08)',
   },
   logo: {
-    height: 15.4,
+    height: 22,
     width: 'auto',
     display: 'block',
   },
   body: {
-    padding: '18px 20px 22px',
+    padding: '28px',
+  },
+  contentGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))',
+    gap: 24,
+    alignItems: 'start',
+  },
+  meetingPanel: {
+    minHeight: '100%',
+    padding: '28px',
+    background: '#f8f9fb',
+    border: '1px solid #e7edf6',
+    borderRadius: 18,
   },
   titleRow: {
     display: 'flex',
-    alignItems: 'baseline',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 16,
+    gap: 12,
     flexWrap: 'wrap' as const,
-    margin: '0 0 6px',
+    margin: '0 0 14px',
+  },
+  kicker: {
+    margin: 0,
+    fontSize: 11,
+    fontWeight: 800,
+    color: '#006bff',
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase' as const,
   },
   title: {
     margin: 0,
-    fontSize: 19,
-    fontWeight: 600,
-    color: '#0f172a',
+    fontSize: 26,
+    lineHeight: 1.16,
+    letterSpacing: '-0.03em',
+    fontWeight: 750,
+    color: '#0b3558',
+  },
+  metaChips: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: 8,
+    margin: '18px 0 22px',
+  },
+  metaChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '6px 10px',
+    borderRadius: 999,
+    background: '#e7edf6',
+    color: '#004eba',
+    fontSize: 12,
+    fontWeight: 700,
   },
   topic: {
-    margin: '0 0 6px',
-    fontSize: 13,
-    color: '#64748b',
-    lineHeight: 1.45,
+    margin: '0 0 12px',
+    fontSize: 15,
+    color: '#476788',
+    lineHeight: 1.65,
   },
   topicHeading: {
-    margin: '0 0 4px',
-    fontSize: 13,
-    fontWeight: 700,
-    color: '#64748b',
+    margin: '0 0 8px',
+    fontSize: 15,
+    fontWeight: 800,
+    color: '#0b3558',
   },
   topicParagraph: {
-    margin: '0 0 4px',
-    fontSize: 13,
-    color: '#64748b',
-    lineHeight: 1.45,
+    margin: '0 0 8px',
+    fontSize: 15,
+    color: '#476788',
+    lineHeight: 1.6,
   },
   topicList: {
-    margin: '0 0 4px 18px',
+    margin: '0 0 10px 18px',
     padding: 0,
-    fontSize: 13,
-    color: '#64748b',
-    lineHeight: 1.45,
+    fontSize: 15,
+    color: '#476788',
+    lineHeight: 1.6,
   },
   meta: {
     margin: '0 0 8px',
@@ -637,47 +732,87 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#94a3b8',
   },
   attendeesLine: {
-    margin: '6px 0 12px',
-    fontSize: 13,
-    color: '#64748b',
-    lineHeight: 1.45,
+    margin: '18px 0 0',
+    fontSize: 14,
+    color: '#476788',
+    lineHeight: 1.55,
+  },
+  attendeesList: {
+    display: 'grid',
+    gap: 2,
+    marginTop: 4,
   },
   attendeeBadge: {
+    padding: '3px 9px',
+    borderRadius: 999,
+    background: '#ffffff',
+    border: '1px solid #d4e0ed',
     fontSize: 12,
-    color: '#64748b',
+    lineHeight: 1.35,
+    color: '#476788',
     whiteSpace: 'nowrap' as const,
   },
   availabilityPanel: {
-    margin: '20px 0 4px',
-    padding: '12px',
+    padding: '28px',
     background: '#ffffff',
-    border: '1px solid #cbd5e1',
-    borderRadius: 10,
+    border: '1px solid #d4e0ed',
+    borderRadius: 18,
+    boxShadow: '0 4px 5px rgba(71,103,136,0.04), 0 8px 15px rgba(71,103,136,0.03), 0 18px 34px rgba(71,103,136,0.07)',
+  },
+  availabilityHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+    margin: '0 0 8px',
+  },
+  availabilityHeadingBlock: {
+    flex: '1 1 auto',
+    minWidth: 0,
+  },
+  availabilityTitle: {
+    margin: '14px 0 0',
+    color: '#0b3558',
+    fontSize: 24,
+    lineHeight: 1.2,
+    letterSpacing: '-0.02em',
+    whiteSpace: 'nowrap' as const,
+  },
+  selectionCount: {
+    flex: '0 0 auto',
+    padding: '5px 8px',
+    borderRadius: 999,
+    background: '#f8f9fb',
+    color: '#476788',
+    fontSize: 12,
+    fontWeight: 700,
   },
   instructions: {
     margin: '0 0 12px',
-    padding: '8px 12px',
-    background: '#eff6ff',
-    borderLeft: '3px solid #2563eb',
-    borderRadius: 4,
+    padding: '0 0 0 10px',
+    background: 'transparent',
+    borderLeft: '3px solid #006bff',
     fontSize: 13,
-    lineHeight: 1.45,
-    color: '#334155',
+    lineHeight: 1.4,
+    fontWeight: 600,
+    color: '#476788',
   },
   daysGrid: {
     display: 'grid',
     gap: 10,
+    minWidth: 0,
   },
   timeSection: {
-    padding: '10px 10px',
-    background: '#f8fafc',
-    borderRadius: 8,
-    border: '1px solid #e2e8f0',
+    minWidth: 0,
+    padding: '10px 14px 14px',
+    background: '#f8f9fb',
+    borderRadius: 16,
+    border: '1px solid #e7edf6',
   },
   timeSectionHeader: {
     display: 'flex',
     alignItems: 'flex-start',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     gap: 8,
     margin: '0 0 8px',
     flexWrap: 'wrap' as const,
@@ -687,61 +822,59 @@ const styles: Record<string, React.CSSProperties> = {
   },
   timeSectionLabel: {
     margin: 0,
-    fontSize: 12,
-    fontWeight: 600,
-    color: '#334155',
+    fontSize: 13,
+    fontWeight: 800,
+    color: '#0b3558',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
   },
   timeSectionMeta: {
-    margin: '-1px 0 0',
-    fontSize: 11,
-    color: '#94a3b8',
+    margin: '-2px 0 0',
+    fontSize: 12,
+    color: '#476788',
   },
   selectDayButton: {
     flex: '0 0 auto',
     padding: '6px 10px',
-    border: '1px solid #2563eb',
+    border: '1px solid #006bff',
     borderRadius: 999,
-    background: '#2563eb',
+    background: '#006bff',
     color: '#ffffff',
     fontSize: 11,
     fontWeight: 700,
     cursor: 'pointer',
-    boxShadow: '0 1px 2px rgba(37,99,235,0.25)',
+    boxShadow: '0 8px 16px rgba(0,107,255,0.18)',
   },
   timeGrid: {
     display: 'grid',
-    gridTemplateRows: 'repeat(3, auto)',
-    gridAutoFlow: 'column' as const,
-    gridAutoColumns: 'minmax(82px, 1fr)',
-    gap: 5,
-    overflowX: 'auto' as const,
-    paddingBottom: 2,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(82px, 1fr))',
+    gap: 6,
+    minWidth: 0,
   },
   timeSlot: {
-    padding: '6px 10px',
-    border: '2px solid #e2e8f0',
-    borderRadius: 6,
+    padding: '7px 8px',
+    border: '1px solid #d4e0ed',
+    borderRadius: 9,
     background: '#ffffff',
-    color: '#475569',
+    color: '#0b3558',
     fontSize: 13,
-    fontWeight: 500,
+    fontWeight: 700,
     cursor: 'pointer',
     transition: 'all 0.15s',
     textAlign: 'center' as const,
   },
   timeSlotActive: {
-    border: '2px solid #2563eb',
-    background: '#dbeafe',
-    color: '#1e40af',
+    border: '1px solid #006bff',
+    background: '#006bff',
+    color: '#ffffff',
+    boxShadow: '0 8px 16px rgba(0,107,255,0.18)',
   },
   additionalAttendeeBox: {
-    marginTop: 16,
-    padding: '12px',
+    marginTop: 18,
+    padding: '16px',
     background: '#ffffff',
-    border: '1px solid #e2e8f0',
-    borderRadius: 8,
+    border: '1px solid #d4e0ed',
+    borderRadius: 14,
   },
   additionalAttendeeToggle: {
     display: 'flex',
@@ -751,7 +884,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 0,
     border: 'none',
     background: 'transparent',
-    color: '#334155',
+    color: '#0b3558',
     fontSize: 13,
     fontWeight: 600,
     textAlign: 'left' as const,
@@ -764,7 +897,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 22,
     height: 22,
     borderRadius: 999,
-    background: '#2563eb',
+    background: '#006bff',
     color: '#ffffff',
     fontSize: 16,
     lineHeight: 1,
@@ -785,23 +918,56 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     boxSizing: 'border-box' as const,
     padding: '10px 12px',
-    border: '1px solid #cbd5e1',
-    borderRadius: 6,
-    color: '#0f172a',
+    border: '1px solid #d4e0ed',
+    borderRadius: 10,
+    color: '#0b3558',
     fontSize: 14,
     background: '#ffffff',
   },
   confirmButton: {
     width: '100%',
-    padding: '12px 24px',
-    background: '#2563eb',
+    padding: '14px 24px',
+    background: '#006bff',
     color: '#ffffff',
     border: 'none',
-    borderRadius: 8,
+    borderRadius: 999,
     fontSize: 14,
     fontWeight: 600,
     marginTop: 14,
     cursor: 'pointer',
+  },
+  mobileWrapper: {
+    padding: '16px 0 32px',
+    background: '#ffffff',
+    alignItems: 'stretch',
+  },
+  mobileCard: {
+    maxWidth: 'none',
+    border: 'none',
+    borderRadius: 0,
+    boxShadow: 'none',
+  },
+  mobileBody: {
+    padding: '0 14px 20px',
+  },
+  mobileAvailabilityPanel: {
+    padding: '12px',
+    border: '1px solid #e7edf6',
+    borderRadius: 14,
+    boxShadow: 'none',
+  },
+  mobileMeetingPanel: {
+    minHeight: 'auto',
+    marginTop: 18,
+    padding: '18px 0 0',
+    background: 'transparent',
+    border: 'none',
+    borderRadius: 0,
+  },
+  mobileTimeSection: {
+    borderLeft: 'none',
+    borderRight: 'none',
+    borderRadius: 12,
   },
   loadingText: {
     textAlign: 'center' as const,
