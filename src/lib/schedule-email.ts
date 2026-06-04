@@ -59,6 +59,7 @@ export function generateScheduleInviteEmail(opts: {
   durationMinutes: string;
   attendeeEmails: string[];
   scheduleUrl: string;
+  suggestedByName?: string;
 }): string {
   const attendeeEmails = opts.attendeeEmails.filter((email) => email.trim().length > 0);
   const attendeesLine = attendeeEmails.length > 0
@@ -68,10 +69,14 @@ export function generateScheduleInviteEmail(opts: {
     ? `<p style="margin:0 0 16px;font-size:14px;color:#64748b;"><strong style="color:#1e293b;">What's covered:</strong> ${escapeHtml(opts.meetingTopic)}</p>`
     : "";
 
+  const introLine = opts.suggestedByName
+    ? `${escapeHtml(opts.suggestedByName)} suggested you join this meeting. Please select your availability and we will automatically send a time that works for everyone.`
+    : "To save everyone time, please select your availability below. This is an automated scheduling process, and a calendar invitation will be sent automatically once a time is found that works for all attendees.";
+
   const content = `
     <p style="margin:0 0 16px;font-size:15px;color:#334155;">Hi ${escapeHtml(opts.recipientName)},</p>
     <p style="margin:0 0 16px;font-size:15px;color:#334155;">
-      We would like to schedule a meeting with you. Please select your availability from the times below so we can find a time that works for everyone.
+      ${introLine}
     </p>
     <p style="margin:0 0 8px;font-size:14px;color:#64748b;">
       <strong style="color:#1e293b;">Meeting:</strong> ${escapeHtml(opts.meetingTitle)}

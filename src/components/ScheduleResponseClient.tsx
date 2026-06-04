@@ -132,6 +132,7 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
   } | null>(null)
   const [additionalAttendeeName, setAdditionalAttendeeName] = useState('')
   const [additionalAttendeeEmail, setAdditionalAttendeeEmail] = useState('')
+  const [showAdditionalAttendee, setShowAdditionalAttendee] = useState(false)
 
   useEffect(() => {
     fetch(`/api/meeting-schedulers/respond/${token}`)
@@ -218,6 +219,7 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
     return (
       <div style={styles.wrapper}>
         <div style={styles.siteHeader}>
+          <p style={styles.logoEyebrow}>Meeting scheduler by</p>
           <img
             src="/Optimise-Digital-Logo-rocket-animation (larger file).gif"
             alt="Optimise Digital"
@@ -248,6 +250,7 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
     return (
       <div style={styles.wrapper}>
         <div style={styles.siteHeader}>
+          <p style={styles.logoEyebrow}>Meeting scheduler by</p>
           <img
             src="/Optimise-Digital-Logo-rocket-animation (larger file).gif"
             alt="Optimise Digital"
@@ -273,6 +276,7 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
     return (
       <div style={styles.wrapper}>
         <div style={styles.siteHeader}>
+          <p style={styles.logoEyebrow}>Meeting scheduler by</p>
           <img
             src="/Optimise-Digital-Logo-rocket-animation (larger file).gif"
             alt="Optimise Digital"
@@ -315,6 +319,7 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
     return (
       <div style={styles.wrapper}>
         <div style={styles.siteHeader}>
+          <p style={styles.logoEyebrow}>Meeting scheduler by</p>
           <img
             src="/Optimise-Digital-Logo-rocket-animation (larger file).gif"
             alt="Optimise Digital"
@@ -345,6 +350,7 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
   return (
     <div style={styles.wrapper}>
       <div style={styles.siteHeader}>
+        <p style={styles.logoEyebrow}>Meeting scheduler by</p>
         <img
           src="/Optimise-Digital-Logo-rocket-animation (larger file).gif"
           alt="Optimise Digital"
@@ -362,9 +368,6 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
             )}
           </div>
           {data.meetingTopic && <p style={styles.topic}>{data.meetingTopic}</p>}
-          <p style={styles.meta}>
-            {data.durationMinutes} min meeting ({data.timezone})
-          </p>
           {data.attendeeEmails && data.attendeeEmails.length > 0 && (
             <p style={styles.attendeesLine}>
               <strong>Attendees:</strong> {data.attendeeEmails.join(', ')}
@@ -382,7 +385,10 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
               return (
                 <div key={group.dateKey} style={styles.timeSection}>
                   <div style={styles.timeSectionHeader}>
-                    <p style={styles.timeSectionLabel}>{group.label}</p>
+                    <div style={styles.timeSectionTitleBlock}>
+                      <p style={styles.timeSectionLabel}>{group.label}</p>
+                      <p style={styles.timeSectionMeta}>{data.durationMinutes} min meeting ({data.timezone})</p>
+                    </div>
                     <button
                       type="button"
                       onClick={() => toggleDaySlots(group.slots)}
@@ -413,25 +419,39 @@ export default function ScheduleResponseClient({ token }: { token: string }) {
 
           {error && <p style={styles.errorText}>{error}</p>}
 
-          <div style={styles.additionalAttendeeBox}>
-            <p style={styles.additionalAttendeeTitle}>Should anyone else be in this meeting?</p>
-            <div style={styles.additionalAttendeeGrid}>
-              <input
-                type="text"
-                value={additionalAttendeeName}
-                onChange={(event) => setAdditionalAttendeeName(event.target.value)}
-                placeholder="First name"
-                style={styles.additionalAttendeeInput}
-              />
-              <input
-                type="email"
-                value={additionalAttendeeEmail}
-                onChange={(event) => setAdditionalAttendeeEmail(event.target.value)}
-                placeholder="Email"
-                style={styles.additionalAttendeeInput}
-              />
+          {selectedSlots.size > 0 && (
+            <div style={styles.additionalAttendeeBox}>
+              <button
+                type="button"
+                onClick={() => setShowAdditionalAttendee((open) => !open)}
+                style={styles.additionalAttendeeToggle}
+              >
+                <span style={styles.additionalAttendeePlus}>+</span>
+                Should anyone else be in this meeting?
+              </button>
+              {showAdditionalAttendee && (
+                <>
+                  <p style={styles.additionalAttendeeNote}>Add their details and we'll send them this invite too.</p>
+                  <div style={styles.additionalAttendeeGrid}>
+                    <input
+                      type="text"
+                      value={additionalAttendeeName}
+                      onChange={(event) => setAdditionalAttendeeName(event.target.value)}
+                      placeholder="First name"
+                      style={styles.additionalAttendeeInput}
+                    />
+                    <input
+                      type="email"
+                      value={additionalAttendeeEmail}
+                      onChange={(event) => setAdditionalAttendeeEmail(event.target.value)}
+                      placeholder="Email"
+                      style={styles.additionalAttendeeInput}
+                    />
+                  </div>
+                </>
+              )}
             </div>
-          </div>
+          )}
 
           {selectedSlots.size > 0 && (
             <button
@@ -470,7 +490,17 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 960,
     padding: '6px 4px 14px',
     display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
+  },
+  logoEyebrow: {
+    margin: 0,
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#64748b',
+    letterSpacing: '0.03em',
   },
   card: {
     width: '100%',
@@ -548,10 +578,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   timeSectionHeader: {
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    gap: 8,
     margin: '0 0 8px',
+    flexWrap: 'wrap' as const,
+  },
+  timeSectionTitleBlock: {
+    flex: '0 1 auto',
   },
   timeSectionLabel: {
     margin: 0,
@@ -561,16 +595,22 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
   },
+  timeSectionMeta: {
+    margin: '2px 0 0',
+    fontSize: 11,
+    color: '#94a3b8',
+  },
   selectDayButton: {
     flex: '0 0 auto',
-    padding: '4px 8px',
-    border: '1px solid #bfdbfe',
+    padding: '6px 10px',
+    border: '1px solid #2563eb',
     borderRadius: 999,
-    background: '#eff6ff',
-    color: '#1d4ed8',
+    background: '#2563eb',
+    color: '#ffffff',
     fontSize: 11,
-    fontWeight: 600,
+    fontWeight: 700,
     cursor: 'pointer',
+    boxShadow: '0 1px 2px rgba(37,99,235,0.25)',
   },
   timeGrid: {
     display: 'grid',
@@ -605,11 +645,38 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #e2e8f0',
     borderRadius: 8,
   },
-  additionalAttendeeTitle: {
-    margin: '0 0 10px',
+  additionalAttendeeToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: 0,
+    border: 'none',
+    background: 'transparent',
+    color: '#334155',
     fontSize: 13,
     fontWeight: 600,
-    color: '#334155',
+    textAlign: 'left' as const,
+    cursor: 'pointer',
+  },
+  additionalAttendeePlus: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    background: '#2563eb',
+    color: '#ffffff',
+    fontSize: 16,
+    lineHeight: 1,
+    fontWeight: 700,
+  },
+  additionalAttendeeNote: {
+    margin: '10px 0 10px',
+    fontSize: 12,
+    color: '#64748b',
+    lineHeight: 1.4,
   },
   additionalAttendeeGrid: {
     display: 'grid',

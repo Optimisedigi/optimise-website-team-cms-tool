@@ -159,6 +159,10 @@ export async function POST(
   if (!doc) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  const currentAttendee = findAttendeeByToken(doc, token);
+  if (!currentAttendee) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   if (doc.status === "confirmed") {
     return NextResponse.json(
@@ -309,6 +313,7 @@ export async function POST(
             durationMinutes: doc.durationMinutes || "30",
             attendeeEmails: updatedAttendees.map((a: any) => a.email).filter(Boolean),
             scheduleUrl,
+            suggestedByName: currentAttendee.name || currentAttendee.email,
           }),
         }),
       });
