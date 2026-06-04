@@ -561,7 +561,7 @@ const styles: Record<string, React.CSSProperties> = {
   siteHeader: {
     width: '100%',
     maxWidth: 960,
-    padding: '6px 4px 14px',
+    padding: '3px 4px 14px',
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
@@ -616,7 +616,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '0 0 4px',
     fontSize: 13,
     fontWeight: 700,
-    color: '#334155',
+    color: '#64748b',
   },
   topicParagraph: {
     margin: '0 0 4px',
@@ -637,8 +637,8 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#94a3b8',
   },
   attendeesLine: {
-    margin: '0 0 12px',
-    fontSize: 12,
+    margin: '3px 0 12px',
+    fontSize: 13,
     color: '#64748b',
     lineHeight: 1.45,
   },
