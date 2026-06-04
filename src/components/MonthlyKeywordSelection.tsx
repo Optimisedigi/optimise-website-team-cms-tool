@@ -168,7 +168,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   }
 
   const rebuild = async () => {
-    if (!window.confirm('Clear the cached monthly terms for this client and re-pull all complete months?')) return
+    const confirmed = window.confirm(
+      'Warning: Rebuild clears the cached monthly search-term data for this client and then re-pulls every complete month from Google Ads. This can take longer and should only be used if the cached data looks wrong. Continue?',
+    )
+    if (!confirmed) return
     const res = await fetch('/api/monthly-keyword-selection/clear', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -190,7 +193,24 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button type="button" onClick={load} disabled={loading} style={{ padding: '8px 12px' }}>{loading ? 'Refreshing…' : 'Refresh'}</button>
-          {isAdmin && <button type="button" onClick={rebuild} style={{ padding: '8px 12px', color: '#b91c1c' }}>Rebuild</button>}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={rebuild}
+              title="Admin only: clears this client's cached complete-month terms and re-pulls all complete months. Use only if cached data looks wrong."
+              aria-label="Rebuild monthly keyword cache"
+              style={{
+                padding: '4px 8px',
+                fontSize: 11,
+                lineHeight: 1.2,
+                color: '#b91c1c',
+                borderColor: '#fecaca',
+                background: '#fff7f7',
+              }}
+            >
+              Rebuild ⚠
+            </button>
+          )}
         </div>
       </div>
 
