@@ -38,7 +38,7 @@ function RocketSplash() {
           from { transform: scaleY(1); }
           to { transform: scaleY(1.15); }
         }
-        .od-splash { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 320px; gap: 24px; }
+        .od-splash { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 380px; gap: 24px; }
         .od-splash__scene { position: relative; width: 80px; height: 140px; }
         .od-splash__rocket { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); animation: od-rocket-loop 2.6s cubic-bezier(0.4,0,0.2,1) infinite; z-index: 2; }
         .od-splash__rocket img { display: block; width: 48px; height: 48px; object-fit: contain; transform: rotate(-30deg); }
@@ -561,7 +561,7 @@ const styles: Record<string, React.CSSProperties> = {
   siteHeader: {
     width: '100%',
     maxWidth: 960,
-    padding: '3px 4px 14px',
+    padding: '0 4px 14px',
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
@@ -574,7 +574,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     color: '#64748b',
     letterSpacing: '0.03em',
-    transform: 'translateX(-2px)',
+    transform: 'translateX(-4px)',
   },
   card: {
     width: '100%',
@@ -637,7 +637,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#94a3b8',
   },
   attendeesLine: {
-    margin: '3px 0 12px',
+    margin: '6px 0 12px',
     fontSize: 13,
     color: '#64748b',
     lineHeight: 1.45,
