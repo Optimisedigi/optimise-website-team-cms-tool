@@ -83,7 +83,7 @@ const METRIC_CONFIG: Record<
     color: "#8b5cf6",
     format: (v) => `${v.toFixed(1)}%`,
     description:
-      "Share of each month's NON-BRAND spend that did NOT go to search terms currently flagged as irrelevant. Brand searches are excluded from the denominator since they're always relevant by definition (you don't negate your own brand). Higher is better. Tells the story 'how much non-brand budget would today's negative keyword list have saved each month if it had been in place then' \u2014 the line dips during months heavy with terms we now block, and rises when those terms barely spent.",
+      "How much of your budget reached the right kind of searches each month. We set aside people searching for your brand name (those are always a good match) and look at everything else \u2014 the higher the percentage, the more of your spend went to relevant searches instead of being wasted on the wrong ones. The line rises in months where your budget was well spent, and dips in months where more of it went to searches we've since blocked.",
   },
 };
 
@@ -585,11 +585,11 @@ export function ProgressTab({
   }, []);
 
   const [clearingCache, setClearingCache] = useState(false);
-  // Competitor / brand negatives are excluded from the relevancy % by default
-  // (they block non-converting-but-not-irrelevant traffic). Toggle them on to
-  // fold that spend back into the metric — useful for showing a client the
-  // full picture. Default OFF.
-  const [includeCompetitor, setIncludeCompetitor] = useState(false);
+  // Brand negatives are excluded from the relevancy % by default; competitor
+  // negatives are folded in by default (toggle off to exclude). Both block
+  // non-converting-but-not-irrelevant traffic — toggling fold them in/out of
+  // the metric, useful when showing a client the full picture.
+  const [includeCompetitor, setIncludeCompetitor] = useState(true);
   const [includeBrand, setIncludeBrand] = useState(false);
   const handleClearRelevancyCache = useCallback(async () => {
     if (!clientId) return;
@@ -831,10 +831,10 @@ export function ProgressTab({
           change={null}
           hint={
             relevancyRate == null
-              ? "Share of NON-BRAND ad spend on search terms that are either converting or haven't been flagged as irrelevant. Brand searches are excluded from the denominator since they're always relevant by definition. We'll start tracking this once spend data is available."
+              ? "The share of your budget that reached relevant searches. We set aside people searching for your brand name (always a good match) and look at the rest. We'll start tracking this once spend data is available."
               : irrelevantTerms.length === 0
-                ? `Share of NON-BRAND ad spend on search terms that are either converting or haven't been flagged as irrelevant. Brand searches are excluded from the denominator since they're always relevant by definition. ${brandRatio > 0 ? `Currently ~${Math.round(brandRatio * 100)}% of total spend is brand. ` : ""}No terms have been marked irrelevant yet \u2014 review the Keyword Deep Dive tab regularly to keep this rate honest.`
-                : `Share of NON-BRAND ad spend on search terms that are either converting or haven't been flagged as irrelevant. Brand searches are excluded from the denominator since they're always relevant by definition. ${brandRatio > 0 ? `~${Math.round(brandRatio * 100)}% of total spend is brand and isn't counted. ` : ""}Currently $${Math.round(irrelevantSpend).toLocaleString()} across ${irrelevantTerms.length} term${irrelevantTerms.length !== 1 ? "s" : ""} is flagged irrelevant \u2014 ${(100 - relevancyRate).toFixed(0)}% of non-brand spend. To improve this: open the Keyword Deep Dive tab, flag irrelevant search terms for review, and the team will add them as negative keywords. Once excluded, those terms stop triggering ads and the rate rises in the next reporting period.`
+                ? `The share of your budget that reached relevant searches \u2014 higher is better. We set aside people searching for your brand name (always a good match) and look at the rest. ${brandRatio > 0 ? `Right now about ${Math.round(brandRatio * 100)}% of total spend is brand searches. ` : ""}No searches have been marked as a poor match yet \u2014 the team reviews these regularly to keep the figure accurate.`
+                : `The share of your budget that reached relevant searches \u2014 higher is better. We set aside people searching for your brand name (always a good match) and look at the rest. ${brandRatio > 0 ? `About ${Math.round(brandRatio * 100)}% of total spend is brand searches and isn't counted here. ` : ""}Right now $${Math.round(irrelevantSpend).toLocaleString()} across ${irrelevantTerms.length} search term${irrelevantTerms.length !== 1 ? "s" : ""} went to poor matches \u2014 about ${(100 - relevancyRate).toFixed(0)}% of the non-brand budget. As the team blocks these search terms, less budget is wasted on them and this figure rises in the next reporting period.`
           }
         />
         <StatCard
@@ -1517,13 +1517,13 @@ function generateInsights(
     } else if (relevancyRate < 90) {
       insights.push({
         icon: "\uD83C\uDFAF",
-        text: `Keyword relevancy is at ${relevancyRate.toFixed(0)}%. ${irrelevantTermCount} term${irrelevantTermCount !== 1 ? "s" : ""} flagged irrelevant ($${Math.round(irrelevantSpend).toLocaleString()} of spend) \u2014 review and submit them in the Keyword Deep Dive tab to push this above 90%.`,
+        text: `Keyword relevancy is at ${relevancyRate.toFixed(0)}%. ${irrelevantTermCount} search term${irrelevantTermCount !== 1 ? "s" : ""} went to poor matches ($${Math.round(irrelevantSpend).toLocaleString()} of spend) \u2014 as the team blocks these, more of your budget reaches the right searches and this climbs above 90%.`,
         type: "neutral",
       });
     } else {
       insights.push({
         icon: "\u2728",
-        text: `Keyword relevancy is strong at ${relevancyRate.toFixed(0)}%. Most of the budget is going to terms that are converting or haven't been flagged as irrelevant.`,
+        text: `Keyword relevancy is strong at ${relevancyRate.toFixed(0)}%. Most of your budget is reaching relevant searches.`,
         type: "positive",
       });
     }
