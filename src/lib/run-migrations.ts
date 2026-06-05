@@ -4035,6 +4035,66 @@ export async function runMigrations(
     await run("agency_kpi_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `agency_kpi_snapshots_updated_at_idx` ON `agency_kpi_snapshots` (`updated_at`)");
     await run("agency_kpi_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `agency_kpi_snapshots_created_at_idx` ON `agency_kpi_snapshots` (`created_at`)");
     await run("locked_docs_rels.agency_kpi_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agency_kpi_snapshots_id` integer REFERENCES `agency_kpi_snapshots`(`id`) ON DELETE cascade");
+
+    // ── Monthly negative keyword selections + terms cache (2026-07-01 / 2026-07-04) ──
+    // These collections ship in the Payload config + Drizzle migration index, but
+    // prod only applies THIS inline sweep (via /api/migrate, run by CI). Without
+    // this block the monthly-keyword tables are missing in prod and the
+    // /api/monthly-keyword-selection route 500s with an empty body, surfacing in
+    // the admin as "Unexpected end of JSON input". The selections array table
+    // includes the 2026-07-04 watch fields for fresh installs; the idempotent
+    // ALTERs add them to pre-existing tables. Keep in sync with
+    // src/migrations/20260701_120000_add_monthly_keyword_selection.ts and
+    // src/migrations/20260704_120000_add_monthly_keyword_watch_fields.ts.
+    await run("monthly_keyword_selections", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_selections\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`status\` text DEFAULT 'active',
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("monthly_keyword_selections_selections", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_selections_selections\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`year_month\` text NOT NULL,
+      \`search_term\` text NOT NULL,
+      \`negative_keyword\` text NOT NULL,
+      \`match_type\` text DEFAULT 'exact' NOT NULL,
+      \`decision\` text DEFAULT 'pending' NOT NULL,
+      \`watch_horizon_months\` numeric,
+      \`watch_until\` text,
+      \`applied_to_n_k_l_id\` integer,
+      \`applied_at\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`monthly_keyword_selections\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`applied_to_n_k_l_id\`) REFERENCES \`negative_keyword_lists\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("monthly_keyword_selections_selections.watch_horizon_months", "ALTER TABLE `monthly_keyword_selections_selections` ADD `watch_horizon_months` numeric");
+    await run("monthly_keyword_selections_selections.watch_until", "ALTER TABLE `monthly_keyword_selections_selections` ADD `watch_until` text");
+    await run("monthly_keyword_terms_cache", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_terms_cache\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`year_month\` text NOT NULL,
+      \`terms\` text NOT NULL,
+      \`review_complete\` integer DEFAULT false,
+      \`review_completed_at\` text,
+      \`review_completed_by_id\` integer,
+      \`fetched_at\` text NOT NULL,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`review_completed_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("monthly_keyword_selections_client_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `monthly_keyword_selections_client_idx` ON `monthly_keyword_selections` (`client_id`)");
+    await run("monthly_keyword_selections_status_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selections_status_idx` ON `monthly_keyword_selections` (`status`)");
+    await run("monthly_keyword_selections_selections_parent_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selections_selections_parent_idx` ON `monthly_keyword_selections_selections` (`_parent_id`)");
+    await run("monthly_keyword_selections_selections_order_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_selections_selections_order_idx` ON `monthly_keyword_selections_selections` (`_order`)");
+    await run("monthly_keyword_terms_cache_client_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_client_idx` ON `monthly_keyword_terms_cache` (`client_id`)");
+    await run("monthly_keyword_terms_cache_year_month_idx", "CREATE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_year_month_idx` ON `monthly_keyword_terms_cache` (`year_month`)");
+    await run("monthly_keyword_terms_cache_client_month_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_client_month_idx` ON `monthly_keyword_terms_cache` (`client_id`, `year_month`)");
+    await run("locked_docs_rels.monthly_keyword_selections_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_selections_id` integer REFERENCES `monthly_keyword_selections`(`id`) ON DELETE cascade");
+    await run("locked_docs_rels.monthly_keyword_terms_cache_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_terms_cache_id` integer REFERENCES `monthly_keyword_terms_cache`(`id`) ON DELETE cascade");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
