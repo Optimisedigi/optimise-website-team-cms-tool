@@ -2203,6 +2203,8 @@ export async function runMigrations(
     await run("att_idx_parent", "CREATE INDEX IF NOT EXISTS `meeting_schedulers_attendees_parent_idx` ON `meeting_schedulers_attendees` (`_parent_id`)");
     await run("att_idx_token", "CREATE UNIQUE INDEX IF NOT EXISTS `meeting_schedulers_attendees_token_idx` ON `meeting_schedulers_attendees` (`token`)");
     await run("meeting_schedulers_attendees_internal_confirmed", "ALTER TABLE `meeting_schedulers_attendees` ADD `internal_confirmed` integer DEFAULT 0");
+    // Accept / maybe / decline response per attendee (2026-07-02).
+    await run("meeting_schedulers_attendees_response", "ALTER TABLE `meeting_schedulers_attendees` ADD `response` text");
   
     // --- Negative List Builder (JSON column on google_ads_audits) ---
     await run("gads_negative_list_builder", "ALTER TABLE `google_ads_audits` ADD `negative_list_builder` text");
@@ -3291,6 +3293,17 @@ export async function runMigrations(
     await run(
       "notifications_related_approval_idx",
       "CREATE INDEX IF NOT EXISTS `notifications_related_approval_idx` ON `notifications` (`related_approval_id`)",
+    );
+
+    // Notifications gained a `relatedMeetingScheduler` field (2026-07-02) so
+    // bell rows for meeting accept/decline/confirmed link back to the scheduler.
+    await run(
+      "notifications.related_meeting_scheduler_id",
+      "ALTER TABLE `notifications` ADD `related_meeting_scheduler_id` integer REFERENCES `meeting_schedulers`(`id`) ON UPDATE no action ON DELETE set null",
+    );
+    await run(
+      "notifications_related_meeting_scheduler_idx",
+      "CREATE INDEX IF NOT EXISTS `notifications_related_meeting_scheduler_idx` ON `notifications` (`related_meeting_scheduler_id`)",
     );
 
     // ── Per-contract toggle: hide the tier table inside Annual Review (2026-05-19)
