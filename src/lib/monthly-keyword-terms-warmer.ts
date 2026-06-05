@@ -74,7 +74,11 @@ function trimMonthsToEarliestCached(months: string[], cache: Map<string, Monthly
   return months.filter((month) => month >= earliestCached)
 }
 
-function parseCachedTerms(value: unknown): { terms: MonthlyKeywordTerm[]; diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number } } {
+function parseCachedTerms(value: unknown): {
+  terms: MonthlyKeywordTerm[]
+  diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number }
+  pullDiagnostics?: WarmMonthlyKeywordTermsResult['diagnostics']
+} {
   const parsedValue = typeof value === 'string'
     ? (() => {
         try {
@@ -89,14 +93,26 @@ function parseCachedTerms(value: unknown): { terms: MonthlyKeywordTerm[]; diagno
     : Array.isArray((parsedValue as { terms?: unknown })?.terms)
       ? (parsedValue as { terms: unknown[] }).terms
       : []
-  const diagnosticsValue = !Array.isArray(parsedValue) && parsedValue && typeof parsedValue === 'object'
-    ? (parsedValue as { diagnostics?: { rawRows?: unknown; parsedTerms?: unknown; qualifiedTerms?: unknown } }).diagnostics
-    : undefined
+  const cacheObject = !Array.isArray(parsedValue) && parsedValue && typeof parsedValue === 'object' ? parsedValue as {
+    diagnostics?: { rawRows?: unknown; parsedTerms?: unknown; qualifiedTerms?: unknown }
+    pullDiagnostics?: { customerId?: unknown; startDate?: unknown; endDate?: unknown; totalRows?: unknown; matchedRows?: unknown }
+  } : undefined
+  const diagnosticsValue = cacheObject?.diagnostics
   const diagnostics = diagnosticsValue
     ? {
         rawRows: typeof diagnosticsValue.rawRows === 'number' ? diagnosticsValue.rawRows : undefined,
         parsedTerms: typeof diagnosticsValue.parsedTerms === 'number' ? diagnosticsValue.parsedTerms : undefined,
         qualifiedTerms: typeof diagnosticsValue.qualifiedTerms === 'number' ? diagnosticsValue.qualifiedTerms : undefined,
+      }
+    : undefined
+  const pullDiagnosticsValue = cacheObject?.pullDiagnostics
+  const pullDiagnostics = pullDiagnosticsValue
+    ? {
+        customerId: typeof pullDiagnosticsValue.customerId === 'string' ? pullDiagnosticsValue.customerId : undefined,
+        startDate: typeof pullDiagnosticsValue.startDate === 'string' ? pullDiagnosticsValue.startDate : undefined,
+        endDate: typeof pullDiagnosticsValue.endDate === 'string' ? pullDiagnosticsValue.endDate : undefined,
+        totalRows: typeof pullDiagnosticsValue.totalRows === 'number' ? pullDiagnosticsValue.totalRows : undefined,
+        matchedRows: typeof pullDiagnosticsValue.matchedRows === 'number' ? pullDiagnosticsValue.matchedRows : undefined,
       }
     : undefined
   const terms = rawTerms
@@ -109,7 +125,7 @@ function parseCachedTerms(value: unknown): { terms: MonthlyKeywordTerm[]; diagno
       status: typeof term?.status === 'string' ? term.status : undefined,
     }))
     .filter((term) => term.term.trim().length > 0)
-  return { terms, diagnostics }
+  return { terms, diagnostics, pullDiagnostics }
 }
 
 function normaliseTerms(value: unknown): MonthlyKeywordTerm[] {
@@ -210,19 +226,19 @@ export async function warmMonthlyKeywordTermsForClient(
           )
           for (const [month, upstream] of upstreamByMonth) {
             const upstreamEntry = upstream as any
-            const diagnostics = {
+            const monthDiagnostics = {
               rawRows: typeof upstreamEntry?.rawRows === 'number' ? upstreamEntry.rawRows : undefined,
               parsedTerms: typeof upstreamEntry?.parsedTerms === 'number' ? upstreamEntry.parsedTerms : undefined,
               qualifiedTerms: typeof upstreamEntry?.qualifiedTerms === 'number' ? upstreamEntry.qualifiedTerms : undefined,
             }
-            diagnosticsByMonth.set(month, diagnostics)
+            diagnosticsByMonth.set(month, monthDiagnostics)
             const terms = normaliseTerms(upstreamEntry?.terms)
             const created = await payload.create({
               collection: 'monthly-keyword-terms-cache',
               data: {
                 client: clientId,
                 yearMonth: month,
-                terms: JSON.stringify({ terms, diagnostics }),
+                terms: JSON.stringify({ terms, diagnostics: monthDiagnostics, pullDiagnostics: diagnostics }),
                 reviewComplete: false,
                 fetchedAt,
               },
@@ -240,6 +256,15 @@ export async function warmMonthlyKeywordTermsForClient(
   }
 
   const remainingMissingMonths = completeMonths.filter((month) => !cache.has(month))
+  if (!diagnostics) {
+    for (const row of cache.values()) {
+      const cachedDiagnostics = parseCachedTerms(row.terms).pullDiagnostics
+      if (cachedDiagnostics) {
+        diagnostics = cachedDiagnostics
+        break
+      }
+    }
+  }
   const months = completeMonths
     .map((month) => {
       const row = cache.get(month)
