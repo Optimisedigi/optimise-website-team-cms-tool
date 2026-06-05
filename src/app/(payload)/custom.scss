@@ -604,6 +604,13 @@ $svg-close: "%3C/svg%3E";
   padding-right: 16px;
 }
 
+.mini-sidebar {
+  // Matches the full `.nav` fix above: `body { zoom: 0.9 }` scales a 100vh
+  // fixed rail down to 90% of the viewport, leaving a white strip underneath.
+  height: calc(100vh / 0.9) !important;
+  min-height: calc(100vh / 0.9) !important;
+}
+
 .mini-sidebar__rail {
   flex: 1 1 auto;
   min-height: 0;
