@@ -1,3 +1,12 @@
+// ─── Default admin zoom ──────────────────────────────────
+// Render the whole admin UI at 90% by default (equivalent to one press of
+// Cmd+Minus). Applied at the body so fixed elements (sidebar, sticky header)
+// scale and reposition correctly. Note: the dashboard's own `zoom` was removed
+// so it doesn't compound to ~81%.
+body {
+  zoom: 0.9;
+}
+
 // ─── Rocket Splash Loading ───────────────────────────────
 
 .od-splash {
@@ -860,7 +869,6 @@ $svg-close: "%3C/svg%3E";
   max-width: 100%;
   min-width: 0;
   overflow-x: clip;
-  zoom: 0.9;
 
   // Mockup brand tokens, scoped to the dashboard so they never touch
   // Payload's global theme variables.

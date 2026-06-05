@@ -10,6 +10,55 @@ function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * Render free-text meeting topic into HTML that matches the formatting used in
+ * the CMS / public schedule page: lines starting with -, *, • or "1." become
+ * bullet list items; blank lines separate blocks; everything else is a paragraph.
+ */
+function renderMeetingTopicHtml(text: string): string {
+  type Block = { type: "paragraph"; text: string } | { type: "list"; items: string[] };
+  const blocks: Block[] = [];
+  let listItems: string[] = [];
+
+  const flushList = (): void => {
+    if (listItems.length > 0) {
+      blocks.push({ type: "list", items: listItems });
+      listItems = [];
+    }
+  };
+
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList();
+      continue;
+    }
+    const bulletMatch = trimmed.match(/^(?:[-*•]|\d+[.)])\s+(.+)$/);
+    if (bulletMatch) {
+      listItems.push(bulletMatch[1]);
+      continue;
+    }
+    flushList();
+    blocks.push({ type: "paragraph", text: trimmed });
+  }
+  flushList();
+
+  return blocks
+    .map((block) => {
+      if (block.type === "list") {
+        const items = block.items
+          .map(
+            (item) =>
+              `<li style="margin:0 0 4px;font-size:14px;color:#64748b;">${escapeHtml(item)}</li>`,
+          )
+          .join("");
+        return `<ul style="margin:0 0 16px;padding-left:20px;">${items}</ul>`;
+      }
+      return `<p style="margin:0 0 12px;font-size:14px;color:#64748b;">${escapeHtml(block.text)}</p>`;
+    })
+    .join("");
+}
+
 function getPublicBaseUrl(): string {
   return (
     process.env.NEXT_PUBLIC_SERVER_URL ||
@@ -65,8 +114,8 @@ export function generateScheduleInviteEmail(opts: {
   const attendeesLine = attendeeEmails.length > 0
     ? `<p style="margin:0 0 8px;font-size:14px;color:#64748b;"><strong style="color:#1e293b;">Attendees:</strong> ${escapeHtml(attendeeEmails.join(", "))}</p>`
     : "";
-  const topicLine = opts.meetingTopic
-    ? `<p style="margin:0 0 16px;font-size:14px;color:#64748b;"><strong style="color:#1e293b;">What's covered:</strong> ${escapeHtml(opts.meetingTopic)}</p>`
+  const topicLine = opts.meetingTopic && opts.meetingTopic.trim()
+    ? `<p style="margin:0 0 8px;font-size:14px;color:#1e293b;font-weight:600;">What's covered:</p>${renderMeetingTopicHtml(opts.meetingTopic)}`
     : "";
 
   const introLine = opts.suggestedByName

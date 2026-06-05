@@ -10,6 +10,22 @@ type Attendee = {
   internalConfirmed: boolean
 }
 
+type TopicItem = { type: 'bullet' | 'text'; text: string }
+
+// Parse free-text topic the same way the CMS / public schedule page does:
+// lines starting with -, *, • or "1." are bullets; other non-empty lines are text.
+function parseTopicItems(text: string): TopicItem[] {
+  const items: TopicItem[] = []
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    const bulletMatch = trimmed.match(/^(?:[-*•]|\d+[.)])\s+(.+)$/)
+    if (bulletMatch) items.push({ type: 'bullet', text: bulletMatch[1] })
+    else items.push({ type: 'text', text: trimmed })
+  }
+  return items
+}
+
 function extractAttendees(fields: Record<string, any>): Attendee[] {
   const attendees: Attendee[] = []
   let i = 0
@@ -71,7 +87,12 @@ export default function CopyScheduleEmailButton() {
       '',
       "Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share.",
     ]
-    if (topic) plainParts.push('', topic)
+    if (topic) {
+      plainParts.push('', "What's covered:")
+      for (const item of parseTopicItems(topic)) {
+        plainParts.push(item.type === 'bullet' ? `• ${item.text}` : item.text)
+      }
+    }
     plainParts.push('', `Duration: ${data.duration} min (${data.timezone}).`, '')
     if (linkAttendees.length) {
       plainParts.push(
@@ -99,7 +120,27 @@ export default function CopyScheduleEmailButton() {
       '<div>&nbsp;</div>',
       "<div>Each link below is unique to one attendee. Open yours, tick every time that works for you, and we'll automatically confirm the first slot you all share.</div>",
     ]
-    if (topic) lines.push('<div>&nbsp;</div>', `<div>${esc(topic).replace(/\n/g, '<br>')}</div>`)
+    if (topic) {
+      lines.push('<div>&nbsp;</div>', "<div><strong>What's covered:</strong></div>")
+      const items = parseTopicItems(topic)
+      let inList = false
+      for (const item of items) {
+        if (item.type === 'bullet') {
+          if (!inList) {
+            lines.push('<ul style="margin:0;padding-left:20px">')
+            inList = true
+          }
+          lines.push(`<li>${esc(item.text)}</li>`)
+        } else {
+          if (inList) {
+            lines.push('</ul>')
+            inList = false
+          }
+          lines.push(`<div>${esc(item.text)}</div>`)
+        }
+      }
+      if (inList) lines.push('</ul>')
+    }
     lines.push('<div>&nbsp;</div>', `<div>Duration: ${esc(data.duration)} min (${esc(data.timezone)}).</div>`, '<div>&nbsp;</div>')
     if (linkAttendees.length) {
       lines.push('<ul style="margin:0;padding-left:20px">')

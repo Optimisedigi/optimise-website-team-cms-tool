@@ -9,6 +9,7 @@ import {
   generateScheduleInviteEmail,
 } from "@/lib/schedule-email";
 import { logActivity } from "@/lib/activity-log";
+import { orderSlotsByPreference } from "@/lib/meeting-slot-preference";
 
 async function findSchedulerByToken(payload: any, token: string) {
   const result = await payload.find({
@@ -27,11 +28,14 @@ function findAttendeeByToken(doc: any, token: string) {
 }
 
 /**
- * Find the earliest slot that ALL attendees selected.
+ * Find the preferred-ordered slot that ALL attendees selected. With no preferred
+ * times set this is simply the earliest common slot.
  */
 function findIntersection(
   attendees: any[],
-  generatedSlots: string[]
+  generatedSlots: string[],
+  dateOverrides: any[] = [],
+  timezone = "Australia/Sydney"
 ): string | null {
   const generatedSet = new Set(generatedSlots);
   const now = new Date();
@@ -44,8 +48,10 @@ function findIntersection(
 
   if (attendeeSlots.length === 0) return null;
 
-  // Find slots in generatedSlots that every attendee selected
-  for (const slot of generatedSlots) {
+  const orderedSlots = orderSlotsByPreference(generatedSlots, dateOverrides, timezone);
+
+  // Find the first slot (in preference order) that every attendee selected
+  for (const slot of orderedSlots) {
     if (new Date(slot) <= now) continue; // skip past slots
     if (!generatedSet.has(slot)) continue;
     const allSelected = attendeeSlots.every((set) => set.has(slot));
@@ -242,7 +248,12 @@ export async function POST(
   let matchedSlot: string | null = null;
 
   if (allResponded) {
-    matchedSlot = findIntersection(updatedAttendees, doc.generatedSlots || []);
+    matchedSlot = findIntersection(
+      updatedAttendees,
+      doc.generatedSlots || [],
+      doc.dateOverrides || [],
+      doc.timezone || "Australia/Sydney"
+    );
     newStatus = matchedSlot ? "confirmed" : "no_match";
   }
 
