@@ -73,7 +73,7 @@ function trimMonthsToEarliestCached(months: string[], cache: Map<string, Monthly
   return months.filter((month) => month >= earliestCached)
 }
 
-function normaliseTerms(value: unknown): MonthlyKeywordTerm[] {
+function parseCachedTerms(value: unknown): { terms: MonthlyKeywordTerm[]; diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number } } {
   const parsedValue = typeof value === 'string'
     ? (() => {
         try {
@@ -83,8 +83,22 @@ function normaliseTerms(value: unknown): MonthlyKeywordTerm[] {
         }
       })()
     : value
-  if (!Array.isArray(parsedValue)) return []
-  return parsedValue
+  const rawTerms = Array.isArray(parsedValue)
+    ? parsedValue
+    : Array.isArray((parsedValue as { terms?: unknown })?.terms)
+      ? (parsedValue as { terms: unknown[] }).terms
+      : []
+  const diagnosticsValue = !Array.isArray(parsedValue) && parsedValue && typeof parsedValue === 'object'
+    ? (parsedValue as { diagnostics?: { rawRows?: unknown; parsedTerms?: unknown; qualifiedTerms?: unknown } }).diagnostics
+    : undefined
+  const diagnostics = diagnosticsValue
+    ? {
+        rawRows: typeof diagnosticsValue.rawRows === 'number' ? diagnosticsValue.rawRows : undefined,
+        parsedTerms: typeof diagnosticsValue.parsedTerms === 'number' ? diagnosticsValue.parsedTerms : undefined,
+        qualifiedTerms: typeof diagnosticsValue.qualifiedTerms === 'number' ? diagnosticsValue.qualifiedTerms : undefined,
+      }
+    : undefined
+  const terms = rawTerms
     .map((term) => ({
       term: typeof term?.term === 'string' ? term.term : '',
       impressions: Number(term?.impressions) || 0,
@@ -94,6 +108,11 @@ function normaliseTerms(value: unknown): MonthlyKeywordTerm[] {
       status: typeof term?.status === 'string' ? term.status : undefined,
     }))
     .filter((term) => term.term.trim().length > 0)
+  return { terms, diagnostics }
+}
+
+function normaliseTerms(value: unknown): MonthlyKeywordTerm[] {
+  return parseCachedTerms(value).terms
 }
 
 async function fetchSelections(payload: Payload, clientId: number): Promise<MonthlyKeywordSelectionRow[]> {
@@ -180,18 +199,19 @@ export async function warmMonthlyKeywordTermsForClient(
           )
           for (const [month, upstream] of upstreamByMonth) {
             const upstreamEntry = upstream as any
-            diagnosticsByMonth.set(month, {
+            const diagnostics = {
               rawRows: typeof upstreamEntry?.rawRows === 'number' ? upstreamEntry.rawRows : undefined,
               parsedTerms: typeof upstreamEntry?.parsedTerms === 'number' ? upstreamEntry.parsedTerms : undefined,
               qualifiedTerms: typeof upstreamEntry?.qualifiedTerms === 'number' ? upstreamEntry.qualifiedTerms : undefined,
-            })
+            }
+            diagnosticsByMonth.set(month, diagnostics)
             const terms = normaliseTerms(upstreamEntry?.terms)
             const created = await payload.create({
               collection: 'monthly-keyword-terms-cache',
               data: {
                 client: clientId,
                 yearMonth: month,
-                terms: JSON.stringify(terms),
+                terms: JSON.stringify({ terms, diagnostics }),
                 reviewComplete: false,
                 fetchedAt,
               },
@@ -213,11 +233,12 @@ export async function warmMonthlyKeywordTermsForClient(
     .map((month) => {
       const row = cache.get(month)
       if (!row) return null
+      const cachedTerms = parseCachedTerms(row.terms)
       return {
         month,
-        terms: normaliseTerms(row.terms),
+        terms: cachedTerms.terms,
         reviewComplete: row.reviewComplete === true || row.reviewComplete === 1,
-        diagnostics: diagnosticsByMonth.get(month),
+        diagnostics: diagnosticsByMonth.get(month) || cachedTerms.diagnostics,
         reviewCompletedAt: row.reviewCompletedAt || null,
         reviewCompletedBy: row.reviewCompletedBy || null,
         fetchedAt: row.fetchedAt,
