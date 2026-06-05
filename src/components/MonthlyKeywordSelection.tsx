@@ -79,11 +79,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       const data = await res.json()
       const docs = Array.isArray(data?.docs) ? data.docs : []
       setNkls(docs.filter((doc: Nkl) => doc.isActive !== false))
-      if (!targetNklId && docs[0]?.id) setTargetNklId(String(docs[0].id))
     } catch {
       setNkls([])
     }
-  }, [clientId, targetNklId])
+  }, [clientId])
 
   useEffect(() => { void load(); void loadNkls() }, [load, loadNkls])
 
@@ -225,7 +224,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, padding: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 8 }}>
         <label style={{ fontWeight: 600 }}>Apply approved to</label>
         <select value={targetNklId} onChange={(event) => setTargetNklId(event.target.value)} style={{ minWidth: 260, padding: 8 }}>
-          <option value="">Choose active NKL…</option>
+          <option value="">Choose active negative keyword list</option>
           {nkls.map((nkl) => <option key={nkl.id} value={nkl.id}>{nkl.name}</option>)}
         </select>
         <button type="button" onClick={applyApproved} disabled={!targetNklId || approvedCount === 0} style={{ padding: '8px 12px' }}>Apply {approvedCount} approved</button>
