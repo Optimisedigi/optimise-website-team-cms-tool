@@ -68,7 +68,7 @@ const GROUPS: { label: string; values: FeatureSlug[] }[] = [
   },
   {
     label: 'Google Ads',
-    values: ['nav:google-ads', ...GOOGLE_ADS_BUNDLE_FEATURES],
+    values: [...GOOGLE_ADS_BUNDLE_FEATURES],
   },
   {
     label: 'Reports',
