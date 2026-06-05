@@ -9,7 +9,9 @@ export const ActivityLog: CollectionConfig = {
   admin: {
     useAsTitle: "title",
     group: "Admin",
-    hidden: true,
+    // Not `hidden: true` — Payload's List view throws not-found for hidden
+    // collections, which broke the dashboard "See all" link. The nav entry is
+    // hidden via CSS in custom.scss instead, keeping the list route reachable.
     defaultColumns: ["type", "title", "user", "client", "createdAt"],
     description: "Automatic feed of team activity",
   },

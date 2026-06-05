@@ -330,7 +330,8 @@ body {
 // without the feature are also blocked from the route.
 .nav .nav__link[href="/admin/collections/keyword-deep-dive-sessions"],
 .nav .nav__link[href="/admin/collections/negative-keyword-lists"],
-.nav .nav__link[href="/admin/collections/keyword-snapshots"] {
+.nav .nav__link[href="/admin/collections/keyword-snapshots"],
+.nav .nav__link[href="/admin/collections/activity-log"] {
   display: none !important;
 }
 

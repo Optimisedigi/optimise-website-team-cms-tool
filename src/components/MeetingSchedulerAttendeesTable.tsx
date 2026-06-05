@@ -16,6 +16,8 @@ type AttendeeData = {
   response: 'accepted' | 'maybe' | 'declined' | null
   respondedAt: string | null
   emailSentAt: string | null
+  deliveryStatus: string | null
+  deliveryDetail: string | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -43,6 +45,8 @@ function extractAttendees(fields: Record<string, any>, basePath: string): Attend
       response: (fields[`${basePath}.${i}.response`]?.value as AttendeeData['response']) ?? null,
       respondedAt: fields[`${basePath}.${i}.respondedAt`]?.value ?? null,
       emailSentAt: fields[`${basePath}.${i}.emailSentAt`]?.value ?? null,
+      deliveryStatus: (fields[`${basePath}.${i}.deliveryStatus`]?.value as string) ?? null,
+      deliveryDetail: (fields[`${basePath}.${i}.deliveryDetail`]?.value as string) ?? null,
     })
     i++
   }
@@ -221,6 +225,30 @@ export default function MeetingSchedulerAttendeesTable(_props: any) {
       return (
         <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#dcfce7', color: '#166534', fontWeight: 600 }}>
           Accepted
+        </span>
+      )
+    }
+    const failedDelivery =
+      attendee.deliveryStatus === 'soft_bounce' ||
+      attendee.deliveryStatus === 'hard_bounce' ||
+      attendee.deliveryStatus === 'blocked' ||
+      attendee.deliveryStatus === 'spam' ||
+      attendee.deliveryStatus === 'invalid_email' ||
+      attendee.deliveryStatus === 'error'
+    if (failedDelivery) {
+      return (
+        <span
+          title={attendee.deliveryDetail || 'Email did not reach the recipient'}
+          style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#fee2e2', color: '#991b1b', fontWeight: 600 }}
+        >
+          Bounced
+        </span>
+      )
+    }
+    if (attendee.deliveryStatus === 'delivered') {
+      return (
+        <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#dcfce7', color: '#166534', fontWeight: 600 }}>
+          Delivered
         </span>
       )
     }

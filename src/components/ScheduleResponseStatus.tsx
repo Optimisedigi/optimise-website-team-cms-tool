@@ -11,6 +11,8 @@ interface Attendee {
   response?: 'accepted' | 'maybe' | 'declined' | null
   respondedAt?: string
   emailSentAt?: string
+  deliveryStatus?: string | null
+  deliveryDetail?: string | null
   selectedSlots?: string[]
 }
 
@@ -28,6 +30,15 @@ interface SlotsByDay {
   label: string
   slots: { iso: string; timeLabel: string }[]
 }
+
+const DELIVERY_FAILED = new Set([
+  'soft_bounce',
+  'hard_bounce',
+  'blocked',
+  'spam',
+  'invalid_email',
+  'error',
+])
 
 function groupSlotsByDay(slots: string[], timezone: string): SlotsByDay[] {
   const groups: Record<string, { iso: string; timeLabel: string }[]> = {}
@@ -314,8 +325,17 @@ export default function ScheduleResponseStatus() {
                     ) : (
                       <span style={{ color: 'var(--theme-success-500, #22c55e)' }}>Accepted</span>
                     )
+                  ) : DELIVERY_FAILED.has(a.deliveryStatus || '') ? (
+                    <span
+                      title={a.deliveryDetail || 'Email did not reach the recipient'}
+                      style={{ color: 'var(--theme-error-500, #dc2626)', fontWeight: 600 }}
+                    >
+                      Bounced
+                    </span>
                   ) : a.emailSentAt ? (
-                    <span style={{ color: 'var(--theme-elevation-400)' }}>Waiting</span>
+                    <span style={{ color: 'var(--theme-elevation-400)' }}>
+                      {a.deliveryStatus === 'delivered' ? 'Delivered' : 'Waiting'}
+                    </span>
                   ) : (
                     <span style={{ color: 'var(--theme-elevation-300)' }}>Not sent</span>
                   )}

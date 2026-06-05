@@ -76,6 +76,9 @@ export async function POST(
           sender: { name: "Optimise Digital", email: fromEmail },
           to: [{ email: attendee.email, name: attendee.name || "there" }],
           subject: `Meeting scheduling: ${doc.title}`,
+          // Tag carries the scheduler id + attendee token so the Brevo delivery
+          // webhook can match events back to the exact attendee row.
+          tags: [`msched:${id}:${attendee.token}`],
           htmlContent: generateScheduleInviteEmail({
             recipientName: attendee.name || "there",
             meetingTitle: doc.title,
@@ -106,6 +109,11 @@ export async function POST(
     return {
       ...a,
       emailSentAt: sent ? now : a.emailSentAt,
+      // Reset to "sent" so a re-send clears any prior bounce until the webhook
+      // reports the new outcome.
+      deliveryStatus: sent ? "sent" : a.deliveryStatus,
+      deliveryDetail: sent ? null : a.deliveryDetail,
+      deliveryUpdatedAt: sent ? now : a.deliveryUpdatedAt,
     };
   });
 

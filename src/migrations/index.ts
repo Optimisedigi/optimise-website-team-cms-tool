@@ -102,6 +102,7 @@ import * as migration_20260630_120000_add_relevancy_exclusion_buckets from './20
 import * as migration_20260701_120000_add_monthly_keyword_selection from './20260701_120000_add_monthly_keyword_selection';
 import * as migration_20260604_120000_add_internal_confirmed_meeting_attendees from './20260604_120000_add_internal_confirmed_meeting_attendees';
 import * as migration_20260702_120000_add_meeting_attendee_response from './20260702_120000_add_meeting_attendee_response';
+import * as migration_20260703_120000_add_meeting_attendee_delivery_status from './20260703_120000_add_meeting_attendee_delivery_status';
 
 export const migrations = [
   {
@@ -623,5 +624,10 @@ export const migrations = [
     up: migration_20260702_120000_add_meeting_attendee_response.up,
     down: migration_20260702_120000_add_meeting_attendee_response.down,
     name: '20260702_120000_add_meeting_attendee_response'
+  },
+  {
+    up: migration_20260703_120000_add_meeting_attendee_delivery_status.up,
+    down: migration_20260703_120000_add_meeting_attendee_delivery_status.down,
+    name: '20260703_120000_add_meeting_attendee_delivery_status'
   },
 ];

@@ -11,50 +11,9 @@ import {
 } from "@/lib/schedule-email";
 import { logActivity } from "@/lib/activity-log";
 import { orderSlotsByPreference } from "@/lib/meeting-slot-preference";
+import { notifyAdminsOfMeetingEvent } from "@/lib/meeting-scheduler-notify";
 
 type AttendeeResponse = "accepted" | "maybe" | "declined";
-
-/**
- * Fan a CMS bell notification out to every admin user. Best-effort: failures
- * are logged and swallowed so they never block the attendee's response.
- */
-async function notifyAdmins(
-  payload: any,
-  entry: {
-    kind: string;
-    title: string;
-    body?: string;
-    schedulerId: string | number;
-    client?: string | number | null;
-  }
-): Promise<void> {
-  try {
-    const admins = await payload.find({
-      collection: "users",
-      where: { role: { equals: "admin" } },
-      limit: 100,
-      depth: 0,
-      overrideAccess: true,
-    });
-    for (const admin of admins.docs) {
-      await payload.create({
-        collection: "notifications" as any,
-        overrideAccess: true,
-        data: {
-          recipient: (admin as any).id,
-          kind: entry.kind,
-          title: entry.title,
-          body: entry.body,
-          url: `/admin/collections/meeting-schedulers/${entry.schedulerId}`,
-          relatedMeetingScheduler: entry.schedulerId,
-          ...(entry.client ? { relatedClient: entry.client } : {}),
-        } as any,
-      });
-    }
-  } catch (err) {
-    console.error("[meeting-scheduler] notifyAdmins failed:", err);
-  }
-}
 
 async function findSchedulerByToken(payload: any, token: string) {
   const result = await payload.find({
@@ -395,6 +354,7 @@ export async function POST(
           sender: { name: "Optimise Digital", email: fromEmail },
           to: [{ email: newAdditionalAttendee.email, name: newAdditionalAttendee.name }],
           subject: `Meeting scheduling: ${doc.title}`,
+          tags: [`msched:${doc.id}:${newAdditionalAttendee.token}`],
           htmlContent: generateScheduleInviteEmail({
             recipientName: newAdditionalAttendee.name,
             meetingTitle: doc.title,
@@ -409,7 +369,9 @@ export async function POST(
 
       if (res.ok) {
         const attendeesWithSentAt = updatedAttendees.map((a: any) =>
-          a.token === newAdditionalAttendee.token ? { ...a, emailSentAt: now } : a
+          a.token === newAdditionalAttendee.token
+            ? { ...a, emailSentAt: now, deliveryStatus: "sent", deliveryUpdatedAt: now }
+            : a
         );
         await payload.update({
           collection: "meeting-schedulers" as any,
@@ -505,7 +467,7 @@ export async function POST(
   // notifies admins.
   const responderName = currentAttendee.name || currentAttendee.email || "An attendee";
   if (response === "accepted") {
-    await notifyAdmins(payload, {
+    await notifyAdminsOfMeetingEvent(payload, {
       kind: "meeting-response-accepted",
       title: `${responderName} accepted: ${doc.title}`,
       body: `${filteredSlots.length} time${filteredSlots.length === 1 ? "" : "s"} selected.`,
@@ -519,7 +481,7 @@ export async function POST(
       client: doc.client,
     }).catch(() => {});
   } else if (response === "declined") {
-    await notifyAdmins(payload, {
+    await notifyAdminsOfMeetingEvent(payload, {
       kind: "meeting-response-declined",
       title: `${responderName} declined: ${doc.title}`,
       body: `${currentAttendee.email || ""}`.trim() || undefined,
@@ -568,7 +530,7 @@ export async function POST(
       matchedSlot,
       doc.timezone || "Australia/Sydney"
     );
-    await notifyAdmins(payload, {
+    await notifyAdminsOfMeetingEvent(payload, {
       kind: "meeting-confirmed",
       title: `Meeting time set: ${doc.title}`,
       body: `${date} at ${time}`,

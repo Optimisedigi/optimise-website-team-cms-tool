@@ -4,6 +4,7 @@ import config from "@/payload.config";
 import { createCalendarEvent } from "@/lib/calendar-service";
 import { generateScheduleConfirmedEmail } from "@/lib/schedule-email";
 import { logActivity } from "@/lib/activity-log";
+import { notifyAdminsOfMeetingEvent } from "@/lib/meeting-scheduler-notify";
 
 function formatSlotForEmail(
   isoString: string,
@@ -161,6 +162,18 @@ export async function POST(
       user: user.id,
       client: doc.client,
     }).catch(() => {});
+  }
+
+  // Surface the confirmed time in the admin bell.
+  {
+    const { date, time } = formatSlotForEmail(matchedSlot, timezone);
+    await notifyAdminsOfMeetingEvent(payload, {
+      kind: "meeting-confirmed",
+      title: `Meeting time set: ${doc.title}`,
+      body: `${date} at ${time}`,
+      schedulerId: id,
+      client: doc.client,
+    });
   }
 
   return NextResponse.json({

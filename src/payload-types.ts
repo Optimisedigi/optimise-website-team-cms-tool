@@ -5875,6 +5875,27 @@ export interface MeetingScheduler {
         respondedAt?: string | null;
         emailSentAt?: string | null;
         /**
+         * Brevo delivery status, updated via webhook. 'Sent' only means Brevo accepted the request — watch for bounces.
+         */
+        deliveryStatus?:
+          | (
+              | 'sent'
+              | 'delivered'
+              | 'soft_bounce'
+              | 'hard_bounce'
+              | 'blocked'
+              | 'spam'
+              | 'invalid_email'
+              | 'deferred'
+              | 'error'
+            )
+          | null;
+        deliveryUpdatedAt?: string | null;
+        /**
+         * Bounce/blocked reason from Brevo, when provided.
+         */
+        deliveryDetail?: string | null;
+        /**
          * Slots selected by this attendee
          */
         selectedSlots?:
@@ -9257,6 +9278,9 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
         responded?: T;
         respondedAt?: T;
         emailSentAt?: T;
+        deliveryStatus?: T;
+        deliveryUpdatedAt?: T;
+        deliveryDetail?: T;
         selectedSlots?: T;
         id?: T;
       };

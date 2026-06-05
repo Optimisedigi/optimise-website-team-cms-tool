@@ -493,7 +493,7 @@ export default function ScheduleResponseClient({
 
       <div style={styles.declinePrompt}>
         <span style={styles.declinePromptText}>
-          Can't make this meeting? No need to pick a time — just decline.
+          Can't make this meeting? No need to pick a time.
         </span>
         <button
           type="button"

@@ -2205,6 +2205,10 @@ export async function runMigrations(
     await run("meeting_schedulers_attendees_internal_confirmed", "ALTER TABLE `meeting_schedulers_attendees` ADD `internal_confirmed` integer DEFAULT 0");
     // Accept / maybe / decline response per attendee (2026-07-02).
     await run("meeting_schedulers_attendees_response", "ALTER TABLE `meeting_schedulers_attendees` ADD `response` text");
+    // Brevo delivery status per attendee, updated via webhook (2026-07-03).
+    await run("meeting_schedulers_attendees_delivery_status", "ALTER TABLE `meeting_schedulers_attendees` ADD `delivery_status` text");
+    await run("meeting_schedulers_attendees_delivery_detail", "ALTER TABLE `meeting_schedulers_attendees` ADD `delivery_detail` text");
+    await run("meeting_schedulers_attendees_delivery_updated_at", "ALTER TABLE `meeting_schedulers_attendees` ADD `delivery_updated_at` text");
   
     // --- Negative List Builder (JSON column on google_ads_audits) ---
     await run("gads_negative_list_builder", "ALTER TABLE `google_ads_audits` ADD `negative_list_builder` text");

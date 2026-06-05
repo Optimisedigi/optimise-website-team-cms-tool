@@ -346,6 +346,49 @@ export const MeetingSchedulers: CollectionConfig = {
                   ],
                 },
                 {
+                  type: "row",
+                  fields: [
+                    {
+                      name: "deliveryStatus",
+                      type: "select",
+                      options: [
+                        { label: "Sent", value: "sent" },
+                        { label: "Delivered", value: "delivered" },
+                        { label: "Soft Bounce", value: "soft_bounce" },
+                        { label: "Hard Bounce", value: "hard_bounce" },
+                        { label: "Blocked", value: "blocked" },
+                        { label: "Spam", value: "spam" },
+                        { label: "Invalid Email", value: "invalid_email" },
+                        { label: "Deferred", value: "deferred" },
+                        { label: "Error", value: "error" },
+                      ],
+                      admin: {
+                        readOnly: true,
+                        width: "50%",
+                        description:
+                          "Brevo delivery status, updated via webhook. 'Sent' only means Brevo accepted the request — watch for bounces.",
+                      },
+                    },
+                    {
+                      name: "deliveryUpdatedAt",
+                      type: "date",
+                      admin: {
+                        readOnly: true,
+                        date: { pickerAppearance: "dayAndTime" },
+                        width: "50%",
+                      },
+                    },
+                  ],
+                },
+                {
+                  name: "deliveryDetail",
+                  type: "text",
+                  admin: {
+                    readOnly: true,
+                    description: "Bounce/blocked reason from Brevo, when provided.",
+                  },
+                },
+                {
                   name: "selectedSlots",
                   type: "json",
                   admin: {
