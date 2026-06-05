@@ -244,6 +244,10 @@ body {
 
 // Dark sidebar
 .nav {
+  // The admin UI is globally rendered at 90% zoom. Payload's sidebar uses viewport
+  // height internally, which also gets scaled by zoom and can leave a white strip
+  // under the dark nav. Compensate so the scaled sidebar still fills the viewport.
+  min-height: calc(100vh / 0.9) !important;
   background-color: #1a1a2e !important;
   border-right-color: rgba(255, 255, 255, 0.08) !important;
 
