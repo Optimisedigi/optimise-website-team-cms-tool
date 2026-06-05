@@ -34,7 +34,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [lastLoadSummary, setLastLoadSummary] = useState<{ misses?: number; missingMonths?: string[]; error?: string } | null>(null)
+  const [lastLoadSummary, setLastLoadSummary] = useState<{ misses?: number; missingMonths?: string[]; error?: string; diagnostics?: { customerId?: string; startDate?: string; endDate?: string; totalRows?: number; matchedRows?: number } } | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
@@ -51,6 +51,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         misses: typeof data.misses === 'number' ? data.misses : undefined,
         missingMonths: Array.isArray(data.missingMonths) ? data.missingMonths : undefined,
         error: typeof data.error === 'string' ? data.error : undefined,
+        diagnostics: data.diagnostics && typeof data.diagnostics === 'object' ? data.diagnostics : undefined,
       })
       const nextSelections: Record<string, Selection> = {}
       for (const selection of Array.isArray(data.selections) ? data.selections : []) {
@@ -226,6 +227,12 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       </div>
 
       {message && <div style={{ marginBottom: 16, padding: 10, borderRadius: 6, background: '#fef3c7', color: '#92400e' }}>{message}</div>}
+
+      {lastLoadSummary?.diagnostics && (
+        <div style={{ marginBottom: 16, padding: 10, borderRadius: 6, border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-600)', fontSize: 12 }}>
+          Last Growth Tools pull: CID {lastLoadSummary.diagnostics.customerId || 'unknown'}, {lastLoadSummary.diagnostics.startDate || '?'} → {lastLoadSummary.diagnostics.endDate || '?'}, total rows {lastLoadSummary.diagnostics.totalRows ?? 0}, matched month rows {lastLoadSummary.diagnostics.matchedRows ?? 0}.
+        </div>
+      )}
 
       {loading && months.length === 0 && (
         <div style={{ marginBottom: 16, padding: 14, borderRadius: 8, border: '1px solid var(--theme-elevation-150)', background: 'var(--theme-elevation-50)', color: 'var(--theme-elevation-700)' }}>

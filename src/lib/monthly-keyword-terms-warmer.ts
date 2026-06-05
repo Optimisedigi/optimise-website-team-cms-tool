@@ -39,6 +39,7 @@ export type WarmMonthlyKeywordTermsResult = {
   misses: number
   durationMs: number
   error?: string
+  diagnostics?: { customerId?: string; startDate?: string; endDate?: string; totalRows?: number; matchedRows?: number }
   months: Array<{
     month: string
     terms: MonthlyKeywordTerm[]
@@ -154,6 +155,7 @@ export async function warmMonthlyKeywordTermsForClient(
   const missingMonths = completeMonths.filter((month) => !cache.has(month))
   let misses = 0
   let error: string | undefined
+  let diagnostics: WarmMonthlyKeywordTermsResult['diagnostics']
   const diagnosticsByMonth = new Map<string, { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number }>()
 
   if (missingMonths.length > 0) {
@@ -187,6 +189,15 @@ export async function warmMonthlyKeywordTermsForClient(
           if (data?.success === false) {
             error = typeof data.error === 'string' ? data.error : 'Growth Tools returned an unsuccessful monthly search terms response'
           }
+          diagnostics = data?.diagnostics && typeof data.diagnostics === 'object'
+            ? {
+                customerId: typeof data.diagnostics.customerId === 'string' ? data.diagnostics.customerId : undefined,
+                startDate: typeof data.diagnostics.startDate === 'string' ? data.diagnostics.startDate : undefined,
+                endDate: typeof data.diagnostics.endDate === 'string' ? data.diagnostics.endDate : undefined,
+                totalRows: typeof data.diagnostics.totalRows === 'number' ? data.diagnostics.totalRows : undefined,
+                matchedRows: typeof data.diagnostics.matchedRows === 'number' ? data.diagnostics.matchedRows : undefined,
+              }
+            : undefined
           const upstreamMonths = Array.isArray(data?.months) ? data.months : []
           if (!error && upstreamMonths.length === 0) {
             error = 'Growth Tools returned no monthly search term months'
@@ -250,6 +261,7 @@ export async function warmMonthlyKeywordTermsForClient(
     misses,
     durationMs: Date.now() - startedAt,
     error,
+    diagnostics,
     months,
     selections: await fetchSelections(payload, clientId),
     missingMonths: remainingMissingMonths,

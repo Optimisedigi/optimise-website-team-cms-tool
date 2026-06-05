@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     selections: result.selections,
     misses: result.misses,
     missingMonths: result.missingMonths,
+    diagnostics: result.diagnostics,
     error: result.error,
   })
   out.headers.set('Cache-Control', 'no-store')
