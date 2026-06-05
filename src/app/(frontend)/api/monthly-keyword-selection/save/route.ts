@@ -12,9 +12,11 @@ function normaliseSelection(value: any): MonthlyKeywordSelectionRow | null {
   const negativeKeyword = typeof value?.negativeKeyword === 'string' ? value.negativeKeyword.trim() : searchTerm
   const matchType = typeof value?.matchType === 'string' && VALID_MATCH_TYPES.has(value.matchType) ? value.matchType : 'exact'
   const decision = typeof value?.decision === 'string' && VALID_DECISIONS.has(value.decision) ? value.decision : 'pending'
+  const rawAppliedToNKL = typeof value?.appliedToNKL === 'object' && value.appliedToNKL !== null ? value.appliedToNKL.id : value?.appliedToNKL
+  const appliedToNKL = typeof rawAppliedToNKL === 'string' || typeof rawAppliedToNKL === 'number' ? rawAppliedToNKL : null
 
   if (!/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm || !negativeKeyword) return null
-  return { yearMonth, searchTerm, negativeKeyword, matchType, decision } as MonthlyKeywordSelectionRow
+  return { yearMonth, searchTerm, negativeKeyword, matchType, decision, appliedToNKL } as MonthlyKeywordSelectionRow
 }
 
 export async function POST(req: NextRequest) {

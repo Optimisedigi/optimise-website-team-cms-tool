@@ -4,9 +4,17 @@ import config from '@/payload.config'
 
 type MatchType = 'exact' | 'broad' | 'phrase'
 
+type KeywordSelection = {
+  yearMonth?: string
+  searchTerm?: string
+  keyword: string
+  matchType: MatchType
+  appliedToNKL?: number | string | null
+}
+
 const VALID_MATCH_TYPES = new Set(['exact', 'broad', 'phrase'])
 
-function normaliseKeyword(value: any): { keyword: string; matchType: MatchType } | null {
+function normaliseKeyword(value: any, fallbackNklId?: number | string | null): KeywordSelection | null {
   const keyword = typeof value?.negativeKeyword === 'string'
     ? value.negativeKeyword.trim()
     : typeof value?.keyword === 'string'
@@ -15,8 +23,16 @@ function normaliseKeyword(value: any): { keyword: string; matchType: MatchType }
   const matchType = typeof value?.matchType === 'string' && VALID_MATCH_TYPES.has(value.matchType)
     ? value.matchType as MatchType
     : 'exact'
-  if (!keyword) return null
-  return { keyword, matchType }
+  const rawAppliedToNKL = typeof value?.appliedToNKL === 'object' && value.appliedToNKL !== null ? value.appliedToNKL.id : value?.appliedToNKL
+  const appliedToNKL = typeof rawAppliedToNKL === 'string' || typeof rawAppliedToNKL === 'number' ? rawAppliedToNKL : fallbackNklId || null
+  if (!keyword || !appliedToNKL) return null
+  return {
+    yearMonth: typeof value?.yearMonth === 'string' ? value.yearMonth : undefined,
+    searchTerm: typeof value?.searchTerm === 'string' ? value.searchTerm : undefined,
+    keyword,
+    matchType,
+    appliedToNKL,
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -26,50 +42,69 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   const clientId = Number(body?.clientId)
-  const nklId = body?.nklId
-  const keywords = Array.isArray(body?.selections) ? body.selections.map(normaliseKeyword).filter(Boolean) as Array<{ keyword: string; matchType: MatchType }> : []
+  const fallbackNklId = body?.nklId
+  const keywords = Array.isArray(body?.selections)
+    ? body.selections.map((selection: unknown) => normaliseKeyword(selection, fallbackNklId)).filter(Boolean) as KeywordSelection[]
+    : []
 
-  if (!Number.isInteger(clientId) || !nklId || keywords.length === 0) {
-    return NextResponse.json({ error: 'clientId, nklId, and selections are required' }, { status: 400 })
+  if (!Number.isInteger(clientId) || keywords.length === 0) {
+    return NextResponse.json({ error: 'clientId and selections with target NKLs are required' }, { status: 400 })
   }
 
-  const nkl = await payload.findByID({
-    collection: 'negative-keyword-lists',
-    id: nklId,
-    depth: 0,
-    overrideAccess: true,
-  }) as any
-  if (!nkl) return NextResponse.json({ error: 'NKL not found' }, { status: 404 })
-
-  const nklClientId = typeof nkl.client === 'object' ? Number(nkl.client?.id) : Number(nkl.client)
-  if (nklClientId !== clientId) {
-    return NextResponse.json({ error: 'NKL does not belong to client' }, { status: 400 })
-  }
-
-  const currentKeywords = Array.isArray(nkl.keywords) ? nkl.keywords : []
-  const existingSet = new Set(currentKeywords.map((kw: any) => `${String(kw.keyword || '').toLowerCase()}|${kw.matchType}`))
-  const dedupIncoming = new Map<string, { keyword: string; matchType: MatchType }>()
+  const byNkl = new Map<string, { id: number | string; keywords: KeywordSelection[] }>()
   for (const keyword of keywords) {
-    dedupIncoming.set(`${keyword.keyword.toLowerCase()}|${keyword.matchType}`, keyword)
+    const nklId = keyword.appliedToNKL as number | string
+    const nklKey = String(nklId)
+    const group = byNkl.get(nklKey) || { id: nklId, keywords: [] }
+    group.keywords.push(keyword)
+    byNkl.set(nklKey, group)
   }
 
   const now = new Date().toISOString()
-  const newKeywords = Array.from(dedupIncoming.values())
-    .filter((kw) => !existingSet.has(`${kw.keyword.toLowerCase()}|${kw.matchType}`))
-    .map((kw) => ({
-      keyword: kw.keyword,
-      matchType: kw.matchType,
-      flaggedForRemoval: false,
-      negatedAt: now,
-    }))
+  let applied = 0
+  let skipped = 0
 
-  if (newKeywords.length > 0) {
-    await payload.update({
+  for (const { id: nklId, keywords: nklKeywords } of byNkl.values()) {
+    const nkl = await payload.findByID({
       collection: 'negative-keyword-lists',
       id: nklId,
-      data: { keywords: [...currentKeywords, ...newKeywords] },
+      depth: 0,
       overrideAccess: true,
-    })
+    }) as any
+    if (!nkl) return NextResponse.json({ error: `NKL ${nklId} not found` }, { status: 404 })
+
+    const nklClientId = typeof nkl.client === 'object' ? Number(nkl.client?.id) : Number(nkl.client)
+    if (nklClientId !== clientId) {
+      return NextResponse.json({ error: `NKL ${nklId} does not belong to client` }, { status: 400 })
+    }
+
+    const currentKeywords = Array.isArray(nkl.keywords) ? nkl.keywords : []
+    const existingSet = new Set(currentKeywords.map((kw: any) => `${String(kw.keyword || '').toLowerCase()}|${kw.matchType}`))
+    const dedupIncoming = new Map<string, { keyword: string; matchType: MatchType }>()
+    for (const keyword of nklKeywords) {
+      dedupIncoming.set(`${keyword.keyword.toLowerCase()}|${keyword.matchType}`, keyword)
+    }
+
+    const newKeywords = Array.from(dedupIncoming.values())
+      .filter((kw) => !existingSet.has(`${kw.keyword.toLowerCase()}|${kw.matchType}`))
+      .map((kw) => ({
+        keyword: kw.keyword,
+        matchType: kw.matchType,
+        flaggedForRemoval: false,
+        negatedAt: now,
+      }))
+
+    if (newKeywords.length > 0) {
+      await payload.update({
+        collection: 'negative-keyword-lists',
+        id: nklId,
+        data: { keywords: [...currentKeywords, ...newKeywords] },
+        overrideAccess: true,
+      })
+    }
+
+    applied += newKeywords.length
+    skipped += nklKeywords.length - newKeywords.length
   }
 
   const selectionDoc = await payload.find({
@@ -81,14 +116,19 @@ export async function POST(req: NextRequest) {
   })
   const doc = selectionDoc.docs[0] as any
   if (doc) {
-    const appliedKeys = new Set(Array.from(dedupIncoming.values()).map((kw) => `${kw.keyword.toLowerCase()}|${kw.matchType}`))
+    const appliedSelectionKeys = new Map(
+      keywords
+        .filter((keyword) => keyword.yearMonth && keyword.searchTerm)
+        .map((keyword) => [`${keyword.yearMonth}|${String(keyword.searchTerm).toLowerCase()}`, keyword.appliedToNKL] as [string, number | string | null | undefined]),
+    )
     const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection: any) => {
-      const key = `${String(selection.negativeKeyword || '').toLowerCase()}|${selection.matchType}`
-      if (!appliedKeys.has(key)) return selection
+      const selectionKey = `${String(selection.yearMonth)}|${String(selection.searchTerm || '').toLowerCase()}`
+      const appliedToNKL = appliedSelectionKeys.get(selectionKey) || fallbackNklId
+      if (!appliedToNKL) return selection
       return {
         ...selection,
         decision: 'approved',
-        appliedToNKL: typeof nkl.id === 'string' ? Number(nkl.id) || nkl.id : nkl.id,
+        appliedToNKL,
         appliedAt: now,
       }
     })
@@ -102,7 +142,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    applied: newKeywords.length,
-    skipped: keywords.length - newKeywords.length,
+    applied,
+    skipped,
   })
 }
