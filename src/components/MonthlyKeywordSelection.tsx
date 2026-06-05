@@ -26,6 +26,12 @@ function inputFromSelection(selection: Selection | undefined, term: string): str
   return selection.matchType === 'phrase' ? `'${selection.negativeKeyword}'` : selection.negativeKeyword
 }
 
+function matchTypeLabel(matchType: MatchType): string {
+  if (matchType === 'phrase') return 'Phrase match'
+  if (matchType === 'broad') return 'Broad match'
+  return 'Exact match'
+}
+
 export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = false }: { clientId: string; customerId: string; slug: string; isAdmin?: boolean }) {
   const [months, setMonths] = useState<Month[]>([])
   const [selections, setSelections] = useState<Record<string, Selection>>({})
@@ -294,7 +300,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                       style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', marginBottom: 6 }}
                     />
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, color: '#0369a1' }}>{parsed.matchType}</span>
+                      <span style={{ fontSize: 11, color: '#0369a1' }}>{matchTypeLabel(parsed.matchType)}</span>
                       {alreadyInCms && <span style={{ fontSize: 11, background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: 999 }}>Already in CMS NKL</span>}
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
