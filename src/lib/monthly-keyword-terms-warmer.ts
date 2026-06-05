@@ -73,8 +73,17 @@ function trimMonthsToEarliestCached(months: string[], cache: Map<string, Monthly
 }
 
 function normaliseTerms(value: unknown): MonthlyKeywordTerm[] {
-  if (!Array.isArray(value)) return []
-  return value
+  const parsedValue = typeof value === 'string'
+    ? (() => {
+        try {
+          return JSON.parse(value) as unknown
+        } catch {
+          return []
+        }
+      })()
+    : value
+  if (!Array.isArray(parsedValue)) return []
+  return parsedValue
     .map((term) => ({
       term: typeof term?.term === 'string' ? term.term : '',
       impressions: Number(term?.impressions) || 0,
@@ -174,7 +183,7 @@ export async function warmMonthlyKeywordTermsForClient(
               data: {
                 client: clientId,
                 yearMonth: month,
-                terms,
+                terms: JSON.stringify(terms),
                 reviewComplete: false,
                 fetchedAt,
               },
