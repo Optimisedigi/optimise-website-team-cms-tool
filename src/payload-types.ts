@@ -5713,6 +5713,10 @@ export interface ActivityLog {
     | 'template_created'
     | 'timeline_created'
     | 'process_started'
+    | 'meeting_scheduled'
+    | 'meeting_confirmed'
+    | 'meeting_response_accepted'
+    | 'meeting_response_declined'
     | 'ai_visibility_snapshot_created'
     | 'serp_displacement_snapshot_created'
     | 'serp_displacement_alert_created'
@@ -5862,6 +5866,10 @@ export interface MeetingScheduler {
          * Internal team member — already available for generated slots. Included in attendee lists, but no scheduling invite is sent.
          */
         internalConfirmed?: boolean | null;
+        /**
+         * How the attendee responded. Only 'Accepted' (and internal members) count toward auto-matching a time; 'Maybe' times are informational and 'Declined' never blocks a match.
+         */
+        response?: ('accepted' | 'maybe' | 'declined') | null;
         token?: string | null;
         responded?: boolean | null;
         respondedAt?: string | null;
@@ -7599,7 +7607,10 @@ export interface Notification {
     | 'agent-approval-pending'
     | 'consolidation-pending'
     | 'goal-run-escalation'
-    | 'google-ads-budget-review';
+    | 'google-ads-budget-review'
+    | 'meeting-response-accepted'
+    | 'meeting-response-declined'
+    | 'meeting-confirmed';
   title: string;
   /**
    * Short summary line.
@@ -7611,6 +7622,10 @@ export interface Notification {
   url?: string | null;
   relatedContract?: (number | null) | Contract;
   relatedClient?: (number | null) | Client;
+  /**
+   * Links the notification to the meeting-scheduler row whose attendee responded or whose time was confirmed.
+   */
+  relatedMeetingScheduler?: (number | null) | MeetingScheduler;
   /**
    * Links the notification to the agent-approval row it was fanned out for. Used to bulk-clear bell rows when any admin actions the queue item.
    */
@@ -9237,6 +9252,7 @@ export interface MeetingSchedulersSelect<T extends boolean = true> {
         name?: T;
         email?: T;
         internalConfirmed?: T;
+        response?: T;
         token?: T;
         responded?: T;
         respondedAt?: T;
@@ -10738,6 +10754,7 @@ export interface NotificationsSelect<T extends boolean = true> {
   url?: T;
   relatedContract?: T;
   relatedClient?: T;
+  relatedMeetingScheduler?: T;
   relatedApproval?: T;
   relatedGoalRun?: T;
   relatedConsolidationCandidate?: T;

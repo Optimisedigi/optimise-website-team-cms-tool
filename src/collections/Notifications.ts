@@ -81,6 +81,18 @@ export const Notifications: CollectionConfig = {
           label: "Monthly Google Ads budget review",
           value: "google-ads-budget-review",
         },
+        {
+          label: "Meeting attendee accepted",
+          value: "meeting-response-accepted",
+        },
+        {
+          label: "Meeting attendee declined",
+          value: "meeting-response-declined",
+        },
+        {
+          label: "Meeting time confirmed",
+          value: "meeting-confirmed",
+        },
       ],
     },
     {
@@ -111,6 +123,15 @@ export const Notifications: CollectionConfig = {
       name: "relatedClient",
       type: "relationship",
       relationTo: "clients",
+    },
+    {
+      name: "relatedMeetingScheduler",
+      type: "relationship",
+      relationTo: "meeting-schedulers" as never,
+      admin: {
+        description:
+          "Links the notification to the meeting-scheduler row whose attendee responded or whose time was confirmed.",
+      },
     },
     {
       name: "relatedApproval",

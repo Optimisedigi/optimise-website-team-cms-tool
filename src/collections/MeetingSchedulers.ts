@@ -293,6 +293,20 @@ export const MeetingSchedulers: CollectionConfig = {
                   },
                 },
                 {
+                  name: "response",
+                  type: "select",
+                  options: [
+                    { label: "Accepted", value: "accepted" },
+                    { label: "Maybe", value: "maybe" },
+                    { label: "Declined", value: "declined" },
+                  ],
+                  admin: {
+                    readOnly: true,
+                    description:
+                      "How the attendee responded. Only 'Accepted' (and internal members) count toward auto-matching a time; 'Maybe' times are informational and 'Declined' never blocks a match.",
+                  },
+                },
+                {
                   name: "token",
                   type: "text",
                   admin: {

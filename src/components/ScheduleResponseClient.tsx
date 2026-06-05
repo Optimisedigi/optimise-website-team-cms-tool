@@ -12,6 +12,7 @@ interface MeetingData {
   attendeeEmail?: string
   attendeeEmails?: string[]
   responded: boolean
+  response?: 'accepted' | 'maybe' | 'declined' | null
   selectedSlots: string[]
   status: string
 }
@@ -193,6 +194,7 @@ export default function ScheduleResponseClient({
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [submittedResponse, setSubmittedResponse] = useState<'accepted' | 'maybe' | 'declined' | null>(null)
   const [submitResult, setSubmitResult] = useState<{
     confirmed?: boolean
     matchedSlot?: string
@@ -214,6 +216,7 @@ export default function ScheduleResponseClient({
       setLoading(false)
       if (previewData.responded) {
         setSubmitted(true)
+        setSubmittedResponse(previewData.response || 'accepted')
         setSelectedSlots(new Set(previewData.selectedSlots))
       }
       return
@@ -228,6 +231,7 @@ export default function ScheduleResponseClient({
         setData(d)
         if (d.responded) {
           setSubmitted(true)
+          setSubmittedResponse(d.response || 'accepted')
           setSelectedSlots(new Set(d.selectedSlots))
         }
       })
@@ -267,8 +271,8 @@ export default function ScheduleResponseClient({
     })
   }
 
-  const handleSubmit = async () => {
-    if (selectedSlots.size === 0) return
+  const handleSubmit = async (response: 'accepted' | 'maybe' | 'declined') => {
+    if (response !== 'declined' && selectedSlots.size === 0) return
     setSubmitting(true)
     setError(null)
     try {
@@ -280,14 +284,18 @@ export default function ScheduleResponseClient({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          selectedSlots: Array.from(selectedSlots),
+          response,
+          selectedSlots: response === 'declined' ? [] : Array.from(selectedSlots),
           additionalAttendee:
-            additionalAttendee.name || additionalAttendee.email ? additionalAttendee : undefined,
+            response !== 'declined' && (additionalAttendee.name || additionalAttendee.email)
+              ? additionalAttendee
+              : undefined,
         }),
       })
       const result = await res.json()
       if (res.ok) {
         setSubmitted(true)
+        setSubmittedResponse(response)
         setSubmitResult(result)
       } else {
         setError(result.error || 'Something went wrong')
@@ -355,8 +363,10 @@ export default function ScheduleResponseClient({
     )
   }
 
-  // Already submitted
+  // Already submitted (accepted / maybe / declined)
   if (submitted && !submitResult?.confirmed) {
+    const declined = submittedResponse === 'declined'
+    const maybe = submittedResponse === 'maybe'
     return (
       <div style={styles.wrapper}>
         <div style={styles.siteHeader}>
@@ -374,8 +384,11 @@ export default function ScheduleResponseClient({
                 Thanks{data.attendeeName ? `, ${data.attendeeName}` : ''}!
               </p>
               <p style={styles.successText}>
-                Your availability has been recorded. We will confirm the meeting time once
-                everyone has responded.
+                {declined
+                  ? "Thanks for letting us know you can't make it. We won't include you in this meeting."
+                  : maybe
+                    ? "Your tentative availability has been recorded. We'll confirm a time once everyone has responded."
+                    : 'Your availability has been recorded. We will confirm the meeting time once everyone has responded.'}
               </p>
             </div>
           </div>
@@ -477,6 +490,24 @@ export default function ScheduleResponseClient({
       <p style={styles.instructions}>
         Once everyone has responded, we'll match availability and send a calendar invite for the first slot that works for all attendees.
       </p>
+
+      <div style={styles.declinePrompt}>
+        <span style={styles.declinePromptText}>
+          Can't make this meeting? No need to pick a time — just decline.
+        </span>
+        <button
+          type="button"
+          onClick={() => handleSubmit('declined')}
+          disabled={submitting}
+          style={{
+            ...styles.declineButton,
+            opacity: submitting ? 0.6 : 1,
+            cursor: submitting ? 'wait' : 'pointer',
+          }}
+        >
+          Decline
+        </button>
+      </div>
 
       <div
         style={{
@@ -580,20 +611,34 @@ export default function ScheduleResponseClient({
           )}
 
           {selectedSlots.size > 0 && (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              type="button"
-              style={{
-                ...styles.confirmButton,
-                opacity: submitting ? 0.6 : 1,
-                cursor: submitting ? 'wait' : 'pointer',
-              }}
-            >
-              {submitting
-                ? 'Submitting...'
-                : `Submit availability (${selectedSlots.size} selected)`}
-            </button>
+            <div style={styles.submitRow}>
+              <button
+                onClick={() => handleSubmit('accepted')}
+                disabled={submitting}
+                type="button"
+                style={{
+                  ...styles.confirmButton,
+                  opacity: submitting ? 0.6 : 1,
+                  cursor: submitting ? 'wait' : 'pointer',
+                }}
+              >
+                {submitting
+                  ? 'Submitting...'
+                  : `Submit availability (${selectedSlots.size} selected)`}
+              </button>
+              <button
+                onClick={() => handleSubmit('maybe')}
+                disabled={submitting}
+                type="button"
+                style={{
+                  ...styles.maybeButton,
+                  opacity: submitting ? 0.6 : 1,
+                  cursor: submitting ? 'wait' : 'pointer',
+                }}
+              >
+                Set as maybe
+              </button>
+            </div>
           )}
 
           {isMobile && meetingDetails}
@@ -925,7 +970,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#ffffff',
   },
   confirmButton: {
-    width: '100%',
+    flex: 1,
     padding: '14px 24px',
     background: '#006bff',
     color: '#ffffff',
@@ -933,8 +978,52 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 999,
     fontSize: 14,
     fontWeight: 600,
-    marginTop: 14,
     cursor: 'pointer',
+  },
+  submitRow: {
+    display: 'flex',
+    gap: 10,
+    marginTop: 14,
+    flexWrap: 'wrap' as const,
+  },
+  maybeButton: {
+    padding: '14px 24px',
+    background: '#ffffff',
+    color: '#334155',
+    border: '1px solid #cbd5e1',
+    borderRadius: 999,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
+  },
+  declinePrompt: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '12px 16px',
+    marginBottom: 16,
+    background: '#f8fafc',
+    border: '1px solid #e7edf6',
+    borderRadius: 12,
+    flexWrap: 'wrap' as const,
+  },
+  declinePromptText: {
+    fontSize: 13,
+    color: '#476788',
+    fontWeight: 500,
+  },
+  declineButton: {
+    padding: '9px 20px',
+    background: '#ffffff',
+    color: '#b91c1c',
+    border: '1px solid #fca5a5',
+    borderRadius: 999,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
   },
   mobileWrapper: {
     padding: '16px 0 32px',

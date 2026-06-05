@@ -13,6 +13,7 @@ type AttendeeData = {
   token: string
   internalConfirmed: boolean
   responded: boolean
+  response: 'accepted' | 'maybe' | 'declined' | null
   respondedAt: string | null
   emailSentAt: string | null
 }
@@ -39,6 +40,7 @@ function extractAttendees(fields: Record<string, any>, basePath: string): Attend
       token: fields[`${basePath}.${i}.token`]?.value ?? '',
       internalConfirmed: !!fields[`${basePath}.${i}.internalConfirmed`]?.value,
       responded: !!fields[`${basePath}.${i}.responded`]?.value,
+      response: (fields[`${basePath}.${i}.response`]?.value as AttendeeData['response']) ?? null,
       respondedAt: fields[`${basePath}.${i}.respondedAt`]?.value ?? null,
       emailSentAt: fields[`${basePath}.${i}.emailSentAt`]?.value ?? null,
     })
@@ -202,9 +204,23 @@ export default function MeetingSchedulerAttendeesTable(_props: any) {
       )
     }
     if (attendee.responded) {
+      if (attendee.response === 'declined') {
+        return (
+          <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#fee2e2', color: '#991b1b', fontWeight: 600 }}>
+            Declined
+          </span>
+        )
+      }
+      if (attendee.response === 'maybe') {
+        return (
+          <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>
+            Maybe
+          </span>
+        )
+      }
       return (
         <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#dcfce7', color: '#166534', fontWeight: 600 }}>
-          Responded
+          Accepted
         </span>
       )
     }

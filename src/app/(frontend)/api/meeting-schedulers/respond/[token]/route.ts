@@ -7,9 +7,54 @@ import {
   generateScheduleConfirmedEmail,
   generateNoMatchEmail,
   generateScheduleInviteEmail,
+  generateDeclineNotificationEmail,
 } from "@/lib/schedule-email";
 import { logActivity } from "@/lib/activity-log";
 import { orderSlotsByPreference } from "@/lib/meeting-slot-preference";
+
+type AttendeeResponse = "accepted" | "maybe" | "declined";
+
+/**
+ * Fan a CMS bell notification out to every admin user. Best-effort: failures
+ * are logged and swallowed so they never block the attendee's response.
+ */
+async function notifyAdmins(
+  payload: any,
+  entry: {
+    kind: string;
+    title: string;
+    body?: string;
+    schedulerId: string | number;
+    client?: string | number | null;
+  }
+): Promise<void> {
+  try {
+    const admins = await payload.find({
+      collection: "users",
+      where: { role: { equals: "admin" } },
+      limit: 100,
+      depth: 0,
+      overrideAccess: true,
+    });
+    for (const admin of admins.docs) {
+      await payload.create({
+        collection: "notifications" as any,
+        overrideAccess: true,
+        data: {
+          recipient: (admin as any).id,
+          kind: entry.kind,
+          title: entry.title,
+          body: entry.body,
+          url: `/admin/collections/meeting-schedulers/${entry.schedulerId}`,
+          relatedMeetingScheduler: entry.schedulerId,
+          ...(entry.client ? { relatedClient: entry.client } : {}),
+        } as any,
+      });
+    }
+  } catch (err) {
+    console.error("[meeting-scheduler] notifyAdmins failed:", err);
+  }
+}
 
 async function findSchedulerByToken(payload: any, token: string) {
   const result = await payload.find({
@@ -126,6 +171,7 @@ export async function GET(
     attendeeEmail: attendee.email,
     attendeeEmails: (doc.attendees || []).map((a: any) => a.email).filter(Boolean),
     responded: attendee.responded || false,
+    response: attendee.response || null,
     selectedSlots: attendee.selectedSlots || [],
     status: doc.status,
   });
@@ -139,7 +185,8 @@ export async function POST(
   const { token } = await params;
 
   let body: {
-    selectedSlots: string[];
+    response?: AttendeeResponse;
+    selectedSlots?: string[];
     additionalAttendee?: {
       name?: string;
       email?: string;
@@ -151,7 +198,15 @@ export async function POST(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (!Array.isArray(body.selectedSlots) || body.selectedSlots.length === 0) {
+  // Backward compatible: older clients that only sent slots are treated as
+  // "accepted". Declines don't require any slot selection.
+  const response: AttendeeResponse =
+    body.response === "maybe" || body.response === "declined"
+      ? body.response
+      : "accepted";
+  const selectedSlotsInput = Array.isArray(body.selectedSlots) ? body.selectedSlots : [];
+
+  if (response !== "declined" && selectedSlotsInput.length === 0) {
     return NextResponse.json(
       { error: "Select at least one time slot" },
       { status: 400 }
@@ -184,10 +239,13 @@ export async function POST(
     );
   }
 
-  // Validate slots are from the generated set
+  // Validate slots are from the generated set. Declines carry no slots.
   const validSlots = new Set(doc.generatedSlots || []);
-  const filteredSlots = body.selectedSlots.filter((s) => validSlots.has(s));
-  if (filteredSlots.length === 0) {
+  const filteredSlots =
+    response === "declined"
+      ? []
+      : selectedSlotsInput.filter((s) => validSlots.has(s));
+  if (response !== "declined" && filteredSlots.length === 0) {
     return NextResponse.json(
       { error: "No valid time slots selected" },
       { status: 400 }
@@ -217,6 +275,7 @@ export async function POST(
         ...a,
         responded: true,
         respondedAt: now,
+        response,
         selectedSlots: filteredSlots,
       };
     }
@@ -241,19 +300,35 @@ export async function POST(
     updatedAttendees.push(newAdditionalAttendee);
   }
 
-  // Check if all attendees have now responded
-  const allResponded = updatedAttendees.every((a: any) => a.responded);
+  // Check if all attendees have now responded (internal members count as
+  // pre-responded). A declined attendee has still "responded", so they never
+  // hold up matching.
+  const allResponded = updatedAttendees.every(
+    (a: any) => a.responded || a.internalConfirmed
+  );
+
+  // Only accepted attendees (and internal members, who are implicitly
+  // available for every generated slot) constrain the match. "Maybe" times are
+  // informational and "declined" attendees are excluded entirely.
+  const matchingSet = updatedAttendees.filter(
+    (a: any) => a.internalConfirmed || a.response === "accepted"
+  );
+  const hasExternalAccept = updatedAttendees.some(
+    (a: any) => !a.internalConfirmed && a.response === "accepted"
+  );
 
   let newStatus = "awaiting_responses";
   let matchedSlot: string | null = null;
 
   if (allResponded) {
-    matchedSlot = findIntersection(
-      updatedAttendees,
-      doc.generatedSlots || [],
-      doc.dateOverrides || [],
-      doc.timezone || "Australia/Sydney"
-    );
+    matchedSlot = hasExternalAccept
+      ? findIntersection(
+          matchingSet,
+          doc.generatedSlots || [],
+          doc.dateOverrides || [],
+          doc.timezone || "Australia/Sydney"
+        )
+      : null;
     newStatus = matchedSlot ? "confirmed" : "no_match";
   }
 
@@ -276,7 +351,10 @@ export async function POST(
 
       const refreshToken = (calendarAuth as any).refreshToken;
       if (refreshToken) {
-        const attendeeEmails = updatedAttendees.map((a: any) => a.email);
+        const attendeeEmails = updatedAttendees
+          .filter((a: any) => a.response !== "declined")
+          .map((a: any) => a.email)
+          .filter(Boolean);
         const result = await createCalendarEvent(refreshToken, {
           title: doc.title,
           description: doc.meetingTopic || "",
@@ -357,8 +435,8 @@ export async function POST(
     if (matchedSlot) {
       const { date, time } = formatSlotForEmail(matchedSlot, timezone);
 
-      // Send confirmation to all attendees
-      for (const attendee of updatedAttendees) {
+      // Send confirmation to all attendees who didn't decline
+      for (const attendee of updatedAttendees.filter((a: any) => a.response !== "declined")) {
         try {
           await fetch("https://api.brevo.com/v3/smtp/email", {
             method: "POST",
@@ -420,6 +498,83 @@ export async function POST(
         console.error("[brevo] No-match notification failed:", err);
       }
     }
+  }
+
+  // CMS bell notifications + decline email. Fired per the attendee's response:
+  // accepted and declined notify admins; maybe does not. A confirmed time also
+  // notifies admins.
+  const responderName = currentAttendee.name || currentAttendee.email || "An attendee";
+  if (response === "accepted") {
+    await notifyAdmins(payload, {
+      kind: "meeting-response-accepted",
+      title: `${responderName} accepted: ${doc.title}`,
+      body: `${filteredSlots.length} time${filteredSlots.length === 1 ? "" : "s"} selected.`,
+      schedulerId: doc.id,
+      client: doc.client,
+    });
+    logActivity(payload, {
+      type: "meeting_response_accepted",
+      title: `Meeting accepted: ${doc.title}`,
+      description: `${responderName} selected ${filteredSlots.length} time(s)`,
+      client: doc.client,
+    }).catch(() => {});
+  } else if (response === "declined") {
+    await notifyAdmins(payload, {
+      kind: "meeting-response-declined",
+      title: `${responderName} declined: ${doc.title}`,
+      body: `${currentAttendee.email || ""}`.trim() || undefined,
+      schedulerId: doc.id,
+      client: doc.client,
+    });
+    logActivity(payload, {
+      type: "meeting_response_declined",
+      title: `Meeting declined: ${doc.title}`,
+      description: `${responderName} can't attend`,
+      client: doc.client,
+    }).catch(() => {});
+
+    // Internal decline email to the agency.
+    if (process.env.BREVO_API_KEY) {
+      const fromEmail =
+        process.env.SCHEDULE_FROM_EMAIL || "meetings@optimisedigital.online";
+      const agencyEmail =
+        process.env.AGENCY_NOTIFICATION_EMAIL || "peter@optimisedigital.online";
+      try {
+        await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: {
+            "api-key": process.env.BREVO_API_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sender: { name: "Optimise Digital", email: fromEmail },
+            to: [{ email: agencyEmail, name: "Optimise Digital" }],
+            subject: `Meeting declined: ${doc.title}`,
+            htmlContent: generateDeclineNotificationEmail({
+              attendeeName: responderName,
+              attendeeEmail: currentAttendee.email || "",
+              meetingTitle: doc.title,
+            }),
+          }),
+        });
+      } catch (err) {
+        console.error("[brevo] Decline notification failed:", err);
+      }
+    }
+  }
+
+  if (matchedSlot) {
+    const { date, time } = formatSlotForEmail(
+      matchedSlot,
+      doc.timezone || "Australia/Sydney"
+    );
+    await notifyAdmins(payload, {
+      kind: "meeting-confirmed",
+      title: `Meeting time set: ${doc.title}`,
+      body: `${date} at ${time}`,
+      schedulerId: doc.id,
+      client: doc.client,
+    });
   }
 
   return NextResponse.json({

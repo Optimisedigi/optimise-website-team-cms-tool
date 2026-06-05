@@ -184,6 +184,29 @@ export function generateScheduleConfirmedEmail(opts: {
   return baseTemplate(content);
 }
 
+export function generateDeclineNotificationEmail(opts: {
+  attendeeName: string;
+  attendeeEmail: string;
+  meetingTitle: string;
+}): string {
+  const content = `
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">An attendee has declined a meeting</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fef2f2;border-radius:8px;margin:0 0 24px;">
+      <tr>
+        <td style="padding:20px 24px;">
+          <p style="margin:0 0 8px;font-size:16px;font-weight:600;color:#991b1b;">${escapeHtml(opts.attendeeName)} can't attend</p>
+          <p style="margin:0 0 4px;font-size:14px;color:#b91c1c;">${escapeHtml(opts.attendeeEmail)}</p>
+          <p style="margin:0;font-size:13px;color:#dc2626;">Meeting: ${escapeHtml(opts.meetingTitle)}</p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:14px;color:#64748b;">
+      The remaining attendees can still be matched — a declined response does not block scheduling.
+    </p>
+  `;
+  return baseTemplate(content);
+}
+
 export function generateNoMatchEmail(opts: {
   meetingTitle: string;
   attendeeSummary: string;

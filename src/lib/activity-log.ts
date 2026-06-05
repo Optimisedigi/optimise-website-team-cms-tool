@@ -31,6 +31,8 @@ type ActivityType =
   | "process_step_completed"
   | "meeting_scheduled"
   | "meeting_confirmed"
+  | "meeting_response_accepted"
+  | "meeting_response_declined"
   | "ai_visibility_snapshot_created"
   | "serp_displacement_snapshot_created"
   | "serp_displacement_alert_created"

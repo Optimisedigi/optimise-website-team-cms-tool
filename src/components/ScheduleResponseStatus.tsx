@@ -8,6 +8,7 @@ interface Attendee {
   email: string
   token?: string
   responded: boolean
+  response?: 'accepted' | 'maybe' | 'declined' | null
   respondedAt?: string
   emailSentAt?: string
   selectedSlots?: string[]
@@ -71,8 +72,12 @@ function groupSlotsByDay(slots: string[], timezone: string): SlotsByDay[] {
 }
 
 function intersectAll(attendees: Attendee[]): string[] {
-  if (attendees.length === 0) return []
-  const sets = attendees.map((a) => new Set(a.selectedSlots || []))
+  // Only accepted attendees constrain the common time. Declined attendees are
+  // excluded entirely, and "maybe" times are informational — mirroring the
+  // automatic match in the respond route.
+  const accepted = attendees.filter((a) => a.response === 'accepted')
+  if (accepted.length === 0) return []
+  const sets = accepted.map((a) => new Set(a.selectedSlots || []))
   const first = sets[0]
   return Array.from(first)
     .filter((slot) => sets.every((s) => s.has(slot)))
@@ -302,7 +307,13 @@ export default function ScheduleResponseStatus() {
                 <td style={{ padding: '6px 8px', color: 'var(--theme-elevation-500)' }}>{a.email}</td>
                 <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                   {a.responded ? (
-                    <span style={{ color: 'var(--theme-success-500, #22c55e)' }}>Responded</span>
+                    a.response === 'declined' ? (
+                      <span style={{ color: 'var(--theme-error-500, #dc2626)' }}>Declined</span>
+                    ) : a.response === 'maybe' ? (
+                      <span style={{ color: 'var(--theme-warning-600, #b45309)' }}>Maybe</span>
+                    ) : (
+                      <span style={{ color: 'var(--theme-success-500, #22c55e)' }}>Accepted</span>
+                    )
                   ) : a.emailSentAt ? (
                     <span style={{ color: 'var(--theme-elevation-400)' }}>Waiting</span>
                   ) : (
