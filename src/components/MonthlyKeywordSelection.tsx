@@ -110,7 +110,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       })
       for (const term of month.terms) {
         const selection = selections[selectionKey(month.month, term.term)]
-        if (selection?.decision === 'pending' || selection?.decision === 'approved') {
+        if (selection?.decision === 'pending' || selection?.decision === 'approved' || selection?.decision === 'skipped') {
           previouslyReviewedTerms.add(term.term.trim().toLowerCase())
         }
       }
@@ -181,6 +181,26 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     const key = selectionKey(month, term)
     const input = inputFromSelection(selections[key], term)
     updateTerm(month, term, input, nklId)
+  }
+
+  const skipTerm = (month: string, term: string) => {
+    const key = selectionKey(month, term)
+    const selection = selections[key]
+    const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
+    const next = {
+      ...selections,
+      [key]: {
+        ...(selection || {}),
+        yearMonth: month,
+        searchTerm: term,
+        negativeKeyword: parsed.keyword,
+        matchType: parsed.matchType,
+        decision: 'skipped' as Decision,
+        appliedToNKL: null,
+      },
+    }
+    setSelections(next)
+    queueSave(next)
   }
 
   const toggleComplete = async (month: string, complete: boolean) => {
@@ -330,7 +350,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
               {isFocused && month.terms.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: `minmax(220px, 1.4fr) minmax(220px, 1fr) 110px repeat(${Math.max(visibleNkls.length, 1)}, minmax(120px, 0.7fr))`, gap: 8, padding: '0 10px', fontSize: 11, fontWeight: 700, color: 'var(--theme-elevation-600)' }}>
+                <div style={{ position: 'sticky', top: 62, zIndex: 2, display: 'grid', gridTemplateColumns: `minmax(190px, 1.25fr) minmax(180px, 0.9fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))`, gap: 6, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
                   <span>Search term</span>
                   <span>Negative keyword</span>
                   <span>Match type</span>
@@ -356,10 +376,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 const alreadyInCms = cmsExisting.has(`${parsed.keyword.toLowerCase()}|${parsed.matchType}`)
                 const selectedNklId = selection?.appliedToNKL && typeof selection.appliedToNKL === 'object' ? selection.appliedToNKL.id : selection?.appliedToNKL
                 return (
-                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? `minmax(220px, 1.4fr) minmax(220px, 1fr) 110px repeat(${Math.max(visibleNkls.length, 1)}, minmax(120px, 0.7fr))` : '1fr', gap: 8, alignItems: 'center', padding: 10, border: '1px solid var(--theme-elevation-100)', borderRadius: 8, background: 'var(--theme-elevation-0)' }}>
+                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? `minmax(190px, 1.25fr) minmax(180px, 0.9fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))` : '1fr', gap: 6, alignItems: 'center', padding: '6px 8px', border: '1px solid var(--theme-elevation-100)', borderRadius: 6, background: selection?.decision === 'skipped' ? 'var(--theme-elevation-50)' : 'var(--theme-elevation-0)' }}>
                     <div>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{term.term}</div>
-                      <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between', fontWeight: 600, marginBottom: 2 }}>
+                        <span>{term.term}</span>
+                        <button type="button" disabled={month.reviewComplete} onClick={() => skipTerm(month.month, term.term)} style={{ padding: '2px 6px', fontSize: 10, lineHeight: 1.2, whiteSpace: 'nowrap', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}>{selection?.decision === 'skipped' ? 'Skipped' : 'Skip'}</button>
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--theme-elevation-500)' }}>
                         {term.impressions} impr · {term.clicks} clicks · ${Number(term.cost || 0).toFixed(2)}
                       </div>
                     </div>
@@ -367,16 +390,16 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                       value={inputValue}
                       disabled={month.reviewComplete}
                       onChange={(event) => updateTerm(month.month, term.term, event.target.value)}
-                      style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', cursor: month.reviewComplete ? 'not-allowed' : 'text' }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '5px 7px', fontSize: 12, cursor: month.reviewComplete ? 'not-allowed' : 'text' }}
                     />
                     <div style={{ display: 'grid', gap: 4 }}>
-                      <span style={{ fontSize: 11, color: '#0369a1' }}>{matchTypeLabel(parsed.matchType)}</span>
+                      <span style={{ fontSize: 10, color: '#0369a1' }}>{matchTypeLabel(parsed.matchType)}</span>
                       {alreadyInCms && <span style={{ fontSize: 11, background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: 999 }}>Already in CMS NKL</span>}
                     </div>
                     {isFocused && visibleNkls.map((nkl) => {
                       const isChecked = String(selectedNklId || '') === String(nkl.id)
                       return (
-                        <label key={nkl.id} style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '4px 6px', borderRadius: 6, border: isChecked ? '1px solid #0f766e' : '1px solid var(--theme-elevation-150)', background: isChecked ? '#ccfbf1' : 'transparent', fontSize: 11, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}>
+                        <label key={nkl.id} style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center', minHeight: 28, padding: '3px 5px', borderRadius: 5, border: isChecked ? '1px solid #0f766e' : '1px solid var(--theme-elevation-150)', background: isChecked ? '#ccfbf1' : 'transparent', fontSize: 10, whiteSpace: 'nowrap', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}>
                           <input type="checkbox" checked={isChecked} disabled={month.reviewComplete} onChange={() => setTargetListForTerm(month.month, term.term, isChecked ? null : nkl.id)} />
                           Add negative
                         </label>
