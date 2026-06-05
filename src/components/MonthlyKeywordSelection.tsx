@@ -335,12 +335,18 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     [selections],
   )
   const monthsToRender = activeMonth ? visibleMonths.filter((month) => month.month === activeMonth) : visibleMonths
-  const gridTemplate = `minmax(170px, 1fr) 300px minmax(280px, 1.7fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))`
+  // Compact column track sizes so more NKL columns fit before scrolling, and a
+  // tighter inter-column gap. The focused month section grows to max-content
+  // (see below) so the card border always wraps the full grid — columns never
+  // spill past the border.
+  const gridGap = 6
+  const gridTemplate = `minmax(130px, 1fr) 292px minmax(200px, 1.3fr) 64px repeat(${Math.max(visibleNkls.length, 1)}, minmax(84px, 0.5fr))`
 
   return (
-    // Break the field out of the centred document column into the empty right-hand
-    // gutter so the wide month grid uses the full screen width.
-    <div style={{ padding: 24, color: 'var(--theme-text)', marginRight: 'calc(50% - 50vw + 24px)' }}>
+    // Layout (full-width breakout + zero left padding so content hugs the sidebar)
+    // lives in custom.scss under `.od-fullbleed-tool` so it can be media-queried
+    // for mobile. See the "Full-bleed tool pages" block.
+    <div className="od-fullbleed-tool" style={{ color: 'var(--theme-text)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 18 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 28 }}>Monthly negative KWs</h1>
@@ -467,7 +473,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         {monthsToRender.map((month) => {
           const isFocused = activeMonth === month.month
           return (
-          <section key={month.month} aria-label={`${monthLabel(month.month)}${month.reviewComplete ? ' complete' : ''}`} style={{ minWidth: isFocused ? '100%' : 340, maxWidth: isFocused ? '100%' : 340, border: '1px solid var(--theme-elevation-150)', borderRadius: 10, background: month.reviewComplete ? 'var(--theme-elevation-50)' : 'var(--theme-bg)', opacity: month.reviewComplete ? 0.78 : 1 }}>
+          <section key={month.month} aria-label={`${monthLabel(month.month)}${month.reviewComplete ? ' complete' : ''}`} style={{ minWidth: isFocused ? '100%' : 340, maxWidth: isFocused ? 'none' : 340, width: isFocused ? 'max-content' : undefined, border: '1px solid var(--theme-elevation-150)', borderRadius: 10, background: month.reviewComplete ? 'var(--theme-elevation-50)' : 'var(--theme-bg)', opacity: month.reviewComplete ? 0.78 : 1 }}>
             <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: 12, borderBottom: '1px solid var(--theme-elevation-150)', background: 'inherit', borderRadius: '10px 10px 0 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                 <strong>{monthLabel(month.month)}</strong>
@@ -485,7 +491,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
               {isFocused && month.terms.length > 0 && (
-                <div style={{ position: 'sticky', top: 62, zIndex: 2, display: 'grid', gridTemplateColumns: gridTemplate, gap: 10, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                <div style={{ position: 'sticky', top: 62, zIndex: 2, display: 'grid', gridTemplateColumns: gridTemplate, gap: gridGap, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
                   <span>Search term</span>
                   <span>Actions</span>
                   <span>Negative keyword</span>
@@ -514,7 +520,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 const isAutoAdded = selection?.decision === 'approved' && !selection.appliedToNKL || alreadyInCms
                 const selectedNklId = selection?.appliedToNKL && typeof selection.appliedToNKL === 'object' ? selection.appliedToNKL.id : selection?.appliedToNKL
                 return (
-                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? gridTemplate : '1fr', gap: 10, alignItems: 'center', padding: '6px 8px', border: '1px solid var(--theme-elevation-100)', borderRadius: 6, background: selection?.decision === 'skipped' ? '#fef2f2' : selection?.decision === 'needs_review' ? '#fffbeb' : selection?.decision === 'watch' ? '#eff6ff' : selection?.decision === 'approved' && !selection.appliedToNKL ? '#f0fdf4' : 'var(--theme-elevation-0)' }}>
+                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? gridTemplate : '1fr', gap: gridGap, alignItems: 'center', padding: '6px 8px', border: '1px solid var(--theme-elevation-100)', borderRadius: 6, background: selection?.decision === 'skipped' ? '#fef2f2' : selection?.decision === 'needs_review' ? '#fffbeb' : selection?.decision === 'watch' ? '#eff6ff' : selection?.decision === 'approved' && !selection.appliedToNKL ? '#f0fdf4' : 'var(--theme-elevation-0)' }}>
                     <div>
                       <div style={{ fontWeight: 600, marginBottom: 2 }}>{term.term}</div>
                       <div style={{ fontSize: 10, color: 'var(--theme-elevation-500)' }}>

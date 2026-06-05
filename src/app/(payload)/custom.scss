@@ -2291,6 +2291,14 @@ $svg-close: "%3C/svg%3E";
 // ============================================================
 @media (max-width: 768px) {
   // ── Payload admin shell ──
+  // Reset the global `body { zoom: 0.9 }` on mobile. The zoom scales the whole
+  // UI to 90% anchored top-left, which on mobile's full-width layout leaves a
+  // ~10% empty strip down the right edge (the "gap on the right"). At phone
+  // widths there's no benefit to the zoom-out, so render at 100%.
+  body {
+    zoom: 1;
+  }
+
   // Remove mini-sidebar offset — mini sidebar not useful on mobile
   .template-default:not(.template-default--nav-open) .template-default__wrap {
     margin-left: 0 !important;
@@ -6244,4 +6252,40 @@ body.od-client-record {
   color: #8b95a3;
   font-size: 11px;
   margin-top: 4px;
+}
+
+// ─── Full-bleed tool pages ───────────────────────────────
+// Custom full-width tool components (e.g. Monthly negative KWs) that want their
+// content to start flush with the sidebar instead of inside the centred
+// document column. Zero the left padding and cancel the field gutter so the
+// content hugs the rail, and break out rightward into the empty gutter so the
+// wide grids use the full screen width. Add `className="od-fullbleed-tool"` to a
+// component's outer wrapper to opt in.
+.od-fullbleed-tool {
+  // Top/bottom/right spacing kept; 30px left padding so content sits a little
+  // off the sidebar. This padding is also the left clip boundary: the negative
+  // margin pulls the box to the sidebar edge, so children (the tab strip and the
+  // horizontally-scrolling month cards) start at this padding and clip here
+  // — cards disappear at the left padding instead of sliding behind the sidebar.
+  padding: 24px 24px 24px 30px;
+  // Pull left to cancel the field's gutter (default 30px on client edit) so the
+  // content sits close to the sidebar in both collapsed and expanded states.
+  margin-left: calc(-1 * var(--gutter-h, 30px));
+  // Existing rightward breakout into the empty right-hand gutter.
+  margin-right: calc(50% - 50vw + 24px);
+  box-sizing: border-box;
+  // Clip any left overflow at the padding so scrolled month cards never render
+  // under the fixed sidebar; vertical stays visible for sticky headers.
+  overflow-x: clip;
+}
+
+@media (max-width: 768px) {
+  // On mobile there is no side gutter to break into; keep the tool within the
+  // viewport so the horizontal breakout can't push content off-screen.
+  .od-fullbleed-tool {
+    margin-left: 0;
+    margin-right: 0;
+    padding: 16px 12px;
+    max-width: 100%;
+  }
 }
