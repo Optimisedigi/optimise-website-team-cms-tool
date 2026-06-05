@@ -234,7 +234,11 @@ export default function ScheduleResponseStatus() {
   const total = attendees.length
 
   return (
-    <div style={{ marginTop: 12 }}>
+    // `position: relative` + `z-index` gives this panel its own stacking context
+    // so the sticky app-header and fixed save bar (both `backdrop-filter: blur`)
+    // don't sample and visually blur it — the same Chromium artifact worked
+    // around for `.od-client-head`.
+    <div style={{ marginTop: 12, position: 'relative', zIndex: 1 }}>
       <div
         style={{
           padding: '16px 20px',
