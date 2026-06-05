@@ -265,7 +265,7 @@ export async function warmMonthlyKeywordTermsForClient(
       }
     }
   }
-  const months = completeMonths
+  const cachedMonths = completeMonths
     .map((month) => {
       const row = cache.get(month)
       if (!row) return null
@@ -281,6 +281,8 @@ export async function warmMonthlyKeywordTermsForClient(
       }
     })
     .filter((month): month is NonNullable<typeof month> => month !== null)
+  const firstMonthWithTerms = cachedMonths.findIndex((month) => month.terms.length > 0)
+  const months = firstMonthWithTerms >= 0 ? cachedMonths.slice(firstMonthWithTerms) : cachedMonths
 
   return {
     misses,
