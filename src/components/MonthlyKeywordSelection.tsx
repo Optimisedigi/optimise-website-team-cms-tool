@@ -187,6 +187,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     const key = selectionKey(month, term)
     const selection = selections[key]
     const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
+    const alreadySelected = selection?.decision === decision && !selection.appliedToNKL
     const next = {
       ...selections,
       [key]: {
@@ -195,7 +196,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         searchTerm: term,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
-        decision,
+        decision: alreadySelected ? 'pending' as Decision : decision,
         appliedToNKL: null,
       },
     }
@@ -350,7 +351,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
               {isFocused && month.terms.length > 0 && (
-                <div style={{ position: 'sticky', top: 62, zIndex: 2, display: 'grid', gridTemplateColumns: `minmax(190px, 1.25fr) 128px minmax(180px, 0.9fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))`, gap: 6, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                <div style={{ position: 'sticky', top: 62, zIndex: 2, display: 'grid', gridTemplateColumns: `minmax(190px, 1.25fr) 158px minmax(190px, 0.9fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))`, gap: 10, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
                   <span>Search term</span>
                   <span>Actions</span>
                   <span>Negative keyword</span>
@@ -377,7 +378,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 const alreadyInCms = cmsExisting.has(`${parsed.keyword.toLowerCase()}|${parsed.matchType}`)
                 const selectedNklId = selection?.appliedToNKL && typeof selection.appliedToNKL === 'object' ? selection.appliedToNKL.id : selection?.appliedToNKL
                 return (
-                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? `minmax(190px, 1.25fr) 128px minmax(180px, 0.9fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))` : '1fr', gap: 6, alignItems: 'center', padding: '6px 8px', border: '1px solid var(--theme-elevation-100)', borderRadius: 6, background: selection?.decision === 'skipped' ? 'var(--theme-elevation-50)' : 'var(--theme-elevation-0)' }}>
+                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? `minmax(190px, 1.25fr) 158px minmax(190px, 0.9fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))` : '1fr', gap: 10, alignItems: 'center', padding: '6px 8px', border: '1px solid var(--theme-elevation-100)', borderRadius: 6, background: selection?.decision === 'skipped' ? '#fef2f2' : selection?.decision === 'approved' && !selection.appliedToNKL ? '#f0fdf4' : 'var(--theme-elevation-0)' }}>
                     <div>
                       <div style={{ fontWeight: 600, marginBottom: 2 }}>{term.term}</div>
                       <div style={{ fontSize: 10, color: 'var(--theme-elevation-500)' }}>
@@ -385,9 +386,20 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                       </div>
                     </div>
                     {isFocused && (
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center' }}>
-                        <button type="button" disabled={month.reviewComplete} onClick={() => markTermHandled(month.month, term.term, 'skipped')} style={{ padding: '4px 6px', fontSize: 10, lineHeight: 1.2, whiteSpace: 'nowrap', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}>{selection?.decision === 'skipped' ? 'Skipped' : 'Skip'}</button>
-                        <button type="button" disabled={month.reviewComplete} onClick={() => markTermHandled(month.month, term.term, 'approved')} title="Already covered by an existing negative keyword; hide this exact search term in future months without applying it again." style={{ padding: '4px 6px', fontSize: 10, lineHeight: 1.2, whiteSpace: 'nowrap', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}>{selection?.decision === 'approved' && !selection.appliedToNKL ? 'Added' : 'Already added'}</button>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          disabled={month.reviewComplete}
+                          onClick={() => markTermHandled(month.month, term.term, 'skipped')}
+                          style={{ padding: '4px 7px', fontSize: 10, lineHeight: 1.2, whiteSpace: 'nowrap', color: selection?.decision === 'skipped' ? '#991b1b' : undefined, borderColor: selection?.decision === 'skipped' ? '#fca5a5' : undefined, background: selection?.decision === 'skipped' ? '#fee2e2' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                        >{selection?.decision === 'skipped' ? 'Skipped' : 'Skip'}</button>
+                        <button
+                          type="button"
+                          disabled={month.reviewComplete}
+                          onClick={() => markTermHandled(month.month, term.term, 'approved')}
+                          title="Already covered by an existing negative keyword; hide this exact search term in future months without applying it again. Click again to unmark."
+                          style={{ padding: '4px 7px', fontSize: 10, lineHeight: 1.2, whiteSpace: 'nowrap', color: selection?.decision === 'approved' && !selection.appliedToNKL ? '#166534' : undefined, borderColor: selection?.decision === 'approved' && !selection.appliedToNKL ? '#86efac' : undefined, background: selection?.decision === 'approved' && !selection.appliedToNKL ? '#dcfce7' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                        >{selection?.decision === 'approved' && !selection.appliedToNKL ? 'Added' : 'Already added'}</button>
                       </div>
                     )}
                     <input
