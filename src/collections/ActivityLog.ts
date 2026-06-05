@@ -74,6 +74,7 @@ export const ActivityLog: CollectionConfig = {
         { label: "Match Type Violation Sync", value: "match_type_violation_sync" },
         { label: "Match Type Violation Approved", value: "match_type_violation_approved" },
         { label: "Match Type Violation Rejected", value: "match_type_violation_rejected" },
+        { label: "Monthly Negatives Need Review", value: "monthly_negative_needs_review" },
       ],
     },
     {

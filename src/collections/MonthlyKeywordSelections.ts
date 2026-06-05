@@ -91,7 +91,23 @@ export const MonthlyKeywordSelections: CollectionConfig = {
             { label: 'Pending', value: 'pending' },
             { label: 'Approved', value: 'approved' },
             { label: 'Skipped', value: 'skipped' },
+            { label: 'Watch', value: 'watch' },
+            { label: 'Needs review', value: 'needs_review' },
           ],
+        },
+        {
+          name: 'watchHorizonMonths',
+          type: 'number',
+          admin: {
+            description: 'For watched terms: months until the performance re-check is due (1, 2, 3 or 6). Defaults to 3.',
+          },
+        },
+        {
+          name: 'watchUntil',
+          type: 'date',
+          admin: {
+            description: 'For watched terms: computed date when this term is due for a conversion-performance re-check.',
+          },
         },
         {
           name: 'appliedToNKL',

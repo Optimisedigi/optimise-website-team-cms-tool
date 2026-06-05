@@ -5731,7 +5731,8 @@ export interface ActivityLog {
     | 'agent_auth_event'
     | 'match_type_violation_sync'
     | 'match_type_violation_approved'
-    | 'match_type_violation_rejected';
+    | 'match_type_violation_rejected'
+    | 'monthly_negative_needs_review';
   title: string;
   description?: string | null;
   /**
@@ -6347,7 +6348,15 @@ export interface MonthlyKeywordSelection {
          */
         negativeKeyword: string;
         matchType: 'broad' | 'phrase' | 'exact';
-        decision: 'pending' | 'approved' | 'skipped';
+        decision: 'pending' | 'approved' | 'skipped' | 'watch' | 'needs_review';
+        /**
+         * For watched terms: months until the performance re-check is due (1, 2, 3 or 6). Defaults to 3.
+         */
+        watchHorizonMonths?: number | null;
+        /**
+         * For watched terms: computed date when this term is due for a conversion-performance re-check.
+         */
+        watchUntil?: string | null;
         appliedToNKL?: (number | null) | NegativeKeywordList;
         appliedAt?: string | null;
         id?: string | null;
@@ -7627,6 +7636,7 @@ export interface Notification {
     | 'invoice-statements-ready'
     | 'agent-approval-pending'
     | 'consolidation-pending'
+    | 'negative-keywords-needs-review'
     | 'goal-run-escalation'
     | 'google-ads-budget-review'
     | 'meeting-response-accepted'
@@ -9969,6 +9979,8 @@ export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
         negativeKeyword?: T;
         matchType?: T;
         decision?: T;
+        watchHorizonMonths?: T;
+        watchUntil?: T;
         appliedToNKL?: T;
         appliedAt?: T;
         id?: T;

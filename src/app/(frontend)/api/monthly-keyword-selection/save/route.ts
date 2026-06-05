@@ -5,7 +5,14 @@ import { userHasFeature } from '@/lib/access'
 import type { MonthlyKeywordSelectionRow } from '@/lib/monthly-keyword-terms-warmer'
 
 const VALID_MATCH_TYPES = new Set(['broad', 'phrase', 'exact'])
-const VALID_DECISIONS = new Set(['pending', 'approved', 'skipped'])
+const VALID_DECISIONS = new Set(['pending', 'approved', 'skipped', 'watch', 'needs_review'])
+const VALID_WATCH_HORIZONS = new Set([1, 2, 3, 6])
+const DEFAULT_WATCH_HORIZON = 3
+
+function addMonthsIso(from: Date, months: number): string {
+  const next = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + months, from.getUTCDate()))
+  return next.toISOString()
+}
 
 function normaliseSelection(value: any): MonthlyKeywordSelectionRow | null {
   const yearMonth = typeof value?.yearMonth === 'string' ? value.yearMonth.trim() : ''
@@ -15,9 +22,11 @@ function normaliseSelection(value: any): MonthlyKeywordSelectionRow | null {
   const decision = typeof value?.decision === 'string' && VALID_DECISIONS.has(value.decision) ? value.decision : 'pending'
   const rawAppliedToNKL = typeof value?.appliedToNKL === 'object' && value.appliedToNKL !== null ? value.appliedToNKL.id : value?.appliedToNKL
   const appliedToNKL = typeof rawAppliedToNKL === 'string' || typeof rawAppliedToNKL === 'number' ? rawAppliedToNKL : null
+  const rawHorizon = Number(value?.watchHorizonMonths)
+  const watchHorizonMonths = VALID_WATCH_HORIZONS.has(rawHorizon) ? rawHorizon : DEFAULT_WATCH_HORIZON
 
   if (!/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm || !negativeKeyword) return null
-  return { yearMonth, searchTerm, negativeKeyword, matchType, decision, appliedToNKL } as MonthlyKeywordSelectionRow
+  return { yearMonth, searchTerm, negativeKeyword, matchType, decision, appliedToNKL, watchHorizonMonths } as MonthlyKeywordSelectionRow
 }
 
 export async function POST(req: NextRequest) {
@@ -48,9 +57,21 @@ export async function POST(req: NextRequest) {
   for (const selection of existingSelections) {
     byTerm.set(`${selection.yearMonth}|${String(selection.searchTerm).toLowerCase()}`, selection)
   }
+  const now = new Date()
   for (const selection of incoming) {
     const key = `${selection.yearMonth}|${selection.searchTerm.toLowerCase()}`
-    byTerm.set(key, { ...(byTerm.get(key) || {}), ...selection })
+    const prev = byTerm.get(key) || {}
+    const merged: any = { ...prev, ...selection }
+    if (merged.decision === 'watch') {
+      const horizon = VALID_WATCH_HORIZONS.has(Number(merged.watchHorizonMonths)) ? Number(merged.watchHorizonMonths) : DEFAULT_WATCH_HORIZON
+      merged.watchHorizonMonths = horizon
+      const horizonChanged = Number(prev.watchHorizonMonths) !== horizon
+      merged.watchUntil = prev.decision === 'watch' && prev.watchUntil && !horizonChanged ? prev.watchUntil : addMonthsIso(now, horizon)
+    } else {
+      merged.watchHorizonMonths = null
+      merged.watchUntil = null
+    }
+    byTerm.set(key, merged)
   }
 
   const selections = Array.from(byTerm.values()).sort((a, b) =>

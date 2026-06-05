@@ -53,6 +53,7 @@ type ActivityType =
   | "match_type_violation_rejected"
   | "consolidation_approved"
   | "consolidation_rejected"
+  | "monthly_negative_needs_review"
   | "google_ads_anomaly_detected"
   | "client_value_ledger_item_created"
   | "organic_growth_snapshot_created";

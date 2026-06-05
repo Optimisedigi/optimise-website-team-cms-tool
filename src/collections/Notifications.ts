@@ -74,6 +74,10 @@ export const Notifications: CollectionConfig = {
           value: "consolidation-pending",
         },
         {
+          label: "Monthly negatives need review",
+          value: "negative-keywords-needs-review",
+        },
+        {
           label: "Goal run escalation",
           value: "goal-run-escalation",
         },

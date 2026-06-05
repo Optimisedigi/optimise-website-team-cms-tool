@@ -30,7 +30,9 @@ export type MonthlyKeywordSelectionRow = {
   searchTerm: string
   negativeKeyword: string
   matchType: 'broad' | 'phrase' | 'exact'
-  decision: 'pending' | 'approved' | 'skipped'
+  decision: 'pending' | 'approved' | 'skipped' | 'watch' | 'needs_review'
+  watchHorizonMonths?: number | null
+  watchUntil?: string | null
   appliedToNKL?: number | string | { id?: number | string } | null
   appliedAt?: string | null
 }

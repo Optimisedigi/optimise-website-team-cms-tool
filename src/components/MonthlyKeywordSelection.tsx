@@ -4,11 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parseNegativeKeywordInput } from '../lib/parse-negative-keywords'
 
 type MatchType = 'exact' | 'phrase' | 'broad'
-type Decision = 'pending' | 'approved' | 'skipped'
+type Decision = 'pending' | 'approved' | 'skipped' | 'watch' | 'needs_review'
+type WatchHorizon = 1 | 2 | 3 | 6
+
+const WATCH_HORIZONS: WatchHorizon[] = [1, 2, 3, 6]
+const DEFAULT_WATCH_HORIZON: WatchHorizon = 3
 
 type Term = { term: string; impressions: number; clicks: number; cost: number; conversions: number; status?: string }
 type Month = { month: string; terms: Term[]; reviewComplete: boolean; reviewCompletedAt?: string | null; diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number } }
-type Selection = { yearMonth: string; searchTerm: string; negativeKeyword: string; matchType: MatchType; decision: Decision; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null }
+type Selection = { yearMonth: string; searchTerm: string; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null }
 type Nkl = { id: number | string; name: string; isActive?: boolean; keywords?: Array<{ keyword: string; matchType: MatchType }> }
 
 function monthLabel(month: string): string {
@@ -32,12 +36,22 @@ function matchTypeLabel(matchType: MatchType): string {
   return 'Exact match'
 }
 
+function addMonthsIso(from: Date, months: number): string {
+  return new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + months, from.getUTCDate())).toISOString()
+}
+
+function isWatchDue(selection: Selection | undefined): boolean {
+  if (!selection || selection.decision !== 'watch' || !selection.watchUntil) return false
+  return new Date(selection.watchUntil).getTime() <= Date.now()
+}
+
 export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = false }: { clientId: string; customerId: string; slug: string; isAdmin?: boolean }) {
   const [months, setMonths] = useState<Month[]>([])
   const [selections, setSelections] = useState<Record<string, Selection>>({})
   const [nkls, setNkls] = useState<Nkl[]>([])
   const [hiddenNklIds, setHiddenNklIds] = useState<Set<string>>(new Set())
   const [activeMonth, setActiveMonth] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'months' | 'review'>('months')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -123,7 +137,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       for (const term of month.terms) {
         const selection = selections[selectionKey(month.month, term.term)]
         const searchTermAlreadyExactNegative = cmsExistingByKeyword.has(`${term.term.trim().toLowerCase()}|exact`)
-        if (selection?.decision === 'pending' || selection?.decision === 'approved' || selection?.decision === 'skipped' || searchTermAlreadyExactNegative) {
+        // 'watch' terms intentionally stay visible across months so their
+        // performance can keep being re-checked until the horizon passes.
+        const suppresses = selection?.decision === 'pending' || selection?.decision === 'approved' || selection?.decision === 'skipped' || selection?.decision === 'needs_review'
+        if (suppresses || searchTermAlreadyExactNegative) {
           previouslyReviewedTerms.add(term.term.trim().toLowerCase())
         }
       }
@@ -186,7 +203,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     updateTerm(month, term, input, nklId)
   }
 
-  const markTermHandled = (month: string, term: string, decision: Extract<Decision, 'approved' | 'skipped'>) => {
+  const markTermHandled = (month: string, term: string, decision: Extract<Decision, 'approved' | 'skipped' | 'needs_review'>) => {
     const key = selectionKey(month, term)
     const selection = selections[key]
     const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
@@ -200,6 +217,56 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
         decision: alreadySelected ? 'pending' as Decision : decision,
+        watchHorizonMonths: null,
+        watchUntil: null,
+        appliedToNKL: null,
+      },
+    }
+    setSelections(next)
+    queueSave(next)
+  }
+
+  // Toggle a term into/out of the "watch" state. Watched terms are never added
+  // to an NKL and keep appearing across months until the horizon passes, at
+  // which point the team re-checks conversion performance.
+  const setWatch = (month: string, term: string, horizon: WatchHorizon | null) => {
+    const key = selectionKey(month, term)
+    const selection = selections[key]
+    const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
+    const clearing = horizon === null
+    const next = {
+      ...selections,
+      [key]: {
+        ...(selection || {}),
+        yearMonth: month,
+        searchTerm: term,
+        negativeKeyword: parsed.keyword,
+        matchType: parsed.matchType,
+        decision: clearing ? 'pending' as Decision : 'watch' as Decision,
+        watchHorizonMonths: clearing ? null : horizon,
+        watchUntil: clearing ? null : addMonthsIso(new Date(), horizon),
+        appliedToNKL: null,
+      },
+    }
+    setSelections(next)
+    queueSave(next)
+  }
+
+  const resetToPending = (month: string, term: string) => {
+    const key = selectionKey(month, term)
+    const selection = selections[key]
+    const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
+    const next = {
+      ...selections,
+      [key]: {
+        ...(selection || {}),
+        yearMonth: month,
+        searchTerm: term,
+        negativeKeyword: parsed.keyword,
+        matchType: parsed.matchType,
+        decision: 'pending' as Decision,
+        watchHorizonMonths: null,
+        watchUntil: null,
         appliedToNKL: null,
       },
     }
@@ -261,10 +328,19 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const visibleNkls = useMemo(() => nkls.filter((nkl) => !hiddenNklIds.has(String(nkl.id))), [hiddenNklIds, nkls])
   const hiddenNkls = useMemo(() => nkls.filter((nkl) => hiddenNklIds.has(String(nkl.id))), [hiddenNklIds, nkls])
   const approvedCount = Object.values(selections).filter((selection) => selection.decision === 'approved' && selection.appliedToNKL).length
+  const needsReviewItems = useMemo(
+    () => Object.values(selections)
+      .filter((selection) => selection.decision === 'needs_review')
+      .sort((a, b) => String(a.yearMonth).localeCompare(String(b.yearMonth)) || a.searchTerm.localeCompare(b.searchTerm)),
+    [selections],
+  )
   const monthsToRender = activeMonth ? visibleMonths.filter((month) => month.month === activeMonth) : visibleMonths
+  const gridTemplate = `minmax(170px, 1fr) 300px minmax(280px, 1.7fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))`
 
   return (
-    <div style={{ padding: 24, color: 'var(--theme-text)' }}>
+    // Break the field out of the centred document column into the empty right-hand
+    // gutter so the wide month grid uses the full screen width.
+    <div style={{ padding: 24, color: 'var(--theme-text)', marginRight: 'calc(50% - 50vw + 24px)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 18 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 28 }}>Monthly negative KWs</h1>
@@ -301,6 +377,24 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         )}
       </div>
 
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--theme-elevation-150)' }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('months')}
+          style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, border: 'none', borderBottom: activeTab === 'months' ? '2px solid var(--theme-text)' : '2px solid transparent', background: 'transparent', color: activeTab === 'months' ? 'var(--theme-text)' : 'var(--theme-elevation-500)', cursor: 'pointer' }}
+        >Monthly review</button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('review')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600, border: 'none', borderBottom: activeTab === 'review' ? '2px solid #d97706' : '2px solid transparent', background: 'transparent', color: needsReviewItems.length > 0 ? '#92400e' : 'var(--theme-elevation-500)', cursor: 'pointer' }}
+        >
+          Needs review
+          {needsReviewItems.length > 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#f59e0b', color: '#fff', fontSize: 11, fontWeight: 700 }}>{needsReviewItems.length}</span>
+          )}
+        </button>
+      </div>
+
       {message && <div style={{ marginBottom: 16, padding: 10, borderRadius: 6, background: '#fef3c7', color: '#92400e' }}>{message}</div>}
 
       {lastLoadSummary?.diagnostics && (
@@ -309,13 +403,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         </div>
       )}
 
-      {loading && months.length === 0 && (
+      {activeTab === 'months' && loading && months.length === 0 && (
         <div style={{ marginBottom: 16, padding: 14, borderRadius: 8, border: '1px solid var(--theme-elevation-150)', background: 'var(--theme-elevation-50)', color: 'var(--theme-elevation-700)' }}>
           Pulling complete-month search terms from Google Ads. The first load can take a little while.
         </div>
       )}
 
-      {!loading && months.length === 0 && (
+      {activeTab === 'months' && !loading && months.length === 0 && (
         <div style={{ marginBottom: 16, padding: 14, borderRadius: 8, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e' }}>
           <strong>No monthly search terms loaded yet.</strong>
           <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.5 }}>
@@ -332,7 +426,44 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         </div>
       )}
 
-      <div ref={monthsScrollerRef} style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 20, scrollBehavior: 'smooth' }}>
+      {activeTab === 'review' && needsReviewItems.length === 0 && (
+        <div style={{ padding: 24, border: '1px solid var(--theme-elevation-150)', borderRadius: 10, color: 'var(--theme-elevation-500)', textAlign: 'center' }}>
+          No keywords flagged for review. Use the “Needs review” action on a term in the Monthly review tab to park it here.
+        </div>
+      )}
+
+      {activeTab === 'review' && needsReviewItems.length > 0 && (
+        <div style={{ marginBottom: 18, border: '1px solid #fcd34d', borderRadius: 10, background: '#fffbeb', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid #fde68a', fontWeight: 700, color: '#92400e' }}>
+            Needs review — {needsReviewItems.length} term{needsReviewItems.length === 1 ? '' : 's'} across all months
+          </div>
+          <div style={{ display: 'grid', gap: 8, padding: 12 }}>
+            {needsReviewItems.map((item) => {
+              const itemKey = selectionKey(item.yearMonth, item.searchTerm)
+              return (
+                <div key={itemKey} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr auto', gap: 10, alignItems: 'center', padding: '6px 8px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
+                  <span style={{ fontSize: 11, color: 'var(--theme-elevation-600)' }}>{monthLabel(item.yearMonth)}</span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
+                    <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>→ {item.negativeKeyword} · {matchTypeLabel(item.matchType)}</div>
+                  </div>
+                  <select
+                    defaultValue=""
+                    onChange={(event) => { if (event.target.value) setTargetListForTerm(item.yearMonth, item.searchTerm, event.target.value) }}
+                    style={{ fontSize: 12, padding: '5px 7px' }}
+                  >
+                    <option value="" disabled>Set as negative in…</option>
+                    {visibleNkls.map((nkl) => <option key={nkl.id} value={String(nkl.id)}>{nkl.name}</option>)}
+                  </select>
+                  <button type="button" onClick={() => resetToPending(item.yearMonth, item.searchTerm)} style={{ padding: '5px 9px', fontSize: 11, whiteSpace: 'nowrap' }}>Dismiss</button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <div ref={monthsScrollerRef} style={{ display: activeTab === 'months' ? 'flex' : 'none', gap: 14, overflowX: 'auto', paddingBottom: 20, scrollBehavior: 'smooth' }}>
         {monthsToRender.map((month) => {
           const isFocused = activeMonth === month.month
           return (
@@ -354,7 +485,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
               {isFocused && month.terms.length > 0 && (
-                <div style={{ position: 'sticky', top: 62, zIndex: 2, display: 'grid', gridTemplateColumns: `minmax(190px, 1.25fr) 158px minmax(190px, 0.9fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))`, gap: 10, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                <div style={{ position: 'sticky', top: 62, zIndex: 2, display: 'grid', gridTemplateColumns: gridTemplate, gap: 10, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
                   <span>Search term</span>
                   <span>Actions</span>
                   <span>Negative keyword</span>
@@ -383,7 +514,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 const isAutoAdded = selection?.decision === 'approved' && !selection.appliedToNKL || alreadyInCms
                 const selectedNklId = selection?.appliedToNKL && typeof selection.appliedToNKL === 'object' ? selection.appliedToNKL.id : selection?.appliedToNKL
                 return (
-                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? `minmax(190px, 1.25fr) 158px minmax(190px, 0.9fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))` : '1fr', gap: 10, alignItems: 'center', padding: '6px 8px', border: '1px solid var(--theme-elevation-100)', borderRadius: 6, background: selection?.decision === 'skipped' ? '#fef2f2' : selection?.decision === 'approved' && !selection.appliedToNKL ? '#f0fdf4' : 'var(--theme-elevation-0)' }}>
+                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? gridTemplate : '1fr', gap: 10, alignItems: 'center', padding: '6px 8px', border: '1px solid var(--theme-elevation-100)', borderRadius: 6, background: selection?.decision === 'skipped' ? '#fef2f2' : selection?.decision === 'needs_review' ? '#fffbeb' : selection?.decision === 'watch' ? '#eff6ff' : selection?.decision === 'approved' && !selection.appliedToNKL ? '#f0fdf4' : 'var(--theme-elevation-0)' }}>
                     <div>
                       <div style={{ fontWeight: 600, marginBottom: 2 }}>{term.term}</div>
                       <div style={{ fontSize: 10, color: 'var(--theme-elevation-500)' }}>
@@ -391,31 +522,69 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                       </div>
                     </div>
                     {isFocused && (
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center', flexWrap: 'nowrap' }}>
+                        {selection?.decision === 'watch' ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <button
+                              type="button"
+                              disabled={month.reviewComplete}
+                              onClick={() => setWatch(month.month, term.term, null)}
+                              title={`Watching — performance re-check due ${selection.watchUntil ? new Date(selection.watchUntil).toLocaleDateString('en-AU') : ''}. Click to stop watching.`}
+                              style={{ padding: '3px 5px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: '#1d4ed8', borderColor: '#93c5fd', background: '#dbeafe', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                            >👁 Watch</button>
+                            <select
+                              disabled={month.reviewComplete}
+                              value={WATCH_HORIZONS.includes(selection.watchHorizonMonths as WatchHorizon) ? Number(selection.watchHorizonMonths) : DEFAULT_WATCH_HORIZON}
+                              onChange={(event) => setWatch(month.month, term.term, Number(event.target.value) as WatchHorizon)}
+                              title="Months until performance re-check"
+                              style={{ fontSize: 9, padding: '1px 2px' }}
+                            >
+                              {WATCH_HORIZONS.map((h) => <option key={h} value={h}>{h}mo</option>)}
+                            </select>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={month.reviewComplete}
+                            onClick={() => setWatch(month.month, term.term, DEFAULT_WATCH_HORIZON)}
+                            title="On the fence? Watch this term. It is NOT added as a negative and keeps appearing across months until the re-check horizon (default 3 months) passes, when its conversion performance is reviewed."
+                            style={{ padding: '3px 6px', fontSize: 10, lineHeight: 1.2, fontWeight: 700, whiteSpace: 'nowrap', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                          >?</button>
+                        )}
                         <button
                           type="button"
                           disabled={month.reviewComplete}
                           onClick={() => markTermHandled(month.month, term.term, 'skipped')}
-                          style={{ padding: '4px 7px', fontSize: 10, lineHeight: 1.2, whiteSpace: 'nowrap', color: selection?.decision === 'skipped' ? '#991b1b' : undefined, borderColor: selection?.decision === 'skipped' ? '#fca5a5' : undefined, background: selection?.decision === 'skipped' ? '#fee2e2' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                          style={{ padding: '3px 6px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: selection?.decision === 'skipped' ? '#991b1b' : undefined, borderColor: selection?.decision === 'skipped' ? '#fca5a5' : undefined, background: selection?.decision === 'skipped' ? '#fee2e2' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
                         >{selection?.decision === 'skipped' ? 'Skipped' : 'Skip'}</button>
                         <button
                           type="button"
                           disabled={month.reviewComplete}
                           onClick={() => markTermHandled(month.month, term.term, 'approved')}
                           title="Already covered by an existing negative keyword; hide this exact search term in future months without applying it again. Click again to unmark."
-                          style={{ padding: '4px 7px', fontSize: 10, lineHeight: 1.2, whiteSpace: 'nowrap', color: isAutoAdded ? '#166534' : undefined, borderColor: isAutoAdded ? '#86efac' : undefined, background: isAutoAdded ? '#dcfce7' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                          style={{ padding: '3px 6px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: isAutoAdded ? '#166534' : undefined, borderColor: isAutoAdded ? '#86efac' : undefined, background: isAutoAdded ? '#dcfce7' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
                         >{isAutoAdded ? 'Added' : 'Already added'}</button>
+                        <button
+                          type="button"
+                          disabled={month.reviewComplete}
+                          onClick={() => markTermHandled(month.month, term.term, 'needs_review')}
+                          title="Unsure whether this should be a negative? Type the negative keyword, then flag it for review. It is NOT added to any list — it is parked for an admin to decide, and surfaces in the Needs review panel."
+                          style={{ padding: '3px 6px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: selection?.decision === 'needs_review' ? '#92400e' : undefined, borderColor: selection?.decision === 'needs_review' ? '#fcd34d' : undefined, background: selection?.decision === 'needs_review' ? '#fef3c7' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                        >{selection?.decision === 'needs_review' ? 'In review' : 'Needs review'}</button>
                       </div>
                     )}
-                    <input
-                      value={inputValue}
-                      disabled={month.reviewComplete}
-                      onChange={(event) => updateTerm(month.month, term.term, event.target.value)}
-                      style={{ width: '100%', boxSizing: 'border-box', padding: '5px 7px', fontSize: 12, cursor: month.reviewComplete ? 'not-allowed' : 'text' }}
-                    />
+                    <div style={{ display: 'grid', gap: 4 }}>
+                      <input
+                        value={inputValue}
+                        disabled={month.reviewComplete}
+                        onChange={(event) => updateTerm(month.month, term.term, event.target.value)}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '5px 7px', fontSize: 12, cursor: month.reviewComplete ? 'not-allowed' : 'text' }}
+                      />
+                      {alreadyInCms && <span title={cmsNklMatches.join(', ')} style={{ fontSize: 11, background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: 999, justifySelf: 'start' }}>Already in {cmsNklMatches.join(', ')}</span>}
+                      {isWatchDue(selection) && <span style={{ fontSize: 11, background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 999, justifySelf: 'start' }}>Watch due — re-check performance</span>}
+                    </div>
                     <div style={{ display: 'grid', gap: 4 }}>
                       <span style={{ fontSize: 10, color: '#0369a1' }}>{matchTypeLabel(parsed.matchType)}</span>
-                      {alreadyInCms && <span title={cmsNklMatches.join(', ')} style={{ fontSize: 11, background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: 999 }}>Already in {cmsNklMatches.join(', ')}</span>}
                     </div>
                     {isFocused && visibleNkls.map((nkl) => {
                       const isChecked = String(selectedNklId || '') === String(nkl.id)
