@@ -100,6 +100,18 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     scroller.scrollTo({ left: target.offsetLeft - scroller.offsetLeft, behavior })
   }, [])
 
+  const cmsExistingByKeyword = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const nkl of nkls) {
+      for (const kw of Array.isArray(nkl.keywords) ? nkl.keywords : []) {
+        if (!kw?.keyword || !kw?.matchType) continue
+        const key = `${kw.keyword.toLowerCase()}|${kw.matchType}`
+        map.set(key, [...(map.get(key) || []), nkl.name || 'Unnamed NKL'])
+      }
+    }
+    return map
+  }, [nkls])
+
   const visibleMonths = useMemo(() => {
     const previouslyReviewedTerms = new Set<string>()
     return months.map((month) => {
@@ -110,29 +122,20 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       })
       for (const term of month.terms) {
         const selection = selections[selectionKey(month.month, term.term)]
-        if (selection?.decision === 'pending' || selection?.decision === 'approved' || selection?.decision === 'skipped') {
+        const searchTermAlreadyExactNegative = cmsExistingByKeyword.has(`${term.term.trim().toLowerCase()}|exact`)
+        if (selection?.decision === 'pending' || selection?.decision === 'approved' || selection?.decision === 'skipped' || searchTermAlreadyExactNegative) {
           previouslyReviewedTerms.add(term.term.trim().toLowerCase())
         }
       }
       return { ...month, terms }
     })
-  }, [months, selections])
+  }, [cmsExistingByKeyword, months, selections])
 
   useEffect(() => {
     if (loading || visibleMonths.length === 0 || hasAutoScrolledRef.current) return
     hasAutoScrolledRef.current = true
     window.requestAnimationFrame(() => scrollToFirstIncompleteMonth(visibleMonths, 'auto'))
   }, [loading, visibleMonths, scrollToFirstIncompleteMonth])
-
-  const cmsExisting = useMemo(() => {
-    const set = new Set<string>()
-    for (const nkl of nkls) {
-      for (const kw of Array.isArray(nkl.keywords) ? nkl.keywords : []) {
-        if (kw?.keyword && kw?.matchType) set.add(`${kw.keyword.toLowerCase()}|${kw.matchType}`)
-      }
-    }
-    return set
-  }, [nkls])
 
   const saveSelections = useCallback(async (next: Record<string, Selection>) => {
     setSaving(true)
@@ -375,7 +378,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 const selection = selections[key]
                 const inputValue = inputFromSelection(selection, term.term)
                 const parsed = parseNegativeKeywordInput(inputValue) || { keyword: term.term, matchType: 'exact' as MatchType }
-                const alreadyInCms = cmsExisting.has(`${parsed.keyword.toLowerCase()}|${parsed.matchType}`)
+                const cmsNklMatches = cmsExistingByKeyword.get(`${parsed.keyword.toLowerCase()}|${parsed.matchType}`) || []
+                const alreadyInCms = cmsNklMatches.length > 0
+                const isAutoAdded = selection?.decision === 'approved' && !selection.appliedToNKL || alreadyInCms
                 const selectedNklId = selection?.appliedToNKL && typeof selection.appliedToNKL === 'object' ? selection.appliedToNKL.id : selection?.appliedToNKL
                 return (
                   <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? `minmax(190px, 1.25fr) 158px minmax(190px, 0.9fr) 88px repeat(${Math.max(visibleNkls.length, 1)}, minmax(100px, 0.55fr))` : '1fr', gap: 10, alignItems: 'center', padding: '6px 8px', border: '1px solid var(--theme-elevation-100)', borderRadius: 6, background: selection?.decision === 'skipped' ? '#fef2f2' : selection?.decision === 'approved' && !selection.appliedToNKL ? '#f0fdf4' : 'var(--theme-elevation-0)' }}>
@@ -398,8 +403,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                           disabled={month.reviewComplete}
                           onClick={() => markTermHandled(month.month, term.term, 'approved')}
                           title="Already covered by an existing negative keyword; hide this exact search term in future months without applying it again. Click again to unmark."
-                          style={{ padding: '4px 7px', fontSize: 10, lineHeight: 1.2, whiteSpace: 'nowrap', color: selection?.decision === 'approved' && !selection.appliedToNKL ? '#166534' : undefined, borderColor: selection?.decision === 'approved' && !selection.appliedToNKL ? '#86efac' : undefined, background: selection?.decision === 'approved' && !selection.appliedToNKL ? '#dcfce7' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
-                        >{selection?.decision === 'approved' && !selection.appliedToNKL ? 'Added' : 'Already added'}</button>
+                          style={{ padding: '4px 7px', fontSize: 10, lineHeight: 1.2, whiteSpace: 'nowrap', color: isAutoAdded ? '#166534' : undefined, borderColor: isAutoAdded ? '#86efac' : undefined, background: isAutoAdded ? '#dcfce7' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                        >{isAutoAdded ? 'Added' : 'Already added'}</button>
                       </div>
                     )}
                     <input
@@ -410,7 +415,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     />
                     <div style={{ display: 'grid', gap: 4 }}>
                       <span style={{ fontSize: 10, color: '#0369a1' }}>{matchTypeLabel(parsed.matchType)}</span>
-                      {alreadyInCms && <span style={{ fontSize: 11, background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: 999 }}>Already in CMS NKL</span>}
+                      {alreadyInCms && <span title={cmsNklMatches.join(', ')} style={{ fontSize: 11, background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: 999 }}>Already in {cmsNklMatches.join(', ')}</span>}
                     </div>
                     {isFocused && visibleNkls.map((nkl) => {
                       const isChecked = String(selectedNklId || '') === String(nkl.id)
