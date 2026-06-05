@@ -42,9 +42,12 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [message, setMessage] = useState<string | null>(null)
   const [lastLoadSummary, setLastLoadSummary] = useState<{ misses?: number; missingMonths?: string[]; error?: string; diagnostics?: { customerId?: string; startDate?: string; endDate?: string; totalRows?: number; matchedRows?: number } } | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const monthsScrollerRef = useRef<HTMLDivElement | null>(null)
+  const hasAutoScrolledRef = useRef(false)
 
   const load = useCallback(async () => {
     if (!clientId || !customerId || !slug) return
+    hasAutoScrolledRef.current = false
     setLoading(true)
     setMessage(null)
     try {
@@ -85,6 +88,22 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   }, [clientId])
 
   useEffect(() => { void load(); void loadNkls() }, [load, loadNkls])
+
+  const scrollToFirstIncompleteMonth = useCallback((nextMonths: Month[], behavior: ScrollBehavior = 'smooth') => {
+    const scroller = monthsScrollerRef.current
+    if (!scroller) return
+    const targetIndex = nextMonths.findIndex((month) => !month.reviewComplete)
+    if (targetIndex < 0) return
+    const target = scroller.children.item(targetIndex)
+    if (!(target instanceof HTMLElement)) return
+    scroller.scrollTo({ left: target.offsetLeft - scroller.offsetLeft, behavior })
+  }, [])
+
+  useEffect(() => {
+    if (loading || months.length === 0 || hasAutoScrolledRef.current) return
+    hasAutoScrolledRef.current = true
+    window.requestAnimationFrame(() => scrollToFirstIncompleteMonth(months, 'auto'))
+  }, [loading, months, scrollToFirstIncompleteMonth])
 
   const cmsExisting = useMemo(() => {
     const set = new Set<string>()
@@ -150,7 +169,11 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       body: JSON.stringify({ clientId: Number(clientId), yearMonth: month, complete }),
     })
     if (res.ok) {
-      setMonths((current) => current.map((entry) => entry.month === month ? { ...entry, reviewComplete: complete } : entry))
+      setMonths((current) => {
+        const next = current.map((entry) => entry.month === month ? { ...entry, reviewComplete: complete } : entry)
+        if (complete) window.requestAnimationFrame(() => scrollToFirstIncompleteMonth(next))
+        return next
+      })
     } else {
       setMessage('Failed to update month completion')
     }
@@ -262,9 +285,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 20 }}>
+      <div ref={monthsScrollerRef} style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 20, scrollBehavior: 'smooth' }}>
         {months.map((month) => (
-          <section key={month.month} style={{ minWidth: 340, maxWidth: 340, border: '1px solid var(--theme-elevation-150)', borderRadius: 10, background: month.reviewComplete ? 'var(--theme-elevation-50)' : 'var(--theme-bg)', opacity: month.reviewComplete ? 0.78 : 1 }}>
+          <section key={month.month} aria-label={`${monthLabel(month.month)}${month.reviewComplete ? ' complete' : ''}`} style={{ minWidth: 340, maxWidth: 340, border: '1px solid var(--theme-elevation-150)', borderRadius: 10, background: month.reviewComplete ? 'var(--theme-elevation-50)' : 'var(--theme-bg)', opacity: month.reviewComplete ? 0.78 : 1 }}>
             <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: 12, borderBottom: '1px solid var(--theme-elevation-150)', background: 'inherit', borderRadius: '10px 10px 0 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                 <strong>{monthLabel(month.month)}</strong>
@@ -273,7 +296,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                   {month.reviewComplete ? '✓ Complete' : 'Complete'}
                 </label>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', marginTop: 4 }}>{month.terms.length} qualifying term{month.terms.length === 1 ? '' : 's'}</div>
+              <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', marginTop: 4 }}>
+                {month.terms.length} qualifying term{month.terms.length === 1 ? '' : 's'}{month.reviewComplete ? ' · Locked until unchecked' : ''}
+              </div>
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
               {month.terms.length === 0 && month.diagnostics && (
@@ -295,8 +320,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     </div>
                     <input
                       value={inputValue}
+                      disabled={month.reviewComplete}
                       onChange={(event) => updateTerm(month.month, term.term, event.target.value)}
-                      style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', marginBottom: 6 }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', marginBottom: 6, cursor: month.reviewComplete ? 'not-allowed' : 'text' }}
                     />
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                       <span style={{ fontSize: 11, color: '#0369a1' }}>{matchTypeLabel(parsed.matchType)}</span>
@@ -307,6 +333,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                         <button
                           key={decision}
                           type="button"
+                          disabled={month.reviewComplete}
                           onClick={() => setDecision(month.month, term.term, decision)}
                           style={{
                             flex: 1,
@@ -314,6 +341,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                             borderRadius: 5,
                             border: selection?.decision === decision ? '1px solid #0f766e' : '1px solid var(--theme-elevation-150)',
                             background: selection?.decision === decision ? '#ccfbf1' : 'transparent',
+                            cursor: month.reviewComplete ? 'not-allowed' : 'pointer',
+                            opacity: month.reviewComplete ? 0.65 : 1,
                             textTransform: 'capitalize',
                           }}
                         >{decision}</button>
