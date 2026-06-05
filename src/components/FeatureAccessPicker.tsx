@@ -19,6 +19,7 @@ import { useField, useAllFormFields } from '@payloadcms/ui'
 import { useEffect, useMemo, useState } from 'react'
 import {
   FEATURE_KEYS,
+  GOOGLE_ADS_BUNDLE_FEATURES,
   computeAutoGrants,
   type FeatureSlug,
 } from '../lib/access'
@@ -56,16 +57,18 @@ const GROUPS: { label: string; values: FeatureSlug[] }[] = [
     values: [
       'seo-audits',
       'cro-audits',
-      'google-ads-audits',
       'tag-setup-audits',
       'keyword-snapshots',
       'competitor-analyses',
       'content-researches',
       'gsc-alerts',
       'gsc-indexing-audits',
-      'negative-keyword-lists',
       'site-health-reports',
     ],
+  },
+  {
+    label: 'Google Ads',
+    values: ['nav:google-ads', ...GOOGLE_ADS_BUNDLE_FEATURES],
   },
   {
     label: 'Reports',

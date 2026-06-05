@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
+import { userHasFeature } from "@/lib/access";
 
 /**
  * Returns the list of clients shown on the Google Ads hub page.
@@ -18,6 +19,9 @@ export async function GET() {
     const { user } = await payload.auth({ headers: headersList });
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!userHasFeature(user, "nav:google-ads")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const result = await payload.find({

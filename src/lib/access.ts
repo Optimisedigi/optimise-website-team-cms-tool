@@ -108,6 +108,12 @@ export type FeatureSlug = (typeof FEATURE_KEYS)[number]["value"];
  *
  * Anyone with one of these features automatically also has `clients-basic`.
  */
+export const GOOGLE_ADS_BUNDLE_FEATURES: readonly FeatureSlug[] = [
+  "google-ads-audits",
+  "negative-keyword-lists",
+  "keyword-deep-dive-sessions",
+] as const;
+
 export const AUTO_GRANT_CLIENTS_BASIC_TRIGGERS: readonly FeatureSlug[] = [
   "clients", // full clients implies basic
   "client-proposals",
@@ -165,6 +171,9 @@ export const AUTO_GRANT_MEDIA_BASIC_TRIGGERS: readonly FeatureSlug[] = [
  */
 export function computeAutoGrants(explicit: Set<string>): Set<string> {
   const out = new Set<string>();
+  if (explicit.has("nav:google-ads")) {
+    for (const feature of GOOGLE_ADS_BUNDLE_FEATURES) out.add(feature);
+  }
   for (const trigger of AUTO_GRANT_CLIENTS_BASIC_TRIGGERS) {
     if (explicit.has(trigger)) {
       out.add("clients-basic");
