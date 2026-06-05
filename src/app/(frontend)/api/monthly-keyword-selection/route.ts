@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
+import { userHasFeature } from '@/lib/access'
 import { warmMonthlyKeywordTermsForClient } from '@/lib/monthly-keyword-terms-warmer'
 
 export async function GET(req: NextRequest) {
   const payload = await getPayload({ config })
   const { user } = await payload.auth({ headers: req.headers })
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!userHasFeature(user, 'negative-keyword-lists')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const clientIdParam = req.nextUrl.searchParams.get('clientId')
   const customerId = req.nextUrl.searchParams.get('customerId') || ''

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
+import { userHasFeature } from '@/lib/access'
 
 type MatchType = 'exact' | 'broad' | 'phrase'
 
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
   const payload = await getPayload({ config })
   const { user } = await payload.auth({ headers: req.headers })
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!userHasFeature(user, 'negative-keyword-lists')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => null)
   const clientId = Number(body?.clientId)

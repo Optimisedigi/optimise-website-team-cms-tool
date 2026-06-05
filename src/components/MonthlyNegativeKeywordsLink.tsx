@@ -1,6 +1,6 @@
 'use client'
 
-import { useAllFormFields, useDocumentInfo } from '@payloadcms/ui'
+import { useAllFormFields, useAuth, useDocumentInfo } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
 import { MonthlyKeywordSelection } from './MonthlyKeywordSelection'
 
@@ -12,6 +12,7 @@ type ClientLinkData = {
 
 export default function MonthlyNegativeKeywordsLink() {
   const { id } = useDocumentInfo()
+  const { user } = useAuth()
   const [fields] = useAllFormFields()
   const [resolvedClient, setResolvedClient] = useState<ClientLinkData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -88,7 +89,7 @@ export default function MonthlyNegativeKeywordsLink() {
       clientId={resolvedClient.clientId}
       customerId={resolvedClient.customerId}
       slug={resolvedClient.slug}
-      isAdmin
+      isAdmin={(user as { role?: string } | null | undefined)?.role === 'admin'}
     />
   )
 }
