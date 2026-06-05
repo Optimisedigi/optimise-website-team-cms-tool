@@ -7,7 +7,7 @@ type MatchType = 'exact' | 'phrase' | 'broad'
 type Decision = 'pending' | 'approved' | 'skipped'
 
 type Term = { term: string; impressions: number; clicks: number; cost: number; conversions: number; status?: string }
-type Month = { month: string; terms: Term[]; reviewComplete: boolean; reviewCompletedAt?: string | null }
+type Month = { month: string; terms: Term[]; reviewComplete: boolean; reviewCompletedAt?: string | null; diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number } }
 type Selection = { yearMonth: string; searchTerm: string; negativeKeyword: string; matchType: MatchType; decision: Decision; appliedAt?: string | null }
 type Nkl = { id: number | string; name: string; isActive?: boolean; keywords?: Array<{ keyword: string; matchType: MatchType }> }
 
@@ -264,6 +264,11 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
               <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', marginTop: 4 }}>{month.terms.length} qualifying term{month.terms.length === 1 ? '' : 's'}</div>
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
+              {month.terms.length === 0 && month.diagnostics && (
+                <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', lineHeight: 1.45 }}>
+                  Growth Tools rows: {month.diagnostics.rawRows ?? 0}; parsed terms: {month.diagnostics.parsedTerms ?? 0}; qualifying terms: {month.diagnostics.qualifiedTerms ?? 0}.
+                </div>
+              )}
               {month.terms.map((term) => {
                 const key = selectionKey(month.month, term.term)
                 const selection = selections[key]

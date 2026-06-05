@@ -43,6 +43,7 @@ export type WarmMonthlyKeywordTermsResult = {
     month: string
     terms: MonthlyKeywordTerm[]
     reviewComplete: boolean
+    diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number }
     reviewCompletedAt?: string | null
     reviewCompletedBy?: number | string | { id?: number | string } | null
     fetchedAt?: string
@@ -134,6 +135,7 @@ export async function warmMonthlyKeywordTermsForClient(
   const missingMonths = completeMonths.filter((month) => !cache.has(month))
   let misses = 0
   let error: string | undefined
+  const diagnosticsByMonth = new Map<string, { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number }>()
 
   if (missingMonths.length > 0) {
     if (!GROWTH_TOOLS_URL || !GROWTH_TOOLS_API_KEY || !customerId) {
@@ -177,7 +179,13 @@ export async function warmMonthlyKeywordTermsForClient(
               .map((entry: any) => [entry.month, entry] as [string, unknown]),
           )
           for (const [month, upstream] of upstreamByMonth) {
-            const terms = normaliseTerms((upstream as any)?.terms)
+            const upstreamEntry = upstream as any
+            diagnosticsByMonth.set(month, {
+              rawRows: typeof upstreamEntry?.rawRows === 'number' ? upstreamEntry.rawRows : undefined,
+              parsedTerms: typeof upstreamEntry?.parsedTerms === 'number' ? upstreamEntry.parsedTerms : undefined,
+              qualifiedTerms: typeof upstreamEntry?.qualifiedTerms === 'number' ? upstreamEntry.qualifiedTerms : undefined,
+            })
+            const terms = normaliseTerms(upstreamEntry?.terms)
             const created = await payload.create({
               collection: 'monthly-keyword-terms-cache',
               data: {
@@ -209,6 +217,7 @@ export async function warmMonthlyKeywordTermsForClient(
         month,
         terms: normaliseTerms(row.terms),
         reviewComplete: row.reviewComplete === true || row.reviewComplete === 1,
+        diagnostics: diagnosticsByMonth.get(month),
         reviewCompletedAt: row.reviewCompletedAt || null,
         reviewCompletedBy: row.reviewCompletedBy || null,
         fetchedAt: row.fetchedAt,
