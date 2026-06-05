@@ -121,9 +121,13 @@ export async function POST(req: NextRequest) {
         .filter((keyword) => keyword.yearMonth && keyword.searchTerm)
         .map((keyword) => [`${keyword.yearMonth}|${String(keyword.searchTerm).toLowerCase()}`, keyword.appliedToNKL] as [string, number | string | null | undefined]),
     )
+    const appliedKeywordKeys = new Map(
+      keywords.map((keyword) => [`${keyword.keyword.toLowerCase()}|${keyword.matchType}`, keyword.appliedToNKL] as [string, number | string | null | undefined]),
+    )
     const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection: any) => {
       const selectionKey = `${String(selection.yearMonth)}|${String(selection.searchTerm || '').toLowerCase()}`
-      const appliedToNKL = appliedSelectionKeys.get(selectionKey) || fallbackNklId
+      const keywordKey = `${String(selection.negativeKeyword || '').toLowerCase()}|${selection.matchType}`
+      const appliedToNKL = appliedSelectionKeys.get(selectionKey) || appliedKeywordKeys.get(keywordKey)
       if (!appliedToNKL) return selection
       return {
         ...selection,
