@@ -36,6 +36,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [months, setMonths] = useState<Month[]>([])
   const [selections, setSelections] = useState<Record<string, Selection>>({})
   const [nkls, setNkls] = useState<Nkl[]>([])
+  const [hiddenNklIds, setHiddenNklIds] = useState<Set<string>>(new Set())
   const [activeMonth, setActiveMonth] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -233,6 +234,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     else setMessage('Rebuild failed')
   }
 
+  const visibleNkls = useMemo(() => nkls.filter((nkl) => !hiddenNklIds.has(String(nkl.id))), [hiddenNklIds, nkls])
+  const hiddenNkls = useMemo(() => nkls.filter((nkl) => hiddenNklIds.has(String(nkl.id))), [hiddenNklIds, nkls])
   const approvedCount = Object.values(selections).filter((selection) => selection.decision === 'approved' && selection.appliedToNKL).length
   const monthsToRender = activeMonth ? visibleMonths.filter((month) => month.month === activeMonth) : visibleMonths
 
@@ -269,6 +272,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, padding: 12, border: '1px solid var(--theme-elevation-150)', borderRadius: 8 }}>
         <button type="button" onClick={applyApproved} disabled={approvedCount === 0} style={{ padding: '8px 12px' }}>Apply {approvedCount} added negative{approvedCount === 1 ? '' : 's'}</button>
         <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>{saving ? 'Saving…' : 'Auto-saved'} · Open a month, then tick the NKL column for each search term you want to add.</span>
+        {hiddenNkls.length > 0 && (
+          <button type="button" onClick={() => setHiddenNklIds(new Set())} style={{ padding: '6px 10px', fontSize: 12 }}>Show {hiddenNkls.length} hidden NKL{hiddenNkls.length === 1 ? '' : 's'}</button>
+        )}
       </div>
 
       {message && <div style={{ marginBottom: 16, padding: 10, borderRadius: 6, background: '#fef3c7', color: '#92400e' }}>{message}</div>}
@@ -324,12 +330,17 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
               {isFocused && month.terms.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: `minmax(220px, 1.4fr) minmax(220px, 1fr) 110px repeat(${Math.max(nkls.length, 1)}, minmax(120px, 0.7fr))`, gap: 8, padding: '0 10px', fontSize: 11, fontWeight: 700, color: 'var(--theme-elevation-600)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: `minmax(220px, 1.4fr) minmax(220px, 1fr) 110px repeat(${Math.max(visibleNkls.length, 1)}, minmax(120px, 0.7fr))`, gap: 8, padding: '0 10px', fontSize: 11, fontWeight: 700, color: 'var(--theme-elevation-600)' }}>
                   <span>Search term</span>
                   <span>Negative keyword</span>
                   <span>Match type</span>
-                  {nkls.map((nkl) => <span key={nkl.id} style={{ textAlign: 'center' }}>{nkl.name}</span>)}
-                  {nkls.length === 0 && <span>Negative keyword list</span>}
+                  {visibleNkls.map((nkl) => (
+                    <span key={nkl.id} style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                      {nkl.name}
+                      <button type="button" onClick={() => setHiddenNklIds((current) => new Set([...current, String(nkl.id)]))} title={`Hide ${nkl.name}`} style={{ padding: '1px 5px', fontSize: 10, lineHeight: 1.2 }}>×</button>
+                    </span>
+                  ))}
+                  {visibleNkls.length === 0 && <span>Negative keyword list</span>}
                 </div>
               )}
               {month.terms.length === 0 && month.diagnostics && (
@@ -345,7 +356,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 const alreadyInCms = cmsExisting.has(`${parsed.keyword.toLowerCase()}|${parsed.matchType}`)
                 const selectedNklId = selection?.appliedToNKL && typeof selection.appliedToNKL === 'object' ? selection.appliedToNKL.id : selection?.appliedToNKL
                 return (
-                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? `minmax(220px, 1.4fr) minmax(220px, 1fr) 110px repeat(${Math.max(nkls.length, 1)}, minmax(120px, 0.7fr))` : '1fr', gap: 8, alignItems: 'center', padding: 10, border: '1px solid var(--theme-elevation-100)', borderRadius: 8, background: 'var(--theme-elevation-0)' }}>
+                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? `minmax(220px, 1.4fr) minmax(220px, 1fr) 110px repeat(${Math.max(visibleNkls.length, 1)}, minmax(120px, 0.7fr))` : '1fr', gap: 8, alignItems: 'center', padding: 10, border: '1px solid var(--theme-elevation-100)', borderRadius: 8, background: 'var(--theme-elevation-0)' }}>
                     <div>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>{term.term}</div>
                       <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>
@@ -362,16 +373,16 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                       <span style={{ fontSize: 11, color: '#0369a1' }}>{matchTypeLabel(parsed.matchType)}</span>
                       {alreadyInCms && <span style={{ fontSize: 11, background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: 999 }}>Already in CMS NKL</span>}
                     </div>
-                    {isFocused && nkls.map((nkl) => {
+                    {isFocused && visibleNkls.map((nkl) => {
                       const isChecked = String(selectedNklId || '') === String(nkl.id)
                       return (
                         <label key={nkl.id} style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '4px 6px', borderRadius: 6, border: isChecked ? '1px solid #0f766e' : '1px solid var(--theme-elevation-150)', background: isChecked ? '#ccfbf1' : 'transparent', fontSize: 11, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}>
                           <input type="checkbox" checked={isChecked} disabled={month.reviewComplete} onChange={() => setTargetListForTerm(month.month, term.term, isChecked ? null : nkl.id)} />
-                          Added as negative
+                          Add negative
                         </label>
                       )
                     })}
-                    {isFocused && nkls.length === 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>No active NKLs</span>}
+                    {isFocused && visibleNkls.length === 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>No active NKLs shown</span>}
                   </div>
                 )
               })}
