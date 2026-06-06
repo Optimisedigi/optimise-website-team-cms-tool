@@ -118,6 +118,26 @@ export const MonthlyKeywordSelections: CollectionConfig = {
           name: 'appliedAt',
           type: 'date',
         },
+        {
+          name: 'reviewComment',
+          type: 'textarea',
+          admin: { description: 'Reviewer note for a "needs review" term. Visible to anyone with tool access.' },
+        },
+        {
+          name: 'reviewCommentBy',
+          type: 'text',
+          admin: { description: 'Display name of the person who last saved the comment.' },
+        },
+        {
+          name: 'reviewCommentAt',
+          type: 'text',
+          admin: { description: 'ISO timestamp of the last comment save.' },
+        },
+        {
+          name: 'reviewCommentTaggedUserIds',
+          type: 'text',
+          admin: { description: 'Comma-separated user IDs tagged in the comment (for notifications).' },
+        },
       ],
     },
   ],

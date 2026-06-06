@@ -6359,6 +6359,22 @@ export interface MonthlyKeywordSelection {
         watchUntil?: string | null;
         appliedToNKL?: (number | null) | NegativeKeywordList;
         appliedAt?: string | null;
+        /**
+         * Reviewer note for a "needs review" term. Visible to anyone with tool access.
+         */
+        reviewComment?: string | null;
+        /**
+         * Display name of the person who last saved the comment.
+         */
+        reviewCommentBy?: string | null;
+        /**
+         * ISO timestamp of the last comment save.
+         */
+        reviewCommentAt?: string | null;
+        /**
+         * Comma-separated user IDs tagged in the comment (for notifications).
+         */
+        reviewCommentTaggedUserIds?: string | null;
         id?: string | null;
       }[]
     | null;
@@ -9983,6 +9999,10 @@ export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
         watchUntil?: T;
         appliedToNKL?: T;
         appliedAt?: T;
+        reviewComment?: T;
+        reviewCommentBy?: T;
+        reviewCommentAt?: T;
+        reviewCommentTaggedUserIds?: T;
         id?: T;
       };
   updatedAt?: T;

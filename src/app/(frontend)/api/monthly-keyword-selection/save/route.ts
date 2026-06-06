@@ -26,7 +26,15 @@ function normaliseSelection(value: any): MonthlyKeywordSelectionRow | null {
   const watchHorizonMonths = VALID_WATCH_HORIZONS.has(rawHorizon) ? rawHorizon : DEFAULT_WATCH_HORIZON
 
   if (!/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm || !negativeKeyword) return null
-  return { yearMonth, searchTerm, negativeKeyword, matchType, decision, appliedToNKL, watchHorizonMonths } as MonthlyKeywordSelectionRow
+  const base: MonthlyKeywordSelectionRow = { yearMonth, searchTerm, negativeKeyword, matchType, decision, appliedToNKL, watchHorizonMonths } as MonthlyKeywordSelectionRow
+  // Comment fields are authored via the dedicated /comment route. Only forward
+  // them when the client actually sent strings so a routine autosave can never
+  // wipe a comment that another reviewer saved after this client last loaded.
+  if (typeof value?.reviewComment === 'string') base.reviewComment = value.reviewComment
+  if (typeof value?.reviewCommentBy === 'string') base.reviewCommentBy = value.reviewCommentBy
+  if (typeof value?.reviewCommentAt === 'string') base.reviewCommentAt = value.reviewCommentAt
+  if (typeof value?.reviewCommentTaggedUserIds === 'string') base.reviewCommentTaggedUserIds = value.reviewCommentTaggedUserIds
+  return base
 }
 
 export async function POST(req: NextRequest) {
