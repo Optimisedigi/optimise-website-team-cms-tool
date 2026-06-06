@@ -1120,6 +1120,22 @@ export const GoogleAdsAudits: CollectionConfig = {
           ],
         },
 
+        // ── Tab: Conversions ──
+        {
+          label: "Conversions",
+          fields: [
+            {
+              name: "conversionsUI",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/GoogleAdsAuditConversions",
+                },
+              },
+            },
+          ],
+        },
+
         // ── Tab 8: Budget Management ──
         {
           label: "Budget Management",
