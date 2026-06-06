@@ -4067,11 +4067,19 @@ export async function runMigrations(
       \`watch_until\` text,
       \`applied_to_n_k_l_id\` integer,
       \`applied_at\` text,
+      \`review_comment\` text,
+      \`review_comment_by\` text,
+      \`review_comment_at\` text,
+      \`review_comment_tagged_user_ids\` text,
       FOREIGN KEY (\`_parent_id\`) REFERENCES \`monthly_keyword_selections\`(\`id\`) ON UPDATE no action ON DELETE cascade,
       FOREIGN KEY (\`applied_to_n_k_l_id\`) REFERENCES \`negative_keyword_lists\`(\`id\`) ON UPDATE no action ON DELETE set null
     )`);
     await run("monthly_keyword_selections_selections.watch_horizon_months", "ALTER TABLE `monthly_keyword_selections_selections` ADD `watch_horizon_months` numeric");
     await run("monthly_keyword_selections_selections.watch_until", "ALTER TABLE `monthly_keyword_selections_selections` ADD `watch_until` text");
+    await run("monthly_keyword_selections_selections.review_comment", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment` text");
+    await run("monthly_keyword_selections_selections.review_comment_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment_by` text");
+    await run("monthly_keyword_selections_selections.review_comment_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment_at` text");
+    await run("monthly_keyword_selections_selections.review_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment_tagged_user_ids` text");
     await run("monthly_keyword_terms_cache", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_terms_cache\` (
       \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
       \`client_id\` integer NOT NULL,
