@@ -1,6 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  CHAT_PICKER_MODELS,
+  DEFAULT_CHAT_MODEL,
+  isCanonicalModel,
+} from '@/lib/agents/_shared/llm/registry'
+import { renderMarkdown } from './OptiMateChatCore'
 
 /**
  * Compact Invoice Assistant chat for the OptiMate launcher panel.
@@ -8,8 +14,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * Wraps the same `/api/xero/chat` endpoint the full-page chat on
  * `/admin/finance/invoices` uses. Conversation history lives in component
  * state — closing the panel discards it (matches the existing assistant's
- * behaviour). Styled to match the launcher's Google Ads chat surface
- * (dark input bar, flex column, sticky composer at the bottom).
+ * behaviour).
+ *
+ * Visually mirrors the Google Ads OptiMate chat (OptiMateChatCore): asymmetric
+ * rounded message bubbles, markdown + GFM table rendering for assistant
+ * replies (via the shared `renderMarkdown`), a typing-dots loader, and a model
+ * selector below the composer. The selected model is sent to the endpoint so
+ * the user's pick overrides the configured invoice-assistant default.
  *
  * Limitations vs the Google Ads OptiMate stack (intentional, see CLAUDE.md
  * notes from the agent migration plan):
@@ -25,6 +36,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 interface ChatMessage {
   role: 'user' | 'assistant' | 'error'
   content: string
+  /** Model that produced an assistant reply (shown as a small caption). */
+  modelUsed?: string
 }
 
 interface ToolAction {
@@ -32,10 +45,50 @@ interface ToolAction {
   result?: unknown
 }
 
+/** localStorage slot for the invoice chat's preferred model. Kept separate
+ *  from the Google Ads chat key so picking a model in one surface doesn't
+ *  silently change the other. */
+const MODEL_STORAGE_KEY = 'optimate-invoice-model'
+
+/** True when the stored value is a real model still offered in the picker. */
+function isUsablePickerModel(raw: string | null): raw is string {
+  if (!raw || !isCanonicalModel(raw)) return false
+  return CHAT_PICKER_MODELS.some((m) => m.canonical === raw)
+}
+
+function loadPersistedModel(): string {
+  if (typeof window === 'undefined') return DEFAULT_CHAT_MODEL
+  try {
+    const raw = window.localStorage.getItem(MODEL_STORAGE_KEY)
+    return isUsablePickerModel(raw) ? raw : DEFAULT_CHAT_MODEL
+  } catch {
+    return DEFAULT_CHAT_MODEL
+  }
+}
+
+function hasExplicitModelChoice(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return isUsablePickerModel(window.localStorage.getItem(MODEL_STORAGE_KEY))
+  } catch {
+    return false
+  }
+}
+
+function savePersistedModel(model: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(MODEL_STORAGE_KEY, model)
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
 export default function InvoiceAssistantChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<string>(() => loadPersistedModel())
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = useCallback(() => {
@@ -45,6 +98,32 @@ export default function InvoiceAssistantChat() {
   useEffect(() => {
     scrollToBottom()
   }, [messages, sending, scrollToBottom])
+
+  /**
+   * Seed the picker from the configured invoice-assistant default until the
+   * user makes an explicit per-browser choice — once they pick a model, their
+   * choice wins. Mirrors OptiMateChatCore's seeding behaviour.
+   */
+  useEffect(() => {
+    if (hasExplicitModelChoice()) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/optimate/default-model', { credentials: 'include' })
+        if (!res.ok) return
+        const json = (await res.json()) as { invoiceAssistantModel?: string }
+        const next = json.invoiceAssistantModel
+        if (!cancelled && isUsablePickerModel(next ?? null)) {
+          setSelectedModel(next as string)
+        }
+      } catch {
+        /* keep the local default */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleSend = async () => {
     const text = input.trim()
@@ -64,7 +143,7 @@ export default function InvoiceAssistantChat() {
       const res = await fetch('/api/xero/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({ message: text, history, model: selectedModel }),
         credentials: 'include',
       })
 
@@ -72,6 +151,7 @@ export default function InvoiceAssistantChat() {
         reply?: string
         error?: string
         actions?: ToolAction[]
+        model?: string
       }
 
       if (!res.ok) {
@@ -82,7 +162,11 @@ export default function InvoiceAssistantChat() {
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: data.reply ?? '(no reply)' },
+          {
+            role: 'assistant',
+            content: data.reply ?? '(no reply)',
+            modelUsed: data.model,
+          },
         ])
       }
     } catch (err) {
@@ -156,6 +240,9 @@ export default function InvoiceAssistantChat() {
           overflowY: 'auto',
           padding: '8px 0',
           minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
         }}
       >
         {messages.length === 0 && !sending && (
@@ -179,18 +266,49 @@ export default function InvoiceAssistantChat() {
           <div
             key={i}
             style={{
-              padding: '8px 10px',
-              marginBottom: 6,
-              borderRadius: 8,
-              fontSize: 13,
-              lineHeight: 1.45,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              maxWidth: '90%',
-              ...messageStyle(msg.role),
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
             }}
           >
-            {msg.content}
+            <div
+              style={{
+                maxWidth: '90%',
+                padding: '10px 14px',
+                borderRadius:
+                  msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                background:
+                  msg.role === 'error'
+                    ? '#fee2e2'
+                    : msg.role === 'user'
+                      ? '#2563eb'
+                      : '#f3f4f6',
+                color:
+                  msg.role === 'error'
+                    ? '#b91c1c'
+                    : msg.role === 'user'
+                      ? '#fff'
+                      : '#1f2937',
+                border: msg.role === 'error' ? '1px solid #fecaca' : undefined,
+                fontSize: 13,
+                lineHeight: 1.5,
+                wordBreak: 'break-word',
+              }}
+            >
+              {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
+            </div>
+            {msg.role === 'assistant' && msg.modelUsed && (
+              <div
+                style={{
+                  fontSize: 10,
+                  color: '#6b7280',
+                  marginTop: 4,
+                  paddingLeft: 4,
+                }}
+              >
+                {msg.modelUsed}
+              </div>
+            )}
           </div>
         ))}
 
@@ -199,13 +317,16 @@ export default function InvoiceAssistantChat() {
             style={{
               display: 'flex',
               gap: 4,
-              padding: '8px 10px',
+              padding: '10px 14px',
               alignItems: 'center',
+              alignSelf: 'flex-start',
+              background: '#f3f4f6',
+              borderRadius: '16px 16px 16px 4px',
             }}
           >
             <span style={dotStyle} />
-            <span style={{ ...dotStyle, animationDelay: '0.15s' }} />
-            <span style={{ ...dotStyle, animationDelay: '0.3s' }} />
+            <span style={{ ...dotStyle, animationDelay: '0.25s' }} />
+            <span style={{ ...dotStyle, animationDelay: '0.5s' }} />
           </div>
         )}
 
@@ -257,6 +378,44 @@ export default function InvoiceAssistantChat() {
         </button>
       </div>
 
+      {/* Model selector — sits below the composer, matching the Google Ads chat. */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          marginTop: 6,
+        }}
+      >
+        <select
+          value={selectedModel}
+          onChange={(e) => {
+            setSelectedModel(e.target.value)
+            savePersistedModel(e.target.value)
+          }}
+          disabled={sending}
+          title="Model used for the next message"
+          style={{
+            fontSize: 11,
+            padding: '4px 8px',
+            border: '1px solid var(--theme-border-color, #e5e7eb)',
+            borderRadius: 6,
+            background: 'var(--theme-input-bg, #fff)',
+            color: 'var(--theme-text, #1f2937)',
+            cursor: sending ? 'not-allowed' : 'pointer',
+            width: 270,
+            maxWidth: '100%',
+          }}
+        >
+          {CHAT_PICKER_MODELS.map((m) => (
+            <option key={m.canonical} value={m.canonical}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Keyframes for typing dots */}
       <style>{`
         @keyframes invoiceTypingPulse {
@@ -268,34 +427,11 @@ export default function InvoiceAssistantChat() {
   )
 }
 
-function messageStyle(role: ChatMessage['role']): React.CSSProperties {
-  switch (role) {
-    case 'user':
-      return {
-        background: '#2563eb',
-        color: '#fff',
-        alignSelf: 'flex-end',
-        marginLeft: 'auto',
-      }
-    case 'assistant':
-      return {
-        background: 'var(--theme-elevation-50, #f3f4f6)',
-        color: 'var(--theme-text, #1f2937)',
-      }
-    case 'error':
-      return {
-        background: '#fee2e2',
-        color: '#b91c1c',
-        border: '1px solid #fecaca',
-      }
-  }
-}
-
 const dotStyle: React.CSSProperties = {
   width: 6,
   height: 6,
   borderRadius: '50%',
-  background: '#9ca3af',
+  background: '#6b7280',
   display: 'inline-block',
   animation: 'invoiceTypingPulse 1.2s ease-in-out infinite',
 }

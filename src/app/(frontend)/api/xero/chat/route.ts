@@ -4,7 +4,19 @@ import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 import { callLLM } from "@/lib/agents/_shared/llm";
+import {
+  CHAT_PICKER_MODELS,
+  isCanonicalModel,
+} from "@/lib/agents/_shared/llm/registry";
 import type { Message, ToolDef } from "@/lib/agents/_shared/llm/types";
+
+/** Resolve a client-requested model to a usable canonical name, or undefined
+ *  when the value is missing/unknown/not offered in the chat picker. Mirrors
+ *  the validation OptiMateChatCore applies before sending its model pick. */
+function resolveRequestedModel(value: unknown): string | undefined {
+  if (typeof value !== "string" || !isCanonicalModel(value)) return undefined;
+  return CHAT_PICKER_MODELS.some((m) => m.canonical === value) ? value : undefined;
+}
 
 // Xero invoice IDs are GUIDs. Same validation as /api/xero/actions —
 // rejects path-traversal payloads and query-string hoists before the
@@ -323,6 +335,7 @@ export async function POST(req: NextRequest) {
   let body: {
     message: string;
     history?: Array<{ role: string; content: string }>;
+    model?: string;
   };
   try {
     body = await req.json();

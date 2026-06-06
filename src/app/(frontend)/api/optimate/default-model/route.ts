@@ -26,5 +26,9 @@ export async function GET() {
   return NextResponse.json({
     defaultChatModel: defaults.defaultChatModel,
     defaultAutonomousModel: defaults.defaultAutonomousModel,
+    // Used by the Invoice Assistant chat to seed its model picker. Falls back
+    // to the autonomous default when no invoice-specific model is configured.
+    invoiceAssistantModel:
+      defaults.invoiceAssistantModel ?? defaults.defaultAutonomousModel,
   });
 }
