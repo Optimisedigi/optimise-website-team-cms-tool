@@ -84,12 +84,22 @@ function savePersistedModel(model: string): void {
   }
 }
 
+/** Clickable starter prompts shown in the empty state, mirroring the Google
+ *  Ads chat's suggested-question chips. */
+const SUGGESTED_QUESTIONS = [
+  'Show me overdue invoices',
+  'Summarise outstanding invoices',
+  'What invoices are scheduled to send?',
+  'Create this month’s retainer',
+]
+
 export default function InvoiceAssistantChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => loadPersistedModel())
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -125,8 +135,8 @@ export default function InvoiceAssistantChat() {
     }
   }, [])
 
-  const handleSend = async () => {
-    const text = input.trim()
+  const sendMessage = async (raw: string) => {
+    const text = raw.trim()
     if (!text || sending) return
 
     setInput('')
@@ -182,10 +192,12 @@ export default function InvoiceAssistantChat() {
     }
   }
 
+  const handleSend = () => sendMessage(input)
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      sendMessage(input)
     }
   }
 
@@ -233,32 +245,64 @@ export default function InvoiceAssistantChat() {
         )}
       </div>
 
-      {/* Messages scroll area */}
+      {/* Messages area — bordered box matching the Google Ads chat. */}
       <div
         style={{
           flex: 1,
+          border: '1px solid var(--theme-border-color, #e5e7eb)',
+          borderRadius: 8,
+          background: 'var(--theme-input-bg, #fff)',
           overflowY: 'auto',
-          padding: '8px 0',
+          padding: 16,
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          gap: 10,
+          gap: 12,
         }}
       >
         {messages.length === 0 && !sending && (
-          <div
-            style={{
-              fontSize: 12,
-              color: '#6b7280',
-              padding: '16px 8px',
-              textAlign: 'center',
-            }}
-          >
-            Ask me to create, send, schedule, or look up invoices.
-            <br />
-            <span style={{ color: '#9ca3af', fontSize: 11 }}>
-              e.g. <em>“Show me overdue invoices”</em> or <em>“Create this month’s retainer for MTP”</em>
-            </span>
+          <div style={{ textAlign: 'center', padding: '32px 8px' }}>
+            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
+              Ask me to create, send, schedule, or look up invoices.
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 6,
+                justifyContent: 'center',
+              }}
+            >
+              {SUGGESTED_QUESTIONS.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    sendMessage(q)
+                  }}
+                  style={{
+                    padding: '5px 10px',
+                    fontSize: 11,
+                    background: '#f3f4f6',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 14,
+                    cursor: 'pointer',
+                    color: '#374151',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#e5e7eb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f3f4f6'
+                  }}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -333,49 +377,89 @@ export default function InvoiceAssistantChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Composer */}
+      {/* Composer — bordered box with a borderless textarea and a round
+        up-arrow send button, identical to the Google Ads chat (minus the
+        email-attach, image-attach, and voice controls). */}
       <div
         style={{
-          display: 'flex',
-          gap: 6,
-          paddingTop: 8,
-          borderTop: '1px solid var(--theme-border-color, #e5e7eb)',
+          position: 'relative',
+          marginTop: 8,
+          minHeight: 104,
+          border: '1px solid var(--theme-border-color, #e5e7eb)',
+          borderRadius: 14,
+          background: 'var(--theme-input-bg, #fff)',
+          padding: '12px 14px 46px',
         }}
       >
-        <input
-          type="text"
+        <textarea
+          ref={inputRef}
+          rows={1}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask the invoice assistant…"
+          placeholder="Feel free to ask"
           disabled={sending}
           style={{
-            flex: 1,
-            padding: '8px 10px',
-            border: '1px solid var(--theme-border-color, #e5e7eb)',
-            borderRadius: 6,
-            background: 'var(--theme-input-bg, #fff)',
-            color: 'var(--theme-text, #1f2937)',
+            width: '100%',
+            minHeight: 36,
+            padding: 0,
+            border: 'none',
             fontSize: 13,
+            lineHeight: '20px',
+            background: 'transparent',
+            color: 'var(--theme-text, #1f2937)',
+            outline: 'none',
+            resize: 'none',
+            fontFamily: 'inherit',
+            overflowY: 'auto',
           }}
         />
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={sending || !input.trim()}
+
+        <div
           style={{
-            padding: '8px 14px',
-            background: !input.trim() || sending ? '#9ca3af' : '#2563eb',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 6,
-            fontWeight: 600,
-            fontSize: 13,
-            cursor: !input.trim() || sending ? 'not-allowed' : 'pointer',
+            position: 'absolute',
+            right: 14,
+            bottom: 8,
+            display: 'flex',
+            gap: 7,
+            alignItems: 'center',
           }}
         >
-          Send
-        </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleSend()
+            }}
+            disabled={sending || !input.trim()}
+            title="Send"
+            aria-label="Send"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 29,
+              height: 29,
+              background: sending || !input.trim() ? '#9ca3af' : '#2563eb',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              cursor: sending || !input.trim() ? 'not-allowed' : 'pointer',
+              transition: 'background 0.15s',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 19V5M5 12l7-7 7 7"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Model selector — sits below the composer, matching the Google Ads chat. */}
