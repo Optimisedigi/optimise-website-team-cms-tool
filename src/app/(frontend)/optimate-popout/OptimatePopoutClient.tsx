@@ -1,10 +1,11 @@
 'use client'
 
 import OptiMateMultiChat, { type OptiMateChatTarget } from '@/components/OptiMateMultiChat'
+import InvoiceAssistantChat from '@/components/InvoiceAssistantChat'
 
-interface Props {
-  targets: OptiMateChatTarget[]
-}
+type Props =
+  | { agent?: 'google-ads'; targets: OptiMateChatTarget[] }
+  | { agent: 'invoices'; targets?: undefined }
 
 /**
  * Client-side wrapper for the standalone Optimate window. Renders the
@@ -15,7 +16,8 @@ interface Props {
  * and lives under the (frontend) route group so no ancestor in the
  * Payload admin layout traps the fixed positioning or injects a sidebar.
  */
-export default function OptimatePopoutClient({ targets }: Props) {
+export default function OptimatePopoutClient(props: Props) {
+  const isInvoices = props.agent === 'invoices'
   return (
     <div
       style={{
@@ -61,7 +63,7 @@ export default function OptimatePopoutClient({ targets }: Props) {
               fontSize: 11,
             }}
           >
-            · Google Ads
+            {isInvoices ? '· Invoices' : '· Google Ads'}
           </span>
         </div>
         <button
@@ -94,7 +96,11 @@ export default function OptimatePopoutClient({ targets }: Props) {
           width: '100%',
         }}
       >
-        <OptiMateMultiChat targets={targets} fluid />
+        {props.agent === 'invoices' ? (
+          <InvoiceAssistantChat />
+        ) : (
+          <OptiMateMultiChat targets={props.targets} fluid />
+        )}
       </div>
     </div>
   )

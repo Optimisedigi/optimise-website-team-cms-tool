@@ -720,6 +720,26 @@ $svg-close: "%3C/svg%3E";
   }
 }
 
+// On mobile the header sits on a light/white surface, so the hamburger and
+// breadcrumbs wash out and are hard to see. Give the header bar a solid black
+// background (mobile only) so the menu toggle and header controls stand out.
+// Page content below stays white — this only repaints the header strip.
+@media (max-width: 768px) {
+  .app-header .app-header__bg {
+    background: #000 !important;
+    backdrop-filter: none !important;
+    border-bottom-color: rgba(255, 255, 255, 0.14) !important;
+  }
+
+  // Make header text/icons legible against the black bar.
+  .app-header,
+  .app-header a,
+  .app-header .step-nav,
+  .app-header .step-nav * {
+    color: #fff !important;
+  }
+}
+
 
 // Sidebar Dashboard link — sits below logo, above nav groups
 .sidebar-dashboard-link {

@@ -5,7 +5,13 @@ import { redirect } from 'next/navigation'
 import OptimatePopoutClient from './OptimatePopoutClient'
 
 interface PageProps {
-  searchParams: Promise<{ audits?: string; sessionIds?: string; mode?: string; portfolio?: string }>
+  searchParams: Promise<{
+    audits?: string
+    sessionIds?: string
+    mode?: string
+    portfolio?: string
+    agent?: string
+  }>
 }
 
 /**
@@ -38,7 +44,14 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
     redirect('/admin/login?redirect=/optimate-popout')
   }
 
-  const { audits, sessionIds: sessionIdsParam, mode, portfolio } = await searchParams
+  const { audits, sessionIds: sessionIdsParam, mode, portfolio, agent } = await searchParams
+
+  // The Invoice assistant is standalone (no audit/account picker, per-session
+  // thread), so the popout just re-mounts the chat full-window.
+  if (agent === 'invoices') {
+    return <OptimatePopoutClient agent="invoices" />
+  }
+
   const portfolioMode = mode === 'portfolio' || portfolio === '1'
 
   if (portfolioMode) {

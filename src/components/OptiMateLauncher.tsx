@@ -8,9 +8,10 @@ import OptiMateMultiChat, {
 } from './OptiMateMultiChat'
 import InvoiceAssistantChat from './InvoiceAssistantChat'
 import GmailReplyChat from './GmailReplyChat'
+import EmailReplyVoiceChat from './EmailReplyVoiceChat'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 
-type AgentKey = 'google-ads' | 'invoices'
+type AgentKey = 'google-ads' | 'invoices' | 'email'
 
 interface AgentDef {
   key: AgentKey
@@ -23,6 +24,7 @@ interface AgentDef {
 const AGENTS: AgentDef[] = [
   { key: 'google-ads', label: 'Google Ads', icon: '/optimate-icon.png', enabled: true },
   { key: 'invoices', label: 'Invoices', icon: '/optimate-icon.png', enabled: true },
+  { key: 'email', label: 'Email Reply', icon: '/optimate-icon.png', enabled: true },
   // Add more agents here as they ship — just append a row; the grid auto-fills.
 ]
 
@@ -32,7 +34,7 @@ interface AuditOption {
   customerId: string
 }
 
-type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'gmail' | 'pomodoro'
+type Step = 'agent' | 'audit' | 'chat' | 'invoice-chat' | 'gmail' | 'email-reply' | 'pomodoro'
 
 const PILL_RIGHT = 20 // pixels — pomodoro pill is gone, sit bottom-right alone
 const PILL_BOTTOM = 20
@@ -124,6 +126,12 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
     // operates against Xero directly, so jump straight to chat.
     if (key === 'invoices') {
       setStep('invoice-chat')
+      return
+    }
+    // The Email Reply voice agent operates against Gmail directly — no Google
+    // Ads account selection needed, so jump straight to its chat.
+    if (key === 'email') {
+      setStep('email-reply')
       return
     }
     setStep('audit')
@@ -310,6 +318,11 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   · Gmail
                 </span>
               )}
+              {step === 'email-reply' && (
+                <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
+                  · Email Reply
+                </span>
+              )}
             </div>
             {step === 'chat' && (
               <button
@@ -329,7 +342,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 ← Accounts
               </button>
             )}
-            {(step === 'invoice-chat' || step === 'gmail') && (
+            {(step === 'invoice-chat' || step === 'gmail' || step === 'email-reply') && (
               <button
                 type="button"
                 onClick={() => {
@@ -348,6 +361,53 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 }}
               >
                 ← Agents
+              </button>
+            )}
+            {step === 'invoice-chat' && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Open the invoice assistant in a separate browser window so
+                  // the user can park it next to their work. The invoice chat
+                  // is standalone (per-session thread, no audit picker), so the
+                  // popout simply re-mounts it full-window via ?agent=invoices.
+                  const features = [
+                    'popup=yes',
+                    'width=680',
+                    'height=720',
+                    'menubar=no',
+                    'toolbar=no',
+                    'location=no',
+                    'status=no',
+                  ].join(',')
+                  window.open('/optimate-popout?agent=invoices', 'optimate-popout-invoices', features)
+                  setOpen(false)
+                }}
+                title="Pop out to a separate window"
+                style={{
+                  background: 'transparent',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: 6,
+                  padding: '4px 6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  lineHeight: 1,
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
               </button>
             )}
             {step === 'chat' && (selectedAudits.length > 0 || portfolioSelected) && (
@@ -485,9 +545,13 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
               flex: 1,
               padding: step === 'pomodoro' ? 0 : 14,
               overflowY:
-                step === 'chat' || step === 'invoice-chat' || step === 'gmail' ? 'hidden' : 'auto',
+                step === 'chat' || step === 'invoice-chat' || step === 'gmail' || step === 'email-reply'
+                  ? 'hidden'
+                  : 'auto',
               display:
-                step === 'chat' || step === 'invoice-chat' || step === 'gmail' ? 'flex' : 'block',
+                step === 'chat' || step === 'invoice-chat' || step === 'gmail' || step === 'email-reply'
+                  ? 'flex'
+                  : 'block',
               flexDirection: 'column',
               minHeight: 0,
             }}
@@ -840,6 +904,8 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             {step === 'invoice-chat' && <InvoiceAssistantChat />}
 
             {step === 'gmail' && <GmailReplyChat />}
+
+            {step === 'email-reply' && <EmailReplyVoiceChat />}
           </div>
         </div>
       )}
