@@ -8,10 +8,9 @@ import OptiMateMultiChat, {
 } from './OptiMateMultiChat'
 import InvoiceAssistantChat from './InvoiceAssistantChat'
 import GmailReplyChat from './GmailReplyChat'
-import EmailReplyVoiceChat from './EmailReplyVoiceChat'
 import { usePomodoro, PomodoroBody } from './PomodoroTimer'
 
-type AgentKey = 'google-ads' | 'invoices' | 'email'
+type AgentKey = 'google-ads' | 'invoices'
 
 interface AgentDef {
   key: AgentKey
@@ -24,7 +23,6 @@ interface AgentDef {
 const AGENTS: AgentDef[] = [
   { key: 'google-ads', label: 'Google Ads', icon: '/optimate-icon.png', enabled: true },
   { key: 'invoices', label: 'Invoices', icon: '/optimate-icon.png', enabled: true },
-  { key: 'email', label: 'Email Reply', icon: '/optimate-icon.png', enabled: true },
   // Add more agents here as they ship — just append a row; the grid auto-fills.
 ]
 
@@ -126,12 +124,6 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
     // operates against Xero directly, so jump straight to chat.
     if (key === 'invoices') {
       setStep('invoice-chat')
-      return
-    }
-    // The Email Reply voice agent operates against Gmail directly — no Google
-    // Ads account selection needed, so jump straight to its chat.
-    if (key === 'email') {
-      setStep('email-reply')
       return
     }
     setStep('audit')
@@ -904,8 +896,6 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
             {step === 'invoice-chat' && <InvoiceAssistantChat />}
 
             {step === 'gmail' && <GmailReplyChat />}
-
-            {step === 'email-reply' && <EmailReplyVoiceChat />}
           </div>
         </div>
       )}
