@@ -78,11 +78,20 @@ export async function callLLM(opts: CallLLMOptions): Promise<LLMResponse> {
       const cls = classifyError(err);
       errors.push({ model: modelName, error: err });
 
-      // Non-retryable + non-fallback-eligible errors abort immediately. The
-      // caller almost certainly wants to know about a malformed request or
-      // context overflow rather than blindly trying a different model.
-      if (cls === "invalid-request" || cls === "context-overflow") {
+      // Context overflow aborts immediately: the prompt is too big and every
+      // model in the chain would reject the same oversized request, so trying
+      // them wastes time and money. The caller wants to know to compact.
+      if (cls === "context-overflow") {
         throw err;
+      }
+      // A plain 400 (invalid-request) is NOT necessarily fatal across the
+      // chain: it is frequently provider-specific (e.g. MiniMax's
+      // Anthropic-compatible endpoint 400s on tool-call shapes that Anthropic
+      // and Kimi accept). Fall through to the next model rather than failing
+      // the whole turn. If every model 400s, the AggregateLLMError at the end
+      // still surfaces each provider's error for debugging.
+      if (cls === "invalid-request") {
+        continue;
       }
       // NoCredentialError, OAuthFailedError, rate limits, transient errors:
       // try the next model. OAuthFailedError specifically encodes the user's

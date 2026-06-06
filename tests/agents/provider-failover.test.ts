@@ -85,12 +85,55 @@ describe("callLLM failover", () => {
     expect(response.message.content).toEqual([{ type: "text", text: "ok" }]);
   });
 
-  it("aborts immediately on 400 invalid-request from primary (no fallback)", async () => {
+  it("falls through to second model on 400 invalid-request (provider-specific 400s recover)", async () => {
+    // A plain 400 is often provider-specific (e.g. MiniMax 400ing on a
+    // tool-call shape Kimi accepts). callLLM must walk the chain rather than
+    // failing the whole turn on the first model's 400.
     mockFetchSequence([
       {
         ok: false,
         status: 400,
         body: { error: { type: "invalid_request_error", message: "bad input" } },
+      },
+      // Kimi succeeds on first try
+      {
+        ok: true,
+        body: {
+          id: "chatcmpl-1",
+          model: "kimi-k2.6",
+          choices: [
+            {
+              index: 0,
+              message: { role: "assistant", content: "ok" },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 5, completion_tokens: 1, total_tokens: 6 },
+        },
+      },
+    ]);
+
+    const response = await callLLM({
+      model: "claude-sonnet-4.5",
+      fallbackModels: ["kimi-k2.6"],
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    });
+
+    expect(response.model).toBe("kimi-k2.6");
+    expect(response.message.content).toEqual([{ type: "text", text: "ok" }]);
+  });
+
+  it("still aborts immediately on context-overflow (every model would reject the same oversized prompt)", async () => {
+    mockFetchSequence([
+      {
+        ok: false,
+        status: 400,
+        body: {
+          error: {
+            type: "invalid_request_error",
+            message: "prompt is too long: maximum context length exceeded",
+          },
+        },
       },
     ]);
 

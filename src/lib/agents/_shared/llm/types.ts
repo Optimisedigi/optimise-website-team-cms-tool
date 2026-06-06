@@ -13,7 +13,23 @@ export type ContentPart =
   | { type: "text"; text: string }
   | { type: "image"; mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp"; data: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; toolUseId: string; content: string; isError?: boolean };
+  | { type: "tool_result"; toolUseId: string; content: string; isError?: boolean }
+  /**
+   * Extended-thinking block emitted by Anthropic-format models when thinking
+   * is enabled (native Claude with the thinking param, and MiniMax-M3 which
+   * defaults thinking on). The `signature` is Anthropic's cryptographic seal
+   * over the thinking text; it MUST be replayed unchanged on subsequent turns
+   * of a tool-use conversation, and a thinking block WITHOUT a signature must
+   * be dropped on replay (the API rejects empty signatures). Mirrors
+   * @kenkaiiii/gg-ai's ThinkingContent contract.
+   */
+  | { type: "thinking"; text: string; signature?: string }
+  /**
+   * Encrypted ("redacted") thinking block. Opaque to us — we never read the
+   * `data`, we only round-trip it verbatim so the model's reasoning chain
+   * stays valid across turns.
+   */
+  | { type: "redacted_thinking"; data: string };
 
 export interface Message {
   role: Role;

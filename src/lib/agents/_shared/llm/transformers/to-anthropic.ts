@@ -31,6 +31,8 @@ interface AnthropicMessage {
     | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp"; data: string } }
     | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
     | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
+    | { type: "thinking"; thinking: string; signature: string }
+    | { type: "redacted_thinking"; data: string }
   >;
 }
 
@@ -51,6 +53,16 @@ export interface AnthropicRequestBody {
     description: string;
     input_schema: Record<string, unknown>;
   }>;
+  /**
+   * Anthropic extended-thinking config. We never set this for the native
+   * Anthropic provider (its models use adaptive thinking via beta flags), but
+   * the MiniMax Anthropic-compatible adapter sets `{ type: "disabled" }` so
+   * MiniMax-M3 does not emit `thinking` content blocks. M3 defaults thinking
+   * ON and requires emitted thinking blocks to be replayed unchanged on every
+   * subsequent tool-use turn; our canonical pipeline does not carry thinking
+   * blocks, so leaving thinking on makes M3 400 on the second turn.
+   */
+  thinking?: { type: "disabled" } | { type: "adaptive" } | { type: "enabled"; budget_tokens: number };
 }
 
 export function toAnthropic(
@@ -84,9 +96,20 @@ export function toAnthropic(
       });
       continue;
     }
-    messages.push({
-      role: m.role === "assistant" ? "assistant" : "user",
-      content: m.content.map((part) => {
+    const mappedContent = m.content
+      // Replay hygiene (mirrors gg-ai's to-anthropic):
+      //  - Drop thinking blocks without a signature — Anthropic rejects an
+      //    empty/missing signature, and an unsigned block carries no value to
+      //    replay anyway.
+      //  - Drop empty text blocks — Anthropic rejects text content blocks with
+      //    an empty string, which can appear alongside a tool_use or a
+      //    thinking-only emission.
+      .filter((part) => {
+        if (part.type === "thinking" && !part.signature) return false;
+        if (part.type === "text" && part.text === "") return false;
+        return true;
+      })
+      .map((part): AnthropicMessage["content"][number] => {
         if (part.type === "text") return { type: "text", text: part.text };
         if (part.type === "image") {
           return {
@@ -101,6 +124,13 @@ export function toAnthropic(
         if (part.type === "tool_use") {
           return { type: "tool_use", id: sanitizeToolUseId(part.id), name: part.name, input: part.input };
         }
+        if (part.type === "thinking") {
+          // signature presence guaranteed by the filter above.
+          return { type: "thinking", thinking: part.text, signature: part.signature as string };
+        }
+        if (part.type === "redacted_thinking") {
+          return { type: "redacted_thinking", data: part.data };
+        }
         // tool_result on non-tool message: treat as user content
         return {
           type: "tool_result",
@@ -108,7 +138,16 @@ export function toAnthropic(
           content: part.content,
           ...(part.isError ? { is_error: true } : {}),
         };
-      }),
+      });
+
+    // An assistant turn whose only content was an unsigned thinking block (now
+    // filtered out) would serialise to an empty content array, which Anthropic
+    // rejects. Skip it entirely — there is nothing meaningful to replay.
+    if (mappedContent.length === 0) continue;
+
+    messages.push({
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: mappedContent,
     });
   }
 

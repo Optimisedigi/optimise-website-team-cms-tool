@@ -145,6 +145,100 @@ describe("Anthropic transformer", () => {
     ]);
   });
 
+  it("mints a stable id when the provider returns a tool_use with an empty id (MiniMax M3)", () => {
+    // MiniMax M3's /anthropic endpoint returns tool_use blocks with no usable
+    // id. Without a synthetic id these all collapse to `t_unknown` on the next
+    // turn and MiniMax 400s with "invalid function arguments json string,
+    // tool_call_id: t_unknown". Confirm we mint unique, non-empty ids that
+    // survive the to-anthropic sanitiser, including for multi-tool turns.
+    const fakeResponse = {
+      id: "msg_mm",
+      type: "message",
+      role: "assistant",
+      model: "MiniMax-M3",
+      content: [
+        { type: "tool_use", id: "", name: "getInvoiceSummary", input: {} },
+        { type: "tool_use", name: "listContacts", input: { search: "acme" } },
+      ],
+      stop_reason: "tool_use",
+      usage: { input_tokens: 10, output_tokens: 5 },
+    };
+    const canonical = fromAnthropic(fakeResponse, "minimax-m3", "api-key");
+    const toolUses = canonical.message.content.filter(
+      (p): p is Extract<typeof p, { type: "tool_use" }> => p.type === "tool_use",
+    );
+    expect(toolUses).toHaveLength(2);
+    for (const tu of toolUses) {
+      expect(tu.id.length).toBeGreaterThan(0);
+    }
+    // Unique ids — no collision that would break tool_use/tool_result pairing.
+    expect(toolUses[0].id).not.toBe(toolUses[1].id);
+  });
+
+  it("captures thinking + redacted_thinking blocks from the response (MiniMax-M3 / native thinking)", () => {
+    const fakeResponse = {
+      id: "msg_t",
+      type: "message",
+      role: "assistant",
+      model: "MiniMax-M3",
+      content: [
+        { type: "thinking", thinking: "Let me check the account.", signature: "sig-abc" },
+        { type: "redacted_thinking", data: "enc-blob" },
+        { type: "text", text: "Here is the summary." },
+      ],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 10, output_tokens: 5 },
+    };
+    const canonical = fromAnthropic(fakeResponse, "minimax-m3", "api-key");
+    expect(canonical.message.content).toEqual([
+      { type: "thinking", text: "Let me check the account.", signature: "sig-abc" },
+      { type: "redacted_thinking", data: "enc-blob" },
+      { type: "text", text: "Here is the summary." },
+    ]);
+  });
+
+  it("replays signed thinking blocks but drops unsigned thinking and empty text on the next request", () => {
+    const opts: CallLLMOptions = {
+      ...baseOpts,
+      tools: undefined,
+      messages: [
+        { role: "user", content: [{ type: "text", text: "Summarise the account." }] },
+        {
+          role: "assistant",
+          content: [
+            { type: "thinking", text: "signed reasoning", signature: "sig-1" },
+            { type: "thinking", text: "unsigned reasoning" },
+            { type: "text", text: "" },
+            { type: "text", text: "Done." },
+          ],
+        },
+      ],
+    };
+    const body = toAnthropic(opts, "MiniMax-M3");
+    // user message + assistant message survive.
+    expect(body.messages).toHaveLength(2);
+    expect(body.messages[1].content).toEqual([
+      { type: "thinking", thinking: "signed reasoning", signature: "sig-1" },
+      { type: "text", text: "Done." },
+    ]);
+  });
+
+  it("skips an assistant turn whose only content was an unsigned thinking block", () => {
+    const opts: CallLLMOptions = {
+      ...baseOpts,
+      tools: undefined,
+      messages: [
+        { role: "user", content: [{ type: "text", text: "Hi" }] },
+        { role: "assistant", content: [{ type: "thinking", text: "no signature here" }] },
+        { role: "user", content: [{ type: "text", text: "Still there?" }] },
+      ],
+    };
+    const body = toAnthropic(opts, "MiniMax-M3");
+    // The empty assistant turn is dropped; both user turns remain.
+    expect(body.messages).toHaveLength(2);
+    expect(body.messages.every((m) => m.role === "user")).toBe(true);
+  });
+
   it("converts Anthropic response to canonical LLMResponse", () => {
     const fakeResponse = {
       id: "msg_01",
