@@ -102,6 +102,42 @@ describe('monthly keyword selection API routes', () => {
     expect(saved[0]).toMatchObject({ rowIndex: 0, negativeKeyword: 'cheap' })
   })
 
+  it('save bails on empty input (no selections, no deletions) without touching the doc', async () => {
+    const res = await savePOST(request('/api/monthly-keyword-selection/save', {
+      clientId: 7,
+      selections: [],
+    }))
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json).toMatchObject({ success: true, skipped: 'empty-input' })
+    // Guard 2: must not even read or write the doc.
+    expect(mockPayload.find).not.toHaveBeenCalled()
+    expect(mockPayload.update).not.toHaveBeenCalled()
+    expect(mockPayload.create).not.toHaveBeenCalled()
+  })
+
+  it('save refuses to clear a populated array when the merge would empty it', async () => {
+    mockPayload.find.mockResolvedValue({
+      docs: [{
+        id: 22,
+        selections: [
+          { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'approved' },
+        ],
+      }],
+    })
+
+    // Only a deletion that removes the sole existing row, no incoming upserts:
+    // the resulting array is empty while the stored doc had rows -> abort.
+    const res = await savePOST(request('/api/monthly-keyword-selection/save', {
+      clientId: 7,
+      deletions: [{ yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0 }],
+    }))
+
+    expect(res.status).toBe(409)
+    expect(mockPayload.update).not.toHaveBeenCalled()
+  })
+
   it('apply stamps each sub-row of a term independently by rowIndex', async () => {
     mockPayload.findByID.mockResolvedValue({ id: 3, client: 7, keywords: [] })
     mockPayload.find.mockResolvedValue({

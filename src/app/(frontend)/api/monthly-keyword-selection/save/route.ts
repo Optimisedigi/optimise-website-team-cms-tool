@@ -63,6 +63,14 @@ export async function POST(req: NextRequest) {
         .filter((d) => d.yearMonth && d.searchTerm)
     : []
 
+  // Guard 2: a blank autosave (no rows to upsert and nothing to delete) must
+  // never rewrite the stored array. There is nothing to persist, so return
+  // early before touching the doc — this stops an empty request from being
+  // able to clear existing selections.
+  if (incoming.length === 0 && deletions.length === 0) {
+    return NextResponse.json({ success: true, selectionCount: null, skipped: 'empty-input' })
+  }
+
   const existingResult = await payload.find({
     collection: 'monthly-keyword-selections',
     where: { client: { equals: clientId } },
@@ -106,6 +114,21 @@ export async function POST(req: NextRequest) {
     || String(a.searchTerm).localeCompare(String(b.searchTerm))
     || Number(a.rowIndex ?? 0) - Number(b.rowIndex ?? 0),
   )
+
+  // Guard 1: never shrink a populated array to empty. An autosave should never
+  // legitimately clear every row — if the merge produced nothing while the
+  // stored doc still has rows, treat it as a corrupt/partial read and abort
+  // rather than overwriting good data. (A genuine wipe would still happen one
+  // explicit deletion at a time, never as a single empty write.)
+  if (selections.length === 0 && existingSelections.length > 0) {
+    payload.logger?.warn?.(
+      `[monthly-keyword-save] refused to clear ${existingSelections.length} selection(s) for client ${clientId}; aborting empty write.`,
+    )
+    return NextResponse.json(
+      { error: 'Refused to clear all selections — no rows to save against existing data.' },
+      { status: 409 },
+    )
+  }
 
   const doc = existingDoc
     ? await payload.update({
