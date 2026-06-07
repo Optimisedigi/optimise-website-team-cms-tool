@@ -3,6 +3,14 @@ import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
 
+const NOTIFICATIONS = 'notifications' as never
+
+function monthLabel(yearMonth: string): string {
+  const [year, month] = yearMonth.split('-').map(Number)
+  if (!year || !month) return yearMonth
+  return new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, 1)))
+}
+
 type MatchType = 'exact' | 'broad' | 'phrase'
 type NklKeyword = { keyword?: string; matchType?: MatchType; flaggedForRemoval?: boolean | null; negatedAt?: string | null; id?: string | null }
 
@@ -42,6 +50,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     : null
   const newNklId = nklIdOf(body?.newNklId)
   const rowIndex = Number.isInteger(body?.rowIndex) ? Number(body.rowIndex) : null
+  const comment = typeof body?.comment === 'string' ? body.comment.trim() : ''
 
   if (!Number.isInteger(clientId) || !/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm || !action) {
     return NextResponse.json({ error: 'clientId, yearMonth, searchTerm and a valid action are required' }, { status: 400 })
@@ -103,9 +112,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       data: { keywords: nextKeywords },
       overrideAccess: true,
     })
+    const removerName = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || 'A reviewer'
+    const appliedByUserId = target.appliedByUserId ? String(target.appliedByUserId) : ''
+    // Keep the original submitter (appliedBy/appliedByUserId) intact so the
+    // "Removed negatives explained" tab can attribute who first submitted it.
     const selections = selectionsArr.map((selection) =>
       selection === target
-        ? { ...selection, decision: 'skipped', appliedToNKL: null, appliedAt: null }
+        ? {
+            ...selection,
+            decision: 'skipped',
+            appliedToNKL: null,
+            appliedAt: null,
+            removedComment: comment || selection.removedComment || null,
+            removedBy: removerName,
+            removedByUserId: String(user.id),
+            removedAt: now,
+          }
         : selection,
     )
     await payload.update({
@@ -114,7 +136,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       data: { selections },
       overrideAccess: true,
     })
-    return NextResponse.json({ success: true, action, removed: currentKeywords.length - nextKeywords.length })
+
+    // Notify the original submitter so new team members understand why a
+    // negative they applied was removed. Only when a reason was given and the
+    // submitter is someone other than the remover.
+    let notified = false
+    if (comment && appliedByUserId && appliedByUserId !== String(user.id)) {
+      const client = await payload
+        .findByID({ collection: 'clients', id: clientId, depth: 0, overrideAccess: true })
+        .catch(() => null) as { name?: string } | null
+      const clientName = client?.name || `Client ${clientId}`
+      try {
+        await payload.create({
+          collection: NOTIFICATIONS,
+          data: {
+            recipient: appliedByUserId,
+            kind: 'negative-keywords-removed',
+            title: `${removerName} removed a negative you submitted — ${clientName}`,
+            body: `${monthLabel(yearMonth)} · "${searchTerm}": ${comment.slice(0, 140)}`,
+            url: `/admin/monthly-keyword-selection?clientId=${clientId}`,
+            relatedClient: clientId,
+          } as never,
+          overrideAccess: true,
+        })
+        notified = true
+      } catch (err) {
+        payload.logger?.warn?.(`[monthly-keyword-revise] notify failed for ${appliedByUserId}: ${err}`)
+      }
+    }
+
+    return NextResponse.json({ success: true, action, removed: currentKeywords.length - nextKeywords.length, notified })
   }
 
   // action === 'update' with a different target NKL — move the negative between
