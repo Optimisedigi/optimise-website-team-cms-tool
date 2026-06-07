@@ -1,15 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPayload } from "payload";
+import { headers as nextHeaders } from "next/headers";
+import config from "@/payload.config";
+import { callLLM } from "@/lib/agents/_shared/llm";
+import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
+import { DEFAULT_AUTONOMOUS_FALLBACKS } from "@/lib/agents/_shared/llm/registry";
 
-const KIMI_BASE_URL = process.env.KIMI_BASE_URL || "https://api.moonshot.ai/v1";
-const KIMI_MODEL = process.env.KIMI_MODEL || "kimi-k2-0905-preview";
-
-export async function POST(req: NextRequest) {
-  const KIMI_API_KEY = process.env.KIMI_API_KEY;
-  if (!KIMI_API_KEY) {
-    return NextResponse.json(
-      { error: "KIMI_API_KEY not configured" },
-      { status: 500 }
-    );
+/**
+ * Generate an AI image-generation prompt for a blog post hero banner.
+ *
+ * Model selection follows the OptiMate settings: the "Blog AI model"
+ * (`blogPrompterModel`) drives this when set, otherwise it falls back to the
+ * autonomous default model. This is the same resolution the Blog Prompter AI
+ * Suggest / generate-blog routes use, so all blog-AI features share one model
+ * setting. Routing through `callLLM` means provider credentials and the
+ * fallback chain are handled centrally instead of calling a vendor directly.
+ */
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const payload = await getPayload({ config });
+  const headersList = await nextHeaders();
+  const { user } = await payload.auth({ headers: headersList });
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let body: { title?: string; excerpt?: string };
@@ -21,10 +33,7 @@ export async function POST(req: NextRequest) {
 
   const { title, excerpt } = body;
   if (!title?.trim()) {
-    return NextResponse.json(
-      { error: "title is required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "title is required" }, { status: 400 });
   }
 
   try {
@@ -41,43 +50,46 @@ export async function POST(req: NextRequest) {
       ? `Blog title: "${title.trim()}"\nExcerpt: "${excerpt.trim()}"`
       : `Blog title: "${title.trim()}"`;
 
-    const res = await fetch(`${KIMI_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${KIMI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: KIMI_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
+    const { defaultAutonomousModel, blogPrompterModel } =
+      await getOptiMateDefaultModels(payload);
+
+    const runGeneration = async (
+      model: typeof defaultAutonomousModel,
+      useFallbackChain: boolean,
+    ): Promise<{ prompt: string; model: string }> => {
+      const response = await callLLM({
+        model,
+        ...(useFallbackChain ? { fallbackModels: DEFAULT_AUTONOMOUS_FALLBACKS } : {}),
+        maxTokens: 300,
         temperature: 0.9,
-        max_tokens: 300,
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
+        system: systemPrompt,
+        messages: [{ role: "user", content: [{ type: "text", text: userMessage }] }],
+      });
+      const prompt = response.message.content
+        .map((part) => (part.type === "text" ? part.text : ""))
+        .join("")
+        .trim();
+      if (!prompt) {
+        throw new Error(`Model ${response.model} returned an empty prompt.`);
+      }
+      return { prompt, model: response.model };
+    };
 
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      console.error(`[generate-prompt] Kimi API error ${res.status}: ${detail}`);
-      return NextResponse.json(
-        { error: `Kimi API error: ${res.status}` },
-        { status: 502 }
-      );
+    let result: Awaited<ReturnType<typeof runGeneration>>;
+    let warning: string | undefined;
+    if (blogPrompterModel && blogPrompterModel !== defaultAutonomousModel) {
+      try {
+        result = await runGeneration(blogPrompterModel, false);
+      } catch (err) {
+        warning = `Blog AI model ${blogPrompterModel} failed (${(err as Error).message}); fell back to autonomous default ${defaultAutonomousModel}.`;
+        console.warn("[generate-prompt]", warning);
+        result = await runGeneration(defaultAutonomousModel, true);
+      }
+    } else {
+      result = await runGeneration(defaultAutonomousModel, true);
     }
 
-    const data = await res.json();
-    const prompt = data.choices?.[0]?.message?.content?.trim();
-    if (!prompt) {
-      return NextResponse.json(
-        { error: "Kimi returned no prompt" },
-        { status: 502 }
-      );
-    }
-
-    return NextResponse.json({ ok: true, prompt });
+    return NextResponse.json({ ok: true, prompt: result.prompt, model: result.model, warning });
   } catch (err: unknown) {
     const message =
       err instanceof Error ? err.message : "Prompt generation failed";

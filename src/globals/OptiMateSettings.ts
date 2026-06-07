@@ -103,10 +103,10 @@ export const OptiMateSettings: GlobalConfig = {
               name: "blogPrompterModel",
               type: "select",
               options: MODEL_OPTIONS,
-              label: "Blog Prompter AI model",
+              label: "Blog AI model",
               admin: {
                 description:
-                  "Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
+                  "Optional. Model used by all blog AI features — the Blog Prompter AI Suggest button, blog draft generation, and blog post image-prompt generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.",
               },
             },
             {
