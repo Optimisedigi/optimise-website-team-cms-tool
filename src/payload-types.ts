@@ -6344,6 +6344,10 @@ export interface MonthlyKeywordSelection {
          */
         searchTerm: string;
         /**
+         * Sub-row index for this search term. 0 is the primary negative; >0 are additional negatives sharing the same target NKL.
+         */
+        rowIndex: number;
+        /**
          * The negative keyword the reviewer wants to add.
          */
         negativeKeyword: string;
@@ -6359,6 +6363,30 @@ export interface MonthlyKeywordSelection {
         watchUntil?: string | null;
         appliedToNKL?: (number | null) | NegativeKeywordList;
         appliedAt?: string | null;
+        /**
+         * Display name of the user who first applied this negative to an NKL.
+         */
+        appliedBy?: string | null;
+        /**
+         * User id of the user who first applied this negative to an NKL (for notifications later).
+         */
+        appliedByUserId?: string | null;
+        /**
+         * Explanation a teammate gave when removing this already-applied negative from its NKL.
+         */
+        removedComment?: string | null;
+        /**
+         * Display name of the user who removed this already-applied negative.
+         */
+        removedBy?: string | null;
+        /**
+         * User id of the user who removed this already-applied negative.
+         */
+        removedByUserId?: string | null;
+        /**
+         * ISO timestamp when this already-applied negative was removed with an explanation.
+         */
+        removedAt?: string | null;
         /**
          * Reviewer note for a "needs review" term. Visible to anyone with tool access.
          */
@@ -7653,6 +7681,7 @@ export interface Notification {
     | 'agent-approval-pending'
     | 'consolidation-pending'
     | 'negative-keywords-needs-review'
+    | 'negative-keywords-removed'
     | 'goal-run-escalation'
     | 'google-ads-budget-review'
     | 'meeting-response-accepted'
@@ -9992,6 +10021,7 @@ export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
     | {
         yearMonth?: T;
         searchTerm?: T;
+        rowIndex?: T;
         negativeKeyword?: T;
         matchType?: T;
         decision?: T;
@@ -9999,6 +10029,12 @@ export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
         watchUntil?: T;
         appliedToNKL?: T;
         appliedAt?: T;
+        appliedBy?: T;
+        appliedByUserId?: T;
+        removedComment?: T;
+        removedBy?: T;
+        removedByUserId?: T;
+        removedAt?: T;
         reviewComment?: T;
         reviewCommentBy?: T;
         reviewCommentAt?: T;

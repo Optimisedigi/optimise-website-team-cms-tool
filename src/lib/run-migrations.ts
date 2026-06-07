@@ -4080,6 +4080,9 @@ export async function runMigrations(
     await run("monthly_keyword_selections_selections.review_comment_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment_by` text");
     await run("monthly_keyword_selections_selections.review_comment_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment_at` text");
     await run("monthly_keyword_selections_selections.review_comment_tagged_user_ids", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_comment_tagged_user_ids` text");
+    await run("monthly_keyword_selections_selections.applied_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `applied_by` text");
+    await run("monthly_keyword_selections_selections.applied_by_user_id", "ALTER TABLE `monthly_keyword_selections_selections` ADD `applied_by_user_id` text");
+    await run("monthly_keyword_selections_selections.row_index", "ALTER TABLE `monthly_keyword_selections_selections` ADD `row_index` numeric DEFAULT 0 NOT NULL");
     await run("monthly_keyword_terms_cache", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_terms_cache\` (
       \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
       \`client_id\` integer NOT NULL,

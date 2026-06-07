@@ -18,6 +18,7 @@ function normaliseSelection(value: any): MonthlyKeywordSelectionRow | null {
   const yearMonth = typeof value?.yearMonth === 'string' ? value.yearMonth.trim() : ''
   const searchTerm = typeof value?.searchTerm === 'string' ? value.searchTerm.trim() : ''
   const negativeKeyword = typeof value?.negativeKeyword === 'string' ? value.negativeKeyword.trim() : searchTerm
+  const rowIndex = Number.isFinite(Number(value?.rowIndex)) ? Math.max(0, Math.trunc(Number(value.rowIndex))) : 0
   const matchType = typeof value?.matchType === 'string' && VALID_MATCH_TYPES.has(value.matchType) ? value.matchType : 'exact'
   const decision = typeof value?.decision === 'string' && VALID_DECISIONS.has(value.decision) ? value.decision : 'pending'
   const rawAppliedToNKL = typeof value?.appliedToNKL === 'object' && value.appliedToNKL !== null ? value.appliedToNKL.id : value?.appliedToNKL
@@ -26,7 +27,7 @@ function normaliseSelection(value: any): MonthlyKeywordSelectionRow | null {
   const watchHorizonMonths = VALID_WATCH_HORIZONS.has(rawHorizon) ? rawHorizon : DEFAULT_WATCH_HORIZON
 
   if (!/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm || !negativeKeyword) return null
-  const base: MonthlyKeywordSelectionRow = { yearMonth, searchTerm, negativeKeyword, matchType, decision, appliedToNKL, watchHorizonMonths } as MonthlyKeywordSelectionRow
+  const base: MonthlyKeywordSelectionRow = { yearMonth, searchTerm, rowIndex, negativeKeyword, matchType, decision, appliedToNKL, watchHorizonMonths } as MonthlyKeywordSelectionRow
   // Comment fields are authored via the dedicated /comment route. Only forward
   // them when the client actually sent strings so a routine autosave can never
   // wipe a comment that another reviewer saved after this client last loaded.
@@ -50,6 +51,17 @@ export async function POST(req: NextRequest) {
   }
 
   const incoming = Array.isArray(body?.selections) ? body.selections.map(normaliseSelection).filter(Boolean) as MonthlyKeywordSelectionRow[] : []
+  // Explicit sub-row deletions: { yearMonth, searchTerm, rowIndex }. These prune
+  // a removed additional negative even though it is absent from `selections`.
+  const deletions = Array.isArray(body?.deletions)
+    ? (body.deletions as Array<{ yearMonth?: unknown; searchTerm?: unknown; rowIndex?: unknown }>)
+        .map((d) => ({
+          yearMonth: typeof d?.yearMonth === 'string' ? d.yearMonth.trim() : '',
+          searchTerm: typeof d?.searchTerm === 'string' ? d.searchTerm.trim() : '',
+          rowIndex: Number.isFinite(Number(d?.rowIndex)) ? Math.trunc(Number(d.rowIndex)) : 0,
+        }))
+        .filter((d) => d.yearMonth && d.searchTerm)
+    : []
 
   const existingResult = await payload.find({
     collection: 'monthly-keyword-selections',
@@ -62,12 +74,15 @@ export async function POST(req: NextRequest) {
   const existingSelections = Array.isArray(existingDoc?.selections) ? existingDoc.selections : []
   const byTerm = new Map<string, any>()
 
+  const rowKey = (yearMonth: string, searchTerm: string, rowIndex: number): string =>
+    `${yearMonth}|${String(searchTerm).toLowerCase()}|${rowIndex}`
+
   for (const selection of existingSelections) {
-    byTerm.set(`${selection.yearMonth}|${String(selection.searchTerm).toLowerCase()}`, selection)
+    byTerm.set(rowKey(selection.yearMonth, selection.searchTerm, Number(selection.rowIndex ?? 0)), selection)
   }
   const now = new Date()
   for (const selection of incoming) {
-    const key = `${selection.yearMonth}|${selection.searchTerm.toLowerCase()}`
+    const key = rowKey(selection.yearMonth, selection.searchTerm, Number(selection.rowIndex ?? 0))
     const prev = byTerm.get(key) || {}
     const merged: any = { ...prev, ...selection }
     if (merged.decision === 'watch') {
@@ -82,8 +97,14 @@ export async function POST(req: NextRequest) {
     byTerm.set(key, merged)
   }
 
+  for (const d of deletions) {
+    byTerm.delete(rowKey(d.yearMonth, d.searchTerm, d.rowIndex))
+  }
+
   const selections = Array.from(byTerm.values()).sort((a, b) =>
-    String(a.yearMonth).localeCompare(String(b.yearMonth)) || String(a.searchTerm).localeCompare(String(b.searchTerm)),
+    String(a.yearMonth).localeCompare(String(b.yearMonth))
+    || String(a.searchTerm).localeCompare(String(b.searchTerm))
+    || Number(a.rowIndex ?? 0) - Number(b.rowIndex ?? 0),
   )
 
   const doc = existingDoc

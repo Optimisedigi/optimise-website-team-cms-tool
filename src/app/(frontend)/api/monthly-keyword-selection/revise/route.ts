@@ -21,7 +21,9 @@ function nklIdOf(value: unknown): string | null {
  *  - action 'remove': delete just this keyword+matchType from its NKL and mark
  *    the selection skipped so the term stays hidden in future months.
  *  - action 'update': replace the keyword text and/or match type in place inside
- *    the same NKL, keeping the selection applied.
+ *    the same NKL, keeping the selection applied. When `newNklId` differs from
+ *    the current list the negative is moved — removed from the old NKL and added
+ *    to the new one — and the selection's appliedToNKL is repointed.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const payload = await getPayload({ config })
@@ -38,6 +40,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const newMatchType = typeof body?.newMatchType === 'string' && VALID_MATCH_TYPES.has(body.newMatchType as MatchType)
     ? body.newMatchType as MatchType
     : null
+  const newNklId = nklIdOf(body?.newNklId)
+  const rowIndex = Number.isInteger(body?.rowIndex) ? Number(body.rowIndex) : null
 
   if (!Number.isInteger(clientId) || !/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm || !action) {
     return NextResponse.json({ error: 'clientId, yearMonth, searchTerm and a valid action are required' }, { status: 400 })
@@ -61,7 +65,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const selectionsArr = Array.isArray(doc.selections) ? doc.selections : []
   const target = selectionsArr.find((selection) =>
     String(selection.yearMonth) === yearMonth
-    && String(selection.searchTerm || '').toLowerCase() === searchTerm.toLowerCase(),
+    && String(selection.searchTerm || '').toLowerCase() === searchTerm.toLowerCase()
+    && (rowIndex === null || Number(selection.rowIndex ?? 0) === rowIndex),
   )
   if (!target) return NextResponse.json({ error: 'Matching term not found' }, { status: 404 })
 
@@ -110,6 +115,63 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       overrideAccess: true,
     })
     return NextResponse.json({ success: true, action, removed: currentKeywords.length - nextKeywords.length })
+  }
+
+  // action === 'update' with a different target NKL — move the negative between
+  // lists: remove it from the old NKL and add the (possibly edited) keyword to
+  // the new one, then point the selection at the new list.
+  if (newNklId && newNklId !== nklId && newMatchType) {
+    const newNkl = await payload.findByID({
+      collection: 'negative-keyword-lists',
+      id: newNklId,
+      depth: 0,
+      overrideAccess: true,
+    }).catch(() => null) as { id: number | string; client?: unknown; keywords?: NklKeyword[] } | null
+    if (!newNkl) return NextResponse.json({ error: 'Target negative keyword list not found' }, { status: 404 })
+
+    const newNklClientId = newNkl.client && typeof newNkl.client === 'object' ? Number((newNkl.client as { id: unknown }).id) : Number(newNkl.client)
+    if (newNklClientId !== clientId) {
+      return NextResponse.json({ error: 'Target NKL does not belong to client' }, { status: 400 })
+    }
+
+    // Remove the negative from the old list, matching either the original
+    // keyword/matchType or the freshly-edited values when edited in the same
+    // request.
+    const matchesEdited = (kw: NklKeyword): boolean =>
+      String(kw.keyword || '').toLowerCase() === newKeyword.toLowerCase() && String(kw.matchType) === newMatchType
+    const removedKeywords = currentKeywords.filter((kw) => !matchesOld(kw) && !matchesEdited(kw))
+    await payload.update({
+      collection: 'negative-keyword-lists',
+      id: nklId,
+      data: { keywords: removedKeywords },
+      overrideAccess: true,
+    })
+
+    // Add to the new list, deduping if the keyword already exists there.
+    const targetKeywords: NklKeyword[] = Array.isArray(newNkl.keywords) ? newNkl.keywords : []
+    const alreadyPresent = targetKeywords.some((kw) => matchesEdited(kw))
+    if (!alreadyPresent) {
+      await payload.update({
+        collection: 'negative-keyword-lists',
+        id: newNklId,
+        data: { keywords: [...targetKeywords, { keyword: newKeyword, matchType: newMatchType, flaggedForRemoval: false, negatedAt: now }] },
+        overrideAccess: true,
+      })
+    }
+
+    const movedSelections = selectionsArr.map((selection) =>
+      selection === target
+        ? { ...selection, negativeKeyword: newKeyword, matchType: newMatchType, decision: 'approved', appliedToNKL: newNklId, appliedAt: now }
+        : selection,
+    )
+    await payload.update({
+      collection: 'monthly-keyword-selections',
+      id: doc.id,
+      data: { selections: movedSelections },
+      overrideAccess: true,
+    })
+
+    return NextResponse.json({ success: true, action, moved: true, deduped: alreadyPresent })
   }
 
   // action === 'update' — replace keyword/matchType in place inside the NKL.

@@ -12,7 +12,7 @@ const DEFAULT_WATCH_HORIZON: WatchHorizon = 3
 
 type Term = { term: string; impressions: number; clicks: number; cost: number; conversions: number; status?: string }
 type Month = { month: string; terms: Term[]; reviewComplete: boolean; reviewCompletedAt?: string | null; diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number } }
-type Selection = { yearMonth: string; searchTerm: string; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null }
+type Selection = { yearMonth: string; searchTerm: string; rowIndex?: number; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null; appliedBy?: string | null; appliedByUserId?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null }
 type Nkl = { id: number | string; name: string; isActive?: boolean; keywords?: Array<{ keyword: string; matchType: MatchType }> }
 type Teammate = { id: string; label: string }
 
@@ -22,8 +22,8 @@ function monthLabel(month: string): string {
   return new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, monthNumber - 1, 1)))
 }
 
-function selectionKey(yearMonth: string, searchTerm: string): string {
-  return `${yearMonth}|${searchTerm.toLowerCase()}`
+function selectionKey(yearMonth: string, searchTerm: string, rowIndex = 0): string {
+  return `${yearMonth}|${searchTerm.toLowerCase()}|${rowIndex}`
 }
 
 function inputFromSelection(selection: Selection | undefined, term: string): string {
@@ -60,6 +60,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const monthsScrollerRef = useRef<HTMLDivElement | null>(null)
   const hasAutoScrolledRef = useRef(false)
+  const titleBarRef = useRef<HTMLDivElement | null>(null)
+  const [titleBarHeight, setTitleBarHeight] = useState(62)
 
   const load = useCallback(async () => {
     if (!clientId || !customerId || !slug) return
@@ -80,7 +82,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       })
       const nextSelections: Record<string, Selection> = {}
       for (const selection of Array.isArray(data.selections) ? data.selections : []) {
-        nextSelections[selectionKey(selection.yearMonth, selection.searchTerm)] = selection
+        const rowIndex = Number(selection.rowIndex ?? 0)
+        nextSelections[selectionKey(selection.yearMonth, selection.searchTerm, rowIndex)] = { ...selection, rowIndex }
       }
       setSelections(nextSelections)
       if (data.error) setMessage(data.error)
@@ -155,14 +158,26 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     window.requestAnimationFrame(() => scrollToFirstIncompleteMonth(visibleMonths, 'auto'))
   }, [loading, visibleMonths, scrollToFirstIncompleteMonth])
 
-  const saveSelections = useCallback(async (next: Record<string, Selection>) => {
+  // Measure the focused month's title bar so the column-labels row can pin
+  // directly beneath it instead of relying on a fragile hardcoded offset.
+  useEffect(() => {
+    const node = titleBarRef.current
+    if (!node) return
+    const measure = () => setTitleBarHeight(node.getBoundingClientRect().height)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [activeMonth, activeTab])
+
+  const saveSelections = useCallback(async (next: Record<string, Selection>, deletions?: Array<{ yearMonth: string; searchTerm: string; rowIndex: number }>) => {
     setSaving(true)
     try {
       const res = await fetch('/api/monthly-keyword-selection/save', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ clientId: Number(clientId), selections: Object.values(next) }),
+        body: JSON.stringify({ clientId: Number(clientId), selections: Object.values(next), ...(deletions && deletions.length ? { deletions } : {}) }),
       })
       if (!res.ok) throw new Error('Auto-save failed')
     } catch (error) {
@@ -177,9 +192,19 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     saveTimer.current = setTimeout(() => { void saveSelections(next) }, 600)
   }, [saveSelections])
 
-  const updateTerm = (month: string, term: string, input: string, appliedToNKL?: number | string | null) => {
+  // All row indexes (primary 0 plus any added sub-rows) currently held for a
+  // given month + search term.
+  const rowIndexesForTerm = (month: string, term: string): number[] => {
+    const lower = term.toLowerCase()
+    const indexes = Object.values(selections)
+      .filter((s) => s.yearMonth === month && s.searchTerm.toLowerCase() === lower)
+      .map((s) => Number(s.rowIndex ?? 0))
+    return Array.from(new Set([0, ...indexes])).sort((a, b) => a - b)
+  }
+
+  const updateTerm = (month: string, term: string, input: string, appliedToNKL?: number | string | null, rowIndex = 0) => {
     const parsed = parseNegativeKeywordInput(input) || { keyword: term, matchType: 'exact' as MatchType }
-    const key = selectionKey(month, term)
+    const key = selectionKey(month, term, rowIndex)
     const existing = selections[key]
     const nextAppliedToNKL = appliedToNKL === undefined ? existing?.appliedToNKL : appliedToNKL
     const next = {
@@ -188,6 +213,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         ...(existing || {}),
         yearMonth: month,
         searchTerm: term,
+        rowIndex,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
         decision: nextAppliedToNKL ? 'approved' as Decision : 'pending' as Decision,
@@ -198,10 +224,62 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     queueSave(next)
   }
 
+  // The NKL target is a single choice shared across every sub-row of a search
+  // term, so setting it fans the same NKL (or null) out to all rows.
   const setTargetListForTerm = (month: string, term: string, nklId: number | string | null) => {
-    const key = selectionKey(month, term)
-    const input = inputFromSelection(selections[key], term)
-    updateTerm(month, term, input, nklId)
+    const next = { ...selections }
+    for (const rowIndex of rowIndexesForTerm(month, term)) {
+      const key = selectionKey(month, term, rowIndex)
+      const existing = selections[key]
+      const parsed = parseNegativeKeywordInput(inputFromSelection(existing, term)) || { keyword: term, matchType: 'exact' as MatchType }
+      next[key] = {
+        ...(existing || {}),
+        yearMonth: month,
+        searchTerm: term,
+        rowIndex,
+        negativeKeyword: parsed.keyword,
+        matchType: parsed.matchType,
+        decision: nklId ? 'approved' as Decision : 'pending' as Decision,
+        appliedToNKL: nklId || null,
+      }
+    }
+    setSelections(next)
+    queueSave(next)
+  }
+
+  // Append an empty additional negative-keyword row beneath a search term. It
+  // inherits the term's shared NKL target so the single-NKL rule is preserved.
+  const addSubRow = (month: string, term: string) => {
+    const indexes = rowIndexesForTerm(month, term)
+    const nextIndex = Math.max(...indexes) + 1
+    const primary = selections[selectionKey(month, term, 0)]
+    const inheritedNkl = primary?.appliedToNKL || null
+    const key = selectionKey(month, term, nextIndex)
+    const next = {
+      ...selections,
+      [key]: {
+        yearMonth: month,
+        searchTerm: term,
+        rowIndex: nextIndex,
+        negativeKeyword: term,
+        matchType: 'exact' as MatchType,
+        decision: inheritedNkl ? 'approved' as Decision : 'pending' as Decision,
+        appliedToNKL: inheritedNkl,
+      },
+    }
+    setSelections(next)
+    queueSave(next)
+  }
+
+  // Delete an additional sub-row (index > 0). The primary row (0) is never
+  // removable. Deletion is sent explicitly so the merge-based save prunes it.
+  const removeSubRow = (month: string, term: string, rowIndex: number) => {
+    if (rowIndex <= 0) return
+    const key = selectionKey(month, term, rowIndex)
+    const next = { ...selections }
+    delete next[key]
+    setSelections(next)
+    void saveSelections(next, [{ yearMonth: month, searchTerm: term, rowIndex }])
   }
 
   const markTermHandled = (month: string, term: string, decision: Extract<Decision, 'approved' | 'skipped' | 'needs_review'>) => {
@@ -215,6 +293,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         ...(selection || {}),
         yearMonth: month,
         searchTerm: term,
+        rowIndex: 0,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
         decision: alreadySelected ? 'pending' as Decision : decision,
@@ -241,6 +320,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         ...(selection || {}),
         yearMonth: month,
         searchTerm: term,
+        rowIndex: 0,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
         decision: clearing ? 'pending' as Decision : 'watch' as Decision,
@@ -253,8 +333,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     queueSave(next)
   }
 
-  const resetToPending = (month: string, term: string) => {
-    const key = selectionKey(month, term)
+  const resetToPending = (month: string, term: string, rowIndex = 0) => {
+    const key = selectionKey(month, term, rowIndex)
     const selection = selections[key]
     const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
     const next = {
@@ -263,6 +343,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         ...(selection || {}),
         yearMonth: month,
         searchTerm: term,
+        rowIndex,
         negativeKeyword: parsed.keyword,
         matchType: parsed.matchType,
         decision: 'pending' as Decision,
@@ -304,7 +385,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     })
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
-      setMessage(`Applied ${data.applied || 0}; skipped ${data.skipped || 0} duplicate(s).`)
+      const applied = data.applied || 0
+      const skipped = data.skipped || 0
+      const total = applied + skipped
+      setMessage(`Submitted ${total} negative(s) — ${applied} newly added, ${skipped} already on the list.`)
       await loadNkls()
     } else {
       setMessage(data?.error || 'Apply failed')
@@ -365,13 +449,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const reviseSubmitted = useCallback(async (
     item: Selection,
     action: 'remove' | 'update',
-    extra?: { newKeyword: string; newMatchType: MatchType },
+    extra?: { newKeyword: string; newMatchType: MatchType; newNklId?: number | string },
   ) => {
     const res = await fetch('/api/monthly-keyword-selection/revise', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ clientId: Number(clientId), yearMonth: item.yearMonth, searchTerm: item.searchTerm, action, ...extra }),
+      body: JSON.stringify({ clientId: Number(clientId), yearMonth: item.yearMonth, searchTerm: item.searchTerm, rowIndex: Number(item.rowIndex ?? 0), action, ...extra }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setMessage(data?.error || 'Revision failed'); return }
@@ -388,11 +472,11 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ clientId: Number(clientId), yearMonth: item.yearMonth, searchTerm: item.searchTerm, comment, taggedUserIds }),
+      body: JSON.stringify({ clientId: Number(clientId), yearMonth: item.yearMonth, searchTerm: item.searchTerm, rowIndex: Number(item.rowIndex ?? 0), comment, taggedUserIds }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { setMessage(data?.error || 'Failed to save comment'); return }
-    const key = selectionKey(item.yearMonth, item.searchTerm)
+    const key = selectionKey(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))
     setSelections((current) => ({
       ...current,
       [key]: { ...current[key], reviewComment: comment, reviewCommentBy: data.reviewCommentBy, reviewCommentAt: data.reviewCommentAt, reviewCommentTaggedUserIds: taggedUserIds.join(',') },
@@ -521,12 +605,12 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           <div style={{ display: 'grid', gap: 8, padding: 12 }}>
             {needsReviewItems.map((item) => (
               <NeedsReviewRow
-                key={selectionKey(item.yearMonth, item.searchTerm)}
+                key={selectionKey(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))}
                 item={item}
                 nkls={visibleNkls}
                 teammates={teammates}
                 onSetTarget={(nklId) => setTargetListForTerm(item.yearMonth, item.searchTerm, nklId)}
-                onDismiss={() => resetToPending(item.yearMonth, item.searchTerm)}
+                onDismiss={() => resetToPending(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))}
                 onSaveComment={(comment, taggedUserIds) => saveComment(item, comment, taggedUserIds)}
               />
             ))}
@@ -553,11 +637,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
               <div style={{ display: 'grid', gap: 8, padding: 12 }}>
                 {items.map((item) => (
                   <SubmittedRow
-                    key={selectionKey(item.yearMonth, item.searchTerm)}
+                    key={selectionKey(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))}
                     item={item}
+                    nklId={typeof item.appliedToNKL === 'object' ? item.appliedToNKL?.id ?? null : item.appliedToNKL ?? null}
                     nklName={nklNameById.get(String(typeof item.appliedToNKL === 'object' ? item.appliedToNKL?.id : item.appliedToNKL)) || 'Unknown list'}
+                    nkls={visibleNkls}
                     onRemove={() => reviseSubmitted(item, 'remove')}
-                    onUpdate={(newKeyword, newMatchType) => reviseSubmitted(item, 'update', { newKeyword, newMatchType })}
+                    onUpdate={(newKeyword, newMatchType, newNklId) => reviseSubmitted(item, 'update', { newKeyword, newMatchType, ...(newNklId != null ? { newNklId } : {}) })}
                   />
                 ))}
               </div>
@@ -571,7 +657,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           const isFocused = activeMonth === month.month
           return (
           <section key={month.month} aria-label={`${monthLabel(month.month)}${month.reviewComplete ? ' complete' : ''}`} style={{ minWidth: isFocused ? '100%' : 340, maxWidth: isFocused ? 'none' : 340, width: isFocused ? 'max-content' : undefined, border: '1px solid var(--theme-elevation-150)', borderRadius: 10, background: month.reviewComplete ? 'var(--theme-elevation-50)' : 'var(--theme-bg)', opacity: month.reviewComplete ? 0.78 : 1 }}>
-            <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: 12, borderBottom: '1px solid var(--theme-elevation-150)', background: 'inherit', borderRadius: '10px 10px 0 0' }}>
+            <div ref={isFocused ? titleBarRef : undefined} style={{ position: 'sticky', top: 0, zIndex: 3, padding: 12, borderBottom: '1px solid var(--theme-elevation-150)', background: 'inherit', borderRadius: '10px 10px 0 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                 <strong>{monthLabel(month.month)}</strong>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -588,7 +674,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
               {isFocused && month.terms.length > 0 && (
-                <div style={{ position: 'sticky', top: 62, zIndex: 2, display: 'grid', gridTemplateColumns: gridTemplate, gap: gridGap, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                <div style={{ position: 'sticky', top: titleBarHeight, zIndex: 2, display: 'grid', gridTemplateColumns: gridTemplate, gap: gridGap, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
                   <span>Search term</span>
                   <span>Actions</span>
                   <span>Negative keyword</span>
@@ -608,97 +694,138 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 </div>
               )}
               {month.terms.map((term) => {
-                const key = selectionKey(month.month, term.term)
-                const selection = selections[key]
-                const inputValue = inputFromSelection(selection, term.term)
-                const parsed = parseNegativeKeywordInput(inputValue) || { keyword: term.term, matchType: 'exact' as MatchType }
-                const cmsNklMatches = cmsExistingByKeyword.get(`${parsed.keyword.toLowerCase()}|${parsed.matchType}`) || []
-                const alreadyInCms = cmsNklMatches.length > 0
-                const isAutoAdded = selection?.decision === 'approved' && !selection.appliedToNKL || alreadyInCms
-                const selectedNklId = selection?.appliedToNKL && typeof selection.appliedToNKL === 'object' ? selection.appliedToNKL.id : selection?.appliedToNKL
+                const primaryKey = selectionKey(month.month, term.term, 0)
+                const primary = selections[primaryKey]
+                const selectedNklId = primary?.appliedToNKL && typeof primary.appliedToNKL === 'object' ? primary.appliedToNKL.id : primary?.appliedToNKL
+                const subRowIndexes = rowIndexesForTerm(month.month, term.term)
                 return (
-                  <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? gridTemplate : '1fr', gap: gridGap, alignItems: 'center', padding: '6px 8px', border: '1px solid var(--theme-elevation-100)', borderRadius: 6, background: selection?.decision === 'skipped' ? '#fef2f2' : selection?.decision === 'needs_review' ? '#fffbeb' : selection?.decision === 'watch' ? '#eff6ff' : selection?.decision === 'approved' && !selection.appliedToNKL ? '#f0fdf4' : 'var(--theme-elevation-0)' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, marginBottom: 2 }}>{term.term}</div>
-                      <div style={{ fontSize: 10, color: 'var(--theme-elevation-500)' }}>
-                        {term.impressions} impr · {term.clicks} clicks · ${Number(term.cost || 0).toFixed(2)}
-                      </div>
-                    </div>
-                    {isFocused && (
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center', flexWrap: 'nowrap' }}>
-                        {selection?.decision === 'watch' ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                            <button
-                              type="button"
-                              disabled={month.reviewComplete}
-                              onClick={() => setWatch(month.month, term.term, null)}
-                              title={`Watching — performance re-check due ${selection.watchUntil ? new Date(selection.watchUntil).toLocaleDateString('en-AU') : ''}. Click to stop watching.`}
-                              style={{ padding: '3px 5px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: '#1d4ed8', borderColor: '#93c5fd', background: '#dbeafe', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
-                            >👁 Watch</button>
-                            <select
-                              disabled={month.reviewComplete}
-                              value={WATCH_HORIZONS.includes(selection.watchHorizonMonths as WatchHorizon) ? Number(selection.watchHorizonMonths) : DEFAULT_WATCH_HORIZON}
-                              onChange={(event) => setWatch(month.month, term.term, Number(event.target.value) as WatchHorizon)}
-                              title="Months until performance re-check"
-                              style={{ fontSize: 9, padding: '1px 2px' }}
-                            >
-                              {WATCH_HORIZONS.map((h) => <option key={h} value={h}>{h}mo</option>)}
-                            </select>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={month.reviewComplete}
-                            onClick={() => setWatch(month.month, term.term, DEFAULT_WATCH_HORIZON)}
-                            title="On the fence? Watch this term. It is NOT added as a negative and keeps appearing across months until the re-check horizon (default 3 months) passes, when its conversion performance is reviewed."
-                            style={{ padding: '3px 6px', fontSize: 10, lineHeight: 1.2, fontWeight: 700, whiteSpace: 'nowrap', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
-                          >?</button>
-                        )}
-                        <button
-                          type="button"
-                          disabled={month.reviewComplete}
-                          onClick={() => markTermHandled(month.month, term.term, 'skipped')}
-                          style={{ padding: '3px 6px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: selection?.decision === 'skipped' ? '#991b1b' : undefined, borderColor: selection?.decision === 'skipped' ? '#fca5a5' : undefined, background: selection?.decision === 'skipped' ? '#fee2e2' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
-                        >{selection?.decision === 'skipped' ? 'Skipped' : 'Skip'}</button>
-                        <button
-                          type="button"
-                          disabled={month.reviewComplete}
-                          onClick={() => markTermHandled(month.month, term.term, 'approved')}
-                          title="Already covered by an existing negative keyword; hide this exact search term in future months without applying it again. Click again to unmark."
-                          style={{ padding: '3px 6px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: isAutoAdded ? '#166534' : undefined, borderColor: isAutoAdded ? '#86efac' : undefined, background: isAutoAdded ? '#dcfce7' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
-                        >{isAutoAdded ? 'Added' : 'Already added'}</button>
-                        <button
-                          type="button"
-                          disabled={month.reviewComplete}
-                          onClick={() => markTermHandled(month.month, term.term, 'needs_review')}
-                          title="Unsure whether this should be a negative? Type the negative keyword, then flag it for review. It is NOT added to any list — it is parked for an admin to decide, and surfaces in the Needs review panel."
-                          style={{ padding: '3px 6px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: selection?.decision === 'needs_review' ? '#92400e' : undefined, borderColor: selection?.decision === 'needs_review' ? '#fcd34d' : undefined, background: selection?.decision === 'needs_review' ? '#fef3c7' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
-                        >{selection?.decision === 'needs_review' ? 'In review' : 'Needs review'}</button>
-                      </div>
-                    )}
-                    <div style={{ display: 'grid', gap: 4 }}>
-                      <input
-                        value={inputValue}
-                        disabled={month.reviewComplete}
-                        onChange={(event) => updateTerm(month.month, term.term, event.target.value)}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '5px 7px', fontSize: 12, cursor: month.reviewComplete ? 'not-allowed' : 'text' }}
-                      />
-                      {alreadyInCms && <span title={cmsNklMatches.join(', ')} style={{ fontSize: 11, background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: 999, justifySelf: 'start' }}>Already in {cmsNklMatches.join(', ')}</span>}
-                      {isWatchDue(selection) && <span style={{ fontSize: 11, background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 999, justifySelf: 'start' }}>Watch due — re-check performance</span>}
-                    </div>
-                    <div style={{ display: 'grid', gap: 4 }}>
-                      <span style={{ fontSize: 10, color: '#0369a1' }}>{matchTypeLabel(parsed.matchType)}</span>
-                    </div>
-                    {isFocused && visibleNkls.map((nkl) => {
-                      const isChecked = String(selectedNklId || '') === String(nkl.id)
+                  <div key={primaryKey} style={{ display: 'grid', gap: 4 }}>
+                    {subRowIndexes.map((rowIndex) => {
+                      const isPrimary = rowIndex === 0
+                      const key = selectionKey(month.month, term.term, rowIndex)
+                      const selection = selections[key]
+                      const inputValue = inputFromSelection(selection, term.term)
+                      const parsed = parseNegativeKeywordInput(inputValue) || { keyword: term.term, matchType: 'exact' as MatchType }
+                      const cmsNklMatches = cmsExistingByKeyword.get(`${parsed.keyword.toLowerCase()}|${parsed.matchType}`) || []
+                      const alreadyInCms = cmsNklMatches.length > 0
+                      const isAutoAdded = selection?.decision === 'approved' && !selection.appliedToNKL || alreadyInCms
                       return (
-                        <label key={nkl.id} style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center', minHeight: 28, padding: '3px 5px', borderRadius: 5, border: isChecked ? '1px solid #0f766e' : '1px solid var(--theme-elevation-150)', background: isChecked ? '#ccfbf1' : 'transparent', fontSize: 10, whiteSpace: 'nowrap', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}>
-                          <input type="checkbox" checked={isChecked} disabled={month.reviewComplete} onChange={() => setTargetListForTerm(month.month, term.term, isChecked ? null : nkl.id)} />
-                          Add negative
-                        </label>
+                        <div key={key} style={{ display: 'grid', gridTemplateColumns: isFocused ? gridTemplate : '1fr', gap: gridGap, alignItems: 'center', padding: '6px 8px', border: '1px solid var(--theme-elevation-100)', borderRadius: 6, marginLeft: isPrimary ? 0 : 18, background: selection?.decision === 'skipped' ? '#fef2f2' : selection?.decision === 'needs_review' ? '#fffbeb' : selection?.decision === 'watch' ? '#eff6ff' : selection?.decision === 'approved' && !selection.appliedToNKL ? '#f0fdf4' : 'var(--theme-elevation-0)' }}>
+                          <div>
+                            {isPrimary ? (
+                              <>
+                                <div style={{ fontWeight: 600, marginBottom: 2 }}>{term.term}</div>
+                                <div style={{ fontSize: 10, color: 'var(--theme-elevation-500)' }}>
+                                  {term.impressions} impr · {term.clicks} clicks · ${Number(term.cost || 0).toFixed(2)}
+                                </div>
+                              </>
+                            ) : (
+                              <div style={{ fontSize: 10, color: 'var(--theme-elevation-400)', fontStyle: 'italic' }}>↳ {term.term}</div>
+                            )}
+                          </div>
+                          {isFocused && isPrimary && (
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center', flexWrap: 'nowrap' }}>
+                              {selection?.decision === 'watch' ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <button
+                                    type="button"
+                                    disabled={month.reviewComplete}
+                                    onClick={() => setWatch(month.month, term.term, null)}
+                                    title={`Watching — performance re-check due ${selection.watchUntil ? new Date(selection.watchUntil).toLocaleDateString('en-AU') : ''}. Click to stop watching.`}
+                                    style={{ padding: '3px 5px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: '#1d4ed8', borderColor: '#93c5fd', background: '#dbeafe', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                                  >👁 Watch</button>
+                                  <select
+                                    disabled={month.reviewComplete}
+                                    value={WATCH_HORIZONS.includes(selection.watchHorizonMonths as WatchHorizon) ? Number(selection.watchHorizonMonths) : DEFAULT_WATCH_HORIZON}
+                                    onChange={(event) => setWatch(month.month, term.term, Number(event.target.value) as WatchHorizon)}
+                                    title="Months until performance re-check"
+                                    style={{ fontSize: 9, padding: '1px 2px' }}
+                                  >
+                                    {WATCH_HORIZONS.map((h) => <option key={h} value={h}>{h}mo</option>)}
+                                  </select>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={month.reviewComplete}
+                                  onClick={() => setWatch(month.month, term.term, DEFAULT_WATCH_HORIZON)}
+                                  title="On the fence? Watch this term. It is NOT added as a negative and keeps appearing across months until the re-check horizon (default 3 months) passes, when its conversion performance is reviewed."
+                                  style={{ padding: '3px 6px', fontSize: 10, lineHeight: 1.2, fontWeight: 700, whiteSpace: 'nowrap', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                                >?</button>
+                              )}
+                              <button
+                                type="button"
+                                disabled={month.reviewComplete}
+                                onClick={() => markTermHandled(month.month, term.term, 'skipped')}
+                                style={{ padding: '3px 6px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: selection?.decision === 'skipped' ? '#991b1b' : undefined, borderColor: selection?.decision === 'skipped' ? '#fca5a5' : undefined, background: selection?.decision === 'skipped' ? '#fee2e2' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                              >{selection?.decision === 'skipped' ? 'Skipped' : 'Skip'}</button>
+                              <button
+                                type="button"
+                                disabled={month.reviewComplete}
+                                onClick={() => markTermHandled(month.month, term.term, 'approved')}
+                                title="Already covered by an existing negative keyword; hide this exact search term in future months without applying it again. Click again to unmark."
+                                style={{ padding: '3px 6px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: isAutoAdded ? '#166534' : undefined, borderColor: isAutoAdded ? '#86efac' : undefined, background: isAutoAdded ? '#dcfce7' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                              >{isAutoAdded ? 'Added' : 'Already added'}</button>
+                              <button
+                                type="button"
+                                disabled={month.reviewComplete}
+                                onClick={() => markTermHandled(month.month, term.term, 'needs_review')}
+                                title="Unsure whether this should be a negative? Type the negative keyword, then flag it for review. It is NOT added to any list — it is parked for an admin to decide, and surfaces in the Needs review panel."
+                                style={{ padding: '3px 6px', fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', color: selection?.decision === 'needs_review' ? '#92400e' : undefined, borderColor: selection?.decision === 'needs_review' ? '#fcd34d' : undefined, background: selection?.decision === 'needs_review' ? '#fef3c7' : undefined, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                              >{selection?.decision === 'needs_review' ? 'In review' : 'Needs review'}</button>
+                            </div>
+                          )}
+                          {isFocused && !isPrimary && (
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center' }}>
+                              <button
+                                type="button"
+                                disabled={month.reviewComplete}
+                                onClick={() => removeSubRow(month.month, term.term, rowIndex)}
+                                title="Remove this additional negative keyword"
+                                style={{ padding: '3px 8px', fontSize: 11, lineHeight: 1.2, color: '#b91c1c', borderColor: '#fecaca', background: '#fff7f7', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                              >×</button>
+                            </div>
+                          )}
+                          <div style={{ display: 'grid', gap: 4 }}>
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                              <input
+                                value={inputValue}
+                                disabled={month.reviewComplete}
+                                onChange={(event) => updateTerm(month.month, term.term, event.target.value, undefined, rowIndex)}
+                                style={{ width: '100%', boxSizing: 'border-box', padding: '5px 7px', fontSize: 12, cursor: month.reviewComplete ? 'not-allowed' : 'text' }}
+                              />
+                              {isFocused && isPrimary && (
+                                <button
+                                  type="button"
+                                  disabled={month.reviewComplete}
+                                  onClick={() => addSubRow(month.month, term.term)}
+                                  title="Add another negative keyword for this search term (shares the same negative keyword list)"
+                                  style={{ padding: '4px 8px', fontSize: 12, lineHeight: 1.2, fontWeight: 700, cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}
+                                >+</button>
+                              )}
+                            </div>
+                            {alreadyInCms && <span title={cmsNklMatches.join(', ')} style={{ fontSize: 11, background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: 999, justifySelf: 'start' }}>Already in {cmsNklMatches.join(', ')}</span>}
+                            {isPrimary && isWatchDue(selection) && <span style={{ fontSize: 11, background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 999, justifySelf: 'start' }}>Watch due — re-check performance</span>}
+                          </div>
+                          <div style={{ display: 'grid', gap: 4 }}>
+                            <span style={{ fontSize: 10, color: '#0369a1' }}>{matchTypeLabel(parsed.matchType)}</span>
+                          </div>
+                          {isFocused && isPrimary && visibleNkls.map((nkl) => {
+                            const isChecked = String(selectedNklId || '') === String(nkl.id)
+                            return (
+                              <label key={nkl.id} style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center', minHeight: 28, padding: '3px 5px', borderRadius: 5, border: isChecked ? '1px solid #0f766e' : '1px solid var(--theme-elevation-150)', background: isChecked ? '#ccfbf1' : 'transparent', fontSize: 10, whiteSpace: 'nowrap', cursor: month.reviewComplete ? 'not-allowed' : 'pointer' }}>
+                                <input type="checkbox" checked={isChecked} disabled={month.reviewComplete} onChange={() => setTargetListForTerm(month.month, term.term, isChecked ? null : nkl.id)} />
+                                Add negative
+                              </label>
+                            )
+                          })}
+                          {isFocused && !isPrimary && visibleNkls.map((nkl) => (
+                            <span key={nkl.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 28, fontSize: 9, color: 'var(--theme-elevation-400)' }}>{String(selectedNklId || '') === String(nkl.id) ? '↳ same list' : ''}</span>
+                          ))}
+                          {isFocused && isPrimary && visibleNkls.length === 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>No active NKLs shown</span>}
+                        </div>
                       )
                     })}
-                    {isFocused && visibleNkls.length === 0 && <span style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>No active NKLs shown</span>}
                   </div>
                 )
               })}
@@ -734,73 +861,69 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onDismiss, onSaveC
   }
 
   return (
-    <div style={{ display: 'grid', gap: 8, padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr auto', gap: 10, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, color: 'var(--theme-elevation-600)' }}>{monthLabel(item.yearMonth)}</span>
-        <div>
-          <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
-          <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>→ {item.negativeKeyword} · {matchTypeLabel(item.matchType)}</div>
-        </div>
-        <select
-          defaultValue=""
-          onChange={(event) => { if (event.target.value) onSetTarget(event.target.value) }}
-          style={{ fontSize: 12, padding: '5px 7px' }}
-        >
-          <option value="" disabled>Set as negative in…</option>
-          {nkls.map((nkl) => <option key={nkl.id} value={String(nkl.id)}>{nkl.name}</option>)}
-        </select>
-        <button type="button" onClick={onDismiss} style={{ padding: '5px 9px', fontSize: 11, whiteSpace: 'nowrap' }}>Dismiss</button>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '6px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)', alignItems: 'center' }}>
+      <span style={{ fontSize: 11, color: 'var(--theme-elevation-600)', flex: '0 0 auto', minWidth: 56 }}>{monthLabel(item.yearMonth)}</span>
+      <div style={{ flex: '1 1 160px', minWidth: 140 }}>
+        <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
+        <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>→ {item.negativeKeyword} · {matchTypeLabel(item.matchType)}</div>
       </div>
-      <div style={{ display: 'grid', gap: 6, paddingTop: 6, borderTop: '1px dashed var(--theme-elevation-150)' }}>
-        <textarea
-          value={comment}
-          placeholder="Add a comment for the team…"
-          onChange={(event) => setComment(event.target.value)}
-          rows={2}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, resize: 'vertical' }}
-        />
-        {teammates.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>Tag:</span>
-            {teammates.map((mate) => {
-              const active = tags.includes(mate.id)
-              return (
-                <button
-                  key={mate.id}
-                  type="button"
-                  onClick={() => toggleTag(mate.id)}
-                  style={{ padding: '2px 8px', fontSize: 11, borderRadius: 999, cursor: 'pointer', border: active ? '1px solid #0f766e' : '1px solid var(--theme-elevation-150)', background: active ? '#ccfbf1' : 'transparent', color: active ? '#0f766e' : 'var(--theme-elevation-700)' }}
-                >@{mate.label}</button>
-              )
-            })}
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button type="button" onClick={handleSave} disabled={!dirty || savingComment} style={{ padding: '5px 12px', fontSize: 12 }}>{savingComment ? 'Saving…' : 'Save comment'}</button>
-          {item.reviewCommentBy && item.reviewCommentAt && (
-            <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>Last by {item.reviewCommentBy} · {new Date(item.reviewCommentAt).toLocaleString('en-AU')}</span>
-          )}
+      <select
+        defaultValue=""
+        onChange={(event) => { if (event.target.value) onSetTarget(event.target.value) }}
+        style={{ fontSize: 11, padding: '4px 6px', flex: '0 1 150px', minWidth: 120 }}
+      >
+        <option value="" disabled>Set as negative in…</option>
+        {nkls.map((nkl) => <option key={nkl.id} value={String(nkl.id)}>{nkl.name}</option>)}
+      </select>
+      <input
+        value={comment}
+        placeholder="Comment for the team…"
+        onChange={(event) => setComment(event.target.value)}
+        style={{ flex: '1 1 160px', minWidth: 140, boxSizing: 'border-box', padding: '4px 7px', fontSize: 12 }}
+      />
+      {teammates.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', flex: '0 1 auto' }}>
+          {teammates.map((mate) => {
+            const active = tags.includes(mate.id)
+            return (
+              <button
+                key={mate.id}
+                type="button"
+                onClick={() => toggleTag(mate.id)}
+                style={{ padding: '2px 8px', fontSize: 11, borderRadius: 999, cursor: 'pointer', border: active ? '1px solid #0f766e' : '1px solid var(--theme-elevation-150)', background: active ? '#ccfbf1' : 'transparent', color: active ? '#0f766e' : 'var(--theme-elevation-700)' }}
+              >@{mate.label}</button>
+            )
+          })}
         </div>
-      </div>
+      )}
+      <button type="button" onClick={handleSave} disabled={!dirty || savingComment} style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap', flex: '0 0 auto' }}>{savingComment ? 'Saving…' : 'Save'}</button>
+      <button type="button" onClick={onDismiss} style={{ padding: '4px 9px', fontSize: 11, whiteSpace: 'nowrap', flex: '0 0 auto' }}>Dismiss</button>
+      {item.reviewCommentBy && item.reviewCommentAt && (
+        <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)', flex: '1 1 100%' }}>Last by {item.reviewCommentBy} · {new Date(item.reviewCommentAt).toLocaleString('en-AU')}</span>
+      )}
     </div>
   )
 }
 
-function SubmittedRow({ item, nklName, onRemove, onUpdate }: {
+function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate }: {
   item: Selection
+  nklId: number | string | null
   nklName: string
+  nkls: Nkl[]
   onRemove: () => Promise<void>
-  onUpdate: (newKeyword: string, newMatchType: MatchType) => Promise<void>
+  onUpdate: (newKeyword: string, newMatchType: MatchType, newNklId: number | string | null) => Promise<void>
 }) {
   const [keyword, setKeyword] = useState(item.negativeKeyword)
   const [matchType, setMatchType] = useState<MatchType>(item.matchType)
+  const [targetNklId, setTargetNklId] = useState<string>(nklId != null ? String(nklId) : '')
   const [busy, setBusy] = useState(false)
-  const dirty = keyword.trim() !== item.negativeKeyword || matchType !== item.matchType
+  const listChanged = targetNklId !== '' && targetNklId !== (nklId != null ? String(nklId) : '')
+  const dirty = keyword.trim() !== item.negativeKeyword || matchType !== item.matchType || listChanged
 
   const handleUpdate = async (): Promise<void> => {
     if (!keyword.trim()) return
     setBusy(true)
-    try { await onUpdate(keyword.trim(), matchType) } finally { setBusy(false) }
+    try { await onUpdate(keyword.trim(), matchType, listChanged ? targetNklId : null) } finally { setBusy(false) }
   }
   const handleRemove = async (): Promise<void> => {
     if (!window.confirm(`Remove “${item.negativeKeyword}” (${matchTypeLabel(item.matchType)}) from ${nklName}? It will be marked skipped so it stays hidden in future months.`)) return
@@ -809,7 +932,7 @@ function SubmittedRow({ item, nklName, onRemove, onUpdate }: {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 120px auto', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 120px 170px auto', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
       <div>
         <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Search term</div>
         <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
@@ -825,8 +948,19 @@ function SubmittedRow({ item, nklName, onRemove, onUpdate }: {
         <option value="phrase">Phrase match</option>
         <option value="broad">Broad match</option>
       </select>
+      <select
+        value={targetNklId}
+        onChange={(event) => setTargetNklId(event.target.value)}
+        title="Move this negative to a different list"
+        style={{ fontSize: 12, padding: '5px 7px', borderColor: listChanged ? '#0f766e' : undefined }}
+      >
+        {nklId != null && !nkls.some((nkl) => String(nkl.id) === String(nklId)) && (
+          <option value={String(nklId)}>{nklName}</option>
+        )}
+        {nkls.map((nkl) => <option key={nkl.id} value={String(nkl.id)}>{nkl.name}</option>)}
+      </select>
       <div style={{ display: 'flex', gap: 6, whiteSpace: 'nowrap' }}>
-        <button type="button" onClick={handleUpdate} disabled={!dirty || busy} style={{ padding: '5px 10px', fontSize: 11 }}>Update list</button>
+        <button type="button" onClick={handleUpdate} disabled={!dirty || busy} title="Save keyword/match-type edits and move the negative if a different list is selected" style={{ padding: '5px 10px', fontSize: 11 }}>{listChanged ? 'Update & move' : 'Update list'}</button>
         <button type="button" onClick={handleRemove} disabled={busy} style={{ padding: '5px 10px', fontSize: 11, color: '#b91c1c', borderColor: '#fecaca', background: '#fff7f7' }}>Remove</button>
       </div>
     </div>

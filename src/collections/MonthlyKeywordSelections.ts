@@ -66,6 +66,13 @@ export const MonthlyKeywordSelections: CollectionConfig = {
           admin: { description: 'The raw Google Ads search term.' },
         },
         {
+          name: 'rowIndex',
+          type: 'number',
+          required: true,
+          defaultValue: 0,
+          admin: { description: 'Sub-row index for this search term. 0 is the primary negative; >0 are additional negatives sharing the same target NKL.' },
+        },
+        {
           name: 'negativeKeyword',
           type: 'text',
           required: true,
@@ -117,6 +124,36 @@ export const MonthlyKeywordSelections: CollectionConfig = {
         {
           name: 'appliedAt',
           type: 'date',
+        },
+        {
+          name: 'appliedBy',
+          type: 'text',
+          admin: { description: 'Display name of the user who first applied this negative to an NKL.' },
+        },
+        {
+          name: 'appliedByUserId',
+          type: 'text',
+          admin: { description: 'User id of the user who first applied this negative to an NKL (for notifications later).' },
+        },
+        {
+          name: 'removedComment',
+          type: 'textarea',
+          admin: { description: 'Explanation a teammate gave when removing this already-applied negative from its NKL.' },
+        },
+        {
+          name: 'removedBy',
+          type: 'text',
+          admin: { description: 'Display name of the user who removed this already-applied negative.' },
+        },
+        {
+          name: 'removedByUserId',
+          type: 'text',
+          admin: { description: 'User id of the user who removed this already-applied negative.' },
+        },
+        {
+          name: 'removedAt',
+          type: 'text',
+          admin: { description: 'ISO timestamp when this already-applied negative was removed with an explanation.' },
         },
         {
           name: 'reviewComment',

@@ -28,6 +28,7 @@ export type MonthlyKeywordSelectionRow = {
   id?: string | number
   yearMonth: string
   searchTerm: string
+  rowIndex?: number
   negativeKeyword: string
   matchType: 'broad' | 'phrase' | 'exact'
   decision: 'pending' | 'approved' | 'skipped' | 'watch' | 'needs_review'
@@ -35,6 +36,8 @@ export type MonthlyKeywordSelectionRow = {
   watchUntil?: string | null
   appliedToNKL?: number | string | { id?: number | string } | null
   appliedAt?: string | null
+  appliedBy?: string | null
+  appliedByUserId?: string | null
   reviewComment?: string | null
   reviewCommentBy?: string | null
   reviewCommentAt?: string | null
@@ -71,6 +74,32 @@ export function buildCompleteMonthList(monthsBackInput = DEFAULT_MONTHS_BACK, to
     months.push(formatYearMonth(date))
   }
   return months
+}
+
+function isRowComplete(row: MonthlyKeywordTermsCacheRow): boolean {
+  return row.reviewComplete === true || row.reviewComplete === 1
+}
+
+// Duplicate cache rows can exist for the same client+yearMonth. When merging
+// them, completion must win: if ANY duplicate is complete the merged row is
+// complete, and we prefer the completion metadata from a completed row so an
+// incomplete duplicate never overwrites a completed one.
+function mergeCacheRows(
+  existing: MonthlyKeywordTermsCacheRow | undefined,
+  incoming: MonthlyKeywordTermsCacheRow,
+): MonthlyKeywordTermsCacheRow {
+  if (!existing) return incoming
+  const existingComplete = isRowComplete(existing)
+  const incomingComplete = isRowComplete(incoming)
+  // Base row carries the term payload; prefer the incoming row's data but keep
+  // completion state from whichever row is complete.
+  const completeSource = incomingComplete ? incoming : existingComplete ? existing : incoming
+  return {
+    ...incoming,
+    reviewComplete: existingComplete || incomingComplete,
+    reviewCompletedAt: completeSource.reviewCompletedAt ?? null,
+    reviewCompletedBy: completeSource.reviewCompletedBy ?? null,
+  }
 }
 
 function trimMonthsToEarliestCached(months: string[], cache: Map<string, MonthlyKeywordTermsCacheRow>): string[] {
@@ -170,7 +199,9 @@ export async function warmMonthlyKeywordTermsForClient(
 
   const cache = new Map<string, MonthlyKeywordTermsCacheRow>()
   for (const row of cacheResult.docs as unknown as MonthlyKeywordTermsCacheRow[]) {
-    if (lookbackMonths.includes(row.yearMonth)) cache.set(row.yearMonth, row)
+    if (!lookbackMonths.includes(row.yearMonth)) continue
+    const existing = cache.get(row.yearMonth)
+    cache.set(row.yearMonth, mergeCacheRows(existing, row))
   }
 
   const completeMonths = trimMonthsToEarliestCached(lookbackMonths, cache)

@@ -78,6 +78,10 @@ export const Notifications: CollectionConfig = {
           value: "negative-keywords-needs-review",
         },
         {
+          label: "Negative keyword removed",
+          value: "negative-keywords-removed",
+        },
+        {
           label: "Goal run escalation",
           value: "goal-run-escalation",
         },

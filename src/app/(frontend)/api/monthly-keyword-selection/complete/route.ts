@@ -27,24 +27,34 @@ export async function POST(req: NextRequest) {
         { yearMonth: { equals: yearMonth } },
       ],
     },
-    limit: 1,
+    limit: 100,
     depth: 0,
     overrideAccess: true,
   })
 
-  const row = result.docs[0] as any
-  if (!row) return NextResponse.json({ error: 'Month cache row not found' }, { status: 404 })
+  const rows = result.docs as any[]
+  if (rows.length === 0) return NextResponse.json({ error: 'Month cache row not found' }, { status: 404 })
 
-  const updated = await payload.update({
-    collection: 'monthly-keyword-terms-cache',
-    id: row.id,
-    data: {
-      reviewComplete: complete,
-      reviewCompletedAt: complete ? new Date().toISOString() : null,
-      reviewCompletedBy: complete ? user.id : null,
-    },
-    overrideAccess: true,
-  })
+  // There can be duplicate cache rows for the same client+yearMonth. Update
+  // every matching row so completion state is consistent regardless of which
+  // row a reader (e.g. the warmer) happens to pick.
+  const reviewCompletedAt = complete ? new Date().toISOString() : null
+  const reviewCompletedBy = complete ? user.id : null
+  const updatedRows = await Promise.all(
+    rows.map((row) =>
+      payload.update({
+        collection: 'monthly-keyword-terms-cache',
+        id: row.id,
+        data: {
+          reviewComplete: complete,
+          reviewCompletedAt,
+          reviewCompletedBy,
+        },
+        overrideAccess: true,
+      }),
+    ),
+  )
+  const updated = updatedRows[0]
 
   // When a month is marked complete, surface any "needs review" terms for that
   // month via the bell + dashboard activity feed.

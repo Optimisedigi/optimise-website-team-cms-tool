@@ -26,6 +26,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const clientId = Number(body?.clientId)
   const yearMonth = typeof body?.yearMonth === 'string' ? body.yearMonth.trim() : ''
   const searchTerm = typeof body?.searchTerm === 'string' ? body.searchTerm.trim() : ''
+  // Optional sub-row index: when present the comment is scoped to one negative
+  // of the term; when absent (legacy clients) it falls back to matching the term.
+  const rowIndex = Number.isInteger(body?.rowIndex) ? Number(body.rowIndex) : null
   const comment = typeof body?.comment === 'string' ? body.comment : ''
   const taggedUserIds = Array.isArray(body?.taggedUserIds)
     ? body.taggedUserIds.map((id: unknown) => String(id)).filter((id: string) => id && id !== 'undefined')
@@ -53,6 +56,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection) => {
     const sameTerm = String(selection.yearMonth) === yearMonth
       && String(selection.searchTerm || '').toLowerCase() === searchTerm.toLowerCase()
+      && (rowIndex === null || Number(selection.rowIndex ?? 0) === rowIndex)
     if (!sameTerm) return selection
     matched = true
     return {

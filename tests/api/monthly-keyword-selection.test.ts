@@ -22,6 +22,7 @@ import { POST as savePOST } from '@/app/(frontend)/api/monthly-keyword-selection
 import { POST as applyPOST } from '@/app/(frontend)/api/monthly-keyword-selection/apply/route'
 import { POST as completePOST } from '@/app/(frontend)/api/monthly-keyword-selection/complete/route'
 import { POST as clearPOST } from '@/app/(frontend)/api/monthly-keyword-selection/clear/route'
+import { POST as revisePOST } from '@/app/(frontend)/api/monthly-keyword-selection/revise/route'
 
 function request(path: string, body: unknown): NextRequest {
   return new NextRequest(`http://localhost${path}`, {
@@ -51,6 +52,85 @@ describe('monthly keyword selection API routes', () => {
       collection: 'monthly-keyword-selections',
       data: expect.objectContaining({ client: 7, status: 'active' }),
     }))
+  })
+
+  it('save persists multiple sub-rows for the same search term keyed by rowIndex', async () => {
+    mockPayload.find.mockResolvedValue({ docs: [{ id: 22, selections: [] }] })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+
+    const res = await savePOST(request('/api/monthly-keyword-selection/save', {
+      clientId: 7,
+      selections: [
+        { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'approved', appliedToNKL: 3 },
+        { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 1, negativeKeyword: 'discount', matchType: 'phrase', decision: 'approved', appliedToNKL: 3 },
+      ],
+    }))
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json).toMatchObject({ success: true, selectionCount: 2 })
+    const updateCall = mockPayload.update.mock.calls[0][0]
+    const saved = updateCall.data.selections
+    expect(saved).toHaveLength(2)
+    expect(saved).toEqual(expect.arrayContaining([
+      expect.objectContaining({ searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap' }),
+      expect.objectContaining({ searchTerm: 'cheap widgets', rowIndex: 1, negativeKeyword: 'discount' }),
+    ]))
+  })
+
+  it('save prunes a removed sub-row via deletions', async () => {
+    mockPayload.find.mockResolvedValue({
+      docs: [{
+        id: 22,
+        selections: [
+          { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'pending' },
+          { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 1, negativeKeyword: 'discount', matchType: 'phrase', decision: 'pending' },
+        ],
+      }],
+    })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+
+    const res = await savePOST(request('/api/monthly-keyword-selection/save', {
+      clientId: 7,
+      selections: [{ yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'pending' }],
+      deletions: [{ yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 1 }],
+    }))
+
+    expect(res.status).toBe(200)
+    const saved = mockPayload.update.mock.calls[0][0].data.selections
+    expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatchObject({ rowIndex: 0, negativeKeyword: 'cheap' })
+  })
+
+  it('apply stamps each sub-row of a term independently by rowIndex', async () => {
+    mockPayload.findByID.mockResolvedValue({ id: 3, client: 7, keywords: [] })
+    mockPayload.find.mockResolvedValue({
+      docs: [{
+        id: 22,
+        selections: [
+          { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'approved' },
+          { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 1, negativeKeyword: 'discount', matchType: 'phrase', decision: 'approved' },
+        ],
+      }],
+    })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+
+    const res = await applyPOST(request('/api/monthly-keyword-selection/apply', {
+      clientId: 7,
+      selections: [
+        { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', appliedToNKL: 3 },
+        { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 1, negativeKeyword: 'discount', matchType: 'phrase', appliedToNKL: 3 },
+      ],
+    }))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json).toMatchObject({ success: true, applied: 2 })
+    const selectionUpdate = mockPayload.update.mock.calls.find((c: any[]) => c[0].collection === 'monthly-keyword-selections')
+    const saved = selectionUpdate[0].data.selections
+    expect(saved).toHaveLength(2)
+    expect(saved.every((s: any) => s.appliedToNKL === 3 && s.appliedAt)).toBe(true)
+    expect(saved.map((s: any) => s.rowIndex).sort()).toEqual([0, 1])
   })
 
   it('apply merges approved selections into the target NKL and stamps matching rows', async () => {
@@ -103,6 +183,65 @@ describe('monthly keyword selection API routes', () => {
       collection: 'monthly-keyword-terms-cache',
       id: 5,
       data: expect.objectContaining({ reviewComplete: true, reviewCompletedBy: 9 }),
+    }))
+  })
+
+  it('revise update moves a negative between NKLs and repoints the selection', async () => {
+    // selection doc lookup
+    mockPayload.find.mockResolvedValue({
+      docs: [{
+        id: 22,
+        selections: [{
+          yearMonth: '2026-05',
+          searchTerm: 'cheap widgets',
+          negativeKeyword: 'cheap',
+          matchType: 'exact',
+          decision: 'approved',
+          appliedToNKL: 3,
+          appliedAt: '2026-05-01T00:00:00.000Z',
+          appliedBy: 'Original Reviewer',
+          appliedByUserId: '99',
+        }],
+      }],
+    })
+    // old NKL (id 3) then new NKL (id 4)
+    mockPayload.findByID.mockImplementation(({ id }: { id: number | string }) => {
+      if (String(id) === '3') return Promise.resolve({ id: 3, client: 7, keywords: [{ keyword: 'cheap', matchType: 'exact', flaggedForRemoval: false }] })
+      if (String(id) === '4') return Promise.resolve({ id: 4, client: 7, keywords: [] })
+      return Promise.resolve(null)
+    })
+    mockPayload.update.mockResolvedValue({ id: 1 })
+
+    const res = await revisePOST(request('/api/monthly-keyword-selection/revise', {
+      clientId: 7,
+      yearMonth: '2026-05',
+      searchTerm: 'cheap widgets',
+      action: 'update',
+      newKeyword: 'cheap',
+      newMatchType: 'exact',
+      newNklId: 4,
+    }))
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json).toMatchObject({ success: true, moved: true })
+    // removed from old list (3) -> empty keywords
+    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'negative-keyword-lists',
+      id: '3',
+      data: { keywords: [] },
+    }))
+    // added to new list (4)
+    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'negative-keyword-lists',
+      id: '4',
+      data: { keywords: [expect.objectContaining({ keyword: 'cheap', matchType: 'exact', flaggedForRemoval: false })] },
+    }))
+    // selection repointed to new NKL, submitter preserved
+    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'monthly-keyword-selections',
+      id: 22,
+      data: { selections: [expect.objectContaining({ appliedToNKL: '4', decision: 'approved', appliedBy: 'Original Reviewer', appliedByUserId: '99' })] },
     }))
   })
 

@@ -8,6 +8,7 @@ type MatchType = 'exact' | 'broad' | 'phrase'
 type KeywordSelection = {
   yearMonth?: string
   searchTerm?: string
+  rowIndex?: number
   keyword: string
   matchType: MatchType
   appliedToNKL?: number | string | null
@@ -30,6 +31,7 @@ function normaliseKeyword(value: any, fallbackNklId?: number | string | null): K
   return {
     yearMonth: typeof value?.yearMonth === 'string' ? value.yearMonth : undefined,
     searchTerm: typeof value?.searchTerm === 'string' ? value.searchTerm : undefined,
+    rowIndex: Number.isFinite(Number(value?.rowIndex)) ? Math.trunc(Number(value.rowIndex)) : 0,
     keyword,
     matchType,
     appliedToNKL,
@@ -63,6 +65,8 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date().toISOString()
+  const applierName = user.name || user.email || 'A reviewer'
+  const applierUserId = String(user.id)
   let applied = 0
   let skipped = 0
 
@@ -121,21 +125,27 @@ export async function POST(req: NextRequest) {
     const appliedSelectionKeys = new Map(
       keywords
         .filter((keyword) => keyword.yearMonth && keyword.searchTerm)
-        .map((keyword) => [`${keyword.yearMonth}|${String(keyword.searchTerm).toLowerCase()}`, keyword.appliedToNKL] as [string, number | string | null | undefined]),
+        .map((keyword) => [`${keyword.yearMonth}|${String(keyword.searchTerm).toLowerCase()}|${Number(keyword.rowIndex ?? 0)}`, keyword.appliedToNKL] as [string, number | string | null | undefined]),
     )
     const appliedKeywordKeys = new Map(
       keywords.map((keyword) => [`${keyword.keyword.toLowerCase()}|${keyword.matchType}`, keyword.appliedToNKL] as [string, number | string | null | undefined]),
     )
     const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection: any) => {
-      const selectionKey = `${String(selection.yearMonth)}|${String(selection.searchTerm || '').toLowerCase()}`
+      const selectionKey = `${String(selection.yearMonth)}|${String(selection.searchTerm || '').toLowerCase()}|${Number(selection.rowIndex ?? 0)}`
       const keywordKey = `${String(selection.negativeKeyword || '').toLowerCase()}|${selection.matchType}`
       const appliedToNKL = appliedSelectionKeys.get(selectionKey) || appliedKeywordKeys.get(keywordKey)
       if (!appliedToNKL) return selection
+      // Preserve the original submitter: only stamp appliedBy/appliedByUserId
+      // when not already set on a previously-applied selection.
+      const appliedBy = selection.appliedByUserId ? selection.appliedBy : applierName
+      const appliedByUserId = selection.appliedByUserId ? selection.appliedByUserId : applierUserId
       return {
         ...selection,
         decision: 'approved',
         appliedToNKL,
         appliedAt: now,
+        appliedBy,
+        appliedByUserId,
       }
     })
     await payload.update({
