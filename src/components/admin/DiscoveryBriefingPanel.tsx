@@ -23,6 +23,14 @@ import { useDocumentInfo } from '@payloadcms/ui'
 
 type ScopeKey = 'client' | 'proposal'
 
+interface BriefingActivityEntry {
+  id: string
+  savedAt: string
+  savedBy: string
+  changes: string[]
+  snapshot?: Record<string, unknown>
+}
+
 interface BriefingSummary {
   id: number | string | null
   markdown: string | null
@@ -43,6 +51,7 @@ interface BriefingSummary {
    * editing here also drives what the public link shows.
    */
   hiddenSections: string[]
+  activity: BriefingActivityEntry[]
 }
 
 /**
@@ -77,6 +86,10 @@ function resolveScope(collectionSlug: string | undefined): ScopeKey | null {
   if (collectionSlug === 'clients') return 'client'
   if (collectionSlug === 'client-proposals') return 'proposal'
   return null
+}
+
+function formatActivityTime(iso: string): string {
+  return formatUpdatedAt(iso) ?? iso
 }
 
 function formatUpdatedAt(iso: string | null): string | null {
@@ -125,6 +138,8 @@ function DiscoveryBriefingPanel() {
     new Set(),
   )
   const [sectionsError, setSectionsError] = useState<string | null>(null)
+  const [revertingActivityId, setRevertingActivityId] = useState<string | null>(null)
+  const [revertError, setRevertError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -184,10 +199,24 @@ function DiscoveryBriefingPanel() {
           requirePin?: unknown
           parentPin?: unknown
           hiddenSections?: unknown
+          activity?: unknown
         }
         const hiddenSections = Array.isArray(jsonExtra.hiddenSections)
           ? jsonExtra.hiddenSections.filter(
               (v): v is string => typeof v === 'string',
+            )
+          : []
+        const activity = Array.isArray(jsonExtra.activity)
+          ? jsonExtra.activity.filter(
+              (entry): entry is BriefingActivityEntry =>
+                !!entry &&
+                typeof entry === 'object' &&
+                typeof (entry as BriefingActivityEntry).id === 'string' &&
+                typeof (entry as BriefingActivityEntry).savedAt === 'string' &&
+                typeof (entry as BriefingActivityEntry).savedBy === 'string' &&
+                Array.isArray((entry as BriefingActivityEntry).changes) &&
+                !!(entry as BriefingActivityEntry).snapshot &&
+                typeof (entry as BriefingActivityEntry).snapshot === 'object',
             )
           : []
         setSummary({
@@ -206,6 +235,7 @@ function DiscoveryBriefingPanel() {
           parentPin:
             typeof jsonExtra.parentPin === 'string' ? jsonExtra.parentPin : '',
           hiddenSections,
+          activity,
         })
       } catch (err) {
         if (cancelled) return
@@ -241,6 +271,7 @@ function DiscoveryBriefingPanel() {
     requirePin: false,
     parentPin: '',
     hiddenSections: [],
+    activity: [],
   })
 
   // PATCH the briefing's requirePin without touching `data`. Optimistically
@@ -271,6 +302,7 @@ function DiscoveryBriefingPanel() {
         id?: number | string | null
         requirePin?: boolean
         parentPin?: string
+        activity?: BriefingActivityEntry[]
       }
       // Reconcile from the server response so a freshly-created briefing's
       // id surfaces in the panel.
@@ -282,6 +314,7 @@ function DiscoveryBriefingPanel() {
           typeof json.parentPin === 'string'
             ? json.parentPin
             : s?.parentPin ?? '',
+        activity: Array.isArray(json.activity) ? json.activity : s?.activity ?? [],
       }))
     } catch (err) {
       // Revert optimistic update on failure.
@@ -289,6 +322,49 @@ function DiscoveryBriefingPanel() {
       setPinToggleError(err instanceof Error ? err.message : String(err))
     } finally {
       setTogglingPin(false)
+    }
+  }
+
+  const restoreActivitySnapshot = async (entry: BriefingActivityEntry) => {
+    if (!id || !scope || !entry.snapshot) return
+    setRevertingActivityId(entry.id)
+    setRevertError(null)
+    try {
+      const res = await fetch(
+        `/api/client-discovery-briefings/by-scope?scope=${scope}&id=${encodeURIComponent(
+          String(id),
+        )}`,
+        {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: entry.snapshot }),
+        },
+      )
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = (await res.json()) as {
+        id?: number | string | null
+        markdown?: string | null
+        briefingIdPadded?: string
+        activity?: BriefingActivityEntry[]
+        data?: { hiddenSections?: unknown }
+      }
+      const hiddenSections = Array.isArray(json.data?.hiddenSections)
+        ? json.data.hiddenSections.filter((v): v is string => typeof v === 'string')
+        : summary?.hiddenSections ?? []
+      setSummary((s) => ({
+        ...(s ?? emptySummary()),
+        id: json.id ?? s?.id ?? null,
+        markdown: typeof json.markdown === 'string' ? json.markdown : s?.markdown ?? null,
+        updatedAt: new Date().toISOString(),
+        briefingIdPadded: json.briefingIdPadded ?? s?.briefingIdPadded ?? '000',
+        hiddenSections,
+        activity: Array.isArray(json.activity) ? json.activity : s?.activity ?? [],
+      }))
+    } catch (err) {
+      setRevertError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRevertingActivityId(null)
     }
   }
 
@@ -335,6 +411,7 @@ function DiscoveryBriefingPanel() {
       const json = (await res.json()) as {
         id?: number | string | null
         hiddenSections?: string[]
+        activity?: BriefingActivityEntry[]
       }
       const persisted = Array.isArray(json.hiddenSections)
         ? json.hiddenSections.filter((v): v is string => typeof v === 'string')
@@ -343,6 +420,7 @@ function DiscoveryBriefingPanel() {
         ...(s ?? emptySummary()),
         id: json.id ?? s?.id ?? null,
         hiddenSections: persisted,
+        activity: Array.isArray(json.activity) ? json.activity : s?.activity ?? [],
       }))
     } catch (err) {
       setSummary((s) => (s ? { ...s, hiddenSections: previous } : s))
@@ -476,6 +554,44 @@ function DiscoveryBriefingPanel() {
         <>
           {updatedLabel ? (
             <p style={metaStyle}>Last updated {updatedLabel}</p>
+          ) : null}
+          {summary?.activity?.length ? (
+            <div style={activityBlockStyle}>
+              <strong style={activityHeadingStyle}>Recent saves</strong>
+              <ol style={activityListStyle}>
+                {summary.activity.slice(0, 5).map((entry) => (
+                  <li key={entry.id} style={activityItemStyle}>
+                    <div>
+                      <strong>{entry.savedBy}</strong>{' '}
+                      <span style={pinHintStyle}>{formatActivityTime(entry.savedAt)}</span>
+                    </div>
+                    <ul style={changeListStyle}>
+                      {entry.changes.slice(0, 4).map((change) => (
+                        <li key={change}>{change}</li>
+                      ))}
+                      {entry.changes.length > 4 ? (
+                        <li>+{entry.changes.length - 4} more changes</li>
+                      ) : null}
+                    </ul>
+                    {entry.snapshot ? (
+                      <button
+                        type="button"
+                        onClick={() => restoreActivitySnapshot(entry)}
+                        disabled={revertingActivityId === entry.id}
+                        style={restoreButtonStyle}
+                      >
+                        {revertingActivityId === entry.id
+                          ? 'Restoring…'
+                          : 'Restore this save'}
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+              {revertError ? (
+                <p style={errorStyle}>Could not restore save: {revertError}</p>
+              ) : null}
+            </div>
           ) : null}
           {preview ? (
             <>
@@ -644,6 +760,54 @@ const sectionRowStyle: React.CSSProperties = {
   color: 'var(--theme-text, #18181b)',
   cursor: 'pointer',
   minHeight: 28,
+}
+
+const activityBlockStyle: React.CSSProperties = {
+  margin: '0 0 12px',
+  padding: '10px 12px',
+  background: 'var(--theme-input-bg, #ffffff)',
+  border: '1px solid var(--theme-elevation-150, #e4e4e7)',
+  borderRadius: 6,
+}
+
+const activityHeadingStyle: React.CSSProperties = {
+  display: 'block',
+  marginBottom: 8,
+  fontSize: 13,
+  fontWeight: 700,
+  color: 'var(--theme-text, #18181b)',
+}
+
+const activityListStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+  margin: 0,
+  paddingLeft: 18,
+}
+
+const activityItemStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: 'var(--theme-text, #18181b)',
+}
+
+const changeListStyle: React.CSSProperties = {
+  margin: '4px 0 0',
+  paddingLeft: 16,
+  color: 'var(--theme-elevation-600, #52525b)',
+}
+
+const restoreButtonStyle: React.CSSProperties = {
+  appearance: 'none',
+  marginTop: 6,
+  background: 'transparent',
+  border: '1px solid var(--theme-elevation-200, #d4d4d8)',
+  borderRadius: 4,
+  padding: '4px 8px',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  color: 'var(--theme-text, #18181b)',
 }
 
 const previewStyle: React.CSSProperties = {

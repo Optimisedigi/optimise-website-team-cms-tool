@@ -22,6 +22,17 @@ import { padBriefingId } from "@/lib/discovery-briefing/route-utils";
 
 type Scope = "client" | "proposal";
 
+interface DiscoveryActivityEntry {
+  id: string;
+  savedAt: string;
+  savedBy: string;
+  changes: string[];
+  snapshot: DiscoveryBriefingState;
+}
+
+const ACTIVITY_KEY = "_activity";
+const MAX_ACTIVITY_ENTRIES = 20;
+
 interface ParsedScope {
   scope: Scope;
   id: number;
@@ -65,6 +76,123 @@ async function findBriefingByScope(
     overrideAccess: true,
   });
   return result.docs?.[0] ?? null;
+}
+
+function stripInternalData(data: unknown): DiscoveryBriefingState {
+  const base =
+    data && typeof data === "object"
+      ? ({ ...(data as Record<string, unknown>) } as Record<string, unknown>)
+      : (defaultDiscoveryBriefingState() as unknown as Record<string, unknown>);
+  delete base[ACTIVITY_KEY];
+  return {
+    ...defaultDiscoveryBriefingState(),
+    ...(base as unknown as DiscoveryBriefingState),
+  };
+}
+
+function getActivityEntries(data: unknown): DiscoveryActivityEntry[] {
+  if (!data || typeof data !== "object") return [];
+  const raw = (data as Record<string, unknown>)[ACTIVITY_KEY];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((entry): entry is DiscoveryActivityEntry => {
+    return (
+      !!entry &&
+      typeof entry === "object" &&
+      typeof (entry as DiscoveryActivityEntry).id === "string" &&
+      typeof (entry as DiscoveryActivityEntry).savedAt === "string" &&
+      typeof (entry as DiscoveryActivityEntry).savedBy === "string" &&
+      Array.isArray((entry as DiscoveryActivityEntry).changes) &&
+      !!(entry as DiscoveryActivityEntry).snapshot &&
+      typeof (entry as DiscoveryActivityEntry).snapshot === "object"
+    );
+  });
+}
+
+function humanizeFieldName(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+function summarizeValue(value: unknown): string {
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "empty";
+    return trimmed.length > 48 ? `${trimmed.slice(0, 45)}…` : trimmed;
+  }
+  if (value && typeof value === "object") return "details updated";
+  if (value == null) return "empty";
+  return String(value);
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function describeChanges(
+  previousData: DiscoveryBriefingState,
+  nextData: DiscoveryBriefingState,
+): string[] {
+  const keys = new Set([...Object.keys(previousData), ...Object.keys(nextData)]);
+  const changes: string[] = [];
+  for (const key of Array.from(keys).sort()) {
+    const before = (previousData as unknown as Record<string, unknown>)[key];
+    const after = (nextData as unknown as Record<string, unknown>)[key];
+    if (stableStringify(before) === stableStringify(after)) continue;
+    changes.push(
+      `${humanizeFieldName(key)} changed from ${summarizeValue(before)} to ${summarizeValue(after)}`,
+    );
+  }
+  return changes;
+}
+
+function actorLabel(user: unknown, requestedLabel: unknown): string {
+  if (user && typeof user === "object") {
+    const record = user as Record<string, unknown>;
+    const name = typeof record.name === "string" ? record.name.trim() : "";
+    const email = typeof record.email === "string" ? record.email.trim() : "";
+    if (name && email) return `${name} (${email})`;
+    if (email) return email;
+    if (name) return name;
+  }
+  return typeof requestedLabel === "string" && requestedLabel.trim()
+    ? requestedLabel.trim().slice(0, 120)
+    : "Public link visitor";
+}
+
+function withActivity(
+  nextData: DiscoveryBriefingState,
+  existingData: unknown,
+  savedBy: string,
+): DiscoveryBriefingState & { [ACTIVITY_KEY]?: DiscoveryActivityEntry[] } {
+  const previous = stripInternalData(existingData);
+  const changes = describeChanges(previous, nextData);
+  const priorActivity = getActivityEntries(existingData);
+  if (changes.length === 0) {
+    return { ...(nextData as DiscoveryBriefingState), [ACTIVITY_KEY]: priorActivity };
+  }
+  const savedAt = new Date().toISOString();
+  const entry: DiscoveryActivityEntry = {
+    id: `${savedAt}-${priorActivity.length + 1}`,
+    savedAt,
+    savedBy,
+    changes: changes.slice(0, 12),
+    snapshot: nextData,
+  };
+  return {
+    ...(nextData as DiscoveryBriefingState),
+    [ACTIVITY_KEY]: [entry, ...priorActivity].slice(0, MAX_ACTIVITY_ENTRIES),
+  };
 }
 
 async function loadParentSlug(
@@ -171,9 +299,7 @@ export async function GET(req: NextRequest) {
         parentPin,
       });
     }
-    const docData =
-      (doc.data as DiscoveryBriefingState | undefined) ??
-      defaultDiscoveryBriefingState();
+    const docData = stripInternalData(doc.data);
     return NextResponse.json({
       id: doc.id,
       data: docData,
@@ -186,6 +312,7 @@ export async function GET(req: NextRequest) {
       hiddenSections: Array.isArray(docData.hiddenSections)
         ? docData.hiddenSections
         : [],
+      activity: getActivityEntries(doc.data),
       parentPin,
     });
   } catch (err) {
@@ -219,6 +346,7 @@ export async function PATCH(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const savedBy = actorLabel(user, undefined);
 
   const parsed = parseScope(req);
   if ("error" in parsed) {
@@ -273,14 +401,12 @@ export async function PATCH(req: NextRequest) {
       updateData.requirePin = requirePin;
     }
     if (hiddenSections !== undefined) {
-      const baseData =
-        existing && typeof existing.data === "object" && existing.data !== null
-          ? (existing.data as Record<string, unknown>)
-          : (defaultDiscoveryBriefingState() as unknown as Record<
-              string,
-              unknown
-            >);
-      updateData.data = { ...baseData, hiddenSections };
+      const baseData = stripInternalData(existing?.data);
+      updateData.data = withActivity(
+        { ...baseData, hiddenSections },
+        existing?.data,
+        savedBy,
+      );
     }
 
     let saved: any;
@@ -305,13 +431,14 @@ export async function PATCH(req: NextRequest) {
     }
 
     const parentPin = await loadParentPin(payload, parsed.scope, parsed.id);
-    const savedData = (saved.data ?? {}) as { hiddenSections?: unknown };
+    const savedData = stripInternalData(saved.data);
     return NextResponse.json({
       id: saved.id,
       requirePin: !!saved.requirePin,
       hiddenSections: Array.isArray(savedData.hiddenSections)
-        ? (savedData.hiddenSections as string[])
+        ? savedData.hiddenSections
         : [],
+      activity: getActivityEntries(saved.data),
       parentPin,
     });
   } catch (err) {
@@ -329,9 +456,15 @@ export async function PUT(req: NextRequest) {
   const payloadConfig = await config;
   const payload = await getPayload({ config: payloadConfig });
 
-  const { user } = await payload.auth({ headers: req.headers });
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Saving is intentionally link-accessible: clients do not have CMS accounts,
+  // and the public discovery URL is the collaboration token. Auth is still read
+  // when present so CMS saves can be attributed to the logged-in user.
+  let user: unknown = null;
+  try {
+    const authResult = await payload.auth({ headers: req.headers });
+    user = authResult.user ?? null;
+  } catch {
+    user = null;
   }
 
   const parsed = parseScope(req);
@@ -358,17 +491,19 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  const data = (body as { data: DiscoveryBriefingState }).data;
+  const data = stripInternalData((body as { data: DiscoveryBriefingState }).data);
+  const savedBy = actorLabel(user, (body as { savedByLabel?: unknown }).savedByLabel);
 
   try {
     const existing = await findBriefingByScope(payload, parsed.relationField, parsed.id);
+    const dataWithActivity = withActivity(data, existing?.data, savedBy);
 
     let saved: any;
     if (existing) {
       saved = await (payload.update as any)({
         collection: "client-discovery-briefings",
         id: existing.id,
-        data: { data },
+        data: { data: dataWithActivity },
         depth: 0,
         overrideAccess: true,
       });
@@ -376,7 +511,7 @@ export async function PUT(req: NextRequest) {
       saved = await (payload.create as any)({
         collection: "client-discovery-briefings",
         data: {
-          data,
+          data: dataWithActivity,
           [parsed.relationField]: parsed.id,
         },
         depth: 0,
@@ -385,15 +520,17 @@ export async function PUT(req: NextRequest) {
     }
 
     const parentSlug = await loadParentSlug(payload, parsed.scope, parsed.id);
+    const savedData = stripInternalData(saved.data ?? dataWithActivity);
 
     return NextResponse.json({
       id: saved.id,
-      data: (saved.data as DiscoveryBriefingState | undefined) ?? data,
+      data: savedData,
       markdown: typeof saved.markdown === "string" ? saved.markdown : null,
       scope: parsed.scope,
       scopeId: parsed.id,
       parentSlug,
       briefingIdPadded: padBriefingId(saved.id ?? null),
+      activity: getActivityEntries(saved.data ?? dataWithActivity),
     });
   } catch (err) {
     return NextResponse.json(
