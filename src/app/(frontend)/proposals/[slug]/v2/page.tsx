@@ -673,6 +673,7 @@ export default async function ProposalReportV2Page({
         <ClosingSlide
           businessName={proposal.businessName}
           websiteUrl={p.websiteUrl ?? null}
+          presentedBy={p.presentedBy ?? null}
         />
 
         {/* Anything trailing the final SLOT marker. */}

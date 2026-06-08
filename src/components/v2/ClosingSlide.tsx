@@ -26,7 +26,9 @@ export function ClosingSlide({
   /** Overrides the default "Presented by" names when provided. */
   presentedBy?: string | null
 }): ReactElement {
-  const presenters = (presentedBy && presentedBy.trim()) || 'Adam Telhiwec and Peter Tu'
+  // Defaults to blank when nothing is set in the CMS — the column is hidden
+  // entirely rather than showing a hardcoded fallback.
+  const presenters = (presentedBy && presentedBy.trim()) || ''
   const clientHref = websiteUrl
     ? websiteUrl.startsWith('http')
       ? websiteUrl
@@ -98,10 +100,12 @@ export function ClosingSlide({
           <div className="lbl">For</div>
           <div className="val">{forNode}</div>
         </div>
-        <div className="col">
-          <div className="lbl">Presented by</div>
-          <div className="val">{presenters}</div>
-        </div>
+        {presenters && (
+          <div className="col">
+            <div className="lbl">Presented by</div>
+            <div className="val">{presenters}</div>
+          </div>
+        )}
         <div className="col">
           <div className="lbl">Next</div>
           <div className="val" style={{ color: 'var(--purple)' }}>
