@@ -12,9 +12,17 @@ const DEFAULT_WATCH_HORIZON: WatchHorizon = 3
 
 type Term = { term: string; impressions: number; clicks: number; cost: number; conversions: number; status?: string }
 type Month = { month: string; terms: Term[]; reviewComplete: boolean; reviewCompletedAt?: string | null; diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number } }
-type Selection = { yearMonth: string; searchTerm: string; rowIndex?: number; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null; appliedBy?: string | null; appliedByUserId?: string | null; removedComment?: string | null; removedBy?: string | null; removedByUserId?: string | null; removedAt?: string | null; decidedBy?: string | null; decidedByUserId?: string | null; reviewDismissedAt?: string | null; reviewDismissedBy?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null }
+type Selection = { yearMonth: string; searchTerm: string; rowIndex?: number; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null; appliedBy?: string | null; appliedByUserId?: string | null; removedComment?: string | null; removedBy?: string | null; removedByUserId?: string | null; removedAt?: string | null; decidedBy?: string | null; decidedByUserId?: string | null; reviewDismissedAt?: string | null; reviewDismissedBy?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null; outcomeType?: string | null; outcomeDetail?: string | null; outcomeComment?: string | null; outcomeBy?: string | null; outcomeByUserId?: string | null; outcomeAt?: string | null }
 type Nkl = { id: number | string; name: string; isActive?: boolean; keywords?: Array<{ keyword: string; matchType: MatchType }> }
 type Teammate = { id: string; label: string }
+
+const OUTCOME_PILL: Record<'Added' | 'Updated' | 'Moved' | 'Removed' | 'Dismissed', { bg: string; fg: string }> = {
+  Added: { bg: '#dcfce7', fg: '#166534' },
+  Updated: { bg: '#dbeafe', fg: '#1e40af' },
+  Moved: { bg: '#e0e7ff', fg: '#3730a3' },
+  Removed: { bg: '#fee2e2', fg: '#991b1b' },
+  Dismissed: { bg: '#fef3c7', fg: '#92400e' },
+}
 
 function monthLabel(month: string): string {
   const [year, monthNumber] = month.split('-').map(Number)
@@ -417,50 +425,99 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     () => Object.values(selections).filter((s) => s.appliedAt && s.appliedToNKL).length,
     [selections],
   )
-  // "Removed negatives explained" = already-applied negatives that were later
-  // removed with an explanation comment, grouped by review month.
-  const removedByMonth = useMemo(() => {
-    const groups = new Map<string, Selection[]>()
+  // "Review outcomes" = a single read-only learning log. Every term that was
+  // added, updated, moved, removed, or dismissed contributes one entry showing
+  // its most-recent outcome, so the original flagger/submitter can see what
+  // happened. Recency = max(outcomeAt, removedAt, reviewDismissedAt).
+  const reviewOutcomesByMonth = useMemo(() => {
+    type OutcomeKind = 'Added' | 'Updated' | 'Moved' | 'Removed' | 'Dismissed'
+    type OutcomeEntry = {
+      key: string
+      yearMonth: string
+      searchTerm: string
+      negativeKeyword: string
+      matchType: MatchType
+      type: OutcomeKind
+      detail: string
+      comment: string
+      by: string
+      at: string
+      originalHandler: string
+      originalAction: 'flagged' | 'submitted'
+      taggedLabels: string[]
+    }
+    const typeFromOutcome = (value?: string | null): OutcomeKind => {
+      if (value === 'updated') return 'Updated'
+      if (value === 'moved') return 'Moved'
+      return 'Added'
+    }
+    const groups = new Map<string, OutcomeEntry[]>()
     for (const selection of Object.values(selections)) {
-      if (!selection.removedAt) continue
+      const stamps: { at: string; source: 'outcome' | 'removed' | 'dismissed' }[] = []
+      if (selection.outcomeAt) stamps.push({ at: String(selection.outcomeAt), source: 'outcome' })
+      if (selection.removedAt) stamps.push({ at: String(selection.removedAt), source: 'removed' })
+      if (selection.reviewDismissedAt) stamps.push({ at: String(selection.reviewDismissedAt), source: 'dismissed' })
+      if (stamps.length === 0) continue
+      const newest = stamps.sort((a, b) => b.at.localeCompare(a.at))[0]
+      let entry: OutcomeEntry
+      const base = {
+        key: selectionKey(selection.yearMonth, selection.searchTerm, Number(selection.rowIndex ?? 0)),
+        yearMonth: selection.yearMonth,
+        searchTerm: selection.searchTerm,
+        negativeKeyword: selection.negativeKeyword,
+        matchType: selection.matchType,
+        at: newest.at,
+        taggedLabels: [] as string[],
+      }
+      if (newest.source === 'outcome') {
+        const type = typeFromOutcome(selection.outcomeType)
+        entry = {
+          ...base,
+          type,
+          detail: selection.outcomeDetail || '',
+          comment: selection.outcomeComment || '',
+          by: selection.outcomeBy || 'someone',
+          originalHandler: type === 'Added' ? (selection.decidedBy || '') : (selection.appliedBy || ''),
+          originalAction: type === 'Added' ? 'flagged' : 'submitted',
+        }
+      } else if (newest.source === 'removed') {
+        entry = {
+          ...base,
+          type: 'Removed',
+          detail: '',
+          comment: selection.removedComment || '',
+          by: selection.removedBy || 'someone',
+          originalHandler: selection.appliedBy || '',
+          originalAction: 'submitted',
+        }
+      } else {
+        const taggedIds = (selection.reviewCommentTaggedUserIds || '').split(',').map((id) => id.trim()).filter(Boolean)
+        entry = {
+          ...base,
+          type: 'Dismissed',
+          detail: '',
+          comment: selection.reviewComment || '',
+          by: selection.reviewDismissedBy || 'someone',
+          originalHandler: selection.decidedBy || '',
+          originalAction: 'flagged',
+          taggedLabels: taggedIds.map((id) => teammates.find((t) => t.id === id)?.label || `User ${id}`),
+        }
+      }
       const list = groups.get(selection.yearMonth) || []
-      list.push(selection)
+      list.push(entry)
       groups.set(selection.yearMonth, list)
     }
     return Array.from(groups.entries())
       .sort((a, b) => String(b[0]).localeCompare(String(a[0])))
       .map(([month, items]) => ({
         month,
-        items: items.sort((a, b) => String(b.removedAt).localeCompare(String(a.removedAt))),
+        items: items.sort((a, b) => b.at.localeCompare(a.at)),
       }))
-  }, [selections])
-  // "Feedback on needs-review keywords" = needs-review terms dismissed with a
-  // comment (reviewDismissedAt set), grouped by review month. Section B of the
-  // Removed tab.
-  const dismissedFeedbackByMonth = useMemo(() => {
-    const groups = new Map<string, Selection[]>()
-    for (const selection of Object.values(selections)) {
-      if (!selection.reviewDismissedAt) continue
-      const list = groups.get(selection.yearMonth) || []
-      list.push(selection)
-      groups.set(selection.yearMonth, list)
-    }
-    return Array.from(groups.entries())
-      .sort((a, b) => String(b[0]).localeCompare(String(a[0])))
-      .map(([month, items]) => ({
-        month,
-        items: items.sort((a, b) => String(b.reviewDismissedAt).localeCompare(String(a.reviewDismissedAt))),
-      }))
-  }, [selections])
-  const dismissedFeedbackCount = useMemo(
-    () => Object.values(selections).filter((s) => s.reviewDismissedAt).length,
+  }, [selections, teammates])
+  const reviewOutcomesCount = useMemo(
+    () => Object.values(selections).filter((s) => s.outcomeAt || s.removedAt || s.reviewDismissedAt).length,
     [selections],
   )
-  const removedCount = useMemo(
-    () => Object.values(selections).filter((s) => s.removedAt).length,
-    [selections],
-  )
-  const removedTabCount = removedCount + dismissedFeedbackCount
   const nklNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const nkl of nkls) map.set(String(nkl.id), nkl.name || `List ${nkl.id}`)
@@ -471,6 +528,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     item: Selection,
     action: 'remove' | 'update',
     extra?: { newKeyword?: string; newMatchType?: MatchType; newNklId?: number | string; comment?: string },
+    movedHint?: boolean,
   ) => {
     const res = await fetch('/api/monthly-keyword-selection/revise', {
       method: 'POST',
@@ -483,7 +541,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     if (action === 'remove') {
       setMessage(data.notified ? 'Removed from the list · original submitter notified.' : 'Removed from the negative keyword list.')
     } else {
-      setMessage('Negative keyword list updated.')
+      const verb = data.moved || movedHint ? 'moved' : 'updated'
+      setMessage(data.notified ? `Negative ${verb} · original submitter notified.` : `Negative keyword list ${verb}.`)
     }
     await Promise.all([load(), loadNkls()])
   }, [clientId, load, loadNkls])
@@ -528,6 +587,43 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     setMessage(data.notified > 0 ? `Feedback saved · ${data.notified} teammate${data.notified === 1 ? '' : 's'} notified.` : 'Feedback saved.')
     await load()
   }, [clientId, load])
+
+  // From the Needs review tab, picking a target list applies the negative
+  // immediately (writes it to the NKL + stamps appliedAt) so it lands in the
+  // Submitted negatives tab right away — rather than only staging it for the
+  // separate top "Apply" button, which made the term appear to vanish.
+  const applyNeedsReviewTarget = useCallback(async (item: Selection, nklId: string) => {
+    const nklName = nklNameById.get(String(nklId)) || 'the list'
+    // Optional teaching note. With or without it the flagger is notified; a note
+    // gives them the “why”, which surfaces in the read-only Review outcomes tab.
+    const note = window.prompt(
+      `Optionally add a note for whoever flagged “${item.searchTerm}” explaining why it's being added to ${nklName}. They'll be notified either way.`,
+      '',
+    )
+    if (note === null) return
+    const comment = note.trim()
+    const res = await fetch('/api/monthly-keyword-selection/apply', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        clientId: Number(clientId),
+        ...(comment ? { comment } : {}),
+        selections: [{
+          yearMonth: item.yearMonth,
+          searchTerm: item.searchTerm,
+          rowIndex: Number(item.rowIndex ?? 0),
+          negativeKeyword: item.negativeKeyword,
+          matchType: item.matchType,
+          appliedToNKL: nklId,
+        }],
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setMessage(data?.error || 'Failed to add negative to the list'); return }
+    setMessage(data.applied > 0 ? `Added “${item.negativeKeyword}” to ${nklName} · flagger notified · see Submitted negatives.` : `“${item.negativeKeyword}” is already on ${nklName}.`)
+    await Promise.all([load(), loadNkls()])
+  }, [clientId, load, loadNkls, nklNameById])
   const monthsToRender = activeMonth ? visibleMonths.filter((month) => month.month === activeMonth) : visibleMonths
   // Compact column track sizes so more NKL columns fit before scrolling, and a
   // tighter inter-column gap. The focused month section grows to max-content
@@ -606,11 +702,11 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         <button
           type="button"
           onClick={() => setActiveTab('removed')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600, border: 'none', borderBottom: activeTab === 'removed' ? '2px solid #b91c1c' : '2px solid transparent', background: 'transparent', color: activeTab === 'removed' ? '#b91c1c' : 'var(--theme-elevation-500)', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600, border: 'none', borderBottom: activeTab === 'removed' ? '2px solid #6366f1' : '2px solid transparent', background: 'transparent', color: activeTab === 'removed' ? '#4f46e5' : 'var(--theme-elevation-500)', cursor: 'pointer' }}
         >
-          Removed negatives explained
-          {removedTabCount > 0 && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#b91c1c', color: '#fff', fontSize: 11, fontWeight: 700 }}>{removedTabCount}</span>
+          Review outcomes
+          {reviewOutcomesCount > 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#6366f1', color: '#fff', fontSize: 11, fontWeight: 700 }}>{reviewOutcomesCount}</span>
           )}
         </button>
       </div>
@@ -664,7 +760,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 item={item}
                 nkls={visibleNkls}
                 teammates={teammates}
-                onSetTarget={(nklId) => setTargetListForTerm(item.yearMonth, item.searchTerm, nklId)}
+                onSetTarget={(nklId) => applyNeedsReviewTarget(item, nklId)}
                 onWatch={(horizon) => setWatch(item.yearMonth, item.searchTerm, horizon)}
                 onDismiss={(comment, taggedUserIds) => dismissReview(item, comment, taggedUserIds)}
                 onSaveComment={(comment, taggedUserIds) => saveComment(item, comment, taggedUserIds)}
@@ -699,7 +795,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     nklName={nklNameById.get(String(typeof item.appliedToNKL === 'object' ? item.appliedToNKL?.id : item.appliedToNKL)) || 'Unknown list'}
                     nkls={visibleNkls}
                     onRemove={(comment) => reviseSubmitted(item, 'remove', comment ? { comment } : undefined)}
-                    onUpdate={(newKeyword, newMatchType, newNklId) => reviseSubmitted(item, 'update', { newKeyword, newMatchType, ...(newNklId != null ? { newNklId } : {}) })}
+                    onUpdate={(newKeyword, newMatchType, newNklId, comment) => reviseSubmitted(item, 'update', { newKeyword, newMatchType, ...(newNklId != null ? { newNklId } : {}), ...(comment ? { comment } : {}) }, newNklId != null)}
                   />
                 ))}
               </div>
@@ -708,100 +804,52 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         </div>
       )}
 
-      {activeTab === 'removed' && removedTabCount === 0 && (
+      {activeTab === 'removed' && reviewOutcomesCount === 0 && (
         <div style={{ padding: 24, border: '1px solid var(--theme-elevation-150)', borderRadius: 10, color: 'var(--theme-elevation-500)', textAlign: 'center' }}>
-          Nothing here yet. Removed already-applied negatives (with an explanation) and dismissed needs-review keywords (with reviewer feedback) both collect here.
+          Outcomes from the Needs review and Submitted negatives tabs collect here so whoever flagged or submitted a term can see what happened and why.
         </div>
       )}
 
-      {activeTab === 'removed' && removedTabCount > 0 && (
-        <div style={{ display: 'grid', gap: 28 }}>
-          <div style={{ display: 'grid', gap: 18 }}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>Removed submitted negatives</h2>
-          <p style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--theme-elevation-600)' }}>
-            Negatives that were applied to a list and later removed with an explanation, grouped by review month. This keeps a record of why a previously-submitted negative was pulled.
+      {activeTab === 'removed' && reviewOutcomesCount > 0 && (
+        <div style={{ display: 'grid', gap: 18 }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--theme-elevation-600)' }}>
+            A read-only learning log. Every time a flagged or submitted term is added, updated, moved, removed, or dismissed, the outcome is recorded here — so whoever originally flagged or submitted it can see what happened and why. Edit terms in the <strong>Needs review</strong> and <strong>Submitted negatives</strong> tabs.
           </p>
-          {removedByMonth.length === 0 && (
-            <div style={{ padding: 14, border: '1px solid var(--theme-elevation-150)', borderRadius: 8, color: 'var(--theme-elevation-500)', fontSize: 13 }}>No removed submitted negatives yet.</div>
-          )}
-          {removedByMonth.map(({ month, items }) => (
-            <section key={month} style={{ border: '1px solid #fecaca', borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '10px 14px', borderBottom: '1px solid #fecaca', fontWeight: 700, background: '#fff7f7', color: '#b91c1c' }}>
-                {monthLabel(month)} · {items.length} removed
-              </div>
-              <div style={{ display: 'grid', gap: 8, padding: 12 }}>
-                {items.map((item) => (
-                  <div
-                    key={selectionKey(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))}
-                    style={{ display: 'grid', gap: 6, padding: '10px 12px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                      <div>
-                        <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Search term</div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Removed negative</div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{item.negativeKeyword} <span style={{ color: 'var(--theme-elevation-500)', fontWeight: 400 }}>({matchTypeLabel(item.matchType)})</span></div>
-                      </div>
-                    </div>
-                    {item.removedComment && (
-                      <div style={{ fontSize: 13, padding: '8px 10px', borderRadius: 6, background: '#fff7f7', border: '1px solid #fecaca', color: '#7f1d1d' }}>
-                        {item.removedComment}
-                      </div>
-                    )}
-                    <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>
-                      Removed by {item.removedBy || 'someone'}{item.removedAt ? ` on ${new Date(item.removedAt).toLocaleDateString()}` : ''}
-                      {item.appliedBy ? ` · originally submitted by ${item.appliedBy}` : ''}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-          </div>
-
-          <div style={{ display: 'grid', gap: 18 }}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>Feedback on needs-review keywords</h2>
-          <p style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--theme-elevation-600)' }}>
-            Needs-review terms that were dismissed with feedback, grouped by review month. This is the single place to see all questions and teaching notes on negative keywords. Whoever flagged the term was notified automatically.
-          </p>
-          {dismissedFeedbackByMonth.length === 0 && (
-            <div style={{ padding: 14, border: '1px solid var(--theme-elevation-150)', borderRadius: 8, color: 'var(--theme-elevation-500)', fontSize: 13 }}>No dismissed needs-review feedback yet.</div>
-          )}
-          {dismissedFeedbackByMonth.map(({ month, items }) => (
-            <section key={month} style={{ border: '1px solid #fcd34d', borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '10px 14px', borderBottom: '1px solid #fde68a', fontWeight: 700, background: '#fffbeb', color: '#92400e' }}>
-                {monthLabel(month)} · {items.length} dismissed with feedback
+          {reviewOutcomesByMonth.map(({ month, items }) => (
+            <section key={month} style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--theme-elevation-150)', fontWeight: 700, background: 'var(--theme-elevation-50)' }}>
+                {monthLabel(month)} · {items.length} outcome{items.length === 1 ? '' : 's'}
               </div>
               <div style={{ display: 'grid', gap: 8, padding: 12 }}>
                 {items.map((item) => {
-                  const taggedIds = (item.reviewCommentTaggedUserIds || '').split(',').map((id) => id.trim()).filter(Boolean)
-                  const taggedLabels = taggedIds.map((id) => teammates.find((t) => t.id === id)?.label || `User ${id}`)
+                  const pill = OUTCOME_PILL[item.type]
                   return (
                   <div
-                    key={selectionKey(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))}
+                    key={item.key}
                     style={{ display: 'grid', gap: 6, padding: '10px 12px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                      <div>
-                        <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Search term</div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: pill.bg, color: pill.fg }}>{item.type}</span>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</span>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Proposed negative</div>
+                        <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Negative</div>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{item.negativeKeyword} <span style={{ color: 'var(--theme-elevation-500)', fontWeight: 400 }}>({matchTypeLabel(item.matchType)})</span></div>
                       </div>
                     </div>
-                    {item.reviewComment && (
-                      <div style={{ fontSize: 13, padding: '8px 10px', borderRadius: 6, background: '#fffbeb', border: '1px solid #fde68a', color: '#7c2d12' }}>
-                        {item.reviewComment}
+                    {item.detail && (
+                      <div style={{ fontSize: 12, color: 'var(--theme-elevation-600)' }}>{item.detail}</div>
+                    )}
+                    {item.comment && (
+                      <div style={{ fontSize: 13, padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-800)' }}>
+                        {item.comment}
                       </div>
                     )}
                     <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>
-                      Dismissed by {item.reviewDismissedBy || 'someone'}{item.reviewDismissedAt ? ` on ${new Date(item.reviewDismissedAt).toLocaleDateString()}` : ''}
-                      {item.decidedBy ? ` · originally flagged by ${item.decidedBy}` : ''}
-                      {taggedLabels.length > 0 ? ` · tagged ${taggedLabels.map((l) => `@${l}`).join(', ')}` : ''}
+                      By {item.by}{item.at ? ` on ${new Date(item.at).toLocaleDateString()}` : ''}
+                      {item.originalHandler ? ` · originally ${item.originalAction} by ${item.originalHandler}` : ''}
+                      {item.taggedLabels.length > 0 ? ` · tagged ${item.taggedLabels.map((l) => `@${l}`).join(', ')}` : ''}
                     </div>
                   </div>
                   )
@@ -809,7 +857,6 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
               </div>
             </section>
           ))}
-          </div>
         </div>
       )}
 
@@ -1151,7 +1198,7 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate }: {
   nklName: string
   nkls: Nkl[]
   onRemove: (comment?: string) => Promise<void>
-  onUpdate: (newKeyword: string, newMatchType: MatchType, newNklId: number | string | null) => Promise<void>
+  onUpdate: (newKeyword: string, newMatchType: MatchType, newNklId: number | string | null, comment?: string) => Promise<void>
 }) {
   const [keyword, setKeyword] = useState(item.negativeKeyword)
   const [matchType, setMatchType] = useState<MatchType>(item.matchType)
@@ -1162,8 +1209,16 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate }: {
 
   const handleUpdate = async (): Promise<void> => {
     if (!keyword.trim()) return
+    // Optional teaching note. The original submitter is notified either way; a
+    // note explains the change and surfaces in the read-only Review outcomes tab.
+    const note = window.prompt(
+      `Optionally add a note for whoever submitted “${item.negativeKeyword}” explaining this ${listChanged ? 'move' : 'change'}. ${item.appliedBy ? `${item.appliedBy} will be notified.` : 'They will be notified.'}`.trim(),
+      '',
+    )
+    if (note === null) return
+    const comment = note.trim() || undefined
     setBusy(true)
-    try { await onUpdate(keyword.trim(), matchType, listChanged ? targetNklId : null) } finally { setBusy(false) }
+    try { await onUpdate(keyword.trim(), matchType, listChanged ? targetNklId : null, comment) } finally { setBusy(false) }
   }
   const handleRemove = async (): Promise<void> => {
     if (!window.confirm(`Remove “${item.negativeKeyword}” (${matchTypeLabel(item.matchType)}) from ${nklName}? It will be marked skipped so it stays hidden in future months.`)) return

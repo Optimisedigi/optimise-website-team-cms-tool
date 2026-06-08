@@ -22,6 +22,43 @@ function nklIdOf(value: unknown): string | null {
   return null
 }
 
+async function notifySubmitter(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  args: {
+    recipient: string
+    title: string
+    yearMonth: string
+    searchTerm: string
+    detail: string
+    comment: string
+    clientId: number
+  },
+): Promise<boolean> {
+  const client = await payload
+    .findByID({ collection: 'clients', id: args.clientId, depth: 0, overrideAccess: true })
+    .catch(() => null) as { name?: string } | null
+  const clientName = client?.name || `Client ${args.clientId}`
+  const body = `${monthLabel(args.yearMonth)} · "${args.searchTerm}": ${args.detail}${args.comment ? ` · ${args.comment.slice(0, 140)}` : ''}`
+  try {
+    await payload.create({
+      collection: NOTIFICATIONS,
+      data: {
+        recipient: args.recipient,
+        kind: 'negative-keywords-removed',
+        title: `${args.title} — ${clientName}`,
+        body,
+        url: `/admin/monthly-keyword-selection?clientId=${args.clientId}`,
+        relatedClient: args.clientId,
+      } as never,
+      overrideAccess: true,
+    })
+    return true
+  } catch (err) {
+    payload.logger?.warn?.(`[monthly-keyword-revise] notify failed for ${args.recipient}: ${err}`)
+    return false
+  }
+}
+
 /**
  * Safety-net revisions for negatives already applied to an NKL, driven from the
  * "Submitted negatives" tab.
@@ -59,6 +96,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'update requires newKeyword and newMatchType' }, { status: 400 })
   }
 
+  try {
   const existing = await payload.find({
     collection: 'monthly-keyword-selections',
     where: { client: { equals: clientId } },
@@ -90,7 +128,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     id: nklId,
     depth: 0,
     overrideAccess: true,
-  }).catch(() => null) as { id: number | string; client?: unknown; keywords?: NklKeyword[] } | null
+  }).catch(() => null) as { id: number | string; name?: string; client?: unknown; keywords?: NklKeyword[] } | null
   if (!nkl) return NextResponse.json({ error: 'Negative keyword list not found' }, { status: 404 })
 
   const nklClientId = nkl.client && typeof nkl.client === 'object' ? Number((nkl.client as { id: unknown }).id) : Number(nkl.client)
@@ -103,6 +141,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     String(kw.keyword || '').toLowerCase() === oldKeyword.toLowerCase() && String(kw.matchType) === oldMatchType
 
   const now = new Date().toISOString()
+  const actorName = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || 'A reviewer'
+  const actorUserId = String(user.id)
+  const submitterUserId = target.appliedByUserId ? String(target.appliedByUserId) : ''
 
   if (action === 'remove') {
     const nextKeywords = currentKeywords.filter((kw) => !matchesOld(kw))
@@ -177,7 +218,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       id: newNklId,
       depth: 0,
       overrideAccess: true,
-    }).catch(() => null) as { id: number | string; client?: unknown; keywords?: NklKeyword[] } | null
+    }).catch(() => null) as { id: number | string; name?: string; client?: unknown; keywords?: NklKeyword[] } | null
     if (!newNkl) return NextResponse.json({ error: 'Target negative keyword list not found' }, { status: 404 })
 
     const newNklClientId = newNkl.client && typeof newNkl.client === 'object' ? Number((newNkl.client as { id: unknown }).id) : Number(newNkl.client)
@@ -210,9 +251,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       })
     }
 
+    const oldNklName = nkl.name || `List ${nklId}`
+    const newNklName = newNkl.name || `List ${newNklId}`
+    const moveDetail = `${oldNklName} → ${newNklName}`
     const movedSelections = selectionsArr.map((selection) =>
       selection === target
-        ? { ...selection, negativeKeyword: newKeyword, matchType: newMatchType, decision: 'approved', appliedToNKL: newNklId, appliedAt: now }
+        ? {
+            ...selection,
+            negativeKeyword: newKeyword,
+            matchType: newMatchType,
+            decision: 'approved',
+            appliedToNKL: newNklId,
+            appliedAt: now,
+            outcomeType: 'moved',
+            outcomeDetail: moveDetail,
+            outcomeComment: comment || null,
+            outcomeBy: actorName,
+            outcomeByUserId: actorUserId,
+            outcomeAt: now,
+          }
         : selection,
     )
     await payload.update({
@@ -222,7 +279,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       overrideAccess: true,
     })
 
-    return NextResponse.json({ success: true, action, moved: true, deduped: alreadyPresent })
+    let notified = false
+    if (submitterUserId && submitterUserId !== actorUserId) {
+      notified = await notifySubmitter(payload, {
+        recipient: submitterUserId,
+        title: `${actorName} moved a negative you submitted`,
+        yearMonth,
+        searchTerm,
+        detail: moveDetail,
+        comment,
+        clientId,
+      })
+    }
+
+    return NextResponse.json({ success: true, action, moved: true, deduped: alreadyPresent, notified })
   }
 
   // action === 'update' — replace keyword/matchType in place inside the NKL.
@@ -254,9 +324,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     overrideAccess: true,
   })
 
+  // Build a human before→after summary covering keyword text and/or match type.
+  const updateParts: string[] = []
+  if (oldKeyword.toLowerCase() !== newKeyword.toLowerCase()) updateParts.push(`${oldKeyword} → ${newKeyword}`)
+  if (oldMatchType !== newMatchType) updateParts.push(`${oldMatchType} → ${newMatchType}`)
+  const updateDetail = updateParts.length > 0 ? updateParts.join(' · ') : `${newKeyword} (${newMatchType})`
+
   const selections = selectionsArr.map((selection) =>
     selection === target
-      ? { ...selection, negativeKeyword: newKeyword, matchType: newMatchType, appliedAt: now }
+      ? {
+          ...selection,
+          negativeKeyword: newKeyword,
+          matchType: newMatchType,
+          appliedAt: now,
+          outcomeType: 'updated',
+          outcomeDetail: updateDetail,
+          outcomeComment: comment || null,
+          outcomeBy: actorName,
+          outcomeByUserId: actorUserId,
+          outcomeAt: now,
+        }
       : selection,
   )
   await payload.update({
@@ -266,5 +353,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     overrideAccess: true,
   })
 
-  return NextResponse.json({ success: true, action, deduped: duplicate })
+  let notified = false
+  if (submitterUserId && submitterUserId !== actorUserId) {
+    notified = await notifySubmitter(payload, {
+      recipient: submitterUserId,
+      title: `${actorName} updated a negative you submitted`,
+      yearMonth,
+      searchTerm,
+      detail: updateDetail,
+      comment,
+      clientId,
+    })
+  }
+
+  return NextResponse.json({ success: true, action, deduped: duplicate, notified })
+  } catch (err) {
+    // Surface the real failure instead of a bare 500 (which the client shows as
+    // a generic "Revision failed"). Logged for server-side diagnosis.
+    const message = err instanceof Error ? err.message : String(err)
+    payload.logger?.error?.(`[monthly-keyword-revise] ${action} failed for client ${clientId} · "${searchTerm}": ${message}`)
+    return NextResponse.json({ error: `Revision failed: ${message}` }, { status: 500 })
+  }
 }

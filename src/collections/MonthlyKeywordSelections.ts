@@ -195,6 +195,36 @@ export const MonthlyKeywordSelections: CollectionConfig = {
           type: 'text',
           admin: { description: 'Comma-separated user IDs tagged in the comment (for notifications).' },
         },
+        {
+          name: 'outcomeType',
+          type: 'text',
+          admin: { description: "Latest review-outcome type for this term: 'added' | 'updated' | 'moved'. Server-managed." },
+        },
+        {
+          name: 'outcomeDetail',
+          type: 'text',
+          admin: { description: 'Human before→after summary of the latest outcome, e.g. "exact → phrase" or "added to List A".' },
+        },
+        {
+          name: 'outcomeComment',
+          type: 'textarea',
+          admin: { description: 'Optional teaching note left by the actor when they added/updated/moved this term.' },
+        },
+        {
+          name: 'outcomeBy',
+          type: 'text',
+          admin: { description: 'Display name of the user who performed the latest outcome.' },
+        },
+        {
+          name: 'outcomeByUserId',
+          type: 'text',
+          admin: { description: 'User id of the user who performed the latest outcome.' },
+        },
+        {
+          name: 'outcomeAt',
+          type: 'text',
+          admin: { description: 'ISO timestamp of the latest added/updated/moved outcome.' },
+        },
       ],
     },
   ],

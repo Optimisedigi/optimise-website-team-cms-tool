@@ -16,6 +16,14 @@ type KeywordSelection = {
 
 const VALID_MATCH_TYPES = new Set(['exact', 'broad', 'phrase'])
 
+const NOTIFICATIONS = 'notifications' as never
+
+function monthLabel(yearMonth: string): string {
+  const [year, month] = yearMonth.split('-').map(Number)
+  if (!year || !month) return yearMonth
+  return new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, 1)))
+}
+
 function normaliseKeyword(value: any, fallbackNklId?: number | string | null): KeywordSelection | null {
   const keyword = typeof value?.negativeKeyword === 'string'
     ? value.negativeKeyword.trim()
@@ -47,6 +55,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   const clientId = Number(body?.clientId)
   const fallbackNklId = body?.nklId
+  const comment = typeof body?.comment === 'string' ? body.comment.trim() : ''
   const keywords = Array.isArray(body?.selections)
     ? body.selections.map((selection: unknown) => normaliseKeyword(selection, fallbackNklId)).filter(Boolean) as KeywordSelection[]
     : []
@@ -67,6 +76,7 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString()
   const applierName = user.name || user.email || 'A reviewer'
   const applierUserId = String(user.id)
+  const nklNameById = new Map<string, string>()
   let applied = 0
   let skipped = 0
 
@@ -78,6 +88,7 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
     }) as any
     if (!nkl) return NextResponse.json({ error: `NKL ${nklId} not found` }, { status: 404 })
+    nklNameById.set(String(nklId), typeof nkl.name === 'string' && nkl.name ? nkl.name : `List ${nklId}`)
 
     const nklClientId = typeof nkl.client === 'object' ? Number(nkl.client?.id) : Number(nkl.client)
     if (nklClientId !== clientId) {
@@ -130,6 +141,9 @@ export async function POST(req: NextRequest) {
     const appliedKeywordKeys = new Map(
       keywords.map((keyword) => [`${keyword.keyword.toLowerCase()}|${keyword.matchType}`, keyword.appliedToNKL] as [string, number | string | null | undefined]),
     )
+    // Collect the flaggers we need to notify (a needs-review term applied here
+    // is an "Added" teaching moment for whoever flagged it).
+    const addedNotifications: { recipient: string; term: string; yearMonth: string; detail: string }[] = []
     const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection: any) => {
       const selectionKey = `${String(selection.yearMonth)}|${String(selection.searchTerm || '').toLowerCase()}|${Number(selection.rowIndex ?? 0)}`
       const keywordKey = `${String(selection.negativeKeyword || '').toLowerCase()}|${selection.matchType}`
@@ -139,7 +153,8 @@ export async function POST(req: NextRequest) {
       // when not already set on a previously-applied selection.
       const appliedBy = selection.appliedByUserId ? selection.appliedBy : applierName
       const appliedByUserId = selection.appliedByUserId ? selection.appliedByUserId : applierUserId
-      return {
+      const wasNeedsReview = selection.decision === 'needs_review'
+      const next: any = {
         ...selection,
         decision: 'approved',
         appliedToNKL,
@@ -147,6 +162,27 @@ export async function POST(req: NextRequest) {
         appliedBy,
         appliedByUserId,
       }
+      if (wasNeedsReview) {
+        // Record an "added" outcome so the original flagger can see what happened.
+        const nklName = nklNameById.get(String(appliedToNKL)) || `List ${appliedToNKL}`
+        const detail = `added to ${nklName} (${selection.matchType})`
+        next.outcomeType = 'added'
+        next.outcomeDetail = detail
+        next.outcomeComment = comment || null
+        next.outcomeBy = applierName
+        next.outcomeByUserId = applierUserId
+        next.outcomeAt = now
+        const flaggerId = selection.decidedByUserId ? String(selection.decidedByUserId) : ''
+        if (flaggerId && flaggerId !== applierUserId) {
+          addedNotifications.push({
+            recipient: flaggerId,
+            term: String(selection.searchTerm || selection.negativeKeyword || ''),
+            yearMonth: String(selection.yearMonth || ''),
+            detail,
+          })
+        }
+      }
+      return next
     })
     await payload.update({
       collection: 'monthly-keyword-selections',
@@ -154,6 +190,33 @@ export async function POST(req: NextRequest) {
       data: { selections },
       overrideAccess: true,
     })
+
+    // Notify each flagger that the negative they flagged was added to a list.
+    if (addedNotifications.length > 0) {
+      const client = await payload
+        .findByID({ collection: 'clients', id: clientId, depth: 0, overrideAccess: true })
+        .catch(() => null) as { name?: string } | null
+      const clientName = client?.name || `Client ${clientId}`
+      for (const note of addedNotifications) {
+        const body = `${monthLabel(note.yearMonth)} · "${note.term}" → ${note.detail}${comment ? `: ${comment.slice(0, 140)}` : ''}`
+        try {
+          await payload.create({
+            collection: NOTIFICATIONS,
+            data: {
+              recipient: note.recipient,
+              kind: 'negative-keywords-needs-review',
+              title: `${applierName} added a negative you flagged — ${clientName}`,
+              body,
+              url: `/admin/monthly-keyword-selection?clientId=${clientId}`,
+              relatedClient: clientId,
+            } as never,
+            overrideAccess: true,
+          })
+        } catch (err) {
+          payload.logger?.warn?.(`[monthly-keyword-apply] notify failed for ${note.recipient}: ${err}`)
+        }
+      }
+    }
   }
 
   return NextResponse.json({
