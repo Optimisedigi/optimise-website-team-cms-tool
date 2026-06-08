@@ -36,9 +36,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!Number.isInteger(clientId) || !/^\d{4}-\d{2}$/.test(yearMonth) || !searchTerm) {
     return NextResponse.json({ error: 'clientId, yearMonth and searchTerm are required' }, { status: 400 })
   }
-  if (!comment.trim()) {
-    return NextResponse.json({ error: 'A comment is required to dismiss with feedback' }, { status: 400 })
-  }
+  // A comment is optional: dismissing resolves the term and still notifies the
+  // flagger even when no reason text is supplied.
 
   const existing = await payload.find({
     collection: 'monthly-keyword-selections',
@@ -97,6 +96,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .catch(() => null) as { name?: string } | null
     const clientName = client?.name || `Client ${clientId}`
     const url = `/admin/monthly-keyword-selection?clientId=${clientId}`
+    const reason = comment.trim() ? `: ${comment.trim().slice(0, 140)}` : ' (no comment)'
+    const title = comment.trim()
+      ? `${authorName} left feedback on a negative keyword — ${clientName}`
+      : `${authorName} dismissed a negative keyword you flagged — ${clientName}`
     for (const recipientId of recipientIds) {
       try {
         await payload.create({
@@ -104,8 +107,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           data: {
             recipient: recipientId,
             kind: 'negative-keywords-needs-review',
-            title: `${authorName} left feedback on a negative keyword — ${clientName}`,
-            body: `${monthLabel(yearMonth)} · "${searchTerm}": ${comment.slice(0, 140)}`,
+            title,
+            body: `${monthLabel(yearMonth)} · "${searchTerm}"${reason}`,
             url,
             relatedClient: clientId,
           } as never,

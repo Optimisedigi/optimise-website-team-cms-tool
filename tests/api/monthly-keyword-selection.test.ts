@@ -348,12 +348,33 @@ describe('monthly keyword selection API routes', () => {
     }))
   })
 
-  it('dismiss-review requires a comment', async () => {
+  it('dismiss-review works without a comment and still notifies the flagger', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 9, role: 'admin', name: 'Reviewer Rita' } })
+    mockPayload.find.mockResolvedValue({
+      docs: [{
+        id: 22,
+        selections: [
+          { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'needs_review', decidedByUserId: '99', decidedBy: 'Flagger Fred' },
+        ],
+      }],
+    })
+    mockPayload.findByID.mockResolvedValue({ name: 'Acme' })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+    mockPayload.create.mockResolvedValue({ id: 1 })
+
     const res = await dismissReviewPOST(request('/api/monthly-keyword-selection/dismiss-review', {
       clientId: 7, yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, comment: '   ',
     }))
-    expect(res.status).toBe(400)
-    expect(mockPayload.update).not.toHaveBeenCalled()
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json).toMatchObject({ success: true, notified: 1 })
+    const saved = mockPayload.update.mock.calls[0][0].data.selections
+    expect(saved[0]).toMatchObject({ decision: 'skipped', reviewDismissedBy: 'Reviewer Rita' })
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'notifications',
+      data: expect.objectContaining({ recipient: '99' }),
+    }))
   })
 
   it('dismiss-review skips notifying the dismisser themselves', async () => {

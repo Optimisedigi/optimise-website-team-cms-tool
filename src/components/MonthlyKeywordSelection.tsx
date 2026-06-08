@@ -333,29 +333,6 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     queueSave(next)
   }
 
-  const resetToPending = (month: string, term: string, rowIndex = 0) => {
-    const key = selectionKey(month, term, rowIndex)
-    const selection = selections[key]
-    const parsed = parseNegativeKeywordInput(inputFromSelection(selection, term)) || { keyword: term, matchType: 'exact' as MatchType }
-    const next = {
-      ...selections,
-      [key]: {
-        ...(selection || {}),
-        yearMonth: month,
-        searchTerm: term,
-        rowIndex,
-        negativeKeyword: parsed.keyword,
-        matchType: parsed.matchType,
-        decision: 'pending' as Decision,
-        watchHorizonMonths: null,
-        watchUntil: null,
-        appliedToNKL: null,
-      },
-    }
-    setSelections(next)
-    queueSave(next)
-  }
-
   const toggleComplete = async (month: string, complete: boolean) => {
     const res = await fetch('/api/monthly-keyword-selection/complete', {
       method: 'POST',
@@ -688,8 +665,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 nkls={visibleNkls}
                 teammates={teammates}
                 onSetTarget={(nklId) => setTargetListForTerm(item.yearMonth, item.searchTerm, nklId)}
-                onRemoveWithoutFeedback={() => resetToPending(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))}
-                onDismissWithFeedback={(comment, taggedUserIds) => dismissReview(item, comment, taggedUserIds)}
+                onWatch={(horizon) => setWatch(item.yearMonth, item.searchTerm, horizon)}
+                onDismiss={(comment, taggedUserIds) => dismissReview(item, comment, taggedUserIds)}
                 onSaveComment={(comment, taggedUserIds) => saveComment(item, comment, taggedUserIds)}
               />
             ))}
@@ -1022,13 +999,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   )
 }
 
-function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onRemoveWithoutFeedback, onDismissWithFeedback, onSaveComment }: {
+function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onWatch, onDismiss, onSaveComment }: {
   item: Selection
   nkls: Nkl[]
   teammates: Teammate[]
   onSetTarget: (nklId: string) => void
-  onRemoveWithoutFeedback: () => void
-  onDismissWithFeedback: (comment: string, taggedUserIds: string[]) => Promise<void>
+  onWatch: (horizon: WatchHorizon | null) => void
+  onDismiss: (comment: string, taggedUserIds: string[]) => Promise<void>
   onSaveComment: (comment: string, taggedUserIds: string[]) => Promise<void>
 }) {
   const initialTags = (item.reviewCommentTaggedUserIds || '').split(',').map((id) => id.trim()).filter(Boolean)
@@ -1036,28 +1013,63 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onRemoveWithoutFee
   const [tags, setTags] = useState<string[]>(initialTags)
   const [savingComment, setSavingComment] = useState(false)
   const [dismissing, setDismissing] = useState(false)
+  const [watchHorizon, setWatchHorizon] = useState<WatchHorizon>(DEFAULT_WATCH_HORIZON)
+  // @-mention autocomplete: track the partial token being typed after an '@'
+  // and where it starts in the textarea, so a picked teammate replaces it.
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionStart, setMentionStart] = useState<number | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const dirty = comment !== (item.reviewComment || '') || tags.join(',') !== initialTags.join(',')
-  const canDismissWithFeedback = comment.trim().length > 0
 
-  const toggleTag = (id: string): void => {
-    setTags((current) => current.includes(id) ? current.filter((t) => t !== id) : [...current, id])
+  const refreshMentionState = (value: string, caret: number): void => {
+    const upToCaret = value.slice(0, caret)
+    const match = upToCaret.match(/@([\p{L}\p{N}_.-]*)$/u)
+    if (match) {
+      setMentionStart(caret - match[0].length)
+      setMentionQuery(match[1] ?? '')
+    } else {
+      setMentionStart(null)
+      setMentionQuery(null)
+    }
   }
+
+  const mentionSuggestions = mentionQuery === null
+    ? []
+    : teammates
+        .filter((mate) => mate.label.toLowerCase().startsWith(mentionQuery.toLowerCase()))
+        .slice(0, 6)
+
+  const insertMention = (mate: Teammate): void => {
+    const caret = textareaRef.current?.selectionStart ?? comment.length
+    const start = mentionStart ?? caret
+    const before = comment.slice(0, start)
+    const after = comment.slice(caret)
+    const insert = `@${mate.label} `
+    const next = `${before}${insert}${after}`
+    setComment(next)
+    setTags((current) => current.includes(mate.id) ? current : [...current, mate.id])
+    setMentionStart(null)
+    setMentionQuery(null)
+    requestAnimationFrame(() => {
+      const pos = (before + insert).length
+      const node = textareaRef.current
+      if (node) { node.focus(); node.setSelectionRange(pos, pos) }
+    })
+  }
+
   const handleSave = async (): Promise<void> => {
     setSavingComment(true)
     try { await onSaveComment(comment, tags) } finally { setSavingComment(false) }
   }
-  const handleDismissWithFeedback = async (): Promise<void> => {
-    if (!canDismissWithFeedback) return
+  const handleDismiss = async (): Promise<void> => {
     setDismissing(true)
-    try { await onDismissWithFeedback(comment, tags) } finally { setDismissing(false) }
-  }
-  const handleRemoveWithoutFeedback = (): void => {
-    if (!window.confirm(`Remove “${item.searchTerm}” from the Needs review queue without leaving feedback? Use this only for terms parked here by mistake.`)) return
-    onRemoveWithoutFeedback()
+    try { await onDismiss(comment, tags) } finally { setDismissing(false) }
   }
 
+  const taggedLabels = tags.map((id) => teammates.find((mate) => mate.id === id)?.label).filter(Boolean) as string[]
+
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '6px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)', alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)', alignItems: 'center' }}>
       <span style={{ fontSize: 11, color: 'var(--theme-elevation-600)', flex: '0 0 auto', minWidth: 56 }}>{monthLabel(item.yearMonth)}</span>
       <div style={{ flex: '1 1 160px', minWidth: 140 }}>
         <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
@@ -1066,41 +1078,66 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onRemoveWithoutFee
       <select
         defaultValue=""
         onChange={(event) => { if (event.target.value) onSetTarget(event.target.value) }}
+        title="Add this term as a negative keyword in the chosen list"
         style={{ fontSize: 11, padding: '4px 6px', flex: '0 1 150px', minWidth: 120 }}
       >
         <option value="" disabled>Set as negative in…</option>
         {nkls.map((nkl) => <option key={nkl.id} value={String(nkl.id)}>{nkl.name}</option>)}
       </select>
-      <input
-        value={comment}
-        placeholder="Comment for the team…"
-        onChange={(event) => setComment(event.target.value)}
-        style={{ flex: '1 1 160px', minWidth: 140, boxSizing: 'border-box', padding: '4px 7px', fontSize: 12 }}
-      />
-      {teammates.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', flex: '0 1 auto' }}>
-          {teammates.map((mate) => {
-            const active = tags.includes(mate.id)
-            return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flex: '0 0 auto' }}>
+        <button
+          type="button"
+          onClick={() => onWatch(watchHorizon)}
+          title="Watch this term instead of resolving it. It is NOT added as a negative and keeps appearing across months until the re-check horizon passes, when its conversion performance is reviewed."
+          style={{ padding: '4px 8px', fontSize: 11, lineHeight: 1.2, whiteSpace: 'nowrap', color: '#1d4ed8', borderColor: '#93c5fd', background: '#dbeafe' }}
+        >👁 Watch</button>
+        <select
+          value={watchHorizon}
+          onChange={(event) => setWatchHorizon(Number(event.target.value) as WatchHorizon)}
+          title="Months until performance re-check"
+          style={{ fontSize: 11, padding: '2px 3px' }}
+        >
+          {WATCH_HORIZONS.map((h) => <option key={h} value={h}>{h}mo</option>)}
+        </select>
+      </span>
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flex: '0 0 auto' }}>
+        <button type="button" onClick={handleSave} disabled={!dirty || savingComment} title="Save this comment and tags without resolving the term — keeps it in the Needs review queue." style={{ padding: '4px 12px', fontSize: 11, whiteSpace: 'nowrap' }}>{savingComment ? 'Saving…' : 'Save'}</button>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          disabled={dismissing}
+          title="Dismiss this term: saves the comment as feedback, resolves it so it won't appear in future months, and notifies whoever flagged it."
+          style={{ padding: '4px 12px', fontSize: 11, whiteSpace: 'nowrap', color: '#92400e', borderColor: '#fcd34d', background: '#fef3c7' }}
+        >{dismissing ? 'Dismissing…' : 'Dismiss'}</button>
+      </div>
+      <div style={{ flex: '1 1 100%', position: 'relative' }}>
+        <textarea
+          ref={textareaRef}
+          value={comment}
+          placeholder="Comment for the team — type @ to tag someone…"
+          rows={2}
+          onChange={(event) => { setComment(event.target.value); refreshMentionState(event.target.value, event.target.selectionStart ?? event.target.value.length) }}
+          onKeyUp={(event) => refreshMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
+          onClick={(event) => refreshMentionState(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
+          onBlur={() => { window.setTimeout(() => { setMentionStart(null); setMentionQuery(null) }, 150) }}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, resize: 'vertical', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}
+        />
+        {mentionSuggestions.length > 0 && (
+          <div style={{ position: 'absolute', zIndex: 10, top: '100%', left: 0, minWidth: 200, maxWidth: 320, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-200)', borderRadius: 6, boxShadow: '0 6px 18px rgba(0,0,0,0.14)', overflow: 'hidden' }}>
+            {mentionSuggestions.map((mate) => (
               <button
                 key={mate.id}
                 type="button"
-                onClick={() => toggleTag(mate.id)}
-                style={{ padding: '2px 8px', fontSize: 11, borderRadius: 999, cursor: 'pointer', border: active ? '1px solid #0f766e' : '1px solid var(--theme-elevation-150)', background: active ? '#ccfbf1' : 'transparent', color: active ? '#0f766e' : 'var(--theme-elevation-700)' }}
+                onMouseDown={(event) => { event.preventDefault(); insertMention(mate) }}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--theme-text)' }}
               >@{mate.label}</button>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {taggedLabels.length > 0 && (
+        <span style={{ fontSize: 11, color: '#0f766e', flex: '1 1 100%' }}>Tagging {taggedLabels.map((label) => `@${label}`).join(', ')}</span>
       )}
-      <button type="button" onClick={handleSave} disabled={!dirty || savingComment} style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap', flex: '0 0 auto' }}>{savingComment ? 'Saving…' : 'Save'}</button>
-      <button
-        type="button"
-        onClick={handleDismissWithFeedback}
-        disabled={!canDismissWithFeedback || dismissing}
-        title={canDismissWithFeedback ? 'Resolve this term as dismissed and send the comment as feedback to whoever flagged it.' : 'Add a comment first to dismiss with feedback.'}
-        style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap', flex: '0 0 auto', color: '#92400e', borderColor: '#fcd34d', background: '#fef3c7' }}
-      >{dismissing ? 'Dismissing…' : 'Dismiss with feedback'}</button>
-      <button type="button" onClick={handleRemoveWithoutFeedback} title="Remove from the queue without leaving feedback (for terms parked here by mistake)." style={{ padding: '4px 9px', fontSize: 11, whiteSpace: 'nowrap', flex: '0 0 auto', color: 'var(--theme-elevation-500)' }}>Remove without feedback</button>
       {item.reviewCommentBy && item.reviewCommentAt && (
         <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)', flex: '1 1 100%' }}>Last by {item.reviewCommentBy} · {new Date(item.reviewCommentAt).toLocaleString('en-AU')}</span>
       )}
