@@ -89,7 +89,11 @@ const RunSiteHealthButton = () => {
   }
 
   return (
-    <div style={{ marginBottom: 20 }}>
+    // `position: relative; z-index: 1` gives this field its own stacking context
+    // so the app-header's and floating save bar's `backdrop-filter: blur()` layers
+    // don't sample and blur it — a Chromium backdrop-filter artifact that otherwise
+    // blurs in-flow content sitting between those two blurred sticky layers.
+    <div style={{ marginBottom: 20, position: 'relative', zIndex: 1 }}>
       {/* How This Works (Team Guide) */}
       <div
         style={{

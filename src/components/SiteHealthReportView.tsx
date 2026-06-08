@@ -199,7 +199,10 @@ const SiteHealthReportView = () => {
   })
 
   return (
-    <div style={{ marginBottom: 24 }}>
+    // `position: relative; z-index: 1` gives this view its own stacking context so
+    // the app-header's and floating save bar's `backdrop-filter: blur()` layers don't
+    // sample and blur it (Chromium backdrop-filter artifact).
+    <div style={{ marginBottom: 24, position: 'relative', zIndex: 1 }}>
       {/* ── Header ── */}
       <div style={{
         background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12,
