@@ -4087,6 +4087,10 @@ export async function runMigrations(
     await run("monthly_keyword_selections_selections.removed_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `removed_by` text");
     await run("monthly_keyword_selections_selections.removed_by_user_id", "ALTER TABLE `monthly_keyword_selections_selections` ADD `removed_by_user_id` text");
     await run("monthly_keyword_selections_selections.removed_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `removed_at` text");
+    await run("monthly_keyword_selections_selections.decided_by_user_id", "ALTER TABLE `monthly_keyword_selections_selections` ADD `decided_by_user_id` text");
+    await run("monthly_keyword_selections_selections.decided_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `decided_by` text");
+    await run("monthly_keyword_selections_selections.review_dismissed_at", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_dismissed_at` text");
+    await run("monthly_keyword_selections_selections.review_dismissed_by", "ALTER TABLE `monthly_keyword_selections_selections` ADD `review_dismissed_by` text");
     await run("monthly_keyword_terms_cache", `CREATE TABLE IF NOT EXISTS \`monthly_keyword_terms_cache\` (
       \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
       \`client_id\` integer NOT NULL,
