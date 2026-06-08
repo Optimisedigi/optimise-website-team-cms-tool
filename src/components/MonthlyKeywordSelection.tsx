@@ -12,7 +12,7 @@ const DEFAULT_WATCH_HORIZON: WatchHorizon = 3
 
 type Term = { term: string; impressions: number; clicks: number; cost: number; conversions: number; status?: string }
 type Month = { month: string; terms: Term[]; reviewComplete: boolean; reviewCompletedAt?: string | null; diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number } }
-type Selection = { yearMonth: string; searchTerm: string; rowIndex?: number; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null; appliedBy?: string | null; appliedByUserId?: string | null; removedComment?: string | null; removedBy?: string | null; removedByUserId?: string | null; removedAt?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null }
+type Selection = { yearMonth: string; searchTerm: string; rowIndex?: number; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null; appliedBy?: string | null; appliedByUserId?: string | null; removedComment?: string | null; removedBy?: string | null; removedByUserId?: string | null; removedAt?: string | null; decidedBy?: string | null; decidedByUserId?: string | null; reviewDismissedAt?: string | null; reviewDismissedBy?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null }
 type Nkl = { id: number | string; name: string; isActive?: boolean; keywords?: Array<{ keyword: string; matchType: MatchType }> }
 type Teammate = { id: string; label: string }
 
@@ -457,10 +457,33 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         items: items.sort((a, b) => String(b.removedAt).localeCompare(String(a.removedAt))),
       }))
   }, [selections])
+  // "Feedback on needs-review keywords" = needs-review terms dismissed with a
+  // comment (reviewDismissedAt set), grouped by review month. Section B of the
+  // Removed tab.
+  const dismissedFeedbackByMonth = useMemo(() => {
+    const groups = new Map<string, Selection[]>()
+    for (const selection of Object.values(selections)) {
+      if (!selection.reviewDismissedAt) continue
+      const list = groups.get(selection.yearMonth) || []
+      list.push(selection)
+      groups.set(selection.yearMonth, list)
+    }
+    return Array.from(groups.entries())
+      .sort((a, b) => String(b[0]).localeCompare(String(a[0])))
+      .map(([month, items]) => ({
+        month,
+        items: items.sort((a, b) => String(b.reviewDismissedAt).localeCompare(String(a.reviewDismissedAt))),
+      }))
+  }, [selections])
+  const dismissedFeedbackCount = useMemo(
+    () => Object.values(selections).filter((s) => s.reviewDismissedAt).length,
+    [selections],
+  )
   const removedCount = useMemo(
     () => Object.values(selections).filter((s) => s.removedAt).length,
     [selections],
   )
+  const removedTabCount = removedCount + dismissedFeedbackCount
   const nklNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const nkl of nkls) map.set(String(nkl.id), nkl.name || `List ${nkl.id}`)
@@ -508,6 +531,26 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     }))
     setMessage(data.notified > 0 ? `Comment saved · ${data.notified} teammate${data.notified === 1 ? '' : 's'} notified.` : 'Comment saved.')
   }, [clientId])
+
+  // Dismiss a "needs review" term as feedback: resolves it as skipped (so it
+  // leaves the queue and won't reappear), retains the comment, and notifies the
+  // auto-tracked original handler plus any tagged teammates.
+  const dismissReview = useCallback(async (
+    item: Selection,
+    comment: string,
+    taggedUserIds: string[],
+  ) => {
+    const res = await fetch('/api/monthly-keyword-selection/dismiss-review', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ clientId: Number(clientId), yearMonth: item.yearMonth, searchTerm: item.searchTerm, rowIndex: Number(item.rowIndex ?? 0), comment, taggedUserIds }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setMessage(data?.error || 'Failed to dismiss with feedback'); return }
+    setMessage(data.notified > 0 ? `Feedback saved · ${data.notified} teammate${data.notified === 1 ? '' : 's'} notified.` : 'Feedback saved.')
+    await load()
+  }, [clientId, load])
   const monthsToRender = activeMonth ? visibleMonths.filter((month) => month.month === activeMonth) : visibleMonths
   // Compact column track sizes so more NKL columns fit before scrolling, and a
   // tighter inter-column gap. The focused month section grows to max-content
@@ -589,8 +632,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600, border: 'none', borderBottom: activeTab === 'removed' ? '2px solid #b91c1c' : '2px solid transparent', background: 'transparent', color: activeTab === 'removed' ? '#b91c1c' : 'var(--theme-elevation-500)', cursor: 'pointer' }}
         >
           Removed negatives explained
-          {removedCount > 0 && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#b91c1c', color: '#fff', fontSize: 11, fontWeight: 700 }}>{removedCount}</span>
+          {removedTabCount > 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#b91c1c', color: '#fff', fontSize: 11, fontWeight: 700 }}>{removedTabCount}</span>
           )}
         </button>
       </div>
@@ -645,7 +688,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 nkls={visibleNkls}
                 teammates={teammates}
                 onSetTarget={(nklId) => setTargetListForTerm(item.yearMonth, item.searchTerm, nklId)}
-                onDismiss={() => resetToPending(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))}
+                onRemoveWithoutFeedback={() => resetToPending(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))}
+                onDismissWithFeedback={(comment, taggedUserIds) => dismissReview(item, comment, taggedUserIds)}
                 onSaveComment={(comment, taggedUserIds) => saveComment(item, comment, taggedUserIds)}
               />
             ))}
@@ -687,17 +731,22 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         </div>
       )}
 
-      {activeTab === 'removed' && removedCount === 0 && (
+      {activeTab === 'removed' && removedTabCount === 0 && (
         <div style={{ padding: 24, border: '1px solid var(--theme-elevation-150)', borderRadius: 10, color: 'var(--theme-elevation-500)', textAlign: 'center' }}>
-          No removed negatives explained yet. When you remove an already-applied negative from the Submitted negatives tab and add an explanation, it shows up here.
+          Nothing here yet. Removed already-applied negatives (with an explanation) and dismissed needs-review keywords (with reviewer feedback) both collect here.
         </div>
       )}
 
-      {activeTab === 'removed' && removedCount > 0 && (
-        <div style={{ display: 'grid', gap: 18 }}>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--theme-elevation-600)' }}>
+      {activeTab === 'removed' && removedTabCount > 0 && (
+        <div style={{ display: 'grid', gap: 28 }}>
+          <div style={{ display: 'grid', gap: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 16 }}>Removed submitted negatives</h2>
+          <p style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--theme-elevation-600)' }}>
             Negatives that were applied to a list and later removed with an explanation, grouped by review month. This keeps a record of why a previously-submitted negative was pulled.
           </p>
+          {removedByMonth.length === 0 && (
+            <div style={{ padding: 14, border: '1px solid var(--theme-elevation-150)', borderRadius: 8, color: 'var(--theme-elevation-500)', fontSize: 13 }}>No removed submitted negatives yet.</div>
+          )}
           {removedByMonth.map(({ month, items }) => (
             <section key={month} style={{ border: '1px solid #fecaca', borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '10px 14px', borderBottom: '1px solid #fecaca', fontWeight: 700, background: '#fff7f7', color: '#b91c1c' }}>
@@ -733,6 +782,57 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
               </div>
             </section>
           ))}
+          </div>
+
+          <div style={{ display: 'grid', gap: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 16 }}>Feedback on needs-review keywords</h2>
+          <p style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--theme-elevation-600)' }}>
+            Needs-review terms that were dismissed with feedback, grouped by review month. This is the single place to see all questions and teaching notes on negative keywords. Whoever flagged the term was notified automatically.
+          </p>
+          {dismissedFeedbackByMonth.length === 0 && (
+            <div style={{ padding: 14, border: '1px solid var(--theme-elevation-150)', borderRadius: 8, color: 'var(--theme-elevation-500)', fontSize: 13 }}>No dismissed needs-review feedback yet.</div>
+          )}
+          {dismissedFeedbackByMonth.map(({ month, items }) => (
+            <section key={month} style={{ border: '1px solid #fcd34d', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '10px 14px', borderBottom: '1px solid #fde68a', fontWeight: 700, background: '#fffbeb', color: '#92400e' }}>
+                {monthLabel(month)} · {items.length} dismissed with feedback
+              </div>
+              <div style={{ display: 'grid', gap: 8, padding: 12 }}>
+                {items.map((item) => {
+                  const taggedIds = (item.reviewCommentTaggedUserIds || '').split(',').map((id) => id.trim()).filter(Boolean)
+                  const taggedLabels = taggedIds.map((id) => teammates.find((t) => t.id === id)?.label || `User ${id}`)
+                  return (
+                  <div
+                    key={selectionKey(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))}
+                    style={{ display: 'grid', gap: 6, padding: '10px 12px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Search term</div>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Proposed negative</div>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{item.negativeKeyword} <span style={{ color: 'var(--theme-elevation-500)', fontWeight: 400 }}>({matchTypeLabel(item.matchType)})</span></div>
+                      </div>
+                    </div>
+                    {item.reviewComment && (
+                      <div style={{ fontSize: 13, padding: '8px 10px', borderRadius: 6, background: '#fffbeb', border: '1px solid #fde68a', color: '#7c2d12' }}>
+                        {item.reviewComment}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>
+                      Dismissed by {item.reviewDismissedBy || 'someone'}{item.reviewDismissedAt ? ` on ${new Date(item.reviewDismissedAt).toLocaleDateString()}` : ''}
+                      {item.decidedBy ? ` · originally flagged by ${item.decidedBy}` : ''}
+                      {taggedLabels.length > 0 ? ` · tagged ${taggedLabels.map((l) => `@${l}`).join(', ')}` : ''}
+                    </div>
+                  </div>
+                  )
+                })}
+              </div>
+            </section>
+          ))}
+          </div>
         </div>
       )}
 
@@ -922,19 +1022,22 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   )
 }
 
-function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onDismiss, onSaveComment }: {
+function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onRemoveWithoutFeedback, onDismissWithFeedback, onSaveComment }: {
   item: Selection
   nkls: Nkl[]
   teammates: Teammate[]
   onSetTarget: (nklId: string) => void
-  onDismiss: () => void
+  onRemoveWithoutFeedback: () => void
+  onDismissWithFeedback: (comment: string, taggedUserIds: string[]) => Promise<void>
   onSaveComment: (comment: string, taggedUserIds: string[]) => Promise<void>
 }) {
   const initialTags = (item.reviewCommentTaggedUserIds || '').split(',').map((id) => id.trim()).filter(Boolean)
   const [comment, setComment] = useState(item.reviewComment || '')
   const [tags, setTags] = useState<string[]>(initialTags)
   const [savingComment, setSavingComment] = useState(false)
+  const [dismissing, setDismissing] = useState(false)
   const dirty = comment !== (item.reviewComment || '') || tags.join(',') !== initialTags.join(',')
+  const canDismissWithFeedback = comment.trim().length > 0
 
   const toggleTag = (id: string): void => {
     setTags((current) => current.includes(id) ? current.filter((t) => t !== id) : [...current, id])
@@ -942,6 +1045,15 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onDismiss, onSaveC
   const handleSave = async (): Promise<void> => {
     setSavingComment(true)
     try { await onSaveComment(comment, tags) } finally { setSavingComment(false) }
+  }
+  const handleDismissWithFeedback = async (): Promise<void> => {
+    if (!canDismissWithFeedback) return
+    setDismissing(true)
+    try { await onDismissWithFeedback(comment, tags) } finally { setDismissing(false) }
+  }
+  const handleRemoveWithoutFeedback = (): void => {
+    if (!window.confirm(`Remove “${item.searchTerm}” from the Needs review queue without leaving feedback? Use this only for terms parked here by mistake.`)) return
+    onRemoveWithoutFeedback()
   }
 
   return (
@@ -981,7 +1093,14 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onDismiss, onSaveC
         </div>
       )}
       <button type="button" onClick={handleSave} disabled={!dirty || savingComment} style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap', flex: '0 0 auto' }}>{savingComment ? 'Saving…' : 'Save'}</button>
-      <button type="button" onClick={onDismiss} style={{ padding: '4px 9px', fontSize: 11, whiteSpace: 'nowrap', flex: '0 0 auto' }}>Dismiss</button>
+      <button
+        type="button"
+        onClick={handleDismissWithFeedback}
+        disabled={!canDismissWithFeedback || dismissing}
+        title={canDismissWithFeedback ? 'Resolve this term as dismissed and send the comment as feedback to whoever flagged it.' : 'Add a comment first to dismiss with feedback.'}
+        style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap', flex: '0 0 auto', color: '#92400e', borderColor: '#fcd34d', background: '#fef3c7' }}
+      >{dismissing ? 'Dismissing…' : 'Dismiss with feedback'}</button>
+      <button type="button" onClick={handleRemoveWithoutFeedback} title="Remove from the queue without leaving feedback (for terms parked here by mistake)." style={{ padding: '4px 9px', fontSize: 11, whiteSpace: 'nowrap', flex: '0 0 auto', color: 'var(--theme-elevation-500)' }}>Remove without feedback</button>
       {item.reviewCommentBy && item.reviewCommentAt && (
         <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)', flex: '1 1 100%' }}>Last by {item.reviewCommentBy} · {new Date(item.reviewCommentAt).toLocaleString('en-AU')}</span>
       )}

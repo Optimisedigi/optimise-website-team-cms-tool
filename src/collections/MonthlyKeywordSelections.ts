@@ -156,6 +156,26 @@ export const MonthlyKeywordSelections: CollectionConfig = {
           admin: { description: 'ISO timestamp when this already-applied negative was removed with an explanation.' },
         },
         {
+          name: 'decidedBy',
+          type: 'text',
+          admin: { description: 'Display name of whoever last set this row to a non-pending decision (auto-tracked on save).' },
+        },
+        {
+          name: 'decidedByUserId',
+          type: 'text',
+          admin: { description: 'User id of whoever last set this row to a non-pending decision (used to notify the original handler).' },
+        },
+        {
+          name: 'reviewDismissedAt',
+          type: 'text',
+          admin: { description: 'ISO timestamp when this needs-review term was dismissed as feedback.' },
+        },
+        {
+          name: 'reviewDismissedBy',
+          type: 'text',
+          admin: { description: 'Display name of the reviewer who dismissed this needs-review term as feedback.' },
+        },
+        {
           name: 'reviewComment',
           type: 'textarea',
           admin: { description: 'Reviewer note for a "needs review" term. Visible to anyone with tool access.' },

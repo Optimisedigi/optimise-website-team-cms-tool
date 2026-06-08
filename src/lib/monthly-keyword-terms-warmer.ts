@@ -38,6 +38,10 @@ export type MonthlyKeywordSelectionRow = {
   appliedAt?: string | null
   appliedBy?: string | null
   appliedByUserId?: string | null
+  decidedBy?: string | null
+  decidedByUserId?: string | null
+  reviewDismissedAt?: string | null
+  reviewDismissedBy?: string | null
   reviewComment?: string | null
   reviewCommentBy?: string | null
   reviewCommentAt?: string | null

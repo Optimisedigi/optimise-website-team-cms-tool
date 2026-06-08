@@ -107,6 +107,7 @@ import * as migration_20260704_120000_add_monthly_keyword_watch_fields from './2
 import * as migration_20260705_120000_add_monthly_keyword_review_comment_fields from './20260705_120000_add_monthly_keyword_review_comment_fields';
 import * as migration_20260706_120000_add_monthly_keyword_row_index from './20260706_120000_add_monthly_keyword_row_index';
 import * as migration_20260707_120000_add_monthly_keyword_removed_fields from './20260707_120000_add_monthly_keyword_removed_fields';
+import * as migration_20260708_120000_add_monthly_keyword_review_dismissed_fields from './20260708_120000_add_monthly_keyword_review_dismissed_fields';
 
 export const migrations = [
   {
@@ -653,5 +654,10 @@ export const migrations = [
     up: migration_20260707_120000_add_monthly_keyword_removed_fields.up,
     down: migration_20260707_120000_add_monthly_keyword_removed_fields.down,
     name: '20260707_120000_add_monthly_keyword_removed_fields'
+  },
+  {
+    up: migration_20260708_120000_add_monthly_keyword_review_dismissed_fields.up,
+    down: migration_20260708_120000_add_monthly_keyword_review_dismissed_fields.down,
+    name: '20260708_120000_add_monthly_keyword_review_dismissed_fields'
   },
 ];

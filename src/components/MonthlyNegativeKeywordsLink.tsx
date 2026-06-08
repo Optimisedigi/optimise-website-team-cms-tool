@@ -16,6 +16,7 @@ export default function MonthlyNegativeKeywordsLink() {
   const [fields] = useAllFormFields()
   const [resolvedClient, setResolvedClient] = useState<ClientLinkData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [teammates, setTeammates] = useState<Array<{ id: string; label: string }>>([])
 
   const directSlug = fields?.slug?.value ? String(fields.slug.value) : ''
   const directCustomerId = fields?.googleAdsCustomerId?.value ? String(fields.googleAdsCustomerId.value) : ''
@@ -74,6 +75,25 @@ export default function MonthlyNegativeKeywordsLink() {
     }
   }, [id, directSlug, directCustomerId, directClientId, linkedClientId])
 
+  // Load the @-taggable teammate list via the gated endpoint (the Users read is
+  // admin-only, so the embedded panel can't hit /api/users directly). If it
+  // fails, the tag pills simply stay hidden.
+  useEffect(() => {
+    let cancelled = false
+    const fetchTeammates = async () => {
+      try {
+        const res = await fetch('/api/monthly-keyword-selection/teammates', { credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && Array.isArray(data?.teammates)) setTeammates(data.teammates)
+      } catch {
+        /* leave teammates empty; pills stay hidden */
+      }
+    }
+    void fetchTeammates()
+    return () => { cancelled = true }
+  }, [])
+
   if (!id) return null
 
   if (!resolvedClient) {
@@ -90,6 +110,7 @@ export default function MonthlyNegativeKeywordsLink() {
       customerId={resolvedClient.customerId}
       slug={resolvedClient.slug}
       isAdmin={(user as { role?: string } | null | undefined)?.role === 'admin'}
+      teammates={teammates}
     />
   )
 }

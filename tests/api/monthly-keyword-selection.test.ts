@@ -23,6 +23,12 @@ import { POST as applyPOST } from '@/app/(frontend)/api/monthly-keyword-selectio
 import { POST as completePOST } from '@/app/(frontend)/api/monthly-keyword-selection/complete/route'
 import { POST as clearPOST } from '@/app/(frontend)/api/monthly-keyword-selection/clear/route'
 import { POST as revisePOST } from '@/app/(frontend)/api/monthly-keyword-selection/revise/route'
+import { POST as dismissReviewPOST } from '@/app/(frontend)/api/monthly-keyword-selection/dismiss-review/route'
+import { GET as teammatesGET } from '@/app/(frontend)/api/monthly-keyword-selection/teammates/route'
+
+function getRequest(path: string): NextRequest {
+  return new NextRequest(`http://localhost${path}`, { method: 'GET' })
+}
 
 function request(path: string, body: unknown): NextRequest {
   return new NextRequest(`http://localhost${path}`, {
@@ -279,6 +285,121 @@ describe('monthly keyword selection API routes', () => {
       id: 22,
       data: { selections: [expect.objectContaining({ appliedToNKL: '4', decision: 'approved', appliedBy: 'Original Reviewer', appliedByUserId: '99' })] },
     }))
+  })
+
+  it('save stamps the authenticated decider when a non-pending decision is set', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 42, role: 'admin', name: 'Decider Dan' } })
+    mockPayload.find.mockResolvedValue({ docs: [{ id: 22, selections: [] }] })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+
+    const res = await savePOST(request('/api/monthly-keyword-selection/save', {
+      clientId: 7,
+      selections: [{ yearMonth: '2026-05', searchTerm: 'cheap widgets', negativeKeyword: 'cheap', matchType: 'exact', decision: 'needs_review' }],
+    }))
+
+    expect(res.status).toBe(200)
+    const saved = mockPayload.update.mock.calls[0][0].data.selections
+    expect(saved[0]).toMatchObject({ decision: 'needs_review', decidedByUserId: '42', decidedBy: 'Decider Dan' })
+  })
+
+  it('save does not stamp a decider for a pending decision', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 42, role: 'admin', name: 'Decider Dan' } })
+    mockPayload.find.mockResolvedValue({ docs: [{ id: 22, selections: [] }] })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+
+    const res = await savePOST(request('/api/monthly-keyword-selection/save', {
+      clientId: 7,
+      selections: [{ yearMonth: '2026-05', searchTerm: 'cheap widgets', negativeKeyword: 'cheap', matchType: 'exact', decision: 'pending' }],
+    }))
+
+    expect(res.status).toBe(200)
+    const saved = mockPayload.update.mock.calls[0][0].data.selections
+    expect(saved[0].decidedByUserId).toBeUndefined()
+  })
+
+  it('dismiss-review resolves the matched term as skipped and retains the comment', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 9, role: 'admin', name: 'Reviewer Rita' } })
+    mockPayload.find.mockResolvedValue({
+      docs: [{
+        id: 22,
+        selections: [
+          { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'needs_review', decidedByUserId: '99', decidedBy: 'Flagger Fred' },
+        ],
+      }],
+    })
+    mockPayload.findByID.mockResolvedValue({ name: 'Acme' })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+    mockPayload.create.mockResolvedValue({ id: 1 })
+
+    const res = await dismissReviewPOST(request('/api/monthly-keyword-selection/dismiss-review', {
+      clientId: 7, yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, comment: 'Not waste — converts well.',
+    }))
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json).toMatchObject({ success: true, notified: 1 })
+    const saved = mockPayload.update.mock.calls[0][0].data.selections
+    expect(saved[0]).toMatchObject({ decision: 'skipped', reviewComment: 'Not waste — converts well.', reviewDismissedBy: 'Reviewer Rita' })
+    expect(saved[0].reviewDismissedAt).toBeTruthy()
+    // notifies the auto-tracked original handler
+    expect(mockPayload.create).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'notifications',
+      data: expect.objectContaining({ recipient: '99', kind: 'negative-keywords-needs-review' }),
+    }))
+  })
+
+  it('dismiss-review requires a comment', async () => {
+    const res = await dismissReviewPOST(request('/api/monthly-keyword-selection/dismiss-review', {
+      clientId: 7, yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, comment: '   ',
+    }))
+    expect(res.status).toBe(400)
+    expect(mockPayload.update).not.toHaveBeenCalled()
+  })
+
+  it('dismiss-review skips notifying the dismisser themselves', async () => {
+    mockPayload.auth.mockResolvedValue({ user: { id: 99, role: 'admin', name: 'Flagger Fred' } })
+    mockPayload.find.mockResolvedValue({
+      docs: [{
+        id: 22,
+        selections: [
+          { yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, negativeKeyword: 'cheap', matchType: 'exact', decision: 'needs_review', decidedByUserId: '99', decidedBy: 'Flagger Fred' },
+        ],
+      }],
+    })
+    mockPayload.update.mockResolvedValue({ id: 22 })
+
+    const res = await dismissReviewPOST(request('/api/monthly-keyword-selection/dismiss-review', {
+      clientId: 7, yearMonth: '2026-05', searchTerm: 'cheap widgets', rowIndex: 0, comment: 'My own call.',
+    }))
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.notified).toBe(0)
+    expect(mockPayload.create).not.toHaveBeenCalled()
+  })
+
+  it('teammates returns the gated user list mapped to id + label', async () => {
+    mockPayload.find.mockResolvedValue({ docs: [
+      { id: 1, name: 'Alice' },
+      { id: 2, email: 'bob@example.com' },
+      { id: 3 },
+    ] })
+
+    const res = await teammatesGET(getRequest('/api/monthly-keyword-selection/teammates'))
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.teammates).toEqual([
+      { id: '1', label: 'Alice' },
+      { id: '2', label: 'bob@example.com' },
+      { id: '3', label: 'User 3' },
+    ])
+    expect(mockPayload.find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'users', overrideAccess: true }))
+  })
+
+  it('teammates is unauthorized without a user', async () => {
+    mockPayload.auth.mockResolvedValue({ user: null })
+    const res = await teammatesGET(getRequest('/api/monthly-keyword-selection/teammates'))
+    expect(res.status).toBe(401)
   })
 
   it('clear is admin-only and wipes the client terms cache', async () => {

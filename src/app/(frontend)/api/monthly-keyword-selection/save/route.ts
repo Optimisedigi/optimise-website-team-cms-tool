@@ -93,6 +93,13 @@ export async function POST(req: NextRequest) {
     const key = rowKey(selection.yearMonth, selection.searchTerm, Number(selection.rowIndex ?? 0))
     const prev = byTerm.get(key) || {}
     const merged: any = { ...prev, ...selection }
+    // Auto-track who set the decision so the original handler can be notified
+    // when a needs-review term is later dismissed as feedback. Stamped from the
+    // authenticated session only — never trusted from the request body.
+    if (merged.decision !== 'pending' && (prev.decision !== merged.decision || !prev.decidedByUserId)) {
+      merged.decidedByUserId = String(user.id)
+      merged.decidedBy = (user as { name?: string; email?: string }).name || (user as { email?: string }).email || null
+    }
     if (merged.decision === 'watch') {
       const horizon = VALID_WATCH_HORIZONS.has(Number(merged.watchHorizonMonths)) ? Number(merged.watchHorizonMonths) : DEFAULT_WATCH_HORIZON
       merged.watchHorizonMonths = horizon
