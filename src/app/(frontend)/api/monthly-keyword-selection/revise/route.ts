@@ -116,7 +116,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const doc = existing.docs[0] as { id: number | string; selections?: any[] } | undefined
   if (!doc) return NextResponse.json({ error: 'No selections found for client' }, { status: 404 })
 
-  const selectionsArr = Array.isArray(doc.selections) ? doc.selections : []
+  // Sanitize every row's appliedToNKL up front. A previous bug persisted numeric
+  // *string* ids on some rows; since each write path re-saves the whole array,
+  // one bad sibling row would fail validation ('field is invalid') and block an
+  // unrelated edit. Coercing here keeps the whole array writable.
+  const selectionsArr = (Array.isArray(doc.selections) ? doc.selections : []).map((selection) => {
+    const id = nklIdOf(selection.appliedToNKL)
+    return id ? { ...selection, appliedToNKL: asNklId(id) } : selection
+  })
   const target = selectionsArr.find((selection) =>
     String(selection.yearMonth) === yearMonth
     && String(selection.searchTerm || '').toLowerCase() === searchTerm.toLowerCase()

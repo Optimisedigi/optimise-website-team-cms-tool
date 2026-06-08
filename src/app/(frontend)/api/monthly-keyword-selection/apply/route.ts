@@ -157,7 +157,12 @@ export async function POST(req: NextRequest) {
       const selectionKey = `${String(selection.yearMonth)}|${String(selection.searchTerm || '').toLowerCase()}|${Number(selection.rowIndex ?? 0)}`
       const keywordKey = `${String(selection.negativeKeyword || '').toLowerCase()}|${selection.matchType}`
       const appliedToNKL = appliedSelectionKeys.get(selectionKey) || appliedKeywordKeys.get(keywordKey)
-      if (!appliedToNKL) return selection
+      if (!appliedToNKL) {
+        // Untouched row: still coerce any legacy numeric-string id so a corrupted
+        // sibling can't fail the whole-array re-validation.
+        const existingId = asNklId(selection.appliedToNKL ?? null)
+        return existingId === selection.appliedToNKL ? selection : { ...selection, appliedToNKL: existingId }
+      }
       // Preserve the original submitter: only stamp appliedBy/appliedByUserId
       // when not already set on a previously-applied selection.
       const appliedBy = selection.appliedByUserId ? selection.appliedBy : applierName
