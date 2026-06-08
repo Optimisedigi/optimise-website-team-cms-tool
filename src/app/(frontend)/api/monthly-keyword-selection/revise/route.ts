@@ -22,6 +22,13 @@ function nklIdOf(value: unknown): string | null {
   return null
 }
 
+// NKL ids are integers. Payload's relationship field rejects a numeric *string*
+// id ("4") with "field is invalid", so store a number when the id is digit-only.
+function asNklId(value: string | null): number | string | null {
+  if (value === null) return null
+  return /^\d+$/.test(value) ? Number(value) : value
+}
+
 async function notifySubmitter(
   payload: Awaited<ReturnType<typeof getPayload>>,
   args: {
@@ -261,7 +268,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             negativeKeyword: newKeyword,
             matchType: newMatchType,
             decision: 'approved',
-            appliedToNKL: newNklId,
+            appliedToNKL: asNklId(newNklId),
             appliedAt: now,
             outcomeType: 'moved',
             outcomeDetail: moveDetail,

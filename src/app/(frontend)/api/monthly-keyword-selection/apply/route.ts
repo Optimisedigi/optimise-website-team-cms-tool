@@ -18,6 +18,15 @@ const VALID_MATCH_TYPES = new Set(['exact', 'broad', 'phrase'])
 
 const NOTIFICATIONS = 'notifications' as never
 
+// NKL ids are integers. Payload's relationship field rejects a numeric *string*
+// id ("4") with "field is invalid", so coerce digit-only strings back to a
+// number before persisting them onto the selection row.
+function asNklId(value: number | string | null | undefined): number | string | null {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'number') return value
+  return /^\d+$/.test(value) ? Number(value) : value
+}
+
 function monthLabel(yearMonth: string): string {
   const [year, month] = yearMonth.split('-').map(Number)
   if (!year || !month) return yearMonth
@@ -157,7 +166,7 @@ export async function POST(req: NextRequest) {
       const next: any = {
         ...selection,
         decision: 'approved',
-        appliedToNKL,
+        appliedToNKL: asNklId(appliedToNKL),
         appliedAt: now,
         appliedBy,
         appliedByUserId,

@@ -348,7 +348,7 @@ describe('monthly keyword selection API routes', () => {
     expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
       collection: 'monthly-keyword-selections',
       id: 22,
-      data: { selections: [expect.objectContaining({ appliedToNKL: '4', decision: 'approved', appliedBy: 'Original Reviewer', appliedByUserId: '99' })] },
+      data: { selections: [expect.objectContaining({ appliedToNKL: 4, decision: 'approved', appliedBy: 'Original Reviewer', appliedByUserId: '99' })] },
     }))
   })
 
