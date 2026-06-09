@@ -33,7 +33,7 @@ const VALID_MATCH_TYPES: MatchType[] = ["exact", "phrase", "broad"];
 export const proposeNklUpdate: CanonicalTool<ProposeNklUpdateArgs> = {
   name: "propose_nkl_update",
   description:
-    "Queue an update to an existing Negative Keyword List for human approval. Pass the FULL replacement keywords array (the apply-handler does a full replace, not a merge). Optional: rename via `name`, toggle via `isActive`. Always include a `changeDescription` that summarises adds/removes/renames in plain English so the reviewer can scan it fast.",
+    "Queue an update to an existing Negative Keyword List for human approval. If the user asks to add keywords to a list, first call get_negative_keyword_lists to identify the target nklId and current keywords, then pass the FULL replacement keywords array here (the apply-handler does a full replace, not a merge). Optional: rename via `name`, toggle via `isActive`. Always include a `changeDescription` that summarises adds/removes/renames in plain English so the reviewer can scan it fast.",
   inputSchema: {
     type: "object",
     properties: {

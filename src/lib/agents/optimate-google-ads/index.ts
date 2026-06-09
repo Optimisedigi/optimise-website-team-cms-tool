@@ -18,6 +18,7 @@ import {
 import { getAccountOverview } from "./tools/get-account-overview";
 import { getCampaignPerformance } from "./tools/get-campaign-performance";
 import { getSearchTerms } from "./tools/get-search-terms";
+import { getNegativeKeywordLists } from "./tools/get-negative-keyword-lists";
 import { getAdAssetPerformance } from "./tools/get-ad-asset-performance";
 import { getBudgetManagementEmail } from "./tools/get-budget-management-email";
 import { getWeeklyTrendNote } from "./tools/get-weekly-trend-note";
@@ -107,6 +108,7 @@ export function getTools(options?: { restrictExternalContextActions?: boolean })
     getAccountOverview as unknown as CanonicalTool<unknown>,
     getCampaignPerformance as unknown as CanonicalTool<unknown>,
     getSearchTerms as unknown as CanonicalTool<unknown>,
+    getNegativeKeywordLists as unknown as CanonicalTool<unknown>,
     getAdAssetPerformance as unknown as CanonicalTool<unknown>,
     getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
     getWeeklyMetricTable as unknown as CanonicalTool<unknown>,

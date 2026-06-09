@@ -28,7 +28,7 @@ const VALID_MATCH_TYPES: MatchType[] = ["exact", "phrase", "broad"];
 export const proposeNegativeKeywords: CanonicalTool<ProposeNegativesArgs> = {
   name: "propose_negative_keywords",
   description:
-    "Queue a negative-keyword list for human approval. Each candidate must include the term, matchType (exact/phrase/broad), and a one-line reason citing the metric that justifies it (e.g. '$140 spend, 0 conversions, 12 clicks'). The summary is a 1–3 sentence overview a reviewer will read first.",
+    "Queue a standalone negative-keyword recommendation for human approval when you do not know the target CMS list yet. If the user asks to add keywords to an existing Negative Keyword List, call get_negative_keyword_lists first, then use propose_nkl_update with the FULL replacement keyword set. Each candidate must include the term, matchType (exact/phrase/broad), and a one-line reason citing the metric that justifies it (e.g. '$140 spend, 0 conversions, 12 clicks'). The summary is a 1–3 sentence overview a reviewer will read first.",
   inputSchema: {
     type: "object",
     properties: {

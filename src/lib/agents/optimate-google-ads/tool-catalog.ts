@@ -194,6 +194,7 @@ export const TOOL_CATEGORY_MAP: Record<string, ToolCategoryKey> = {
 
   // Read — client info
   get_client_details: "read-client-info",
+  get_negative_keyword_lists: "read-client-info",
 
   // Read — scheduled
   list_scheduled_tasks: "read-scheduled",

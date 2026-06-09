@@ -370,7 +370,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRunResult> {
             log: (msg, meta) => console.log(`[${opts.agentName}] ${msg}`, meta ?? ""),
           };
           const result = await tool.execute(args, ctx);
-          resultContent = JSON.stringify(result.data ?? { ok: result.ok });
+          resultContent = JSON.stringify(
+            result.ok
+              ? (result.data ?? { ok: true })
+              : { ok: false, error: result.error ?? "Tool returned ok=false without an error message" },
+          );
           if (!result.ok) isError = true;
         } catch (err) {
           // Tool pairing repair: even on throw we MUST emit a tool_result so
