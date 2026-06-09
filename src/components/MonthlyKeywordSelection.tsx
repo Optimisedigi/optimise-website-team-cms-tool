@@ -70,6 +70,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const hasAutoScrolledRef = useRef(false)
   const titleBarRef = useRef<HTMLDivElement | null>(null)
   const [titleBarHeight, setTitleBarHeight] = useState(62)
+  // Height of Payload's sticky `.app-header` (CMS breadcrumb bar). The month
+  // section's own sticky headers must offset by this so they lock *below* the
+  // CMS header rather than scrolling underneath it.
+  const [appHeaderHeight, setAppHeaderHeight] = useState(0)
 
   const load = useCallback(async () => {
     if (!clientId || !customerId || !slug) return
@@ -177,6 +181,20 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     observer.observe(node)
     return () => observer.disconnect()
   }, [activeMonth, activeTab])
+
+  // Track the CMS app-header height so the sticky month title + column labels
+  // lock directly under it. Measured from the live DOM node and kept in sync on
+  // resize (the header can wrap/grow on narrow widths).
+  useEffect(() => {
+    const node = document.querySelector('.app-header')
+    if (!(node instanceof HTMLElement)) return
+    const measure = () => setAppHeaderHeight(node.getBoundingClientRect().height)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    window.addEventListener('resize', measure)
+    return () => { observer.disconnect(); window.removeEventListener('resize', measure) }
+  }, [])
 
   const saveSelections = useCallback(async (next: Record<string, Selection>, deletions?: Array<{ yearMonth: string; searchTerm: string; rowIndex: number }>) => {
     setSaving(true)
@@ -445,6 +463,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       originalHandler: string
       originalAction: 'flagged' | 'submitted'
       taggedLabels: string[]
+      keywordChanged: boolean
+      moved: boolean
     }
     const typeFromOutcome = (value?: string | null): OutcomeKind => {
       if (value === 'updated') return 'Updated'
@@ -468,17 +488,26 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         matchType: selection.matchType,
         at: newest.at,
         taggedLabels: [] as string[],
+        keywordChanged: false,
+        moved: false,
       }
       if (newest.source === 'outcome') {
         const type = typeFromOutcome(selection.outcomeType)
+        const detail = selection.outcomeDetail || ''
+        // An Updated outcome is only logged when the keyword/match type changed
+        // in place. A Moved outcome always changed list; it *also* changed the
+        // keyword when the detail carries a second → (the list move is the first).
+        const arrowCount = (detail.match(/→/g) || []).length
         entry = {
           ...base,
           type,
-          detail: selection.outcomeDetail || '',
+          detail,
           comment: selection.outcomeComment || '',
           by: selection.outcomeBy || 'someone',
           originalHandler: type === 'Added' ? (selection.decidedBy || '') : (selection.appliedBy || ''),
           originalAction: type === 'Added' ? 'flagged' : 'submitted',
+          keywordChanged: type === 'Updated' || (type === 'Moved' && arrowCount > 1),
+          moved: type === 'Moved',
         }
       } else if (newest.source === 'removed') {
         entry = {
@@ -546,6 +575,65 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     }
     await Promise.all([load(), loadNkls()])
   }, [clientId, load, loadNkls])
+
+  // Pending edits from the Submitted negatives rows, keyed by selection key.
+  // Rows report their dirty edit (or null when clean) so the "Update all" button
+  // can apply every change at once without a per-row comment prompt.
+  type PendingRowEdit = { newKeyword: string; newMatchType: MatchType; newNklId: number | string | null }
+  const [pendingRowEdits, setPendingRowEdits] = useState<Record<string, PendingRowEdit>>({})
+  const registerRowEdit = useCallback((key: string, edit: PendingRowEdit | null) => {
+    setPendingRowEdits((current) => {
+      if (!edit) {
+        if (!(key in current)) return current
+        const next = { ...current }
+        delete next[key]
+        return next
+      }
+      const prev = current[key]
+      if (prev && prev.newKeyword === edit.newKeyword && prev.newMatchType === edit.newMatchType && String(prev.newNklId) === String(edit.newNklId)) return current
+      return { ...current, [key]: edit }
+    })
+  }, [])
+  const pendingEditCount = Object.keys(pendingRowEdits).length
+
+  // Apply every pending Submitted-negatives edit in one pass. No comment prompt —
+  // use the per-row "Update list" button when a specific teaching note is wanted.
+  const [updatingAll, setUpdatingAll] = useState(false)
+  const updateAllSubmitted = useCallback(async () => {
+    const entries = Object.entries(pendingRowEdits)
+    if (entries.length === 0) return
+    setUpdatingAll(true)
+    let ok = 0
+    let failed = 0
+    try {
+      for (const [key, edit] of entries) {
+        const item = selections[key]
+        if (!item) continue
+        const res = await fetch('/api/monthly-keyword-selection/revise', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            clientId: Number(clientId),
+            yearMonth: item.yearMonth,
+            searchTerm: item.searchTerm,
+            rowIndex: Number(item.rowIndex ?? 0),
+            action: 'update',
+            newKeyword: edit.newKeyword,
+            newMatchType: edit.newMatchType,
+            ...(edit.newNklId != null ? { newNklId: edit.newNklId } : {}),
+          }),
+        })
+        if (res.ok) ok += 1
+        else failed += 1
+      }
+      setPendingRowEdits({})
+      setMessage(failed === 0 ? `Updated ${ok} negative${ok === 1 ? '' : 's'}.` : `Updated ${ok} negative${ok === 1 ? '' : 's'} · ${failed} failed.`)
+      await Promise.all([load(), loadNkls()])
+    } finally {
+      setUpdatingAll(false)
+    }
+  }, [pendingRowEdits, selections, clientId, load, loadNkls])
 
   const saveComment = useCallback(async (
     item: Selection,
@@ -778,9 +866,18 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
 
       {activeTab === 'submitted' && submittedCount > 0 && (
         <div style={{ display: 'grid', gap: 18 }}>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--theme-elevation-600)' }}>
-            Every negative keyword that was applied to a list, grouped by review month. Tweak a keyword or match type and press <strong>Update list</strong>, or <strong>Remove</strong> it from the list if it shouldn’t have been added.
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--theme-elevation-600)', flex: '1 1 320px' }}>
+              Every negative keyword that was applied to a list, grouped by review month. Edit the keyword — wrap it in <strong>'single quotes'</strong> for a phrase match, leave it bare for exact — and press <strong>Update list</strong> (with an optional note), or <strong>Remove</strong> it from the list if it shouldn’t have been added.
+            </p>
+            <button
+              type="button"
+              onClick={updateAllSubmitted}
+              disabled={pendingEditCount === 0 || updatingAll}
+              title="Apply every pending edit at once. No note is recorded — use a row's Update list button when you want to add a comment for that negative."
+              style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', flex: '0 0 auto', color: pendingEditCount > 0 ? '#fff' : undefined, background: pendingEditCount > 0 ? '#0f766e' : undefined, borderColor: pendingEditCount > 0 ? '#0f766e' : undefined }}
+            >{updatingAll ? 'Updating…' : `Update all${pendingEditCount > 0 ? ` (${pendingEditCount})` : ''}`}</button>
+          </div>
           {submittedByMonth.map(({ month, items }) => (
             <section key={month} style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--theme-elevation-150)', fontWeight: 700, background: 'var(--theme-elevation-50)' }}>
@@ -796,6 +893,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     nkls={visibleNkls}
                     onRemove={(comment) => reviseSubmitted(item, 'remove', comment ? { comment } : undefined)}
                     onUpdate={(newKeyword, newMatchType, newNklId, comment) => reviseSubmitted(item, 'update', { newKeyword, newMatchType, ...(newNklId != null ? { newNklId } : {}), ...(comment ? { comment } : {}) }, newNklId != null)}
+                    onDirtyChange={registerRowEdit}
                   />
                 ))}
               </div>
@@ -820,33 +918,39 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
               <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--theme-elevation-150)', fontWeight: 700, background: 'var(--theme-elevation-50)' }}>
                 {monthLabel(month)} · {items.length} outcome{items.length === 1 ? '' : 's'}
               </div>
-              <div style={{ display: 'grid', gap: 8, padding: 12 }}>
+              <div style={{ display: 'grid', gap: 5, padding: 10 }}>
                 {items.map((item) => {
                   const pill = OUTCOME_PILL[item.type]
                   return (
                   <div
                     key={item.key}
-                    style={{ display: 'grid', gap: 6, padding: '10px 12px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}
+                    style={{ display: 'grid', gap: 3, padding: '6px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: pill.bg, color: pill.fg }}>{item.type}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: pill.bg, color: pill.fg }}>{item.type}</span>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</span>
+                        {item.keywordChanged && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626' }}>Negative keyword changed</span>
+                        )}
+                        {item.moved && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626' }}>Moved to a new NKL</span>
+                        )}
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Negative</div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{item.negativeKeyword} <span style={{ color: 'var(--theme-elevation-500)', fontWeight: 400 }}>({matchTypeLabel(item.matchType)})</span></div>
+                        <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>Negative: </span>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{item.negativeKeyword} <span style={{ color: 'var(--theme-elevation-500)', fontWeight: 400 }}>({matchTypeLabel(item.matchType)})</span></span>
                       </div>
                     </div>
                     {item.detail && (
                       <div style={{ fontSize: 12, color: 'var(--theme-elevation-600)' }}>{item.detail}</div>
                     )}
                     {item.comment && (
-                      <div style={{ fontSize: 13, padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-800)' }}>
-                        {item.comment}
+                      <div style={{ fontSize: 13, padding: '6px 9px', borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-800)' }}>
+                        <strong>Comment:</strong> {item.comment}
                       </div>
                     )}
-                    <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>
+                    <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>
                       By {item.by}{item.at ? ` on ${new Date(item.at).toLocaleDateString()}` : ''}
                       {item.originalHandler ? ` · originally ${item.originalAction} by ${item.originalHandler}` : ''}
                       {item.taggedLabels.length > 0 ? ` · tagged ${item.taggedLabels.map((l) => `@${l}`).join(', ')}` : ''}
@@ -865,7 +969,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           const isFocused = activeMonth === month.month
           return (
           <section key={month.month} aria-label={`${monthLabel(month.month)}${month.reviewComplete ? ' complete' : ''}`} style={{ minWidth: isFocused ? '100%' : 340, maxWidth: isFocused ? 'none' : 340, width: isFocused ? 'max-content' : undefined, border: '1px solid var(--theme-elevation-150)', borderRadius: 10, background: month.reviewComplete ? 'var(--theme-elevation-50)' : 'var(--theme-bg)', opacity: month.reviewComplete ? 0.78 : 1 }}>
-            <div ref={isFocused ? titleBarRef : undefined} style={{ position: 'sticky', top: 0, zIndex: 3, padding: 12, borderBottom: '1px solid var(--theme-elevation-150)', background: 'inherit', borderRadius: '10px 10px 0 0' }}>
+            <div ref={isFocused ? titleBarRef : undefined} style={{ position: 'sticky', top: isFocused ? appHeaderHeight : 0, zIndex: 3, padding: 12, borderBottom: '1px solid var(--theme-elevation-150)', background: 'inherit', borderRadius: '10px 10px 0 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                 <strong>{monthLabel(month.month)}</strong>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -882,7 +986,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
               {isFocused && month.terms.length > 0 && (
-                <div style={{ position: 'sticky', top: titleBarHeight, zIndex: 2, display: 'grid', gridTemplateColumns: gridTemplate, gap: gridGap, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                <div style={{ position: 'sticky', top: appHeaderHeight + titleBarHeight, zIndex: 2, display: 'grid', gridTemplateColumns: gridTemplate, gap: gridGap, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
                   <span>Search term</span>
                   <span>Actions</span>
                   <span>Negative keyword</span>
@@ -1192,20 +1296,38 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onWatch, onDismiss
   )
 }
 
-function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate }: {
+function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyChange }: {
   item: Selection
   nklId: number | string | null
   nklName: string
   nkls: Nkl[]
   onRemove: (comment?: string) => Promise<void>
   onUpdate: (newKeyword: string, newMatchType: MatchType, newNklId: number | string | null, comment?: string) => Promise<void>
+  onDirtyChange: (key: string, edit: { newKeyword: string; newMatchType: MatchType; newNklId: number | string | null } | null) => void
 }) {
-  const [keyword, setKeyword] = useState(item.negativeKeyword)
-  const [matchType, setMatchType] = useState<MatchType>(item.matchType)
+  // Single input drives both keyword text and match type, mirroring the Monthly
+  // review tab: bare word = exact, 'word' = phrase. The resolved match type is
+  // surfaced as small blue text rather than a separate dropdown.
+  const [input, setInput] = useState(inputFromSelection(item, item.negativeKeyword))
+  const parsed = parseNegativeKeywordInput(input) || { keyword: item.negativeKeyword, matchType: 'exact' as MatchType }
+  const keyword = parsed.keyword
+  const matchType = parsed.matchType
   const [targetNklId, setTargetNklId] = useState<string>(nklId != null ? String(nklId) : '')
   const [busy, setBusy] = useState(false)
   const listChanged = targetNklId !== '' && targetNklId !== (nklId != null ? String(nklId) : '')
   const dirty = keyword.trim() !== item.negativeKeyword || matchType !== item.matchType || listChanged
+
+  // Report this row's pending edit (or null when clean) to the parent so the
+  // "Update all" button can apply every change at once without a comment prompt.
+  const rowKey = selectionKey(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))
+  useEffect(() => {
+    if (dirty && keyword.trim()) {
+      onDirtyChange(rowKey, { newKeyword: keyword.trim(), newMatchType: matchType as MatchType, newNklId: listChanged ? targetNklId : null })
+    } else {
+      onDirtyChange(rowKey, null)
+    }
+    return () => onDirtyChange(rowKey, null)
+  }, [rowKey, dirty, keyword, matchType, listChanged, targetNklId, onDirtyChange])
 
   const handleUpdate = async (): Promise<void> => {
     if (!keyword.trim()) return
@@ -1218,7 +1340,7 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate }: {
     if (note === null) return
     const comment = note.trim() || undefined
     setBusy(true)
-    try { await onUpdate(keyword.trim(), matchType, listChanged ? targetNklId : null, comment) } finally { setBusy(false) }
+    try { await onUpdate(keyword.trim(), matchType as MatchType, listChanged ? targetNklId : null, comment) } finally { setBusy(false) }
   }
   const handleRemove = async (): Promise<void> => {
     if (!window.confirm(`Remove “${item.negativeKeyword}” (${matchTypeLabel(item.matchType)}) from ${nklName}? It will be marked skipped so it stays hidden in future months.`)) return
@@ -1234,22 +1356,21 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate }: {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 120px 170px auto', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 170px auto', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
       <div>
         <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Search term</div>
         <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
         <div style={{ fontSize: 11, color: '#0f766e' }}>in {nklName}</div>
       </div>
-      <input
-        value={keyword}
-        onChange={(event) => setKeyword(event.target.value)}
-        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12 }}
-      />
-      <select value={matchType} onChange={(event) => setMatchType(event.target.value as MatchType)} style={{ fontSize: 12, padding: '5px 7px' }}>
-        <option value="exact">Exact match</option>
-        <option value="phrase">Phrase match</option>
-        <option value="broad">Broad match</option>
-      </select>
+      <div style={{ display: 'grid', gap: 2 }}>
+        <input
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          title="Type the negative keyword. Wrap it in 'single quotes' for a phrase match; leave bare for an exact match."
+          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12 }}
+        />
+        <span style={{ fontSize: 10, color: '#0369a1' }}>{matchTypeLabel(matchType)}</span>
+      </div>
       <select
         value={targetNklId}
         onChange={(event) => setTargetNklId(event.target.value)}

@@ -267,7 +267,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const oldNklName = nkl.name || `List ${nklId}`
     const newNklName = newNkl.name || `List ${newNklId}`
-    const moveDetail = `${oldNklName} → ${newNklName}`
+    // The list move is always recorded; when the keyword text and/or match type
+    // also changed in the same action, append that before→after so the Review
+    // outcomes tab can flag "negative keyword changed" alongside the move.
+    const moveKwParts: string[] = []
+    if (oldKeyword.toLowerCase() !== newKeyword.toLowerCase()) moveKwParts.push(`${oldKeyword} → ${newKeyword}`)
+    if (oldMatchType !== newMatchType) moveKwParts.push(`${oldMatchType} → ${newMatchType}`)
+    const moveDetail = `${oldNklName} → ${newNklName}${moveKwParts.length ? ` · ${moveKwParts.join(' · ')}` : ''}`
     const movedSelections = selectionsArr.map((selection) =>
       selection === target
         ? {
