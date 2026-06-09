@@ -2939,6 +2939,102 @@ export const Clients: CollectionConfig = {
                   ],
                 },
                 {
+                  label: "Core Update Review",
+                  fields: [
+                    {
+                      name: "coreUpdateReviewPanel",
+                      type: "ui",
+                      admin: {
+                        components: {
+                          Field: "./components/ClientCoreUpdateReviewInline",
+                        },
+                      },
+                    },
+                    {
+                      type: "row",
+                      fields: [
+                        {
+                          name: "coreUpdateReviewEnabled",
+                          type: "checkbox",
+                          defaultValue: false,
+                          admin: {
+                            description:
+                              "Enable scheduled Core Update Reviews for this client. Uses the Business tab Website URL and Search Console connection.",
+                            width: "50%",
+                          },
+                        },
+                        {
+                          name: "coreUpdateReviewMaxPages",
+                          type: "number",
+                          defaultValue: 50,
+                          min: 10,
+                          max: 200,
+                          admin: {
+                            description: "Maximum pages to crawl when applying a Google update to this site.",
+                            width: "50%",
+                          },
+                        },
+                      ],
+                    },
+                    {
+                      name: "coreUpdateReviewRecipientEmails",
+                      type: "array",
+                      admin: {
+                        description:
+                          "Email recipients for scheduled Core Update Reviews. Leave empty to skip scheduled email delivery.",
+                      },
+                      fields: [{ name: "email", type: "email", required: true }],
+                    },
+                    {
+                      name: "coreUpdateReviewIncludeUpdateTypes",
+                      type: "select",
+                      hasMany: true,
+                      defaultValue: ["core_update"],
+                      admin: {
+                        description: "Which official Google Ranking update types should trigger reviews for this client.",
+                      },
+                      options: [
+                        { label: "Core updates", value: "core_update" },
+                        { label: "Spam updates", value: "spam_update" },
+                        { label: "Discover updates", value: "discover_update" },
+                        { label: "Other ranking updates", value: "other_ranking_update" },
+                      ],
+                    },
+                    {
+                      type: "row",
+                      fields: [
+                        {
+                          name: "coreUpdateReviewLastCheckedAt",
+                          type: "date",
+                          admin: {
+                            readOnly: true,
+                            description: "Last time Growth Tools checked this client for a Core Update Review.",
+                            width: "33%",
+                          },
+                        },
+                        {
+                          name: "coreUpdateReviewLastEmailSentAt",
+                          type: "date",
+                          admin: {
+                            readOnly: true,
+                            description: "Last scheduled Core Update Review email sent for this client.",
+                            width: "33%",
+                          },
+                        },
+                        {
+                          name: "coreUpdateReviewLastUpdateName",
+                          type: "text",
+                          admin: {
+                            readOnly: true,
+                            description: "Most recent official Google update reviewed for this client.",
+                            width: "33%",
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
                   label: "AI Visibility",
                   fields: [
                     {

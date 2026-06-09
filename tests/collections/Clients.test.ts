@@ -94,6 +94,22 @@ describe("Clients Collection", () => {
     expect(Clients.admin?.group).toBe("Clients");
   });
 
+  it("should configure Core Update Review inside the Search tab using inherited site and GSC fields", () => {
+    const tabsField = Clients.fields.find((field: any) => field.type === "tabs") as any;
+    const searchTab = tabsField.tabs.find((tab: any) => tab.label === "Search");
+    const nestedTabs = searchTab.fields.find((field: any) => field.type === "tabs");
+    const coreUpdateTab = nestedTabs.tabs.find((tab: any) => tab.label === "Core Update Review");
+
+    expect(coreUpdateTab).toBeDefined();
+    expect(findField(coreUpdateTab.fields, "coreUpdateReviewPanel")?.type).toBe("ui");
+    expect(findField(coreUpdateTab.fields, "coreUpdateReviewEnabled")?.defaultValue).toBe(false);
+    expect(findField(coreUpdateTab.fields, "coreUpdateReviewRecipientEmails")?.type).toBe("array");
+    expect(findField(coreUpdateTab.fields, "coreUpdateReviewMaxPages")?.max).toBe(200);
+    expect(findField(coreUpdateTab.fields, "coreUpdateReviewIncludeUpdateTypes")?.defaultValue).toEqual(["core_update"]);
+    expect(findField(coreUpdateTab.fields, "coreUpdateReviewSiteUrl")).toBeUndefined();
+    expect(findField(coreUpdateTab.fields, "coreUpdateReviewGscUrl")).toBeUndefined();
+  });
+
   it("should use name as title", () => {
     expect(Clients.admin?.useAsTitle).toBe("name");
   });

@@ -57,6 +57,7 @@ CMS → Growth Tools unmatched calls: 4
 | `/api/client/[slug]/google-ads/account-structure` | GET | api-key/internal-key | json-body, query-params, schema-or-parse, 400-validation | growth-tools, fetch | `src/app/(frontend)/api/client/[slug]/google-ads/account-structure/route.ts` |
 | `/api/clients/[id]/bookmarks` | GET | payload-session | json-body | google | `src/app/(frontend)/api/clients/[id]/bookmarks/route.ts` |
 | `/api/clients/[id]/check-tag-setup` | POST | payload-session | json-body, 400-validation | fetch | `src/app/(frontend)/api/clients/[id]/check-tag-setup/route.ts` |
+| `/api/clients/[id]/core-update-review/run` | POST | payload-session | json-body, 400-validation | growth-tools, fetch | `src/app/(frontend)/api/clients/[id]/core-update-review/run/route.ts` |
 | `/api/clients/[id]/google-ads-conversion-actions` | GET | payload-session | json-body, 400-validation | growth-tools, fetch | `src/app/(frontend)/api/clients/[id]/google-ads-conversion-actions/route.ts` |
 | `/api/clients/[id]/integrations` | GET | payload-session | json-body |  | `src/app/(frontend)/api/clients/[id]/integrations/route.ts` |
 | `/api/clients/[id]/negative-sweep` | POST | payload-session | json-body, 400-validation | growth-tools, fetch | `src/app/(frontend)/api/clients/[id]/negative-sweep/route.ts` |
@@ -1093,6 +1094,19 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
       "auth": "payload-session",
       "validation": "json-body, 400-validation",
       "external": "fetch",
+      "hasTryCatch": true,
+      "growthToolsCalls": [],
+      "unmatchedGrowthToolsCalls": []
+    },
+    {
+      "route": "/api/clients/[id]/core-update-review/run",
+      "file": "src/app/(frontend)/api/clients/[id]/core-update-review/run/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "auth": "payload-session",
+      "validation": "json-body, 400-validation",
+      "external": "growth-tools, fetch",
       "hasTryCatch": true,
       "growthToolsCalls": [],
       "unmatchedGrowthToolsCalls": []

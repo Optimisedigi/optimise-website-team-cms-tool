@@ -1141,6 +1141,41 @@ export interface Client {
     };
   };
   /**
+   * Enable scheduled Core Update Reviews for this client. Uses the Business tab Website URL and Search Console connection.
+   */
+  coreUpdateReviewEnabled?: boolean | null;
+  /**
+   * Maximum pages to crawl when applying a Google update to this site.
+   */
+  coreUpdateReviewMaxPages?: number | null;
+  /**
+   * Email recipients for scheduled Core Update Reviews. Leave empty to skip scheduled email delivery.
+   */
+  coreUpdateReviewRecipientEmails?:
+    | {
+        email: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Which official Google Ranking update types should trigger reviews for this client.
+   */
+  coreUpdateReviewIncludeUpdateTypes?:
+    | ('core_update' | 'spam_update' | 'discover_update' | 'other_ranking_update')[]
+    | null;
+  /**
+   * Last time Growth Tools checked this client for a Core Update Review.
+   */
+  coreUpdateReviewLastCheckedAt?: string | null;
+  /**
+   * Last scheduled Core Update Review email sent for this client.
+   */
+  coreUpdateReviewLastEmailSentAt?: string | null;
+  /**
+   * Most recent official Google update reviewed for this client.
+   */
+  coreUpdateReviewLastUpdateName?: string | null;
+  /**
    * Configure weekly AI Visibility snapshots — traffic from ChatGPT, Gemini, Perplexity, Claude, etc. — and buyer-question probes run across those assistants.
    */
   aiVisibility?: {
@@ -8648,6 +8683,18 @@ export interface ClientsSelect<T extends boolean = true> {
               pixelOffsetDrop?: T;
             };
       };
+  coreUpdateReviewEnabled?: T;
+  coreUpdateReviewMaxPages?: T;
+  coreUpdateReviewRecipientEmails?:
+    | T
+    | {
+        email?: T;
+        id?: T;
+      };
+  coreUpdateReviewIncludeUpdateTypes?: T;
+  coreUpdateReviewLastCheckedAt?: T;
+  coreUpdateReviewLastEmailSentAt?: T;
+  coreUpdateReviewLastUpdateName?: T;
   aiVisibility?:
     | T
     | {
