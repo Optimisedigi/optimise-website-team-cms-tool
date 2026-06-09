@@ -13,7 +13,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
-import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
+import { ensureCustomerId, growthToolsGet, parseConversionActions } from "./_growth-tools";
 import {
   SUPPORTED_PRESETS,
   resolveRangeWithSegment,
@@ -24,6 +24,7 @@ import {
 interface CampaignPerfArgs {
   range?: string;
   segment?: Segment;
+  conversionActions?: string[];
 }
 
 interface MetricRaw {
@@ -54,7 +55,7 @@ interface MetricsEnvelope {
 export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
   name: "get_campaign_performance",
   description:
-    "Per-campaign metrics for the linked account. Args: range (optional preset OR 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'/'YTD'/'QTD' literal; default LAST_7_DAYS), segment ('month'|'week'|'day' — when set, returns one row per (campaign, segment) pair instead of a single total). Returns rows with campaignId, name, status, spend, clicks, impressions, conversions, conversionsByCategory (e.g. Phone Calls vs Form Submits when configured), ctr, cpa, searchImpressionShare, searchBudgetLostIS, searchRankLostIS.",
+    "Per-campaign metrics for the linked account. Args: range (optional preset OR 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'/'YTD'/'QTD' literal; default LAST_7_DAYS), segment ('month'|'week'|'day' — when set, returns one row per (campaign, segment) pair instead of a single total), conversionActions (optional exact Google Ads conversion action names to override the CMS defaults). Returns rows with campaignId, name, status, spend, clicks, impressions, conversions, conversionsByAction, conversionsByCategory, ctr, cpa, searchImpressionShare, searchBudgetLostIS, searchRankLostIS.",
   inputSchema: {
     type: "object",
     properties: {
@@ -71,6 +72,12 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
         description:
           "Optional per-row time segmentation. When set, the tool returns one row per (campaign, segment) pair so you can compare months/weeks. Requires the upstream Growth Tools service to support segmentation; if it doesn't, the response will include segmentationUnavailable: true.",
       },
+      conversionActions: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Optional exact Google Ads conversion action names to filter conversions to. If omitted, the CMS default conversion actions for the client are used.",
+      },
     },
     additionalProperties: false,
   },
@@ -86,6 +93,10 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
         throw new Error("segment must be 'month', 'week', or 'day'");
       }
       out.segment = s as Segment;
+    }
+    if (obj.conversionActions !== undefined) {
+      if (!Array.isArray(obj.conversionActions)) throw new Error("conversionActions must be an array of strings");
+      out.conversionActions = parseConversionActions(obj.conversionActions);
     }
     return out;
   },
@@ -106,7 +117,10 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
     // We don't send startDate/endDate as separate params — Growth Tools
     // ignores them once the dateRange carries the span.
     const dateRangeParam = customRangeForGrowthTools(resolved);
-    const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
+    const argConversionActions = args.conversionActions ?? [];
+    const conversionActions = argConversionActions.length > 0
+      ? argConversionActions.join(",")
+      : parseConversionActions(ctx.context.conversionActions).join(",");
     const conversionActionCategories = (ctx.context.conversionActionCategories as string | undefined) ?? "";
     const qs = new URLSearchParams({ customerId, dateRange: dateRangeParam });
     if (conversionActions) qs.set("conversionActions", conversionActions);
@@ -139,7 +153,7 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
         conversions: round2(conversions),
         conversionsByAction: normaliseBreakdown(m.conversionsByAction),
         conversionsByCategory: normaliseBreakdown(m.conversionsByCategory),
-        ctr: parsePercent(m.ctr) ?? null,
+        ctr: parseGrowthToolsCtrPercent(m.ctr),
         cpa: conversions > 0 ? round2(spend / conversions) : null,
         searchImpressionShare: parsePercent(m.searchImpressionShare),
         searchBudgetLostIS: parsePercent(m.searchBudgetLostIS ?? m.searchBudgetLostImpressionShare),
@@ -169,7 +183,7 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
         segmentation: resolved.segment ?? null,
         conversionActionsApplied: conversionActions || null,
         conversionScopeNote: conversionActions
-          ? "Conversions are filtered to the CMS default conversion actions for this client."
+          ? "Conversions are filtered to the selected conversion action names."
           : "No CMS default conversion actions were configured, so Growth Tools returned its default conversion scope.",
         ...(segmentationUnavailable ? { segmentationUnavailable: true } : {}),
         campaigns: rows,
@@ -185,6 +199,19 @@ function normaliseBreakdown(value: unknown): Record<string, number> | undefined 
     .map(([key, raw]) => [key, round2(Number(raw ?? 0))] as const)
     .filter(([key, n]) => key.trim().length > 0 && Number.isFinite(n) && n !== 0);
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function parseGrowthToolsCtrPercent(value: unknown): number | null {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return null;
+    return round2(value);
+  }
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const numeric = Number(trimmed.replace(/[%<>,\s]/g, ""));
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  return round2(numeric);
 }
 
 function parsePercent(value: unknown): number | undefined {

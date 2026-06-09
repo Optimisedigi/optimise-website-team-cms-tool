@@ -51,14 +51,14 @@ describe("get_monthly_metric_table", () => {
       .fn()
       .mockResolvedValueOnce(
         metricsResponse([
-          { cost: 100, clicks: 255, impressions: 10_000, conversions: 2, ctr: 0.0255 },
-          { cost: 200, clicks: 745, impressions: 40_000, conversions: 3, ctr: 0.018625 },
+          { cost: 100, clicks: 255, impressions: 10_000, conversions: 2, ctr: 2.55 },
+          { cost: 200, clicks: 745, impressions: 40_000, conversions: 3, ctr: 1.8625 },
         ]),
       )
       .mockResolvedValueOnce(
         metricsResponse([
-          { cost: 300, clicks: 1_615, impressions: 27_139, conversions: 4, ctr: 0.05950845646412838 },
-          { cost: 50, clicks: 264, impressions: 105_270, conversions: 0, ctr: 0.0025078379405348154 },
+          { cost: 300, clicks: 1_615, impressions: 27_139, conversions: 4, ctr: 5.950845646412838 },
+          { cost: 50, clicks: 264, impressions: 105_270, conversions: 0, ctr: 0.25078379405348153 },
         ]),
       );
     // @ts-expect-error - test override

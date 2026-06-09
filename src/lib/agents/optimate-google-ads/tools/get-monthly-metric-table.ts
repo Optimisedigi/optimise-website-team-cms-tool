@@ -22,7 +22,7 @@ interface MetricRaw {
   clicks?: number;
   impressions?: number;
   conversions?: number;
-  /** Google Ads metrics.ctr. Usually a ratio, e.g. 0.0142, but percent strings are tolerated. */
+  /** Google Ads CTR returned by Growth Tools as a percent, e.g. 1.42. */
   ctr?: number | string | null;
 }
 
@@ -199,14 +199,14 @@ function weightedGoogleCtr(rows: MetricRaw[]): number | null {
 function parseGoogleCtrPercent(value: unknown): number | null {
   if (typeof value === "number") {
     if (!Number.isFinite(value) || value < 0) return null;
-    return value <= 1 ? value * 100 : value;
+    return value;
   }
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
   const numeric = Number(trimmed.replace(/[%<>,\s]/g, ""));
   if (!Number.isFinite(numeric) || numeric < 0) return null;
-  return trimmed.includes("%") || numeric > 1 ? numeric : numeric * 100;
+  return numeric;
 }
 
 function buildRow(
