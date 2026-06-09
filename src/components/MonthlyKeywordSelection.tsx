@@ -964,12 +964,26 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         </div>
       )}
 
-      <div ref={monthsScrollerRef} style={{ display: activeTab === 'months' ? 'flex' : 'none', gap: 14, overflowX: 'auto', paddingBottom: 20, scrollBehavior: 'smooth' }}>
+      <div
+        ref={monthsScrollerRef}
+        style={activeMonth
+          // Edit-month view: a single wide card. Turn the scroller into a
+          // bounded region pinned just under the CMS app-header so its internal
+          // sticky headers (month title + column labels) lock there while the
+          // term rows scroll. overflow:auto handles both the long vertical list
+          // and the wide NKL columns. (When this container is the horizontal
+          // overflow:auto scroller AND not bounded, sticky children reference it
+          // but it scrolls away with the page — hence the bounded+sticky region.)
+          ? { display: activeTab === 'months' ? 'block' : 'none', position: 'sticky', top: appHeaderHeight, maxHeight: `calc(100vh - ${appHeaderHeight}px)`, overflow: 'auto', paddingBottom: 20, scrollBehavior: 'smooth' }
+          // Overview: horizontal strip of month cards.
+          : { display: activeTab === 'months' ? 'flex' : 'none', gap: 14, overflowX: 'auto', paddingBottom: 20, scrollBehavior: 'smooth' }
+        }
+      >
         {monthsToRender.map((month) => {
           const isFocused = activeMonth === month.month
           return (
           <section key={month.month} aria-label={`${monthLabel(month.month)}${month.reviewComplete ? ' complete' : ''}`} style={{ minWidth: isFocused ? '100%' : 340, maxWidth: isFocused ? 'none' : 340, width: isFocused ? 'max-content' : undefined, border: '1px solid var(--theme-elevation-150)', borderRadius: 10, background: month.reviewComplete ? 'var(--theme-elevation-50)' : 'var(--theme-bg)', opacity: month.reviewComplete ? 0.78 : 1 }}>
-            <div ref={isFocused ? titleBarRef : undefined} style={{ position: 'sticky', top: isFocused ? appHeaderHeight : 0, zIndex: 3, padding: 12, borderBottom: '1px solid var(--theme-elevation-150)', background: 'inherit', borderRadius: '10px 10px 0 0' }}>
+            <div ref={isFocused ? titleBarRef : undefined} style={{ position: 'sticky', top: 0, zIndex: 3, padding: 12, borderBottom: '1px solid var(--theme-elevation-150)', background: 'inherit', borderRadius: '10px 10px 0 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                 <strong>{monthLabel(month.month)}</strong>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -986,7 +1000,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
               {isFocused && month.terms.length > 0 && (
-                <div style={{ position: 'sticky', top: appHeaderHeight + titleBarHeight, zIndex: 2, display: 'grid', gridTemplateColumns: gridTemplate, gap: gridGap, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                <div style={{ position: 'sticky', top: titleBarHeight, zIndex: 2, display: 'grid', gridTemplateColumns: gridTemplate, gap: gridGap, padding: '7px 8px', borderRadius: 6, background: 'var(--theme-elevation-150)', fontSize: 10, fontWeight: 700, color: 'var(--theme-elevation-800)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
                   <span>Search term</span>
                   <span>Actions</span>
                   <span>Negative keyword</span>
