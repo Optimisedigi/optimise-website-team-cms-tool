@@ -4145,6 +4145,17 @@ export async function runMigrations(
     await run("monthly_keyword_terms_cache_client_month_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_client_month_idx` ON `monthly_keyword_terms_cache` (`client_id`, `year_month`)");
     await run("locked_docs_rels.monthly_keyword_selections_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_selections_id` integer REFERENCES `monthly_keyword_selections`(`id`) ON DELETE cascade");
     await run("locked_docs_rels.monthly_keyword_terms_cache_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_terms_cache_id` integer REFERENCES `monthly_keyword_terms_cache`(`id`) ON DELETE cascade");
+
+    // ── Match-type monitor per-client scope controls (2026-06-09) ──
+    await run("clients.gadsAuto_matchTypeMonitorExact", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_exact` integer DEFAULT true");
+    await run("clients.gadsAuto_matchTypeMonitorPhrase", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_phrase` integer DEFAULT true");
+    await run("gads_mtm_allowlist", `CREATE TABLE IF NOT EXISTS \`gads_mtm_allowlist\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL, \`scope\` text, \`pattern\` text,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("gads_mtm_allowlist_order_idx", "CREATE INDEX IF NOT EXISTS `gads_mtm_allowlist_order_idx` ON `gads_mtm_allowlist` (`_order`)");
+    await run("gads_mtm_allowlist_parent_idx", "CREATE INDEX IF NOT EXISTS `gads_mtm_allowlist_parent_idx` ON `gads_mtm_allowlist` (`_parent_id`)");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

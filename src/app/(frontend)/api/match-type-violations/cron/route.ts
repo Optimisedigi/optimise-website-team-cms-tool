@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { logActivity } from "@/lib/activity-log";
+import { filterViolations, readScope } from "@/lib/match-type-filter";
 
 export const maxDuration = 180;
 
@@ -331,6 +332,13 @@ async function syncClient(
   const customerId = clientDoc.googleAdsCustomerId as string | null;
   if (!customerId) return { processed: false, violationCount: 0, skippedNegated: 0, error: "no customer ID" };
 
+  // Per-client scope: separate exact/phrase toggles + campaign/ad-group allow-list.
+  const scope = readScope(clientDoc);
+  // Both match types disabled → nothing to police; skip the detector call entirely.
+  if (!scope.exact && !scope.phrase) {
+    return { processed: false, violationCount: 0, skippedNegated: 0, error: "both match types disabled" };
+  }
+
   const res = await fetch(`${GROWTH_TOOLS_URL}/api/google-ads/match-type-violations`, {
     method: "POST",
     headers: {
@@ -363,7 +371,9 @@ async function syncClient(
   const data: GrowthToolsResponse = await res.json().catch((err) => {
     throw new Error(`Failed to parse Growth Tools response as JSON: ${err?.message ?? err}`);
   });
-  const violations: Violation[] = Array.isArray(data?.violations) ? data.violations : [];
+  const allViolations: Violation[] = Array.isArray(data?.violations) ? data.violations : [];
+  // Keep only violations the client actually polices (match-type gate + allow-list).
+  const violations = filterViolations(allViolations, scope);
   const now = new Date().toISOString();
 
   let createdOrUpdated = 0;
@@ -402,13 +412,21 @@ async function syncClient(
     });
   }
 
+  const scopeNote = [
+    !scope.exact || !scope.phrase ? (scope.exact ? "exact only" : "phrase only") : null,
+    scope.allowList.length > 0 ? `${scope.allowList.length} allow-list rule(s)` : null,
+  ]
+    .filter(Boolean)
+    .join("; ");
+
   await logActivity(payload, {
     type: "match_type_violation_sync",
     title: `Match type violations sync: ${createdOrUpdated} violations found`,
     description:
-      skippedNegated > 0
+      (skippedNegated > 0
         ? `Client ${clientId}: ${createdOrUpdated} violations, ${skippedNegated} skipped (already negated)`
-        : `Client ${clientId}: ${createdOrUpdated} violations for "${customerId}"`,
+        : `Client ${clientId}: ${createdOrUpdated} violations for "${customerId}"`) +
+      (scopeNote ? ` (${scopeNote})` : ""),
     client: clientId,
   });
 

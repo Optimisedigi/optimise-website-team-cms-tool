@@ -863,6 +863,27 @@ export interface Client {
      */
     matchTypeMonitorEnabled?: boolean | null;
     /**
+     * Police EXACT keywords (account-coverage rule).
+     */
+    matchTypeMonitorExact?: boolean | null;
+    /**
+     * Police PHRASE keywords (missing-content-word rule).
+     */
+    matchTypeMonitorPhrase?: boolean | null;
+    /**
+     * Restrict monitoring to matching campaigns / ad groups. Leave empty to monitor the whole account. A campaign-scope entry still produces per-ad-group negative lists when you approve.
+     */
+    matchTypeMonitorAllowList?:
+      | {
+          scope: 'campaign' | 'ad_group';
+          /**
+           * Plain text matches as a case-insensitive substring; regex is supported.
+           */
+          pattern: string;
+          id?: string | null;
+        }[]
+      | null;
+    /**
      * Enable scheduled monthly re-audits
      */
     reauditEnabled?: boolean | null;
@@ -8569,6 +8590,15 @@ export interface ClientsSelect<T extends boolean = true> {
         negativeSweepExcludeTerms?: T;
         negativeSweepSheetUrl?: T;
         matchTypeMonitorEnabled?: T;
+        matchTypeMonitorExact?: T;
+        matchTypeMonitorPhrase?: T;
+        matchTypeMonitorAllowList?:
+          | T
+          | {
+              scope?: T;
+              pattern?: T;
+              id?: T;
+            };
         reauditEnabled?: T;
         reauditDayOfMonth?: T;
         performanceReportEnabled?: T;

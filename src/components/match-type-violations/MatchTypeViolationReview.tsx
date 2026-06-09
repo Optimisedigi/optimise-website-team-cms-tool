@@ -341,13 +341,17 @@ export default function MatchTypeViolationReview({
           <span title="Number of times the monitor has run">{syncRunCount} sync{syncRunCount !== 1 ? 's' : ''} to date</span>
         ) : '…'} · {totalDocs} candidate{totalDocs !== 1 ? 's' : ''} total
         <br />
-        The monitor flags Exact and Phrase keywords that served search terms with different intent:
+        The monitor flags Exact and Phrase keywords that served search terms with different intent.
+        Cosmetic close variants (plurals, accents, word order, stopword swaps, and typos) are ignored — only genuine intent shifts surface:
         <ul style={{ margin: '6px 0 0 18px', padding: 0, lineHeight: 1.7 }}>
-          <li><strong>Exact close variant</strong> — Google's close variant expanded your exact keyword to a semantically similar but distinct term (e.g. "ppc services" triggered "pay per click management")</li>
-          <li><strong>Phrase missing word</strong> — A phrase keyword triggered a search missing one of its words, changing intent (e.g. "search ads agency" triggered "ppc agency")</li>
+          <li><strong>Exact close variant</strong> — an exact keyword served a query with an added/removed/substituted content word (e.g. "ppc services" triggered "pay per click management").</li>
+          <li><strong>Phrase missing word</strong> — a phrase keyword served a query missing one of its content words (e.g. "running shoes" triggered "buy shoes online").</li>
         </ul>
-        Approve a violation to add it as a negative keyword in the linked NKL. Reject to dismiss it.
+        For <strong>exact</strong> keywords the monitor now checks each search term against the <strong>full set of exact keywords you actually own</strong>: a term is valid only if it equals one of them (allowing plurals, typos, stopwords, accents, and word reorder — no synonyms). Anything else is a leak that belongs to phrase match, not exact, so it surfaces here.
+        Approving adds a negative — by default the specific offending word(s) as a <strong>phrase</strong> negative (blocking the whole drift family), otherwise the whole term as an <strong>exact</strong> negative. The recommendation is editable per row, and a phrase negative that would block an owned keyword safely falls back to exact. The negative routes into the candidate’s <strong>ad-group list</strong> (auto-matched or created), or you can assign an existing list. Reject to dismiss it.
         Only terms with ≥2 impressions in the past 90 days are flagged.
+        <br />
+        Per client you can enable <strong>Exact</strong> and <strong>Phrase</strong> monitoring independently, and scope monitoring to specific campaigns or ad groups via the allow-list on the client record — leave it empty to monitor the whole account.
       </div>
 
       {/* Filters */}

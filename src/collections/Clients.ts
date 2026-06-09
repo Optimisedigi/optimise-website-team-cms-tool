@@ -2215,6 +2215,55 @@ export const Clients: CollectionConfig = {
                     },
                   },
                 },
+                {
+                  name: "matchTypeMonitorExact",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description: "Police EXACT keywords (account-coverage rule).",
+                    condition: (data: any) => data?.gadsAuto?.matchTypeMonitorEnabled,
+                  },
+                },
+                {
+                  name: "matchTypeMonitorPhrase",
+                  type: "checkbox",
+                  defaultValue: true,
+                  admin: {
+                    description: "Police PHRASE keywords (missing-content-word rule).",
+                    condition: (data: any) => data?.gadsAuto?.matchTypeMonitorEnabled,
+                  },
+                },
+                {
+                  name: "matchTypeMonitorAllowList",
+                  type: "array",
+                  dbName: "gads_mtm_allowlist",
+                  admin: {
+                    description:
+                      "Restrict monitoring to matching campaigns / ad groups. Leave empty to monitor the whole account. A campaign-scope entry still produces per-ad-group negative lists when you approve.",
+                    condition: (data: any) => data?.gadsAuto?.matchTypeMonitorEnabled,
+                  },
+                  fields: [
+                    {
+                      name: "scope",
+                      type: "select",
+                      required: true,
+                      defaultValue: "campaign",
+                      options: [
+                        { label: "Campaign", value: "campaign" },
+                        { label: "Ad group", value: "ad_group" },
+                      ],
+                    },
+                    {
+                      name: "pattern",
+                      type: "text",
+                      required: true,
+                      admin: {
+                        description:
+                          "Plain text matches as a case-insensitive substring; regex is supported.",
+                      },
+                    },
+                  ],
+                },
 
                 // Re-audit
                 {
