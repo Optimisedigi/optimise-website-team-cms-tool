@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeDashboardRange } from "@/lib/dashboard-date-ranges";
 import { validateDashboardToken } from "../verify/route";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
     // Strip dashes from customerId — Google Ads API uses dashless format
     const cleanCustomerId = customerId.replace(/-/g, "");
     const params = new URLSearchParams({ customerId: cleanCustomerId });
-    if (range) params.set("range", range);
+    if (range) params.set("range", normalizeDashboardRange(range));
     const url = `${GROWTH_TOOLS_URL}/api/google-ads/dashboard/${encodeURIComponent(slug)}/quality-scores?${params}`;
     const res = await fetch(url, {
       headers: { "x-internal-key": GROWTH_TOOLS_API_KEY },

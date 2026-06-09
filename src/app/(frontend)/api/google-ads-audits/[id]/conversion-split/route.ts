@@ -94,7 +94,7 @@ export async function GET(
     );
   }
 
-  const range = req.nextUrl.searchParams.get("range") || "last_month";
+  const range = req.nextUrl.searchParams.get("range") || "all_time";
 
   // Conversion-action filter (newline/comma -> comma-separated).
   const conversionActions: string = String(

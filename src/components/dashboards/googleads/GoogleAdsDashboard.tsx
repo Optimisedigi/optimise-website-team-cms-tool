@@ -45,6 +45,7 @@ function timeAgo(iso: string): string {
 
 const RANGE_OPTIONS = [
   { value: "this_month", label: "This month" },
+  { value: "last_week", label: "Last week" },
   { value: "last_month", label: "Last month" },
   { value: "last_30_days", label: "Last 30 days" },
   { value: "last_60_days", label: "Last 60 days" },
@@ -65,6 +66,31 @@ const DEEP_DIVE_RANGE_OPTIONS = [
 ] as const;
 
 type Tab = "overview" | "competitors" | "keywords" | "quality" | "progress" | "accountStructure";
+
+type ConversionActionCategoryConfig = {
+  label?: string;
+  actions?: string[];
+};
+
+function parseConversionActionLabels(raw?: string): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const categories = JSON.parse(raw) as ConversionActionCategoryConfig[];
+    if (!Array.isArray(categories)) return {};
+    const labels: Record<string, string> = {};
+    for (const category of categories) {
+      const label = String(category?.label || "").trim();
+      if (!label || !Array.isArray(category?.actions)) continue;
+      for (const action of category.actions) {
+        const name = String(action || "").trim();
+        if (name) labels[name] = label;
+      }
+    }
+    return labels;
+  } catch {
+    return {};
+  }
+}
 
 export function GoogleAdsDashboard({ data: initialData, mockQualityData, initialQualityData, brandKeywords, conversionActions: defaultConversionActions, phoneCallActions, formSubmitActions, conversionActionCategories, clientId, initialKeywordSelections, initialAddedSelections, initialAddedNegatives }: GoogleAdsDashboardProps) {
   const [data, setData] = useState(initialData);
@@ -143,6 +169,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const availableActions = data.availableConversionActions || defaultSelected;
+  const conversionActionLabels = parseConversionActionLabels(conversionActionCategories);
 
   // Derive the active conversionActions param from selection.
   // Always send explicit action names (comma-separated) so Growth Tools
@@ -824,6 +851,7 @@ export function GoogleAdsDashboard({ data: initialData, mockQualityData, initial
                 kpis={data.kpis}
                 compareMode={compareMode}
                 selectedConversionActions={selectedConversions}
+                conversionActionLabels={conversionActionLabels}
               />
               <div className="mt-6">
                 <MonthlyChart data={chart14Months} />

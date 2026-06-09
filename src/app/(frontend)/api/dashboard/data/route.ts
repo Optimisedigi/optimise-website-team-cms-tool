@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeDashboardRange } from "@/lib/dashboard-date-ranges";
 import { validateDashboardToken } from "../verify/route";
 
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL;
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   try {
     // Strip dashes from customerId — Google Ads API uses dashless format (e.g. 9554935739)
     const cleanCustomerId = customerId.replace(/-/g, "");
-    const params = new URLSearchParams({ range });
+    const params = new URLSearchParams({ range: normalizeDashboardRange(range) });
     if (cleanCustomerId) params.set("customerId", cleanCustomerId);
     if (clientName) params.set("clientName", clientName);
     if (brandKeywords) params.set("brandKeywords", brandKeywords);

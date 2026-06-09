@@ -47,4 +47,25 @@ describe('KpiRow conversion action chip', () => {
     expect(emailClickRow).toBeTruthy()
     expect(within(emailClickRow as HTMLElement).getByText('0')).toBeInTheDocument()
   })
+
+  it('uses CMS dashboard labels and aggregates actions with the same label', () => {
+    render(
+      <KpiRow
+        kpis={baseKpis}
+        compareMode="year"
+        selectedConversionActions={['Phone Call Click', 'Form Submission']}
+        conversionActionLabels={{
+          'Phone Call Click': 'Phone Calls',
+          'Form Submission': 'Leads',
+        }}
+      />,
+    )
+
+    const chip = screen.getByText('By action (2)').closest('div')
+    expect(chip).toBeTruthy()
+    expect(within(chip as HTMLElement).getByText('Phone Calls')).toBeInTheDocument()
+    expect(within(chip as HTMLElement).getByText('Leads')).toBeInTheDocument()
+    expect(within(chip as HTMLElement).queryByText('Phone Call Click')).not.toBeInTheDocument()
+    expect(within(chip as HTMLElement).queryByText('Form Submission')).not.toBeInTheDocument()
+  })
 })

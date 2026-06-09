@@ -7,9 +7,22 @@ interface KpiRowProps {
   kpis: GoogleAdsDashboardKpis;
   compareMode: "month" | "year";
   selectedConversionActions?: string[];
+  conversionActionLabels?: Record<string, string>;
 }
 
-export function KpiRow({ kpis, compareMode, selectedConversionActions = [] }: KpiRowProps) {
+function aggregateByDashboardLabel(
+  rows: ReadonlyArray<readonly [string, number]>,
+  labels: Record<string, string>,
+): Array<readonly [string, number]> {
+  const totals = new Map<string, number>();
+  for (const [action, count] of rows) {
+    const label = labels[action]?.trim() || action;
+    totals.set(label, (totals.get(label) ?? 0) + count);
+  }
+  return Array.from(totals.entries());
+}
+
+export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conversionActionLabels = {} }: KpiRowProps) {
   const isYear = compareMode === "year";
   const label = isYear ? "vs last year" : "vs prev month";
 
@@ -24,9 +37,10 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [] }: Kp
   const unselectedBreakdown = Object.entries(conversionCounts)
     .filter(([action, count]) => count > 0 && !selectedConversionActions.includes(action))
     .sort((a, b) => b[1] - a[1]);
-  const breakdown = selectedBreakdown.length > 0
-    ? selectedBreakdown
-    : unselectedBreakdown;
+  const breakdown = aggregateByDashboardLabel(
+    selectedBreakdown.length > 0 ? selectedBreakdown : unselectedBreakdown,
+    conversionActionLabels,
+  );
 
   return (
     <div>

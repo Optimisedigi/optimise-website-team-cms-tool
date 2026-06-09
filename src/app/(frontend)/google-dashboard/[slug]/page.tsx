@@ -42,12 +42,52 @@ export async function generateMetadata({ params }: Props): Promise<{
   };
 }
 
+type ConversionActionCategoryRow = {
+  label?: unknown;
+  color?: unknown;
+  actions?: unknown;
+};
+
+function serializeConversionActionCategories(client: Record<string, unknown>): string {
+  const arr = client.conversionActionCategories;
+  if (Array.isArray(arr) && arr.length > 0) {
+    return JSON.stringify(
+      arr
+        .map((row: ConversionActionCategoryRow) => ({
+          label: String(row.label || "").trim(),
+          color: String(row.color || "sky"),
+          actions: String(row.actions || "")
+            .split(/[\r\n]+/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+        }))
+        .filter((row) => row.label && row.actions.length > 0),
+    );
+  }
+
+  const phone = String(client.phoneCallConversionActions || "")
+    .split(/[\r\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const form = String(client.formSubmitConversionActions || "")
+    .split(/[\r\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const fallback: Array<{ label: string; color: string; actions: string[] }> = [];
+  if (phone.length > 0) fallback.push({ label: "Phone Calls", color: "sky", actions: phone });
+  if (form.length > 0) fallback.push({ label: "Form Submits", color: "violet", actions: form });
+  return fallback.length > 0 ? JSON.stringify(fallback) : "";
+}
+
 async function fetchDashboardData(
   slug: string,
   customerId: string,
   clientName: string,
   brandKeywords?: string,
   conversionActions?: string,
+  phoneCallActions?: string,
+  formSubmitActions?: string,
+  conversionActionCategories?: string,
 ): Promise<{ data: GoogleAdsDashboardData | null; error: string | null }> {
   const url = process.env.GROWTH_TOOLS_URL;
   const key = process.env.INTERNAL_API_KEY;
@@ -68,6 +108,9 @@ async function fetchDashboardData(
         .join(",");
       if (normalized) params.set("conversionActions", normalized);
     }
+    if (phoneCallActions) params.set("phoneCallActions", phoneCallActions);
+    if (formSubmitActions) params.set("formSubmitActions", formSubmitActions);
+    if (conversionActionCategories) params.set("conversionActionCategories", conversionActionCategories);
     const endpoint = `${url}/api/google-ads/dashboard/${encodeURIComponent(slug)}?${params}`;
     const res = await fetch(endpoint, {
       headers: { "x-internal-key": key },
@@ -171,8 +214,19 @@ export default async function GoogleDashboardPage({ params }: Props) {
   let initialData: GoogleAdsDashboardData | null = null;
   let fetchError: string | null = null;
   let initialQualityData: GoogleAdsDashboardQualityData | null = null;
+  const serializedConversionActionCategories = serializeConversionActionCategories(client);
+
   if (isAuthenticated) {
-    const result = await fetchDashboardData(slug, client.googleAdsCustomerId, client.name, client.brandKeywords, client.dashboardConversionActions);
+    const result = await fetchDashboardData(
+      slug,
+      client.googleAdsCustomerId,
+      client.name,
+      client.brandKeywords,
+      client.dashboardConversionActions,
+      (client as any).phoneCallConversionActions || "",
+      (client as any).formSubmitConversionActions || "",
+      serializedConversionActionCategories,
+    );
     initialData = result.data;
     fetchError = result.error;
 
@@ -214,36 +268,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
       conversionActions={client.dashboardConversionActions || ""}
       phoneCallActions={(client as any).phoneCallConversionActions || ""}
       formSubmitActions={(client as any).formSubmitConversionActions || ""}
-      conversionActionCategories={(() => {
-        const arr = (client as any).conversionActionCategories;
-        if (Array.isArray(arr) && arr.length > 0) {
-          return JSON.stringify(
-            arr
-              .map((c: any) => ({
-                label: String(c?.label || "").trim(),
-                color: String(c?.color || "sky"),
-                actions: String(c?.actions || "")
-                  .split(/[\r\n]+/)
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              }))
-              .filter((c: any) => c.label && c.actions.length > 0),
-          );
-        }
-        // Fallback: build implicit Phone/Form categories from legacy fields
-        const phone = String((client as any).phoneCallConversionActions || "")
-          .split(/[\r\n]+/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const form = String((client as any).formSubmitConversionActions || "")
-          .split(/[\r\n]+/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const fallback: Array<{ label: string; color: string; actions: string[] }> = [];
-        if (phone.length > 0) fallback.push({ label: "Phone Calls", color: "sky", actions: phone });
-        if (form.length > 0) fallback.push({ label: "Form Submits", color: "violet", actions: form });
-        return fallback.length > 0 ? JSON.stringify(fallback) : "";
-      })()}
+      conversionActionCategories={serializedConversionActionCategories}
       initialKeywordSelections={initialKeywordSelections}
       initialAddedSelections={initialAddedSelections}
       initialAddedNegatives={initialAddedNegatives}
