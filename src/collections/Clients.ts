@@ -499,6 +499,164 @@ export const Clients: CollectionConfig = {
                 { label: "Automations", value: "automations" },
               ],
             },
+            {
+              type: "collapsible",
+              label: "Client Pulse",
+              admin: {
+                initCollapsed: true,
+                description:
+                  "Internal leadership heartbeat settings: opt-in, targets, services tracked, priority and neglect thresholds.",
+              },
+              fields: [
+                {
+                  name: "clientPulse",
+                  type: "group",
+                  label: "Client Pulse",
+                  fields: [
+                    {
+                      type: "row",
+                      fields: [
+                        {
+                          name: "enabled",
+                          type: "checkbox",
+                          defaultValue: false,
+                          admin: {
+                            description: "Show this client on the internal Client Pulse command centre.",
+                            width: "25%",
+                          },
+                        },
+                        {
+                          name: "priority",
+                          type: "select",
+                          defaultValue: "normal",
+                          admin: { width: "25%" },
+                          options: [
+                            { label: "Watch", value: "watch" },
+                            { label: "Normal", value: "normal" },
+                            { label: "High", value: "high" },
+                            { label: "Critical", value: "critical" },
+                          ],
+                        },
+                        {
+                          name: "comparisonWindow",
+                          type: "select",
+                          defaultValue: "last_90_days",
+                          admin: { width: "25%" },
+                          options: [
+                            { label: "Last month", value: "last_month" },
+                            { label: "Last year", value: "last_year" },
+                            { label: "Last 90 days", value: "last_90_days" },
+                          ],
+                        },
+                        {
+                          name: "primaryTarget",
+                          type: "select",
+                          defaultValue: "traffic",
+                          admin: { width: "25%" },
+                          options: [
+                            { label: "CPA", value: "cpa" },
+                            { label: "ROAS", value: "roas" },
+                            { label: "Traffic", value: "traffic" },
+                            { label: "Conversions", value: "conversions" },
+                            { label: "Organic clicks", value: "organic_clicks" },
+                            { label: "Paid conversions", value: "paid_conversions" },
+                            { label: "Revenue", value: "revenue" },
+                            { label: "Custom", value: "custom" },
+                          ],
+                        },
+                      ],
+                    },
+                    {
+                      type: "row",
+                      fields: [
+                        {
+                          name: "targetLabel",
+                          type: "text",
+                          admin: {
+                            description: "Display label, especially for custom targets.",
+                            width: "30%",
+                          },
+                        },
+                        {
+                          name: "targetValue",
+                          type: "number",
+                          admin: { width: "20%" },
+                        },
+                        {
+                          name: "targetUnit",
+                          type: "select",
+                          defaultValue: "custom",
+                          admin: { width: "25%" },
+                          options: [
+                            { label: "AUD", value: "aud" },
+                            { label: "Percent", value: "percent" },
+                            { label: "Clicks", value: "clicks" },
+                            { label: "Conversions", value: "conversions" },
+                            { label: "Revenue", value: "revenue" },
+                            { label: "Ratio", value: "ratio" },
+                            { label: "Score", value: "score" },
+                            { label: "Custom", value: "custom" },
+                          ],
+                        },
+                        {
+                          name: "targetDirection",
+                          type: "select",
+                          defaultValue: "increase",
+                          admin: { width: "25%" },
+                          options: [
+                            { label: "Increase", value: "increase" },
+                            { label: "Decrease", value: "decrease" },
+                            { label: "Maintain", value: "maintain" },
+                          ],
+                        },
+                      ],
+                    },
+                    {
+                      name: "servicesTracked",
+                      type: "select",
+                      hasMany: true,
+                      admin: {
+                        description: "Services included in leadership Client Pulse scoring and filters.",
+                      },
+                      options: [
+                        { label: "Organic", value: "organic" },
+                        { label: "Paid Search", value: "paid_search" },
+                        { label: "Paid Social", value: "paid_social" },
+                        { label: "SEO", value: "seo" },
+                        { label: "Content", value: "content" },
+                        { label: "CRO", value: "cro" },
+                        { label: "Automations", value: "automations" },
+                        { label: "Client Comms", value: "client_comms" },
+                      ],
+                    },
+                    {
+                      type: "row",
+                      fields: [
+                        {
+                          name: "neglectWarningDays",
+                          type: "number",
+                          defaultValue: 14,
+                          admin: { width: "50%" },
+                        },
+                        {
+                          name: "neglectCriticalDays",
+                          type: "number",
+                          defaultValue: 30,
+                          admin: { width: "50%" },
+                        },
+                      ],
+                    },
+                    {
+                      name: "notes",
+                      type: "textarea",
+                      admin: {
+                        description: "Internal leadership notes shown in Client Pulse details.",
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
             // ── Site identity row (3-col) ─────────────────────────────
             // Matches the mockup's second Business Identity row:
             // Website URL · Client PIN · Website Type. externalCms follows
@@ -1889,6 +2047,21 @@ export const Clients: CollectionConfig = {
         {
           label: "Google Ads",
           fields: [
+            {
+              name: "gadsWideLayout",
+              type: "ui",
+              admin: {
+                components: { Field: "./components/WideDocumentLayout" },
+              },
+            },
+            {
+              type: "tabs",
+              tabs: [
+                {
+                  label: "Default Conversion Actions",
+                  description:
+                    "Pick the conversion actions that power this client's Google Ads dashboard and Budget Management defaults.",
+                  fields: [
             // ─ Default Conversion Actions Picker ─
             // Saved selection is the default for both the Google Ads dashboard
             // and the Budget Management tool. Stored as newline-separated
@@ -1976,7 +2149,11 @@ export const Clients: CollectionConfig = {
               type: "textarea",
               admin: { hidden: true },
             },
-
+                  ],
+                },
+                {
+                  label: "Tools & Audits",
+                  fields: [
             // ─ Audit Button + Linked Audits ─
             {
               name: "runGoogleAdsAudit",
@@ -2086,7 +2263,11 @@ export const Clients: CollectionConfig = {
                 defaultColumns: ["title", "keywordCount", "status", "appliedToNKL", "createdAt"],
               },
             },
-
+                  ],
+                },
+                {
+                  label: "Automation & Policy",
+                  fields: [
             // ─ Automation Config ─
             {
               name: "gadsAuto",
@@ -2640,6 +2821,10 @@ export const Clients: CollectionConfig = {
               },
               fields: [
                 { name: "campaignId", type: "text", required: true },
+              ],
+            },
+                  ],
+                },
               ],
             },
           ],
