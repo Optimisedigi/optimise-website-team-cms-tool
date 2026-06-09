@@ -119,6 +119,31 @@ export async function runMigrations(
     )`);
     await run("clients_services_order_idx", "CREATE INDEX IF NOT EXISTS `clients_services_order_idx` ON `clients_services` (`order`)");
     await run("clients_services_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_services_parent_id_idx` ON `clients_services` (`parent_id`)");
+
+    // --- Core Update Review client config ---
+    await run("clients.core_update_review_enabled", "ALTER TABLE `clients` ADD `core_update_review_enabled` integer DEFAULT false");
+    await run("clients.core_update_review_max_pages", "ALTER TABLE `clients` ADD `core_update_review_max_pages` numeric DEFAULT 50");
+    await run("clients.core_update_review_last_checked_at", "ALTER TABLE `clients` ADD `core_update_review_last_checked_at` text");
+    await run("clients.core_update_review_last_email_sent_at", "ALTER TABLE `clients` ADD `core_update_review_last_email_sent_at` text");
+    await run("clients.core_update_review_last_update_name", "ALTER TABLE `clients` ADD `core_update_review_last_update_name` text");
+    await run("clients_core_update_review_recipient_emails", `CREATE TABLE IF NOT EXISTS \`clients_core_update_review_recipient_emails\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`email\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_core_update_review_recipient_emails_order_idx", "CREATE INDEX IF NOT EXISTS `clients_core_update_review_recipient_emails_order_idx` ON `clients_core_update_review_recipient_emails` (`_order`)");
+    await run("clients_core_update_review_recipient_emails_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_core_update_review_recipient_emails_parent_id_idx` ON `clients_core_update_review_recipient_emails` (`_parent_id`)");
+    await run("clients_core_update_review_include_update_types", `CREATE TABLE IF NOT EXISTS \`clients_core_update_review_include_update_types\` (
+      \`order\` integer NOT NULL,
+      \`parent_id\` integer NOT NULL,
+      \`value\` text,
+      \`id\` integer PRIMARY KEY NOT NULL,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_core_update_review_include_update_types_order_idx", "CREATE INDEX IF NOT EXISTS `clients_core_update_review_include_update_types_order_idx` ON `clients_core_update_review_include_update_types` (`order`)");
+    await run("clients_core_update_review_include_update_types_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_core_update_review_include_update_types_parent_id_idx` ON `clients_core_update_review_include_update_types` (`parent_id`)");
   
     // --- CRO Audits ---
     await run("cro_audits", `CREATE TABLE IF NOT EXISTS \`cro_audits\` (
