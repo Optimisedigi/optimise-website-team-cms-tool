@@ -63,7 +63,7 @@ export const getPortfolioMonthlyPerformanceBreakdown: CanonicalTool<PortfolioMon
     for (const account of accounts) {
       const rows = [];
       for (const month of months) {
-        const totals = await fetchMonthTotals(customerKey(account.customerId), month);
+        const totals = await fetchMonthTotals(account, month);
         if (!totals.ok) {
           rows.push({ month, error: totals.error });
           continue;
@@ -82,8 +82,10 @@ function selectAccounts(accounts: PortfolioAccount[], refs: Array<string | numbe
   return accounts.filter((account) => (account.accountRef !== undefined && refSet.has(String(account.accountRef))) || (account.clientId !== undefined && refSet.has(String(account.clientId))) || refSet.has(customerKey(account.customerId))).slice(0, MAX_ACCOUNTS);
 }
 
-async function fetchMonthTotals(customerId: string, month: string): Promise<{ ok: true; totals: { spend: number; clicks: number; impressions: number; conversions: number }; conversionsByAction: Record<string, number>; conversionsByCategory: Record<string, number> } | { ok: false; error: string }> {
-  const qs = new URLSearchParams({ customerId, dateRange: `${month}-01,${lastDayOfMonth(month)}` });
+async function fetchMonthTotals(account: PortfolioAccount, month: string): Promise<{ ok: true; totals: { spend: number; clicks: number; impressions: number; conversions: number }; conversionsByAction: Record<string, number>; conversionsByCategory: Record<string, number> } | { ok: false; error: string }> {
+  const qs = new URLSearchParams({ customerId: customerKey(account.customerId), dateRange: `${month}-01,${lastDayOfMonth(month)}` });
+  if (account.conversionActions) qs.set("conversionActions", account.conversionActions);
+  if (account.conversionActionCategories) qs.set("conversionActionCategories", account.conversionActionCategories);
   const res = await growthToolsGet<MetricsEnvelope>(`/api/google-ads/campaign-budgets/get-metrics?${qs.toString()}`);
   if (!res.ok) return { ok: false, error: res.error ?? "Growth Tools call failed" };
   const totals = { spend: 0, clicks: 0, impressions: 0, conversions: 0 };

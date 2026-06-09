@@ -12,6 +12,8 @@ export interface PortfolioAccount {
   managed: boolean;
   lastAuditUpdate?: string;
   monthlySpend?: number;
+  conversionActions?: string;
+  conversionActionCategories?: string;
 }
 
 interface ClientAccountRecord {
@@ -19,6 +21,10 @@ interface ClientAccountRecord {
   name?: string | null;
   googleAdsCustomerId?: string | null;
   isActive?: boolean | null;
+  dashboardConversionActions?: string | null;
+  phoneCallConversionActions?: string | null;
+  formSubmitConversionActions?: string | null;
+  conversionActionCategories?: Array<{ label?: string | null; color?: string | null; actions?: string | null }> | null;
   gadsAuto?: { isManagedGoogleAdsAccount?: boolean | null } | null;
 }
 
@@ -81,6 +87,10 @@ export async function loadPortfolioAccounts(): Promise<PortfolioAccount[]> {
         name: true,
         googleAdsCustomerId: true,
         isActive: true,
+        dashboardConversionActions: true,
+        phoneCallConversionActions: true,
+        formSubmitConversionActions: true,
+        conversionActionCategories: true,
         gadsAuto: true,
       } as any,
     }),
@@ -114,6 +124,7 @@ export async function loadPortfolioAccounts(): Promise<PortfolioAccount[]> {
       managed,
       ...(typeof audit.updatedAt === "string" ? { lastAuditUpdate: audit.updatedAt } : {}),
       ...(typeof audit.monthlySpend === "number" ? { monthlySpend: audit.monthlySpend } : {}),
+      ...conversionSettingsForClient(client),
     });
   }
 
@@ -123,11 +134,18 @@ export async function loadPortfolioAccounts(): Promise<PortfolioAccount[]> {
     const key = customerKey(customerId);
     const existing = byCustomerId.get(key);
     const managed = client.gadsAuto?.isManagedGoogleAdsAccount !== false && client.isActive !== false;
+    const conversionSettings = conversionSettingsForClient(client);
     if (existing) {
       existing.clientId = existing.clientId ?? client.id;
       existing.active = client.isActive !== false;
       existing.managed = managed;
       if (!existing.displayName && client.name) existing.displayName = client.name;
+      if (!existing.conversionActions && conversionSettings.conversionActions) {
+        existing.conversionActions = conversionSettings.conversionActions;
+      }
+      if (!existing.conversionActionCategories && conversionSettings.conversionActionCategories) {
+        existing.conversionActionCategories = conversionSettings.conversionActionCategories;
+      }
       continue;
     }
     byCustomerId.set(key, {
@@ -138,8 +156,61 @@ export async function loadPortfolioAccounts(): Promise<PortfolioAccount[]> {
       source: "client",
       active: client.isActive !== false,
       managed,
+      ...conversionSettings,
     });
   }
 
   return Array.from(byCustomerId.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+function conversionSettingsForClient(client: ClientAccountRecord | undefined): Pick<PortfolioAccount, "conversionActions" | "conversionActionCategories"> {
+  if (!client) return {};
+  const categories = conversionActionCategoriesForClient(client);
+  const actions = conversionActionsForClient(client);
+  return {
+    ...(actions ? { conversionActions: actions } : {}),
+    ...(categories ? { conversionActionCategories: categories } : {}),
+  };
+}
+
+function conversionActionsForClient(client: ClientAccountRecord): string {
+  const actions = new Set<string>();
+  const configured = Array.isArray(client.conversionActionCategories) ? client.conversionActionCategories : [];
+  for (const category of configured) {
+    addDelimitedActions(actions, category?.actions);
+  }
+  addDelimitedActions(actions, client.dashboardConversionActions);
+  addDelimitedActions(actions, client.phoneCallConversionActions);
+  addDelimitedActions(actions, client.formSubmitConversionActions);
+  return Array.from(actions).join(",");
+}
+
+function conversionActionCategoriesForClient(client: ClientAccountRecord): string {
+  const categories: Array<{ label: string; color: string; actions: string[] }> = [];
+  const configured = Array.isArray(client.conversionActionCategories) ? client.conversionActionCategories : [];
+  for (const category of configured) {
+    const label = String(category?.label ?? "").trim();
+    const actions = splitActions(category?.actions);
+    if (label && actions.length > 0) {
+      categories.push({ label, color: String(category?.color ?? "sky"), actions });
+    }
+  }
+  if (categories.length === 0) {
+    const phone = splitActions(client.phoneCallConversionActions);
+    const form = splitActions(client.formSubmitConversionActions);
+    if (phone.length > 0) categories.push({ label: "Phone Calls", color: "sky", actions: phone });
+    if (form.length > 0) categories.push({ label: "Form Submits", color: "violet", actions: form });
+  }
+  return categories.length > 0 ? JSON.stringify(categories) : "";
+}
+
+function addDelimitedActions(target: Set<string>, raw: unknown): void {
+  for (const action of splitActions(raw)) target.add(action);
+}
+
+function splitActions(raw: unknown): string[] {
+  return String(raw ?? "")
+    .split(/[\r\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }

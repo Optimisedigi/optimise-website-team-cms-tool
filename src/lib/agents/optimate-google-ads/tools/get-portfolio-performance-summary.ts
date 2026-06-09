@@ -19,6 +19,8 @@ interface MetricRaw {
   impressions?: number;
   clicks?: number;
   conversions?: number;
+  conversionsByAction?: Record<string, number>;
+  conversionsByCategory?: Record<string, number>;
 }
 
 interface MetricsEnvelope {
@@ -30,7 +32,7 @@ const MAX_ACCOUNTS = 10;
 export const getPortfolioPerformanceSummary: CanonicalTool<PerformanceSummaryArgs> = {
   name: "get_portfolio_performance_summary",
   description:
-    "Read-only compact portfolio performance summary. Args: accountRefs (audit ids/client refs from inventory), range (default LAST_30_DAYS), sortBy ('spend'|'conversions'|'cpa'|'name', default spend), limit (max 10). Returns account-level totals only plus partial failures. Does not expose raw customer ids.",
+    "Read-only compact portfolio performance summary. Args: accountRefs (audit ids/client refs from inventory), range (default LAST_30_DAYS), sortBy ('spend'|'conversions'|'cpa'|'name', default spend), limit (max 10). Returns account-level totals, conversionsByAction, conversionsByCategory, and partial failures. Does not expose raw customer ids.",
   inputSchema: {
     type: "object",
     properties: {
@@ -79,7 +81,7 @@ export const getPortfolioPerformanceSummary: CanonicalTool<PerformanceSummaryArg
         rangeLabel: resolved.label,
         analysedCount: selected.length,
         capped: selected.length < accountsMatchingRefs(allAccounts, args.accountRefs).length,
-        conversionScopeNote: "Portfolio summary uses Growth Tools default conversion scope for each account unless the upstream account has saved conversion settings.",
+        conversionScopeNote: "Portfolio summary passes each client's CMS conversion actions and conversion action categories to Growth Tools when configured, so conversionsByAction and conversionsByCategory can be returned per account.",
         accounts: rows,
       },
     };
@@ -103,6 +105,8 @@ function accountsMatchingRefs(accounts: PortfolioAccount[], refs: Array<string |
 
 async function fetchAccountSummary(account: PortfolioAccount, dateRange: string) {
   const qs = new URLSearchParams({ customerId: customerKey(account.customerId), dateRange });
+  if (account.conversionActions) qs.set("conversionActions", account.conversionActions);
+  if (account.conversionActionCategories) qs.set("conversionActionCategories", account.conversionActionCategories);
   const res = await growthToolsGet<MetricsEnvelope>(`/api/google-ads/campaign-budgets/get-metrics?${qs.toString()}`, 30_000);
   if (!res.ok) {
     return {
@@ -120,6 +124,8 @@ async function fetchAccountSummary(account: PortfolioAccount, dateRange: string)
     clicks: number;
     impressions: number;
     activeCampaigns: number;
+    conversionsByAction: Record<string, number>;
+    conversionsByCategory: Record<string, number>;
   }>(
     (acc, row) => {
       const spend = Number(row.cost ?? row.spend ?? 0);
@@ -128,10 +134,12 @@ async function fetchAccountSummary(account: PortfolioAccount, dateRange: string)
       acc.conversions += Number.isFinite(conversions) ? conversions : 0;
       acc.clicks += Number(row.clicks ?? 0);
       acc.impressions += Number(row.impressions ?? 0);
+      mergeBreakdown(acc.conversionsByAction, row.conversionsByAction);
+      mergeBreakdown(acc.conversionsByCategory, row.conversionsByCategory);
       if (String(row.status ?? "").toUpperCase() === "ENABLED") acc.activeCampaigns += 1;
       return acc;
     },
-    { spend: 0, conversions: 0, clicks: 0, impressions: 0, activeCampaigns: 0 },
+    { spend: 0, conversions: 0, clicks: 0, impressions: 0, activeCampaigns: 0, conversionsByAction: {}, conversionsByCategory: {} },
   );
   return {
     accountRef: account.accountRef,
@@ -140,6 +148,10 @@ async function fetchAccountSummary(account: PortfolioAccount, dateRange: string)
     maskedCustomerId: account.maskedCustomerId,
     spend: round2(totals.spend),
     conversions: round2(totals.conversions),
+    conversionsByAction: emptyToNull(totals.conversionsByAction),
+    conversionsByCategory: emptyToNull(totals.conversionsByCategory),
+    conversionActionsConfigured: Boolean(account.conversionActions),
+    conversionCategoriesConfigured: Boolean(account.conversionActionCategories),
     cpa: totals.conversions > 0 ? round2(totals.spend / totals.conversions) : null,
     clicks: totals.clicks,
     impressions: totals.impressions,
@@ -159,6 +171,19 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, fn: (it
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
   return results;
+}
+
+function mergeBreakdown(target: Record<string, number>, value: unknown): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    const amount = Number(raw ?? 0);
+    if (!key.trim() || !Number.isFinite(amount) || amount === 0) continue;
+    target[key] = round2((target[key] ?? 0) + amount);
+  }
+}
+
+function emptyToNull(value: Record<string, number>): Record<string, number> | null {
+  return Object.keys(value).length > 0 ? value : null;
 }
 
 function round2(n: number): number {

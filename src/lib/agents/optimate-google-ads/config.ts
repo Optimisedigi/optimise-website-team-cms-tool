@@ -294,11 +294,11 @@ const ATTACHED_EMAIL_GUIDE = `If the user's message starts with "--- Attached em
 
 const PORTFOLIO_TOOL_GUIDE = `PORTFOLIO MODE, compact cross-account tools:
 - get_portfolio_account_inventory(status?, limit?, query?): read-only account roster. Use this first whenever account scope is unclear. It returns bounded rows with accountRef, clientId, display name, masked customer id, source, active/managed flag, last audit update, monthly spend when stored, and truncated when capped.
-- get_portfolio_performance_summary(accountRefs?, range?, sortBy?, limit?): read-only account-level totals only. Use explicit accountRefs when possible. If omitted, it analyses a capped top-managed subset and tells you which accounts were analysed. Cite this tool for portfolio spend, conversions, CPA, clicks, impressions, active campaigns, and partial failures.
+- get_portfolio_performance_summary(accountRefs?, range?, sortBy?, limit?): read-only account-level totals with conversionsByAction and conversionsByCategory when the client has CMS conversion settings. Use explicit accountRefs when possible. If omitted, it analyses a capped top-managed subset and tells you which accounts were analysed. Cite this tool for portfolio spend, conversions, CPA, conversion action/category breakdowns, clicks, impressions, active campaigns, and partial failures.
 - get_portfolio_search_term_wastage(accountRefs?, range?, minSpend?, limitPerAccount?, totalLimit?): read-only compact wastage evidence. It aggregates zero-conversion spend, top terms, patterns, candidate counts, and partial failures. It never proposes negatives.
 - get_selected_client_details(accountRefs?, fields?, limit?): read-only CMS client details for selected accounts. Use this for client start dates, Google Ads start dates, contact/commercial details, notes, or account timeline/history.
 - get_portfolio_weekly_metric_table(accountRefs?, weeks?, endDate?, metrics): weekly rows for selected accounts, fetched one account at a time. Use this for 10-week/weekly/week-by-week performance questions.
-- get_portfolio_monthly_performance_breakdown(accountRefs?, startMonth?, endMonth?): monthly rows for selected accounts, fetched one account at a time. Use this for Jan-May/month-by-month performance and lead-type/conversion-action tables.
+- get_portfolio_monthly_performance_breakdown(accountRefs?, startMonth?, endMonth?): monthly rows for selected accounts, fetched one account at a time, including conversionsByAction and conversionsByCategory when configured. Use this for Jan-May/month-by-month performance and lead-type/conversion-action/category tables.
 
 Portfolio operating rules:
 1. You are analysing the Google Ads portfolio, not one account.
