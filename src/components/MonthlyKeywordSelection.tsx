@@ -619,17 +619,56 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   }, [])
   const pendingEditCount = Object.keys(pendingRowEdits).length
 
-  // Apply every pending Submitted-negatives edit in one pass. No comment prompt —
-  // use the per-row "Update list" button when a specific teaching note is wanted.
+  // Rows ticked for removal via their checkbox. "Update all" removes these (no
+  // comment) alongside applying every pending keyword/match/list edit. Use a
+  // row's own Remove button when a specific removal note is wanted.
+  const [pendingRemovals, setPendingRemovals] = useState<Set<string>>(new Set())
+  const toggleRowRemoval = useCallback((key: string, marked: boolean) => {
+    setPendingRemovals((current) => {
+      if (marked === current.has(key)) return current
+      const next = new Set(current)
+      if (marked) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }, [])
+  const removalCount = pendingRemovals.size
+  // A removal-marked row reports a null edit, so edits and removals never double
+  // count. The button acts on the sum of both.
+  const pendingActionCount = pendingEditCount + removalCount
+
+  // Apply every pending Submitted-negatives edit and removal in one pass. No
+  // comment prompt — use a row's own Update list / Remove button when a specific
+  // teaching note is wanted.
   const [updatingAll, setUpdatingAll] = useState(false)
   const updateAllSubmitted = useCallback(async () => {
-    const entries = Object.entries(pendingRowEdits)
-    if (entries.length === 0) return
+    const editEntries = Object.entries(pendingRowEdits).filter(([key]) => !pendingRemovals.has(key))
+    const removalKeys = Array.from(pendingRemovals)
+    if (editEntries.length === 0 && removalKeys.length === 0) return
     setUpdatingAll(true)
-    let ok = 0
+    let updated = 0
+    let removed = 0
     let failed = 0
     try {
-      for (const [key, edit] of entries) {
+      for (const key of removalKeys) {
+        const item = selections[key]
+        if (!item) continue
+        const res = await fetch('/api/monthly-keyword-selection/revise', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            clientId: Number(clientId),
+            yearMonth: item.yearMonth,
+            searchTerm: item.searchTerm,
+            rowIndex: Number(item.rowIndex ?? 0),
+            action: 'remove',
+          }),
+        })
+        if (res.ok) removed += 1
+        else failed += 1
+      }
+      for (const [key, edit] of editEntries) {
         const item = selections[key]
         if (!item) continue
         const res = await fetch('/api/monthly-keyword-selection/revise', {
@@ -647,16 +686,21 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
             ...(edit.newNklId != null ? { newNklId: edit.newNklId } : {}),
           }),
         })
-        if (res.ok) ok += 1
+        if (res.ok) updated += 1
         else failed += 1
       }
       setPendingRowEdits({})
-      setMessage(failed === 0 ? `Updated ${ok} negative${ok === 1 ? '' : 's'}.` : `Updated ${ok} negative${ok === 1 ? '' : 's'} · ${failed} failed.`)
+      setPendingRemovals(new Set())
+      const parts: string[] = []
+      if (updated > 0) parts.push(`updated ${updated}`)
+      if (removed > 0) parts.push(`removed ${removed}`)
+      const summary = parts.length > 0 ? parts.join(' · ') : 'no changes'
+      setMessage(failed === 0 ? `Done — ${summary}.` : `Done — ${summary} · ${failed} failed.`)
       await Promise.all([load(), loadNkls()])
     } finally {
       setUpdatingAll(false)
     }
-  }, [pendingRowEdits, selections, clientId, load, loadNkls])
+  }, [pendingRowEdits, pendingRemovals, selections, clientId, load, loadNkls])
 
   const saveComment = useCallback(async (
     item: Selection,
@@ -893,15 +937,15 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         <div style={{ display: 'grid', gap: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--theme-elevation-600)', flex: '1 1 320px' }}>
-              Every negative keyword that was applied to a list, grouped by review month. Edit the keyword — wrap it in <strong>'single quotes'</strong> for a phrase match, leave it bare for exact — and press <strong>Update list</strong> (with an optional note), or <strong>Remove</strong> it from the list if it shouldn’t have been added.
+              Every negative keyword that was applied to a list, grouped by review month. Edit the keyword — wrap it in <strong>'single quotes'</strong> for a phrase match, leave it bare for exact — change its list, or tick <strong>Remove</strong>, then press <strong>Update all</strong> to apply every edit and removal at once (no note). Use a row's own <strong>Update list</strong> / <strong>Remove</strong> button when you want to add a comment for that negative.
             </p>
             <button
               type="button"
               onClick={updateAllSubmitted}
-              disabled={pendingEditCount === 0 || updatingAll}
-              title="Apply every pending edit at once. No note is recorded — use a row's Update list button when you want to add a comment for that negative."
-              style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', flex: '0 0 auto', color: pendingEditCount > 0 ? '#fff' : undefined, background: pendingEditCount > 0 ? '#0f766e' : undefined, borderColor: pendingEditCount > 0 ? '#0f766e' : undefined }}
-            >{updatingAll ? 'Updating…' : `Update all${pendingEditCount > 0 ? ` (${pendingEditCount})` : ''}`}</button>
+              disabled={pendingActionCount === 0 || updatingAll}
+              title="Apply every pending edit and ticked removal at once. No note is recorded — use a row's Update list / Remove button when you want to add a comment."
+              style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', flex: '0 0 auto', color: pendingActionCount > 0 ? '#fff' : undefined, background: pendingActionCount > 0 ? '#0f766e' : undefined, borderColor: pendingActionCount > 0 ? '#0f766e' : undefined }}
+            >{updatingAll ? 'Updating…' : `Update all${pendingActionCount > 0 ? ` (${pendingActionCount})` : ''}`}</button>
           </div>
           {submittedByMonth.map(({ month, items }) => (
             <section key={month} style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 10, overflow: 'hidden' }}>
@@ -919,6 +963,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     onRemove={(comment) => reviseSubmitted(item, 'remove', comment ? { comment } : undefined)}
                     onUpdate={(newKeyword, newMatchType, newNklId, comment) => reviseSubmitted(item, 'update', { newKeyword, newMatchType, ...(newNklId != null ? { newNklId } : {}), ...(comment ? { comment } : {}) }, newNklId != null)}
                     onDirtyChange={registerRowEdit}
+                    markedForRemoval={pendingRemovals.has(selectionKey(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0)))}
+                    onToggleRemove={toggleRowRemoval}
                   />
                 ))}
               </div>
@@ -1358,7 +1404,7 @@ function NeedsReviewRow({ item, nkls, teammates, onSetTarget, onWatch, onDismiss
   )
 }
 
-function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyChange }: {
+function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyChange, markedForRemoval, onToggleRemove }: {
   item: Selection
   nklId: number | string | null
   nklName: string
@@ -1366,6 +1412,8 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
   onRemove: (comment?: string) => Promise<void>
   onUpdate: (newKeyword: string, newMatchType: MatchType, newNklId: number | string | null, comment?: string) => Promise<void>
   onDirtyChange: (key: string, edit: { newKeyword: string; newMatchType: MatchType; newNklId: number | string | null } | null) => void
+  markedForRemoval: boolean
+  onToggleRemove: (key: string, marked: boolean) => void
 }) {
   // Single input drives both keyword text and match type, mirroring the Monthly
   // review tab: bare word = exact, 'word' = phrase. The resolved match type is
@@ -1383,13 +1431,15 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
   // "Update all" button can apply every change at once without a comment prompt.
   const rowKey = selectionKey(item.yearMonth, item.searchTerm, Number(item.rowIndex ?? 0))
   useEffect(() => {
-    if (dirty && keyword.trim()) {
+    // A row ticked for removal reports no edit so removals and edits never
+    // double-count in the bulk action.
+    if (!markedForRemoval && dirty && keyword.trim()) {
       onDirtyChange(rowKey, { newKeyword: keyword.trim(), newMatchType: matchType as MatchType, newNklId: listChanged ? targetNklId : null })
     } else {
       onDirtyChange(rowKey, null)
     }
     return () => onDirtyChange(rowKey, null)
-  }, [rowKey, dirty, keyword, matchType, listChanged, targetNklId, onDirtyChange])
+  }, [rowKey, markedForRemoval, dirty, keyword, matchType, listChanged, targetNklId, onDirtyChange])
 
   const handleUpdate = async (): Promise<void> => {
     if (!keyword.trim()) return
@@ -1422,7 +1472,7 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
   // lines up on one centre line regardless of the taller search-term cell.
   const captionSpacer = <span style={{ fontSize: 10, lineHeight: '14px', visibility: 'hidden' }}>.</span>
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px 240px auto', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px 240px 92px auto', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: markedForRemoval ? '#fff7f7' : 'var(--theme-elevation-0)', border: markedForRemoval ? '1px solid #fecaca' : '1px solid var(--theme-elevation-100)' }}>
       <div>
         <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Search term</div>
         <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
@@ -1431,18 +1481,20 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
       <div style={{ display: 'grid', gap: 2 }}>
         <input
           value={input}
+          disabled={markedForRemoval}
           onChange={(event) => setInput(event.target.value)}
           title="Type the negative keyword. Wrap it in 'single quotes' for a phrase match; leave bare for an exact match."
-          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12 }}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, textDecoration: markedForRemoval ? 'line-through' : undefined, opacity: markedForRemoval ? 0.6 : 1 }}
         />
         <span style={{ fontSize: 10, lineHeight: '14px', color: '#0369a1' }}>{matchTypeLabel(matchType)}</span>
       </div>
       <div style={{ display: 'grid', gap: 2 }}>
         <select
           value={targetNklId}
+          disabled={markedForRemoval}
           onChange={(event) => setTargetNklId(event.target.value)}
           title="Move this negative to a different list"
-          style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '6px 7px', borderColor: listChanged ? '#0f766e' : undefined }}
+          style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '6px 7px', borderColor: listChanged ? '#0f766e' : undefined, opacity: markedForRemoval ? 0.6 : 1 }}
         >
           {nklId != null && !nkls.some((nkl) => String(nkl.id) === String(nklId)) && (
             <option value={String(nklId)}>{nklName}</option>
@@ -1452,9 +1504,16 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
         {captionSpacer}
       </div>
       <div style={{ display: 'grid', gap: 2 }}>
+        <label title="Tick to remove this negative from its list when you press Update all (no note recorded)." style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', color: markedForRemoval ? '#b91c1c' : 'var(--theme-elevation-600)' }}>
+          <input type="checkbox" checked={markedForRemoval} onChange={(event) => onToggleRemove(rowKey, event.target.checked)} />
+          Remove
+        </label>
+        {captionSpacer}
+      </div>
+      <div style={{ display: 'grid', gap: 2 }}>
         <div style={{ display: 'flex', gap: 6, whiteSpace: 'nowrap' }}>
-          <button type="button" onClick={handleUpdate} disabled={!dirty || busy} title="Save keyword/match-type edits and move the negative if a different list is selected" style={{ padding: '6px 10px', fontSize: 11 }}>{listChanged ? 'Update & move' : 'Update list'}</button>
-          <button type="button" onClick={handleRemove} disabled={busy} style={{ padding: '6px 10px', fontSize: 11, color: '#b91c1c', borderColor: '#fecaca', background: '#fff7f7' }}>Remove</button>
+          <button type="button" onClick={handleUpdate} disabled={!dirty || busy || markedForRemoval} title="Save keyword/match-type edits and move the negative if a different list is selected" style={{ padding: '6px 10px', fontSize: 11 }}>{listChanged ? 'Update & move' : 'Update list'}</button>
+          <button type="button" onClick={handleRemove} disabled={busy || markedForRemoval} title="Remove this negative now with an optional note" style={{ padding: '6px 10px', fontSize: 11, color: '#b91c1c', borderColor: '#fecaca', background: '#fff7f7' }}>Remove</button>
         </div>
         {captionSpacer}
       </div>
