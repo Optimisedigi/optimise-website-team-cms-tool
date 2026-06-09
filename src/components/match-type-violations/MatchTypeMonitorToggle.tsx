@@ -1,27 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import type { FieldBase } from 'payload'
+import { useField } from '@payloadcms/ui'
+import type { CheckboxFieldClientComponent } from 'payload'
 
-interface Props {
-  field: FieldBase & { admin?: { description?: string } }
-  path: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  label?: any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  value?: any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onChange?: (val: any) => void
-}
-
-export default function MatchTypeMonitorToggle({ field, path, label, value, onChange }: Props) {
+const MatchTypeMonitorToggle: CheckboxFieldClientComponent = (props) => {
+  const { field, path: pathFromProps, readOnly } = props
+  const { path, value, setValue } = useField<boolean>({ path: pathFromProps })
   const [tooltip, setTooltip] = useState(false)
 
   const tooltipText =
     'Runs daily ~17:00 UTC. Flags Exact and Phrase keywords that served non-conforming search terms. Review candidates in Growth Tools → Match Type Violation Candidates.'
 
   const labelText =
-    typeof label === 'string' ? label : (typeof field.label === 'string' ? field.label : 'Match Type Monitor')
+    typeof field?.label === 'string' ? field.label : 'Match Type Monitor'
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, paddingTop: 2 }}>
@@ -30,8 +22,9 @@ export default function MatchTypeMonitorToggle({ field, path, label, value, onCh
         id={`field-${path}`}
         type="checkbox"
         checked={!!value}
-        onChange={(e) => onChange?.(e.target.checked)}
-        style={{ marginTop: 2, cursor: 'pointer', width: 16, height: 16 }}
+        disabled={readOnly}
+        onChange={(e) => setValue(e.target.checked)}
+        style={{ marginTop: 2, cursor: readOnly ? 'not-allowed' : 'pointer', width: 16, height: 16 }}
       />
       <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -84,7 +77,7 @@ export default function MatchTypeMonitorToggle({ field, path, label, value, onCh
             {tooltipText}
           </div>
         )}
-        {field.admin?.description && !tooltip && (
+        {field?.admin?.description && typeof field.admin.description === 'string' && !tooltip && (
           <p style={{ margin: '3px 0 0', color: '#6b7280', fontSize: 12, lineHeight: 1.5 }}>
             {field.admin.description}
           </p>
@@ -93,3 +86,5 @@ export default function MatchTypeMonitorToggle({ field, path, label, value, onCh
     </div>
   )
 }
+
+export default MatchTypeMonitorToggle
