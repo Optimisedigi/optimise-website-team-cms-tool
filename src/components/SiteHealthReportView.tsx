@@ -29,12 +29,18 @@ interface PageSummary {
   h1Text: string | null
   imagesTotal: number
   imagesWithoutAlt: number
-  internalLinks: number
-  externalLinks: number
+  internalLinks?: number
+  externalLinks?: number
+  internalLinksCount?: number
+  externalLinksCount?: number
   wordCount: number
-  isIndexable: boolean
+  isNoIndex?: boolean
+  inSitemap?: boolean
   schemaTypes: string[]
   linkDepth: number
+  googleIndexStatus?: 'indexed' | 'not_indexed' | 'error' | 'unknown' | 'not_checked'
+  googleIndexDetails?: string
+  lastCrawledByGoogle?: string | null
 }
 
 interface CategoryCounts {
@@ -122,6 +128,36 @@ function CheckIcon({ ok }: { ok: boolean }) {
       fontSize: 12, fontWeight: 700, textAlign: 'center', lineHeight: '18px',
     }}>
       {ok ? '\u2713' : '\u2717'}
+    </span>
+  )
+}
+
+function GoogleIndexBadge({ status, details }: { status?: PageSummary['googleIndexStatus']; details?: string }) {
+  const label = status === 'indexed'
+    ? 'Indexed'
+    : status === 'not_indexed'
+      ? 'Not indexed'
+      : status === 'error'
+        ? 'Error'
+        : status === 'unknown'
+          ? 'Unknown'
+          : 'Not checked'
+  const color = status === 'indexed'
+    ? { bg: '#dcfce7', text: '#16a34a', border: '#86efac' }
+    : status === 'not_indexed' || status === 'error'
+      ? { bg: '#fee2e2', text: '#dc2626', border: '#fca5a5' }
+      : { bg: '#f3f4f6', text: '#6b7280', border: '#d1d5db' }
+
+  return (
+    <span
+      title={details || label}
+      style={{
+        display: 'inline-block', padding: '2px 7px', borderRadius: 999,
+        background: color.bg, color: color.text, border: `1px solid ${color.border}`,
+        fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
     </span>
   )
 }
@@ -318,7 +354,9 @@ const SiteHealthReportView = () => {
                   <th style={{ ...thStyle, width: 40 }}>OG</th>
                   <th style={{ ...thStyle, width: 50 }}>Images</th>
                   <th style={{ ...thStyle, width: 50 }}>Links</th>
-                  <th style={{ ...thStyle, width: 50 }}>Index</th>
+                  <th style={{ ...thStyle, width: 70 }}>Link Issues</th>
+                  <th style={{ ...thStyle, width: 70 }}>Indexable</th>
+                  <th style={{ ...thStyle, width: 100 }}>Google Index</th>
                   <th style={{ ...thStyle, width: 50 }}>Depth</th>
                 </tr>
               </thead>
@@ -327,6 +365,18 @@ const SiteHealthReportView = () => {
                   const titleOk = page.titleLength > 0 && page.titleLength <= 60
                   const metaOk = page.metaDescriptionLength > 0 && page.metaDescriptionLength <= 160
                   const hasAllOg = page.hasOgTitle && page.hasOgDescription && page.hasOgImage
+                  const internalLinks = page.internalLinksCount ?? page.internalLinks ?? 0
+                  const externalLinks = page.externalLinksCount ?? page.externalLinks ?? 0
+                  const linkIssueCount = issues?.filter((issue) => (
+                    issue.url === page.url &&
+                    (issue.category === 'Links' || issue.category === 'External Links' || issue.category === 'Redirects')
+                  )).length ?? 0
+                  const technicallyIndexable = page.statusCode >= 200 && page.statusCode < 300 && page.isNoIndex !== true
+                  const indexableTitle = technicallyIndexable
+                    ? 'Technically indexable: successful status and no noindex directive found'
+                    : page.isNoIndex
+                      ? 'Not technically indexable: page has a noindex directive'
+                      : `Not technically indexable: status ${page.statusCode}`
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
                       <td style={{ ...tdStyle, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={page.url}>
@@ -352,8 +402,12 @@ const SiteHealthReportView = () => {
                           <span style={{ color: '#dc2626', marginLeft: 2 }}>({page.imagesWithoutAlt})</span>
                         )}
                       </td>
-                      <td style={tdStyle}>{page.internalLinks}/{page.externalLinks}</td>
-                      <td style={tdStyle}><CheckIcon ok={page.isIndexable} /></td>
+                      <td style={tdStyle}>{internalLinks}/{externalLinks}</td>
+                      <td style={tdStyle} title="Broken internal links, redirect-chain links, and other link issues reported for this source page">
+                        <span style={{ color: linkIssueCount > 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>{linkIssueCount}</span>
+                      </td>
+                      <td style={tdStyle} title={indexableTitle}><CheckIcon ok={technicallyIndexable} /></td>
+                      <td style={tdStyle}><GoogleIndexBadge status={page.googleIndexStatus} details={page.googleIndexDetails} /></td>
                       <td style={tdStyle}>{page.linkDepth}</td>
                     </tr>
                   )
@@ -362,7 +416,7 @@ const SiteHealthReportView = () => {
             </table>
           </div>
           <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>
-            Title/Meta Desc = character count (green if within limits). Images = total (missing alt). Links = internal/external. Depth = clicks from homepage.
+            Title/Meta Desc = character count (green if within limits). Images = total (missing alt). Links = internal/external. Link Issues = broken internal links, redirects, and other source-page link issues. Indexable = technically crawlable/indexable (no noindex). Google Index = Search Console status. Depth = clicks from homepage.
           </div>
         </div>
       )}

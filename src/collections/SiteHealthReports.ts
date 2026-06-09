@@ -59,13 +59,13 @@ export const SiteHealthReports: CollectionConfig = {
         { label: "Failed", value: "failed" },
       ],
       defaultValue: "pending",
-      admin: { position: "sidebar" },
+      admin: { hidden: true },
     },
     {
       name: "auditProgress",
       type: "text",
       admin: {
-        position: "sidebar",
+        hidden: true,
         description: "Stage|percentage format",
         readOnly: true,
       },
@@ -74,7 +74,7 @@ export const SiteHealthReports: CollectionConfig = {
       name: "auditError",
       type: "text",
       admin: {
-        position: "sidebar",
+        hidden: true,
         readOnly: true,
       },
     },
