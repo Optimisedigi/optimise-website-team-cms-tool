@@ -950,11 +950,11 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     + (item.taggedLabels.length > 0 ? ` · tagged ${item.taggedLabels.map((l) => `@${l}`).join(', ')}` : '')
                   const negativeLabel = item.type === 'Added' ? 'Negative keyword added:'
                     : item.type === 'Updated' ? 'Updated negative keyword:'
-                    : 'Negative:'
+                    : 'Negative keyword:'
                   return (
                   <div
                     key={item.key}
-                    style={{ display: 'grid', gap: 4, padding: '6px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}
+                    style={{ display: 'grid', gap: 4, padding: '6px 10px', borderRadius: 6, background: 'var(--theme-elevation-100)', border: '1px solid var(--theme-elevation-200)' }}
                   >
                     {/* Top row: type pill(s) + search term on the left; the
                         resulting negative, its 'keyword changed' flag and the
@@ -996,7 +996,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                       {item.comment
                         ? (
-                          <div style={{ flex: '1 1 320px', fontSize: 13, padding: '6px 9px', borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-800)' }}>
+                          <div style={{ flex: '1 1 320px', fontSize: 13, padding: '6px 9px', borderRadius: 6, background: '#fff', border: '1px solid #000', color: 'var(--theme-elevation-800)' }}>
                             <strong>Comment:</strong> {item.comment}
                           </div>
                         )
