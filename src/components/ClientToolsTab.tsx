@@ -273,7 +273,16 @@ function ClientToolsTab() {
     if (typeof window === 'undefined') return
     let cancelled = false
     const params = new URLSearchParams(window.location.search)
-    if (params.get('ga4_connected') === '1') {
+    const ga4Error = params.get('ga4_error')
+    if (ga4Error) {
+      setResults((prev) => ({
+        ...prev,
+        ga4: {
+          status: 'error',
+          message: decodeURIComponent(ga4Error),
+        },
+      }))
+    } else if (params.get('ga4_connected') === '1') {
       dispatchFields({ path: 'ga4Connected', type: 'UPDATE', value: true })
       setOauthConnectedOverride((prev) => ({ ...prev, ga4: true }))
       setResults((prev) => ({
@@ -414,7 +423,7 @@ function ClientToolsTab() {
             label: connected ? 'Reconnect' : 'Connect',
             onClick: () => connectOAuth(key),
             variant: 'primary',
-            disabled: !clientId,
+            disabled: !clientId || (key === 'ga4' && !hasId),
           },
         ]
         if (connected) {
