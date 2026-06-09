@@ -948,6 +948,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                   const attribution = `By ${item.by}${item.at ? ` on ${new Date(item.at).toLocaleDateString()}` : ''}`
                     + (item.originalHandler ? ` · originally ${item.originalAction} by ${item.originalHandler}` : '')
                     + (item.taggedLabels.length > 0 ? ` · tagged ${item.taggedLabels.map((l) => `@${l}`).join(', ')}` : '')
+                  const negativeLabel = item.type === 'Added' ? 'Negative keyword added:'
+                    : item.type === 'Updated' ? 'Updated negative keyword:'
+                    : 'Negative:'
                   return (
                   <div
                     key={item.key}
@@ -964,26 +967,28 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                         })}
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</span>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>Negative: </span>
-                          <span style={{ fontWeight: 600, fontSize: 13 }}>{item.negativeKeyword} <span style={{ color: 'var(--theme-elevation-500)', fontWeight: 400 }}>({matchTypeLabel(item.matchType)})</span></span>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>{negativeLabel} </span>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{item.negativeKeyword} <span style={{ color: 'var(--theme-elevation-500)', fontWeight: 400 }}>({matchTypeLabel(item.matchType)})</span></span>
+                      </div>
+                    </div>
+                    {/* Second row: where it was added / moved to (with the
+                        'moved to a new NKL' flag) on the left; the 'negative
+                        keyword changed' flag + match/keyword before→after on the
+                        right. */}
+                    {(item.listDetail || item.moved || item.keywordChanged) && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                          {item.listDetail && <span style={{ fontSize: 12, color: 'var(--theme-elevation-600)' }}>{item.listDetail}</span>}
+                          {item.moved && (
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: '#fee2e2', color: '#dc2626' }}>Moved to a new NKL</span>
+                          )}
                         </div>
                         {item.keywordChanged && (
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: '#fee2e2', color: '#dc2626' }}>Negative keyword changed</span>
                             {item.changeDetail && <span style={{ fontSize: 11, color: 'var(--theme-elevation-600)' }}>{item.changeDetail}</span>}
                           </div>
-                        )}
-                      </div>
-                    </div>
-                    {/* Bottom-left list row: where it was added / moved to, with
-                        the 'moved to a new NKL' flag beside the destination. */}
-                    {(item.listDetail || item.moved) && (
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                        {item.listDetail && <span style={{ fontSize: 12, color: 'var(--theme-elevation-600)' }}>{item.listDetail}</span>}
-                        {item.moved && (
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: '#fee2e2', color: '#dc2626' }}>Moved to a new NKL</span>
                         )}
                       </div>
                     )}
