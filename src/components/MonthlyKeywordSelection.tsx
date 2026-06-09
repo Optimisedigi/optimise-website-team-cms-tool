@@ -456,7 +456,11 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       negativeKeyword: string
       matchType: MatchType
       type: OutcomeKind
-      detail: string
+      pills: OutcomeKind[]
+      // detail split for placement: list move/target on the bottom-left, the
+      // keyword/match-type before→after on the top-right next to the negative.
+      listDetail: string
+      changeDetail: string
       comment: string
       by: string
       at: string
@@ -487,6 +491,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         negativeKeyword: selection.negativeKeyword,
         matchType: selection.matchType,
         at: newest.at,
+        pills: [] as OutcomeKind[],
+        listDetail: '',
+        changeDetail: '',
         taggedLabels: [] as string[],
         keywordChanged: false,
         moved: false,
@@ -494,26 +501,42 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       if (newest.source === 'outcome') {
         const type = typeFromOutcome(selection.outcomeType)
         const detail = selection.outcomeDetail || ''
-        // An Updated outcome is only logged when the keyword/match type changed
-        // in place. A Moved outcome always changed list; it *also* changed the
-        // keyword when the detail carries a second → (the list move is the first).
-        const arrowCount = (detail.match(/→/g) || []).length
+        // Server detail is ' · '-joined segments. For a move the first segment is
+        // the list change ("List A → List B"); any following segments are the
+        // keyword/match-type before→after. For an in-place update every segment
+        // is a keyword/match change. For an add the whole string is list info.
+        const segments = detail.split(' · ').map((s) => s.trim()).filter(Boolean)
+        let listDetail = ''
+        let changeDetail = ''
+        if (type === 'Moved') {
+          listDetail = segments[0] || ''
+          changeDetail = segments.slice(1).join(' · ')
+        } else if (type === 'Updated') {
+          changeDetail = segments.join(' · ')
+        } else {
+          listDetail = detail
+        }
+        const keywordChanged = type === 'Updated' || (type === 'Moved' && changeDetail.length > 0)
+        const moved = type === 'Moved'
         entry = {
           ...base,
           type,
-          detail,
+          // Show both pills when a move also changed the keyword/match type.
+          pills: moved && keywordChanged ? ['Moved', 'Updated'] : [type],
+          listDetail,
+          changeDetail,
           comment: selection.outcomeComment || '',
           by: selection.outcomeBy || 'someone',
           originalHandler: type === 'Added' ? (selection.decidedBy || '') : (selection.appliedBy || ''),
           originalAction: type === 'Added' ? 'flagged' : 'submitted',
-          keywordChanged: type === 'Updated' || (type === 'Moved' && arrowCount > 1),
-          moved: type === 'Moved',
+          keywordChanged,
+          moved,
         }
       } else if (newest.source === 'removed') {
         entry = {
           ...base,
           type: 'Removed',
-          detail: '',
+          pills: ['Removed'],
           comment: selection.removedComment || '',
           by: selection.removedBy || 'someone',
           originalHandler: selection.appliedBy || '',
@@ -524,7 +547,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
         entry = {
           ...base,
           type: 'Dismissed',
-          detail: '',
+          pills: ['Dismissed'],
           comment: selection.reviewComment || '',
           by: selection.reviewDismissedBy || 'someone',
           originalHandler: selection.decidedBy || '',
@@ -920,40 +943,58 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
               </div>
               <div style={{ display: 'grid', gap: 5, padding: 10 }}>
                 {items.map((item) => {
-                  const pill = OUTCOME_PILL[item.type]
+                  const attribution = `By ${item.by}${item.at ? ` on ${new Date(item.at).toLocaleDateString()}` : ''}`
+                    + (item.originalHandler ? ` · originally ${item.originalAction} by ${item.originalHandler}` : '')
+                    + (item.taggedLabels.length > 0 ? ` · tagged ${item.taggedLabels.map((l) => `@${l}`).join(', ')}` : '')
                   return (
                   <div
                     key={item.key}
-                    style={{ display: 'grid', gap: 3, padding: '6px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}
+                    style={{ display: 'grid', gap: 4, padding: '6px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {/* Top row: type pill(s) + search term on the left; the
+                        resulting negative, its 'keyword changed' flag and the
+                        match/keyword before→after on the right where relevant. */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: pill.bg, color: pill.fg }}>{item.type}</span>
+                        {item.pills.map((p) => {
+                          const pill = OUTCOME_PILL[p]
+                          return <span key={p} style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: pill.bg, color: pill.fg }}>{p}</span>
+                        })}
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</span>
-                        {item.keywordChanged && (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626' }}>Negative keyword changed</span>
-                        )}
-                        {item.moved && (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626' }}>Moved to a new NKL</span>
-                        )}
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>Negative: </span>
-                        <span style={{ fontWeight: 600, fontSize: 13 }}>{item.negativeKeyword} <span style={{ color: 'var(--theme-elevation-500)', fontWeight: 400 }}>({matchTypeLabel(item.matchType)})</span></span>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>Negative: </span>
+                          <span style={{ fontWeight: 600, fontSize: 13 }}>{item.negativeKeyword} <span style={{ color: 'var(--theme-elevation-500)', fontWeight: 400 }}>({matchTypeLabel(item.matchType)})</span></span>
+                        </div>
+                        {item.keywordChanged && (
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: '#fee2e2', color: '#dc2626' }}>Negative keyword changed</span>
+                            {item.changeDetail && <span style={{ fontSize: 11, color: 'var(--theme-elevation-600)' }}>{item.changeDetail}</span>}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {item.detail && (
-                      <div style={{ fontSize: 12, color: 'var(--theme-elevation-600)' }}>{item.detail}</div>
-                    )}
-                    {item.comment && (
-                      <div style={{ fontSize: 13, padding: '6px 9px', borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-800)' }}>
-                        <strong>Comment:</strong> {item.comment}
+                    {/* Bottom-left list row: where it was added / moved to, with
+                        the 'moved to a new NKL' flag beside the destination. */}
+                    {(item.listDetail || item.moved) && (
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {item.listDetail && <span style={{ fontSize: 12, color: 'var(--theme-elevation-600)' }}>{item.listDetail}</span>}
+                        {item.moved && (
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: '#fee2e2', color: '#dc2626' }}>Moved to a new NKL</span>
+                        )}
                       </div>
                     )}
-                    <div style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>
-                      By {item.by}{item.at ? ` on ${new Date(item.at).toLocaleDateString()}` : ''}
-                      {item.originalHandler ? ` · originally ${item.originalAction} by ${item.originalHandler}` : ''}
-                      {item.taggedLabels.length > 0 ? ` · tagged ${item.taggedLabels.map((l) => `@${l}`).join(', ')}` : ''}
+                    {/* Comment (near full width) with attribution on its right. */}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                      {item.comment
+                        ? (
+                          <div style={{ flex: '1 1 320px', fontSize: 13, padding: '6px 9px', borderRadius: 6, background: 'var(--theme-elevation-50)', border: '1px solid var(--theme-elevation-150)', color: 'var(--theme-elevation-800)' }}>
+                            <strong>Comment:</strong> {item.comment}
+                          </div>
+                        )
+                        : <span style={{ flex: '1 1 auto' }} />}
+                      <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)', whiteSpace: 'nowrap', flex: '0 0 auto', textAlign: 'right' }}>{attribution}</span>
                     </div>
                   </div>
                   )
