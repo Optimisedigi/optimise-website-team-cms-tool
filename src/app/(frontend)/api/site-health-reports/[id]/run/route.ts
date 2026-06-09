@@ -52,6 +52,7 @@ export async function POST(
     typeof report.client === "object" ? report.client?.id : report.client;
   let gscSiteUrl: string | undefined;
   let maxPages = 200;
+  let maxGscInspections = 200;
   let checkExternalLinks = false;
 
   if (clientId) {
@@ -64,6 +65,7 @@ export async function POST(
       const c = client as any;
       gscSiteUrl = c.seoAuto?.gscSiteUrl || undefined;
       maxPages = c.seoAuto?.maxPages || 200;
+      maxGscInspections = c.seoAuto?.maxGscInspections || 200;
       checkExternalLinks = c.seoAuto?.checkExternalLinks || false;
     } catch {
       // Client lookup failed — use defaults
@@ -106,6 +108,7 @@ export async function POST(
           siteUrl: siteUrl.trim(),
           gscSiteUrl: gscSiteUrl || undefined,
           maxPages,
+          maxGscInspections,
           checkExternalLinks,
           clientId: clientId ? String(clientId) : undefined,
         }),

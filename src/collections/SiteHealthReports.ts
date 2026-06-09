@@ -230,6 +230,22 @@ export const SiteHealthReports: CollectionConfig = {
                   type: "json",
                   admin: { description: "Array of {url, userCanonical, googleCanonical}" },
                 },
+                {
+                  name: "reasonsBreakdown",
+                  type: "json",
+                  admin: {
+                    description:
+                      "GSC 'Why pages aren't indexed' rollup — array of {reason, count, urls}",
+                  },
+                },
+                {
+                  name: "inspectionMeta",
+                  type: "json",
+                  admin: {
+                    description:
+                      "Coverage metadata: {urlsDiscovered, urlsInspected, cap, truncatedByCap, quotaExhausted, sources}",
+                  },
+                },
               ],
             },
           ],

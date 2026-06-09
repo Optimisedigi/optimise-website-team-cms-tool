@@ -2816,7 +2816,20 @@ export const Clients: CollectionConfig = {
                       max: 500,
                       admin: {
                         description: "Max pages to crawl",
-                        width: "33%",
+                        width: "25%",
+                        condition: (data: any) => data?.seoAuto?.monthlyHealthEnabled,
+                      },
+                    },
+                    {
+                      name: "maxGscInspections",
+                      type: "number",
+                      defaultValue: 200,
+                      min: 10,
+                      max: 2000,
+                      admin: {
+                        description:
+                          "Max GSC index-status checks per run. Caps shared daily quota so one large client can't starve others (Google allows ~2000/day total).",
+                        width: "25%",
                         condition: (data: any) => data?.seoAuto?.monthlyHealthEnabled,
                       },
                     },
@@ -2826,7 +2839,7 @@ export const Clients: CollectionConfig = {
                       defaultValue: false,
                       admin: {
                         description: "Check external links (slower)",
-                        width: "33%",
+                        width: "25%",
                         condition: (data: any) => data?.seoAuto?.monthlyHealthEnabled,
                       },
                     },

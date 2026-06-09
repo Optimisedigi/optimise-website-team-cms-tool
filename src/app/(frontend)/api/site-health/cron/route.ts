@@ -110,6 +110,7 @@ export async function GET(req: NextRequest) {
             siteUrl: siteUrl.trim(),
             gscSiteUrl: c.seoAuto?.gscSiteUrl || undefined,
             maxPages: c.seoAuto?.maxPages || 200,
+            maxGscInspections: c.seoAuto?.maxGscInspections || 200,
             checkExternalLinks: c.seoAuto?.checkExternalLinks || false,
             clientId: String(c.id),
           }),

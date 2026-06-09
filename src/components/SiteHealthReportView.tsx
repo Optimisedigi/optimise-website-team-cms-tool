@@ -49,6 +49,21 @@ interface CategoryCounts {
   notice: number
 }
 
+interface ReasonGroup {
+  reason: string
+  count: number
+  urls: string[]
+}
+
+interface InspectionMeta {
+  urlsDiscovered: number
+  urlsInspected: number
+  cap: number
+  truncatedByCap: boolean
+  quotaExhausted: boolean
+  sources: { searchAnalytics: number; crawl: number }
+}
+
 // ─── Helpers ────────────────────────────────────────────
 
 const severityColor = (s: string) => {
@@ -214,6 +229,9 @@ const SiteHealthReportView = () => {
   }
   const hasGsc = gscData.indexedPages != null || gscData.totalClicks != null
 
+  const reasonsBreakdown = (parseJson(fields?.['gscData.reasonsBreakdown']?.value) as ReasonGroup[] | null) || []
+  const inspectionMeta = parseJson(fields?.['gscData.inspectionMeta']?.value) as InspectionMeta | null
+
   const dateStr = reportDate ? new Date(reportDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }) : ''
   const crawlSecs = crawlStats.crawlDurationMs ? (crawlStats.crawlDurationMs / 1000).toFixed(1) : null
 
@@ -287,6 +305,68 @@ const SiteHealthReportView = () => {
             <MetricCard label="Avg CTR" value={pct(gscData.averageCtr)} />
             <MetricCard label="Avg Position" value={gscData.averagePosition?.toFixed(1) ?? '—'} />
           </div>
+
+          {/* Coverage banner — honest about how complete the index check was */}
+          {inspectionMeta && (
+            <div style={{
+              marginTop: 12, padding: '10px 14px', borderRadius: 8, fontSize: 12,
+              border: `1px solid ${inspectionMeta.quotaExhausted || inspectionMeta.truncatedByCap ? '#fcd34d' : '#bbf7d0'}`,
+              background: inspectionMeta.quotaExhausted || inspectionMeta.truncatedByCap ? '#fffbeb' : '#f0fdf4',
+              color: '#374151',
+            }}>
+              Inspected <strong>{fmt(inspectionMeta.urlsInspected)}</strong> of{' '}
+              <strong>{fmt(inspectionMeta.urlsDiscovered)}</strong> known URLs
+              {' '}(cap {fmt(inspectionMeta.cap)}; sources: {fmt(inspectionMeta.sources?.crawl)} crawl,{' '}
+              {fmt(inspectionMeta.sources?.searchAnalytics)} search analytics).
+              {inspectionMeta.quotaExhausted && (
+                <span style={{ color: '#b45309' }}> Google's daily quota stopped this run early — remaining pages will be covered next run.</span>
+              )}
+              {!inspectionMeta.quotaExhausted && inspectionMeta.truncatedByCap && (
+                <span style={{ color: '#b45309' }}> More URLs exist than the per-run cap — raise the cap in SEO settings to inspect more.</span>
+              )}
+            </div>
+          )}
+
+          {/* Why pages aren't indexed — mirrors GSC's Index Coverage table */}
+          {reasonsBreakdown.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <h4 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Why pages aren&apos;t indexed</h4>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
+                Pages that aren&apos;t indexed can&apos;t be served on Google.
+              </div>
+              <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Reason</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>Pages</th>
+                      <th style={thStyle}>Example URLs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...reasonsBreakdown]
+                      .sort((a, b) => b.count - a.count)
+                      .map((g) => (
+                        <tr key={g.reason} style={{ borderTop: '1px solid #f1f5f9' }}>
+                          <td style={{ ...tdStyle, fontWeight: 600 }}>{g.reason}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', color: '#dc2626', fontWeight: 600 }}>{fmt(g.count)}</td>
+                          <td style={{ ...tdStyle, color: '#6b7280' }}>
+                            {(g.urls || []).slice(0, 3).map((u) => (
+                              <div key={u} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 360 }}>
+                                <a href={u} target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>{shortUrl(u)}</a>
+                              </div>
+                            ))}
+                            {(g.urls?.length || 0) > 3 && (
+                              <div style={{ fontSize: 11 }}>+{(g.urls.length - 3)} more</div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

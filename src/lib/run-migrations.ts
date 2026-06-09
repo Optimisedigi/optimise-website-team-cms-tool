@@ -120,6 +120,28 @@ export async function runMigrations(
     await run("clients_services_order_idx", "CREATE INDEX IF NOT EXISTS `clients_services_order_idx` ON `clients_services` (`order`)");
     await run("clients_services_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_services_parent_id_idx` ON `clients_services` (`parent_id`)");
 
+    // --- Client Pulse leadership config ---
+    await run("clients.client_pulse_enabled", "ALTER TABLE `clients` ADD `client_pulse_enabled` integer DEFAULT false");
+    await run("clients.client_pulse_priority", "ALTER TABLE `clients` ADD `client_pulse_priority` text DEFAULT 'normal'");
+    await run("clients.client_pulse_primary_target", "ALTER TABLE `clients` ADD `client_pulse_primary_target` text DEFAULT 'traffic'");
+    await run("clients.client_pulse_target_label", "ALTER TABLE `clients` ADD `client_pulse_target_label` text");
+    await run("clients.client_pulse_target_value", "ALTER TABLE `clients` ADD `client_pulse_target_value` numeric");
+    await run("clients.client_pulse_target_unit", "ALTER TABLE `clients` ADD `client_pulse_target_unit` text DEFAULT 'custom'");
+    await run("clients.client_pulse_target_direction", "ALTER TABLE `clients` ADD `client_pulse_target_direction` text DEFAULT 'increase'");
+    await run("clients.client_pulse_comparison_window", "ALTER TABLE `clients` ADD `client_pulse_comparison_window` text DEFAULT 'last_90_days'");
+    await run("clients.client_pulse_neglect_warning_days", "ALTER TABLE `clients` ADD `client_pulse_neglect_warning_days` numeric DEFAULT 14");
+    await run("clients.client_pulse_neglect_critical_days", "ALTER TABLE `clients` ADD `client_pulse_neglect_critical_days` numeric DEFAULT 30");
+    await run("clients.client_pulse_notes", "ALTER TABLE `clients` ADD `client_pulse_notes` text");
+    await run("clients_client_pulse_services_tracked", `CREATE TABLE IF NOT EXISTS \`clients_client_pulse_services_tracked\` (
+      \`order\` integer NOT NULL,
+      \`parent_id\` integer NOT NULL,
+      \`value\` text,
+      \`id\` integer PRIMARY KEY NOT NULL,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_client_pulse_services_tracked_order_idx", "CREATE INDEX IF NOT EXISTS `clients_client_pulse_services_tracked_order_idx` ON `clients_client_pulse_services_tracked` (`order`)");
+    await run("clients_client_pulse_services_tracked_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_client_pulse_services_tracked_parent_id_idx` ON `clients_client_pulse_services_tracked` (`parent_id`)");
+
     // --- Core Update Review client config ---
     await run("clients.core_update_review_enabled", "ALTER TABLE `clients` ADD `core_update_review_enabled` integer DEFAULT false");
     await run("clients.core_update_review_max_pages", "ALTER TABLE `clients` ADD `core_update_review_max_pages` numeric DEFAULT 50");
@@ -1817,6 +1839,15 @@ export async function runMigrations(
     // when pushing budget changes.
     await run("payload_locked_documents_rels.negative_sweep_candidates_id", "ALTER TABLE `payload_locked_documents_rels` ADD `negative_sweep_candidates_id` integer");
   
+    // ── Site Health Reports: GSC "why pages aren't indexed" rollup + coverage meta ──
+    // New JSON columns on the gscData group. Without these, completed audits
+    // silently drop the reasons breakdown and inspection metadata.
+    await run("site_health_reports.gsc_data_reasons_breakdown", "ALTER TABLE `site_health_reports` ADD `gsc_data_reasons_breakdown` text");
+    await run("site_health_reports.gsc_data_inspection_meta", "ALTER TABLE `site_health_reports` ADD `gsc_data_inspection_meta` text");
+
+    // ── Clients: per-client GSC inspection cap for monthly health monitor ──
+    await run("clients.seo_auto_max_gsc_inspections", "ALTER TABLE `clients` ADD `seo_auto_max_gsc_inspections` numeric DEFAULT 200");
+
     // ── google_ads_campaign_budgets.last_pushed_source ──
     // Tracks what triggered the most recent push to Google Ads ('manual',
     // 'cron-monthly-reset', 'cron-mid-month', 'agent'). The Optimate agent reads
@@ -3627,6 +3658,13 @@ export async function runMigrations(
     await run("google_ads_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_snapshots_updated_at_idx` ON `google_ads_snapshots` (`updated_at`)");
     // One row per (client, level) — the daily cron upserts on this unique key.
     await run("google_ads_snapshots_client_level_unq", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_snapshots_client_level_unq` ON `google_ads_snapshots` (`client_id`, `level`)");
+    // Multi-window snapshots (2026-06-09): the account-efficiency goal agent
+    // now persists additive long-lookback windows (60d ad-group, 90d keyword)
+    // alongside the primary 30d/structural row. Widen the uniqueness key to
+    // (client, level, date_range_label) so those windowed rows coexist instead
+    // of clobbering the primary. Drop the old 2-column unique index first.
+    await run("drop_google_ads_snapshots_client_level_unq", "DROP INDEX IF EXISTS `google_ads_snapshots_client_level_unq`");
+    await run("google_ads_snapshots_client_level_window_unq", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_snapshots_client_level_window_unq` ON `google_ads_snapshots` (`client_id`, `level`, `date_range_label`)");
     await run("locked_docs_rels.google_ads_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_snapshots_id` integer REFERENCES `google_ads_snapshots`(`id`) ON DELETE cascade");
     await run("payload_locked_documents_rels_google_ads_snapshots_id_idx", "CREATE INDEX IF NOT EXISTS `payload_locked_documents_rels_google_ads_snapshots_id_idx` ON `payload_locked_documents_rels` (`google_ads_snapshots_id`)");
 
@@ -4145,6 +4183,12 @@ export async function runMigrations(
     await run("monthly_keyword_terms_cache_client_month_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `monthly_keyword_terms_cache_client_month_idx` ON `monthly_keyword_terms_cache` (`client_id`, `year_month`)");
     await run("locked_docs_rels.monthly_keyword_selections_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_selections_id` integer REFERENCES `monthly_keyword_selections`(`id`) ON DELETE cascade");
     await run("locked_docs_rels.monthly_keyword_terms_cache_id", "ALTER TABLE `payload_locked_documents_rels` ADD `monthly_keyword_terms_cache_id` integer REFERENCES `monthly_keyword_terms_cache`(`id`) ON DELETE cascade");
+
+    // ── Match-type violation recommendation fields (2026-06-09) ──
+    await run("mtvc.recommended_keyword", "ALTER TABLE `match_type_violation_candidates` ADD `recommended_keyword` text");
+    await run("mtvc.recommended_match_type", "ALTER TABLE `match_type_violation_candidates` ADD `recommended_match_type` text");
+    await run("mtvc.offending_words", "ALTER TABLE `match_type_violation_candidates` ADD `offending_words` text");
+    await run("mtvc.nearest_keyword", "ALTER TABLE `match_type_violation_candidates` ADD `nearest_keyword` text");
 
     // ── Match-type monitor per-client scope controls (2026-06-09) ──
     await run("clients.gadsAuto_matchTypeMonitorExact", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_exact` integer DEFAULT true");

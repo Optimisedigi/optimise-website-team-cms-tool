@@ -934,12 +934,17 @@ export async function POST(request: NextRequest) {
   await run("site_health_reports.audit_progress", "ALTER TABLE `site_health_reports` ADD `audit_progress` text");
   await run("site_health_reports.audit_error", "ALTER TABLE `site_health_reports` ADD `audit_error` text");
 
+  // Site Health Reports — GSC "why pages aren't indexed" rollup + coverage meta
+  await run("site_health_reports.gsc_data_reasons_breakdown", "ALTER TABLE `site_health_reports` ADD `gsc_data_reasons_breakdown` text");
+  await run("site_health_reports.gsc_data_inspection_meta", "ALTER TABLE `site_health_reports` ADD `gsc_data_inspection_meta` text");
+
   // SEO Health Monitor config on clients
   await run("clients.seo_auto_monthly_health_enabled", "ALTER TABLE `clients` ADD `seo_auto_monthly_health_enabled` integer DEFAULT false");
   await run("clients.seo_auto_site_url", "ALTER TABLE `clients` ADD `seo_auto_site_url` text");
   await run("clients.seo_auto_gsc_site_url", "ALTER TABLE `clients` ADD `seo_auto_gsc_site_url` text");
   await run("clients.seo_auto_health_report_day_of_month", "ALTER TABLE `clients` ADD `seo_auto_health_report_day_of_month` numeric DEFAULT 1");
   await run("clients.seo_auto_max_pages", "ALTER TABLE `clients` ADD `seo_auto_max_pages` numeric DEFAULT 200");
+  await run("clients.seo_auto_max_gsc_inspections", "ALTER TABLE `clients` ADD `seo_auto_max_gsc_inspections` numeric DEFAULT 200");
   await run("clients.seo_auto_check_external_links", "ALTER TABLE `clients` ADD `seo_auto_check_external_links` integer DEFAULT false");
   await run("clients_seo_auto_notification_emails", `CREATE TABLE IF NOT EXISTS \`clients_seo_auto_notification_emails\` (
     \`_order\` integer NOT NULL,

@@ -4843,14 +4843,14 @@ export interface SiteHealthReport {
    * Client this report belongs to
    */
   client: number | Client;
+  siteUrl: string;
+  reportDate: string;
   auditStatus?: ('pending' | 'running' | 'completed' | 'failed') | null;
   /**
    * Stage|percentage format
    */
   auditProgress?: string | null;
   auditError?: string | null;
-  siteUrl: string;
-  reportDate: string;
   /**
    * % of URLs free of critical issues
    */
@@ -4938,6 +4938,30 @@ export interface SiteHealthReport {
      * Array of {url, userCanonical, googleCanonical}
      */
     canonicalMismatches?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * GSC 'Why pages aren't indexed' rollup — array of {reason, count, urls}
+     */
+    reasonsBreakdown?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * Coverage metadata: {urlsDiscovered, urlsInspected, cap, truncatedByCap, quotaExhausted, sources}
+     */
+    inspectionMeta?:
       | {
           [k: string]: unknown;
         }
@@ -8678,6 +8702,7 @@ export interface ClientsSelect<T extends boolean = true> {
         gscSiteUrl?: T;
         healthReportDayOfMonth?: T;
         maxPages?: T;
+        maxGscInspections?: T;
         checkExternalLinks?: T;
         notificationEmails?:
           | T
@@ -10171,6 +10196,8 @@ export interface SiteHealthReportsSelect<T extends boolean = true> {
         averagePosition?: T;
         indexingIssues?: T;
         canonicalMismatches?: T;
+        reasonsBreakdown?: T;
+        inspectionMeta?: T;
       };
   updatedAt?: T;
   createdAt?: T;
