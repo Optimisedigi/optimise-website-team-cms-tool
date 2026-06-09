@@ -63,6 +63,10 @@ export interface CronClientResult {
   ad_group: LevelOutcome;
   keyword: LevelOutcome;
   search_term: LevelOutcome;
+  /** Additive 90-day keyword window (account-efficiency pause confirmation). */
+  keyword_90d?: LevelOutcome;
+  /** Additive 60-day ad-group window (account-efficiency pause confirmation). */
+  ad_group_60d?: LevelOutcome;
   elapsedMs: number;
 }
 
@@ -98,6 +102,9 @@ export type FetchResult<R> = FetchOk<R> | FetchErr;
 const GROWTH_TOOLS_URL = process.env.GROWTH_TOOLS_URL || "http://localhost:5000";
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || "";
 const DEFAULT_RANGE_LABEL = "LAST_30_DAYS";
+/** Additive long-lookback windows the account-efficiency agent confirms against. */
+const KEYWORD_LONG_WINDOW_LABEL = "LAST_90_DAYS";
+const AD_GROUP_LONG_WINDOW_LABEL = "LAST_60_DAYS";
 const FETCH_TIMEOUT_MS = 45_000;
 
 interface GrowthEnvelope {
@@ -455,8 +462,15 @@ interface RawAdGroupEnvelope extends GrowthEnvelope {
  */
 export async function fetchAdGroupLevel(
   customerId: string,
+  options?: { dateRange?: string; rangeLabel?: string },
 ): Promise<FetchResult<AdGroupSnapshotRow>> {
-  const qs = new URLSearchParams({ customerId });
+  // Primary pull is structural (current ad groups). The additive 60d window
+  // passes an explicit dateRange so the rows carry windowed metrics and the
+  // snapshot is tagged with the window label rather than STRUCTURAL.
+  const rangeLabel = options?.rangeLabel ?? "STRUCTURAL";
+  const params: Record<string, string> = { customerId };
+  if (options?.dateRange) params.dateRange = options.dateRange;
+  const qs = new URLSearchParams(params);
   const path = `${AD_GROUP_ENDPOINT}?${qs.toString()}`;
   const res = await growthGet<RawAdGroupEnvelope>(path);
   if (!res.ok || !res.data) {
@@ -464,7 +478,7 @@ export async function fetchAdGroupLevel(
       ok: false,
       error: res.error ?? "Unknown Growth Tools error",
       sourceEndpoint: AD_GROUP_ENDPOINT,
-      dateRangeLabel: "STRUCTURAL",
+      dateRangeLabel: rangeLabel,
     };
   }
 
@@ -502,7 +516,7 @@ export async function fetchAdGroupLevel(
     ok: true,
     rows,
     sourceEndpoint: AD_GROUP_ENDPOINT,
-    dateRangeLabel: "STRUCTURAL",
+    dateRangeLabel: rangeLabel,
   };
 }
 
@@ -527,10 +541,12 @@ interface RawKeywordEnvelope extends GrowthEnvelope {
 
 export async function fetchKeywordLevel(
   customerId: string,
+  options?: { rangeLabel?: string },
 ): Promise<FetchResult<KeywordSnapshotRow>> {
+  const rangeLabel = options?.rangeLabel ?? DEFAULT_RANGE_LABEL;
   const qs = new URLSearchParams({
     customerId,
-    dateRange: DEFAULT_RANGE_LABEL,
+    dateRange: rangeLabel,
   });
   const path = `${KEYWORD_ENDPOINT}?${qs.toString()}`;
   const res = await growthGet<RawKeywordEnvelope>(path);
@@ -539,7 +555,7 @@ export async function fetchKeywordLevel(
       ok: false,
       error: res.error ?? "Unknown Growth Tools error",
       sourceEndpoint: KEYWORD_ENDPOINT,
-      dateRangeLabel: DEFAULT_RANGE_LABEL,
+      dateRangeLabel: rangeLabel,
     };
   }
 
@@ -567,7 +583,7 @@ export async function fetchKeywordLevel(
     ok: true,
     rows,
     sourceEndpoint: KEYWORD_ENDPOINT,
-    dateRangeLabel: DEFAULT_RANGE_LABEL,
+    dateRangeLabel: rangeLabel,
   };
 }
 
@@ -588,6 +604,8 @@ async function runLevel<R>(
     customerId: string;
     level: SnapshotLevel;
     fetcher: () => Promise<FetchResult<R>>;
+    /** Expected window label, used to key the upsert on the catch path. */
+    dateRangeLabel?: string;
   },
 ): Promise<LevelOutcome> {
   const t0 = Date.now();
@@ -605,6 +623,7 @@ async function runLevel<R>(
         customerId: args.customerId,
         rows: [],
         error: message,
+        ...(args.dateRangeLabel !== undefined ? { dateRangeLabel: args.dateRangeLabel } : {}),
         fetchDurationMs: durationMs,
       });
     } catch (persistErr) {
@@ -701,12 +720,36 @@ async function processClient(
     customerId,
     level: "keyword",
     fetcher: () => fetchKeywordLevel(customerId),
+    dateRangeLabel: DEFAULT_RANGE_LABEL,
   });
   const search_term = await runLevel<SearchTermSnapshotRow>(payload, {
     clientId: client.id,
     customerId,
     level: "search_term",
     fetcher: () => fetchSearchTermLevel(customerId),
+    dateRangeLabel: DEFAULT_RANGE_LABEL,
+  });
+
+  // Additive long-lookback windows the account-efficiency agent confirms
+  // pauses against (90d keyword, 60d ad-group). These are extra rows tagged
+  // by their window label — they never clobber the primary snapshots. A
+  // failure here is isolated and never aborts the run.
+  const keyword_90d = await runLevel<KeywordSnapshotRow>(payload, {
+    clientId: client.id,
+    customerId,
+    level: "keyword",
+    fetcher: () => fetchKeywordLevel(customerId, { rangeLabel: KEYWORD_LONG_WINDOW_LABEL }),
+    dateRangeLabel: KEYWORD_LONG_WINDOW_LABEL,
+  });
+  const ad_group_60d = await runLevel<AdGroupSnapshotRow>(payload, {
+    clientId: client.id,
+    customerId,
+    level: "ad_group",
+    fetcher: () => fetchAdGroupLevel(customerId, {
+      dateRange: AD_GROUP_LONG_WINDOW_LABEL,
+      rangeLabel: AD_GROUP_LONG_WINDOW_LABEL,
+    }),
+    dateRangeLabel: AD_GROUP_LONG_WINDOW_LABEL,
   });
 
   return {
@@ -716,6 +759,8 @@ async function processClient(
     ad_group,
     keyword,
     search_term,
+    keyword_90d,
+    ad_group_60d,
     elapsedMs: Date.now() - start,
   };
 }

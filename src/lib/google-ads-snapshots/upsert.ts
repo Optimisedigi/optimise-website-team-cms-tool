@@ -1,7 +1,10 @@
 /**
  * Upsert helper for the `google-ads-snapshots` collection. Used by the daily
- * cron — there is a UNIQUE index on (client_id, level), so this helper finds
- * the existing row (if any) and updates it in-place, otherwise creates it.
+ * cron — there is a UNIQUE index on (client_id, level, date_range_label), so
+ * this helper finds the existing row for that key (if any) and updates it
+ * in-place, otherwise creates it. The primary (30d / structural) row and the
+ * additive long-lookback windows (60d ad-group, 90d keyword) are therefore
+ * distinct rows that never clobber each other.
  *
  * Error handling rule (intentional):
  *   - If `error` is set AND `rows` is empty, we ONLY update `error`,
@@ -11,7 +14,7 @@
  *   - If `rows` are provided (success), we clear any existing `error`.
  */
 
-import type { Payload } from "payload";
+import type { Payload, Where } from "payload";
 
 import type { SnapshotLevel } from "./types";
 
@@ -48,14 +51,20 @@ export async function upsertSnapshot(
   const capturedAt = new Date().toISOString();
   const rowCount = args.rows.length;
 
+  // Match on (client, level, dateRangeLabel) when a label is known so the
+  // primary and long-window rows stay independent. Falls back to (client,
+  // level) only when no label is available (e.g. a fetcher that threw before
+  // it could report its window).
+  const matchConditions: Where[] = [
+    { client: { equals: args.clientId } },
+    { level: { equals: args.level } },
+  ];
+  if (args.dateRangeLabel !== undefined) {
+    matchConditions.push({ dateRangeLabel: { equals: args.dateRangeLabel } });
+  }
   const existing = await payload.find({
     collection: "google-ads-snapshots",
-    where: {
-      and: [
-        { client: { equals: args.clientId } },
-        { level: { equals: args.level } },
-      ],
-    },
+    where: { and: matchConditions },
     limit: 1,
     depth: 0,
     overrideAccess: true,

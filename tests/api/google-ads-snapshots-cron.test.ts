@@ -38,15 +38,19 @@ function buildClients(n: number) {
 
 interface FetchEvent {
   customerId: string;
-  pathBucket: "campaign" | "ad_group" | "keyword" | "search_term";
+  pathBucket: "campaign" | "ad_group" | "keyword" | "search_term" | "keyword_90d" | "ad_group_60d";
   phase: "start" | "end";
   t: number;
 }
 
 function pathBucket(url: string): FetchEvent["pathBucket"] | null {
   if (url.includes("/campaign-budgets/get-metrics")) return "campaign";
-  if (url.includes("/ad-groups/list")) return "ad_group";
-  if (url.includes("/keyword-historical-spend")) return "keyword";
+  if (url.includes("/keyword-historical-spend")) {
+    return url.includes("LAST_90_DAYS") ? "keyword_90d" : "keyword";
+  }
+  if (url.includes("/ad-groups/list")) {
+    return url.includes("LAST_60_DAYS") ? "ad_group_60d" : "ad_group";
+  }
   if (url.includes("/search-terms")) return "search_term";
   return null;
 }
@@ -104,11 +108,12 @@ describe("runGoogleAdsSnapshotsCron — concurrency + sequencing", () => {
       events.push({ customerId, pathBucket: bucket, phase: "end", t: Date.now() });
 
       // After the LAST level completes, remove the customer from active set.
-      if (bucket === "search_term") {
+      // The additive long-lookback windows (ad_group_60d) run last.
+      if (bucket === "ad_group_60d") {
         activeCustomers.delete(customerId);
       }
 
-      // Inject failure for the victim's keyword level.
+      // Inject failure for the victim's primary keyword level.
       if (customerId === VICTIM_ID && bucket === "keyword") {
         throw new Error("simulated upstream failure");
       }
@@ -152,7 +157,14 @@ describe("runGoogleAdsSnapshotsCron — concurrency + sequencing", () => {
 
     for (const [, perClient] of byCustomer) {
       const order = perClient.map((e) => e.pathBucket);
-      expect(order).toEqual(["campaign", "ad_group", "keyword", "search_term"]);
+      expect(order).toEqual([
+        "campaign",
+        "ad_group",
+        "keyword",
+        "search_term",
+        "keyword_90d",
+        "ad_group_60d",
+      ]);
     }
 
     // Also assert no overlapping fetches WITHIN a single customer (the prior
@@ -185,6 +197,8 @@ describe("runGoogleAdsSnapshotsCron — concurrency + sequencing", () => {
       "ad_group",
       "keyword",
       "search_term",
+      "keyword_90d",
+      "ad_group_60d",
     ]);
 
     expect(summary.clientsProcessed).toBe(12);

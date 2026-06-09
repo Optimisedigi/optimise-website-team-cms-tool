@@ -52,6 +52,8 @@ import {
 import {
   getCampaignSnapshot,
   getAllLatestForClient,
+  getKeywordSnapshotForWindow,
+  getAdGroupSnapshotForWindow,
   type CampaignSnapshotRow,
   type AdGroupSnapshotRow,
   type KeywordSnapshotRow,
@@ -137,6 +139,12 @@ export interface AccountEfficiencyParameters {
   minAdGroupSpend: number;
   minKeywordSpend: number;
   minConvertingAdGroupConversions: number;
+  /**
+   * Recipient candidacy floor for the budget shift: a campaign must have at
+   * least this many conversions in the window to receive freed budget.
+   * Tunable "conversions threshold" prerequisite; defaults to 5.
+   */
+  minRecipientConversions: number;
   maxTargetCpaUpliftPercent: number;
   maxTargetRoasReductionPercent: number;
   enabledLevers: AccountEfficiencyLever[];
@@ -157,6 +165,7 @@ const DEFAULT_PARAMETERS: AccountEfficiencyParameters = Object.freeze({
   minAdGroupSpend: 200,
   minKeywordSpend: 100,
   minConvertingAdGroupConversions: 5,
+  minRecipientConversions: 5,
   maxTargetCpaUpliftPercent: 15,
   maxTargetRoasReductionPercent: 10,
   enabledLevers: Object.freeze(["budget_shift"]) as AccountEfficiencyLever[],
@@ -174,8 +183,6 @@ const SNAPSHOT_STALE_AFTER_MINUTES = 1440;
 const MAX_ITERATIONS = 3;
 /** Donor candidacy: cost in window must reach this floor to qualify. */
 const DONOR_MIN_SPEND_DOLLARS = 200;
-/** Recipient candidacy: conversions in window must reach this floor. */
-const RECIPIENT_MIN_CONVERSIONS = 5;
 /** Recipient candidacy: searchBudgetLostIS must exceed this percent. */
 const RECIPIENT_MIN_BUDGET_LOST_IS = 10;
 /** Recipient candidacy: searchRankLostIS must be below this percent. */
@@ -275,6 +282,10 @@ function loadParameters(raw: unknown): AccountEfficiencyParameters {
     minConvertingAdGroupConversions: asNumber(
       r.minConvertingAdGroupConversions,
       DEFAULT_PARAMETERS.minConvertingAdGroupConversions,
+    ),
+    minRecipientConversions: asNumber(
+      r.minRecipientConversions,
+      DEFAULT_PARAMETERS.minRecipientConversions,
     ),
     maxTargetCpaUpliftPercent: asNumber(
       r.maxTargetCpaUpliftPercent,
@@ -539,7 +550,7 @@ export function detectBudgetShift(args: DetectBudgetShiftArgs): BudgetShiftPropo
     const budgetLostIS = row.searchBudgetLostIS;
     const rankLostIS = row.searchRankLostIS;
     if (
-      conv >= RECIPIENT_MIN_CONVERSIONS &&
+      conv >= parameters.minRecipientConversions &&
       typeof budgetLostIS === "number" &&
       budgetLostIS > RECIPIENT_MIN_BUDGET_LOST_IS &&
       typeof rankLostIS === "number" &&
@@ -671,6 +682,31 @@ export function detectBudgetShift(args: DetectBudgetShiftArgs): BudgetShiftPropo
 
 // ─── Pure: ad-group pause detector ─────────────────────────────────────────
 
+/** A persisted ad-group staging record (goal-run-snapshot, action="ad-group-prune-staged"). */
+export interface AdGroupStaging {
+  adGroupId: string;
+  stagedAt: string;
+}
+
+/** A new staging row the caller should persist for an ad group seen 0-conv for the first time. */
+export interface AdGroupStagingToRecord {
+  adGroupId: string;
+  campaignId: string;
+  adGroupName: string;
+  campaignName: string;
+  spend: number;
+  stagedAt: string;
+}
+
+export interface DetectAdGroupPausesResult {
+  /** Ad groups whose staging cycle elapsed and confirmed 0-conv over 60d — pause now. */
+  proposals: AccountEfficiencyProposalEnvelope[];
+  /** Ad groups detected 0-conv for the first time — stage, do not pause yet. */
+  newStagings: AdGroupStagingToRecord[];
+  /** Ad groups that converted within 60d after staging — clear their staging. */
+  clearedStagingAdGroupIds: string[];
+}
+
 export interface DetectAdGroupPausesArgs {
   adGroupRows: ReadonlyArray<AdGroupSnapshotRow>;
   campaignRows: ReadonlyArray<CampaignSnapshotRow>;
@@ -679,18 +715,48 @@ export interface DetectAdGroupPausesArgs {
   protectedCampaignIds: ReadonlyArray<string>;
   conversionTrackingEnabledFrom?: string | null;
   now: Date;
+  /**
+   * 60-day ad-group window used to confirm a staged ad group before pausing.
+   * Null/undefined means the window has not been captured — the detector then
+   * cannot confirm and skips the pause (never pauses on absent data).
+   */
+  adGroupRows60d?: ReadonlyArray<AdGroupSnapshotRow> | null;
+  /** Existing (un-cleared) staging records for this run, keyed by adGroupId. */
+  existingStagings?: ReadonlyArray<AdGroupStaging>;
 }
 
-export function detectAdGroupPauses(args: DetectAdGroupPausesArgs): AccountEfficiencyProposalEnvelope[] {
+/**
+ * Staged ad-group pause detector (plan §D). A 0-conversion ad group is never
+ * paused on first sight: it is staged for one `measurementDays` cycle (its
+ * phrase/exact keywords are pruned by the keyword detector meanwhile). After
+ * the cycle, a 60-day-window 0-conv confirmation unlocks the pause; any 60d
+ * conversions protect it and clear the staging. Missing 60d data → skip.
+ */
+export function detectAdGroupPauses(args: DetectAdGroupPausesArgs): DetectAdGroupPausesResult {
+  const empty: DetectAdGroupPausesResult = { proposals: [], newStagings: [], clearedStagingAdGroupIds: [] };
   const trackingFrom = args.conversionTrackingEnabledFrom
     ? new Date(args.conversionTrackingEnabledFrom).getTime()
     : Number.NaN;
   const trackingMature = Number.isFinite(trackingFrom) &&
     args.now.getTime() - trackingFrom >= args.parameters.observationDays * 24 * 60 * 60 * 1000;
-  if (!trackingMature) return [];
+  if (!trackingMature) return empty;
+
+  const stagingById = new Map<string, AdGroupStaging>();
+  for (const s of args.existingStagings ?? []) stagingById.set(s.adGroupId, s);
+  const window60dById = new Map<string, AdGroupSnapshotRow>();
+  if (args.adGroupRows60d) {
+    for (const r of args.adGroupRows60d) {
+      if (r.adGroupId) window60dById.set(r.adGroupId, r);
+    }
+  }
+  const have60dWindow = !!args.adGroupRows60d;
+  const cycleMs = args.parameters.measurementDays * 24 * 60 * 60 * 1000;
 
   const campaigns = new Map(args.campaignRows.map((row) => [row.campaignId, row]));
   const proposals: AccountEfficiencyProposalEnvelope[] = [];
+  const newStagings: AdGroupStagingToRecord[] = [];
+  const clearedStagingAdGroupIds: string[] = [];
+
   for (const row of args.adGroupRows) {
     if (row.status && row.status.toUpperCase() !== "ENABLED") continue;
     if (!row.adGroupId || !row.campaignId) continue;
@@ -702,6 +768,34 @@ export function detectAdGroupPauses(args: DetectAdGroupPausesArgs): AccountEffic
     const conversions = row.conversions ?? 0;
     if (spend < args.parameters.minAdGroupSpend || conversions !== 0) continue;
 
+    const staging = stagingById.get(row.adGroupId);
+    if (!staging) {
+      // First 0-conv sighting — stage, do not pause. Keyword detector prunes
+      // this ad group's phrase/exact/broad keywords during the cycle.
+      newStagings.push({
+        adGroupId: row.adGroupId,
+        campaignId: row.campaignId,
+        adGroupName: row.name,
+        campaignName: parent.name,
+        spend,
+        stagedAt: args.now.toISOString(),
+      });
+      continue;
+    }
+
+    const stagedAtMs = new Date(staging.stagedAt).getTime();
+    const elapsed = Number.isFinite(stagedAtMs) && args.now.getTime() - stagedAtMs >= cycleMs;
+    if (!elapsed) continue; // still inside the measurement cycle
+
+    // Cycle elapsed — confirm against the 60-day window before pausing.
+    if (!have60dWindow) continue; // window not captured — cannot confirm
+    const row60 = window60dById.get(row.adGroupId);
+    if (!row60) continue; // no 60d data for this ad group — cannot confirm
+    if ((row60.conversions ?? 0) > 0) {
+      clearedStagingAdGroupIds.push(row.adGroupId); // converted within 60d — protected
+      continue;
+    }
+
     const payload = {
       action: "ad-group-pause",
       operation: "pause",
@@ -711,6 +805,8 @@ export function detectAdGroupPauses(args: DetectAdGroupPausesArgs): AccountEffic
       adGroupName: row.name,
       spend,
       conversions,
+      stagedAt: staging.stagedAt,
+      confirmationNote: "0 conversions over 30d at staging and confirmed 0 conversions over the 60-day window after a full measurement cycle.",
       evidenceNote: "Ad-group age is not available in local snapshots; explicit approval is required before pausing.",
       guardrailOverrides: ["hard_approval_lock"],
     };
@@ -723,6 +819,7 @@ export function detectAdGroupPauses(args: DetectAdGroupPausesArgs): AccountEffic
         `- Campaign: ${parent.name} (${row.campaignId})\n` +
         `- Ad group: ${row.name} (${row.adGroupId})\n` +
         `- Spend: $${spend.toFixed(2)} with 0 conversions\n` +
+        `- Staged ${staging.stagedAt}; confirmed 0 conversions over 60 days.\n` +
         `- Requires approval: ad-group age is not available in snapshots.\n`,
       riskActionType: "ad-group-pause",
       campaignIds: [row.campaignId],
@@ -731,7 +828,7 @@ export function detectAdGroupPauses(args: DetectAdGroupPausesArgs): AccountEffic
       baseline: { spend, conversions },
     });
   }
-  return proposals;
+  return { proposals, newStagings, clearedStagingAdGroupIds };
 }
 
 // ─── Pure: keyword pause detector ──────────────────────────────────────────
@@ -744,6 +841,13 @@ export interface DetectKeywordPausesArgs {
   brandCampaignIds: ReadonlyArray<string>;
   protectedCampaignIds: ReadonlyArray<string>;
   brandKeywords: ReadonlyArray<string>;
+  /**
+   * 90-day keyword window rows used to confirm a 0-conversion phrase/exact
+   * keyword before pausing. Null/undefined means the long window has not been
+   * captured yet — the detector then skips phrase/exact pauses this tick (never
+   * pauses on absent confirmation data). Broad keywords bypass this.
+   */
+  keywordRows90d?: ReadonlyArray<KeywordSnapshotRow> | null;
 }
 
 function isBrandKeyword(text: string, brandKeywords: ReadonlyArray<string>): boolean {
@@ -757,6 +861,15 @@ function isBrandKeyword(text: string, brandKeywords: ReadonlyArray<string>): boo
 export function detectKeywordPauses(args: DetectKeywordPausesArgs): AccountEfficiencyProposalEnvelope[] {
   const adGroups = new Map(args.adGroupRows.map((row) => [row.adGroupId, row]));
   const campaigns = new Map(args.campaignRows.map((row) => [row.campaignId, row]));
+  // Index the 90d window by keywordId for phrase/exact confirmation lookups.
+  const window90dById = new Map<string, KeywordSnapshotRow>();
+  if (args.keywordRows90d) {
+    for (const r of args.keywordRows90d) {
+      if (r.keywordId) window90dById.set(r.keywordId, r);
+    }
+  }
+  const have90dWindow = !!args.keywordRows90d;
+
   const proposals: AccountEfficiencyProposalEnvelope[] = [];
   for (const row of args.keywordRows) {
     if (!row.keywordId || !row.adGroupId || !row.campaignId || !row.text.trim()) continue;
@@ -769,7 +882,31 @@ export function detectKeywordPauses(args: DetectKeywordPausesArgs): AccountEffic
     if (!parentCampaign || (parentCampaign.status && parentCampaign.status.toUpperCase() !== "ENABLED")) continue;
     const spend = row.spend ?? 0;
     const conversions = row.conversions ?? 0;
-    if (spend < args.parameters.minKeywordSpend || conversions !== 0) continue;
+    // Never pause a converting keyword regardless of match type.
+    if (conversions !== 0) continue;
+
+    // Match-type policy (plan §E):
+    //   BROAD        → always pause (account intended for phrase/exact); no
+    //                  spend gate, no long-window confirmation.
+    //   EXACT/PHRASE → spend-gated + confirmed against the 90d window. Missing
+    //                  window or missing row → skip (never pause on absent data).
+    //   UNKNOWN      → legacy behaviour: spend-gated, 0 conv 30d.
+    let confirmationNote: string;
+    if (row.matchType === "BROAD") {
+      confirmationNote =
+        "Broad match keyword — always paused under the match-type policy (this account is intended for phrase/exact).";
+    } else if (row.matchType === "EXACT" || row.matchType === "PHRASE") {
+      if (spend < args.parameters.minKeywordSpend) continue;
+      if (!have90dWindow) continue; // 90d window not captured — cannot confirm
+      const row90 = window90dById.get(row.keywordId);
+      if (!row90) continue; // no 90d data for this keyword — cannot confirm
+      if ((row90.conversions ?? 0) > 0) continue; // converted within 90d — protected
+      confirmationNote = "0 conversions confirmed across both the 30-day and 90-day windows.";
+    } else {
+      if (spend < args.parameters.minKeywordSpend) continue;
+      confirmationNote =
+        "0 conversions over 30 days (match type unknown; no long-window confirmation available).";
+    }
 
     const payload = {
       action: "keyword-pause",
@@ -783,6 +920,7 @@ export function detectKeywordPauses(args: DetectKeywordPausesArgs): AccountEffic
       matchType: row.matchType,
       spend,
       conversions,
+      confirmationNote,
       evidenceNote: "Keyword rank/quality diagnostics are not available in local snapshots; explicit approval is required before pausing.",
       guardrailOverrides: ["approval_required_missing_rank_diagnostics"],
     };
@@ -796,6 +934,7 @@ export function detectKeywordPauses(args: DetectKeywordPausesArgs): AccountEffic
         `- Ad group: ${parentAdGroup.name} (${row.adGroupId})\n` +
         `- Keyword: ${row.text} (${row.matchType})\n` +
         `- Spend: $${spend.toFixed(2)} with 0 conversions\n` +
+        `- ${confirmationNote}\n` +
         `- Requires approval: keyword-level rank diagnostics are not available in snapshots.\n`,
       riskActionType: "keyword-pause",
       campaignIds: [row.campaignId],
@@ -1067,6 +1206,43 @@ async function loadRiskTiers(payload: Payload): Promise<TierDefinition[]> {
   }));
 }
 
+/** Action key for the persisted ad-group staging records (plan §D). */
+const AD_GROUP_STAGING_ACTION = "ad-group-prune-staged";
+
+interface AdGroupStagingRow {
+  id: number;
+  adGroupId: string;
+  stagedAt: string;
+}
+
+/**
+ * Load the live (un-cleared) ad-group staging records for this run. A staging
+ * record is a goal-run-snapshot with action="ad-group-prune-staged"; clearing
+ * one sets its status to "rejected".
+ */
+async function loadAdGroupStagings(payload: Payload, goalRunId: number): Promise<AdGroupStagingRow[]> {
+  const res = await payload.find({
+    collection: "goal-run-snapshots",
+    where: { goalRun: { equals: goalRunId } },
+    sort: "createdAt",
+    limit: 500,
+    depth: 0,
+    overrideAccess: true,
+  });
+  const out: AdGroupStagingRow[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const doc of res.docs as Array<any>) {
+    if (doc.action !== AD_GROUP_STAGING_ACTION) continue;
+    if (doc.status === "rejected") continue;
+    const p = (doc.proposedPayload ?? {}) as Record<string, unknown>;
+    const adGroupId = typeof p.adGroupId === "string" ? p.adGroupId : undefined;
+    const stagedAt = typeof p.stagedAt === "string" ? p.stagedAt : undefined;
+    const id = typeof doc.id === "number" ? doc.id : Number(doc.id);
+    if (adGroupId && stagedAt && Number.isFinite(id)) out.push({ id, adGroupId, stagedAt });
+  }
+  return out;
+}
+
 /** Count snapshots already recorded under this goal-run (used as step #). */
 async function countSnapshotsForRun(payload: Payload, goalRunId: number): Promise<number> {
   const res = await payload.find({
@@ -1164,6 +1340,28 @@ async function handleAnalysing(ctx: AccountEfficiencyContext): Promise<TickResul
     ? allSnapshots.keyword.rows
     : [];
 
+  // Additive long-lookback windows used to confirm pauses before firing.
+  // `null` (never captured / stale) is a deliberate "cannot confirm" signal
+  // that makes the detectors stand down rather than pause on absent data.
+  const keyword90dSnapshot = needsKeyword
+    ? await getKeywordSnapshotForWindow(ctx.payload, {
+        clientId: ctx.clientId,
+        staleAfterMinutes: SNAPSHOT_STALE_AFTER_MINUTES,
+      })
+    : null;
+  const keywordRows90d = keyword90dSnapshot && !keyword90dSnapshot.isStale
+    ? keyword90dSnapshot.rows
+    : null;
+  const adGroup60dSnapshot = parameters.enabledLevers.includes("ad_group_pause")
+    ? await getAdGroupSnapshotForWindow(ctx.payload, {
+        clientId: ctx.clientId,
+        staleAfterMinutes: SNAPSHOT_STALE_AFTER_MINUTES,
+      })
+    : null;
+  const adGroupRows60d = adGroup60dSnapshot && !adGroup60dSnapshot.isStale
+    ? adGroup60dSnapshot.rows
+    : null;
+
   if (parameters.enabledLevers.includes("budget_shift")) {
     const proposal = detectBudgetShift({
       campaignRows: snapshot.rows,
@@ -1199,8 +1397,10 @@ async function handleAnalysing(ctx: AccountEfficiencyContext): Promise<TickResul
     if (proposal) envelopes.push(buildBudgetShiftEnvelope(proposal, parameters));
   }
 
+  let adGroupStagingActive = false;
   if (parameters.enabledLevers.includes("ad_group_pause") && adGroupRows.length > 0) {
-    envelopes.push(...detectAdGroupPauses({
+    const existingStagingRows = await loadAdGroupStagings(ctx.payload, ctx.goalRun.id);
+    const adGroupResult = detectAdGroupPauses({
       adGroupRows,
       campaignRows: snapshot.rows,
       parameters,
@@ -1208,7 +1408,52 @@ async function handleAnalysing(ctx: AccountEfficiencyContext): Promise<TickResul
       protectedCampaignIds: protectedIds,
       conversionTrackingEnabledFrom: contract?.spendPolicy.conversionTrackingEnabledFrom ?? null,
       now: ctx.now,
-    }));
+      adGroupRows60d,
+      existingStagings: existingStagingRows.map((s) => ({ adGroupId: s.adGroupId, stagedAt: s.stagedAt })),
+    });
+
+    // Persist newly-staged ad groups (do not pause this tick).
+    let stagingStep = (await countSnapshotsForRun(ctx.payload, ctx.goalRun.id)) + 1;
+    for (const staging of adGroupResult.newStagings) {
+      await recordGoalRunSnapshot(ctx.payload, {
+        goalRunId: ctx.goalRun.id,
+        step: stagingStep,
+        action: AD_GROUP_STAGING_ACTION,
+        riskTier: "green",
+        status: "approved",
+        campaignIds: [staging.campaignId],
+        proposedPayload: {
+          adGroupId: staging.adGroupId,
+          campaignId: staging.campaignId,
+          adGroupName: staging.adGroupName,
+          campaignName: staging.campaignName,
+          spend: staging.spend,
+          stagedAt: staging.stagedAt,
+          note: "Ad group seen 0-conversion; staged for one measurement cycle before pausing. Phrase/exact keywords are pruned meanwhile.",
+        },
+      });
+      stagingStep += 1;
+    }
+
+    // Clear staging for ad groups that converted within the 60-day window.
+    const clearedSet = new Set(adGroupResult.clearedStagingAdGroupIds);
+    for (const stagingRow of existingStagingRows) {
+      if (!clearedSet.has(stagingRow.adGroupId)) continue;
+      await ctx.payload.update({
+        collection: "goal-run-snapshots",
+        id: stagingRow.id,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data: {
+          status: "rejected",
+          blockReason: "Ad group converted within the 60-day window after staging; pause cancelled.",
+        } as any,
+        overrideAccess: true,
+      });
+    }
+
+    const remainingStaged = existingStagingRows.length - adGroupResult.clearedStagingAdGroupIds.length;
+    adGroupStagingActive = adGroupResult.newStagings.length > 0 || remainingStaged > 0;
+    envelopes.push(...adGroupResult.proposals);
   }
 
   if (parameters.enabledLevers.includes("keyword_pause") && adGroupRows.length > 0 && keywordRows.length > 0) {
@@ -1220,6 +1465,7 @@ async function handleAnalysing(ctx: AccountEfficiencyContext): Promise<TickResul
       brandCampaignIds: brandIds,
       protectedCampaignIds: protectedIds,
       brandKeywords: [],
+      keywordRows90d,
     }));
   }
 
@@ -1240,6 +1486,20 @@ async function handleAnalysing(ctx: AccountEfficiencyContext): Promise<TickResul
       brandCampaignIds: brandIds,
       protectedCampaignIds: protectedIds,
     }));
+  }
+
+  // Ad-group staging in progress with nothing else to do: do NOT complete the
+  // run. Stay in analysing and re-check after one measurement cycle so the
+  // staged ad groups get confirmed (and paused) once the cycle elapses.
+  if (envelopes.length === 0 && adGroupStagingActive) {
+    const recheckAt = new Date(
+      ctx.now.getTime() + parameters.measurementDays * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    return {
+      status: "analysing",
+      nextCheckAt: recheckAt,
+      note: `Ad-group pause staging in progress; no other proposals. Re-checking after the measurement cycle at ${recheckAt}.`,
+    };
   }
 
   if (envelopes.length === 0) {

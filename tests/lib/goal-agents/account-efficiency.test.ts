@@ -36,6 +36,7 @@ function defaultParameters(
     minAdGroupSpend: 200,
     minKeywordSpend: 100,
     minConvertingAdGroupConversions: 5,
+    minRecipientConversions: 5,
     maxTargetCpaUpliftPercent: 15,
     maxTargetRoasReductionPercent: 10,
     enabledLevers: ["budget_shift"],
@@ -339,7 +340,7 @@ describe("remaining account-efficiency detectors", () => {
   };
 
   it("detectAdGroupPauses stands down when conversion tracking maturity is missing", () => {
-    expect(detectAdGroupPauses({
+    const result = detectAdGroupPauses({
       adGroupRows: [adGroup],
       campaignRows: [campaign],
       parameters: defaultParameters({ enabledLevers: ["ad_group_pause"] }),
@@ -347,11 +348,13 @@ describe("remaining account-efficiency detectors", () => {
       protectedCampaignIds: [],
       conversionTrackingEnabledFrom: null,
       now: new Date("2026-06-01T00:00:00Z"),
-    })).toHaveLength(0);
+    });
+    expect(result.proposals).toHaveLength(0);
+    expect(result.newStagings).toHaveLength(0);
   });
 
-  it("detectAdGroupPauses emits approval-required pause proposals for mature zero-conversion ad groups", () => {
-    const proposals = detectAdGroupPauses({
+  it("detectAdGroupPauses stages a fresh zero-conversion ad group instead of pausing", () => {
+    const result = detectAdGroupPauses({
       adGroupRows: [adGroup],
       campaignRows: [campaign],
       parameters: defaultParameters({ enabledLevers: ["ad_group_pause"] }),
@@ -360,9 +363,143 @@ describe("remaining account-efficiency detectors", () => {
       conversionTrackingEnabledFrom: "2026-04-01T00:00:00Z",
       now: new Date("2026-06-01T00:00:00Z"),
     });
+    expect(result.proposals).toHaveLength(0);
+    expect(result.newStagings).toHaveLength(1);
+    expect(result.newStagings[0]!.adGroupId).toBe("A1");
+  });
+
+  it("detectAdGroupPauses pauses after a measurement cycle with 0 conv confirmed over 60d", () => {
+    const result = detectAdGroupPauses({
+      adGroupRows: [adGroup],
+      campaignRows: [campaign],
+      parameters: defaultParameters({ enabledLevers: ["ad_group_pause"], measurementDays: 14 }),
+      brandCampaignIds: [],
+      protectedCampaignIds: [],
+      conversionTrackingEnabledFrom: "2026-04-01T00:00:00Z",
+      now: new Date("2026-06-01T00:00:00Z"),
+      existingStagings: [{ adGroupId: "A1", stagedAt: "2026-05-10T00:00:00Z" }],
+      adGroupRows60d: [{ ...adGroup, conversions: 0 }],
+    });
+    expect(result.proposals).toHaveLength(1);
+    expect(result.proposals[0]!.actionType).toBe("ad-group-pause");
+    expect(result.proposals[0]!.payload.guardrailOverrides).toContain("hard_approval_lock");
+  });
+
+  it("detectAdGroupPauses clears staging (no pause) when 60d shows conversions", () => {
+    const result = detectAdGroupPauses({
+      adGroupRows: [adGroup],
+      campaignRows: [campaign],
+      parameters: defaultParameters({ enabledLevers: ["ad_group_pause"], measurementDays: 14 }),
+      brandCampaignIds: [],
+      protectedCampaignIds: [],
+      conversionTrackingEnabledFrom: "2026-04-01T00:00:00Z",
+      now: new Date("2026-06-01T00:00:00Z"),
+      existingStagings: [{ adGroupId: "A1", stagedAt: "2026-05-10T00:00:00Z" }],
+      adGroupRows60d: [{ ...adGroup, conversions: 3 }],
+    });
+    expect(result.proposals).toHaveLength(0);
+    expect(result.clearedStagingAdGroupIds).toEqual(["A1"]);
+  });
+
+  it("detectAdGroupPauses skips (no pause) when the staging cycle has not elapsed", () => {
+    const result = detectAdGroupPauses({
+      adGroupRows: [adGroup],
+      campaignRows: [campaign],
+      parameters: defaultParameters({ enabledLevers: ["ad_group_pause"], measurementDays: 14 }),
+      brandCampaignIds: [],
+      protectedCampaignIds: [],
+      conversionTrackingEnabledFrom: "2026-04-01T00:00:00Z",
+      now: new Date("2026-06-01T00:00:00Z"),
+      existingStagings: [{ adGroupId: "A1", stagedAt: "2026-05-30T00:00:00Z" }],
+      adGroupRows60d: [{ ...adGroup, conversions: 0 }],
+    });
+    expect(result.proposals).toHaveLength(0);
+    expect(result.newStagings).toHaveLength(0);
+  });
+
+  it("detectAdGroupPauses skips (never pauses) when the 60d window is missing", () => {
+    const result = detectAdGroupPauses({
+      adGroupRows: [adGroup],
+      campaignRows: [campaign],
+      parameters: defaultParameters({ enabledLevers: ["ad_group_pause"], measurementDays: 14 }),
+      brandCampaignIds: [],
+      protectedCampaignIds: [],
+      conversionTrackingEnabledFrom: "2026-04-01T00:00:00Z",
+      now: new Date("2026-06-01T00:00:00Z"),
+      existingStagings: [{ adGroupId: "A1", stagedAt: "2026-05-10T00:00:00Z" }],
+      adGroupRows60d: null,
+    });
+    expect(result.proposals).toHaveLength(0);
+  });
+
+  it("detectKeywordPauses always pauses BROAD keywords regardless of spend or window", () => {
+    const rows: KeywordSnapshotRow[] = [
+      { campaignId: "C1", adGroupId: "A1", keywordId: "K1", text: "cheap stuff", matchType: "BROAD", spend: 5, conversions: 0 },
+    ];
+    const proposals = detectKeywordPauses({
+      keywordRows: rows,
+      adGroupRows: [adGroup],
+      campaignRows: [campaign],
+      parameters: defaultParameters({ enabledLevers: ["keyword_pause"] }),
+      brandCampaignIds: [],
+      protectedCampaignIds: [],
+      brandKeywords: [],
+      keywordRows90d: null,
+    });
     expect(proposals).toHaveLength(1);
-    expect(proposals[0]!.actionType).toBe("ad-group-pause");
-    expect(proposals[0]!.payload.guardrailOverrides).toContain("hard_approval_lock");
+    expect(proposals[0]!.payload.keywordText).toBe("cheap stuff");
+  });
+
+  it("detectKeywordPauses confirms phrase/exact against the 90d window (0 conv → propose)", () => {
+    const rows: KeywordSnapshotRow[] = [
+      { campaignId: "C1", adGroupId: "A1", keywordId: "K2", text: "emergency plumber", matchType: "PHRASE", spend: 150, conversions: 0 },
+    ];
+    const proposals = detectKeywordPauses({
+      keywordRows: rows,
+      adGroupRows: [adGroup],
+      campaignRows: [campaign],
+      parameters: defaultParameters({ enabledLevers: ["keyword_pause"] }),
+      brandCampaignIds: [],
+      protectedCampaignIds: [],
+      brandKeywords: [],
+      keywordRows90d: [{ campaignId: "C1", adGroupId: "A1", keywordId: "K2", text: "emergency plumber", matchType: "PHRASE", spend: 400, conversions: 0 }],
+    });
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]!.payload.keywordText).toBe("emergency plumber");
+  });
+
+  it("detectKeywordPauses skips phrase/exact when the 90d window shows conversions", () => {
+    const rows: KeywordSnapshotRow[] = [
+      { campaignId: "C1", adGroupId: "A1", keywordId: "K2", text: "emergency plumber", matchType: "PHRASE", spend: 150, conversions: 0 },
+    ];
+    const proposals = detectKeywordPauses({
+      keywordRows: rows,
+      adGroupRows: [adGroup],
+      campaignRows: [campaign],
+      parameters: defaultParameters({ enabledLevers: ["keyword_pause"] }),
+      brandCampaignIds: [],
+      protectedCampaignIds: [],
+      brandKeywords: [],
+      keywordRows90d: [{ campaignId: "C1", adGroupId: "A1", keywordId: "K2", text: "emergency plumber", matchType: "PHRASE", spend: 400, conversions: 2 }],
+    });
+    expect(proposals).toHaveLength(0);
+  });
+
+  it("detectKeywordPauses skips phrase/exact when the 90d window is missing (never pause on absent data)", () => {
+    const rows: KeywordSnapshotRow[] = [
+      { campaignId: "C1", adGroupId: "A1", keywordId: "K2", text: "emergency plumber", matchType: "PHRASE", spend: 150, conversions: 0 },
+    ];
+    const proposals = detectKeywordPauses({
+      keywordRows: rows,
+      adGroupRows: [adGroup],
+      campaignRows: [campaign],
+      parameters: defaultParameters({ enabledLevers: ["keyword_pause"] }),
+      brandCampaignIds: [],
+      protectedCampaignIds: [],
+      brandKeywords: [],
+      keywordRows90d: null,
+    });
+    expect(proposals).toHaveLength(0);
   });
 
   it("detectKeywordPauses filters brand keywords and proposes generic zero-conversion keywords", () => {
@@ -378,9 +515,30 @@ describe("remaining account-efficiency detectors", () => {
       brandCampaignIds: [],
       protectedCampaignIds: [],
       brandKeywords: ["acme"],
+      keywordRows90d: [
+        { campaignId: "C1", adGroupId: "A1", keywordId: "K1", text: "acme plumbing", matchType: "PHRASE", spend: 1000, conversions: 0 },
+        { campaignId: "C1", adGroupId: "A1", keywordId: "K2", text: "emergency plumber", matchType: "PHRASE", spend: 400, conversions: 0 },
+      ],
     });
     expect(proposals).toHaveLength(1);
     expect(proposals[0]!.payload.keywordText).toBe("emergency plumber");
+  });
+
+  it("detectBudgetShift honours a tunable minRecipientConversions floor", () => {
+    const A = row({ campaignId: "A", dailyBudget: 30, conversions: 0 });
+    const B = row({ campaignId: "B", dailyBudget: 10, conversions: 8, searchBudgetLostIS: 25, searchRankLostIS: 5 });
+    // Raise the floor above B's 8 conversions — B no longer qualifies, no shift.
+    const proposal = detectBudgetShift(
+      detectArgs([A, B], { parameters: defaultParameters({ minRecipientConversions: 12 }) }),
+    );
+    expect(proposal).toBeNull();
+    // Lower the floor and B qualifies again.
+    const proposal2 = detectBudgetShift(
+      detectArgs([A, B], { parameters: defaultParameters({ minRecipientConversions: 5 }) }),
+    );
+    expect(proposal2).not.toBeNull();
+    // Conservation check still passes (no error).
+    expect(proposal2?.error).toBeUndefined();
   });
 
   it("detectBidAdjustments emits capped target CPA updates for rank-lost efficient ad groups", () => {

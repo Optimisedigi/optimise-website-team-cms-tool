@@ -144,7 +144,7 @@ export const GoalRuns: CollectionConfig = {
       type: "json",
       admin: {
         description:
-          "Per-run knobs supplied at create time (e.g. targetImprovementPercent, enabledLevers, observationDays). Read by the goal-type handler each tick; never mutated by the runtime. JSON-serialisable.",
+          "Per-run knobs supplied at create time. Read by the goal-type handler each tick; never mutated by the runtime. JSON-serialisable. Account-efficiency prerequisite keys: monthlyBudget (REQUIRED for new runs via OptiMate — on apply it overwrites the client's google-ads-audits.monthlyBudget, the budget-shift anchor), minRecipientConversions (conversions threshold a campaign needs to receive freed budget; default 5), targetImprovementPercent (CPA target; default 15), measurementDays (ad-group staging cycle; default 14), and includedCampaignIds (campaign scope allow-list). Other knobs: bufferTolerancePercent, observationDays, campaignWindowDays, maxDonorReductionPercent, minDailyBudgetFloor, minAdGroupSpend, minKeywordSpend, enabledLevers.",
       },
     },
   ],

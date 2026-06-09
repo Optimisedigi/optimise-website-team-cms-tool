@@ -350,3 +350,78 @@ describe("types are re-exported from index", () => {
     expect(record.level).toBe("campaign");
   });
 });
+
+// ─── Windowed readers (multi-window snapshots) ─────────────────────────────────
+
+import {
+  getKeywordSnapshotForWindow,
+  getAdGroupSnapshotForWindow,
+} from "@/lib/google-ads-snapshots/index";
+
+function makeFilteringPayload(allDocs: Array<Record<string, unknown>>) {
+  return {
+    find: vi.fn(async (args: { where?: Record<string, unknown> }) => {
+      const and = Array.isArray((args.where as { and?: unknown })?.and)
+        ? ((args.where as { and: Array<Record<string, unknown>> }).and)
+        : [];
+      let docs = [...allDocs];
+      for (const cond of and) {
+        if (cond.client && typeof cond.client === "object") {
+          docs = docs.filter((d) => d.client === (cond.client as { equals: unknown }).equals);
+        }
+        if (cond.level && typeof cond.level === "object") {
+          docs = docs.filter((d) => d.level === (cond.level as { equals: unknown }).equals);
+        }
+        if (cond.dateRangeLabel && typeof cond.dateRangeLabel === "object") {
+          docs = docs.filter((d) => d.dateRangeLabel === (cond.dateRangeLabel as { equals: unknown }).equals);
+        }
+      }
+      return { docs };
+    }),
+  } as unknown as import("payload").Payload;
+}
+
+describe("windowed snapshot readers", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-20T11:00:00.000Z"));
+  });
+
+  it("getKeywordSnapshotForWindow returns the 90d row when present", async () => {
+    const payload = makeFilteringPayload([
+      { ...keywordDoc(1), dateRangeLabel: "LAST_30_DAYS" },
+      { ...keywordDoc(1), id: 2, dateRangeLabel: "LAST_90_DAYS" },
+    ]);
+    const result = await getKeywordSnapshotForWindow(payload, { clientId: 1 });
+    expect(result).not.toBeNull();
+    expect(result!.dateRangeLabel).toBe("LAST_90_DAYS");
+  });
+
+  it("getKeywordSnapshotForWindow returns null when the 90d window is absent", async () => {
+    const payload = makeFilteringPayload([
+      { ...keywordDoc(1), dateRangeLabel: "LAST_30_DAYS" },
+    ]);
+    const result = await getKeywordSnapshotForWindow(payload, { clientId: 1 });
+    expect(result).toBeNull();
+  });
+
+  it("getAdGroupSnapshotForWindow returns the 60d row when present", async () => {
+    const payload = makeFilteringPayload([
+      { ...adGroupDoc(1), dateRangeLabel: "STRUCTURAL" },
+      { ...adGroupDoc(1), id: 3, dateRangeLabel: "LAST_60_DAYS" },
+    ]);
+    const result = await getAdGroupSnapshotForWindow(payload, { clientId: 1 });
+    expect(result).not.toBeNull();
+    expect(result!.dateRangeLabel).toBe("LAST_60_DAYS");
+  });
+
+  it("default reader skips the additive long windows", async () => {
+    const payload = makeFilteringPayload([
+      { ...keywordDoc(1), id: 1, dateRangeLabel: "LAST_30_DAYS" },
+      { ...keywordDoc(1), id: 2, dateRangeLabel: "LAST_90_DAYS" },
+    ]);
+    const result = await getLatestSnapshot(payload, { clientId: 1, level: "keyword" });
+    expect(result).not.toBeNull();
+    expect(result!.dateRangeLabel).toBe("LAST_30_DAYS");
+  });
+});

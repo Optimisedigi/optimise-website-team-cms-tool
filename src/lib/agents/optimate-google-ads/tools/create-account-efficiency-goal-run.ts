@@ -37,6 +37,11 @@ const IMPLEMENTED_LEVERS: ReadonlySet<LeverKey> = new Set<LeverKey>([
 
 interface ValidatedParameters {
   optimisationMetric: "cpa";
+  /**
+   * Prerequisite collected before activation. On apply this overwrites the
+   * client's stored CMS monthly budget (google-ads-audits.monthlyBudget).
+   */
+  monthlyBudget: number;
   targetImprovementPercent: number;
   bufferTolerancePercent: number;
   observationDays: number;
@@ -48,6 +53,7 @@ interface ValidatedParameters {
   minAdGroupSpend: number;
   minKeywordSpend: number;
   minConvertingAdGroupConversions: number;
+  minRecipientConversions: number;
   maxTargetCpaUpliftPercent: number;
   maxTargetRoasReductionPercent: number;
   enabledLevers: LeverKey[];
@@ -127,6 +133,21 @@ function validateEnabledLevers(raw: unknown): LeverKey[] {
   return out;
 }
 
+function validateMonthlyBudget(raw: unknown): number {
+  if (raw === undefined || raw === null) {
+    throw new Error(
+      "monthlyBudget is a required prerequisite. Ask the team for the client's monthly Google Ads budget before creating the run — on apply it overwrites the stored CMS monthly budget the budget-shift anchors against.",
+    );
+  }
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    throw new Error("monthlyBudget must be a finite number");
+  }
+  if (raw < 0) {
+    throw new Error(`monthlyBudget must be non-negative (got ${raw})`);
+  }
+  return raw;
+}
+
 function validateParameters(raw: unknown): ValidatedParameters {
   const obj = isObject(raw) ? raw : {};
 
@@ -162,6 +183,7 @@ function validateParameters(raw: unknown): ValidatedParameters {
 
   return {
     optimisationMetric: "cpa",
+    monthlyBudget: validateMonthlyBudget(obj.monthlyBudget),
     targetImprovementPercent,
     bufferTolerancePercent,
     observationDays: validateNumber(obj.observationDays, "observationDays", { min: 7, max: 90 }, 28),
@@ -173,6 +195,7 @@ function validateParameters(raw: unknown): ValidatedParameters {
     minAdGroupSpend: validateNumber(obj.minAdGroupSpend, "minAdGroupSpend", { min: 0, max: 1_000_000 }, 200),
     minKeywordSpend: validateNumber(obj.minKeywordSpend, "minKeywordSpend", { min: 0, max: 1_000_000 }, 100),
     minConvertingAdGroupConversions: validateNumber(obj.minConvertingAdGroupConversions, "minConvertingAdGroupConversions", { min: 1, max: 1_000 }, 5),
+    minRecipientConversions: validateNumber(obj.minRecipientConversions, "minRecipientConversions", { min: 0, max: 1_000 }, 5),
     maxTargetCpaUpliftPercent: validateNumber(obj.maxTargetCpaUpliftPercent, "maxTargetCpaUpliftPercent", { min: 0, max: 100 }, 15),
     maxTargetRoasReductionPercent: validateNumber(obj.maxTargetRoasReductionPercent, "maxTargetRoasReductionPercent", { min: 0, max: 100 }, 10),
     enabledLevers: validateEnabledLevers(obj.enabledLevers),
@@ -184,15 +207,16 @@ function validateParameters(raw: unknown): ValidatedParameters {
 export const createAccountEfficiencyGoalRun: CanonicalTool<CreateAccountEfficiencyGoalRunArgs> = {
   name: "create_account_efficiency_goal_run",
   description:
-    "Queue human approval to create a new Account Efficiency goal-agent run for the current client. Args: parameters (optional, defaults applied), reason (optional), summary (optional), supportingNumbers (optional). Returns an approval id and URL. The run is not created until approved and applied.",
+    "Queue human approval to create a new Account Efficiency goal-agent run for the current client. PREREQUISITES — gather these from the user BEFORE calling: (1) parameters.monthlyBudget (REQUIRED — the client's monthly Google Ads budget in dollars; on apply it overwrites the stored CMS monthly budget the budget-shift anchors against), (2) parameters.minRecipientConversions (the conversions threshold a campaign needs to receive freed budget; default 5), (3) parameters.targetImprovementPercent (CPA improvement target; default 15), and (4) parameters.includedCampaignIds (campaign scope; optional allow-list). Other args: reason, summary, supportingNumbers (optional). Returns an approval id and URL. The run is not created until approved and applied, and will be REJECTED if monthlyBudget is missing.",
   inputSchema: {
     type: "object",
     properties: {
       parameters: {
         type: "object",
-        description: "Optional per-run knobs. All fields optional; defaults applied for any missing key.",
+        description: "Per-run knobs. monthlyBudget is REQUIRED; all other fields optional with defaults applied for any missing key.",
         properties: {
           optimisationMetric: { type: "string", enum: ["cpa"], description: "Only 'cpa' supported today." },
+          monthlyBudget: { type: "number", description: "REQUIRED prerequisite. The client's monthly Google Ads budget in dollars. On apply it overwrites google-ads-audits.monthlyBudget." },
           targetImprovementPercent: { type: "number", description: "Aspirational improvement target (default 15)." },
           bufferTolerancePercent: { type: "number", description: "Any improvement >= this counts as partial success (default 5). Must be less than targetImprovementPercent." },
           observationDays: { type: "number" },
@@ -204,6 +228,7 @@ export const createAccountEfficiencyGoalRun: CanonicalTool<CreateAccountEfficien
           minAdGroupSpend: { type: "number" },
           minKeywordSpend: { type: "number" },
           minConvertingAdGroupConversions: { type: "number" },
+          minRecipientConversions: { type: "number", description: "Conversions threshold a campaign needs to receive freed budget (default 5)." },
           maxTargetCpaUpliftPercent: { type: "number" },
           maxTargetRoasReductionPercent: { type: "number" },
           enabledLevers: {
@@ -237,7 +262,7 @@ export const createAccountEfficiencyGoalRun: CanonicalTool<CreateAccountEfficien
   validate: (raw) => {
     const obj = isObject(raw) ? raw : {};
     const out: CreateAccountEfficiencyGoalRunArgs = {
-      parameters: validateParameters(obj.parameters ?? {}),
+      parameters: validateParameters(obj.parameters),
     };
 
     const r = obj.reason;
@@ -282,7 +307,7 @@ export const createAccountEfficiencyGoalRun: CanonicalTool<CreateAccountEfficien
       return { ok: false, error: "No client linked; cannot queue an account efficiency goal run approval." };
     }
 
-    const parameters = args.parameters ?? validateParameters({});
+    const parameters = args.parameters ?? validateParameters(args.parameters);
     const summary = args.summary ?? "Queue an Account Efficiency goal-agent run for this client.";
     const internalMarkdown = buildInternalMarkdown({
       summary,

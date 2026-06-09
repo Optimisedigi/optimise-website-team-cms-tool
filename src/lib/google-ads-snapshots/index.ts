@@ -33,6 +33,19 @@ export type {
 /** Default staleness threshold: 24 hours. */
 const DEFAULT_STALE_AFTER_MINUTES = 1440;
 
+/**
+ * Long-lookback window labels the multi-window cron persists alongside the
+ * primary (30-day / structural) snapshot. The default reader must NOT return
+ * these so legacy callers keep getting the primary row even though there are
+ * now several rows per (client, level).
+ */
+export const KEYWORD_WINDOW_90D = "LAST_90_DAYS";
+export const AD_GROUP_WINDOW_60D = "LAST_60_DAYS";
+const LONG_WINDOW_LABELS: ReadonlySet<string> = new Set([
+  KEYWORD_WINDOW_90D,
+  AD_GROUP_WINDOW_60D,
+]);
+
 /** Raw doc shape we expect back from Payload.find on this collection. */
 interface SnapshotDoc {
   id: string | number;
@@ -104,17 +117,53 @@ export interface GetLatestSnapshotArgs<L extends SnapshotLevel> {
   level: L;
   /** Defaults to 1440 (24 hours). */
   staleAfterMinutes?: number;
+  /**
+   * When set, only a snapshot tagged with this exact `dateRangeLabel` matches.
+   * Used to read the additive long-lookback windows (60d ad-group, 90d
+   * keyword). When omitted the reader returns the primary snapshot and skips
+   * the long-window rows so legacy callers are unaffected.
+   */
+  dateRangeLabel?: string;
 }
 
 /**
  * Generic reader — returns the latest snapshot for (client, level) or null
  * if the cron has never written one yet for this client.
+ *
+ * Multi-window note: there can now be several rows per (client, level) — the
+ * primary (30d / structural) plus additive long-lookback windows. When
+ * `dateRangeLabel` is supplied we match that window exactly (returning null if
+ * absent). When it's omitted we return the primary, explicitly skipping the
+ * long-window rows.
  */
 export async function getLatestSnapshot<L extends SnapshotLevel>(
   payload: Payload,
   args: GetLatestSnapshotArgs<L>,
 ): Promise<SnapshotRecord<L> | null> {
   const staleAfterMinutes = args.staleAfterMinutes ?? DEFAULT_STALE_AFTER_MINUTES;
+  if (args.dateRangeLabel !== undefined) {
+    const result = await payload.find({
+      collection: "google-ads-snapshots",
+      where: {
+        and: [
+          { client: { equals: args.clientId } },
+          { level: { equals: args.level } },
+          { dateRangeLabel: { equals: args.dateRangeLabel } },
+        ],
+      },
+      sort: "-capturedAt",
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    });
+    const doc = (result.docs as unknown as SnapshotDoc[])[0];
+    if (!doc) return null;
+    return buildRecord<L>(doc, args.level, staleAfterMinutes);
+  }
+
+  // No explicit window: return the primary row, skipping additive long
+  // windows. Fetch a small page and pick the first non-long-window doc so
+  // this stays correct even with several rows per (client, level).
   const result = await payload.find({
     collection: "google-ads-snapshots",
     where: {
@@ -123,13 +172,17 @@ export async function getLatestSnapshot<L extends SnapshotLevel>(
         { level: { equals: args.level } },
       ],
     },
-    limit: 1,
+    sort: "-capturedAt",
+    limit: 10,
     depth: 0,
     overrideAccess: true,
   });
-  const doc = (result.docs as unknown as SnapshotDoc[])[0];
-  if (!doc) return null;
-  return buildRecord<L>(doc, args.level, staleAfterMinutes);
+  const docs = result.docs as unknown as SnapshotDoc[];
+  const primary = docs.find(
+    (d) => !d.dateRangeLabel || !LONG_WINDOW_LABELS.has(d.dateRangeLabel),
+  );
+  if (!primary) return null;
+  return buildRecord<L>(primary, args.level, staleAfterMinutes);
 }
 
 export interface GetLevelSnapshotArgs {
@@ -163,6 +216,38 @@ export async function getSearchTermSnapshot(
   args: GetLevelSnapshotArgs,
 ): Promise<SnapshotRecord<"search_term"> | null> {
   return getLatestSnapshot(payload, { ...args, level: "search_term" });
+}
+
+/**
+ * Read the additive 90-day keyword window the multi-window cron persists.
+ * Returns null when that window has not been captured yet — callers must treat
+ * "absent" as "cannot confirm" (never pause on missing long-window data).
+ */
+export async function getKeywordSnapshotForWindow(
+  payload: Payload,
+  args: GetLevelSnapshotArgs,
+): Promise<SnapshotRecord<"keyword"> | null> {
+  return getLatestSnapshot(payload, {
+    ...args,
+    level: "keyword",
+    dateRangeLabel: KEYWORD_WINDOW_90D,
+  });
+}
+
+/**
+ * Read the additive 60-day ad-group window the multi-window cron persists.
+ * Returns null when that window has not been captured yet — callers must treat
+ * "absent" as "cannot confirm".
+ */
+export async function getAdGroupSnapshotForWindow(
+  payload: Payload,
+  args: GetLevelSnapshotArgs,
+): Promise<SnapshotRecord<"ad_group"> | null> {
+  return getLatestSnapshot(payload, {
+    ...args,
+    level: "ad_group",
+    dateRangeLabel: AD_GROUP_WINDOW_60D,
+  });
 }
 
 export interface GetAllLatestForClientArgs {

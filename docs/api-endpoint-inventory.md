@@ -125,6 +125,7 @@ CMS → Growth Tools unmatched calls: 4
 | `/api/gmail/message/[id]` | GET | payload-session | json-body, 400-validation | google | `src/app/(frontend)/api/gmail/message/[id]/route.ts` |
 | `/api/gmail/search` | GET | payload-session | json-body, query-params | google | `src/app/(frontend)/api/gmail/search/route.ts` |
 | `/api/gmail/status` | GET | payload-session | json-body | google, email | `src/app/(frontend)/api/gmail/status/route.ts` |
+| `/api/goal-agents/changes` | GET | payload-session | json-body, query-params |  | `src/app/(frontend)/api/goal-agents/changes/route.ts` |
 | `/api/goal-agents/cron` | GET | cron-or-bearer-secret | json-body |  | `src/app/(frontend)/api/goal-agents/cron/route.ts` |
 | `/api/goal-agents/watchdog` | GET | cron-or-bearer-secret | json-body |  | `src/app/(frontend)/api/goal-agents/watchdog/route.ts` |
 | `/api/google-ads-audits/[id]/ad-copy-deploy-status` | GET | payload-session | json-body |  | `src/app/(frontend)/api/google-ads-audits/[id]/ad-copy-deploy-status/route.ts` |
@@ -2007,6 +2008,19 @@ Source repo: `/Users/Pe/my-projects/client/website-optimise-digital/website-grow
       "validation": "json-body",
       "external": "google, email",
       "hasTryCatch": true,
+      "growthToolsCalls": [],
+      "unmatchedGrowthToolsCalls": []
+    },
+    {
+      "route": "/api/goal-agents/changes",
+      "file": "src/app/(frontend)/api/goal-agents/changes/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "auth": "payload-session",
+      "validation": "json-body, query-params",
+      "external": "",
+      "hasTryCatch": false,
       "growthToolsCalls": [],
       "unmatchedGrowthToolsCalls": []
     },

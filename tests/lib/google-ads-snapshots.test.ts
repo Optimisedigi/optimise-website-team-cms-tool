@@ -41,10 +41,12 @@ describe("getLatestSnapshot", () => {
     });
 
     expect(result).toBeNull();
+    // The default (no-window) reader pages a few rows and picks the primary,
+    // skipping the additive long-lookback windows.
     expect(payload.find).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: "google-ads-snapshots",
-        limit: 1,
+        limit: 10,
       }),
     );
     const whereArg = payload.find.mock.calls[0][0].where;

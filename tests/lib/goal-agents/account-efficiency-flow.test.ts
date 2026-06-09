@@ -42,6 +42,19 @@ function makePayload(state: MockState) {
         if (condition.level && typeof condition.level === "object" && "equals" in condition.level) {
           docs = docs.filter((d) => d.level === (condition.level as { equals: unknown }).equals);
         }
+        if (condition.dateRangeLabel && typeof condition.dateRangeLabel === "object" && "equals" in condition.dateRangeLabel) {
+          docs = docs.filter((d) => d.dateRangeLabel === (condition.dateRangeLabel as { equals: unknown }).equals);
+        }
+      }
+      // Top-level dateRangeLabel filter (windowed reader).
+      if (where.dateRangeLabel && typeof where.dateRangeLabel === "object" && "equals" in where.dateRangeLabel) {
+        docs = docs.filter((d) => d.dateRangeLabel === (where.dateRangeLabel as { equals: unknown }).equals);
+      }
+      // Default (no-label) snapshot reader must skip the additive long windows.
+      const hasLevel = and.some((c) => c.level && typeof c.level === "object" && "equals" in (c.level as object));
+      const hasLabel = and.some((c) => c.dateRangeLabel) || !!where.dateRangeLabel;
+      if (args.collection === "google-ads-snapshots" && hasLevel && !hasLabel) {
+        docs = docs.filter((d) => !d.dateRangeLabel || (d.dateRangeLabel !== "LAST_90_DAYS" && d.dateRangeLabel !== "LAST_60_DAYS"));
       }
       if (where.goalRun && typeof where.goalRun === "object" && "equals" in where.goalRun) {
         docs = docs.filter((d) => {
@@ -143,7 +156,45 @@ function makeState(): MockState {
         { campaignId: "D", adGroupId: "A1", keywordId: "K1", text: "generic waste", matchType: "PHRASE", spend: 150, clicks: 15, impressions: 300, conversions: 0 },
       ],
     },
+    {
+      id: 904,
+      client: 42,
+      level: "keyword",
+      dateRangeLabel: "LAST_90_DAYS",
+      capturedAt: NOW.toISOString(),
+      customerId: "1234567890",
+      rowCount: 1,
+      rows: [
+        { campaignId: "D", adGroupId: "A1", keywordId: "K1", text: "generic waste", matchType: "PHRASE", spend: 450, clicks: 45, impressions: 900, conversions: 0 },
+      ],
+    },
+    {
+      id: 905,
+      client: 42,
+      level: "ad_group",
+      dateRangeLabel: "LAST_60_DAYS",
+      capturedAt: NOW.toISOString(),
+      customerId: "1234567890",
+      rowCount: 1,
+      rows: [
+        { campaignId: "D", adGroupId: "A1", name: "Waste Ad Group", status: "ENABLED", spend: 500, clicks: 50, impressions: 1000, conversions: 0, searchRankLostIS: 10 },
+      ],
+    },
   ]);
+  // Pre-existing ad-group staging row (cycle already elapsed) so the staged
+  // ad group can be confirmed + paused on this analysing tick.
+  const stagingSnapshot = {
+    id: 600,
+    goalRun: 500,
+    step: 1,
+    action: "ad-group-prune-staged",
+    riskTier: "green",
+    status: "approved",
+    proposedPayload: { adGroupId: "A1", stagedAt: "2026-06-01T00:00:00.000Z" },
+    createdAt: "2026-06-01T00:00:00.000Z",
+  };
+  state.byId.set(key("goal-run-snapshots", 600), stagingSnapshot);
+  state.finds.set("goal-run-snapshots", [stagingSnapshot]);
   return state;
 }
 
@@ -191,7 +242,9 @@ describe("account-efficiency CPA flow harness", () => {
     const approvals = state.finds.get("agent-approval-queue") ?? [];
     expect(approvals).toHaveLength(4);
     const snapshots = state.finds.get("goal-run-snapshots") ?? [];
-    expect(new Set(snapshots.map((s) => s.action))).toEqual(new Set(["ad-group-pause", "keyword-pause", "bid-adjust", "strategy-alert"]));
+    // Includes the pre-seeded "ad-group-prune-staged" staging row that gated
+    // the ad-group pause until its measurement cycle elapsed.
+    expect(new Set(snapshots.map((s) => s.action))).toEqual(new Set(["ad-group-prune-staged", "ad-group-pause", "keyword-pause", "bid-adjust", "strategy-alert"]));
 
     const firstApproval = approvals[0]!;
     state.byId.set(key("agent-approval-queue", firstApproval.id as number), { ...firstApproval, status: "rejected" });
