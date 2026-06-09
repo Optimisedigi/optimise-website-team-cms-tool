@@ -23,21 +23,46 @@ export const SiteHealthReports: CollectionConfig = {
   },
   fields: [
     {
-      name: "client",
-      type: "relationship",
-      relationTo: "clients",
-      required: true,
-      admin: {
-        description: "Client this report belongs to",
-      },
+      type: "row",
+      fields: [
+        {
+          name: "client",
+          type: "relationship",
+          relationTo: "clients",
+          required: true,
+          admin: {
+            description: "Client this report belongs to",
+            width: "25%",
+          },
+        },
+        {
+          name: "siteUrl",
+          type: "text",
+          required: true,
+          admin: {
+            width: "35%",
+          },
+        },
+        {
+          name: "runAudit",
+          type: "ui",
+          admin: {
+            width: "40%",
+            components: {
+              Field: "./components/RunSiteHealthButton",
+            },
+          },
+        },
+      ],
     },
     {
-      name: "runAudit",
-      type: "ui",
+      name: "reportDate",
+      type: "date",
+      required: true,
+      defaultValue: () => new Date().toISOString(),
       admin: {
-        components: {
-          Field: "./components/RunSiteHealthButton",
-        },
+        hidden: true,
+        date: { pickerAppearance: "dayOnly", displayFormat: "d MMM yyyy" },
       },
     },
     {
@@ -80,36 +105,17 @@ export const SiteHealthReports: CollectionConfig = {
     },
     {
       type: "tabs",
+      admin: { hidden: true },
       tabs: [
         {
           label: "Overview",
           fields: [
             {
-              type: "row",
-              fields: [
-                {
-                  name: "siteUrl",
-                  type: "text",
-                  required: true,
-                  admin: { width: "50%" },
-                },
-                {
-                  name: "reportDate",
-                  type: "date",
-                  required: true,
-                  admin: {
-                    width: "25%",
-                    date: { pickerAppearance: "dayOnly", displayFormat: "d MMM yyyy" },
-                  },
-                },
-                {
-                  name: "healthScore",
-                  type: "number",
-                  min: 0,
-                  max: 100,
-                  admin: { width: "25%", description: "% of URLs free of critical issues" },
-                },
-              ],
+              name: "healthScore",
+              type: "number",
+              min: 0,
+              max: 100,
+              admin: { description: "% of URLs free of critical issues" },
             },
             {
               name: "crawlStats",

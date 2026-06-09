@@ -275,6 +275,21 @@ const SiteHealthReportView = () => {
         <MetricCard label="Notices" value={fmt(issuesSummary.notice)} color="#16a34a" />
       </div>
 
+      {/* ── GSC Data ── */}
+      {hasGsc && (
+        <div style={{ marginBottom: 20 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Google Search Console</h3>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <MetricCard label="Indexed Pages" value={fmt(gscData.indexedPages)} color="#16a34a" />
+            <MetricCard label="Not Indexed" value={fmt(gscData.notIndexedPages)} color="#dc2626" />
+            <MetricCard label="Total Clicks" value={fmt(gscData.totalClicks)} />
+            <MetricCard label="Impressions" value={fmt(gscData.totalImpressions)} />
+            <MetricCard label="Avg CTR" value={pct(gscData.averageCtr)} />
+            <MetricCard label="Avg Position" value={gscData.averagePosition?.toFixed(1) ?? '—'} />
+          </div>
+        </div>
+      )}
+
       {/* ── Issues by Category ── */}
       {issuesByCategory && Object.keys(issuesByCategory).length > 0 && (
         <div style={{ marginBottom: 20 }}>
@@ -296,44 +311,6 @@ const SiteHealthReportView = () => {
                 </div>
               ))}
           </div>
-        </div>
-      )}
-
-      {/* ── Issues List ── */}
-      {sortedCategories.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>All Issues ({issuesSummary.total})</h3>
-          {sortedCategories.map(([cat, catIssues]) => (
-            <div key={cat} style={{ marginBottom: 16 }}>
-              <h4 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px', color: '#374151' }}>
-                {cat} ({catIssues.length})
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {catIssues
-                  .sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
-                  .map((issue, i) => {
-                    const c = severityColor(issue.severity)
-                    return (
-                      <div key={i} style={{
-                        padding: '10px 14px', borderRadius: 6,
-                        background: c.bg, borderLeft: `4px solid ${c.border}`,
-                        fontSize: 13,
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: issue.url ? 4 : 0 }}>
-                          <SeverityBadge severity={issue.severity} />
-                          <span style={{ flex: 1 }}>{issue.message}</span>
-                        </div>
-                        {issue.url && (
-                          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, wordBreak: 'break-all' }}>
-                            {shortUrl(issue.url)}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-              </div>
-            </div>
-          ))}
         </div>
       )}
 
@@ -421,18 +398,41 @@ const SiteHealthReportView = () => {
         </div>
       )}
 
-      {/* ── GSC Data ── */}
-      {hasGsc && (
+      {/* ── Issues List ── */}
+      {sortedCategories.length > 0 && (
         <div style={{ marginBottom: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Google Search Console</h3>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <MetricCard label="Indexed Pages" value={fmt(gscData.indexedPages)} color="#16a34a" />
-            <MetricCard label="Not Indexed" value={fmt(gscData.notIndexedPages)} color="#dc2626" />
-            <MetricCard label="Total Clicks" value={fmt(gscData.totalClicks)} />
-            <MetricCard label="Impressions" value={fmt(gscData.totalImpressions)} />
-            <MetricCard label="Avg CTR" value={pct(gscData.averageCtr)} />
-            <MetricCard label="Avg Position" value={gscData.averagePosition?.toFixed(1) ?? '—'} />
-          </div>
+          <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>All Issues ({issuesSummary.total})</h3>
+          {sortedCategories.map(([cat, catIssues]) => (
+            <div key={cat} style={{ marginBottom: 16 }}>
+              <h4 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px', color: '#374151' }}>
+                {cat} ({catIssues.length})
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 6 }}>
+                {catIssues
+                  .sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
+                  .map((issue, i) => {
+                    const c = severityColor(issue.severity)
+                    return (
+                      <div key={i} style={{
+                        padding: '10px 14px', borderRadius: 6,
+                        background: c.bg, borderLeft: `4px solid ${c.border}`,
+                        fontSize: 13,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: issue.url ? 4 : 0 }}>
+                          <SeverityBadge severity={issue.severity} />
+                          <span style={{ flex: 1 }}>{issue.message}</span>
+                        </div>
+                        {issue.url && (
+                          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, wordBreak: 'break-all' }}>
+                            {shortUrl(issue.url)}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
