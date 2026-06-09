@@ -736,12 +736,14 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     await Promise.all([load(), loadNkls()])
   }, [clientId, load, loadNkls, nklNameById])
   const monthsToRender = activeMonth ? visibleMonths.filter((month) => month.month === activeMonth) : visibleMonths
-  // Compact column track sizes so more NKL columns fit before scrolling, and a
-  // tighter inter-column gap. The focused month section grows to max-content
-  // (see below) so the card border always wraps the full grid — columns never
-  // spill past the border.
+  // Fixed, content-sized column tracks (no fractional units) so the grid stays
+  // compact and doesn't stretch to fill the full-bleed width — the whole review
+  // form fits without horizontal scrolling. Search term and negative keyword are
+  // sized to typical terms (text wraps if longer); each NKL column is just wide
+  // enough for its "Add negative" toggle to sit on one row. The focused month
+  // section grows to max-content so the card border always wraps the full grid.
   const gridGap = 6
-  const gridTemplate = `minmax(130px, 1fr) 292px minmax(200px, 1.3fr) 64px repeat(${Math.max(visibleNkls.length, 1)}, minmax(84px, 0.5fr))`
+  const gridTemplate = `170px 292px 200px 64px repeat(${Math.max(visibleNkls.length, 1)}, 104px)`
 
   return (
     // Layout (full-width breakout + zero left padding so content hugs the sidebar)
