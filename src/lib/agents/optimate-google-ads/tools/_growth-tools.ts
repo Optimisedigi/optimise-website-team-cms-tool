@@ -46,6 +46,12 @@ export async function growthToolsGet<T>(
   }
 }
 
+export function parseConversionActions(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  if (typeof value !== "string") return [];
+  return value.split(/[\r\n,]+/).map((item) => item.trim()).filter(Boolean);
+}
+
 /** Map a tool's `days` arg to the Growth Tools `dateRange` enum it understands. */
 export function daysToDateRange(days: number): string {
   if (days <= 7) return "LAST_7_DAYS";
