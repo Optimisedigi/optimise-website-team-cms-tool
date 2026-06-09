@@ -1369,12 +1369,16 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
     try { await onRemove(explanation.trim() || undefined) } finally { setBusy(false) }
   }
 
+  // A single 10px-tall caption sits under the keyword input (the match type).
+  // Reserve the same height under the select and buttons so every control's box
+  // lines up on one centre line regardless of the taller search-term cell.
+  const captionSpacer = <span style={{ fontSize: 10, lineHeight: '14px', visibility: 'hidden' }}>.</span>
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 170px auto', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px 240px auto', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
       <div>
         <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)' }}>Search term</div>
         <div style={{ fontWeight: 600, fontSize: 13 }}>{item.searchTerm}</div>
-        <div style={{ fontSize: 11, color: '#0f766e' }}>in {nklName}</div>
+        <div style={{ fontSize: 11, color: '#0f766e' }}>added to {nklName}</div>
       </div>
       <div style={{ display: 'grid', gap: 2 }}>
         <input
@@ -1383,22 +1387,28 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
           title="Type the negative keyword. Wrap it in 'single quotes' for a phrase match; leave bare for an exact match."
           style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12 }}
         />
-        <span style={{ fontSize: 10, color: '#0369a1' }}>{matchTypeLabel(matchType)}</span>
+        <span style={{ fontSize: 10, lineHeight: '14px', color: '#0369a1' }}>{matchTypeLabel(matchType)}</span>
       </div>
-      <select
-        value={targetNklId}
-        onChange={(event) => setTargetNklId(event.target.value)}
-        title="Move this negative to a different list"
-        style={{ fontSize: 12, padding: '5px 7px', borderColor: listChanged ? '#0f766e' : undefined }}
-      >
-        {nklId != null && !nkls.some((nkl) => String(nkl.id) === String(nklId)) && (
-          <option value={String(nklId)}>{nklName}</option>
-        )}
-        {nkls.map((nkl) => <option key={nkl.id} value={String(nkl.id)}>{nkl.name}</option>)}
-      </select>
-      <div style={{ display: 'flex', gap: 6, whiteSpace: 'nowrap' }}>
-        <button type="button" onClick={handleUpdate} disabled={!dirty || busy} title="Save keyword/match-type edits and move the negative if a different list is selected" style={{ padding: '5px 10px', fontSize: 11 }}>{listChanged ? 'Update & move' : 'Update list'}</button>
-        <button type="button" onClick={handleRemove} disabled={busy} style={{ padding: '5px 10px', fontSize: 11, color: '#b91c1c', borderColor: '#fecaca', background: '#fff7f7' }}>Remove</button>
+      <div style={{ display: 'grid', gap: 2 }}>
+        <select
+          value={targetNklId}
+          onChange={(event) => setTargetNklId(event.target.value)}
+          title="Move this negative to a different list"
+          style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: '6px 7px', borderColor: listChanged ? '#0f766e' : undefined }}
+        >
+          {nklId != null && !nkls.some((nkl) => String(nkl.id) === String(nklId)) && (
+            <option value={String(nklId)}>{nklName}</option>
+          )}
+          {nkls.map((nkl) => <option key={nkl.id} value={String(nkl.id)}>{nkl.name}</option>)}
+        </select>
+        {captionSpacer}
+      </div>
+      <div style={{ display: 'grid', gap: 2 }}>
+        <div style={{ display: 'flex', gap: 6, whiteSpace: 'nowrap' }}>
+          <button type="button" onClick={handleUpdate} disabled={!dirty || busy} title="Save keyword/match-type edits and move the negative if a different list is selected" style={{ padding: '6px 10px', fontSize: 11 }}>{listChanged ? 'Update & move' : 'Update list'}</button>
+          <button type="button" onClick={handleRemove} disabled={busy} style={{ padding: '6px 10px', fontSize: 11, color: '#b91c1c', borderColor: '#fecaca', background: '#fff7f7' }}>Remove</button>
+        </div>
+        {captionSpacer}
       </div>
     </div>
   )
