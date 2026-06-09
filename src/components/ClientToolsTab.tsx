@@ -17,7 +17,7 @@
  */
 
 import { useDocumentInfo, useFormFields } from '@payloadcms/ui'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 type Status = 'idle' | 'checking' | 'ok' | 'missing' | 'error'
 
@@ -244,6 +244,7 @@ function ClientToolsTab() {
   const gscId = useFieldValue('gscPropertyUrl')
   const ga4Connected = useBoolFieldValue('ga4Connected')
   const gscConnected = useBoolFieldValue('gscConnected')
+  const dispatchFields = useFormFields(([, dispatch]) => dispatch)
   const googleAdsId = useFieldValue('googleAdsCustomerId')
   const metaAdsId = useFieldValue('metaAdAccountId')
   const idValues: Record<IntegrationKey, string> = {
@@ -263,6 +264,57 @@ function ClientToolsTab() {
     ga4: false,
     gsc: false,
   })
+  const [oauthConnectedOverride, setOauthConnectedOverride] = useState<Record<OAuthProvider, boolean>>({
+    ga4: false,
+    gsc: false,
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let cancelled = false
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('ga4_connected') === '1') {
+      dispatchFields({ path: 'ga4Connected', type: 'UPDATE', value: true })
+      setOauthConnectedOverride((prev) => ({ ...prev, ga4: true }))
+      setResults((prev) => ({
+        ...prev,
+        ga4: {
+          status: 'ok',
+          message: 'OAuth completed. You can now test the GA4 connection.',
+        },
+      }))
+    }
+
+    const loadStoredStatus = async () => {
+      if (!clientId) return
+      try {
+        const res = await fetch('/api/clients/list', { credentials: 'include' })
+        if (!res.ok) return
+        const data = (await res.json()) as Array<{
+          id: string | number
+          ga4Connected?: boolean
+          gscConnected?: boolean
+        }>
+        const currentClient = data.find((client) => String(client.id) === String(clientId))
+        if (!currentClient || cancelled) return
+        setOauthConnectedOverride((prev) => ({
+          ga4: Boolean(currentClient.ga4Connected) || prev.ga4,
+          gsc: Boolean(currentClient.gscConnected) || prev.gsc,
+        }))
+      } catch {
+        // The form fields still provide a best-effort fallback.
+      }
+    }
+
+    void loadStoredStatus()
+
+    return () => {
+      cancelled = true
+    }
+  }, [clientId, dispatchFields])
+
+  const effectiveGa4Connected = ga4Connected || oauthConnectedOverride.ga4
+  const effectiveGscConnected = gscConnected || oauthConnectedOverride.gsc
 
   const testIntegration = useCallback(
     async (key: IntegrationKey) => {
@@ -354,7 +406,7 @@ function ClientToolsTab() {
       const checking = results[key].status === 'checking'
 
       if (key === 'ga4' || key === 'gsc') {
-        const connected = key === 'ga4' ? ga4Connected : gscConnected
+        const connected = key === 'ga4' ? effectiveGa4Connected : effectiveGscConnected
         const isDisconnecting = disconnecting[key]
         const buttons: ActionButton[] = [
           {
@@ -396,8 +448,8 @@ function ClientToolsTab() {
       connectOAuth,
       disconnectOAuth,
       disconnecting,
-      ga4Connected,
-      gscConnected,
+      effectiveGa4Connected,
+      effectiveGscConnected,
       idValues,
       results,
       testIntegration,

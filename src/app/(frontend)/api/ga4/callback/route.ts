@@ -82,9 +82,10 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.redirect(
-      new URL(`/admin/collections/clients/${clientId}`, req.url),
-    );
+    const successUrl = new URL(`/admin/collections/clients/${clientId}`, req.url);
+    successUrl.searchParams.set("ga4_connected", "1");
+    successUrl.searchParams.set("oauth_refresh", Date.now().toString());
+    return NextResponse.redirect(successUrl);
   } catch (err) {
     const message = err instanceof Error ? err.message : "OAuth exchange failed";
     console.error("[ga4-callback]", message);

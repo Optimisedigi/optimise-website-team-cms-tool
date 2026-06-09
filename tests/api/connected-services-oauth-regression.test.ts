@@ -267,6 +267,34 @@ describe("connected service OAuth and route regressions", () => {
     expect(mockPayload.update).not.toHaveBeenCalled();
   });
 
+  it("GA4 callback redirects with a success marker after storing client tokens", async () => {
+    const { signOAuthState } = await import("@/lib/oauth-state");
+    const { GET } = await import("@/app/(frontend)/api/ga4/callback/route");
+    const { state, nonce } = signOAuthState(123, 7);
+    cookieJar.set("oauth_nonce_ga4", nonce);
+    mockExchangeGa4Code.mockResolvedValueOnce({
+      accessToken: "ga4-access-secret",
+      refreshToken: "ga4-refresh-secret",
+      expiry: "2026-06-09T12:00:00.000Z",
+    });
+    mockPayload.findByID.mockResolvedValueOnce({ id: 123, ga4PropertyId: "308123456" });
+
+    const res = await GET(req(`http://localhost/api/ga4/callback?code=code&state=${encodeURIComponent(state)}`));
+
+    expect(mockPayload.update).toHaveBeenCalledWith(expect.objectContaining({
+      collection: "clients",
+      id: "123",
+      data: expect.objectContaining({
+        ga4Connected: true,
+        ga4RefreshToken: "ga4-refresh-secret",
+      }),
+    }));
+    const location = redirectLocation(res);
+    expect(location).toContain("/admin/collections/clients/123");
+    expect(location).toContain("ga4_connected=1");
+    expect(location).toContain("oauth_refresh=");
+  });
+
   it("GA4 query requires a logged-in user before reading connected client data", async () => {
     const { GET } = await import("@/app/(frontend)/api/ga4/query/route");
     mockPayload.auth.mockResolvedValueOnce({ user: null });
