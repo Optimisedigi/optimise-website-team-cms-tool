@@ -23,6 +23,7 @@ import { getAdAssetPerformance } from "./tools/get-ad-asset-performance";
 import { getBudgetManagementEmail } from "./tools/get-budget-management-email";
 import { getWeeklyTrendNote } from "./tools/get-weekly-trend-note";
 import { getWeeklyMetricTable } from "./tools/get-weekly-metric-table";
+import { getMonthlyMetricTable } from "./tools/get-monthly-metric-table";
 import { createGmailDraftTool } from "./tools/create-gmail-draft";
 import { proposeNegativeKeywords } from "./tools/propose-negative-keywords";
 import { proposeNklCreate } from "./tools/propose-nkl-create";
@@ -112,6 +113,7 @@ export function getTools(options?: { restrictExternalContextActions?: boolean })
     getAdAssetPerformance as unknown as CanonicalTool<unknown>,
     getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
     getWeeklyMetricTable as unknown as CanonicalTool<unknown>,
+    getMonthlyMetricTable as unknown as CanonicalTool<unknown>,
     getWeeklyTrendNote as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
     proposeNegativeKeywords as unknown as CanonicalTool<unknown>,

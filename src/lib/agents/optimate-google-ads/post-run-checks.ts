@@ -33,7 +33,11 @@
  */
 export interface CorrectionRequest {
   /** Stable identifier for logging/metrics. */
-  reason: "zero_tool_call_on_action" | "promised_but_not_delivered";
+  reason:
+    | "zero_tool_call_on_action"
+    | "promised_but_not_delivered"
+    | "unverified_metric_breakdown"
+    | "unverified_google_ads_data";
   /** Synthetic user message replayed to the agent for one corrective retry. */
   correctionNote: string;
 }
@@ -274,6 +278,132 @@ export function detectPromisedButNotDelivered(
   return null;
 }
 
+const MONTHLY_METRIC_PHRASES: readonly string[] = [
+  "by month",
+  "monthly",
+  "month by month",
+  "month-by-month",
+  "each month",
+];
+
+const WEEKLY_METRIC_PHRASES: readonly string[] = [
+  "by week",
+  "weekly",
+  "week by week",
+  "week-by-week",
+  "week-on-week",
+  "wow",
+];
+
+const RATE_METRIC_PHRASES: readonly string[] = [
+  "ctr",
+  "cpc",
+  "cpa",
+  "cpl",
+  "cost per lead",
+  "cost/lead",
+  "conversion rate",
+  "conv rate",
+];
+
+const GOOGLE_ADS_DATA_PHRASES: readonly string[] = [
+  "google ads",
+  "campaign",
+  "ad group",
+  "search term",
+  "spend",
+  "clicks",
+  "impressions",
+  "conversions",
+  "leads",
+  "ctr",
+  "cpc",
+  "cpa",
+  "cpl",
+  "cost per lead",
+  "conversion rate",
+  "performance",
+  "trend",
+  "by month",
+  "by week",
+];
+
+const GOOGLE_ADS_READ_TOOLS = new Set([
+  "get_account_overview",
+  "get_campaign_performance",
+  "get_ad_group_performance",
+  "get_search_terms",
+  "get_ad_asset_performance",
+  "get_weekly_metric_table",
+  "get_weekly_trend_note",
+  "get_monthly_metric_table",
+  "get_portfolio_performance_summary",
+  "get_portfolio_search_term_wastage",
+  "get_portfolio_weekly_metric_table",
+  "get_portfolio_monthly_performance_breakdown",
+]);
+
+function replyContainsMetricTable(reply: string): boolean {
+  return /\d+(?:\.\d+)?%/.test(reply) || /\$\d/.test(reply) || /\|/.test(reply);
+}
+
+function replyContainsNumber(reply: string): boolean {
+  return /(?:\$\s*)?\d[\d,]*(?:\.\d+)?%?/.test(reply);
+}
+
+function calledGoogleAdsReadTool(toolNamesCalledThisRun: readonly string[]): boolean {
+  return toolNamesCalledThisRun.some((toolName) => GOOGLE_ADS_READ_TOOLS.has(toolName));
+}
+
+export function detectUnverifiedGoogleAdsData(
+  userMessage: string,
+  reply: string,
+  toolNamesCalledThisRun: readonly string[],
+): CorrectionRequest | null {
+  if (!replyContainsNumber(reply)) return null;
+  if (calledGoogleAdsReadTool(toolNamesCalledThisRun)) return null;
+  if (!containsAnyPhrase(userMessage, GOOGLE_ADS_DATA_PHRASES)) return null;
+  return {
+    reason: "unverified_google_ads_data",
+    correctionNote:
+      "Your previous reply included Google Ads numbers without calling a Google Ads read tool in this run. Call the relevant read tool now, then answer only from its returned data. Do not reuse the previous numbers unless the tool confirms them.",
+  };
+}
+
+export function detectUnverifiedMetricBreakdown(
+  userMessage: string,
+  reply: string,
+  toolNamesCalledThisRun: readonly string[],
+): CorrectionRequest | null {
+  if (!replyContainsMetricTable(reply)) return null;
+  const userAskedRate = containsAnyPhrase(userMessage, RATE_METRIC_PHRASES);
+  if (!userAskedRate) return null;
+
+  const calledSet = new Set(toolNamesCalledThisRun);
+  if (containsAnyPhrase(userMessage, MONTHLY_METRIC_PHRASES) && !calledSet.has("get_monthly_metric_table") && !calledSet.has("get_portfolio_monthly_performance_breakdown")) {
+    return {
+      reason: "unverified_metric_breakdown",
+      correctionNote:
+        "Your previous reply gave monthly rate metrics without the canonical monthly validation tool. Call get_monthly_metric_table for the requested months and metrics, then answer from its rows. For CTR, use the Google Ads CTR returned by the tool and cite the clicks/impressions totals for reconciliation. Do not reuse the previous numbers unless the tool confirms them.",
+    };
+  }
+
+  if (
+    containsAnyPhrase(userMessage, WEEKLY_METRIC_PHRASES) &&
+    !calledSet.has("get_weekly_metric_table") &&
+    !calledSet.has("get_weekly_trend_note") &&
+    !calledSet.has("get_portfolio_weekly_metric_table")
+  ) {
+    return {
+      reason: "unverified_metric_breakdown",
+      correctionNote:
+        "Your previous reply gave weekly rate metrics without the canonical weekly validation tool. Call get_weekly_metric_table for the requested weeks and metrics, then answer from its rows. For CTR, use the Google Ads CTR returned by the tool and cite the clicks/impressions totals for reconciliation. Do not reuse the previous numbers unless the tool confirms them.",
+    };
+  }
+
+  return null;
+}
+
 /**
  * Convenience wrapper: runs both checks in order and returns the first
  * correction needed, or null if the run was clean.
@@ -290,6 +420,8 @@ export function checkRunForCorrection(
 ): CorrectionRequest | null {
   return (
     detectZeroToolCallOnAction(userMessage, toolNamesCalledThisRun) ??
-    detectPromisedButNotDelivered(reply, toolNamesCalledThisRun)
+    detectPromisedButNotDelivered(reply, toolNamesCalledThisRun) ??
+    detectUnverifiedMetricBreakdown(userMessage, reply, toolNamesCalledThisRun) ??
+    detectUnverifiedGoogleAdsData(userMessage, reply, toolNamesCalledThisRun)
   );
 }

@@ -2,8 +2,8 @@
  * Tool: get_campaign_performance
  *
  * Per-campaign metrics for a chosen window. Wraps Growth Tools
- * `campaign-budgets/get-metrics` and computes derived rates (CTR, CPA) so the
- * agent doesn't have to.
+ * `campaign-budgets/get-metrics`. CTR is read from Google Ads `metrics.ctr`
+ * when Growth Tools returns it; CPA is computed from scoped conversions.
  *
  * Default range: LAST_7_DAYS. Pass `range` to widen/narrow. Pass `segment`
  * ("month" | "week" | "day") for a per-period breakdown — one row per
@@ -35,6 +35,7 @@ interface MetricRaw {
   impressions?: number;
   clicks?: number;
   conversions?: number;
+  ctr?: number | string | null;
   conversionsByAction?: Record<string, number>;
   conversionsByCategory?: Record<string, number>;
   searchImpressionShare?: unknown;
@@ -138,7 +139,7 @@ export const getCampaignPerformance: CanonicalTool<CampaignPerfArgs> = {
         conversions: round2(conversions),
         conversionsByAction: normaliseBreakdown(m.conversionsByAction),
         conversionsByCategory: normaliseBreakdown(m.conversionsByCategory),
-        ctr: impressions > 0 ? round2((clicks / impressions) * 100) : 0,
+        ctr: parsePercent(m.ctr) ?? null,
         cpa: conversions > 0 ? round2(spend / conversions) : null,
         searchImpressionShare: parsePercent(m.searchImpressionShare),
         searchBudgetLostIS: parsePercent(m.searchBudgetLostIS ?? m.searchBudgetLostImpressionShare),

@@ -71,6 +71,8 @@ interface MetricRaw {
   clicks?: number;
   impressions?: number;
   conversions?: number;
+  /** Google Ads metrics.ctr. Usually a ratio, e.g. 0.0142, but percent strings are tolerated. */
+  ctr?: number | string | null;
 }
 
 interface MetricsEnvelope {
@@ -103,7 +105,7 @@ function isWeeklyMetricKey(value: unknown): value is WeeklyMetricKey {
 export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
   name: "get_weekly_metric_table",
   description:
-    "Canonical Gmail-ready weekly account-level metric table. Renders any combination of these eight metrics by week (Verdana, plain row borders, no card chrome): spend, clicks, impressions, conversions, cpa, cpc, ctr, conv_rate. Weekly uplift / WoW delta columns are no longer rendered; the table shows absolute metric values only. Partial in-progress latest week is highlighted automatically. Args: weeks (1..12, default 4), endDate (ISO YYYY-MM-DD, default today UTC), metrics (1..6 keys from the list above, order preserved, dupes collapse), title (override heading), summary (optional 1-3 sentence note under the table). Use this WHENEVER the user asks for \"by week\", \"weekly\", \"week-on-week\", a trend, or a multi-week summary of any metric. NEVER hand-write trend HTML. Examples: metrics=[\"cpc\"] for a CPC trend; metrics=[\"spend\",\"conversions\",\"cpa\"] for the classic three-column trend.",
+    "Canonical Gmail-ready weekly account-level metric table. Renders any combination of these eight metrics by week (Verdana, plain row borders, no card chrome): spend, clicks, impressions, conversions, cpa, cpc, ctr, conv_rate. CTR uses Google Ads metrics.ctr returned by Growth Tools, weighted by impressions when multiple rows exist. Weekly uplift / WoW delta columns are no longer rendered; the table shows absolute metric values only. Partial in-progress latest week is highlighted automatically. Args: weeks (1..12, default 4), endDate (ISO YYYY-MM-DD, default today UTC), metrics (1..6 keys from the list above, order preserved, dupes collapse), title (override heading), summary (optional 1-3 sentence note under the table). Use this WHENEVER the user asks for \"by week\", \"weekly\", \"week-on-week\", a trend, or a multi-week summary of any metric. NEVER hand-write trend HTML. Examples: metrics=[\"cpc\"] for a CPC trend; metrics=[\"spend\",\"conversions\",\"cpa\"] for the classic three-column trend.",
   inputSchema: {
     type: "object",
     properties: {
@@ -271,6 +273,7 @@ export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
       clicks: r.ok ? r.totals.clicks : 0,
       impressions: r.ok ? r.totals.impressions : 0,
       conversions: r.ok ? r.totals.conversions : 0,
+      ...(r.ok && typeof r.totals.googleCtr === "number" ? { googleCtr: r.totals.googleCtr } : {}),
     }));
 
     const rows: WeeklyBucketRow[] = buildWeeklyBuckets({
@@ -286,6 +289,14 @@ export const getWeeklyMetricTable: CanonicalTool<WeeklyMetricTableArgs> = {
       title: args.title,
       summary: args.summary,
     });
+
+    if (args.metrics.includes("ctr") && rows.some((row) => typeof row.totals.googleCtr !== "number")) {
+      return {
+        ok: false,
+        error:
+          "Growth Tools did not return Google Ads CTR for this weekly request. Update /api/google-ads/campaign-budgets/get-metrics to include metrics.ctr before answering CTR-only-from-Google requests.",
+      };
+    }
 
     // Soft-warn when the table is likely to overflow Gmail's ~700px width.
     // Column count = 1 (Week) + metrics. Deprecated compare input is ignored.
@@ -339,11 +350,41 @@ async function fetchWeekTotals(
     impressions: 0,
     conversions: 0,
   };
-  for (const m of res.data?.metrics ?? []) {
+  const rows = res.data?.metrics ?? [];
+  for (const m of rows) {
     totals.spend += Number(m.cost ?? m.spend ?? 0);
     totals.clicks += Number(m.clicks ?? 0);
     totals.impressions += Number(m.impressions ?? 0);
     totals.conversions += Number(m.conversions ?? 0);
   }
+  const googleCtr = weightedGoogleCtr(rows);
+  if (typeof googleCtr === "number") totals.googleCtr = googleCtr;
   return { ok: true, totals };
+}
+
+function weightedGoogleCtr(rows: MetricRaw[]): number | null {
+  let numerator = 0;
+  let denominator = 0;
+  for (const row of rows) {
+    const impressions = Number(row.impressions ?? 0);
+    if (impressions <= 0) continue;
+    const ctr = parseGoogleCtrPercent(row.ctr);
+    if (ctr === null) return null;
+    numerator += ctr * impressions;
+    denominator += impressions;
+  }
+  return denominator > 0 ? numerator / denominator : null;
+}
+
+function parseGoogleCtrPercent(value: unknown): number | null {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return null;
+    return value <= 1 ? value * 100 : value;
+  }
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const numeric = Number(trimmed.replace(/[%<>,\s]/g, ""));
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  return trimmed.includes("%") || numeric > 1 ? numeric : numeric * 100;
 }

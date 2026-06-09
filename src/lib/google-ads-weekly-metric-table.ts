@@ -66,6 +66,8 @@ export interface WeeklyBucketTotals {
   clicks: number;
   impressions: number;
   conversions: number;
+  /** Google Ads CTR for this period, expressed as a percent, e.g. 1.42. */
+  googleCtr?: number | null;
 }
 
 export interface WeeklyBucketRow {
@@ -88,6 +90,8 @@ export interface BuildWeeklyBucketsArgs {
     clicks: number;
     impressions: number;
     conversions: number;
+    /** Google Ads CTR for this date/period, expressed as a percent, e.g. 1.42. */
+    googleCtr?: number | null;
   }>;
   /** Number of Monday-anchored weeks ending at `endDate`. Clamped to [1, 12]. */
   weeks: number;
@@ -196,10 +200,21 @@ export function buildWeeklyBuckets(args: BuildWeeklyBucketsArgs): WeeklyBucketRo
     const cur =
       perDayTotals.get(key) ??
       ({ spend: 0, clicks: 0, impressions: 0, conversions: 0 } as WeeklyBucketTotals);
+    const impressions = Number(row.impressions) || 0;
+    const previousImpressions = cur.impressions;
+    const previousGoogleCtr = cur.googleCtr;
     cur.spend += Number(row.spend) || 0;
     cur.clicks += Number(row.clicks) || 0;
-    cur.impressions += Number(row.impressions) || 0;
+    cur.impressions += impressions;
     cur.conversions += Number(row.conversions) || 0;
+    if (impressions > 0) {
+      if (typeof row.googleCtr === "number" && Number.isFinite(row.googleCtr) && (previousImpressions === 0 || typeof previousGoogleCtr === "number")) {
+        const existingCtrNumerator = typeof previousGoogleCtr === "number" ? previousGoogleCtr * previousImpressions : 0;
+        cur.googleCtr = (existingCtrNumerator + row.googleCtr * impressions) / cur.impressions;
+      } else {
+        cur.googleCtr = null;
+      }
+    }
     perDayTotals.set(key, cur);
   }
 
@@ -220,6 +235,8 @@ export function buildWeeklyBuckets(args: BuildWeeklyBucketsArgs): WeeklyBucketRo
       impressions: 0,
       conversions: 0,
     };
+    let googleCtrNumerator = 0;
+    let googleCtrImpressions = 0;
     for (
       let cursor = new Date(weekStart);
       cursor <= weekEnd;
@@ -231,7 +248,12 @@ export function buildWeeklyBuckets(args: BuildWeeklyBucketsArgs): WeeklyBucketRo
       totals.clicks += day.clicks;
       totals.impressions += day.impressions;
       totals.conversions += day.conversions;
+      if (typeof day.googleCtr === "number" && Number.isFinite(day.googleCtr) && day.impressions > 0) {
+        googleCtrNumerator += day.googleCtr * day.impressions;
+        googleCtrImpressions += day.impressions;
+      }
     }
+    if (googleCtrImpressions > 0) totals.googleCtr = googleCtrNumerator / googleCtrImpressions;
 
     out.push({
       weekStart: weekStartIso,
@@ -272,6 +294,7 @@ export function computeMetric(
       // averaging averages.
       return t.clicks > 0 ? t.spend / t.clicks : null;
     case "ctr":
+      if (typeof t.googleCtr === "number" && Number.isFinite(t.googleCtr)) return t.googleCtr;
       return t.impressions > 0 ? (t.clicks / t.impressions) * 100 : null;
     case "conv_rate":
       return t.clicks > 0 ? (t.conversions / t.clicks) * 100 : null;
