@@ -306,6 +306,36 @@ describe("connected service OAuth and route regressions", () => {
     expect(mockFetchGa4Report).not.toHaveBeenCalled();
   });
 
+  it("client integrations summary returns persisted GA4 status for the exact client", async () => {
+    const { GET } = await import("@/app/(frontend)/api/clients/[id]/integrations/route");
+    mockPayload.findByID.mockResolvedValueOnce({
+      id: 123,
+      ga4Connected: true,
+      ga4PropertyId: "308123456",
+      gscConnected: false,
+      gscPropertyUrl: null,
+    });
+
+    const res = await GET(req("http://localhost/api/clients/123/integrations"), {
+      params: Promise.resolve({ id: "123" }),
+    });
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(mockPayload.findByID).toHaveBeenCalledWith(expect.objectContaining({
+      collection: "clients",
+      id: "123",
+      overrideAccess: true,
+    }));
+    expect(json).toEqual({
+      id: 123,
+      ga4Connected: true,
+      ga4PropertyId: "308123456",
+      gscConnected: false,
+      gscPropertyUrl: "",
+    });
+  });
+
   it("Calendar callback rejects state mismatch before auth, exchange, or global update", async () => {
     const { GET } = await import("@/app/(frontend)/api/calendar/callback/route");
 

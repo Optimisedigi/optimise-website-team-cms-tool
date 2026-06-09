@@ -288,15 +288,16 @@ function ClientToolsTab() {
     const loadStoredStatus = async () => {
       if (!clientId) return
       try {
-        const res = await fetch('/api/clients/list', { credentials: 'include' })
+        const res = await fetch(
+          `/api/clients/${encodeURIComponent(String(clientId))}/integrations`,
+          { credentials: 'include' },
+        )
         if (!res.ok) return
-        const data = (await res.json()) as Array<{
-          id: string | number
+        const currentClient = (await res.json()) as {
           ga4Connected?: boolean
           gscConnected?: boolean
-        }>
-        const currentClient = data.find((client) => String(client.id) === String(clientId))
-        if (!currentClient || cancelled) return
+        }
+        if (cancelled) return
         setOauthConnectedOverride((prev) => ({
           ga4: Boolean(currentClient.ga4Connected) || prev.ga4,
           gsc: Boolean(currentClient.gscConnected) || prev.gsc,
