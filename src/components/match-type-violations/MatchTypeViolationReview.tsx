@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { buildNegativeFromViolation } from '@/lib/match-type-negative'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,9 +18,29 @@ interface Candidate {
   clicks: number
   status: 'pending' | 'approved' | 'rejected'
   assignedListId?: { id: string | number; name?: string } | string | number
+  recommendedKeyword?: string
+  recommendedMatchType?: 'exact' | 'phrase'
+  offendingWords?: string
+  nearestKeyword?: string
   lastSeenAt: string
   firstSeenAt: string
 }
+
+type RoutingMode = 'auto' | 'existing'
+type NegMatchType = 'exact' | 'phrase'
+type NegativeEdit = { keyword: string; matchType: NegMatchType }
+
+// Columns the user can show/hide. Search Term, Negative and Actions stay pinned.
+const HIDEABLE_COLUMNS = [
+  { key: 'triggeringKeyword', label: 'Triggering Keyword' },
+  { key: 'matchType', label: 'Match Type' },
+  { key: 'violation', label: 'Violation' },
+  { key: 'impressions', label: 'Impressions' },
+  { key: 'clicks', label: 'Clicks' },
+  { key: 'campaign', label: 'Campaign' },
+  { key: 'status', label: 'Status' },
+  { key: 'lastSeen', label: 'Last Seen' },
+] as const
 
 interface NegativeKeywordList {
   id: string | number
@@ -67,6 +88,30 @@ function formatNumber(n: number): string {
   return new Intl.NumberFormat('en-GB').format(n)
 }
 
+const STOPWORDS = new Set<string>([
+  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+  'of', 'with', 'by', 'from', 'is', 'it', 'as', 'be', 'are', 'this',
+  'that', 'these', 'those', 'your', 'our', 'their', 'my', 'near', 'me',
+])
+
+/** Conservative canonicalisation mirroring the detector: strip accents, drop
+ *  non-alphanumerics, and reduce simple plurals so display matches detection. */
+function canon(token: string): string {
+  const s = token.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase()
+  if (s.length <= 3) return s
+  if (s.endsWith('ies')) return s.slice(0, -3) + 'y'
+  if (s.endsWith('es')) return s.slice(0, -2)
+  if (s.endsWith('s')) return s.slice(0, -1)
+  return s
+}
+
+/** Content keyword words absent from the search term — the "missing words". */
+function missingWords(searchTerm: string, triggeringKeyword: string): string[] {
+  const content = (s: string) => s.toLowerCase().split(/\s+/).filter(Boolean).filter((w) => !STOPWORDS.has(canon(w)))
+  const termSet = new Set(content(searchTerm).map(canon))
+  return content(triggeringKeyword).filter((w) => !termSet.has(canon(w)))
+}
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60_000)
@@ -85,11 +130,13 @@ function NklPickerModal({
   pendingCount,
 }: {
   lists: NegativeKeywordList[]
-  onConfirm: (listId: string | number) => void
+  onConfirm: (routing: { mode: RoutingMode; listId?: string | number }) => void
   onCancel: () => void
   pendingCount: number
 }) {
+  const [mode, setMode] = useState<RoutingMode>('auto')
   const [selected, setSelected] = useState<string | number | ''>('')
+  const canConfirm = mode === 'auto' || !!selected
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
@@ -97,38 +144,46 @@ function NklPickerModal({
       backgroundColor: 'rgba(0,0,0,0.5)',
     }}>
       <div style={{
-        background: 'white', borderRadius: 8, padding: 24, width: 420, maxWidth: '90vw',
+        background: 'white', borderRadius: 8, padding: 24, width: 440, maxWidth: '90vw',
         boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
       }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>
-          Select Negative Keyword List
+        <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>
+          Approve {pendingCount} violation{pendingCount !== 1 ? 's' : ''}
         </h3>
         <p style={{ margin: '0 0 16px', color: '#6b7280', fontSize: 13 }}>
-          {pendingCount === 1
-            ? 'Add this violation as a negative keyword.'
-            : `Add ${pendingCount} violations as negative keywords.`}
+          Each violation is added using its recommended negative (editable per row before bulk approve).
         </p>
-        <select
-          value={String(selected)}
-          onChange={(e) => setSelected(e.target.value)}
-          style={{
-            width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db',
-            fontSize: 14, marginBottom: 16,
-          }}
-        >
-          <option value="">— Select a list —</option>
-          {lists.map((l) => (
-            <option key={String(l.id)} value={String(l.id)}>
-              {l.name}
-            </option>
-          ))}
-        </select>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, cursor: 'pointer', fontSize: 13 }}>
+          <input type="radio" checked={mode === 'auto'} onChange={() => setMode('auto')} style={{ marginTop: 3 }} />
+          <span>Ad-group lists <span style={{ color: '#6b7280' }}>— auto-match each candidate to its ad-group list, creating one when none exists.</span></span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer', fontSize: 13 }}>
+          <input type="radio" checked={mode === 'existing'} onChange={() => setMode('existing')} />
+          <span>Assign all to one existing list</span>
+        </label>
+        {mode === 'existing' && (
+          <select
+            value={String(selected)}
+            onChange={(e) => setSelected(e.target.value)}
+            style={{
+              width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db',
+              fontSize: 14, marginBottom: 16,
+            }}
+          >
+            <option value="">— Select a list —</option>
+            {lists.map((l) => (
+              <option key={String(l.id)} value={String(l.id)}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onCancel} style={btnStyle('ghost')}>Cancel</button>
           <button
-            onClick={() => selected && onConfirm(selected)}
-            disabled={!selected}
-            style={btnStyle('primary', !selected)}
+            onClick={() => canConfirm && onConfirm(mode === 'existing' ? { mode: 'existing', listId: selected as string | number } : { mode: 'auto' })}
+            disabled={!canConfirm}
+            style={btnStyle('primary', !canConfirm)}
           >
             Approve
           </button>
@@ -182,6 +237,46 @@ export default function MatchTypeViolationReview({
   // Per-row action loading
   const [actionLoading, setActionLoading] = useState<Set<string | number>>(new Set())
 
+  // Collapsible help, inline negative edits, and column visibility
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [edits, setEdits] = useState<Map<string | number, NegativeEdit>>(new Map())
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
+  const [showColMenu, setShowColMenu] = useState(false)
+
+  const isVisible = useCallback((key: string) => !hiddenCols.has(key), [hiddenCols])
+  const toggleCol = (key: string) =>
+    setHiddenCols((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+
+  // Resolve the negative a row will add: the user's inline edit if present,
+  // else the detector recommendation / violation-type default.
+  const negativeFor = useCallback(
+    (c: Candidate): NegativeEdit => {
+      const edited = edits.get(c.id)
+      if (edited) return edited
+      const fallback = buildNegativeFromViolation({
+        searchTerm: c.searchTerm,
+        triggeringKeyword: c.triggeringKeyword,
+        violationType: c.violationType,
+        recommendedKeyword: c.recommendedKeyword,
+        recommendedMatchType: c.recommendedMatchType,
+        nearestKeyword: c.nearestKeyword,
+      })
+      return { keyword: fallback.keyword, matchType: fallback.matchType }
+    },
+    [edits],
+  )
+
+  const setNegative = (id: string | number, patch: Partial<NegativeEdit>, base: NegativeEdit) =>
+    setEdits((prev) => {
+      const next = new Map(prev)
+      next.set(id, { ...base, ...patch })
+      return next
+    })
+
   // Fetch total sync run count from activity log
   useEffect(() => {
     ;(async () => {
@@ -211,6 +306,7 @@ export default function MatchTypeViolationReview({
       setCandidates(data.docs)
       setTotalDocs(data.totalDocs)
       setSelected(new Set())
+      setEdits(new Map())
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -231,13 +327,16 @@ export default function MatchTypeViolationReview({
 
   useEffect(() => { void fetchCandidates() }, [fetchCandidates])
 
-  const handleApprove = async (id: string | number, listId: string | number) => {
+  const handleApprove = async (
+    id: string | number,
+    payload: { assignedListId?: string | number; routing?: { mode: RoutingMode; listId?: string | number }; keyword?: string; matchType?: 'exact' | 'phrase' },
+  ) => {
     setActionLoading((prev) => new Set(prev).add(id))
     try {
       const res = await fetch(`/api/match-type-violations/${id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignedListId: listId }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error(await res.text())
       await fetchCandidates()
@@ -262,15 +361,22 @@ export default function MatchTypeViolationReview({
     }
   }
 
-  const handleBulkApprove = async (listId: string | number) => {
+  const handleBulkApprove = async (routing: { mode: RoutingMode; listId?: string | number }) => {
     const ids = Array.from(selected)
     if (ids.length === 0) return
+    // Send each selected row's inline-edited negative so bulk approve honours
+    // per-row keyword/match-type changes rather than only the stored default.
+    const overrides: Record<string, NegativeEdit> = {}
+    for (const c of candidates) {
+      if (!selected.has(c.id)) continue
+      overrides[String(c.id)] = negativeFor(c)
+    }
     setBulkLoading(true)
     try {
       const res = await fetch('/api/match-type-violations/bulk-approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ candidateIds: ids, assignedListId: listId }),
+        body: JSON.stringify({ candidateIds: ids, routing, overrides }),
       })
       if (!res.ok) throw new Error(await res.text())
       setShowNklPicker(false)
@@ -332,15 +438,27 @@ export default function MatchTypeViolationReview({
         )}
       </div>
 
-      {/* How it works info box */}
+      {/* How it works info box — collapsible, collapsed by default */}
       <div style={{
         marginBottom: 20, padding: '12px 16px', background: '#eff6ff',
         border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 13, color: '#1e40af',
       }}>
-        <strong>How it works —</strong> runs daily (~17:00 UTC) · {syncRunCount !== null ? (
-          <span title="Number of times the monitor has run">{syncRunCount} sync{syncRunCount !== 1 ? 's' : ''} to date</span>
-        ) : '…'} · {totalDocs} candidate{totalDocs !== 1 ? 's' : ''} total
-        <br />
+        <button
+          onClick={() => setHelpOpen((o) => !o)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+            background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+            color: '#1e40af', fontSize: 13,
+          }}
+          aria-expanded={helpOpen}
+        >
+          <span style={{ transform: helpOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', fontSize: 11 }}>▶</span>
+          <span><strong>How it works —</strong> runs daily (~17:00 UTC) · {syncRunCount !== null ? (
+            <span title="Number of times the monitor has run">{syncRunCount} sync{syncRunCount !== 1 ? 's' : ''} to date</span>
+          ) : '…'} · {totalDocs} candidate{totalDocs !== 1 ? 's' : ''} total</span>
+        </button>
+        {helpOpen && (
+        <div style={{ marginTop: 10 }}>
         The monitor flags Exact and Phrase keywords that served search terms with different intent.
         Cosmetic close variants (plurals, accents, word order, stopword swaps, and typos) are ignored — only genuine intent shifts surface:
         <ul style={{ margin: '6px 0 0 18px', padding: 0, lineHeight: 1.7 }}>
@@ -352,6 +470,8 @@ export default function MatchTypeViolationReview({
         Only terms with ≥2 impressions in the past 90 days are flagged.
         <br />
         Per client you can enable <strong>Exact</strong> and <strong>Phrase</strong> monitoring independently, and scope monitoring to specific campaigns or ad groups via the allow-list on the client record — leave it empty to monitor the whole account.
+        </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -393,6 +513,31 @@ export default function MatchTypeViolationReview({
             Clear Filters
           </button>
         )}
+        <div style={{ marginLeft: 'auto', position: 'relative' }}>
+          <button onClick={() => setShowColMenu((o) => !o)} style={{ ...btnStyle('ghost'), fontSize: 12 }}>
+            Columns ▾
+          </button>
+          {showColMenu && (
+            <>
+              <div onClick={() => setShowColMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+              <div style={{
+                position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 50,
+                background: 'white', border: '1px solid #e5e7eb', borderRadius: 8,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 8, width: 200,
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '2px 6px 6px' }}>
+                  Show columns
+                </div>
+                {HIDEABLE_COLUMNS.map((col) => (
+                  <label key={col.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 6px', cursor: 'pointer', fontSize: 13, color: '#374151' }}>
+                    <input type="checkbox" checked={isVisible(col.key)} onChange={() => toggleCol(col.key)} />
+                    {col.label}
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Error */}
@@ -422,14 +567,15 @@ export default function MatchTypeViolationReview({
                   />
                 </th>
                 <th style={thStyle()}>Search Term</th>
-                <th style={thStyle()}>Triggering Keyword</th>
-                <th style={thStyle()}>Match Type</th>
-                <th style={thStyle()}>Violation</th>
-                <th style={thStyle()}>Impressions</th>
-                <th style={thStyle()}>Clicks</th>
-                <th style={thStyle()}>Campaign</th>
-                <th style={thStyle()}>Status</th>
-                <th style={thStyle()}>Last Seen</th>
+                {isVisible('triggeringKeyword') && <th style={thStyle()}>Triggering Keyword</th>}
+                {isVisible('matchType') && <th style={thStyle()}>Match Type</th>}
+                {isVisible('violation') && <th style={thStyle()}>Violation</th>}
+                <th style={thStyle()}>Negative To Add</th>
+                {isVisible('impressions') && <th style={thStyle()}>Impressions</th>}
+                {isVisible('clicks') && <th style={thStyle()}>Clicks</th>}
+                {isVisible('campaign') && <th style={thStyle()}>Campaign</th>}
+                {isVisible('status') && <th style={thStyle()}>Status</th>}
+                {isVisible('lastSeen') && <th style={thStyle()}>Last Seen</th>}
                 <th style={thStyle()}>Actions</th>
               </tr>
             </thead>
@@ -446,53 +592,106 @@ export default function MatchTypeViolationReview({
                     )}
                   </td>
                   <td style={tdStyle()}>
-                    <span title={c.searchTerm} style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', whiteSpace: 'nowrap' }}>
+                    <span title={c.searchTerm} style={{ maxWidth: 220, display: 'block', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }}>
                       {c.searchTerm}
                     </span>
                   </td>
+                  {isVisible('triggeringKeyword') && (
+                    <td style={tdStyle()}>
+                      <span title={c.triggeringKeyword} style={{ maxWidth: 180, display: 'block', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                        {c.triggeringKeyword}
+                      </span>
+                    </td>
+                  )}
+                  {isVisible('matchType') && (
+                    <td style={tdStyle()}>
+                      <span style={{ ...badgeStyle('#e0e7ff', '#3730a3'), textTransform: 'uppercase', fontSize: 11 }}>
+                        {MATCH_TYPE_LABELS[c.matchType] ?? c.matchType}
+                      </span>
+                    </td>
+                  )}
+                  {isVisible('violation') && (
+                    <td style={tdStyle()}>
+                      <span style={{ ...badgeStyle(
+                        violationColor(c.violationType) + '20',
+                        violationColor(c.violationType),
+                      ), fontSize: 11, whiteSpace: 'nowrap' }}>
+                        {VIOLATION_LABELS[c.violationType] ?? c.violationType}
+                      </span>
+                      {c.violationType === 'phrase_missing_word' && (() => {
+                        const mw = missingWords(c.searchTerm, c.triggeringKeyword)
+                        return mw.length > 0 ? (
+                          <div style={{ marginTop: 2, fontSize: 11, color: '#92400e', lineHeight: 1.3 }}
+                            title="Keyword words absent from the search term">
+                            missing: {mw.join(', ')}
+                          </div>
+                        ) : null
+                      })()}
+                      {c.violationType === 'exact_close_variant' && c.nearestKeyword && (
+                        <div style={{ marginTop: 2, fontSize: 11, color: '#6b7280', lineHeight: 1.3 }}
+                          title="Owned exact keyword this term drifted from">
+                          nearest: {c.nearestKeyword}{c.offendingWords ? ` · extra: ${c.offendingWords}` : ''}
+                        </div>
+                      )}
+                    </td>
+                  )}
                   <td style={tdStyle()}>
-                    <span title={c.triggeringKeyword} style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', whiteSpace: 'nowrap' }}>
-                      {c.triggeringKeyword}
-                    </span>
+                    {c.status === 'pending' ? (() => {
+                      const neg = negativeFor(c)
+                      return (
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <input
+                            value={neg.keyword}
+                            onChange={(e) => setNegative(c.id, { keyword: e.target.value }, neg)}
+                            title="Edit the negative keyword before approving"
+                            style={{ width: 150, padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 }}
+                          />
+                          <select
+                            value={neg.matchType}
+                            onChange={(e) => setNegative(c.id, { matchType: e.target.value as NegMatchType }, neg)}
+                            style={{ padding: '4px 4px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 }}
+                          >
+                            <option value="phrase">Phrase</option>
+                            <option value="exact">Exact</option>
+                          </select>
+                        </div>
+                      )
+                    })() : (
+                      <span style={{ fontSize: 12, color: '#6b7280' }}>—</span>
+                    )}
                   </td>
-                  <td style={tdStyle()}>
-                    <span style={{ ...badgeStyle('#e0e7ff', '#3730a3'), textTransform: 'uppercase', fontSize: 11 }}>
-                      {MATCH_TYPE_LABELS[c.matchType] ?? c.matchType}
-                    </span>
-                  </td>
-                  <td style={tdStyle()}>
-                    <span style={{ ...badgeStyle(
-                      violationColor(c.violationType) + '20',
-                      violationColor(c.violationType),
-                    ), fontSize: 11 }}>
-                      {VIOLATION_LABELS[c.violationType] ?? c.violationType}
-                    </span>
-                  </td>
-                  <td style={{ ...tdStyle(), textAlign: 'right' }}>{formatNumber(c.impressions)}</td>
-                  <td style={{ ...tdStyle(), textAlign: 'right' }}>{formatNumber(c.clicks)}</td>
-                  <td style={tdStyle()}>
-                    <span title={c.campaignName} style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', whiteSpace: 'nowrap' }}>
-                      {c.campaignName || '—'}
-                    </span>
-                  </td>
-                  <td style={tdStyle()}>
-                    <span style={{ ...badgeStyle(
-                      statusColor(c.status) + '20',
-                      statusColor(c.status),
-                    ), fontSize: 11 }}>
-                      {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
-                    </span>
-                  </td>
-                  <td style={tdStyle()}>
-                    <span title={new Date(c.lastSeenAt).toLocaleString()}>
-                      {timeAgo(c.lastSeenAt)}
-                    </span>
-                  </td>
+                  {isVisible('impressions') && <td style={{ ...tdStyle(), textAlign: 'right' }}>{formatNumber(c.impressions)}</td>}
+                  {isVisible('clicks') && <td style={{ ...tdStyle(), textAlign: 'right' }}>{formatNumber(c.clicks)}</td>}
+                  {isVisible('campaign') && (
+                    <td style={tdStyle()}>
+                      <span title={c.campaignName} style={{ maxWidth: 160, display: 'block', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                        {c.campaignName || '—'}
+                      </span>
+                    </td>
+                  )}
+                  {isVisible('status') && (
+                    <td style={tdStyle()}>
+                      <span style={{ ...badgeStyle(
+                        statusColor(c.status) + '20',
+                        statusColor(c.status),
+                      ), fontSize: 11 }}>
+                        {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
+                      </span>
+                    </td>
+                  )}
+                  {isVisible('lastSeen') && (
+                    <td style={tdStyle()}>
+                      <span title={new Date(c.lastSeenAt).toLocaleString()} style={{ whiteSpace: 'nowrap' }}>
+                        {timeAgo(c.lastSeenAt)}
+                      </span>
+                    </td>
+                  )}
                   <td style={tdStyle()}>
                     {c.status === 'pending' && (
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <NklDropdown
-                          candidateId={c.id}
+                        <ApprovePopover
+                          candidate={c}
+                          negative={negativeFor(c)}
                           onApprove={handleApprove}
                           loading={actionLoading.has(c.id)}
                           clientId={filterClient ? String(filterClient) : undefined}
@@ -544,29 +743,47 @@ export default function MatchTypeViolationReview({
   )
 }
 
-// ─── NKL Dropdown ─────────────────────────────────────────────────────────────
+// ─── Approve Popover ──────────────────────────────────────────────────────────
 
-function NklDropdown({
-  candidateId,
+type ApprovePayload = {
+  routing?: { mode: RoutingMode; listId?: string | number }
+  keyword?: string
+  matchType?: 'exact' | 'phrase'
+}
+
+function ApprovePopover({
+  candidate,
+  negative,
   onApprove,
   loading,
   clientId,
 }: {
-  candidateId: string | number
-  onApprove: (id: string | number, listId: string | number) => Promise<void>
+  candidate: Candidate
+  negative: NegativeEdit
+  onApprove: (id: string | number, payload: ApprovePayload) => Promise<void>
   loading: boolean
   clientId?: string
 }) {
   const [open, setOpen] = useState(false)
+  // Seed from the row's inline-edited negative so the two editors stay in sync.
+  const [keyword, setKeyword] = useState(negative.keyword)
+  const [matchType, setMatchType] = useState<'exact' | 'phrase'>(negative.matchType)
+  useEffect(() => {
+    setKeyword(negative.keyword)
+    setMatchType(negative.matchType)
+  }, [negative.keyword, negative.matchType])
+  const [mode, setMode] = useState<RoutingMode>('auto')
   const [lists, setLists] = useState<NegativeKeywordList[]>([])
+  const [listId, setListId] = useState<string | number | ''>('')
   const [fetching, setFetching] = useState(false)
+
   const ref = useCallback((node: HTMLDivElement | null) => {
     if (!node) return
     const handler = (e: MouseEvent) => {
       if (!node.contains(e.target as Node)) setOpen(false)
     }
-    node.addEventListener('blur', handler as any)
-    return () => node.removeEventListener('blur', handler as any)
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
   }, [])
 
   const fetchLists = async () => {
@@ -587,6 +804,22 @@ function NklDropdown({
     setOpen(true)
   }
 
+  const submit = async () => {
+    const trimmed = keyword.trim()
+    if (!trimmed) return
+    const payload: ApprovePayload = { keyword: trimmed, matchType }
+    if (mode === 'existing') {
+      if (!listId) return
+      payload.routing = { mode: 'existing', listId }
+    } else {
+      payload.routing = { mode: 'auto' }
+    }
+    setOpen(false)
+    await onApprove(candidate.id, payload)
+  }
+
+  const adGroupLabel = candidate.adGroupName || candidate.campaignName || 'this ad group'
+
   return (
     <div ref={ref as any} style={{ position: 'relative' }}>
       <button
@@ -600,30 +833,61 @@ function NklDropdown({
       {open && (
         <div style={{
           position: 'absolute', right: 0, top: '100%', zIndex: 100,
-          background: 'white', border: '1px solid #e5e7eb', borderRadius: 6,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)', minWidth: 180, marginTop: 4,
+          background: 'white', border: '1px solid #e5e7eb', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', width: 280, marginTop: 4,
+          padding: 12, fontSize: 12, textAlign: 'left',
         }}>
-          {fetching ? (
-            <div style={{ padding: '8px 12px', fontSize: 12, color: '#6b7280' }}>Loading…</div>
-          ) : lists.length === 0 ? (
-            <div style={{ padding: '8px 12px', fontSize: 12, color: '#6b7280' }}>No lists found</div>
-          ) : (
-            lists.map((l) => (
-              <button
-                key={String(l.id)}
-                onClick={async () => { setOpen(false); await onApprove(candidateId, l.id) }}
-                style={{
-                  display: 'block', width: '100%', padding: '7px 12px', border: 'none',
-                  background: 'none', textAlign: 'left', fontSize: 12, cursor: 'pointer',
-                  borderBottom: '1px solid #f3f4f6',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#f9fafb')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-              >
-                {l.name}
-              </button>
-            ))
+          <label style={{ display: 'block', fontWeight: 600, color: '#374151', marginBottom: 4 }}>
+            Negative keyword
+          </label>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              style={{ flex: 1, padding: '5px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 }}
+            />
+            <select
+              value={matchType}
+              onChange={(e) => setMatchType(e.target.value as 'exact' | 'phrase')}
+              style={{ padding: '5px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 }}
+            >
+              <option value="phrase">Phrase</option>
+              <option value="exact">Exact</option>
+            </select>
+          </div>
+
+          <div style={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}>Route to</div>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6, cursor: 'pointer' }}>
+            <input type="radio" checked={mode === 'auto'} onChange={() => setMode('auto')} style={{ marginTop: 2 }} />
+            <span>Ad-group list <span style={{ color: '#6b7280' }}>— auto-match or create for “{adGroupLabel}”</span></span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, cursor: 'pointer' }}>
+            <input type="radio" checked={mode === 'existing'} onChange={() => setMode('existing')} />
+            <span>Assign existing list</span>
+          </label>
+          {mode === 'existing' && (
+            <select
+              value={String(listId)}
+              onChange={(e) => setListId(e.target.value)}
+              style={{ width: '100%', padding: '5px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, marginBottom: 8 }}
+            >
+              <option value="">{fetching ? 'Loading…' : '— Select a list —'}</option>
+              {lists.map((l) => (
+                <option key={String(l.id)} value={String(l.id)}>{l.name}</option>
+              ))}
+            </select>
           )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>
+            <button onClick={() => setOpen(false)} style={{ ...btnStyle('ghost'), fontSize: 11, padding: '5px 10px' }}>Cancel</button>
+            <button
+              onClick={submit}
+              disabled={!keyword.trim() || (mode === 'existing' && !listId)}
+              style={{ ...btnStyle('primary', !keyword.trim() || (mode === 'existing' && !listId)), fontSize: 11, padding: '5px 10px' }}
+            >
+              Approve
+            </button>
+          </div>
         </div>
       )}
     </div>

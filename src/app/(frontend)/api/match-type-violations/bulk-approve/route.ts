@@ -2,6 +2,30 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
 import { logActivity } from "@/lib/activity-log";
+import { buildNegativeFromViolation } from "@/lib/match-type-negative";
+import { resolveTargetList, parseRouting } from "@/lib/match-type-approve";
+import type { NegativeMatchType } from "@/lib/match-type-negative";
+
+/**
+ * Parse an untrusted `overrides` body into a map of candidate id → agency edits
+ * (keyword text and/or match type). Lets the bulk approve honour negatives the
+ * user edited inline per row instead of only the stored detector recommendation.
+ */
+function parseOverrides(
+  raw: unknown,
+): Map<string, { keyword?: string; matchType?: NegativeMatchType }> {
+  const map = new Map<string, { keyword?: string; matchType?: NegativeMatchType }>();
+  if (!raw || typeof raw !== "object") return map;
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== "object") continue;
+    const v = value as { keyword?: unknown; matchType?: unknown };
+    const entry: { keyword?: string; matchType?: NegativeMatchType } = {};
+    if (typeof v.keyword === "string" && v.keyword.trim()) entry.keyword = v.keyword.trim();
+    if (v.matchType === "exact" || v.matchType === "phrase") entry.matchType = v.matchType;
+    if (entry.keyword || entry.matchType) map.set(String(id), entry);
+  }
+  return map;
+}
 
 export async function POST(req: NextRequest) {
   const payloadConfig = await config;
@@ -13,33 +37,28 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { candidateIds, assignedListId } = body as {
+  const { candidateIds, assignedListId, routing: rawRouting, overrides: rawOverrides } = body as {
     candidateIds?: string[];
     assignedListId?: string;
+    routing?: unknown;
+    overrides?: unknown;
   };
+  const routing = parseRouting(rawRouting);
+  const overrides = parseOverrides(rawOverrides);
 
   if (!Array.isArray(candidateIds) || candidateIds.length === 0) {
     return NextResponse.json({ error: "candidateIds must be a non-empty array" }, { status: 400 });
   }
 
-  if (!assignedListId) {
-    return NextResponse.json({ error: "assignedListId is required" }, { status: 400 });
-  }
-
-  const nkl = await payload.findByID({
-    collection: "negative-keyword-lists",
-    id: assignedListId,
-    depth: 0,
-    overrideAccess: true,
-  }).catch(() => null);
-
-  if (!nkl) {
-    return NextResponse.json({ error: "Negative keyword list not found" }, { status: 404 });
+  if (!assignedListId && !routing) {
+    return NextResponse.json(
+      { error: "assignedListId or routing is required" },
+      { status: 400 },
+    );
   }
 
   const now = new Date().toISOString();
   const userId = typeof user.id === "object" ? (user.id as any).id : user.id;
-  const existingKeywords = Array.isArray((nkl as any).keywords) ? (nkl as any).keywords : [];
 
   const results = await Promise.allSettled(
     candidateIds.map(async (id) => {
@@ -63,52 +82,85 @@ export async function POST(req: NextRequest) {
     )
     .map((r) => r.value);
 
-  // Build the full updated keywords array (merge all new keywords)
-  const newKws = toApprove.map((item) => ({
-    keyword: item.candidate.searchTerm,
-    matchType: ((item.candidate.matchType as string) ?? "EXACT").toLowerCase(),
-    negatedAt: now,
-  }));
-
-  const dedupedMap = new Map<string, any>();
-  for (const k of existingKeywords) {
-    dedupedMap.set(`${(k.keyword ?? "").toLowerCase()}|${(k.matchType ?? "").toLowerCase()}`, k);
+  // Resolve each candidate to its destination list and bucket the negatives by
+  // list. `existing`/legacy routing collapses to a single list; `auto` routing
+  // matches (or creates) an ad-group list per candidate.
+  const perList = new Map<string | number, { newKws: any[]; candidateIds: string[] }>();
+  let createdLists = 0;
+  for (const item of toApprove) {
+    const resolved = await resolveTargetList(payload, {
+      candidate: item.candidate,
+      routing,
+      assignedListId,
+    });
+    if (resolved.created) createdLists++;
+    const override = overrides.get(String(item.id));
+    const negative = buildNegativeFromViolation({
+      searchTerm: item.candidate.searchTerm,
+      triggeringKeyword: item.candidate.triggeringKeyword,
+      violationType: item.candidate.violationType,
+      recommendedKeyword: override?.keyword ?? item.candidate.recommendedKeyword,
+      recommendedMatchType: override?.matchType ?? item.candidate.recommendedMatchType,
+      nearestKeyword: item.candidate.nearestKeyword,
+    });
+    const bucket = perList.get(resolved.listId) ?? { newKws: [], candidateIds: [] };
+    bucket.newKws.push({ keyword: negative.keyword, matchType: negative.matchType, negatedAt: now });
+    bucket.candidateIds.push(item.id);
+    perList.set(resolved.listId, bucket);
   }
-  for (const k of newKws) {
-    dedupedMap.set(`${k.keyword.toLowerCase()}|${k.matchType}`, k);
+
+  const listNames: string[] = [];
+  for (const [listId, bucket] of perList) {
+    const nkl = await payload.findByID({
+      collection: "negative-keyword-lists",
+      id: listId,
+      depth: 0,
+      overrideAccess: true,
+    }).catch(() => null);
+    if (!nkl) continue;
+    listNames.push((nkl as any).name ?? String(listId));
+
+    const existingKeywords = Array.isArray((nkl as any).keywords) ? (nkl as any).keywords : [];
+    const dedupedMap = new Map<string, any>();
+    for (const k of existingKeywords) {
+      dedupedMap.set(`${(k.keyword ?? "").toLowerCase()}|${(k.matchType ?? "").toLowerCase()}`, k);
+    }
+    for (const k of bucket.newKws) {
+      dedupedMap.set(`${k.keyword.toLowerCase()}|${k.matchType}`, k);
+    }
+    const mergedKeywords = Array.from(dedupedMap.values()).sort((a: any, b: any) =>
+      (a.keyword ?? "").localeCompare(b.keyword ?? ""),
+    );
+
+    await payload.update({
+      collection: "negative-keyword-lists",
+      id: listId,
+      data: { keywords: mergedKeywords },
+      overrideAccess: true,
+    });
+
+    await Promise.allSettled(
+      bucket.candidateIds.map((id) =>
+        (payload.update as any)({
+          collection: "match-type-violation-candidates",
+          id,
+          data: {
+            status: "approved",
+            approvedAt: now,
+            approvedBy: userId,
+            assignedListId: listId,
+          },
+          overrideAccess: true,
+        }),
+      ),
+    );
   }
-  const mergedKeywords = Array.from(dedupedMap.values()).sort((a: any, b: any) =>
-    (a.keyword ?? "").localeCompare(b.keyword ?? ""),
-  );
-
-  await payload.update({
-    collection: "negative-keyword-lists",
-    id: assignedListId,
-    data: { keywords: mergedKeywords },
-    overrideAccess: true,
-  });
-
-  await Promise.allSettled(
-    toApprove.map((item) =>
-      (payload.update as any)({
-        collection: "match-type-violation-candidates",
-        id: item.id,
-        data: {
-          status: "approved",
-          approvedAt: now,
-          approvedBy: userId,
-          assignedListId,
-        },
-        overrideAccess: true,
-      }),
-    ),
-  );
 
   const firstCandidate = toApprove[0]?.candidate;
   await logActivity(payload, {
     type: "match_type_violation_approved",
     title: `Bulk approved ${toApprove.length} match type violations`,
-    description: `Added ${toApprove.length} terms as negatives to list "${(nkl as any).name}"`,
+    description: `Added ${toApprove.length} terms as negatives to ${listNames.length} list(s): ${listNames.join(", ")}`,
     user: userId,
     client:
       firstCandidate
@@ -121,6 +173,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     approved: toApprove.length,
+    createdLists,
     results: results.map((r) =>
       r.status === "fulfilled" ? r.value : { status: "error", reason: r.status },
     ),
