@@ -195,6 +195,15 @@ export const GoogleAdsAudits: CollectionConfig = {
   },
   fields: [
     {
+      name: "linkedClientHeader",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/ClientRecordHeader",
+        },
+      },
+    },
+    {
       type: "tabs",
       tabs: [
         // ── Tab 1: Client Info ──

@@ -100,7 +100,7 @@ const icons: MiniIcon[] = [
   },
   {
     label: 'Google Ads',
-    shortLabel: 'Ads',
+    shortLabel: 'Google',
     href: '/admin/google-ads',
     feature: 'nav:google-ads',
     svg: (

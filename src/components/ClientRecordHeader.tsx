@@ -1,6 +1,6 @@
 'use client'
 
-import { useDocumentInfo, useField, useFormFields } from '@payloadcms/ui'
+import { useAllFormFields, useDocumentInfo, useField, useFormFields } from '@payloadcms/ui'
 import { useCallback, useEffect, useState } from 'react'
 import {
   historicalRevenueTotal,
@@ -56,6 +56,8 @@ type SavedData = {
   isActive: boolean
   isAgency: boolean
   logoThumbUrl: string
+  clientPin: string
+  services: ServiceValue[]
   // Billing inputs for the revenue strip.
   monthlyRetainer: number
   setupFee: number
@@ -82,6 +84,13 @@ function displayDomain(url: string): string {
 function formatCurrency(amount: number): string {
   return `$${Math.round(amount).toLocaleString('en-AU')}`
 }
+
+type RelationshipValue =
+  | string
+  | number
+  | { id?: string | number; value?: string | number | { id?: string | number } }
+  | null
+  | undefined
 
 type RevenueStrip = {
   monthlyRetainer: number
@@ -136,7 +145,53 @@ function computeRevenue(d: SavedData): RevenueStrip {
   }
 }
 
+function relationshipId(value: RelationshipValue): string | null {
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  if (value && typeof value === 'object') {
+    if (typeof value.id === 'string' || typeof value.id === 'number') return String(value.id)
+    if (typeof value.value === 'string' || typeof value.value === 'number') return String(value.value)
+    if (value.value && typeof value.value === 'object') {
+      const nestedId = value.value.id
+      if (typeof nestedId === 'string' || typeof nestedId === 'number') return String(nestedId)
+    }
+  }
+  return null
+}
+
+function normalizeClient(doc: any): SavedData {
+  return {
+    name: typeof doc.name === 'string' ? doc.name : '',
+    websiteUrl: typeof doc.websiteUrl === 'string' ? doc.websiteUrl : '',
+    slug: typeof doc.slug === 'string' ? doc.slug : '',
+    isActive: doc.isActive !== false,
+    isAgency: !!doc.isAgency,
+    logoThumbUrl: typeof doc.logoThumbUrl === 'string' ? doc.logoThumbUrl : '',
+    clientPin: typeof doc.clientPin === 'string' ? doc.clientPin : '',
+    services: Array.isArray(doc.services)
+      ? doc.services.filter((value: unknown): value is ServiceValue =>
+          SERVICE_OPTIONS.some((option) => option.value === value),
+        )
+      : [],
+    monthlyRetainer: Number(doc.monthlyRetainer ?? 0),
+    setupFee: Number(doc.setupFee ?? 0),
+    revenueSharePercent: Number(doc.revenueSharePercent ?? 100),
+    clientStartDate: doc.clientStartDate ?? null,
+    oneOffProjects: Array.isArray(doc.oneOffProjects) ? doc.oneOffProjects : [],
+    retainerHistory: Array.isArray(doc.retainerHistory) ? doc.retainerHistory : [],
+    referralCommissions: Array.isArray(doc.referralCommissions) ? doc.referralCommissions : [],
+    historicalRevenueByYear: Array.isArray(doc.historicalRevenueByYear)
+      ? doc.historicalRevenueByYear
+      : [],
+  }
+}
+
 function ClientRecordHeader() {
+  const { collectionSlug } = useDocumentInfo()
+  if (collectionSlug === 'google-ads-audits') return <GoogleAdsLinkedClientHeader />
+  return <ClientRecordHeaderForClient />
+}
+
+function ClientRecordHeaderForClient() {
   // `lastUpdateTime` changes on every successful save, so depending on it below
   // re-fetches the header's saved data (logo, status, revenue) after the user
   // saves — e.g. after picking a new logo from the header avatar.
@@ -148,8 +203,7 @@ function ClientRecordHeader() {
   const { value: servicesValue, setValue: setServices } = useField<ServiceValue[]>({
     path: 'services',
   })
-  // Hide the header for agency records (no client-facing services/revenue).
-  // Read live from form state so it reacts to toggling the Is Agency field.
+  // Read live from form state so toggling Is Agency immediately hides revenue stats.
   const isAgency = useFormFields(([fields]) => !!fields.isAgency?.value)
 
   useEffect(() => {
@@ -166,26 +220,7 @@ function ClientRecordHeader() {
       .then((res) => res.json())
       .then((doc) => {
         if (cancelled) return
-        setData({
-          name: typeof doc.name === 'string' ? doc.name : '',
-          websiteUrl: typeof doc.websiteUrl === 'string' ? doc.websiteUrl : '',
-          slug: typeof doc.slug === 'string' ? doc.slug : '',
-          isActive: doc.isActive !== false,
-          isAgency: !!doc.isAgency,
-          logoThumbUrl: typeof doc.logoThumbUrl === 'string' ? doc.logoThumbUrl : '',
-          monthlyRetainer: Number(doc.monthlyRetainer ?? 0),
-          setupFee: Number(doc.setupFee ?? 0),
-          revenueSharePercent: Number(doc.revenueSharePercent ?? 100),
-          clientStartDate: doc.clientStartDate ?? null,
-          oneOffProjects: Array.isArray(doc.oneOffProjects) ? doc.oneOffProjects : [],
-          retainerHistory: Array.isArray(doc.retainerHistory) ? doc.retainerHistory : [],
-          referralCommissions: Array.isArray(doc.referralCommissions)
-            ? doc.referralCommissions
-            : [],
-          historicalRevenueByYear: Array.isArray(doc.historicalRevenueByYear)
-            ? doc.historicalRevenueByYear
-            : [],
-        })
+        setData(normalizeClient(doc))
       })
       .catch(() => {})
     return () => {
@@ -212,14 +247,43 @@ function ClientRecordHeader() {
     [servicesValue, setServices],
   )
 
-  // New (unsaved) documents have no id; agencies don't get the client header.
-  if (!id || !data || data.isAgency || isAgency) return null
+  // New (unsaved) documents have no id.
+  if (!id || !data) return null
 
+  const showRevenue = !data.isAgency && !isAgency
+
+  const selected = new Set(Array.isArray(servicesValue) ? servicesValue : [])
+
+  return (
+    <ClientHeaderCard
+      data={data}
+      selectedServices={selected}
+      showRevenue={showRevenue}
+      clientPin={data.clientPin}
+      onLogoClick={openLogoPicker}
+      onServiceToggle={toggleService}
+    />
+  )
+}
+
+function ClientHeaderCard({
+  data,
+  selectedServices,
+  showRevenue,
+  clientPin,
+  onLogoClick,
+  onServiceToggle,
+}: {
+  data: SavedData
+  selectedServices: Set<ServiceValue>
+  showRevenue: boolean
+  clientPin?: string
+  onLogoClick?: () => void
+  onServiceToggle?: (value: ServiceValue) => void
+}) {
   const { name, websiteUrl, slug, isActive, logoThumbUrl } = data
   const domain = displayDomain(websiteUrl)
-  // "Recurring" status: an active client on a monthly retainer.
   const isRecurring = isActive && data.monthlyRetainer > 0
-  const selected = new Set(Array.isArray(servicesValue) ? servicesValue : [])
   const revenue = computeRevenue(data)
   const clientSinceLabel = revenue.clientSince
     ? new Date(revenue.clientSince).toLocaleDateString('en-AU', {
@@ -233,9 +297,10 @@ function ClientRecordHeader() {
       <button
         type="button"
         className="od-client-head__logo-btn"
-        onClick={openLogoPicker}
-        title="Change logo"
-        aria-label="Change client logo"
+        onClick={onLogoClick}
+        disabled={!onLogoClick}
+        title={onLogoClick ? 'Change logo' : undefined}
+        aria-label="Client logo"
       >
         {logoThumbUrl ? (
           <img className="od-client-head__logo" src={logoThumbUrl} alt={`${name} logo`} />
@@ -275,7 +340,12 @@ function ClientRecordHeader() {
             >
               {isActive ? 'Active' : 'Inactive'}
             </span>
-            {isRecurring && (
+            {data.isAgency && (
+              <span className="od-client-head__pill od-client-head__pill--agency">
+                Agency
+              </span>
+            )}
+            {isRecurring && showRevenue && (
               <span className="od-client-head__pill od-client-head__pill--recurring">
                 Recurring
               </span>
@@ -284,21 +354,38 @@ function ClientRecordHeader() {
 
           <div className="od-client-head__services">
             <span className="od-client-head__services-label">Services</span>
-            {SERVICE_OPTIONS.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                className={`od-svc-pill ${selected.has(value) ? 'od-svc-pill--on' : ''}`}
-                onClick={() => toggleService(value)}
-                aria-pressed={selected.has(value)}
-              >
-                {label}
-              </button>
-            ))}
+            {onServiceToggle ? (
+              SERVICE_OPTIONS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`od-svc-pill ${selectedServices.has(value) ? 'od-svc-pill--on' : ''}`}
+                  onClick={() => onServiceToggle(value)}
+                  aria-pressed={selectedServices.has(value)}
+                >
+                  {label}
+                </button>
+              ))
+            ) : selectedServices.size > 0 ? (
+              SERVICE_OPTIONS.filter(({ value }) => selectedServices.has(value)).map(({ value, label }) => (
+                <span key={value} className="od-svc-pill od-svc-pill--on">
+                  {label}
+                </span>
+              ))
+            ) : (
+              <span className="od-client-head__services-empty">No services selected</span>
+            )}
           </div>
         </div>
 
-        <div className="od-client-head__strip">
+        {clientPin && (
+          <div className="od-client-head__pin" title="Client PIN">
+            <span className="od-client-head__pin-label">PIN</span>
+            <span className="od-client-head__pin-value">{clientPin}</span>
+          </div>
+        )}
+
+        {showRevenue && <div className="od-client-head__strip">
           <div className="od-client-head__stat">
             <div className="od-client-head__stat-label">Monthly Retainer</div>
             <div className="od-client-head__stat-value">
@@ -321,9 +408,72 @@ function ClientRecordHeader() {
             <div className="od-client-head__stat-label">Client Since</div>
             <div className="od-client-head__stat-value">{clientSinceLabel}</div>
           </div>
-        </div>
+        </div>}
       </div>
     </div>
+  )
+}
+
+function GoogleAdsLinkedClientHeader() {
+  const { id, lastUpdateTime } = useDocumentInfo()
+  const [fields] = useAllFormFields()
+  const [data, setData] = useState<SavedData | null>(null)
+  const [savedClientId, setSavedClientId] = useState<string | null>(null)
+
+  const formClientId = relationshipId(fields?.client?.value as RelationshipValue)
+  const clientId = formClientId ?? savedClientId
+
+  useEffect(() => {
+    if (!id || formClientId) {
+      setSavedClientId(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/google-ads-audits/${id}?depth=0`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((doc) => {
+        if (cancelled) return
+        setSavedClientId(relationshipId(doc?.client as RelationshipValue))
+      })
+      .catch(() => {
+        if (!cancelled) setSavedClientId(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [formClientId, id, lastUpdateTime])
+
+  useEffect(() => {
+    if (!clientId) {
+      setData(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/clients/${clientId}?depth=0`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((doc) => {
+        if (cancelled) return
+        setData(doc ? normalizeClient(doc) : null)
+      })
+      .catch(() => {
+        if (!cancelled) setData(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [clientId, lastUpdateTime])
+
+  if (!data) return null
+
+  const selected = new Set(data.services)
+
+  return (
+    <ClientHeaderCard
+      data={data}
+      selectedServices={selected}
+      showRevenue={false}
+      clientPin={data.clientPin}
+    />
   )
 }
 
