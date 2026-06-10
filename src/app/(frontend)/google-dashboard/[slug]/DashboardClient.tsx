@@ -57,16 +57,88 @@ export function DashboardClient({ slug, clientId, clientName, isAuthenticated, i
     );
   }
 
-  // PIN entry screen
+  // PIN entry screen — cosmic theme (proposal v2): deep navy gradient,
+  // starfield, Space Grotesk display + JetBrains Mono helper text.
   if (!authed) {
+    const sg = "var(--font-space-grotesk), system-ui, sans-serif";
+    const mono = "var(--font-jetbrains-mono), ui-monospace, monospace";
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white mb-1">{clientName}</h1>
-          <h2 className="text-lg font-medium text-slate-400">Google Ads Dashboard</h2>
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
+          position: "relative",
+          overflow: "hidden",
+          background:
+            "radial-gradient(1200px 700px at 50% 18%, #11162e 0%, #0b1226 45%, #07091a 100%)",
+        }}
+      >
+        {/* Starfield — subtle layered radial dots, purely decorative. */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            backgroundImage: [
+              "radial-gradient(1.5px 1.5px at 12% 22%, rgba(255,255,255,0.55), transparent)",
+              "radial-gradient(1.5px 1.5px at 78% 14%, rgba(255,255,255,0.45), transparent)",
+              "radial-gradient(1px 1px at 33% 68%, rgba(255,255,255,0.4), transparent)",
+              "radial-gradient(1px 1px at 64% 82%, rgba(255,255,255,0.35), transparent)",
+              "radial-gradient(2px 2px at 88% 56%, rgba(153,192,255,0.5), transparent)",
+              "radial-gradient(1.5px 1.5px at 22% 88%, rgba(255,255,255,0.3), transparent)",
+              "radial-gradient(1px 1px at 50% 38%, rgba(255,255,255,0.3), transparent)",
+            ].join(","),
+          }}
+        />
+
+        <div style={{ position: "relative", textAlign: "center", marginBottom: 44 }}>
+          <div
+            style={{
+              fontFamily: sg,
+              fontSize: 13,
+              fontWeight: 600,
+              letterSpacing: "0.22em",
+              textTransform: "uppercase",
+              color: "#4d94ff",
+              marginBottom: 18,
+            }}
+          >
+            Google Ads Dashboard
+          </div>
+          <h1
+            style={{
+              fontFamily: sg,
+              fontSize: 52,
+              fontWeight: 600,
+              lineHeight: 1.0,
+              letterSpacing: "-0.02em",
+              color: "#ffffff",
+              margin: 0,
+            }}
+          >
+            {clientName}
+          </h1>
         </div>
+
         <PinEntry slug={slug} onSuccess={() => setVerified(true)} />
-        <p className="text-slate-400 text-center mt-6">Enter your 4-digit PIN access code to view the dashboard</p>
+
+        <p
+          style={{
+            position: "relative",
+            fontFamily: mono,
+            fontSize: 13,
+            letterSpacing: "0.02em",
+            color: "#8b90ad",
+            marginTop: 30,
+          }}
+        >
+          Enter your 4-digit PIN access code to view the dashboard
+        </p>
         <PinGateLogo />
       </div>
     );
@@ -195,9 +267,11 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
     inputRefs.current[0]?.focus();
   }, []);
 
+  const sg = "var(--font-space-grotesk), system-ui, sans-serif";
+  const mono = "var(--font-jetbrains-mono), ui-monospace, monospace";
   return (
-    <div>
-      <div className="flex justify-center gap-3" onPaste={handlePaste}>
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: 18 }} onPaste={handlePaste}>
         {digits.map((digit, i) => (
           <input
             key={i}
@@ -209,21 +283,44 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
             disabled={loading}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
-            className="w-16 h-20 text-center text-2xl font-semibold border-2 rounded-xl
-              bg-slate-800 border-slate-600 text-white
-              focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20
-              disabled:opacity-50 transition-colors"
+            onFocus={(e) => {
+              e.target.style.border = "2px solid #4d94ff";
+              e.target.style.boxShadow =
+                "0 0 0 4px rgba(0,102,255,0.18), 0 8px 24px rgba(0,0,0,0.35)";
+            }}
+            onBlur={(e) => {
+              e.target.style.border = "1px solid rgba(153,192,255,0.18)";
+              e.target.style.boxShadow = "0 8px 24px rgba(0,0,0,0.25)";
+            }}
+            style={{
+              width: 76,
+              height: 92,
+              borderRadius: 18,
+              textAlign: "center",
+              fontFamily: sg,
+              fontSize: 34,
+              fontWeight: 600,
+              color: "#ffffff",
+              caretColor: "#4d94ff",
+              outline: "none",
+              background:
+                "linear-gradient(180deg, rgba(17,22,46,0.9) 0%, rgba(11,18,38,0.9) 100%)",
+              border: "1px solid rgba(153,192,255,0.18)",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+              opacity: loading ? 0.5 : 1,
+              transition: "border-color 0.15s, box-shadow 0.15s",
+            }}
             aria-label={`Digit ${i + 1}`}
           />
         ))}
       </div>
 
       {loading && (
-        <p className="mt-6 text-sm text-slate-400 text-center">Verifying...</p>
+        <p style={{ marginTop: 24, fontFamily: mono, fontSize: 13, color: "#8b90ad", textAlign: "center" }}>Verifying...</p>
       )}
 
       {error && (
-        <p className="mt-6 text-sm text-red-400 text-center">{error}</p>
+        <p style={{ marginTop: 24, fontFamily: mono, fontSize: 13, color: "#ff7a7a", textAlign: "center" }}>{error}</p>
       )}
     </div>
   );

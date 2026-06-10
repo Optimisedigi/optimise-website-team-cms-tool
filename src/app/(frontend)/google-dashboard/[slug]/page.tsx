@@ -1,11 +1,26 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getPayload } from "payload";
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import config from "@/payload.config";
 import { DashboardClient } from "./DashboardClient";
 import { validateDashboardToken } from "../../api/dashboard/verify/route";
 import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData } from "@/lib/dashboard-types";
 import "../globals.css";
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -256,6 +271,7 @@ export default async function GoogleDashboardPage({ params }: Props) {
   }
 
   return (
+    <div className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
     <DashboardClient
       slug={slug}
       clientId={client.id as string}
@@ -273,5 +289,6 @@ export default async function GoogleDashboardPage({ params }: Props) {
       initialAddedSelections={initialAddedSelections}
       initialAddedNegatives={initialAddedNegatives}
     />
+    </div>
   );
 }
