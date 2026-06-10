@@ -175,6 +175,37 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const playDigitClick = useCallback(() => {
+    const audioWindow = window as Window & typeof globalThis & {
+      webkitAudioContext?: typeof AudioContext;
+    };
+    const AudioContextCtor = audioWindow.AudioContext || audioWindow.webkitAudioContext;
+    if (!AudioContextCtor) return;
+
+    const audioContext = audioContextRef.current ?? new AudioContextCtor();
+    audioContextRef.current = audioContext;
+    if (audioContext.state === "suspended") {
+      void audioContext.resume().catch(() => {});
+    }
+
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const now = audioContext.currentTime;
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(880, now);
+    oscillator.frequency.exponentialRampToValueAtTime(440, now + 0.035);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.05);
+  }, []);
 
   const submit = useCallback(
     async (pin: string) => {
@@ -217,9 +248,14 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
     (index: number, value: string) => {
       const digit = value.replace(/\D/g, "").slice(-1);
       const next = [...digits];
+      const previousDigit = next[index];
       next[index] = digit;
       setDigits(next);
       setError("");
+
+      if (digit && digit !== previousDigit) {
+        playDigitClick();
+      }
 
       if (digit && index < 3) {
         inputRefs.current[index + 1]?.focus();
@@ -229,7 +265,7 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
         submit(next.join(""));
       }
     },
-    [digits, submit],
+    [digits, playDigitClick, submit],
   );
 
   const handleKeyDown = useCallback(
@@ -253,6 +289,9 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
       }
       setDigits(next);
       setError("");
+      for (let i = 0; i < pasted.length; i++) {
+        window.setTimeout(playDigitClick, i * 45);
+      }
 
       if (pasted.length === 4) {
         submit(pasted);
@@ -260,7 +299,7 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
         inputRefs.current[pasted.length]?.focus();
       }
     },
-    [submit],
+    [playDigitClick, submit],
   );
 
   useEffect(() => {

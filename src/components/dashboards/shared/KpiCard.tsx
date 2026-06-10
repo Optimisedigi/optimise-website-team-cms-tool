@@ -10,7 +10,7 @@ function formatValue(value: number | null, format: "dollars" | "number" | "perce
     case "number":
       return value.toLocaleString("en-US");
     case "percent":
-      return `${value}%`;
+      return `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
   }
 }
 

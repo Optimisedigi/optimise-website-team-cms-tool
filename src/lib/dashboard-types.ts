@@ -40,20 +40,26 @@ export const DASHBOARD_MONTHLY_WINDOW = 14;
 export interface GoogleAdsDashboardKpis {
   spend: number;
   clicks: number;
+  impressions?: number;
   avgCpc: number;
+  ctr?: number | null;
   conversions: number;
   cpa: number | null;
   // Previous month comparison — null when the active range is a custom
   // day span (period-over-period is semantically ambiguous there).
   prevSpend: number | null;
   prevClicks: number | null;
+  prevImpressions?: number | null;
   prevAvgCpc: number | null;
+  prevCtr?: number | null;
   prevConversions: number | null;
   prevCpa: number | null;
   // Year-ago month comparison — null for custom ranges (see prev*).
   yoySpend: number | null;
   yoyClicks: number | null;
+  yoyImpressions?: number | null;
   yoyAvgCpc: number | null;
+  yoyCtr?: number | null;
   yoyConversions: number | null;
   yoyCpa: number | null;
   /** Per-conversion-action totals for the active range. Drives the

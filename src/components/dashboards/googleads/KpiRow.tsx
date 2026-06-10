@@ -22,9 +22,18 @@ function aggregateByDashboardLabel(
   return Array.from(totals.entries());
 }
 
+function calculateCtr(clicks: number | null | undefined, impressions: number | null | undefined): number | null {
+  if (clicks == null || impressions == null || impressions <= 0) return null;
+  return Number(((clicks / impressions) * 100).toFixed(2));
+}
+
 export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conversionActionLabels = {} }: KpiRowProps) {
   const isYear = compareMode === "year";
   const label = isYear ? "vs last year" : "vs prev month";
+  const ctr = kpis.ctr ?? calculateCtr(kpis.clicks, kpis.impressions);
+  const previousCtr = isYear
+    ? (kpis.yoyCtr ?? calculateCtr(kpis.yoyClicks, kpis.yoyImpressions))
+    : (kpis.prevCtr ?? calculateCtr(kpis.prevClicks, kpis.prevImpressions));
 
   // Per-action breakdown for the conversions tile. Keep the selected CMS/default
   // actions visible even when one has zero conversions in the active period, so
@@ -44,7 +53,7 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
 
   return (
     <div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard
           label="Spend"
           value={kpis.spend}
@@ -57,6 +66,13 @@ export function KpiRow({ kpis, compareMode, selectedConversionActions = [], conv
           value={kpis.clicks}
           previousValue={isYear ? kpis.yoyClicks : kpis.prevClicks}
           format="number"
+          comparisonLabel={label}
+        />
+        <KpiCard
+          label="CTR"
+          value={ctr}
+          previousValue={previousCtr}
+          format="percent"
           comparisonLabel={label}
         />
         <KpiCard

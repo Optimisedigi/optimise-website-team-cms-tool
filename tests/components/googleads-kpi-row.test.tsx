@@ -25,6 +25,25 @@ const baseKpis: GoogleAdsDashboardKpis = {
   },
 }
 
+describe('KpiRow metrics', () => {
+  it('shows click-through rate with the same comparison treatment as other KPIs', () => {
+    render(
+      <KpiRow
+        kpis={{
+          ...baseKpis,
+          impressions: 10000,
+          prevImpressions: 12000,
+        }}
+        compareMode="month"
+      />,
+    )
+
+    expect(screen.getByText('CTR')).toBeInTheDocument()
+    expect(screen.getByText('16.66%')).toBeInTheDocument()
+    expect(screen.getByText('▲ +33% vs prev month')).toBeInTheDocument()
+  })
+})
+
 describe('KpiRow conversion action chip', () => {
   it('shows every selected conversion action, including selected actions with zero conversions', () => {
     render(
