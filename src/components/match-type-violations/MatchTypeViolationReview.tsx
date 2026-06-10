@@ -442,7 +442,7 @@ export default function MatchTypeViolationReview({
   const totalPages = Math.ceil(totalDocs / limit)
 
   return (
-    <div className="mtv-review-root" style={{ padding: '0 24px 32px' }}>
+    <div className="mtv-review-root" style={{ padding: '0 15px 32px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
