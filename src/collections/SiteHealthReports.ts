@@ -31,6 +31,7 @@ export const SiteHealthReports: CollectionConfig = {
           relationTo: "clients",
           required: true,
           admin: {
+            className: "site-health-report-primary-field",
             description: "Client this report belongs to",
             width: "25%",
           },
@@ -40,20 +41,20 @@ export const SiteHealthReports: CollectionConfig = {
           type: "text",
           required: true,
           admin: {
+            className: "site-health-report-primary-field",
             width: "35%",
           },
         },
-        {
-          name: "runAudit",
-          type: "ui",
-          admin: {
-            width: "40%",
-            components: {
-              Field: "./components/RunSiteHealthButton",
-            },
-          },
-        },
       ],
+    },
+    {
+      name: "runAudit",
+      type: "ui",
+      admin: {
+        components: {
+          Field: "./components/RunSiteHealthButton",
+        },
+      },
     },
     {
       name: "reportDate",

@@ -93,7 +93,7 @@ const RunSiteHealthButton = () => {
     // so the app-header's and floating save bar's `backdrop-filter: blur()` layers
     // don't sample and blur it — a Chromium backdrop-filter artifact that otherwise
     // blurs in-flow content sitting between those two blurred sticky layers.
-    <div style={{ marginBottom: 20, position: 'relative', zIndex: 1 }}>
+    <div style={{ marginTop: 6, marginBottom: 20, position: 'relative', zIndex: 1 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         {/* How This Works (Team Guide) */}
         <div

@@ -296,7 +296,6 @@ const SiteHealthReportView = () => {
       {/* ── GSC Data ── */}
       {hasGsc && (
         <div style={{ marginBottom: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Google Search Console</h3>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <MetricCard label="Indexed Pages" value={fmt(gscData.indexedPages)} color="#16a34a" />
             <MetricCard label="Not Indexed" value={fmt(gscData.notIndexedPages)} color="#dc2626" />
@@ -352,7 +351,7 @@ const SiteHealthReportView = () => {
                           <td style={{ ...tdStyle, textAlign: 'right', color: '#dc2626', fontWeight: 600 }}>{fmt(g.count)}</td>
                           <td style={{ ...tdStyle, color: '#6b7280' }}>
                             {(g.urls || []).slice(0, 3).map((u) => (
-                              <div key={u} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 360 }}>
+                              <div key={u} style={{ wordBreak: 'break-all' }}>
                                 <a href={u} target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>{shortUrl(u)}</a>
                               </div>
                             ))}
@@ -374,7 +373,7 @@ const SiteHealthReportView = () => {
       {issuesByCategory && Object.keys(issuesByCategory).length > 0 && (
         <div style={{ marginBottom: 20 }}>
           <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Issues by Category</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
             {Object.entries(issuesByCategory)
               .sort(([, a], [, b]) => b.critical - a.critical || b.warning - a.warning)
               .map(([cat, counts]) => (
@@ -398,8 +397,8 @@ const SiteHealthReportView = () => {
       {pages && pages.length > 0 && (
         <div style={{ marginBottom: 20 }}>
           <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Pages ({pages.length})</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <div style={{ width: 'calc(100% + 60px)', maxWidth: 'calc(100vw - 96px)', overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: '#f9fafb', textAlign: 'left' }}>
                   <th style={thStyle}>URL</th>
@@ -436,7 +435,7 @@ const SiteHealthReportView = () => {
                       : `Not technically indexable: status ${page.statusCode}`
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ ...tdStyle, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={page.url}>
+                      <td style={{ ...tdStyle, width: 340, minWidth: 340, whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }} title={page.url}>
                         {shortUrl(page.url)}
                       </td>
                       <td style={tdStyle}>
