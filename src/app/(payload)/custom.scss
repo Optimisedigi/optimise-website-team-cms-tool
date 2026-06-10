@@ -6313,3 +6313,28 @@ body.od-client-record {
 .site-health-report-primary-field {
   padding-top: 5px;
 }
+
+// ── Match Type Violations review — full document width ──────────────────────
+// The review table is wide (search term, triggering keyword, editable negative,
+// metrics, campaign). Payload's has-sidebar layout caps the main edit column at
+// 66%, cramping the table and leaving the right third empty. When the review is
+// mounted, stack the sidebar below and let the main column span full width.
+.document-fields:has(.mtv-review-root) {
+  display: block;
+
+  &.document-fields--has-sidebar {
+    --main-width: 100%;
+    --main-border: none;
+    --main-field-margin: initial;
+  }
+
+  .document-fields__main {
+    width: 100%;
+  }
+
+  .document-fields__sidebar-wrap {
+    position: static;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    border-left: 0;
