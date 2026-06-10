@@ -6316,25 +6316,39 @@ body.od-client-record {
 
 // ── Match Type Violations review — full document width ──────────────────────
 // The review table is wide (search term, triggering keyword, editable negative,
-// metrics, campaign). Payload's has-sidebar layout caps the main edit column at
-// 66%, cramping the table and leaving the right third empty. When the review is
-// mounted, stack the sidebar below and let the main column span full width.
+// metrics, campaign). The shared compact edit reskin caps .document-fields__edit
+// at 1180px and the edit + tab-content wrappers each add 60px side gutters, so
+// the table renders ~950px wide with empty space on the right. When the review
+// is mounted, lift the cap and shrink the gutters so the table fills the column.
+// Scoped via :has() so it only applies on the active Match Type Variants tab.
 .document-fields:has(.mtv-review-root) {
-  display: block;
+  .document-fields__edit {
+    max-width: none;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
 
+  .tabs-field__content-wrap {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  // Also collapse the right sidebar on the rare has-sidebar host (e.g. clients).
   &.document-fields--has-sidebar {
+    display: block;
     --main-width: 100%;
     --main-border: none;
-    --main-field-margin: initial;
-  }
 
-  .document-fields__main {
-    width: 100%;
-  }
+    .document-fields__main {
+      width: 100%;
+    }
 
-  .document-fields__sidebar-wrap {
-    position: static;
-    width: 100%;
-    min-width: 0;
-    height: auto;
-    border-left: 0;
+    .document-fields__sidebar-wrap {
+      position: static;
+      width: 100%;
+      min-width: 0;
+      height: auto;
+      border-left: 0;
+    }
+  }
+}
