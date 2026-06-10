@@ -393,6 +393,29 @@ export default function MatchTypeViolationReview({
     setShowNklPicker(true)
   }
 
+  // Dismiss the selected pending rows: marks them rejected so the detector keeps
+  // refreshing stats but never re-surfaces them as pending. Lets the team approve
+  // the keepers, then dismiss the reviewed leftovers so they don't reappear.
+  const handleBulkDismiss = async () => {
+    const ids = pendingSelected.map((c) => c.id)
+    if (ids.length === 0) return
+    if (!confirm(`Dismiss ${ids.length} reviewed term${ids.length !== 1 ? 's' : ''}? They won't show up as pending again.`)) return
+    setBulkLoading(true)
+    try {
+      const res = await fetch('/api/match-type-violations/bulk-reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateIds: ids }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      await fetchCandidates()
+    } catch (e: any) {
+      alert(`Error: ${e.message}`)
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   const toggleAll = (checked: boolean) => {
     if (checked) {
       const pendingIds = candidates
@@ -429,12 +452,23 @@ export default function MatchTypeViolationReview({
           </p>
         </div>
         {pendingSelected.length > 0 && (
-          <button
-            onClick={openBulkPicker}
-            style={{ ...btnStyle('primary'), display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            Approve {pendingSelected.length} Selected
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleBulkDismiss}
+              disabled={bulkLoading}
+              style={{ ...btnStyle('ghost'), display: 'flex', alignItems: 'center', gap: 6 }}
+              title="Mark the selected reviewed terms as dismissed so they no longer appear as pending"
+            >
+              Dismiss {pendingSelected.length} Selected
+            </button>
+            <button
+              onClick={openBulkPicker}
+              disabled={bulkLoading}
+              style={{ ...btnStyle('primary'), display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              Approve {pendingSelected.length} Selected
+            </button>
+          </div>
         )}
       </div>
 
@@ -571,7 +605,7 @@ export default function MatchTypeViolationReview({
                 {isVisible('matchType') && <th style={thStyle()}>Match Type</th>}
                 {isVisible('violation') && <th style={thStyle()}>Violation</th>}
                 <th style={thStyle()}>Negative To Add</th>
-                {isVisible('impressions') && <th style={thStyle()}>Impressions</th>}
+                {isVisible('impressions') && <th style={thStyle()} title="Impressions">Impr</th>}
                 {isVisible('clicks') && <th style={thStyle()}>Clicks</th>}
                 {isVisible('campaign') && <th style={thStyle()}>Campaign</th>}
                 {isVisible('status') && <th style={thStyle()}>Status</th>}
