@@ -6759,23 +6759,39 @@ body.od-client-record {
   padding-top: 5px;
 }
 
-// ── Match Type Violations review — full document width ──────────────────────
-// The review table is wide (search term, triggering keyword, editable negative,
-// metrics, campaign). The shared compact edit reskin caps .document-fields__edit
-// at 1180px and the edit + tab-content wrappers each add 60px side gutters, so
-// the table renders ~950px wide with empty space on the right. When the review
-// is mounted, lift the cap and shrink the gutters so the table fills the column.
-// Scoped via :has() so it only applies on the active Match Type Variants tab.
+// ── Match Type Variants review — wide but contained ─────────────────────────
+// Payload's tab field full-bleeds by giving `.tabs-field` negative side margins
+// and then adding the same space back on `.tabs-field__content-wrap`. Removing
+// only the inner padding makes the Match Type Variants UI start off-screen; keep
+// the containing tab inside the document column, then let the review fill it.
 .document-fields:has(.mtv-review-root) {
+  overflow-x: hidden;
+
   .document-fields__edit {
     max-width: none;
-    padding-left: 0;
-    padding-right: 0;
+    min-width: 0;
+    overflow-x: hidden;
+    padding-left: calc(var(--gutter-h) - 35px);
   }
 
-  .tabs-field__content-wrap {
+  .document-fields__fields > .tabs-field:has(.mtv-review-root) {
+    margin-left: 0;
+    margin-right: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .document-fields__fields > .tabs-field:has(.mtv-review-root) > .tabs-field__content-wrap {
     padding-left: 0;
     padding-right: 0;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .od-match-type-variants {
+    width: 100%;
   }
 
   // Also collapse the right sidebar on the rare has-sidebar host (e.g. clients).

@@ -222,7 +222,7 @@ export default function MatchTypeViolationReview({
 
   // Filters
   const [filterClient, setFilterClient] = useState(initialClientId ?? '')
-  const [filterStatus, setFilterStatus] = useState('')
+  const [filterStatus, setFilterStatus] = useState('pending')
   const [filterMatchType, setFilterMatchType] = useState('')
   const [filterViolationType, setFilterViolationType] = useState('')
   const [page, setPage] = useState(1)
@@ -339,7 +339,10 @@ export default function MatchTypeViolationReview({
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error(await res.text())
-      await fetchCandidates()
+      setCandidates((prev) => prev.filter((candidate) => candidate.id !== id))
+      setSelected((prev) => { const s = new Set(prev); s.delete(id); return s })
+      setTotalDocs((prev) => Math.max(0, prev - 1))
+      void fetchCandidates()
     } catch (e: any) {
       alert(`Error: ${e.message}`)
     } finally {
@@ -353,7 +356,10 @@ export default function MatchTypeViolationReview({
     try {
       const res = await fetch(`/api/match-type-violations/${id}/reject`, { method: 'POST' })
       if (!res.ok) throw new Error(await res.text())
-      await fetchCandidates()
+      setCandidates((prev) => prev.filter((candidate) => candidate.id !== id))
+      setSelected((prev) => { const s = new Set(prev); s.delete(id); return s })
+      setTotalDocs((prev) => Math.max(0, prev - 1))
+      void fetchCandidates()
     } catch (e: any) {
       alert(`Error: ${e.message}`)
     } finally {
@@ -380,7 +386,10 @@ export default function MatchTypeViolationReview({
       })
       if (!res.ok) throw new Error(await res.text())
       setShowNklPicker(false)
-      await fetchCandidates()
+      setCandidates((prev) => prev.filter((candidate) => !ids.includes(candidate.id)))
+      setSelected(new Set())
+      setTotalDocs((prev) => Math.max(0, prev - ids.length))
+      void fetchCandidates()
     } catch (e: any) {
       alert(`Error: ${e.message}`)
     } finally {
@@ -541,10 +550,10 @@ export default function MatchTypeViolationReview({
           <option value="exact_close_variant">Exact Close Variant</option>
           <option value="phrase_missing_word">Phrase Missing Word</option>
         </select>
-        {((!initialClientId && filterClient) || filterStatus || filterMatchType || filterViolationType) && (
+        {((!initialClientId && filterClient) || filterStatus !== 'pending' || filterMatchType || filterViolationType) && (
           <button onClick={() => {
             if (!initialClientId) setFilterClient('')
-            setFilterStatus(''); setFilterMatchType('')
+            setFilterStatus('pending'); setFilterMatchType('')
             setFilterViolationType(''); setPage(1)
           }} style={{ ...btnStyle('ghost'), fontSize: 12 }}>
             Clear Filters

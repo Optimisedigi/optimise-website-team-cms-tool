@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const client = searchParams.get("client");
-  const status = searchParams.get("status") ?? "pending";
+  const status = searchParams.get("status");
   const matchType = searchParams.get("matchType");
   const violationType = searchParams.get("violationType");
   const limit = Math.min(100, parseInt(searchParams.get("limit") ?? "50", 10));

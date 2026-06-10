@@ -239,8 +239,8 @@ export default function GoogleAdsMatchTypeVariants() {
   }, [clientFromForm, collectionSlug, id])
 
   return (
-    <div style={{ width: '100%' }}>
-      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #e5e7eb', margin: '0 24px 20px' }}>
+    <div className="od-match-type-variants" style={{ maxWidth: '100%', minWidth: 0, overflow: 'hidden', boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #e5e7eb', margin: '0 15px 20px', minWidth: 0, overflowX: 'auto' }}>
         <button onClick={() => setActiveTab('violations')} style={{ padding: '10px 14px', border: 'none', borderBottom: activeTab === 'violations' ? '2px solid #2563eb' : '2px solid transparent', background: 'transparent', color: activeTab === 'violations' ? '#2563eb' : '#4b5563', fontWeight: 600, cursor: 'pointer' }}>
           Match type violations
         </button>
