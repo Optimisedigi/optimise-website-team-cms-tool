@@ -100,6 +100,7 @@ import * as migration_20260628_120000_add_agency_kpi_snapshots from './20260628_
 import * as migration_20260629_120000_add_optimate_chat_history_token_limit from './20260629_120000_add_optimate_chat_history_token_limit';
 import * as migration_20260630_120000_add_relevancy_exclusion_buckets from './20260630_120000_add_relevancy_exclusion_buckets';
 import * as migration_20260701_120000_add_monthly_keyword_selection from './20260701_120000_add_monthly_keyword_selection';
+import * as migration_20260701_120000_add_client_pulse from './20260701_120000_add_client_pulse';
 import * as migration_20260604_120000_add_internal_confirmed_meeting_attendees from './20260604_120000_add_internal_confirmed_meeting_attendees';
 import * as migration_20260702_120000_add_meeting_attendee_response from './20260702_120000_add_meeting_attendee_response';
 import * as migration_20260703_120000_add_meeting_attendee_delivery_status from './20260703_120000_add_meeting_attendee_delivery_status';
@@ -109,6 +110,7 @@ import * as migration_20260706_120000_add_monthly_keyword_row_index from './2026
 import * as migration_20260707_120000_add_monthly_keyword_removed_fields from './20260707_120000_add_monthly_keyword_removed_fields';
 import * as migration_20260708_120000_add_monthly_keyword_review_dismissed_fields from './20260708_120000_add_monthly_keyword_review_dismissed_fields';
 import * as migration_20260709_120000_add_monthly_keyword_outcome_fields from './20260709_120000_add_monthly_keyword_outcome_fields';
+import * as migration_20260710_120000_add_client_pulse_analytics_metrics from './20260710_120000_add_client_pulse_analytics_metrics';
 
 export const migrations = [
   {
@@ -622,6 +624,11 @@ export const migrations = [
     name: '20260701_120000_add_monthly_keyword_selection'
   },
   {
+    up: migration_20260701_120000_add_client_pulse.up,
+    down: migration_20260701_120000_add_client_pulse.down,
+    name: '20260701_120000_add_client_pulse'
+  },
+  {
     up: migration_20260604_120000_add_internal_confirmed_meeting_attendees.up,
     down: migration_20260604_120000_add_internal_confirmed_meeting_attendees.down,
     name: '20260604_120000_add_internal_confirmed_meeting_attendees'
@@ -665,5 +672,10 @@ export const migrations = [
     up: migration_20260709_120000_add_monthly_keyword_outcome_fields.up,
     down: migration_20260709_120000_add_monthly_keyword_outcome_fields.down,
     name: '20260709_120000_add_monthly_keyword_outcome_fields'
+  },
+  {
+    up: migration_20260710_120000_add_client_pulse_analytics_metrics.up,
+    down: migration_20260710_120000_add_client_pulse_analytics_metrics.down,
+    name: '20260710_120000_add_client_pulse_analytics_metrics'
   },
 ];

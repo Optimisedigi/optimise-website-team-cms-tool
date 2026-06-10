@@ -15,10 +15,15 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
  *
  * Response:
  *   {
- *     available: string[],  // all conversion actions the customer has fired in last 730 days
+ *     available: string[],  // conversion actions the customer has fired in last 730 days (metrics-driven)
+ *     catalog:   string[],  // ALL conversion actions defined for the account, incl. zero-conversion ones
  *     saved:     string[],  // names currently saved in client.dashboardConversionActions
  *     customerId: string,   // for display
  *   }
+ *
+ * `available` powers the checkbox list (things that actually have data).
+ * `catalog` powers the manual-add autocomplete so the team can pick exact
+ * action names that have never recorded a conversion yet.
  */
 export async function GET(
   req: NextRequest,
@@ -61,8 +66,11 @@ export async function GET(
     .map((s) => s.trim())
     .filter(Boolean);
 
-  // Fetch available conversion actions from Growth Tools dashboard endpoint
-  // (it returns availableConversionActions scoped to this customer over 730d).
+  // Fetch available conversion actions from Growth Tools dashboard endpoint.
+  // We request the widest range (all_time) because availableConversionActions
+  // is scoped to the requested range: a short range (e.g. this_month) hides
+  // actions that haven't fired recently, so the picker would miss valid
+  // conversion actions the account still uses.
   if (!GROWTH_TOOLS_URL || !INTERNAL_API_KEY) {
     return NextResponse.json(
       {
@@ -78,7 +86,7 @@ export async function GET(
   try {
     const cleanCid = String(client.googleAdsCustomerId).replace(/-/g, "");
     const qs = new URLSearchParams({
-      range: "this_month",
+      range: "all_time",
       customerId: cleanCid,
       clientName: client.name || "",
     });
@@ -107,8 +115,31 @@ export async function GET(
       ? data.availableConversionActions
       : [];
 
+    // Fetch the full catalog of DEFINED conversion actions (including ones that
+    // have never fired) so the picker can offer exact names as autocomplete.
+    // Best-effort: a failure here must not break the metrics-driven list.
+    let catalog: string[] = [];
+    try {
+      const catalogUrl = `${GROWTH_TOOLS_URL}/api/google-ads/conversion-actions/${cleanCid}`;
+      const catalogRes = await fetch(catalogUrl, {
+        headers: { "x-internal-key": INTERNAL_API_KEY },
+        cache: "no-store",
+      });
+      if (catalogRes.ok) {
+        const catalogData = await catalogRes.json();
+        catalog = Array.isArray(catalogData?.conversionActions)
+          ? catalogData.conversionActions
+              .map((a: { name?: string }) => String(a?.name || "").trim())
+              .filter(Boolean)
+          : [];
+      }
+    } catch {
+      // Ignore — catalog is an enhancement, not required.
+    }
+
     return NextResponse.json({
       available,
+      catalog,
       saved,
       customerId: client.googleAdsCustomerId,
     });

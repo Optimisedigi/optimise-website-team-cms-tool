@@ -9,11 +9,12 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
-import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
+import { ensureCustomerId, growthToolsGet, parseConversionActions } from "./_growth-tools";
 import { SUPPORTED_PRESETS, resolveRange, customRangeForGrowthTools } from "./_date-range";
 
 interface OverviewArgs {
   range?: string;
+  conversionActions?: string[];
 }
 
 interface CampaignMetricRaw {
@@ -41,7 +42,7 @@ interface MetricsEnvelope {
 export const getAccountOverview: CanonicalTool<OverviewArgs> = {
   name: "get_account_overview",
   description:
-    "Account-level totals over a chosen window: total spend, total conversions, conversion breakdown by configured type (e.g. phone calls vs form submits), average CPA, active campaigns, and account-level search impression share / lost IS to budget / lost IS to rank. Args: range (optional preset, default LAST_30_DAYS). Common values: LAST_7_DAYS, LAST_30_DAYS, LAST_90_DAYS, THIS_MONTH, LAST_MONTH, YESTERDAY.",
+    "Account-level totals over a chosen window: total spend, total conversions, conversion breakdown by action/category, average CPA, active campaigns, and account-level search impression share / lost IS to budget / lost IS to rank. Args: range (optional preset, default LAST_30_DAYS), conversionActions (optional exact Google Ads conversion action names to override the CMS defaults). Common ranges: LAST_7_DAYS, LAST_30_DAYS, LAST_90_DAYS, THIS_MONTH, LAST_MONTH, YESTERDAY.",
   inputSchema: {
     type: "object",
     properties: {
@@ -52,6 +53,12 @@ export const getAccountOverview: CanonicalTool<OverviewArgs> = {
           (SUPPORTED_PRESETS as readonly string[]).join(", ") +
           ". Aliases like THIS_WEEK, LAST_WEEK, YEAR_TO_DATE are coerced to the nearest supported preset.",
       },
+      conversionActions: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Optional exact Google Ads conversion action names to filter conversions to. If omitted, the CMS default conversion actions for the client are used.",
+      },
     },
     additionalProperties: false,
   },
@@ -60,6 +67,10 @@ export const getAccountOverview: CanonicalTool<OverviewArgs> = {
     const out: OverviewArgs = {};
     if (obj.range !== undefined && obj.range !== null) {
       out.range = String(obj.range);
+    }
+    if (obj.conversionActions !== undefined) {
+      if (!Array.isArray(obj.conversionActions)) throw new Error("conversionActions must be an array of strings");
+      out.conversionActions = parseConversionActions(obj.conversionActions);
     }
     return out;
   },
@@ -76,7 +87,10 @@ export const getAccountOverview: CanonicalTool<OverviewArgs> = {
     // formats CUSTOM ranges as a comma-span; presets pass through unchanged.
     const resolved = resolveRange(args.range);
     const dateRangeParam = customRangeForGrowthTools(resolved);
-    const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
+    const argConversionActions = args.conversionActions ?? [];
+    const conversionActions = argConversionActions.length > 0
+      ? argConversionActions.join(",")
+      : parseConversionActions(ctx.context.conversionActions).join(",");
     const conversionActionCategories = (ctx.context.conversionActionCategories as string | undefined) ?? "";
 
     const qs = new URLSearchParams({ customerId, dateRange: dateRangeParam });
@@ -148,7 +162,7 @@ export const getAccountOverview: CanonicalTool<OverviewArgs> = {
         conversionsByCategory: emptyToNull(conversionsByCategory),
         conversionActionsApplied: conversionActions || null,
         conversionScopeNote: conversionActions
-          ? "Conversions are filtered to the CMS default conversion actions for this client."
+          ? "Conversions are filtered to the selected conversion action names."
           : "No CMS default conversion actions were configured, so Growth Tools returned its default conversion scope.",
         totalImpressions,
         totalClicks,

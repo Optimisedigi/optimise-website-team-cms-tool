@@ -141,6 +141,47 @@ export async function runMigrations(
     )`);
     await run("clients_client_pulse_services_tracked_order_idx", "CREATE INDEX IF NOT EXISTS `clients_client_pulse_services_tracked_order_idx` ON `clients_client_pulse_services_tracked` (`order`)");
     await run("clients_client_pulse_services_tracked_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_client_pulse_services_tracked_parent_id_idx` ON `clients_client_pulse_services_tracked` (`parent_id`)");
+    await run("clients_client_pulse_analytics_metrics", `CREATE TABLE IF NOT EXISTS \`clients_client_pulse_analytics_metrics\` (
+      \`order\` integer NOT NULL,
+      \`parent_id\` integer NOT NULL,
+      \`value\` text,
+      \`id\` integer PRIMARY KEY NOT NULL,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_client_pulse_analytics_metrics_order_idx", "CREATE INDEX IF NOT EXISTS `clients_client_pulse_analytics_metrics_order_idx` ON `clients_client_pulse_analytics_metrics` (`order`)");
+    await run("clients_client_pulse_analytics_metrics_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_client_pulse_analytics_metrics_parent_id_idx` ON `clients_client_pulse_analytics_metrics` (`parent_id`)");
+
+    // --- Google Ads automation client config ---
+    await run("clients.gads_auto_match_type_monitor_exact", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_exact` integer DEFAULT true");
+    await run("clients.gads_auto_match_type_monitor_phrase", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_phrase` integer DEFAULT true");
+    await run("gads_mtm_allowlist", `CREATE TABLE IF NOT EXISTS \`gads_mtm_allowlist\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`scope\` text DEFAULT 'campaign' NOT NULL,
+      \`pattern\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("gads_mtm_allowlist_order_idx", "CREATE INDEX IF NOT EXISTS `gads_mtm_allowlist_order_idx` ON `gads_mtm_allowlist` (`_order`)");
+    await run("gads_mtm_allowlist_parent_id_idx", "CREATE INDEX IF NOT EXISTS `gads_mtm_allowlist_parent_id_idx` ON `gads_mtm_allowlist` (`_parent_id`)");
+    await run("gads_report_emails", `CREATE TABLE IF NOT EXISTS \`gads_report_emails\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`email\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("gads_report_emails_order_idx", "CREATE INDEX IF NOT EXISTS `gads_report_emails_order_idx` ON `gads_report_emails` (`_order`)");
+    await run("gads_report_emails_parent_id_idx", "CREATE INDEX IF NOT EXISTS `gads_report_emails_parent_id_idx` ON `gads_report_emails` (`_parent_id`)");
+    await run("gads_weekly_emails", `CREATE TABLE IF NOT EXISTS \`gads_weekly_emails\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`email\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("gads_weekly_emails_order_idx", "CREATE INDEX IF NOT EXISTS `gads_weekly_emails_order_idx` ON `gads_weekly_emails` (`_order`)");
+    await run("gads_weekly_emails_parent_id_idx", "CREATE INDEX IF NOT EXISTS `gads_weekly_emails_parent_id_idx` ON `gads_weekly_emails` (`_parent_id`)");
 
     // --- Core Update Review client config ---
     await run("clients.core_update_review_enabled", "ALTER TABLE `clients` ADD `core_update_review_enabled` integer DEFAULT false");

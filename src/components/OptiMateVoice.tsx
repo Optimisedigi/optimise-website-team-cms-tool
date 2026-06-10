@@ -26,7 +26,7 @@ import { getTokenProvider } from '@/lib/realtime/token-provider'
 
 interface OptiMateVoiceProps {
   auditId: string | number
-  mode?: 'audit' | 'portfolio'
+  mode?: 'audit' | 'portfolio' | 'email'
   customerId?: string
   businessName?: string
   selectedAccountRefs?: Array<string | number>
@@ -46,6 +46,9 @@ interface OptiMateVoiceProps {
   triggerSize?: number
   /** Optional Gmail message id attached as reference context for this voice call. */
   attachedEmailMessageId?: string | null
+  /** Email mode only: the agent staged a reply via stage_email_reply. The host
+   *  surfaces this in the review box for the user to edit and confirm. */
+  onStagedEmailReply?: (reply: { subject?: string; body: string }) => void
 }
 
 type VoiceState = 'idle' | 'checking' | 'connecting' | 'connected' | 'error'
@@ -315,6 +318,7 @@ export default function OptiMateVoice({
   controlsContainer,
   triggerSize = 40,
   attachedEmailMessageId,
+  onStagedEmailReply,
 }: OptiMateVoiceProps) {
   const [state, setState] = useState<VoiceState>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -373,24 +377,67 @@ export default function OptiMateVoice({
       handledToolCallIds.current.add(callId)
       const args = parseToolArguments(rawArgs)
 
+      const isEmail = mode === 'email'
       let result: { ok: boolean; data?: unknown; error?: string }
       try {
-        const res = await fetch('/api/optimate/realtime-tool', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            auditId,
-            mode,
-            customerId,
-            businessName,
-            selectedAccountRefs,
-            name,
-            arguments: args,
-          }),
-        })
+        const res = await fetch(
+          isEmail ? '/api/optimate/email-realtime-tool' : '/api/optimate/realtime-tool',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(
+              isEmail
+                ? { name, arguments: args }
+                : {
+                    auditId,
+                    mode,
+                    customerId,
+                    businessName,
+                    selectedAccountRefs,
+                    name,
+                    arguments: args,
+                  },
+            ),
+          },
+        )
         result = (await res.json()) as { ok: boolean; data?: unknown; error?: string }
       } catch (err) {
         result = { ok: false, error: err instanceof Error ? err.message : 'Tool call failed' }
+      }
+
+      // Email mode: surface a staged reply into the host review box. No Gmail
+      // side effect here — the user edits and confirms in the box.
+      if (name === 'stage_email_reply' && result.ok) {
+        const staged = result.data as { subject?: unknown; body?: unknown } | undefined
+        const stagedBody = typeof staged?.body === 'string' ? staged.body : ''
+        if (stagedBody) {
+          onStagedEmailReply?.({
+            subject:
+              typeof staged?.subject === 'string' && staged.subject ? staged.subject : undefined,
+            body: stagedBody,
+          })
+        }
+        sendEvent({
+          type: 'conversation.item.create',
+          item: {
+            type: 'function_call_output',
+            call_id: callId,
+            output: JSON.stringify({
+              ok: true,
+              staged: true,
+              note: 'The drafted reply is now shown in the chat review box for the user to edit and confirm. Do not claim it has been saved to Gmail.',
+            }),
+          },
+        })
+        requestResponse({
+          type: 'response.create',
+          response: {
+            output_modalities: ['audio'],
+            instructions:
+              'Tell the user in one short sentence that the draft is ready for them to review and confirm in the box. Do not read the email body aloud.',
+          },
+        })
+        return
       }
 
       const isGmailDraftTool = name === 'create_gmail_draft'
@@ -443,7 +490,16 @@ export default function OptiMateVoice({
           : { type: 'response.create' },
       )
     },
-    [auditId, businessName, customerId, mode, selectedAccountRefs, sendEvent, requestResponse],
+    [
+      auditId,
+      businessName,
+      customerId,
+      mode,
+      selectedAccountRefs,
+      sendEvent,
+      requestResponse,
+      onStagedEmailReply,
+    ],
   )
 
   const handleRealtimeEvent = useCallback(
@@ -581,14 +637,26 @@ export default function OptiMateVoice({
         throw new Error('Voice helper is running but not signed in. Open it and sign in to OpenAI.')
       }
 
-      // 1. Server-built session config (instructions + full OptiMate tools).
-      const sessionUrl = new URL('/api/optimate/realtime-session', window.location.origin)
-      sessionUrl.searchParams.set('auditId', String(auditId))
-      sessionUrl.searchParams.set('mode', mode)
-      if (customerId) sessionUrl.searchParams.set('customerId', customerId)
-      if (businessName) sessionUrl.searchParams.set('businessName', businessName)
-      if (selectedAccountRefs.length > 0) {
-        sessionUrl.searchParams.set('selectedAccountRefs', selectedAccountRefs.map(String).join(','))
+      // 1. Server-built session config (instructions + tools). Email mode uses
+      //    the email-only session endpoint (no audit/account context); audit and
+      //    portfolio modes use the Google Ads session endpoint.
+      const sessionUrl = new URL(
+        mode === 'email'
+          ? '/api/optimate/email-realtime-session'
+          : '/api/optimate/realtime-session',
+        window.location.origin,
+      )
+      if (mode !== 'email') {
+        sessionUrl.searchParams.set('auditId', String(auditId))
+        sessionUrl.searchParams.set('mode', mode)
+        if (customerId) sessionUrl.searchParams.set('customerId', customerId)
+        if (businessName) sessionUrl.searchParams.set('businessName', businessName)
+        if (selectedAccountRefs.length > 0) {
+          sessionUrl.searchParams.set(
+            'selectedAccountRefs',
+            selectedAccountRefs.map(String).join(','),
+          )
+        }
       }
       if (attachedEmailMessageId) {
         sessionUrl.searchParams.set('attachedEmailMessageId', attachedEmailMessageId)
@@ -653,7 +721,9 @@ export default function OptiMateVoice({
           response: {
             output_modalities: ['audio'],
             instructions:
-              "Greet the user in one short sentence: say you're OptiMate and ask how you can help. Do NOT give any overview, summary, or data yet. Then stop and wait for their question.",
+              mode === 'email'
+                ? "Greet the user in one short sentence: say you're the OptiMate email assistant and ask what reply they'd like to draft. Do NOT draft anything yet. Then stop and wait for them to speak."
+                : "Greet the user in one short sentence: say you're OptiMate and ask how you can help. Do NOT give any overview, summary, or data yet. Then stop and wait for their question.",
           },
         })
         if (greeting) dc.send(JSON.stringify(greeting))

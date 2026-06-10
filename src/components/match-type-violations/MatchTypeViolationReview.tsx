@@ -408,7 +408,10 @@ export default function MatchTypeViolationReview({
         body: JSON.stringify({ candidateIds: ids }),
       })
       if (!res.ok) throw new Error(await res.text())
-      await fetchCandidates()
+      setCandidates((prev) => prev.filter((candidate) => !ids.includes(candidate.id)))
+      setSelected(new Set())
+      setTotalDocs((prev) => Math.max(0, prev - ids.length))
+      void fetchCandidates()
     } catch (e: any) {
       alert(`Error: ${e.message}`)
     } finally {

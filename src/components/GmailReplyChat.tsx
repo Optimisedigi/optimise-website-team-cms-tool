@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import VoiceField from './VoiceField'
 
 /**
  * Gmail draft flow for the OptiMate launcher panel.
@@ -388,13 +389,14 @@ export default function GmailReplyChat(): React.ReactElement {
               placeholder="Subject (optional)…"
               style={inputStyle}
             />
-            <textarea
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              placeholder="What should the email say? You can also discuss content in OptiMate chat, then save the final reply as a Gmail draft."
-              rows={6}
-              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.45 }}
-            />
+            <div style={voiceWrapper}>
+              <VoiceField
+                value={instructions}
+                onChange={setInstructions}
+                multiline
+                placeholder="What should the email say? You can also discuss content in OptiMate chat, then save the final reply as a Gmail draft."
+              />
+            </div>
             {replyError && <div style={errorBox}>{replyError}</div>}
             <button
               type="button"
@@ -527,13 +529,14 @@ export default function GmailReplyChat(): React.ReactElement {
                   </div>
                 </div>
 
-                <textarea
-                  value={instructions}
-                  onChange={(e) => setInstructions(e.target.value)}
-                  placeholder="Optional: how should I reply? (tone, key points, decisions)…"
-                  rows={2}
-                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-                />
+                <div style={voiceWrapper}>
+                  <VoiceField
+                    value={instructions}
+                    onChange={setInstructions}
+                    multiline
+                    placeholder="Optional: how should I reply? (tone, key points, decisions)…"
+                  />
+                </div>
 
                 <button
                   type="button"
@@ -578,6 +581,13 @@ export default function GmailReplyChat(): React.ReactElement {
       </div>
     </div>
   )
+}
+
+// Constrain VoiceField to the compact launcher width and reserve room so the
+// mic button (absolutely positioned at the textarea's top-right) never overlaps text.
+const voiceWrapper: React.CSSProperties = {
+  width: '100%',
+  minWidth: 0,
 }
 
 const fillColumn: React.CSSProperties = {

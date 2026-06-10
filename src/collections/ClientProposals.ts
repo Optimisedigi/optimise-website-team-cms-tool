@@ -1064,9 +1064,20 @@ export const ClientProposals: CollectionConfig = {
             {
               name: "googleAdsCustomerId",
               type: "text",
+              hooks: {
+                beforeChange: [
+                  ({ value }) =>
+                    typeof value === "string"
+                      ? value.replace(/\D/g, "").slice(0, 10)
+                      : value,
+                ],
+              },
               admin: {
                 description:
                   "Google Ads customer ID (e.g. 955-493-5739). Required to run a Google Ads audit from this proposal. Client must give MCC access to peter@optimisedigital.online for this audit to work.",
+                components: {
+                  Field: "./components/GoogleAdsCustomerIdField#GoogleAdsCustomerIdField",
+                },
               },
             },
             {

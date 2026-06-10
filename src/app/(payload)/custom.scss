@@ -6310,6 +6310,451 @@ body.od-client-record {
   }
 }
 
+// ─── Client Pulse command centre ───────────────────────────
+// Reference direction: Seline-style analytics canvas — fog page surface,
+// white cards on a 10px radius, diffused low-alpha shadows, hairline borders,
+// one restrained status accent per card. Hover panel borrows Clearbit's
+// accent-bordered elevated card.
+.client-pulse-page {
+  --pulse-surface: #ffffff;
+  --pulse-panel: #fafaf9;
+  --pulse-soft: #f5f5f4;
+  --pulse-border: #e5e7eb;
+  --pulse-track: #eef0f2;
+  --pulse-text: #0c0a09;
+  --pulse-muted: #78716c;
+  --pulse-status: #1c1d1f;
+  color: var(--pulse-text);
+  padding: 12px 0 32px;
+}
+
+.client-pulse-card,
+.client-pulse-detail-panel {
+  border: 1px solid var(--pulse-border);
+  background: var(--pulse-surface);
+  box-shadow: rgba(0, 0, 0, 0.05) 0 4px 16px 0;
+}
+
+.client-pulse-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+// Drop to fewer columns before the 4-up layout gets cramped.
+@media (max-width: 1100px) {
+  .client-pulse-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.client-pulse-card {
+  --pulse-status: #1c1d1f;
+  position: relative;
+  min-width: 0;
+  border-radius: 12px;
+  padding: 12px;
+  // Cards are draggable for manual ordering.
+  cursor: grab;
+  color: inherit;
+  isolation: isolate;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+
+  // Quiet white surface with a thin status accent along the top edge —
+  // status reads from the accent + ring instead of a tinted wash.
+  &::before {
+    position: absolute;
+    inset: 0 auto auto 12px;
+    z-index: 1;
+    width: 34px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--pulse-status);
+    content: "";
+  }
+
+  &.is-risk { --pulse-status: #9f1239; }
+  &.is-watch { --pulse-status: #92400e; }
+  &.is-missing { --pulse-status: #5b21b6; }
+  &.is-good { --pulse-status: #166534; }
+  &.is-not_in_scope { --pulse-status: #737373; }
+
+  &:hover,
+  &:focus-within,
+  &:focus-visible {
+    z-index: 10;
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--pulse-status) 40%, var(--pulse-border));
+    box-shadow: rgba(17, 12, 46, 0.12) 0 12px 32px -8px;
+    outline: none;
+  }
+
+  &:hover .client-pulse-detail-panel,
+  &:focus-within .client-pulse-detail-panel,
+  &:focus-visible .client-pulse-detail-panel {
+    visibility: visible;
+    opacity: 1;
+    transform: translate(var(--pulse-panel-x, -50%), 6px);
+    pointer-events: auto;
+  }
+}
+
+.client-pulse-card__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+
+  h2 {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0;
+    color: var(--pulse-text);
+    font-size: 15px;
+    line-height: 1.12;
+    letter-spacing: -0.035em;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}
+
+.client-pulse-score-ring {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+
+  &::before {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: inherit;
+    background: var(--pulse-surface);
+    content: "";
+    grid-area: 1 / 1;
+  }
+
+  strong,
+  span {
+    position: relative;
+    z-index: 1;
+    grid-area: 1 / 1;
+  }
+
+  strong {
+    margin-top: -5px;
+    color: var(--pulse-text);
+    font-size: 14px;
+    letter-spacing: -0.04em;
+  }
+
+  span {
+    margin-top: 18px;
+    color: var(--pulse-muted);
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+}
+
+.client-pulse-metrics,
+.client-pulse-detail-panel__scores,
+.client-pulse-analytics-grid {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.client-pulse-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.client-pulse-detail-panel__scores,
+.client-pulse-analytics-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.client-pulse-metric {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--pulse-status) 15%, var(--pulse-border));
+  border-radius: 10px;
+  padding: 6px 5px;
+  background: rgba(255, 255, 255, 0.82);
+
+  strong,
+  small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: var(--pulse-status);
+    font-size: 14px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+
+  &.is-good {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+
+    strong { color: #166534; }
+  }
+
+  &.is-bad {
+    border-color: #fecdd3;
+    background: #fff1f2;
+
+    strong { color: #be123c; }
+  }
+
+  small {
+    color: var(--pulse-muted);
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+}
+
+.client-pulse-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid var(--pulse-border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: var(--pulse-panel);
+  color: var(--pulse-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+
+  &.is-good { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+  &.is-watch { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+  &.is-risk { border-color: #fecdd3; background: #fff1f2; color: #9f1239; }
+  &.is-missing { border-color: #ddd6fe; background: #f5f3ff; color: #5b21b6; }
+  &.is-not_in_scope { background: var(--pulse-soft); color: var(--pulse-muted); }
+}
+
+.client-pulse-detail-panel {
+  position: absolute;
+  top: 100%;
+  // Centre the wider panel on the card so it can extend past the card edges
+  // without immediately spilling out of the grid on either side. Edge columns
+  // override --pulse-panel-x (and left/right) below so the panel stays inside
+  // the grid instead of sliding under the sidebar or off the right edge.
+  left: 50%;
+  --pulse-panel-x: -50%;
+  z-index: 20;
+  visibility: hidden;
+  width: min(520px, calc(100vw - 160px));
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--pulse-status) 35%, var(--pulse-border));
+  border-radius: 14px;
+  padding: 18px;
+  opacity: 0;
+  transform: translate(var(--pulse-panel-x), -2px);
+  pointer-events: none;
+  box-shadow: color-mix(in srgb, var(--pulse-status) 22%, transparent) 0 0 0 1px, rgba(17, 12, 46, 0.14) 0 12px 45px 0;
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+
+  h2 {
+    margin: 0;
+    color: var(--pulse-text);
+    font-size: 20px;
+    line-height: 1.12;
+    letter-spacing: -0.03em;
+  }
+
+  p {
+    margin: 8px 0 0;
+    color: var(--pulse-muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  section {
+    border-top: 1px solid var(--pulse-border);
+    padding-top: 12px;
+    margin-top: 14px;
+  }
+
+  h3 {
+    margin: 0 0 9px;
+    color: var(--pulse-muted);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  ul {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    color: var(--pulse-muted);
+    font-size: 12px;
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    time {
+      color: var(--pulse-muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+  }
+}
+
+.client-pulse-detail-panel__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.client-pulse-detail-panel__open {
+  flex-shrink: 0;
+  color: var(--pulse-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--pulse-text);
+    text-decoration: underline;
+  }
+}
+
+// Pin edge-column panels to the grid edge (4-up layout).
+@media (min-width: 1101px) {
+  .client-pulse-card:nth-child(4n + 1) .client-pulse-detail-panel {
+    left: 0;
+    --pulse-panel-x: 0%;
+  }
+
+  .client-pulse-card:nth-child(4n) .client-pulse-detail-panel {
+    left: auto;
+    right: 0;
+    --pulse-panel-x: 0%;
+  }
+}
+
+// Same edge handling for the 3-up layout.
+@media (min-width: 761px) and (max-width: 1100px) {
+  .client-pulse-card:nth-child(3n + 1) .client-pulse-detail-panel {
+    left: 0;
+    --pulse-panel-x: 0%;
+  }
+
+  .client-pulse-card:nth-child(3n) .client-pulse-detail-panel {
+    left: auto;
+    right: 0;
+    --pulse-panel-x: 0%;
+  }
+}
+
+// Flipped state — set by positionDetailPanel() when there isn't enough
+// viewport space below the card: the panel opens upward instead.
+.client-pulse-card--flip .client-pulse-detail-panel {
+  top: auto;
+  bottom: 100%;
+}
+
+.client-pulse-card--flip:hover .client-pulse-detail-panel,
+.client-pulse-card--flip:focus-within .client-pulse-detail-panel,
+.client-pulse-card--flip:focus-visible .client-pulse-detail-panel {
+  transform: translate(var(--pulse-panel-x, -50%), -6px) !important;
+}
+
+// MoM/YoY trend chips — green when up, red when down, regardless of the
+// card's overall status colour.
+.client-pulse-trend.is-up strong { color: #166534; }
+.client-pulse-trend.is-down strong { color: #9f1239; }
+
+// Automation pills — coloured when enabled (is-good), light + 80% opacity
+// when not connected. No "Enabled / Not enabled" labels.
+.client-pulse-automation-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  .client-pulse-pill:not(.is-good) {
+    border-color: var(--pulse-border);
+    background: var(--pulse-soft);
+    color: var(--pulse-muted);
+    opacity: 0.8;
+  }
+}
+
+.client-pulse-detail-panel__scores {
+  grid-template-columns: auto repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.client-pulse-analytics-grid {
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+}
+
+.client-pulse-analytics-grid--secondary {
+  margin-top: 6px;
+  opacity: 0.86;
+}
+
+.client-pulse-muted,
+.client-pulse-empty {
+  color: var(--pulse-muted);
+}
+
+.client-pulse-empty {
+  padding: 24px;
+  border: 1px dashed var(--pulse-border);
+  border-radius: 18px;
+  background: var(--pulse-panel);
+}
+
+@media (max-width: 760px) {
+  .client-pulse-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .client-pulse-detail-panel {
+    position: static;
+    left: auto;
+    visibility: visible;
+    width: auto;
+    max-height: none;
+    margin-top: 10px;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+}
+
 .site-health-report-primary-field {
   padding-top: 5px;
 }
@@ -6324,13 +6769,13 @@ body.od-client-record {
 .document-fields:has(.mtv-review-root) {
   .document-fields__edit {
     max-width: none;
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .tabs-field__content-wrap {
-    padding-left: 12px;
-    padding-right: 12px;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   // Also collapse the right sidebar on the rare has-sidebar host (e.g. clients).

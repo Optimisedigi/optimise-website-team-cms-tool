@@ -138,6 +138,11 @@ export function GlimmerSaveButton({ label: labelProp }: SaveButtonClientProps): 
     void submit({ disableSuccessStatus: true })
   }
 
+  // While this button's submit is in flight, surface a "Saving…" label so the
+  // user gets immediate feedback between pressing Save and the "Saved" pulse.
+  const isSaving = processing && pendingSaveRef.current
+  const label = isSaving ? 'Saving…' : justSaved ? 'Saved' : defaultLabel
+
   return (
     <FormSubmit
       buttonId="action-save"
@@ -148,7 +153,7 @@ export function GlimmerSaveButton({ label: labelProp }: SaveButtonClientProps): 
       size="medium"
       type="button"
     >
-      {justSaved ? 'Saved' : defaultLabel}
+      {label}
     </FormSubmit>
   )
 }

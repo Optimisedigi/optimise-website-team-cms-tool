@@ -15,7 +15,7 @@
  */
 
 import type { CanonicalTool } from "@/lib/agents/_shared/tool";
-import { ensureCustomerId, growthToolsGet } from "./_growth-tools";
+import { ensureCustomerId, growthToolsGet, parseConversionActions } from "./_growth-tools";
 import {
   SUPPORTED_PRESETS,
   resolveRangeWithSegment,
@@ -28,6 +28,7 @@ interface SearchTermArgs {
   minImpressions?: number;
   limit?: number;
   segment?: Segment;
+  conversionActions?: string[];
 }
 
 interface SearchTermRaw {
@@ -54,7 +55,7 @@ interface SearchTermsEnvelope {
 export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
   name: "get_search_terms",
   description:
-    "Search queries that triggered ads on the linked account, with metrics. Args: range (optional preset OR custom 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'-style literal; default LAST_30_DAYS), minImpressions (default 0), limit (default 200, max 1000), segment ('month'|'week'|'day' — when set, returns one row per (term, segment) pair instead of a single total). Returns conversion breakdowns by configured category when available. Use to find wasted spend before proposing negative keywords.",
+    "Search queries that triggered ads on the linked account, with metrics. Args: range (optional preset OR custom 'YYYY-MM-DD..YYYY-MM-DD' OR 'Q1 2026'-style literal; default LAST_30_DAYS), minImpressions (default 0), limit (default 200, max 1000), segment ('month'|'week'|'day' — when set, returns one row per (term, segment) pair instead of a single total), conversionActions (optional exact Google Ads conversion action names to override the CMS defaults). Returns conversion breakdowns by action/category when available. Use to find wasted spend before proposing negative keywords.",
   inputSchema: {
     type: "object",
     properties: {
@@ -82,6 +83,12 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
         description:
           "Optional per-row time segmentation. When set, the tool returns one row per (term, segment) pair so you can see January vs February vs March separately. Requires the upstream Growth Tools service to support segmentation; if it doesn't, the response will include segmentationUnavailable: true.",
       },
+      conversionActions: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Optional exact Google Ads conversion action names to filter conversions to. If omitted, the CMS default conversion actions for the client are used.",
+      },
     },
     additionalProperties: false,
   },
@@ -108,6 +115,10 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
       }
       out.segment = s as Segment;
     }
+    if (obj.conversionActions !== undefined) {
+      if (!Array.isArray(obj.conversionActions)) throw new Error("conversionActions must be an array of strings");
+      out.conversionActions = parseConversionActions(obj.conversionActions);
+    }
     return out;
   },
   execute: async (args, ctx) => {
@@ -127,7 +138,10 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
     const dateRangeParam = customRangeForGrowthTools(resolved);
     const limit = args.limit ?? 200;
     const minImpressions = args.minImpressions ?? 0;
-    const conversionActions = (ctx.context.conversionActions as string | undefined) ?? "";
+    const argConversionActions = args.conversionActions ?? [];
+    const conversionActions = argConversionActions.length > 0
+      ? argConversionActions.join(",")
+      : parseConversionActions(ctx.context.conversionActions).join(",");
     const conversionActionCategories = (ctx.context.conversionActionCategories as string | undefined) ?? "";
 
     const qs = new URLSearchParams({
@@ -199,7 +213,7 @@ export const getSearchTerms: CanonicalTool<SearchTermArgs> = {
         segmentation: resolved.segment ?? null,
         conversionActionsApplied: conversionActions || null,
         conversionScopeNote: conversionActions
-          ? "Conversions are filtered to the CMS default conversion actions for this client."
+          ? "Conversions are filtered to the selected conversion action names."
           : "No CMS default conversion actions were configured, so Growth Tools returned its default conversion scope.",
         ...(segmentationUnavailable ? { segmentationUnavailable: true } : {}),
         count: terms.length,

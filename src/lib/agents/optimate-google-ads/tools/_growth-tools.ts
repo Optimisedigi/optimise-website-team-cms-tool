@@ -26,13 +26,35 @@ export async function growthToolsGet<T>(
   pathWithQuery: string,
   timeoutMs = 45_000,
 ): Promise<GrowthToolsResult<T>> {
+  return growthToolsRequest<T>("GET", pathWithQuery, undefined, timeoutMs);
+}
+
+export async function growthToolsPost<T>(
+  path: string,
+  body: Record<string, unknown>,
+  timeoutMs = 45_000,
+): Promise<GrowthToolsResult<T>> {
+  return growthToolsRequest<T>("POST", path, body, timeoutMs);
+}
+
+async function growthToolsRequest<T>(
+  method: "GET" | "POST",
+  pathWithQuery: string,
+  body: Record<string, unknown> | undefined,
+  timeoutMs: number,
+): Promise<GrowthToolsResult<T>> {
   if (!INTERNAL_API_KEY) {
     return { ok: false, error: "INTERNAL_API_KEY is not configured on this CMS instance" };
   }
   const url = `${GROWTH_TOOLS_URL}${pathWithQuery}`;
   try {
     const r = await fetch(url, {
-      headers: { "x-internal-key": INTERNAL_API_KEY },
+      method,
+      headers: {
+        "x-internal-key": INTERNAL_API_KEY,
+        ...(body ? { "content-type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!r.ok) {

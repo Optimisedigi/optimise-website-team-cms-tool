@@ -120,6 +120,41 @@ export const MatchTypeViolationCandidates: CollectionConfig = {
       ],
     },
     {
+      name: "recommendedKeyword",
+      type: "text",
+      label: "Recommended Negative",
+      admin: {
+        description: "Suggested negative-keyword text from the detector",
+      },
+    },
+    {
+      name: "recommendedMatchType",
+      type: "select",
+      options: [
+        { label: "Exact", value: "exact" },
+        { label: "Phrase", value: "phrase" },
+      ],
+      admin: {
+        description: "Suggested match type for the recommended negative",
+      },
+    },
+    {
+      name: "offendingWords",
+      type: "text",
+      label: "Offending Words",
+      admin: {
+        description: "Comma-joined search-term words absent from the nearest owned exact keyword",
+      },
+    },
+    {
+      name: "nearestKeyword",
+      type: "text",
+      label: "Nearest Owned Keyword",
+      admin: {
+        description: "The owned exact keyword this search term drifted from",
+      },
+    },
+    {
       name: "status",
       type: "select",
       defaultValue: "pending",

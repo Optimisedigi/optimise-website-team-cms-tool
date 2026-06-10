@@ -115,6 +115,19 @@ describe("get_search_terms tool", () => {
     expect(captured.url ?? "").not.toContain("segment=");
   });
 
+  it("accepts per-call conversion action overrides", async () => {
+    const captured = mockFetchOnce({ searchTerms: [] });
+
+    const args = getSearchTerms.validate!({
+      range: "LAST_30_DAYS",
+      conversionActions: ["Phone call lead", "Form submit"],
+    });
+    const res = await getSearchTerms.execute(args, makeCtx());
+
+    expect(res.ok).toBe(true);
+    expect(captured.url ?? "").toContain("conversionActions=Phone+call+lead%2CForm+submit");
+  });
+
   it("rejects an invalid segment value in validate()", () => {
     expect(() => getSearchTerms.validate!({ segment: "fortnight" })).toThrow(
       /segment must be/,

@@ -2,14 +2,20 @@ import { describe, it, expect } from "vitest";
 import { Clients } from "@/collections/Clients";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-// Walk into row/collapsible wrappers to find a field by name inside a flat
-// array. Mirrors the resolver Payload uses when persisting form data.
+// Walk into layout wrappers to find a field by name inside a flat array.
+// Mirrors the resolver Payload uses when persisting form data.
 function findFieldInArray(fields: any[], name: string): any {
   for (const f of fields ?? []) {
     if ("name" in f && f.name === name) return f;
     if ((f.type === "row" || f.type === "collapsible") && Array.isArray(f.fields)) {
       const inner = findFieldInArray(f.fields, name);
       if (inner) return inner;
+    }
+    if (f.type === "tabs" && Array.isArray(f.tabs)) {
+      for (const tab of f.tabs) {
+        const inner = findFieldInArray(tab.fields, name);
+        if (inner) return inner;
+      }
     }
   }
   return undefined;

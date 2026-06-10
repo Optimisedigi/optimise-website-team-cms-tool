@@ -382,6 +382,42 @@ export interface Client {
         | 'brand awareness'
       )
     | null;
+  clientPulse?: {
+    /**
+     * Show this client on the Client Pulse page. Only active clients with this toggled on appear.
+     */
+    enabled?: boolean | null;
+    priority?: ('watch' | 'normal' | 'high' | 'critical') | null;
+    comparisonWindow?: ('last_month' | 'last_year' | 'last_90_days') | null;
+    primaryTarget?:
+      | ('cpa' | 'roas' | 'traffic' | 'conversions' | 'organic_clicks' | 'paid_conversions' | 'revenue' | 'custom')
+      | null;
+    /**
+     * Display label, especially for custom targets.
+     */
+    targetLabel?: string | null;
+    targetValue?: number | null;
+    targetUnit?: ('aud' | 'percent' | 'clicks' | 'conversions' | 'revenue' | 'ratio' | 'score' | 'custom') | null;
+    targetDirection?: ('increase' | 'decrease' | 'maintain') | null;
+    /**
+     * Services included in leadership Client Pulse scoring and filters.
+     */
+    servicesTracked?:
+      | ('organic' | 'paid_search' | 'paid_social' | 'seo' | 'content' | 'cro' | 'automations' | 'client_comms')[]
+      | null;
+    /**
+     * Google Analytics metrics to show in the Client Pulse hover scorecard.
+     */
+    analyticsMetrics?:
+      | ('traffic' | 'conversions' | 'cpa' | 'revenue' | 'roas' | 'organic_clicks' | 'paid_conversions')[]
+      | null;
+    neglectWarningDays?: number | null;
+    neglectCriticalDays?: number | null;
+    /**
+     * Internal leadership notes shown in Client Pulse details.
+     */
+    notes?: string | null;
+  };
   /**
    * Primary contact name
    */
@@ -1072,6 +1108,10 @@ export interface Client {
      * Max pages to crawl
      */
     maxPages?: number | null;
+    /**
+     * Max GSC index-status checks per run. Caps shared daily quota so one large client can't starve others (Google allows ~2000/day total).
+     */
+    maxGscInspections?: number | null;
     /**
      * Check external links (slower)
      */
@@ -6468,6 +6508,22 @@ export interface MonthlyKeywordSelection {
          */
         removedAt?: string | null;
         /**
+         * Display name of whoever last set this row to a non-pending decision (auto-tracked on save).
+         */
+        decidedBy?: string | null;
+        /**
+         * User id of whoever last set this row to a non-pending decision (used to notify the original handler).
+         */
+        decidedByUserId?: string | null;
+        /**
+         * ISO timestamp when this needs-review term was dismissed as feedback.
+         */
+        reviewDismissedAt?: string | null;
+        /**
+         * Display name of the reviewer who dismissed this needs-review term as feedback.
+         */
+        reviewDismissedBy?: string | null;
+        /**
          * Reviewer note for a "needs review" term. Visible to anyone with tool access.
          */
         reviewComment?: string | null;
@@ -6483,6 +6539,30 @@ export interface MonthlyKeywordSelection {
          * Comma-separated user IDs tagged in the comment (for notifications).
          */
         reviewCommentTaggedUserIds?: string | null;
+        /**
+         * Latest review-outcome type for this term: 'added' | 'updated' | 'moved'. Server-managed.
+         */
+        outcomeType?: string | null;
+        /**
+         * Human before→after summary of the latest outcome, e.g. "exact → phrase" or "added to List A".
+         */
+        outcomeDetail?: string | null;
+        /**
+         * Optional teaching note left by the actor when they added/updated/moved this term.
+         */
+        outcomeComment?: string | null;
+        /**
+         * Display name of the user who performed the latest outcome.
+         */
+        outcomeBy?: string | null;
+        /**
+         * User id of the user who performed the latest outcome.
+         */
+        outcomeByUserId?: string | null;
+        /**
+         * ISO timestamp of the latest added/updated/moved outcome.
+         */
+        outcomeAt?: string | null;
         id?: string | null;
       }[]
     | null;
@@ -7854,7 +7934,7 @@ export interface GoalRun {
    */
   error?: string | null;
   /**
-   * Per-run knobs supplied at create time (e.g. targetImprovementPercent, enabledLevers, observationDays). Read by the goal-type handler each tick; never mutated by the runtime. JSON-serialisable.
+   * Per-run knobs supplied at create time. Read by the goal-type handler each tick; never mutated by the runtime. JSON-serialisable. Account-efficiency prerequisite keys: monthlyBudget (REQUIRED for new runs via OptiMate — on apply it overwrites the client's google-ads-audits.monthlyBudget, the budget-shift anchor), minRecipientConversions (conversions threshold a campaign needs to receive freed budget; default 5), targetImprovementPercent (CPA target; default 15), measurementDays (ad-group staging cycle; default 14), and includedCampaignIds (campaign scope allow-list). Other knobs: bufferTolerancePercent, observationDays, campaignWindowDays, maxDonorReductionPercent, minDailyBudgetFloor, minAdGroupSpend, minKeywordSpend, enabledLevers.
    */
   parameters?:
     | {
@@ -7958,6 +8038,22 @@ export interface MatchTypeViolationCandidate {
   violationType: 'exact_close_variant' | 'phrase_missing_word';
   impressions?: number | null;
   clicks?: number | null;
+  /**
+   * Suggested negative-keyword text from the detector
+   */
+  recommendedKeyword?: string | null;
+  /**
+   * Suggested match type for the recommended negative
+   */
+  recommendedMatchType?: ('exact' | 'phrase') | null;
+  /**
+   * Comma-joined search-term words absent from the nearest owned exact keyword
+   */
+  offendingWords?: string | null;
+  /**
+   * The owned exact keyword this search term drifted from
+   */
+  nearestKeyword?: string | null;
   status: 'pending' | 'approved' | 'rejected';
   /**
    * The negative keyword list this candidate was approved into
@@ -8464,6 +8560,23 @@ export interface ClientsSelect<T extends boolean = true> {
   googleAdsCustomerId?: T;
   conversionGoal?: T;
   secondaryConversionGoal?: T;
+  clientPulse?:
+    | T
+    | {
+        enabled?: T;
+        priority?: T;
+        comparisonWindow?: T;
+        primaryTarget?: T;
+        targetLabel?: T;
+        targetValue?: T;
+        targetUnit?: T;
+        targetDirection?: T;
+        servicesTracked?: T;
+        analyticsMetrics?: T;
+        neglectWarningDays?: T;
+        neglectCriticalDays?: T;
+        notes?: T;
+      };
   contactName?: T;
   contactEmail?: T;
   contactPhone?: T;
@@ -10137,10 +10250,20 @@ export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
         removedBy?: T;
         removedByUserId?: T;
         removedAt?: T;
+        decidedBy?: T;
+        decidedByUserId?: T;
+        reviewDismissedAt?: T;
+        reviewDismissedBy?: T;
         reviewComment?: T;
         reviewCommentBy?: T;
         reviewCommentAt?: T;
         reviewCommentTaggedUserIds?: T;
+        outcomeType?: T;
+        outcomeDetail?: T;
+        outcomeComment?: T;
+        outcomeBy?: T;
+        outcomeByUserId?: T;
+        outcomeAt?: T;
         id?: T;
       };
   updatedAt?: T;
@@ -10152,11 +10275,11 @@ export interface MonthlyKeywordSelectionsSelect<T extends boolean = true> {
  */
 export interface SiteHealthReportsSelect<T extends boolean = true> {
   client?: T;
+  siteUrl?: T;
+  reportDate?: T;
   auditStatus?: T;
   auditProgress?: T;
   auditError?: T;
-  siteUrl?: T;
-  reportDate?: T;
   healthScore?: T;
   crawlStats?:
     | T
@@ -10984,6 +11107,10 @@ export interface MatchTypeViolationCandidatesSelect<T extends boolean = true> {
   violationType?: T;
   impressions?: T;
   clicks?: T;
+  recommendedKeyword?: T;
+  recommendedMatchType?: T;
+  offendingWords?: T;
+  nearestKeyword?: T;
   status?: T;
   assignedListId?: T;
   approvedAt?: T;
@@ -11436,7 +11563,7 @@ export interface OptimateSetting {
    */
   chatHistoryTokenLimit?: number | null;
   /**
-   * Optional. Model used only by the Blog Prompter AI Suggest button. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.
+   * Optional. Model used by all blog AI features — the Blog Prompter AI Suggest button, blog draft generation, and blog post image-prompt generation. Leave blank to use the autonomous default. Plain OpenAI API-key models are hidden until OPENAI_API_KEY is configured.
    */
   blogPrompterModel?:
     | (

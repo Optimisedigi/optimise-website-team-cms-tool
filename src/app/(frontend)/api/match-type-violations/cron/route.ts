@@ -204,6 +204,10 @@ interface Violation {
   clicks: number;
   campaignName: string;
   adGroupName: string;
+  nearestKeyword?: string;
+  offendingWords?: string[];
+  recommendedKeyword?: string;
+  recommendedMatchType?: "exact" | "phrase";
 }
 
 interface GrowthToolsResponse {
@@ -265,6 +269,10 @@ async function upsertViolation(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = ((payload as any).db as { client: { execute: (sql: string) => Promise<unknown> } }).client;
   const today = now.split('T')[0];
+  const offendingWords = Array.isArray(v.offendingWords) ? v.offendingWords.join(', ') : '';
+  const recommendedKeyword = v.recommendedKeyword ?? '';
+  const recommendedMatchType = v.recommendedMatchType ?? '';
+  const nearestKeyword = v.nearestKeyword ?? '';
 
   // Skip if already negated in any active NKL
   if (await isAlreadyNegated(payload, clientId, v.searchTerm)) {
@@ -291,6 +299,10 @@ async function upsertViolation(
            violation_type = ${esc(v.violationType)},
            impressions = ${v.impressions ?? 0},
            clicks = ${v.clicks ?? 0},
+           recommended_keyword = ${esc(recommendedKeyword)},
+           recommended_match_type = ${esc(recommendedMatchType)},
+           offending_words = ${esc(offendingWords)},
+           nearest_keyword = ${esc(nearestKeyword)},
            last_seen_at = ${esc(now)},
            run_date = ${esc(today)}
          WHERE id = ${doc.id};`,
@@ -309,14 +321,16 @@ async function upsertViolation(
     await db.execute(
       `INSERT INTO match_type_violation_candidates
          (client_id, search_term, triggering_keyword, campaign_name, ad_group_name,
-          match_type, violation_type, impressions, clicks, status,
-          last_seen_at, first_seen_at, run_date, created_at, updated_at)
+          match_type, violation_type, impressions, clicks,
+          recommended_keyword, recommended_match_type, offending_words, nearest_keyword,
+          status, last_seen_at, first_seen_at, run_date, created_at, updated_at)
        VALUES (
          ${Number(clientId)}, ${esc(v.searchTerm)}, ${esc(v.triggeringKeyword)},
          ${esc(v.campaignName ?? '')}, ${esc(v.adGroupName ?? '')},
          ${esc(v.matchType)}, ${esc(v.violationType)},
-         ${v.impressions ?? 0}, ${v.clicks ?? 0}, 'pending',
-         ${esc(now)}, ${esc(now)}, ${esc(today)}, ${esc(now)}, ${esc(now)}
+         ${v.impressions ?? 0}, ${v.clicks ?? 0},
+         ${esc(recommendedKeyword)}, ${esc(recommendedMatchType)}, ${esc(offendingWords)}, ${esc(nearestKeyword)},
+         'pending', ${esc(now)}, ${esc(now)}, ${esc(today)}, ${esc(now)}, ${esc(now)}
        );`,
     );
   }

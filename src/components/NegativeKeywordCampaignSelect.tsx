@@ -2,6 +2,7 @@
 
 import { useDocumentInfo } from '@payloadcms/ui'
 import { useState } from 'react'
+import { matchesPattern } from '@/lib/nkl-routing'
 
 export default function NegativeKeywordCampaignSelect() {
   const { initialData } = useDocumentInfo()
@@ -35,27 +36,12 @@ export default function NegativeKeywordCampaignSelect() {
 
       const allCampaigns: Array<{ name: string }> = json.campaigns || []
 
-      // Match campaigns against the pattern
-      // Supports plain text (e.g. "Brand") or regex (e.g. ".*Brand.*")
-      let matched: string[]
-      if (campaignRegex) {
-        let regexStr = campaignRegex.trim()
-        // If plain text (only letters, numbers, spaces, hyphens, underscores), wrap in .*text.*
-        if (/^[a-zA-Z0-9 _-]+$/.test(regexStr)) {
-          regexStr = `.*${regexStr}.*`
-        }
-        try {
-          const pattern = new RegExp(regexStr, 'i')
-          matched = allCampaigns.filter((c) => pattern.test(c.name)).map((c) => c.name)
-        } catch {
-          // Still invalid — try as plain substring match
-          const lower = campaignRegex.toLowerCase()
-          matched = allCampaigns.filter((c) => c.name.toLowerCase().includes(lower)).map((c) => c.name)
-        }
-      } else {
-        // No pattern — save all campaigns
-        matched = allCampaigns.map((c) => c.name)
-      }
+      // Match campaigns against the pattern via the shared routing helper.
+      // Supports plain text (e.g. "Brand"), regex (e.g. ".*Brand.*"), or blank
+      // (matches all campaigns).
+      const matched = allCampaigns
+        .filter((c) => matchesPattern(c.name, campaignRegex))
+        .map((c) => c.name)
 
       if (matched.length === 0) {
         setError(`No campaigns matched the pattern "${campaignRegex}". ${allCampaigns.length} campaigns found in the account.`)

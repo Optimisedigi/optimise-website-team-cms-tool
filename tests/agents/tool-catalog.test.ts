@@ -24,6 +24,7 @@ import { describe, it, expect, vi } from "vitest";
 const FIXTURE_TOOLS = [
   { name: "get_account_overview", description: "Account totals." },
   { name: "get_campaign_performance", description: "Per-campaign performance." },
+  { name: "get_ad_group_performance", description: "Per-ad-group performance." },
   { name: "get_search_terms", description: "User search queries." },
   { name: "get_budget_management_email", description: "Gmail-ready budget management email HTML." },
   { name: "create_gmail_draft", description: "Create one-off Gmail draft." },
@@ -100,9 +101,10 @@ describe("tool-catalog", () => {
     }
   });
 
-  it("includes the new SERP / AI Visibility / client tools we just shipped", () => {
+  it("includes the new Google Ads / SERP / AI Visibility / client tools we just shipped", () => {
     const cats = buildToolCatalog();
     const allTools = cats.flatMap((c) => c.tools.map((t) => t.name));
+    expect(allTools).toContain("get_ad_group_performance");
     expect(allTools).toContain("get_serp_displacement");
     expect(allTools).toContain("get_serp_displacement_alerts");
     expect(allTools).toContain("get_ai_visibility");

@@ -17,6 +17,7 @@ import {
 } from "./config";
 import { getAccountOverview } from "./tools/get-account-overview";
 import { getCampaignPerformance } from "./tools/get-campaign-performance";
+import { getAdGroupPerformance } from "./tools/get-ad-group-performance";
 import { getSearchTerms } from "./tools/get-search-terms";
 import { getNegativeKeywordLists } from "./tools/get-negative-keyword-lists";
 import { getAdAssetPerformance } from "./tools/get-ad-asset-performance";
@@ -108,6 +109,7 @@ export function getTools(options?: { restrictExternalContextActions?: boolean })
   const tools = [
     getAccountOverview as unknown as CanonicalTool<unknown>,
     getCampaignPerformance as unknown as CanonicalTool<unknown>,
+    getAdGroupPerformance as unknown as CanonicalTool<unknown>,
     getSearchTerms as unknown as CanonicalTool<unknown>,
     getNegativeKeywordLists as unknown as CanonicalTool<unknown>,
     getAdAssetPerformance as unknown as CanonicalTool<unknown>,

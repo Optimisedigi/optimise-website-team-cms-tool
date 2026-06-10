@@ -19,6 +19,8 @@ function injectLink(
   link.href = href
   link.className = 'nav__link sidebar-extras__link'
   link.setAttribute('data-injected', key)
+  link.setAttribute('aria-label', label)
+  link.setAttribute('title', label)
   link.innerHTML = `${svgIcon}<span class="nav__link-label">${label}</span>`
 
   if (position === 'prepend') {
@@ -49,6 +51,8 @@ const ICONS = {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
   invoiceStatements:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3 5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="14 3 14 8 19 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>',
+  clientPulse:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3 12h4l3 8 4-16 3 8h4"/><circle cx="12" cy="12" r="10" opacity="0.25"/></svg>',
 }
 
 const SidebarNavExtras = () => {
@@ -60,6 +64,7 @@ const SidebarNavExtras = () => {
   const canGoogleAds = userHasFeature(user, 'nav:google-ads')
   const canSeo = userHasFeature(user, 'nav:seo')
   const canContractorCosts = userHasFeature(user, 'nav:contractor-costs') || userHasFeature(user, 'contractors')
+  const canClients = userHasFeature(user, 'clients')
 
   // Watch for active nav link and apply highlight + keep icon visible
   useEffect(() => {
@@ -131,6 +136,17 @@ const SidebarNavExtras = () => {
         ICONS.indexingHelper,
         'Indexing Helper',
         'append',
+      )
+    }
+
+    if (canClients) {
+      injectLink(
+        '#nav-group-Clients .nav-group__content',
+        'client-pulse',
+        '/admin/clients/pulse',
+        ICONS.clientPulse,
+        'Client Pulse',
+        'prepend',
       )
     }
 
@@ -265,7 +281,7 @@ const SidebarNavExtras = () => {
     return () => {
       clearInterval(hideInterval)
     }
-  }, [canIntegrations, canDeployments, canIndexingHelper, canInvoices, canGoogleAds, canSeo, canContractorCosts])
+  }, [canIntegrations, canDeployments, canIndexingHelper, canInvoices, canGoogleAds, canSeo, canContractorCosts, canClients])
 
   // Mobile: bounce-back zoom — allow pinch zoom but snap back to 1x when released
   useEffect(() => {

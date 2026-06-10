@@ -247,6 +247,8 @@ describe("Budget ad-group metrics", () => {
           customerId: "9876543210",
           campaignId: "c1",
           dateRange: "THIS_MONTH",
+          includeCompetitiveMetrics: true,
+          includeImpressionShare: true,
           conversionActions: ["Lead", "Phone Call"],
         }),
       }),

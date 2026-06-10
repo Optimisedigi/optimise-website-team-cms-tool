@@ -25,7 +25,18 @@ vi.mock("@/payload.config", () => ({
   default: Promise.resolve({}),
 }));
 
-import { runGoogleAdsSnapshotsCron } from "@/lib/google-ads-snapshots/cron";
+import { completedMonths, monthRangeLabel, mtdComparisonRanges, runGoogleAdsSnapshotsCron } from "@/lib/google-ads-snapshots/cron";
+
+// Pre-existing monthly snapshot docs — makes captureMonthlyCampaignSnapshots a
+// no-op in the concurrency tests so the original level-sequencing contract
+// stays observable. The monthly path has its own dedicated test below.
+const allMonthlyDocs = completedMonths(13).map(({ year, month }) => ({
+  dateRangeLabel: monthRangeLabel(year, month),
+}));
+
+function isMonthlyLookup(args: { where?: { and?: Array<Record<string, unknown>> } }): boolean {
+  return Boolean(args.where?.and?.some((clause) => (clause as { dateRangeLabel?: { like?: string } }).dateRangeLabel?.like === "MONTH_%"));
+}
 
 // ─── Helpers ───────────────────────────────────────────────────
 function buildClients(n: number) {
@@ -38,13 +49,15 @@ function buildClients(n: number) {
 
 interface FetchEvent {
   customerId: string;
-  pathBucket: "campaign" | "ad_group" | "keyword" | "search_term" | "keyword_90d" | "ad_group_60d";
+  pathBucket: "campaign" | "ad_group" | "keyword" | "search_term" | "keyword_90d" | "ad_group_60d" | "pulse_campaign";
   phase: "start" | "end";
   t: number;
 }
 
 function pathBucket(url: string): FetchEvent["pathBucket"] | null {
-  if (url.includes("/campaign-budgets/get-metrics")) return "campaign";
+  if (url.includes("/campaign-budgets/get-metrics")) {
+    return new URL(url).searchParams.get("dateRange")?.includes(",") ? "pulse_campaign" : "campaign";
+  }
   if (url.includes("/keyword-historical-spend")) {
     return url.includes("LAST_90_DAYS") ? "keyword_90d" : "keyword";
   }
@@ -69,6 +82,10 @@ describe("runGoogleAdsSnapshotsCron — concurrency + sequencing", () => {
       if (args.collection === "clients") {
         return Promise.resolve({ docs: buildClients(12) });
       }
+      // Monthly-history lookup: report every month as already captured.
+      if (isMonthlyLookup(args)) {
+        return Promise.resolve({ docs: allMonthlyDocs });
+      }
       // google-ads-snapshots lookup inside upsert
       return Promise.resolve({ docs: [] });
     });
@@ -90,6 +107,16 @@ describe("runGoogleAdsSnapshotsCron — concurrency + sequencing", () => {
       const customerId = extractCustomerId(url);
       const bucket = pathBucket(url);
       if (!bucket) throw new Error(`Unexpected URL in test: ${url}`);
+
+      if (bucket === "pulse_campaign") {
+        const body = { metrics: [] };
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify(body),
+          json: async () => body,
+        } as unknown as Response;
+      }
 
       // Mark this customer as active if not already.
       const wasActive = activeCustomers.has(customerId);
@@ -217,6 +244,52 @@ describe("runGoogleAdsSnapshotsCron — concurrency + sequencing", () => {
         expect(r.keyword.ok).toBe(true);
         expect(r.search_term.ok).toBe(true);
       }
+    }
+  });
+
+  it("backfills only the calendar months that are missing", async () => {
+    // First 3 months already captured; the remaining 10 should be fetched.
+    const existingMonths = allMonthlyDocs.slice(0, 3);
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === "clients") {
+        return Promise.resolve({ docs: buildClients(1) });
+      }
+      if (isMonthlyLookup(args)) {
+        return Promise.resolve({ docs: existingMonths });
+      }
+      return Promise.resolve({ docs: [] });
+    });
+
+    const mtdRanges = new Set(mtdComparisonRanges().map((range) => `${range.start},${range.end}`));
+    const monthlyFetchRanges: string[] = [];
+    globalThis.fetch = vi.fn(async (input: any) => {
+      const url = typeof input === "string" ? input : input.url;
+      const dateRange = new URL(url).searchParams.get("dateRange") ?? "";
+      // Monthly pulls use a comma-span range "YYYY-MM-DD,YYYY-MM-DD".
+      if (url.includes("/campaign-budgets/get-metrics") && dateRange.includes(",") && !mtdRanges.has(dateRange)) {
+        monthlyFetchRanges.push(dateRange);
+      }
+      const body = url.includes("/campaign-budgets/get-metrics")
+        ? { metrics: [] }
+        : url.includes("/ad-groups/list")
+          ? { adGroups: [] }
+          : url.includes("/keyword-historical-spend")
+            ? { keywords: [] }
+            : { searchTerms: [] };
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(body),
+        json: async () => body,
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+
+    await runGoogleAdsSnapshotsCron({ payload: mockPayload as never, concurrency: 1 });
+
+    expect(monthlyFetchRanges).toHaveLength(10);
+    // Every fetched range is a full calendar month: starts on the 1st.
+    for (const range of monthlyFetchRanges) {
+      expect(range).toMatch(/^\d{4}-\d{2}-01,\d{4}-\d{2}-\d{2}$/);
     }
   });
 });

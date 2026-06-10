@@ -31,6 +31,19 @@ const icons: MiniIcon[] = [
     ),
   },
   {
+    label: 'Client Pulse',
+    shortLabel: 'Pulse',
+    href: '/admin/clients/pulse',
+    feature: 'clients',
+    svg: (
+      // Pulse wave — mirrors the clientPulse icon in SidebarNavExtras.
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 12h4l3 8 4-16 3 8h4" />
+        <circle cx="12" cy="12" r="10" opacity="0.25" />
+      </svg>
+    ),
+  },
+  {
     label: 'Clients',
     shortLabel: 'Clients',
     href: '/admin/collections/clients',

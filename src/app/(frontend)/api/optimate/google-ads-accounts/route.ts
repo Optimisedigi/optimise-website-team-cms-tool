@@ -68,15 +68,16 @@ export async function GET() {
       } as any,
     });
 
+    // Fetch ALL clients (not just those with a Customer ID on the client
+    // record). An account can carry its Customer ID on the google-ads-audit row
+    // while the linked client record leaves googleAdsCustomerId blank — if we
+    // only queried clients-with-an-ID we'd never learn that such a client is
+    // inactive/unmanaged, and its audit would leak into the picker. Querying
+    // every client lets us resolve active/managed status for any audit's
+    // linked client.
     const clientResult = await payload.find({
       collection: "clients",
-      where: {
-        and: [
-          { googleAdsCustomerId: { not_equals: null } },
-          { googleAdsCustomerId: { not_equals: "" } },
-        ],
-      },
-      limit: 500,
+      limit: 2000,
       depth: 0,
       sort: "name",
       overrideAccess: true,

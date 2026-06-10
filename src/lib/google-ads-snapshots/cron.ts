@@ -274,10 +274,12 @@ interface RawCampaignEnvelope extends GrowthEnvelope {
 
 export async function fetchCampaignLevel(
   customerId: string,
+  options?: { dateRange?: string; rangeLabel?: string },
 ): Promise<FetchResult<CampaignSnapshotRow>> {
+  const rangeLabel = options?.rangeLabel ?? DEFAULT_RANGE_LABEL;
   const qs = new URLSearchParams({
     customerId,
-    dateRange: DEFAULT_RANGE_LABEL,
+    dateRange: options?.dateRange ?? DEFAULT_RANGE_LABEL,
   });
   const path = `${CAMPAIGN_ENDPOINT}?${qs.toString()}`;
   const res = await growthGet<RawCampaignEnvelope>(path);
@@ -286,7 +288,7 @@ export async function fetchCampaignLevel(
       ok: false,
       error: res.error ?? "Unknown Growth Tools error",
       sourceEndpoint: CAMPAIGN_ENDPOINT,
-      dateRangeLabel: DEFAULT_RANGE_LABEL,
+      dateRangeLabel: rangeLabel,
     };
   }
 
@@ -353,7 +355,7 @@ export async function fetchCampaignLevel(
     ok: true,
     rows,
     sourceEndpoint: CAMPAIGN_ENDPOINT,
-    dateRangeLabel: DEFAULT_RANGE_LABEL,
+    dateRangeLabel: rangeLabel,
   };
 }
 
@@ -606,6 +608,9 @@ async function runLevel<R>(
     fetcher: () => Promise<FetchResult<R>>;
     /** Expected window label, used to key the upsert on the catch path. */
     dateRangeLabel?: string;
+    /** Optional explicit window bounds persisted on the snapshot row. */
+    dateRangeStart?: string;
+    dateRangeEnd?: string;
   },
 ): Promise<LevelOutcome> {
   const t0 = Date.now();
@@ -624,6 +629,8 @@ async function runLevel<R>(
         rows: [],
         error: message,
         ...(args.dateRangeLabel !== undefined ? { dateRangeLabel: args.dateRangeLabel } : {}),
+        ...(args.dateRangeStart !== undefined ? { dateRangeStart: args.dateRangeStart } : {}),
+        ...(args.dateRangeEnd !== undefined ? { dateRangeEnd: args.dateRangeEnd } : {}),
         fetchDurationMs: durationMs,
       });
     } catch (persistErr) {
@@ -646,6 +653,8 @@ async function runLevel<R>(
         error: result.error,
         sourceEndpoint: result.sourceEndpoint,
         dateRangeLabel: result.dateRangeLabel,
+        ...(args.dateRangeStart !== undefined ? { dateRangeStart: args.dateRangeStart } : {}),
+        ...(args.dateRangeEnd !== undefined ? { dateRangeEnd: args.dateRangeEnd } : {}),
         fetchDurationMs: durationMs,
       });
     } catch (persistErr) {
@@ -670,6 +679,8 @@ async function runLevel<R>(
       rows: result.rows,
       sourceEndpoint: result.sourceEndpoint,
       dateRangeLabel: result.dateRangeLabel,
+      ...(args.dateRangeStart !== undefined ? { dateRangeStart: args.dateRangeStart } : {}),
+      ...(args.dateRangeEnd !== undefined ? { dateRangeEnd: args.dateRangeEnd } : {}),
       fetchDurationMs: durationMs,
     });
   } catch (persistErr) {
@@ -692,6 +703,129 @@ async function runLevel<R>(
     sourceEndpoint: result.sourceEndpoint,
     durationMs,
   };
+}
+
+/** Month label used for calendar-month campaign snapshots, e.g. "MONTH_2026-05". */
+export function monthRangeLabel(year: number, month: number): string {
+  return `MONTH_${year}-${String(month).padStart(2, "0")}`;
+}
+
+/** Comma-span date range Growth Tools accepts for a full calendar month. */
+export function monthDateRange(year: number, month: number): { start: string; end: string } {
+  const mm = String(month).padStart(2, "0");
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return { start: `${year}-${mm}-01`, end: `${year}-${mm}-${String(lastDay).padStart(2, "0")}` };
+}
+
+function ymd(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Current month-to-date and same dates last year, keyed by the current month. */
+export function mtdComparisonRanges(now: Date = new Date()): Array<{ label: string; start: string; end: string }> {
+  const key = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const day = now.getUTCDate();
+  const currentStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const currentEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day));
+  const lastYearStart = new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth(), 1));
+  const lastYearLastDay = new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth() + 1, 0)).getUTCDate();
+  const lastYearEnd = new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth(), Math.min(day, lastYearLastDay)));
+  return [
+    { label: `MTD_${key}`, start: ymd(currentStart), end: ymd(currentEnd) },
+    { label: `MTD_LY_${key}`, start: ymd(lastYearStart), end: ymd(lastYearEnd) },
+  ];
+}
+
+/** The last `count` complete calendar months, most recent first. */
+export function completedMonths(count: number, now: Date = new Date()): Array<{ year: number; month: number }> {
+  const months: Array<{ year: number; month: number }> = [];
+  for (let back = 1; back <= count; back++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1));
+    months.push({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 });
+  }
+  return months;
+}
+
+/**
+ * Capture calendar-month campaign snapshots for MoM/YoY pulse trends.
+ * Backfills up to 13 complete months on first run; on subsequent runs only
+ * the months that are still missing get fetched (normally just the newly
+ * completed month). Historical months are immutable so are never re-pulled.
+ */
+async function captureMonthlyCampaignSnapshots(
+  payload: Payload,
+  client: ClientDoc,
+  customerId: string,
+): Promise<void> {
+  const months = completedMonths(13);
+  const existing = await payload.find({
+    collection: "google-ads-snapshots",
+    where: {
+      and: [
+        { client: { equals: client.id } },
+        { level: { equals: "campaign" } },
+        { dateRangeLabel: { like: "MONTH_%" } },
+        { error: { exists: false } },
+      ],
+    },
+    limit: 0,
+    pagination: false,
+    depth: 0,
+    select: { dateRangeLabel: true } as never,
+    overrideAccess: true,
+  });
+  const have = new Set(
+    existing.docs.map((doc) => String((doc as { dateRangeLabel?: unknown }).dateRangeLabel ?? "")),
+  );
+
+  for (const { year, month } of months) {
+    const label = monthRangeLabel(year, month);
+    if (have.has(label)) continue;
+    const range = monthDateRange(year, month);
+    const outcome = await runLevel<CampaignSnapshotRow>(payload, {
+      clientId: client.id,
+      customerId,
+      level: "campaign",
+      fetcher: () => fetchCampaignLevel(customerId, {
+        dateRange: `${range.start},${range.end}`,
+        rangeLabel: label,
+      }),
+      dateRangeLabel: label,
+      dateRangeStart: range.start,
+      dateRangeEnd: range.end,
+    });
+    if (!outcome.ok) {
+      payload.logger?.warn?.(
+        `[ga-snapshots-cron] monthly snapshot ${label} failed for client=${client.id}: ${outcome.error ?? "unknown"}`,
+      );
+    }
+  }
+}
+
+async function captureMtdCampaignSnapshots(
+  payload: Payload,
+  client: ClientDoc,
+  customerId: string,
+): Promise<void> {
+  for (const range of mtdComparisonRanges()) {
+    const outcome = await runLevel<CampaignSnapshotRow>(payload, {
+      clientId: client.id,
+      customerId,
+      level: "campaign",
+      fetcher: () => fetchCampaignLevel(customerId, {
+        dateRange: `${range.start},${range.end}`,
+        rangeLabel: range.label,
+      }),
+      dateRangeLabel: range.label,
+      dateRangeStart: range.start,
+      dateRangeEnd: range.end,
+    });
+    if (!outcome.ok) {
+      payload.logger?.warn?.(
+        `[ga-snapshots-cron] MTD snapshot ${range.label} failed for client=${client.id}: ${outcome.error ?? "unknown"}`,
+      );
+    }
+  }
 }
 
 async function processClient(
@@ -751,6 +885,17 @@ async function processClient(
     }),
     dateRangeLabel: AD_GROUP_LONG_WINDOW_LABEL,
   });
+
+  // Pulse trend snapshots. Isolated like the long-lookback windows above — a
+  // failure never aborts the client run.
+  try {
+    await captureMtdCampaignSnapshots(payload, client, customerId);
+    await captureMonthlyCampaignSnapshots(payload, client, customerId);
+  } catch (err) {
+    payload.logger?.warn?.(
+      `[ga-snapshots-cron] pulse snapshot sweep failed for client=${client.id}: ${(err as Error).message}`,
+    );
+  }
 
   return {
     clientId: client.id,
