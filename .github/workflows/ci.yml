@@ -1,54 +1,54 @@
- name: CI
+name: CI
 
-  on:
-    push:
-      branches: [main]
-    pull_request:
-      branches: [main]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
-  jobs:
-    build:
-      runs-on: ubuntu-latest
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-      steps:
-        - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-        - uses: actions/setup-node@v4
-          with:
-            node-version: "22"
-            cache: "npm"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
 
-        - name: Install dependencies
-          run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-        - name: Type check
-          run: npx tsc --noEmit
+      - name: Type check
+        run: npx tsc --noEmit
 
-        - name: Build
-          run: npm run build
-          env:
-            PAYLOAD_SECRET: ci-placeholder-secret-not-real
-            DATABASE_URL: file:./ci-test.db
+      - name: Build
+        run: npm run build
+        env:
+          PAYLOAD_SECRET: ci-placeholder-secret-not-real
+          DATABASE_URL: file:./ci-test.db
 
-    migrate:
-      needs: build
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      runs-on: ubuntu-latest
+  migrate:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
 
-      steps:
-        - name: Wait for Vercel deployment
-          run: sleep 120
+    steps:
+      - name: Wait for Vercel deployment
+        run: sleep 120
 
-        - name: Run database migrations
-          run: |
-            RESPONSE=$(curl -sf -X POST \
-              https://cms.optimisedigital.online/api/migrate \
-              -H "x-api-key: ${{ secrets.AUDIT_API_KEY }}")
-            echo "$RESPONSE" | python3 -m json.tool
+      - name: Run database migrations
+        run: |
+          RESPONSE=$(curl -sf -X POST \
+            https://cms.optimisedigital.online/api/migrate \
+            -H "x-api-key: ${{ secrets.AUDIT_API_KEY }}")
+          echo "$RESPONSE" | python3 -m json.tool
 
-            # Fail if any actual ERRORs (not SKIPs)
-            if echo "$RESPONSE" | grep -q '"ERROR:'; then
-              echo "::error::Migration returned errors"
-              exit 1
-            fi
-            echo "Migration completed successfully"
+          # Fail if any actual ERRORs (not SKIPs)
+          if echo "$RESPONSE" | grep -q '"ERROR:'; then
+            echo "::error::Migration returned errors"
+            exit 1
+          fi
+          echo "Migration completed successfully"
