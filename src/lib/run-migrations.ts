@@ -45,7 +45,18 @@ export async function runMigrations(
     return results;
   }
 
-  async function run(label: string, statement: string): Promise<void> {
+  async function run(
+    label: string,
+    statement: string,
+    // Per-statement allow-list of error-message substrings that mean "this
+    // one-time migration is already applied on this database" and should be
+    // reported as `skip`, not `error`. Used for statements whose idempotency
+    // can't be expressed with IF [NOT] EXISTS (e.g. RENAME whose target already
+    // exists or whose source table is already gone). Kept per-call rather than
+    // global so genuine `no such table` / constraint failures in OTHER
+    // migrations still surface as errors.
+    okErrors?: string[],
+  ): Promise<void> {
     let r: MigrationResult;
     try {
       await client!.execute(statement);
@@ -58,6 +69,10 @@ export async function runMigrations(
         // Idempotent DROP COLUMN / UPDATE on a column that's already gone.
         // Treat as a successful no-op so re-runs don't spam errors.
         r = { label, status: "skip", message: "column already removed" };
+      } else if (okErrors?.some((substr) => msg.includes(substr))) {
+        // Known-idempotent statement whose "already applied" signal isn't one
+        // of the generic cases above. Re-runs are expected no-ops.
+        r = { label, status: "skip", message: "already applied" };
       } else {
         r = { label, status: "error", message: msg };
       }
@@ -1131,8 +1146,8 @@ export async function runMigrations(
     await run("clients_gads_report_emails_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_gads_report_emails_parent_idx` ON `clients_gads_report_emails` (`_parent_id`)");
   
     // Fix: dbName tables were created with "clients_" prefix but Payload queries them without it
-    await run("rename_gads_sweep_exclude", "ALTER TABLE `clients_gads_sweep_exclude` RENAME TO `gads_sweep_exclude`");
-    await run("rename_gads_report_emails", "ALTER TABLE `clients_gads_report_emails` RENAME TO `gads_report_emails`");
+    await run("rename_gads_sweep_exclude", "ALTER TABLE `clients_gads_sweep_exclude` RENAME TO `gads_sweep_exclude`", ["already another table or index with this name"]);
+    await run("rename_gads_report_emails", "ALTER TABLE `clients_gads_report_emails` RENAME TO `gads_report_emails`", ["already another table or index with this name"]);
   
     // --- internal_link_suggestions table ---
     await run("internal_link_suggestions", `CREATE TABLE IF NOT EXISTS \`internal_link_suggestions\` (
@@ -1749,9 +1764,12 @@ export async function runMigrations(
     await run("clear_raw_data_for_413_fix", "UPDATE `google_ads_audits` SET `raw_data` = NULL WHERE `raw_data` IS NOT NULL");
   
     // ── Revert tag_audits back to tag_setup_audits (undo premature rename) ──
-    await run("revert_tag_audits_to_tag_setup_audits", "ALTER TABLE `tag_audits` RENAME TO `tag_setup_audits`");
-    await run("revert_tag_audits_audit_history", "ALTER TABLE `tag_audits_audit_history` RENAME TO `tag_setup_audits_audit_history`");
-    await run("revert_tag_audits_verify_history", "ALTER TABLE `tag_audits_verify_history` RENAME TO `tag_setup_audits_verify_history`");
+    // These reverts run only when the old `tag_audits*` tables still exist; once
+    // renamed back to `tag_setup_audits*` a re-run hits "no such table", which is
+    // the expected already-applied signal.
+    await run("revert_tag_audits_to_tag_setup_audits", "ALTER TABLE `tag_audits` RENAME TO `tag_setup_audits`", ["no such table"]);
+    await run("revert_tag_audits_audit_history", "ALTER TABLE `tag_audits_audit_history` RENAME TO `tag_setup_audits_audit_history`", ["no such table"]);
+    await run("revert_tag_audits_verify_history", "ALTER TABLE `tag_audits_verify_history` RENAME TO `tag_setup_audits_verify_history`", ["no such table"]);
     // Revert column rename
     await run("revert_website_url_to_url", "ALTER TABLE `tag_setup_audits` RENAME COLUMN `website_url` TO `url`");
   
@@ -3719,7 +3737,11 @@ export async function runMigrations(
     await run("google_ads_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_snapshots_created_at_idx` ON `google_ads_snapshots` (`created_at`)");
     await run("google_ads_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `google_ads_snapshots_updated_at_idx` ON `google_ads_snapshots` (`updated_at`)");
     // One row per (client, level) — the daily cron upserts on this unique key.
-    await run("google_ads_snapshots_client_level_unq", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_snapshots_client_level_unq` ON `google_ads_snapshots` (`client_id`, `level`)");
+    // Superseded immediately below by the 3-column window index (dropped on the
+    // next line). On databases that already hold multi-window rows this 2-column
+    // create fails with "UNIQUE constraint failed"; that's the expected
+    // already-superseded signal, and the index is dropped right after anyway.
+    await run("google_ads_snapshots_client_level_unq", "CREATE UNIQUE INDEX IF NOT EXISTS `google_ads_snapshots_client_level_unq` ON `google_ads_snapshots` (`client_id`, `level`)", ["UNIQUE constraint failed"]);
     // Multi-window snapshots (2026-06-09): the account-efficiency goal agent
     // now persists additive long-lookback windows (60d ad-group, 90d keyword)
     // alongside the primary 30d/structural row. Widen the uniqueness key to
