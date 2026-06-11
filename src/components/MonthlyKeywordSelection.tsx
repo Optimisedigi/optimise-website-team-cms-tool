@@ -1155,7 +1155,9 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 </div>
               </div>
               <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', marginTop: 4 }}>
-                {month.terms.length} qualifying term{month.terms.length === 1 ? '' : 's'}{month.reviewComplete ? ' · Locked until unchecked' : ''}
+                {month.terms.length} qualifying term{month.terms.length === 1 ? '' : 's'}
+                {month.alreadyNegated.length > 0 ? ` · refined list (${month.alreadyNegated.length} already-negated hidden)` : ''}
+                {month.reviewComplete ? ' · Locked until unchecked' : ''}
               </div>
             </div>
             <div style={{ padding: 10, display: 'grid', gap: 10 }}>
@@ -1177,6 +1179,22 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
               {month.terms.length === 0 && month.diagnostics && (
                 <div style={{ fontSize: 12, color: 'var(--theme-elevation-500)', lineHeight: 1.45 }}>
                   Growth Tools rows: {month.diagnostics.rawRows ?? 0}; parsed terms: {month.diagnostics.parsedTerms ?? 0}; qualifying terms: {month.diagnostics.qualifiedTerms ?? 0}.
+                </div>
+              )}
+              {isFocused && showAlreadyNegated && month.alreadyNegated.length > 0 && (
+                <div style={{ border: '1px solid #c7d2fe', borderRadius: 8, background: '#eef2ff', display: 'grid', gap: 4, padding: 10 }}>
+                  <p style={{ margin: '0 0 4px', fontSize: 11, color: '#3730a3' }}>
+                    <strong>Already negated ({month.alreadyNegated.length})</strong> — filtered out because an earlier-month negative on a
+                    brand / competitor / account-wide list already covers them. The terms below are the refined list still needing review.
+                  </p>
+                  {month.alreadyNegated.map(({ term, negative }) => (
+                    <div key={`${term.term}|${negative.keyword}|${negative.matchType}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{term.term}</span>
+                      <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+                        {negative.keyword} ({matchTypeLabel(negative.matchType)}) · {negative.listName}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
               {month.terms.map((term) => {
@@ -1315,21 +1333,6 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                   </div>
                 )
               })}
-              {isFocused && showAlreadyNegated && month.alreadyNegated.length > 0 && (
-                <div style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 8, background: 'var(--theme-elevation-50)', display: 'grid', gap: 4, padding: 10 }}>
-                  <p style={{ margin: '0 0 4px', fontSize: 11, color: 'var(--theme-elevation-500)' }}>
-                    Already negated ({month.alreadyNegated.length}) — hidden because an earlier-month negative on a brand / competitor / account-wide list already covers them.
-                  </p>
-                  {month.alreadyNegated.map(({ term, negative }) => (
-                    <div key={`${term.term}|${negative.keyword}|${negative.matchType}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>{term.term}</span>
-                      <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>
-                        {negative.keyword} ({matchTypeLabel(negative.matchType)}) · {negative.listName}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </section>
           )
