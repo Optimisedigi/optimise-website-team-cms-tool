@@ -4252,6 +4252,29 @@ export async function runMigrations(
     await run("mtvc.offending_words", "ALTER TABLE `match_type_violation_candidates` ADD `offending_words` text");
     await run("mtvc.nearest_keyword", "ALTER TABLE `match_type_violation_candidates` ADD `nearest_keyword` text");
 
+    // ── FIX (2026-06-11): assigned-list relationship column name mismatch ──
+    // The original table-creation sweep named the `assignedListId` relationship
+    // column `assigned_list_id`, but Payload's SQLite adapter expects
+    // `assigned_list_id_id` (field name + `_id` FK suffix). With the wrong name
+    // EVERY Payload ORM read/write on this table throws `no such column:
+    // assigned_list_id_id`, so the Match Type Violations review couldn't load,
+    // and Approve/Dismiss silently failed (the row reappeared on refresh).
+    // Add the correctly-named column and backfill from the legacy one. The old
+    // `assigned_list_id` column is left in place (SQLite can't drop it cleanly
+    // and Payload ignores unknown columns).
+    await run(
+      "mtvc.assigned_list_id_id",
+      "ALTER TABLE `match_type_violation_candidates` ADD `assigned_list_id_id` integer REFERENCES `negative_keyword_lists`(`id`) ON UPDATE no action ON DELETE set null",
+    );
+    await run(
+      "mtvc.assigned_list_id_id.backfill",
+      "UPDATE `match_type_violation_candidates` SET `assigned_list_id_id` = `assigned_list_id` WHERE `assigned_list_id_id` IS NULL AND `assigned_list_id` IS NOT NULL",
+    );
+    await run(
+      "mtvc_assigned_list_idx",
+      "CREATE INDEX IF NOT EXISTS `match_type_violation_candidates_assigned_list_idx` ON `match_type_violation_candidates` (`assigned_list_id_id`)",
+    );
+
     // ── Match-type monitor per-client scope controls (2026-06-09) ──
     await run("clients.gadsAuto_matchTypeMonitorExact", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_exact` integer DEFAULT true");
     await run("clients.gadsAuto_matchTypeMonitorPhrase", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_phrase` integer DEFAULT true");

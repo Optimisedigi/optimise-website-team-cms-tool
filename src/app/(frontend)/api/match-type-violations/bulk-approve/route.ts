@@ -110,6 +110,8 @@ export async function POST(req: NextRequest) {
   }
 
   const listNames: string[] = [];
+  let persisted = 0;
+  let failedToPersist = 0;
   for (const [listId, bucket] of perList) {
     const nkl = await payload.findByID({
       collection: "negative-keyword-lists",
@@ -139,7 +141,7 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
     });
 
-    await Promise.allSettled(
+    const statusUpdates = await Promise.allSettled(
       bucket.candidateIds.map((id) =>
         (payload.update as any)({
           collection: "match-type-violation-candidates",
@@ -153,6 +155,22 @@ export async function POST(req: NextRequest) {
           overrideAccess: true,
         }),
       ),
+    );
+    // Track whether candidate status actually flipped to `approved`. A failure
+    // here (e.g. schema drift) must not be reported as a successful approval,
+    // otherwise the row reappears as pending on the next refresh.
+    for (const u of statusUpdates) {
+      if (u.status === "fulfilled") persisted++;
+      else failedToPersist++;
+    }
+  }
+
+  // The negatives were written to the list(s), but if no candidate status could
+  // be persisted the review queue would re-surface them — surface that as an error.
+  if (persisted === 0 && failedToPersist > 0) {
+    return NextResponse.json(
+      { error: "Approved negatives were saved but candidate statuses could not be updated", persisted, failedToPersist },
+      { status: 500 },
     );
   }
 
@@ -172,7 +190,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    approved: toApprove.length,
+    approved: persisted,
+    failedToPersist,
     createdLists,
     results: results.map((r) =>
       r.status === "fulfilled" ? r.value : { status: "error", reason: r.status },

@@ -112,6 +112,7 @@ import * as migration_20260708_120000_add_monthly_keyword_review_dismissed_field
 import * as migration_20260709_120000_add_monthly_keyword_outcome_fields from './20260709_120000_add_monthly_keyword_outcome_fields';
 import * as migration_20260710_120000_add_client_pulse_analytics_metrics from './20260710_120000_add_client_pulse_analytics_metrics';
 import * as migration_20260711_120000_add_client_pulse_history from './20260711_120000_add_client_pulse_history';
+import * as migration_20260711_130000_fix_mtvc_assigned_list_relationship_column from './20260711_130000_fix_mtvc_assigned_list_relationship_column';
 
 export const migrations = [
   {
@@ -683,5 +684,10 @@ export const migrations = [
     up: migration_20260711_120000_add_client_pulse_history.up,
     down: migration_20260711_120000_add_client_pulse_history.down,
     name: '20260711_120000_add_client_pulse_history'
+  },
+  {
+    up: migration_20260711_130000_fix_mtvc_assigned_list_relationship_column.up,
+    down: migration_20260711_130000_fix_mtvc_assigned_list_relationship_column.down,
+    name: '20260711_130000_fix_mtvc_assigned_list_relationship_column'
   },
 ];

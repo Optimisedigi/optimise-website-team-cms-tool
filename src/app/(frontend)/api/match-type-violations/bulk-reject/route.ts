@@ -34,6 +34,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   let firstCandidate: any = null;
   let dismissed = 0;
+  let failed = 0;
 
   const results = await Promise.allSettled(
     candidateIds.map(async (id) => {
@@ -49,18 +50,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         return { id, status: "already_processed" };
       }
 
-      await (payload.update as any)({
-        collection: "match-type-violation-candidates",
-        id,
-        data: { status: "rejected", rejectedAt: now },
-        overrideAccess: true,
-      });
+      try {
+        await (payload.update as any)({
+          collection: "match-type-violation-candidates",
+          id,
+          data: { status: "rejected", rejectedAt: now },
+          overrideAccess: true,
+        });
+      } catch (err) {
+        // Surface write failures instead of swallowing them — a silent failure
+        // here is exactly what made dismissed rows reappear on refresh.
+        failed++;
+        return { id, status: "error", reason: err instanceof Error ? err.message : String(err) };
+      }
 
       if (!firstCandidate) firstCandidate = candidate;
       dismissed++;
       return { id, status: "ok" };
     }),
   );
+
+  // If every eligible candidate failed to persist, report an error so the UI
+  // doesn't optimistically clear rows that are still pending in the database.
+  if (dismissed === 0 && failed > 0) {
+    return NextResponse.json(
+      { error: "Failed to dismiss any candidates", dismissed, failed },
+      { status: 500 },
+    );
+  }
 
   if (dismissed > 0) {
     await logActivity(payload, {
@@ -79,6 +96,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     ok: true,
     dismissed,
+    failed,
     results: results.map((r) =>
       r.status === "fulfilled" ? r.value : { status: "error", reason: String(r.reason) },
     ),
