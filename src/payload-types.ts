@@ -5854,6 +5854,7 @@ export interface ActivityLog {
     | 'match_type_violation_sync'
     | 'match_type_violation_approved'
     | 'match_type_violation_rejected'
+    | 'match_type_violation_keyword_added'
     | 'monthly_negative_needs_review';
   title: string;
   description?: string | null;
@@ -8086,6 +8087,14 @@ export interface MatchTypeViolationCandidate {
   assignedListId?: (number | null) | NegativeKeywordList;
   approvedAt?: string | null;
   rejectedAt?: string | null;
+  /**
+   * When this dismissed term was actioned from the Dismissed tab (added as an exact keyword, found to already exist, or skipped)
+   */
+  addedAsKeywordAt?: string | null;
+  /**
+   * Result of actioning this dismissed term from the Dismissed tab
+   */
+  addedAsKeywordOutcome?: ('added' | 'already_exists' | 'skipped') | null;
   approvedBy?: (number | null) | User;
   /**
    * Most recent cron run that flagged this term
@@ -11161,6 +11170,8 @@ export interface MatchTypeViolationCandidatesSelect<T extends boolean = true> {
   assignedListId?: T;
   approvedAt?: T;
   rejectedAt?: T;
+  addedAsKeywordAt?: T;
+  addedAsKeywordOutcome?: T;
   approvedBy?: T;
   lastSeenAt?: T;
   firstSeenAt?: T;

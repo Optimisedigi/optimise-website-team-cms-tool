@@ -114,6 +114,7 @@ import * as migration_20260710_120000_add_client_pulse_analytics_metrics from '.
 import * as migration_20260711_120000_add_client_pulse_history from './20260711_120000_add_client_pulse_history';
 import * as migration_20260711_130000_fix_mtvc_assigned_list_relationship_column from './20260711_130000_fix_mtvc_assigned_list_relationship_column';
 import * as migration_20260711_140000_null_empty_mtvc_recommended_match_type from './20260711_140000_null_empty_mtvc_recommended_match_type';
+import * as migration_20260712_120000_add_mtvc_added_as_keyword_fields from './20260712_120000_add_mtvc_added_as_keyword_fields';
 
 export const migrations = [
   {
@@ -695,5 +696,10 @@ export const migrations = [
     up: migration_20260711_140000_null_empty_mtvc_recommended_match_type.up,
     down: migration_20260711_140000_null_empty_mtvc_recommended_match_type.down,
     name: '20260711_140000_null_empty_mtvc_recommended_match_type'
+  },
+  {
+    up: migration_20260712_120000_add_mtvc_added_as_keyword_fields.up,
+    down: migration_20260712_120000_add_mtvc_added_as_keyword_fields.down,
+    name: '20260712_120000_add_mtvc_added_as_keyword_fields'
   },
 ];

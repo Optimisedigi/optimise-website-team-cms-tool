@@ -190,6 +190,29 @@ export const MatchTypeViolationCandidates: CollectionConfig = {
       },
     },
     {
+      name: "addedAsKeywordAt",
+      type: "date",
+      label: "Added As Keyword At",
+      admin: {
+        date: { pickerAppearance: "dayAndTime" },
+        description:
+          "When this dismissed term was actioned from the Dismissed tab (added as an exact keyword, found to already exist, or skipped)",
+      },
+    },
+    {
+      name: "addedAsKeywordOutcome",
+      type: "select",
+      label: "Added As Keyword Outcome",
+      options: [
+        { label: "Added as exact keyword", value: "added" },
+        { label: "Already an exact keyword", value: "already_exists" },
+        { label: "Skipped", value: "skipped" },
+      ],
+      admin: {
+        description: "Result of actioning this dismissed term from the Dismissed tab",
+      },
+    },
+    {
       name: "approvedBy",
       type: "relationship",
       relationTo: "users",

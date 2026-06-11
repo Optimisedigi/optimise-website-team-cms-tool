@@ -225,8 +225,6 @@ export default function MatchTypeViolationReview({
   const [filterStatus, setFilterStatus] = useState('pending')
   const [filterMatchType, setFilterMatchType] = useState('')
   const [filterViolationType, setFilterViolationType] = useState('')
-  const [page, setPage] = useState(1)
-  const limit = 50
 
   // Bulk selection
   const [selected, setSelected] = useState<Set<string | number>>(new Set())
@@ -277,6 +275,17 @@ export default function MatchTypeViolationReview({
       return next
     })
 
+  // Bulk-set the negative match type for every pending row (keywords untouched).
+  const setAllMatchTypes = (matchType: NegMatchType) =>
+    setEdits((prev) => {
+      const next = new Map(prev)
+      for (const c of candidates) {
+        if (c.status !== 'pending') continue
+        next.set(c.id, { ...negativeFor(c), matchType })
+      }
+      return next
+    })
+
   // Fetch total sync run count from activity log
   useEffect(() => {
     ;(async () => {
@@ -290,21 +299,34 @@ export default function MatchTypeViolationReview({
     })()
   }, [])
 
+  // Load every page up front so the table is one continuous scrollable list
+  // (no Previous/Next pagination).
   const fetchCandidates = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const params = new URLSearchParams({ limit: String(limit), page: String(page) })
-    if (filterClient) params.set('client', filterClient)
-    if (filterStatus) params.set('status', filterStatus)
-    if (filterMatchType) params.set('matchType', filterMatchType)
-    if (filterViolationType) params.set('violationType', filterViolationType)
+    const baseParams = new URLSearchParams({ limit: '100' })
+    if (filterClient) baseParams.set('client', filterClient)
+    if (filterStatus) baseParams.set('status', filterStatus)
+    if (filterMatchType) baseParams.set('matchType', filterMatchType)
+    if (filterViolationType) baseParams.set('violationType', filterViolationType)
 
     try {
-      const res = await fetch(`/api/match-type-violations?${params}`)
-      if (!res.ok) throw new Error(await res.text())
-      const data: ListResponse = await res.json()
-      setCandidates(data.docs)
-      setTotalDocs(data.totalDocs)
+      const all: Candidate[] = []
+      let pageNum = 1
+      let total = 0
+      // Hard cap of 50 pages (5,000 rows) as a runaway guard.
+      for (; pageNum <= 50; pageNum++) {
+        const params = new URLSearchParams(baseParams)
+        params.set('page', String(pageNum))
+        const res = await fetch(`/api/match-type-violations?${params}`)
+        if (!res.ok) throw new Error(await res.text())
+        const data: ListResponse = await res.json()
+        all.push(...data.docs)
+        total = data.totalDocs
+        if (pageNum >= data.totalPages) break
+      }
+      setCandidates(all)
+      setTotalDocs(total)
       setSelected(new Set())
       setEdits(new Map())
     } catch (e: any) {
@@ -312,7 +334,7 @@ export default function MatchTypeViolationReview({
     } finally {
       setLoading(false)
     }
-  }, [filterClient, filterStatus, filterMatchType, filterViolationType, page])
+  }, [filterClient, filterStatus, filterMatchType, filterViolationType])
 
   const fetchNklLists = useCallback(async () => {
     const clientId = filterClient
@@ -451,8 +473,6 @@ export default function MatchTypeViolationReview({
     (c) => selected.has(c.id) && c.status === 'pending',
   )
 
-  const totalPages = Math.ceil(totalDocs / limit)
-
   return (
     <div className="mtv-review-root" style={{ padding: '0 15px 32px' }}>
       {/* Header */}
@@ -526,25 +546,25 @@ export default function MatchTypeViolationReview({
         padding: '12px 16px', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb',
       }}>
         {!initialClientId && (
-          <select value={filterClient} onChange={(e) => { setFilterClient(e.target.value); setPage(1) }}
+          <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)}
             style={filterStyle()}>
             <option value="">All Clients</option>
           </select>
         )}
-        <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }}
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
           style={filterStyle()}>
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
-        <select value={filterMatchType} onChange={(e) => { setFilterMatchType(e.target.value); setPage(1) }}
+        <select value={filterMatchType} onChange={(e) => setFilterMatchType(e.target.value)}
           style={filterStyle()}>
           <option value="">All Match Types</option>
           <option value="EXACT">Exact</option>
           <option value="PHRASE">Phrase</option>
         </select>
-        <select value={filterViolationType} onChange={(e) => { setFilterViolationType(e.target.value); setPage(1) }}
+        <select value={filterViolationType} onChange={(e) => setFilterViolationType(e.target.value)}
           style={filterStyle()}>
           <option value="">All Violation Types</option>
           <option value="exact_close_variant">Exact Close Variant</option>
@@ -554,7 +574,7 @@ export default function MatchTypeViolationReview({
           <button onClick={() => {
             if (!initialClientId) setFilterClient('')
             setFilterStatus('pending'); setFilterMatchType('')
-            setFilterViolationType(''); setPage(1)
+            setFilterViolationType('')
           }} style={{ ...btnStyle('ghost'), fontSize: 12 }}>
             Clear Filters
           </button>
@@ -616,7 +636,27 @@ export default function MatchTypeViolationReview({
                 {isVisible('triggeringKeyword') && <th style={thStyle()}>Triggering Keyword</th>}
                 {isVisible('matchType') && <th style={thStyle()}>Match Type</th>}
                 {isVisible('violation') && <th style={thStyle()}>Violation</th>}
-                <th style={thStyle()}>Negative To Add</th>
+                <th style={thStyle()}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    Negative To Add
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) setAllMatchTypes(e.target.value as NegMatchType)
+                      }}
+                      title="Set the match type for all pending rows"
+                      style={{
+                        padding: '2px 4px', border: '1px solid #d1d5db', borderRadius: 4,
+                        fontSize: 10, background: 'white', color: '#374151',
+                        textTransform: 'none', fontWeight: 400, cursor: 'pointer',
+                      }}
+                    >
+                      <option value="">Set all…</option>
+                      <option value="phrase">All Phrase</option>
+                      <option value="exact">All Exact</option>
+                    </select>
+                  </div>
+                </th>
                 {isVisible('impressions') && <th style={thStyle()} title="Impressions">Impr</th>}
                 {isVisible('clicks') && <th style={thStyle()}>Clicks</th>}
                 {isVisible('campaign') && <th style={thStyle()}>Campaign</th>}
@@ -759,20 +799,10 @@ export default function MatchTypeViolationReview({
         </div>
       )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-          <span style={{ fontSize: 13, color: '#6b7280' }}>
-            {totalDocs} total · Page {page} of {totalPages}
-          </span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} style={btnStyle('ghost')}>
-              Previous
-            </button>
-            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={btnStyle('ghost')}>
-              Next
-            </button>
-          </div>
+      {/* Row count */}
+      {!loading && candidates.length > 0 && (
+        <div style={{ marginTop: 12, fontSize: 13, color: '#6b7280' }}>
+          Showing all {totalDocs} candidate{totalDocs !== 1 ? 's' : ''}
         </div>
       )}
 

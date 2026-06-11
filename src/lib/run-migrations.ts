@@ -4308,6 +4308,19 @@ export async function runMigrations(
       "UPDATE `match_type_violation_candidates` SET `recommended_match_type` = NULL WHERE `recommended_match_type` = ''",
     );
 
+    // ── Dismissed-tab tracking fields (2026-06-12) ──
+    // The Match Type Variants Dismissed tab actions rejected candidates
+    // (add the term as an EXACT keyword / already exists / skipped) and
+    // stamps the outcome here so actioned rows stop appearing in the tab.
+    await run(
+      "mtvc.added_as_keyword_at",
+      "ALTER TABLE `match_type_violation_candidates` ADD `added_as_keyword_at` text",
+    );
+    await run(
+      "mtvc.added_as_keyword_outcome",
+      "ALTER TABLE `match_type_violation_candidates` ADD `added_as_keyword_outcome` text",
+    );
+
     // ── Match-type monitor per-client scope controls (2026-06-09) ──
     await run("clients.gadsAuto_matchTypeMonitorExact", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_exact` integer DEFAULT true");
     await run("clients.gadsAuto_matchTypeMonitorPhrase", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_phrase` integer DEFAULT true");

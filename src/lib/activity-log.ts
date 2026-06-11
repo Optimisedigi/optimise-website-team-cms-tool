@@ -51,6 +51,7 @@ type ActivityType =
   | "match_type_violation_sync"
   | "match_type_violation_approved"
   | "match_type_violation_rejected"
+  | "match_type_violation_keyword_added"
   | "consolidation_approved"
   | "consolidation_rejected"
   | "monthly_negative_needs_review"

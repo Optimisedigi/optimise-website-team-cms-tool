@@ -3,8 +3,9 @@
 import { useAllFormFields, useDocumentInfo } from '@payloadcms/ui'
 import { useCallback, useEffect, useState } from 'react'
 import MatchTypeViolationReview from './match-type-violations/MatchTypeViolationReview'
+import DismissedKeywordReview from './match-type-violations/DismissedKeywordReview'
 
-type TabKey = 'violations' | 'consolidations'
+type TabKey = 'violations' | 'consolidations' | 'dismissed'
 
 type RelationshipValue = string | number | { id?: string | number; value?: string | number } | null | undefined
 
@@ -247,10 +248,15 @@ export default function GoogleAdsMatchTypeVariants() {
         <button onClick={() => setActiveTab('consolidations')} style={{ padding: '10px 14px', border: 'none', borderBottom: activeTab === 'consolidations' ? '2px solid #2563eb' : '2px solid transparent', background: 'transparent', color: activeTab === 'consolidations' ? '#2563eb' : '#4b5563', fontWeight: 600, cursor: 'pointer' }}>
           Consolidation candidates
         </button>
+        <button onClick={() => setActiveTab('dismissed')} style={{ padding: '10px 14px', border: 'none', borderBottom: activeTab === 'dismissed' ? '2px solid #2563eb' : '2px solid transparent', background: 'transparent', color: activeTab === 'dismissed' ? '#2563eb' : '#4b5563', fontWeight: 600, cursor: 'pointer' }}>
+          Dismissed
+        </button>
       </div>
 
       {activeTab === 'violations' ? (
         clientId ? <MatchTypeViolationReview initialClientId={clientId} /> : <div style={{ margin: '0 24px', padding: 24, border: '1px solid #fcd34d', borderRadius: 8, background: '#fef3c7', color: '#92400e' }}>Save or link this record to a client to view match type violations.</div>
+      ) : activeTab === 'dismissed' ? (
+        <DismissedKeywordReview clientId={clientId} />
       ) : (
         <ConsolidationReview clientId={clientId} />
       )}
