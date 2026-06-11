@@ -23,12 +23,17 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
+        env:
+          # tsc OOMs on the runner's default ~2GB heap for a project this size
+          # (73 collections + generated payload-types). ubuntu-latest has 16GB.
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Build
         run: npm run build
         env:
           PAYLOAD_SECRET: ci-placeholder-secret-not-real
           DATABASE_URL: file:./ci-test.db
+          NODE_OPTIONS: --max-old-space-size=8192
 
   migrate:
     needs: build
