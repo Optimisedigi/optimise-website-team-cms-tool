@@ -9,6 +9,7 @@ import {
   pinGateFocusedInputStyle,
   pinGateInputStyle,
 } from "@/components/PinGateFrame";
+import { usePinDigitClick } from "@/components/usePinDigitClick";
 import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData } from "@/lib/dashboard-types";
 
 interface DashboardClientProps {
@@ -105,37 +106,7 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const audioContextRef = useRef<AudioContext | null>(null);
-
-  const playDigitClick = useCallback(() => {
-    const audioWindow = window as Window & typeof globalThis & {
-      webkitAudioContext?: typeof AudioContext;
-    };
-    const AudioContextCtor = audioWindow.AudioContext || audioWindow.webkitAudioContext;
-    if (!AudioContextCtor) return;
-
-    const audioContext = audioContextRef.current ?? new AudioContextCtor();
-    audioContextRef.current = audioContext;
-    if (audioContext.state === "suspended") {
-      void audioContext.resume().catch(() => {});
-    }
-
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    const now = audioContext.currentTime;
-
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(880, now);
-    oscillator.frequency.exponentialRampToValueAtTime(440, now + 0.035);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.004);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
-
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.05);
-  }, []);
+  const playDigitClick = usePinDigitClick();
 
   const submit = useCallback(
     async (pin: string) => {
@@ -178,12 +149,11 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
     (index: number, value: string) => {
       const digit = value.replace(/\D/g, "").slice(-1);
       const next = [...digits];
-      const previousDigit = next[index];
       next[index] = digit;
       setDigits(next);
       setError("");
 
-      if (digit && digit !== previousDigit) {
+      if (digit) {
         playDigitClick();
       }
 

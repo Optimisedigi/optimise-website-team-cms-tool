@@ -7,6 +7,7 @@ import {
   pinGateFocusedInputStyle,
   pinGateInputStyle,
 } from '@/components/PinGateFrame'
+import { usePinDigitClick } from '@/components/usePinDigitClick'
 
 export default function MockupViewer({
   businessName,
@@ -20,6 +21,7 @@ export default function MockupViewer({
   const [loading, setLoading] = useState(false)
   const [mockupUrl, setMockupUrl] = useState<string | null>(null)
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const playDigitClick = usePinDigitClick()
 
   const verifyPin = useCallback(async (pinValue: string) => {
     setError('')
@@ -67,11 +69,12 @@ export default function MockupViewer({
     next[index] = digit
     setDigits(next)
     setError('')
+    if (digit) playDigitClick()
     if (digit && index < 3) inputRefs.current[index + 1]?.focus()
     if (digit && index === 3 && next.every((d) => d !== '')) {
       verifyPin(next.join(''))
     }
-  }, [digits, verifyPin])
+  }, [digits, playDigitClick, verifyPin])
 
   const handleKeyDown = useCallback((index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Backspace' && !digits[index] && index > 0) {
@@ -87,9 +90,10 @@ export default function MockupViewer({
     for (let i = 0; i < pasted.length; i++) next[i] = pasted[i]
     setDigits(next)
     setError('')
+    for (let i = 0; i < pasted.length; i++) window.setTimeout(playDigitClick, i * 45)
     if (pasted.length === 4) verifyPin(pasted)
     else inputRefs.current[pasted.length]?.focus()
-  }, [verifyPin])
+  }, [playDigitClick, verifyPin])
 
   useEffect(() => {
     inputRefs.current[0]?.focus()

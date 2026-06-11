@@ -3,6 +3,7 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PinGateLogo from "@/components/PinGateLogo";
+import { usePinDigitClick } from "@/components/usePinDigitClick";
 
 interface DashboardPinEntryProps {
   /** Where to redirect on success, e.g. "/dashboard/berendsen" */
@@ -20,6 +21,7 @@ export function DashboardPinEntry({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const playDigitClick = usePinDigitClick();
 
   const submit = useCallback(
     async (pin: string) => {
@@ -65,6 +67,10 @@ export function DashboardPinEntry({
       setDigits(next);
       setError("");
 
+      if (digit) {
+        playDigitClick();
+      }
+
       if (digit && index < 3) {
         inputRefs.current[index + 1]?.focus();
       }
@@ -73,7 +79,7 @@ export function DashboardPinEntry({
         submit(next.join(""));
       }
     },
-    [digits, submit],
+    [digits, playDigitClick, submit],
   );
 
   const handleKeyDown = useCallback(
@@ -97,6 +103,9 @@ export function DashboardPinEntry({
       }
       setDigits(next);
       setError("");
+      for (let i = 0; i < pasted.length; i++) {
+        window.setTimeout(playDigitClick, i * 45);
+      }
 
       if (pasted.length === 4) {
         submit(pasted);
@@ -104,7 +113,7 @@ export function DashboardPinEntry({
         inputRefs.current[pasted.length]?.focus();
       }
     },
-    [submit],
+    [playDigitClick, submit],
   );
 
   useEffect(() => {

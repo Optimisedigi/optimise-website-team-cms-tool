@@ -10,6 +10,7 @@ import {
   pinGateFocusedInputStyle,
   pinGateInputStyle,
 } from "@/components/PinGateFrame";
+import { usePinDigitClick } from "@/components/usePinDigitClick";
 import "./client-hub.css";
 
 export function ClientHubClient({ slug }: { slug: string }): React.ReactElement {
@@ -21,6 +22,7 @@ export function ClientHubClient({ slug }: { slug: string }): React.ReactElement 
   const [requestMessage, setRequestMessage] = useState("");
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const playDigitClick = usePinDigitClick();
 
   const loadHubWithPin = useCallback(async (pinValue: string): Promise<void> => {
     setError("");
@@ -54,11 +56,12 @@ export function ClientHubClient({ slug }: { slug: string }): React.ReactElement 
     next[index] = digit;
     setDigits(next);
     setError("");
+    if (digit) playDigitClick();
     if (digit && index < 3) inputRefs.current[index + 1]?.focus();
     if (digit && index === 3 && next.every((d) => d !== "")) {
       void loadHubWithPin(next.join(""));
     }
-  }, [digits, loadHubWithPin]);
+  }, [digits, loadHubWithPin, playDigitClick]);
 
   const handleKeyDown = useCallback((index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Backspace" && !digits[index] && index > 0) {
@@ -74,9 +77,10 @@ export function ClientHubClient({ slug }: { slug: string }): React.ReactElement 
     for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
     setDigits(next);
     setError("");
+    for (let i = 0; i < pasted.length; i++) window.setTimeout(playDigitClick, i * 45);
     if (pasted.length === 4) void loadHubWithPin(pasted);
     else inputRefs.current[pasted.length]?.focus();
-  }, [loadHubWithPin]);
+  }, [loadHubWithPin, playDigitClick]);
 
   useEffect(() => {
     if (!hub) inputRefs.current[0]?.focus();

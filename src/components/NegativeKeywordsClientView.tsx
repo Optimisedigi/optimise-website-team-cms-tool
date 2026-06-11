@@ -7,6 +7,7 @@ import {
   pinGateFocusedInputStyle,
   pinGateInputStyle,
 } from "./PinGateFrame";
+import { usePinDigitClick } from "./usePinDigitClick";
 
 interface Keyword {
   index: number;
@@ -52,6 +53,7 @@ export default function NegativeKeywordsClientView({
   const [pinError, setPinError] = useState("");
   const [pinLoading, setPinLoading] = useState(false);
   const pinInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const playDigitClick = usePinDigitClick();
   const [lists, setLists] = useState(initialLists);
   const [flagging, setFlagging] = useState<string | null>(null);
 
@@ -91,9 +93,10 @@ export default function NegativeKeywordsClientView({
     next[index] = digit;
     setDigits(next);
     setPinError("");
+    if (digit) playDigitClick();
     if (digit && index < 3) pinInputRefs.current[index + 1]?.focus();
     if (digit && index === 3 && next.every(d => d !== '')) submitPin(next.join(''));
-  }, [digits, submitPin]);
+  }, [digits, playDigitClick, submitPin]);
 
   const handlePinKeyDown = useCallback((index: number, e: React.KeyboardEvent) => {
     if (e.key === 'Backspace' && !digits[index] && index > 0) pinInputRefs.current[index - 1]?.focus();
@@ -107,9 +110,10 @@ export default function NegativeKeywordsClientView({
     for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
     setDigits(next);
     setPinError("");
+    for (let i = 0; i < pasted.length; i++) window.setTimeout(playDigitClick, i * 45);
     if (pasted.length === 4) submitPin(pasted);
     else pinInputRefs.current[pasted.length]?.focus();
-  }, [submitPin]);
+  }, [playDigitClick, submitPin]);
 
   useEffect(() => { if (!unlocked) pinInputRefs.current[0]?.focus(); }, [unlocked]);
 
