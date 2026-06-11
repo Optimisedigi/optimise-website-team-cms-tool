@@ -61,6 +61,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   const [nkls, setNkls] = useState<Nkl[]>([])
   const [hiddenNklIds, setHiddenNklIds] = useState<Set<string>>(new Set())
   const [activeMonth, setActiveMonth] = useState<string | null>(null)
+  const [showAlreadyNegated, setShowAlreadyNegated] = useState(false)
   const [activeTab, setActiveTab] = useState<'months' | 'review' | 'submitted' | 'removed'>('months')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1139,6 +1140,14 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                 <strong>{monthLabel(month.month)}</strong>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button type="button" onClick={() => setActiveMonth(isFocused ? null : month.month)} style={{ padding: '4px 8px', fontSize: 12 }}>{isFocused ? 'Close' : 'Edit month'}</button>
+                  {isFocused && month.alreadyNegated.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAlreadyNegated((current) => !current)}
+                      title="Show search terms already covered by a brand / competitor / account-wide negative added in an earlier month"
+                      style={{ padding: '4px 8px', fontSize: 12, whiteSpace: 'nowrap', color: showAlreadyNegated ? '#3730a3' : undefined, borderColor: showAlreadyNegated ? '#a5b4fc' : undefined, background: showAlreadyNegated ? '#e0e7ff' : undefined }}
+                    >{showAlreadyNegated ? 'Hide' : 'Show'} already negated ({month.alreadyNegated.length})</button>
+                  )}
                   <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
                     <input type="checkbox" checked={month.reviewComplete} onChange={(event) => void toggleComplete(month.month, event.target.checked)} />
                     {month.reviewComplete ? '✓ Complete' : 'Complete'}
@@ -1306,25 +1315,20 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                   </div>
                 )
               })}
-              {isFocused && month.alreadyNegated.length > 0 && (
-                <details style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 8, background: 'var(--theme-elevation-50)' }}>
-                  <summary style={{ cursor: 'pointer', padding: '8px 10px', fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-600)' }}>
-                    Already negated ({month.alreadyNegated.length})
-                  </summary>
-                  <div style={{ display: 'grid', gap: 4, padding: '0 10px 10px' }}>
-                    <p style={{ margin: '0 0 4px', fontSize: 11, color: 'var(--theme-elevation-500)' }}>
-                      Hidden because an earlier-month negative on a brand / competitor / account-wide list already covers them.
-                    </p>
-                    {month.alreadyNegated.map(({ term, negative }) => (
-                      <div key={`${term.term}|${negative.keyword}|${negative.matchType}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
-                        <span style={{ fontSize: 12, fontWeight: 600 }}>{term.term}</span>
-                        <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>
-                          {negative.keyword} ({matchTypeLabel(negative.matchType)}) · {negative.listName}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </details>
+              {isFocused && showAlreadyNegated && month.alreadyNegated.length > 0 && (
+                <div style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 8, background: 'var(--theme-elevation-50)', display: 'grid', gap: 4, padding: 10 }}>
+                  <p style={{ margin: '0 0 4px', fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+                    Already negated ({month.alreadyNegated.length}) — hidden because an earlier-month negative on a brand / competitor / account-wide list already covers them.
+                  </p>
+                  {month.alreadyNegated.map(({ term, negative }) => (
+                    <div key={`${term.term}|${negative.keyword}|${negative.matchType}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{term.term}</span>
+                      <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+                        {negative.keyword} ({matchTypeLabel(negative.matchType)}) · {negative.listName}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </section>
