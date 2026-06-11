@@ -5,7 +5,7 @@ import { headers as nextHeaders } from "next/headers";
 import { fetchGa4Report, ensureValidToken } from "@/lib/ga4-service";
 
 /**
- * GET /api/ga4/query?clientId=X&period=30d|90d|12m
+ * GET /api/ga4/query?clientId=X&period=7d|30d|90d|12m
  * Fetches live GA4 data for a client (or Optimise Digital by default).
  */
 export async function GET(req: NextRequest) {
@@ -76,6 +76,8 @@ export async function GET(req: NextRequest) {
 
     if (period === "7d") {
       startDate = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
+    } else if (period === "30d") {
+      startDate = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
     } else if (period === "90d") {
       startDate = new Date(now.getTime() - 90 * 86400000).toISOString().slice(0, 10);
     } else if (period === "12m") {
@@ -83,9 +85,7 @@ export async function GET(req: NextRequest) {
       d.setMonth(d.getMonth() - 12);
       startDate = d.toISOString().slice(0, 10);
     } else {
-      const d = new Date(now);
-      d.setMonth(d.getMonth() - 12);
-      startDate = d.toISOString().slice(0, 10);
+      startDate = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
     }
 
     const report = await fetchGa4Report(
@@ -100,6 +100,7 @@ export async function GET(req: NextRequest) {
       clientId: client.id,
       clientName: client.name,
       propertyId: client.ga4PropertyId,
+      refreshedAt: now.toISOString(),
       ...report,
     });
   } catch (err) {

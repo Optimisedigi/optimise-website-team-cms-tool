@@ -53,6 +53,7 @@ interface Ga4Report {
   daily?: DailyData[]
   periodStart?: string
   periodEnd?: string
+  refreshedAt?: string
 }
 
 const PERIODS = [
@@ -71,6 +72,7 @@ export default function Ga4PerformancePage() {
   const [period, setPeriod] = useState<PeriodValue>("30d")
   const [data, setData] = useState<Ga4Report | null>(null)
   const [loading, setLoading] = useState(false)
+  const [refreshNonce, setRefreshNonce] = useState(0)
 
   // Load clients
   useEffect(() => {
@@ -85,15 +87,15 @@ export default function Ga4PerformancePage() {
       .finally(() => setClientsLoaded(true))
   }, [])
 
-  // Fetch GA4 data when client or period changes
+  // Fetch GA4 data when client/period changes, or when the manual refresh button is clicked.
   useEffect(() => {
     if (!selectedClient) return
     setLoading(true)
-    fetch(`/api/ga4/query?clientId=${selectedClient}&period=${period}`)
+    fetch(`/api/ga4/query?clientId=${selectedClient}&period=${period}`, { cache: "no-store" })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d) setData(d); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [selectedClient, period])
+  }, [selectedClient, period, refreshNonce])
 
   const formatDuration = (s: number) => {
     const mins = Math.floor(s / 60)
@@ -102,12 +104,26 @@ export default function Ga4PerformancePage() {
   }
 
   const connectedClients = clients.filter((c) => c.ga4Connected)
+  const refreshedAtLabel = data?.refreshedAt
+    ? new Date(data.refreshedAt).toLocaleString("en-AU", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null
 
   return (
     <div style={{ paddingBottom: 40 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Google Analytics</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {refreshedAtLabel && (
+            <span style={{ fontSize: 12, color: "var(--theme-elevation-400)", whiteSpace: "nowrap" }}>
+              Last refreshed {refreshedAtLabel}
+            </span>
+          )}
           {connectedClients.length > 0 && (
             <select
               value={selectedClient}
@@ -126,6 +142,23 @@ export default function Ga4PerformancePage() {
               ))}
             </select>
           )}
+          <button
+            type="button"
+            onClick={() => setRefreshNonce((value) => value + 1)}
+            disabled={!selectedClient || loading}
+            style={{
+              fontSize: 12,
+              padding: "5px 12px",
+              borderRadius: 6,
+              border: "1px solid var(--theme-elevation-150)",
+              background: "transparent",
+              color: "inherit",
+              cursor: !selectedClient || loading ? "not-allowed" : "pointer",
+              opacity: !selectedClient || loading ? 0.55 : 1,
+            }}
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
           <div style={{ display: "flex", gap: 4 }}>
             {PERIODS.map((p) => (
               <button
