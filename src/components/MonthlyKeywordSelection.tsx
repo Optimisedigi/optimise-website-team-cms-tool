@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parseNegativeKeywordInput } from '../lib/parse-negative-keywords'
+import { buildSuppressionNegatives, isQualifyingListName, partitionTermsByNegation, type SuppressionNegative } from '../lib/negative-keyword-suppression'
 
 type MatchType = 'exact' | 'phrase' | 'broad'
 type Decision = 'pending' | 'approved' | 'skipped' | 'watch' | 'needs_review'
@@ -13,7 +14,7 @@ const DEFAULT_WATCH_HORIZON: WatchHorizon = 3
 type Term = { term: string; impressions: number; clicks: number; cost: number; conversions: number; status?: string }
 type Month = { month: string; terms: Term[]; reviewComplete: boolean; reviewCompletedAt?: string | null; diagnostics?: { rawRows?: number; parsedTerms?: number; qualifiedTerms?: number } }
 type Selection = { yearMonth: string; searchTerm: string; rowIndex?: number; negativeKeyword: string; matchType: MatchType; decision: Decision; watchHorizonMonths?: number | null; watchUntil?: string | null; appliedToNKL?: number | string | { id?: number | string } | null; appliedAt?: string | null; appliedBy?: string | null; appliedByUserId?: string | null; removedComment?: string | null; removedBy?: string | null; removedByUserId?: string | null; removedAt?: string | null; decidedBy?: string | null; decidedByUserId?: string | null; reviewDismissedAt?: string | null; reviewDismissedBy?: string | null; reviewComment?: string | null; reviewCommentBy?: string | null; reviewCommentAt?: string | null; reviewCommentTaggedUserIds?: string | null; outcomeType?: string | null; outcomeDetail?: string | null; outcomeComment?: string | null; outcomeBy?: string | null; outcomeByUserId?: string | null; outcomeAt?: string | null }
-type Nkl = { id: number | string; name: string; isActive?: boolean; keywords?: Array<{ keyword: string; matchType: MatchType }> }
+type Nkl = { id: number | string; name: string; isActive?: boolean; keywords?: Array<{ keyword: string; matchType: MatchType; negatedAt?: string | null }> }
 type Teammate = { id: string; label: string }
 
 const OUTCOME_PILL: Record<'Added' | 'Updated' | 'Moved' | 'Removed' | 'Dismissed', { bg: string; fg: string }> = {
@@ -142,6 +143,31 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
     return map
   }, [nkls])
 
+  // Earliest review month a negative (keyword|matchType) was applied in via this
+  // tool, targeting a qualifying list. Used as the establishment month so a
+  // negative only suppresses search terms in *later* review months.
+  const establishedMonthByKey = useMemo(() => {
+    const qualifyingNklIds = new Set(
+      nkls.filter((nkl) => isQualifyingListName(nkl.name)).map((nkl) => String(nkl.id)),
+    )
+    const map = new Map<string, string>()
+    for (const selection of Object.values(selections)) {
+      if (!selection.appliedAt || !selection.appliedToNKL) continue
+      const nklId = typeof selection.appliedToNKL === 'object' ? selection.appliedToNKL?.id : selection.appliedToNKL
+      if (!qualifyingNklIds.has(String(nklId))) continue
+      if (selection.matchType !== 'exact' && selection.matchType !== 'phrase') continue
+      const key = `${selection.negativeKeyword.toLowerCase()}|${selection.matchType}`
+      const current = map.get(key)
+      if (!current || selection.yearMonth < current) map.set(key, selection.yearMonth)
+    }
+    return map
+  }, [nkls, selections])
+
+  const suppressionNegatives = useMemo<SuppressionNegative[]>(
+    () => buildSuppressionNegatives(nkls, establishedMonthByKey),
+    [nkls, establishedMonthByKey],
+  )
+
   const visibleMonths = useMemo(() => {
     const previouslyReviewedTerms = new Set<string>()
     return months.map((month) => {
@@ -160,9 +186,13 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
           previouslyReviewedTerms.add(term.term.trim().toLowerCase())
         }
       }
-      return { ...month, terms }
+      // Hide terms already covered by a phrase/exact negative on a qualifying
+      // list, established in an earlier review month, and surface them in the
+      // collapsed "Already negated" section instead.
+      const { visible, negated } = partitionTermsByNegation(month.month, terms, suppressionNegatives)
+      return { ...month, terms: visible, alreadyNegated: negated }
     })
-  }, [cmsExistingByKeyword, months, selections])
+  }, [cmsExistingByKeyword, months, selections, suppressionNegatives])
 
   useEffect(() => {
     if (loading || visibleMonths.length === 0 || hasAutoScrolledRef.current) return
@@ -456,6 +486,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       negativeKeyword: string
       matchType: MatchType
       type: OutcomeKind
+      // Which canonical field this row's comment is persisted to, so an edit
+      // writes back to the correct single comment field.
+      source: 'outcome' | 'removed' | 'dismissed'
+      rowIndex: number
       pills: OutcomeKind[]
       // detail split for placement: list move/target on the bottom-left, the
       // keyword/match-type before→after on the top-right next to the negative.
@@ -486,6 +520,8 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       let entry: OutcomeEntry
       const base = {
         key: selectionKey(selection.yearMonth, selection.searchTerm, Number(selection.rowIndex ?? 0)),
+        source: newest.source,
+        rowIndex: Number(selection.rowIndex ?? 0),
         yearMonth: selection.yearMonth,
         searchTerm: selection.searchTerm,
         negativeKeyword: selection.negativeKeyword,
@@ -721,6 +757,30 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       [key]: { ...current[key], reviewComment: comment, reviewCommentBy: data.reviewCommentBy, reviewCommentAt: data.reviewCommentAt, reviewCommentTaggedUserIds: taggedUserIds.join(',') },
     }))
     setMessage(data.notified > 0 ? `Comment saved · ${data.notified} teammate${data.notified === 1 ? '' : 's'} notified.` : 'Comment saved.')
+  }, [clientId])
+
+  // Edit the single canonical comment on one Review-outcomes row, persisting to
+  // the field that matches the row's outcome source so it stays a single comment.
+  const saveOutcomeComment = useCallback(async (
+    entry: { yearMonth: string; searchTerm: string; rowIndex: number; source: 'outcome' | 'removed' | 'dismissed' },
+    comment: string,
+  ): Promise<boolean> => {
+    const res = await fetch('/api/monthly-keyword-selection/outcome-comment', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ clientId: Number(clientId), yearMonth: entry.yearMonth, searchTerm: entry.searchTerm, rowIndex: entry.rowIndex, source: entry.source, comment }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setMessage(data?.error || 'Failed to save comment'); return false }
+    const field = entry.source === 'outcome' ? 'outcomeComment' : entry.source === 'removed' ? 'removedComment' : 'reviewComment'
+    const key = selectionKey(entry.yearMonth, entry.searchTerm, entry.rowIndex)
+    setSelections((current) => ({
+      ...current,
+      [key]: { ...current[key], [field]: comment },
+    }))
+    setMessage('Comment saved.')
+    return true
   }, [clientId])
 
   // Dismiss a "needs review" term as feedback: resolves it as skipped (so it
@@ -1038,15 +1098,12 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                         )}
                       </div>
                     )}
-                    {/* Comment (near full width) with attribution on its right. */}
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                      {item.comment
-                        ? (
-                          <div style={{ flex: '1 1 320px', fontSize: 13, padding: '6px 9px', borderRadius: 6, background: '#fff', border: '1px solid #000', color: 'var(--theme-elevation-800)' }}>
-                            <strong>Comment:</strong> {item.comment}
-                          </div>
-                        )
-                        : <span style={{ flex: '1 1 auto' }} />}
+                    {/* Comment (near full width, editable) with attribution. */}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                      <OutcomeCommentEditor
+                        comment={item.comment}
+                        onSave={(comment) => saveOutcomeComment({ yearMonth: item.yearMonth, searchTerm: item.searchTerm, rowIndex: item.rowIndex, source: item.source }, comment)}
+                      />
                       <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)', whiteSpace: 'nowrap', flex: '0 0 auto', textAlign: 'right' }}>{attribution}</span>
                     </div>
                   </div>
@@ -1249,6 +1306,26 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
                   </div>
                 )
               })}
+              {isFocused && month.alreadyNegated.length > 0 && (
+                <details style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 8, background: 'var(--theme-elevation-50)' }}>
+                  <summary style={{ cursor: 'pointer', padding: '8px 10px', fontSize: 12, fontWeight: 600, color: 'var(--theme-elevation-600)' }}>
+                    Already negated ({month.alreadyNegated.length})
+                  </summary>
+                  <div style={{ display: 'grid', gap: 4, padding: '0 10px 10px' }}>
+                    <p style={{ margin: '0 0 4px', fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+                      Hidden because an earlier-month negative on a brand / competitor / account-wide list already covers them.
+                    </p>
+                    {month.alreadyNegated.map(({ term, negative }) => (
+                      <div key={`${term.term}|${negative.keyword}|${negative.matchType}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--theme-elevation-0)', border: '1px solid var(--theme-elevation-100)' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{term.term}</span>
+                        <span style={{ fontSize: 11, color: 'var(--theme-elevation-500)' }}>
+                          {negative.keyword} ({matchTypeLabel(negative.matchType)}) · {negative.listName}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
           </section>
           )
@@ -1518,5 +1595,64 @@ function SubmittedRow({ item, nklId, nklName, nkls, onRemove, onUpdate, onDirtyC
         {captionSpacer}
       </div>
     </div>
+  )
+}
+
+// Editable single comment for a Review-outcomes row. Shows the comment with an
+// Edit affordance, or an "Add comment" button when empty; editing reveals a
+// textarea with Save/Cancel. Persists via the parent's onSave (returns true on
+// success) which writes back to the row's canonical comment field.
+function OutcomeCommentEditor({ comment, onSave }: {
+  comment: string
+  onSave: (comment: string) => Promise<boolean>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(comment)
+  const [saving, setSaving] = useState(false)
+
+  const startEdit = (): void => { setDraft(comment); setEditing(true) }
+  const cancel = (): void => { setDraft(comment); setEditing(false) }
+  const save = async (): Promise<void> => {
+    setSaving(true)
+    try {
+      const ok = await onSave(draft.trim())
+      if (ok) setEditing(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <div style={{ flex: '1 1 320px', display: 'grid', gap: 6 }}>
+        <textarea
+          value={draft}
+          rows={2}
+          autoFocus
+          placeholder="Add a comment for the team…"
+          onChange={(event) => setDraft(event.target.value)}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, resize: 'vertical', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}
+        />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button type="button" onClick={save} disabled={saving || draft.trim() === comment.trim()} style={{ padding: '4px 12px', fontSize: 11 }}>{saving ? 'Saving…' : 'Save'}</button>
+          <button type="button" onClick={cancel} disabled={saving} style={{ padding: '4px 12px', fontSize: 11 }}>Cancel</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (comment) {
+    return (
+      <div style={{ flex: '1 1 320px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <div style={{ flex: '1 1 auto', fontSize: 13, padding: '6px 9px', borderRadius: 6, background: '#fff', border: '1px solid #000', color: 'var(--theme-elevation-800)' }}>
+          <strong>Comment:</strong> {comment}
+        </div>
+        <button type="button" onClick={startEdit} style={{ padding: '4px 10px', fontSize: 11, flex: '0 0 auto' }}>Edit</button>
+      </div>
+    )
+  }
+
+  return (
+    <button type="button" onClick={startEdit} style={{ flex: '0 0 auto', padding: '4px 10px', fontSize: 11 }}>Add comment</button>
   )
 }
