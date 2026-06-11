@@ -1,29 +1,86 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ForecastLab } from "@/components/client-hub/ForecastLab";
 import { OrganicGrowthTracker } from "@/components/client-hub/OrganicGrowthTracker";
 import { ValueLedger } from "@/components/client-hub/ValueLedger";
+import {
+  PinGateFrame,
+  pinGateBlurredInputStyle,
+  pinGateFocusedInputStyle,
+  pinGateInputStyle,
+} from "@/components/PinGateFrame";
 import "./client-hub.css";
 
 export function ClientHubClient({ slug }: { slug: string }): React.ReactElement {
   const [pin, setPin] = useState("");
+  const [digits, setDigits] = useState(["", "", "", ""]);
   const [hub, setHub] = useState<Record<string, any> | null>(null);
   const [error, setError] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
   const [submittingRequest, setSubmittingRequest] = useState(false);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const loadHubWithPin = useCallback(async (pinValue: string): Promise<void> => {
+    setError("");
+    setPinLoading(true);
+    try {
+      const res = await fetch(`/api/client-hub/${slug}?pin=${encodeURIComponent(pinValue)}`);
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setError(json.error || "Could not load client hub");
+        return;
+      }
+      setPin(pinValue);
+      setHub(json.hub);
+    } catch {
+      setError("Could not load client hub");
+    } finally {
+      setPinLoading(false);
+      setDigits(["", "", "", ""]);
+      inputRefs.current[0]?.focus();
+    }
+  }, [slug]);
 
   async function loadHub(event?: React.FormEvent): Promise<void> {
     event?.preventDefault();
-    setError("");
-    const res = await fetch(`/api/client-hub/${slug}?pin=${encodeURIComponent(pin)}`);
-    const json = await res.json();
-    if (!res.ok || !json.ok) {
-      setError(json.error || "Could not load client hub");
-      return;
-    }
-    setHub(json.hub);
+    await loadHubWithPin(pin);
   }
+
+  const handleDigitChange = useCallback((index: number, value: string) => {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const next = [...digits];
+    next[index] = digit;
+    setDigits(next);
+    setError("");
+    if (digit && index < 3) inputRefs.current[index + 1]?.focus();
+    if (digit && index === 3 && next.every((d) => d !== "")) {
+      void loadHubWithPin(next.join(""));
+    }
+  }, [digits, loadHubWithPin]);
+
+  const handleKeyDown = useCallback((index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Backspace" && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  }, [digits]);
+
+  const handlePaste = useCallback((event: React.ClipboardEvent) => {
+    event.preventDefault();
+    const pasted = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
+    if (!pasted) return;
+    const next = ["", "", "", ""];
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
+    setDigits(next);
+    setError("");
+    if (pasted.length === 4) void loadHubWithPin(pasted);
+    else inputRefs.current[pasted.length]?.focus();
+  }, [loadHubWithPin]);
+
+  useEffect(() => {
+    if (!hub) inputRefs.current[0]?.focus();
+  }, [hub]);
 
   async function submitRequest(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -59,16 +116,44 @@ export function ClientHubClient({ slug }: { slug: string }): React.ReactElement 
 
   if (!hub) {
     return (
-      <main className="client-hub-shell auth">
-        <form className="pin-card" onSubmit={loadHub}>
-          <p className="eyebrow">Optimise Digital</p>
-          <h1>Client Growth Hub</h1>
-          <p>Enter your 4-digit client PIN to view tasks, links, requests, value proof, forecasts, and organic growth.</p>
-          <input value={pin} onChange={(event) => setPin(event.target.value)} inputMode="numeric" pattern="\d{4}" placeholder="PIN" />
-          <button type="submit">Open hub</button>
-          {error ? <p className="error">{error}</p> : null}
+      <PinGateFrame
+        eyebrow="Client Growth Hub"
+        title="Optimise Digital"
+        subtitle="Enter your 4-digit PIN access code to view tasks, links, requests, value proof, forecasts, and organic growth"
+      >
+        <form style={{ position: "relative" }} onSubmit={loadHub}>
+          <div style={{ display: "flex", justifyContent: "center", gap: 18 }} onPaste={handlePaste}>
+            {digits.map((digit, index) => (
+              <input
+                key={index}
+                ref={(element) => {
+                  inputRefs.current[index] = element;
+                }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                disabled={pinLoading}
+                onChange={(event) => handleDigitChange(index, event.target.value)}
+                onKeyDown={(event) => handleKeyDown(index, event)}
+                style={{ ...pinGateInputStyle, opacity: pinLoading ? 0.5 : 1 }}
+                onFocus={(event) => {
+                  Object.assign(event.currentTarget.style, pinGateFocusedInputStyle);
+                }}
+                onBlur={(event) => {
+                  Object.assign(event.currentTarget.style, pinGateBlurredInputStyle);
+                }}
+                aria-label={`Digit ${index + 1}`}
+              />
+            ))}
+          </div>
+          <button type="submit" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+            Open hub
+          </button>
+          {pinLoading ? <p style={{ marginTop: 24, fontFamily: "var(--font-jetbrains-mono), ui-monospace, monospace", fontSize: 13, color: "#8b90ad", textAlign: "center" }}>Verifying...</p> : null}
+          {error ? <p style={{ marginTop: 24, fontFamily: "var(--font-jetbrains-mono), ui-monospace, monospace", fontSize: 13, color: "#ff7a7a", textAlign: "center" }}>{error}</p> : null}
         </form>
-      </main>
+      </PinGateFrame>
     );
   }
 

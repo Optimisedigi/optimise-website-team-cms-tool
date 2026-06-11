@@ -3,7 +3,12 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { SimpleDashboard } from "@/components/dashboards/googleads/SimpleDashboard";
 import RocketSplash from "@/components/RocketSplash";
-import PinGateLogo from "@/components/PinGateLogo";
+import {
+  PinGateFrame,
+  pinGateBlurredInputStyle,
+  pinGateFocusedInputStyle,
+  pinGateInputStyle,
+} from "@/components/PinGateFrame";
 import type { GoogleAdsDashboardData } from "@/lib/dashboard-types";
 
 interface SimpleDashboardClientProps {
@@ -57,19 +62,13 @@ export function SimpleDashboardClient({
 
   if (!authed) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white mb-1">{clientName}</h1>
-          <h2 className="text-lg font-medium text-slate-400">
-            Performance Overview
-          </h2>
-        </div>
+      <PinGateFrame
+        eyebrow="Performance Overview"
+        title={clientName}
+        subtitle="Enter your 4-digit PIN access code to view the dashboard"
+      >
         <PinEntry slug={slug} onSuccess={() => setVerified(true)} />
-        <p className="text-slate-400 text-center mt-6">
-          Enter your 4-digit PIN access code to view the dashboard
-        </p>
-        <PinGateLogo />
-      </div>
+      </PinGateFrame>
     );
   }
 
@@ -198,8 +197,8 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
   }, []);
 
   return (
-    <div>
-      <div className="flex justify-center gap-3" onPaste={handlePaste}>
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: 18 }} onPaste={handlePaste}>
         {digits.map((digit, i) => (
           <input
             key={i}
@@ -213,18 +212,21 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
             disabled={loading}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
-            className="w-16 h-20 text-center text-2xl font-semibold border-2 rounded-xl
-              bg-slate-800 border-slate-600 text-white
-              focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20
-              disabled:opacity-50 transition-colors"
+            style={{ ...pinGateInputStyle, opacity: loading ? 0.5 : 1 }}
+            onFocus={(e) => {
+              Object.assign(e.currentTarget.style, pinGateFocusedInputStyle);
+            }}
+            onBlur={(e) => {
+              Object.assign(e.currentTarget.style, pinGateBlurredInputStyle);
+            }}
             aria-label={`Digit ${i + 1}`}
           />
         ))}
       </div>
       {loading && (
-        <p className="mt-6 text-sm text-slate-400 text-center">Verifying...</p>
+        <p style={{ marginTop: 24, fontFamily: "var(--font-jetbrains-mono), ui-monospace, monospace", fontSize: 13, color: "#8b90ad", textAlign: "center" }}>Verifying...</p>
       )}
-      {error && <p className="mt-6 text-sm text-red-400 text-center">{error}</p>}
+      {error && <p style={{ marginTop: 24, fontFamily: "var(--font-jetbrains-mono), ui-monospace, monospace", fontSize: 13, color: "#ff7a7a", textAlign: "center" }}>{error}</p>}
     </div>
   );
 }

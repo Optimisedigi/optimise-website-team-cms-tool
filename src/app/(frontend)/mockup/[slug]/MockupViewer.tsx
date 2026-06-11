@@ -1,7 +1,12 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import PinGateLogo from '@/components/PinGateLogo'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import {
+  PinGateFrame,
+  pinGateBlurredInputStyle,
+  pinGateFocusedInputStyle,
+  pinGateInputStyle,
+} from '@/components/PinGateFrame'
 
 export default function MockupViewer({
   businessName,
@@ -10,10 +15,11 @@ export default function MockupViewer({
   businessName: string
   slug: string
 }) {
-  const [pin, setPin] = useState('')
+  const [digits, setDigits] = useState(['', '', '', ''])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [mockupUrl, setMockupUrl] = useState<string | null>(null)
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const verifyPin = useCallback(async (pinValue: string) => {
     setError('')
@@ -30,7 +36,7 @@ export default function MockupViewer({
 
       if (!res.ok) {
         setError(data.error || 'Invalid PIN. Please try again.')
-        setPin('')
+        setDigits(['', '', '', ''])
         setLoading(false)
         return
       }
@@ -40,20 +46,54 @@ export default function MockupViewer({
         setMockupUrl(`/api/mockup-serve?slug=${encodeURIComponent(slug)}`)
       } else if (data.ok && data.proposalSlug && data.proposalSlug !== slug) {
         setError('This PIN does not match this mockup.')
-        setPin('')
+        setDigits(['', '', '', ''])
       } else if (data.ok && !data.websiteMockupUrl) {
         setError('No mockup is available for this proposal.')
       } else {
         setError('Invalid PIN. Please try again.')
-        setPin('')
+        setDigits(['', '', '', ''])
       }
     } catch {
       setError('Something went wrong. Please try again.')
-      setPin('')
+      setDigits(['', '', '', ''])
     }
 
     setLoading(false)
   }, [slug])
+
+  const handleDigitChange = useCallback((index: number, value: string) => {
+    const digit = value.replace(/\D/g, '').slice(-1)
+    const next = [...digits]
+    next[index] = digit
+    setDigits(next)
+    setError('')
+    if (digit && index < 3) inputRefs.current[index + 1]?.focus()
+    if (digit && index === 3 && next.every((d) => d !== '')) {
+      verifyPin(next.join(''))
+    }
+  }, [digits, verifyPin])
+
+  const handleKeyDown = useCallback((index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Backspace' && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus()
+    }
+  }, [digits])
+
+  const handlePaste = useCallback((event: React.ClipboardEvent) => {
+    event.preventDefault()
+    const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4)
+    if (!pasted) return
+    const next = ['', '', '', '']
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i]
+    setDigits(next)
+    setError('')
+    if (pasted.length === 4) verifyPin(pasted)
+    else inputRefs.current[pasted.length]?.focus()
+  }, [verifyPin])
+
+  useEffect(() => {
+    inputRefs.current[0]?.focus()
+  }, [])
 
   if (mockupUrl) {
     return (
@@ -72,110 +112,34 @@ export default function MockupViewer({
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0a1628, #1a3a5c, #0f2847)',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}
+    <PinGateFrame
+      eyebrow="Website Mockup"
+      title={businessName}
+      subtitle="Enter your 4-digit PIN access code to preview the website mockup"
     >
-      <div
-        style={{
-          background: 'rgba(255, 255, 255, 0.05)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '16px',
-          padding: '48px 40px',
-          maxWidth: '400px',
-          width: '90%',
-          textAlign: 'center',
-        }}
-      >
-        <h1
-          style={{
-            color: '#fff',
-            fontSize: '24px',
-            fontWeight: 600,
-            marginBottom: '8px',
-          }}
-        >
-          {businessName}
-        </h1>
-        <p
-          style={{
-            color: 'rgba(255, 255, 255, 0.6)',
-            fontSize: '14px',
-            marginBottom: '32px',
-          }}
-        >
-          Enter your PIN to preview the website mockup
-        </p>
-
-        <div>
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="\d{4}"
-            maxLength={4}
-            value={pin}
-            disabled={loading}
-            onChange={(e) => {
-              const val = e.target.value.replace(/\D/g, '')
-              setPin(val)
-              setError('')
-              if (val.length === 4) {
-                verifyPin(val)
-              }
-            }}
-            placeholder="0000"
-            autoFocus
-            style={{
-              width: '100%',
-              padding: '16px',
-              fontSize: '32px',
-              textAlign: 'center',
-              letterSpacing: '12px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: error
-                ? '2px solid #ef4444'
-                : '2px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '12px',
-              color: '#fff',
-              outline: 'none',
-              boxSizing: 'border-box',
-              opacity: loading ? 0.5 : 1,
-            }}
-          />
-
-          {loading && (
-            <p
-              style={{
-                color: 'rgba(255, 255, 255, 0.6)',
-                fontSize: '14px',
-                marginTop: '12px',
-              }}
-            >
-              Verifying...
-            </p>
-          )}
-
-          {error && (
-            <p
-              style={{
-                color: '#ef4444',
-                fontSize: '14px',
-                marginTop: '12px',
-              }}
-            >
-              {error}
-            </p>
-          )}
+      <div style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 18 }} onPaste={handlePaste}>
+          {digits.map((digit, index) => (
+            <input
+              key={index}
+              ref={(element) => { inputRefs.current[index] = element }}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              disabled={loading}
+              onChange={(event) => handleDigitChange(index, event.target.value)}
+              onKeyDown={(event) => handleKeyDown(index, event)}
+              style={{ ...pinGateInputStyle, opacity: loading ? 0.5 : 1 }}
+              onFocus={(event) => { Object.assign(event.currentTarget.style, pinGateFocusedInputStyle) }}
+              onBlur={(event) => { Object.assign(event.currentTarget.style, pinGateBlurredInputStyle) }}
+              aria-label={`Digit ${index + 1}`}
+            />
+          ))}
         </div>
+        {loading && <p style={{ marginTop: 24, fontFamily: 'var(--font-jetbrains-mono), ui-monospace, monospace', fontSize: 13, color: '#8b90ad', textAlign: 'center' }}>Verifying...</p>}
+        {error && <p style={{ marginTop: 24, fontFamily: 'var(--font-jetbrains-mono), ui-monospace, monospace', fontSize: 13, color: '#ff7a7a', textAlign: 'center' }}>{error}</p>}
       </div>
-      <PinGateLogo />
-    </div>
+    </PinGateFrame>
   )
 }

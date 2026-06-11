@@ -3,7 +3,12 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { GoogleAdsDashboard } from "@/components/dashboards/googleads/GoogleAdsDashboard";
 import RocketSplash from "@/components/RocketSplash";
-import PinGateLogo from "@/components/PinGateLogo";
+import {
+  PinGateFrame,
+  pinGateBlurredInputStyle,
+  pinGateFocusedInputStyle,
+  pinGateInputStyle,
+} from "@/components/PinGateFrame";
 import type { GoogleAdsDashboardData, GoogleAdsDashboardQualityData } from "@/lib/dashboard-types";
 
 interface DashboardClientProps {
@@ -57,90 +62,15 @@ export function DashboardClient({ slug, clientId, clientName, isAuthenticated, i
     );
   }
 
-  // PIN entry screen — cosmic theme (proposal v2): deep navy gradient,
-  // starfield, Space Grotesk display + JetBrains Mono helper text.
   if (!authed) {
-    const sg = "var(--font-space-grotesk), system-ui, sans-serif";
-    const mono = "var(--font-jetbrains-mono), ui-monospace, monospace";
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "24px",
-          position: "relative",
-          overflow: "hidden",
-          background:
-            "radial-gradient(1200px 700px at 50% 18%, #11162e 0%, #0b1226 45%, #07091a 100%)",
-        }}
+      <PinGateFrame
+        eyebrow="Google Ads Dashboard"
+        title={clientName}
+        subtitle="Enter your 4-digit PIN access code to view the dashboard"
       >
-        {/* Starfield — subtle layered radial dots, purely decorative. */}
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            pointerEvents: "none",
-            backgroundImage: [
-              "radial-gradient(1.5px 1.5px at 12% 22%, rgba(255,255,255,0.55), transparent)",
-              "radial-gradient(1.5px 1.5px at 78% 14%, rgba(255,255,255,0.45), transparent)",
-              "radial-gradient(1px 1px at 33% 68%, rgba(255,255,255,0.4), transparent)",
-              "radial-gradient(1px 1px at 64% 82%, rgba(255,255,255,0.35), transparent)",
-              "radial-gradient(2px 2px at 88% 56%, rgba(153,192,255,0.5), transparent)",
-              "radial-gradient(1.5px 1.5px at 22% 88%, rgba(255,255,255,0.3), transparent)",
-              "radial-gradient(1px 1px at 50% 38%, rgba(255,255,255,0.3), transparent)",
-            ].join(","),
-          }}
-        />
-
-        <div style={{ position: "relative", textAlign: "center", marginBottom: 44 }}>
-          <div
-            style={{
-              fontFamily: sg,
-              fontSize: 13,
-              fontWeight: 600,
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              color: "#4d94ff",
-              marginBottom: 18,
-            }}
-          >
-            Google Ads Dashboard
-          </div>
-          <h1
-            style={{
-              fontFamily: sg,
-              fontSize: 52,
-              fontWeight: 600,
-              lineHeight: 1.0,
-              letterSpacing: "-0.02em",
-              color: "#ffffff",
-              margin: 0,
-            }}
-          >
-            {clientName}
-          </h1>
-        </div>
-
         <PinEntry slug={slug} onSuccess={() => setVerified(true)} />
-
-        <p
-          style={{
-            position: "relative",
-            fontFamily: mono,
-            fontSize: 13,
-            letterSpacing: "0.02em",
-            color: "#8b90ad",
-            marginTop: 30,
-          }}
-        >
-          Enter your 4-digit PIN access code to view the dashboard
-        </p>
-        <PinGateLogo />
-      </div>
+      </PinGateFrame>
     );
   }
 
@@ -306,7 +236,6 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
     inputRefs.current[0]?.focus();
   }, []);
 
-  const sg = "var(--font-space-grotesk), system-ui, sans-serif";
   const mono = "var(--font-jetbrains-mono), ui-monospace, monospace";
   return (
     <div style={{ position: "relative" }}>
@@ -323,32 +252,12 @@ function PinEntry({ slug, onSuccess }: { slug: string; onSuccess: () => void }) 
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
             onFocus={(e) => {
-              e.target.style.border = "2px solid #4d94ff";
-              e.target.style.boxShadow =
-                "0 0 0 4px rgba(0,102,255,0.18), 0 8px 24px rgba(0,0,0,0.35)";
+              Object.assign(e.currentTarget.style, pinGateFocusedInputStyle);
             }}
             onBlur={(e) => {
-              e.target.style.border = "1px solid rgba(153,192,255,0.18)";
-              e.target.style.boxShadow = "0 8px 24px rgba(0,0,0,0.25)";
+              Object.assign(e.currentTarget.style, pinGateBlurredInputStyle);
             }}
-            style={{
-              width: 76,
-              height: 92,
-              borderRadius: 18,
-              textAlign: "center",
-              fontFamily: sg,
-              fontSize: 34,
-              fontWeight: 600,
-              color: "#ffffff",
-              caretColor: "#4d94ff",
-              outline: "none",
-              background:
-                "linear-gradient(180deg, rgba(17,22,46,0.9) 0%, rgba(11,18,38,0.9) 100%)",
-              border: "1px solid rgba(153,192,255,0.18)",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-              opacity: loading ? 0.5 : 1,
-              transition: "border-color 0.15s, box-shadow 0.15s",
-            }}
+            style={{ ...pinGateInputStyle, opacity: loading ? 0.5 : 1 }}
             aria-label={`Digit ${i + 1}`}
           />
         ))}

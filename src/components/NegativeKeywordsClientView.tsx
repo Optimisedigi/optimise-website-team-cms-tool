@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, FormEvent } from "react";
-import PinGateLogo from "./PinGateLogo";
+import {
+  PinGateFrame,
+  pinGateBlurredInputStyle,
+  pinGateFocusedInputStyle,
+  pinGateInputStyle,
+} from "./PinGateFrame";
 
 interface Keyword {
   index: number;
@@ -161,34 +166,35 @@ export default function NegativeKeywordsClientView({
 
   if (!unlocked) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 16px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#fff', margin: '0 0 6px' }}>{clientName}</h1>
-          <h2 style={{ fontSize: 18, fontWeight: 500, color: '#94a3b8', margin: '0 0 8px' }}>Negative Keywords</h2>
-          <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>Enter your 4-digit PIN access code to view the negative keyword lists</p>
+      <PinGateFrame
+        eyebrow="Negative Keywords"
+        title={clientName}
+        subtitle="Enter your 4-digit PIN access code to view the negative keyword lists"
+      >
+        <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 18 }} onPaste={handlePinPaste}>
+            {digits.map((digit, i) => (
+              <input
+                key={i}
+                ref={(el) => { pinInputRefs.current[i] = el }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                disabled={pinLoading}
+                onChange={(e) => handlePinDigitChange(i, e.target.value)}
+                onKeyDown={(e) => handlePinKeyDown(i, e)}
+                style={{ ...pinGateInputStyle, opacity: pinLoading ? 0.5 : 1 }}
+                onFocus={(e) => { Object.assign(e.currentTarget.style, pinGateFocusedInputStyle) }}
+                onBlur={(e) => { Object.assign(e.currentTarget.style, pinGateBlurredInputStyle) }}
+                aria-label={`Digit ${i + 1}`}
+              />
+            ))}
+          </div>
+          {pinLoading && <p style={{ marginTop: 24, fontFamily: 'var(--font-jetbrains-mono), ui-monospace, monospace', fontSize: 13, color: '#8b90ad', textAlign: 'center' }}>Verifying...</p>}
+          {pinError && <p style={{ marginTop: 24, fontFamily: 'var(--font-jetbrains-mono), ui-monospace, monospace', fontSize: 13, color: '#ff7a7a', textAlign: 'center' }}>{pinError}</p>}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }} onPaste={handlePinPaste}>
-          {digits.map((digit, i) => (
-            <input
-              key={i}
-              ref={(el) => { pinInputRefs.current[i] = el }}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={digit}
-              disabled={pinLoading}
-              onChange={(e) => handlePinDigitChange(i, e.target.value)}
-              onKeyDown={(e) => handlePinKeyDown(i, e)}
-              style={{ width: 64, height: 80, textAlign: 'center', fontSize: 24, fontWeight: 600, border: '2px solid #475569', borderRadius: 12, background: '#1e293b', color: '#fff', outline: 'none', opacity: pinLoading ? 0.5 : 1, transition: 'border-color 0.2s' }}
-              onFocus={(e) => { e.target.style.borderColor = '#60a5fa' }}
-              onBlur={(e) => { e.target.style.borderColor = '#475569' }}
-            />
-          ))}
-        </div>
-        {pinLoading && <p style={{ marginTop: 24, fontSize: 14, color: '#94a3b8', textAlign: 'center' }}>Verifying...</p>}
-        {pinError && <p style={{ marginTop: 24, fontSize: 14, color: '#f87171', textAlign: 'center' }}>{pinError}</p>}
-        <PinGateLogo />
-      </div>
+      </PinGateFrame>
     );
   }
 
