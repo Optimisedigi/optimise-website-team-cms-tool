@@ -9,9 +9,10 @@ export type SuppressionNegative = {
   keyword: string
   matchType: SuppressionMatchType
   listName: string
-  // The review month (YYYY-MM) this negative was established in. A negative only
-  // suppresses review months strictly *after* this. `null` means we couldn't
-  // establish a month, so it never suppresses (avoids over-negating the past).
+  // The review month (YYYY-MM) this negative was established in, when known.
+  // Informational only — a live negative suppresses ALL review months: once the
+  // team has negated a term, re-reviewing it in any month is pointless (the
+  // page exists to surface irrelevant terms, not already-handled ones).
   establishedMonth: string | null
 }
 
@@ -111,25 +112,21 @@ export function buildSuppressionNegatives(
 
 /**
  * Split a review month's terms into still-visible terms and ones already
- * negated by a qualifying negative established in an *earlier* month. A negative
- * suppresses review month `M` only when `establishedMonth != null && M >
- * establishedMonth` (strictly later) — so terms stay visible in and before the
- * month the negative was added, and disappear only afterwards.
+ * covered by a qualifying negative. A live negative suppresses EVERY review
+ * month — past and future — because once a term is negated there's nothing
+ * left to decide about it; the review exists to catch irrelevant terms, not
+ * already-handled ones. (`reviewMonth` is kept for call-site symmetry and the
+ * "Already negated" panel's context.)
  */
 export function partitionTermsByNegation<T extends { term: string }>(
-  reviewMonth: string,
+  _reviewMonth: string,
   terms: T[],
   negatives: SuppressionNegative[],
 ): { visible: T[]; negated: Array<{ term: T; negative: SuppressionNegative }> } {
   const visible: T[] = []
   const negated: Array<{ term: T; negative: SuppressionNegative }> = []
   for (const term of terms) {
-    const match = negatives.find(
-      (negative) =>
-        negative.establishedMonth != null &&
-        reviewMonth > negative.establishedMonth &&
-        termMatchesNegative(term.term, negative),
-    )
+    const match = negatives.find((negative) => termMatchesNegative(term.term, negative))
     if (match) negated.push({ term, negative: match })
     else visible.push(term)
   }

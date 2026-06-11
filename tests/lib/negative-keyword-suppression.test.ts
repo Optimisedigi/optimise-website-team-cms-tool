@@ -86,21 +86,21 @@ describe('partitionTermsByNegation', () => {
   const negatives: SuppressionNegative[] = [
     { keyword: 'blue shoes', matchType: 'phrase', listName: 'Competitor', establishedMonth: '2024-01' },
   ]
-  it('hides matching terms only in months strictly after establishment', () => {
+  it('hides matching terms in any review month', () => {
     const terms = [{ term: 'cheap blue shoes' }, { term: 'blue socks' }]
     const after = partitionTermsByNegation('2024-02', terms, negatives)
     expect(after.visible.map((t) => t.term)).toEqual(['blue socks'])
     expect(after.negated).toHaveLength(1)
     expect(after.negated[0]?.negative.listName).toBe('Competitor')
   })
-  it('does not hide in the establishment month or earlier', () => {
+  it('hides in the establishment month and earlier too — a live negative covers all months', () => {
     const terms = [{ term: 'cheap blue shoes' }]
-    expect(partitionTermsByNegation('2024-01', terms, negatives).negated).toHaveLength(0)
-    expect(partitionTermsByNegation('2023-12', terms, negatives).negated).toHaveLength(0)
+    expect(partitionTermsByNegation('2024-01', terms, negatives).negated).toHaveLength(1)
+    expect(partitionTermsByNegation('2023-12', terms, negatives).negated).toHaveLength(1)
   })
-  it('never hides when establishedMonth is null', () => {
+  it('hides even when establishedMonth is null (e.g. bulk-imported keywords without negatedAt)', () => {
     const nullNeg: SuppressionNegative[] = [{ keyword: 'blue shoes', matchType: 'phrase', listName: 'X', establishedMonth: null }]
     const terms = [{ term: 'cheap blue shoes' }]
-    expect(partitionTermsByNegation('2030-01', terms, nullNeg).negated).toHaveLength(0)
+    expect(partitionTermsByNegation('2030-01', terms, nullNeg).negated).toHaveLength(1)
   })
 })
