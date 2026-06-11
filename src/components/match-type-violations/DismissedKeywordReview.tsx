@@ -142,7 +142,10 @@ export default function DismissedKeywordReview({ clientId }: { clientId: string 
     })()
   }, [clientId])
 
-  const runAction = async (c: DismissedCandidate, payload: { skip: true } | { keyword: string; adGroupIds: string[] }) => {
+  const runAction = async (
+    c: DismissedCandidate,
+    payload: { skip: true } | { keyword: string; adGroupIds: string[]; negateSource: boolean },
+  ) => {
     setActionLoading((prev) => new Set(prev).add(c.id))
     try {
       const res = await fetch(`/api/match-type-violations/${c.id}/add-exact`, {
@@ -164,6 +167,50 @@ export default function DismissedKeywordReview({ clientId }: { clientId: string 
     }
   }
 
+  // ── Bulk selection ──────────────────────────────────────────────────
+  const [selected, setSelected] = useState<Set<string | number>>(new Set())
+  const [bulkLoading, setBulkLoading] = useState(false)
+
+  const toggleSelected = (id: string | number) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+
+  const runBulk = async (opts: { adGroupIds?: string[]; allAdGroups?: boolean; negateSource: boolean }) => {
+    const ids = Array.from(selected).filter((id) => !outcomes.has(id))
+    if (ids.length === 0) return
+    const overrides: Record<string, string> = {}
+    for (const c of rows) {
+      if (selected.has(c.id)) overrides[String(c.id)] = keywordFor(c)
+    }
+    setBulkLoading(true)
+    try {
+      const res = await fetch('/api/match-type-violations/add-exact-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateIds: ids, overrides, ...opts }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+      setOutcomes((prev) => {
+        const next = new Map(prev)
+        for (const r of data.results ?? []) {
+          if (r.outcome === 'added' || r.outcome === 'already_exists') next.set(r.id, { outcome: r.outcome })
+        }
+        return next
+      })
+      setSelected(new Set())
+      const warnings = [...(data.groupErrors ?? []).map((g: any) => `${g.adGroupName}: ${g.error}`), ...(data.negateErrors ?? [])]
+      if (warnings.length > 0) alert(`Completed with warnings:\n${warnings.slice(0, 5).join('\n')}`)
+    } catch (e: any) {
+      alert(`Error: ${e.message}`)
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   if (!clientId) {
     return (
       <div style={{ margin: '0 24px', padding: 24, border: '1px solid #fcd34d', borderRadius: 8, background: '#fef3c7', color: '#92400e' }}>
@@ -173,15 +220,27 @@ export default function DismissedKeywordReview({ clientId }: { clientId: string 
   }
 
   const visible = rows
-  const remaining = visible.filter((c) => !outcomes.has(c.id)).length
+  const actionable = visible.filter((c) => !outcomes.has(c.id))
+  const remaining = actionable.length
+  const selectedActionable = actionable.filter((c) => selected.has(c.id))
 
   return (
     <div style={{ padding: '0 15px 32px' }}>
-      <div style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Dismissed Terms → Exact Keywords</h2>
-        <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>
-          Dismissed terms you judged fine — capture them as exact keywords so future serving stays hyper-relevant
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Dismissed Terms → Exact Keywords</h2>
+          <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>
+            Dismissed terms you judged fine — capture them as exact keywords so future serving stays hyper-relevant
+          </p>
+        </div>
+        {selectedActionable.length > 0 && (
+          <BulkAddExactPopover
+            count={selectedActionable.length}
+            adGroups={adGroupOptions}
+            busy={bulkLoading}
+            onConfirm={(opts) => void runBulk(opts)}
+          />
+        )}
       </div>
 
       <div style={{
@@ -192,7 +251,10 @@ export default function DismissedKeywordReview({ clientId }: { clientId: string 
         candidate to own as an <strong>exact</strong> keyword. <strong>Add as Exact</strong> lets you pick
         the ad groups (own ad group pre-selected) and pushes the keyword paused via Growth Tools, copying
         the <strong>final URLs, max CPC, and labels</strong> from an existing keyword in each target ad
-        group so new keywords behave like what's already there. Exact keywords that already exist are
+        group so new keywords behave like what's already there. By default each pushed term is also added
+        as an <strong>exact negative</strong> to its own ad-group list, so the original phrase/exact match
+        stops serving it and traffic funnels to the new exact keyword. Select multiple rows to bulk-push to
+        chosen ad groups — or all enabled ad groups — in one go. Exact keywords that already exist are
         detected as duplicates and drop off this list. <strong>Skip</strong> hides terms you don't want as
         keywords. {remaining} term{remaining !== 1 ? 's' : ''} awaiting review.
         {adGroupError && <div style={{ marginTop: 6, color: '#b45309' }}>Ad-group picker unavailable: {adGroupError}</div>}
@@ -215,6 +277,15 @@ export default function DismissedKeywordReview({ clientId }: { clientId: string 
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, background: 'white' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                <th style={thStyle()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedActionable.length > 0 && selectedActionable.length === actionable.length}
+                    onChange={(e) =>
+                      setSelected(e.target.checked ? new Set(actionable.map((c) => c.id)) : new Set())
+                    }
+                  />
+                </th>
                 <th style={thStyle()}>Search Term</th>
                 <th style={thStyle()}>Keyword To Add (Exact)</th>
                 <th style={thStyle()}>Ad Group</th>
@@ -230,6 +301,11 @@ export default function DismissedKeywordReview({ clientId }: { clientId: string 
                 const busy = actionLoading.has(c.id)
                 return (
                   <tr key={String(c.id)} style={{ borderBottom: '1px solid #f3f4f6', opacity: done ? 0.55 : 1 }}>
+                    <td style={tdStyle()}>
+                      {!done && (
+                        <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelected(c.id)} />
+                      )}
+                    </td>
                     <td style={tdStyle()}>
                       <span title={c.searchTerm} style={{ maxWidth: 220, display: 'block', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }}>
                         {c.searchTerm}
@@ -277,7 +353,7 @@ export default function DismissedKeywordReview({ clientId }: { clientId: string 
                             keyword={keywordFor(c)}
                             adGroups={adGroupOptions}
                             busy={busy}
-                            onConfirm={(adGroupIds) => void runAction(c, { keyword: keywordFor(c), adGroupIds })}
+                            onConfirm={(adGroupIds, negateSource) => void runAction(c, { keyword: keywordFor(c), adGroupIds, negateSource })}
                           />
                           <button
                             onClick={() => void runAction(c, { skip: true })}
@@ -313,10 +389,11 @@ function AddExactPopover({
   keyword: string
   adGroups: AdGroupOption[] | null
   busy: boolean
-  onConfirm: (adGroupIds: string[]) => void
+  onConfirm: (adGroupIds: string[], negateSource: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [negate, setNegate] = useState(true)
 
   // Pre-select the candidate's own ad group (matched by name, preferring its
   // campaign) whenever the popover opens.
@@ -417,18 +494,174 @@ function AddExactPopover({
                 })
               )}
             </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, fontSize: 11 }}>
+              <button
+                onClick={() => setSelected(new Set((adGroups ?? []).filter((g) => g.status === 'ENABLED').map((g) => g.adGroupId)))}
+                style={{ ...btnStyle('ghost'), fontSize: 11 }}
+              >
+                Select all enabled
+              </button>
+              <button onClick={() => setSelected(new Set())} style={{ ...btnStyle('ghost'), fontSize: 11 }}>
+                Clear
+              </button>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 8, cursor: 'pointer', color: '#374151' }}>
+              <input type="checkbox" checked={negate} onChange={() => setNegate((n) => !n)} style={{ marginTop: 2 }} />
+              <span>
+                Also add <strong>[{keyword}]</strong> as an exact negative to this term's own ad-group list
+                <span style={{ color: '#6b7280' }}> — stops the old phrase/exact match serving it</span>
+              </span>
+            </label>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
               <span style={{ color: '#6b7280' }}>{selected.size} selected</span>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={() => setOpen(false)} style={btnStyle('ghost')}>Cancel</button>
                 <button
-                  onClick={() => { setOpen(false); onConfirm(Array.from(selected)) }}
+                  onClick={() => { setOpen(false); onConfirm(Array.from(selected), negate) }}
                   disabled={selected.size === 0}
                   style={btnStyle('primary', selected.size === 0)}
                 >
                   Push to {selected.size} ad group{selected.size !== 1 ? 's' : ''}
                 </button>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Bulk Add-as-Exact popover ────────────────────────────────────────────
+
+function BulkAddExactPopover({
+  count,
+  adGroups,
+  busy,
+  onConfirm,
+}: {
+  count: number
+  adGroups: AdGroupOption[] | null
+  busy: boolean
+  onConfirm: (opts: { adGroupIds?: string[]; allAdGroups?: boolean; negateSource: boolean }) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [mode, setMode] = useState<'all' | 'pick'>('all')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [negate, setNegate] = useState(true)
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+
+  const byCampaign = new Map<string, AdGroupOption[]>()
+  for (const g of adGroups ?? []) {
+    const key = g.campaignName || '(no campaign)'
+    const bucket = byCampaign.get(key)
+    if (bucket) bucket.push(g)
+    else byCampaign.set(key, [g])
+  }
+
+  const toggleCampaign = (groups: AdGroupOption[], allSelected: boolean) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      for (const g of groups) {
+        if (allSelected) next.delete(g.adGroupId)
+        else next.add(g.adGroupId)
+      }
+      return next
+    })
+
+  const canConfirm = mode === 'all' || selected.size > 0
+  const enabledCount = (adGroups ?? []).filter((g) => g.status === 'ENABLED').length
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        disabled={busy || adGroups === null}
+        style={{ ...btnStyle('primary', busy || adGroups === null), fontSize: 13, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 6 }}
+      >
+        {busy ? 'Pushing…' : `Add ${count} as Exact`}
+        <span style={{ fontSize: 10 }}>▾</span>
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+          <div style={{
+            position: 'absolute', right: 0, top: '100%', zIndex: 50, marginTop: 4,
+            background: 'white', border: '1px solid #e5e7eb', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)', width: 380, padding: 12,
+            fontSize: 12, textAlign: 'left',
+          }}>
+            <div style={{ fontWeight: 600, color: '#374151', marginBottom: 2 }}>
+              Push {count} term{count !== 1 ? 's' : ''} as exact keywords to:
+            </div>
+            <div style={{ color: '#6b7280', marginBottom: 8, fontSize: 11 }}>
+              Added paused, matching each ad group's existing URLs, max CPC and labels.
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, cursor: 'pointer', color: '#374151' }}>
+              <input type="radio" checked={mode === 'all'} onChange={() => setMode('all')} />
+              <span>All enabled ad groups <span style={{ color: '#6b7280' }}>({enabledCount})</span></span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, cursor: 'pointer', color: '#374151' }}>
+              <input type="radio" checked={mode === 'pick'} onChange={() => setMode('pick')} />
+              <span>Choose campaigns / ad groups</span>
+            </label>
+            {mode === 'pick' && (
+              <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #f3f4f6', borderRadius: 6, padding: 6, marginBottom: 4 }}>
+                {byCampaign.size === 0 ? (
+                  <div style={{ color: '#6b7280', padding: 8 }}>No ad groups found.</div>
+                ) : (
+                  Array.from(byCampaign.entries()).map(([campaign, groups]) => {
+                    const allSelected = groups.every((g) => selected.has(g.adGroupId))
+                    return (
+                      <div key={campaign} style={{ marginBottom: 6 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: '#374151', cursor: 'pointer', padding: '2px 0' }}>
+                          <input type="checkbox" checked={allSelected} onChange={() => toggleCampaign(groups, allSelected)} />
+                          {campaign}
+                        </label>
+                        {groups.map((g) => (
+                          <label key={g.adGroupId} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0 2px 20px', cursor: 'pointer', color: '#4b5563' }}>
+                            <input type="checkbox" checked={selected.has(g.adGroupId)} onChange={() => toggle(g.adGroupId)} />
+                            <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                              {g.adGroupName}
+                              {g.status && g.status !== 'ENABLED' ? <span style={{ color: '#9ca3af' }}> ({g.status.toLowerCase()})</span> : null}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            )}
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 6, cursor: 'pointer', color: '#374151' }}>
+              <input type="checkbox" checked={negate} onChange={() => setNegate((n) => !n)} style={{ marginTop: 2 }} />
+              <span>
+                Also add each term as an exact negative to its own ad-group list
+                <span style={{ color: '#6b7280' }}> — stops the old phrase/exact match serving it</span>
+              </span>
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 10 }}>
+              <button onClick={() => setOpen(false)} style={btnStyle('ghost')}>Cancel</button>
+              <button
+                onClick={() => {
+                  setOpen(false)
+                  onConfirm(
+                    mode === 'all'
+                      ? { allAdGroups: true, negateSource: negate }
+                      : { adGroupIds: Array.from(selected), negateSource: negate },
+                  )
+                }}
+                disabled={!canConfirm}
+                style={btnStyle('primary', !canConfirm)}
+              >
+                {mode === 'all' ? `Push to all (${enabledCount})` : `Push to ${selected.size} ad group${selected.size !== 1 ? 's' : ''}`}
+              </button>
             </div>
           </div>
         </>
