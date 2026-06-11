@@ -4297,6 +4297,17 @@ export async function runMigrations(
       "CREATE INDEX IF NOT EXISTS `match_type_violation_candidates_assigned_list_idx` ON `match_type_violation_candidates` (`assigned_list_id_id`)",
     );
 
+    // ── FIX (2026-06-11): '' in recommended_match_type breaks every update ──
+    // The cron's raw-SQL upsert wrote '' when the detector had no
+    // recommendation. It's a Payload select field ('exact' | 'phrase'), so ''
+    // fails whole-document validation on EVERY payload.update() — which made
+    // Approve/Dismiss silently fail and the row reappear as pending. Empty
+    // must be NULL. Idempotent backfill; the cron no longer writes ''.
+    await run(
+      "mtvc.recommended_match_type.null_empty",
+      "UPDATE `match_type_violation_candidates` SET `recommended_match_type` = NULL WHERE `recommended_match_type` = ''",
+    );
+
     // ── Match-type monitor per-client scope controls (2026-06-09) ──
     await run("clients.gadsAuto_matchTypeMonitorExact", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_exact` integer DEFAULT true");
     await run("clients.gadsAuto_matchTypeMonitorPhrase", "ALTER TABLE `clients` ADD `gads_auto_match_type_monitor_phrase` integer DEFAULT true");

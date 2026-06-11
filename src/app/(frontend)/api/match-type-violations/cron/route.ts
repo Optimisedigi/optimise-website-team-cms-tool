@@ -271,7 +271,11 @@ async function upsertViolation(
   const today = now.split('T')[0];
   const offendingWords = Array.isArray(v.offendingWords) ? v.offendingWords.join(', ') : '';
   const recommendedKeyword = v.recommendedKeyword ?? '';
-  const recommendedMatchType = v.recommendedMatchType ?? '';
+  // `recommendedMatchType` is a Payload select field ('exact' | 'phrase').
+  // Writing '' makes EVERY later payload.update() on the row fail validation
+  // ("This field has an invalid selection"), which silently broke
+  // Approve/Dismiss. Empty must be SQL NULL, never ''.
+  const recommendedMatchTypeSql = v.recommendedMatchType ? esc(v.recommendedMatchType) : 'NULL';
   const nearestKeyword = v.nearestKeyword ?? '';
 
   // Skip if already negated in any active NKL
@@ -300,7 +304,7 @@ async function upsertViolation(
            impressions = ${v.impressions ?? 0},
            clicks = ${v.clicks ?? 0},
            recommended_keyword = ${esc(recommendedKeyword)},
-           recommended_match_type = ${esc(recommendedMatchType)},
+           recommended_match_type = ${recommendedMatchTypeSql},
            offending_words = ${esc(offendingWords)},
            nearest_keyword = ${esc(nearestKeyword)},
            last_seen_at = ${esc(now)},
@@ -329,7 +333,7 @@ async function upsertViolation(
          ${esc(v.campaignName ?? '')}, ${esc(v.adGroupName ?? '')},
          ${esc(v.matchType)}, ${esc(v.violationType)},
          ${v.impressions ?? 0}, ${v.clicks ?? 0},
-         ${esc(recommendedKeyword)}, ${esc(recommendedMatchType)}, ${esc(offendingWords)}, ${esc(nearestKeyword)},
+         ${esc(recommendedKeyword)}, ${recommendedMatchTypeSql}, ${esc(offendingWords)}, ${esc(nearestKeyword)},
          'pending', ${esc(now)}, ${esc(now)}, ${esc(today)}, ${esc(now)}, ${esc(now)}
        );`,
     );
