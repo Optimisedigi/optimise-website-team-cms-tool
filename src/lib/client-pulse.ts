@@ -17,6 +17,35 @@ export interface SignalItem {
   at?: string | null;
 }
 
+export interface ClientPulseBudgetPacing {
+  status: ClientPulseScoreStatus;
+  label: string;
+  monthlyBudget: number | null;
+  mtdSpend: number | null;
+  expectedSpendToDate: number | null;
+  difference: number | null;
+  expectedBudgetPercent: number | null;
+  actualBudgetPercent: number | null;
+  deltaPercentPoints: number | null;
+  monthProgressPercent: number | null;
+  source: "client" | "google_ads_audit" | null;
+}
+
+export interface ClickAnomaly extends SignalItem {
+  channel: "organic" | "google_ads";
+  month: string;
+  observedClicks: number;
+  baselineAverage: number;
+  percentChange: number;
+  zScore: number | null;
+}
+
+export interface ClientPulseScoreHistoryPoint {
+  date: string;
+  score: number;
+  status: ClientPulseScoreStatus;
+}
+
 export interface ClientPulseSummary {
   client: {
     id: number | string;
@@ -41,6 +70,9 @@ export interface ClientPulseSummary {
   analyticsMetrics: Array<{ metric: string; label: string; value: number | null; displayValue: string }>;
   organicTrend: OrganicTrend;
   adsTrend: AdsTrend;
+  budgetPacing: ClientPulseBudgetPacing;
+  clickAnomalies: ClickAnomaly[];
+  scoreHistory: ClientPulseScoreHistoryPoint[];
   scores: {
     organic: ScoreSummary;
     paidSearch: ScoreSummary;
@@ -94,6 +126,7 @@ export interface AdsTrend {
   mtdMonth: string | null;
   mtdClicks: number | null;
   mtdConversions: number | null;
+  mtdSpend: number | null;
   mtdClicksYoyPercent: number | null;
   mtdConversionsYoyPercent: number | null;
 }
@@ -114,8 +147,10 @@ export interface ClientPulseSources {
   organicSnapshots: PlainRecord[];
   gscMonthlySnapshots: PlainRecord[];
   googleAdsSnapshots: PlainRecord[];
+  googleAdsAudits: PlainRecord[];
   siteHealthReports: PlainRecord[];
   aiVisibilitySnapshots: PlainRecord[];
+  clientPulseHistory: PlainRecord[];
 }
 
 export interface GroupedClientPulseSources {
@@ -127,14 +162,18 @@ export interface GroupedClientPulseSources {
   organicSnapshots: Map<string, PlainRecord[]>;
   gscMonthlySnapshots: Map<string, PlainRecord[]>;
   googleAdsSnapshots: Map<string, PlainRecord[]>;
+  googleAdsAudits: Map<string, PlainRecord[]>;
   siteHealthReports: Map<string, PlainRecord[]>;
   aiVisibilitySnapshots: Map<string, PlainRecord[]>;
+  clientPulseHistory: Map<string, PlainRecord[]>;
 }
 
 type PlainRecord = Record<string, unknown>;
 type PayloadFindResult = { docs?: unknown[]; hasNextPage?: boolean; nextPage?: number | null };
 type PayloadLike = {
   find(args: PlainRecord): Promise<PayloadFindResult>;
+  create?(args: PlainRecord): Promise<unknown>;
+  update?(args: PlainRecord): Promise<unknown>;
 };
 
 const DAY_MS = 86_400_000;
@@ -193,7 +232,7 @@ export async function fetchClientPulseSources(
     return emptySources(clients);
   }
 
-  const [scheduledTasks, goalRuns, activityLog, ledgerItems, clientProcesses, organicSnapshots, gscMonthlySnapshots, googleAdsSnapshots, siteHealthReports, aiVisibilitySnapshots] =
+  const [scheduledTasks, goalRuns, activityLog, ledgerItems, clientProcesses, organicSnapshots, gscMonthlySnapshots, googleAdsSnapshots, googleAdsAudits, siteHealthReports, aiVisibilitySnapshots, clientPulseHistory] =
     await Promise.all([
       fetchAllPages(payload, {
         collection: "scheduled-agent-tasks",
@@ -258,6 +297,14 @@ export async function fetchClientPulseSources(
         sort: "-capturedAt",
       }),
       fetchAllPages(payload, {
+        collection: "google-ads-audits",
+        where: { client: { in: clientIds } },
+        depth: 0,
+        limit,
+        sort: "-updatedAt",
+        select: { id: true, client: true, customerId: true, monthlyBudget: true, updatedAt: true },
+      }),
+      fetchAllPages(payload, {
         collection: "site-health-reports",
         where: { client: { in: clientIds } },
         depth: 1,
@@ -271,6 +318,14 @@ export async function fetchClientPulseSources(
         limit,
         sort: "-periodEnd",
       }),
+      fetchAllPages(payload, {
+        collection: "client-pulse-history",
+        where: { client: { in: clientIds } },
+        depth: 0,
+        limit: Math.max(limit, clientIds.length * 12),
+        sort: "-date",
+        select: { id: true, client: true, date: true, score: true, status: true },
+      }),
     ]);
 
   return {
@@ -283,8 +338,10 @@ export async function fetchClientPulseSources(
     organicSnapshots: filterRecordsByClient(organicSnapshots, clientIds),
     gscMonthlySnapshots: filterRecordsByClient(gscMonthlySnapshots, clientIds),
     googleAdsSnapshots: filterRecordsByClient(googleAdsSnapshots, clientIds),
+    googleAdsAudits: filterRecordsByClient(googleAdsAudits, clientIds),
     siteHealthReports: filterRecordsByClient(siteHealthReports, clientIds),
     aiVisibilitySnapshots: filterRecordsByClient(aiVisibilitySnapshots, clientIds),
+    clientPulseHistory: filterRecordsByClient(clientPulseHistory, clientIds),
   };
 }
 
@@ -299,8 +356,10 @@ export function groupClientPulseSources(sources: ClientPulseSources, clientIds: 
     organicSnapshots: groupByClient(sources.organicSnapshots, allowed, "snapshotDate"),
     gscMonthlySnapshots: groupByClient(sources.gscMonthlySnapshots, allowed, "periodEnd"),
     googleAdsSnapshots: groupByClient(sources.googleAdsSnapshots, allowed, "capturedAt"),
+    googleAdsAudits: groupByClient(sources.googleAdsAudits, allowed, "updatedAt"),
     siteHealthReports: groupByClient(sources.siteHealthReports, allowed, "reportDate"),
     aiVisibilitySnapshots: groupByClient(sources.aiVisibilitySnapshots, allowed, "periodEnd"),
+    clientPulseHistory: groupByClient(sources.clientPulseHistory, allowed, "date"),
   };
 }
 
@@ -320,6 +379,8 @@ export function buildClientPulseSummary(input: {
   const organicTrend = calculateOrganicTrend(input.grouped.gscMonthlySnapshots.get(id) ?? [], now);
   const allAdsSnapshots = input.grouped.googleAdsSnapshots.get(id) ?? [];
   const adsTrend = calculateAdsTrend(allAdsSnapshots, now);
+  const budgetPacing = calculateBudgetPacing(input.client, input.grouped.googleAdsAudits.get(id) ?? [], adsTrend, now);
+  const clickAnomalies = calculateClickAnomalies(input.grouped.gscMonthlySnapshots.get(id) ?? [], allAdsSnapshots, now);
   // Rolling-window snapshots feed the live paid score; MONTH_* history feeds
   // the MoM trend. Mixing them would double-count clicks and spend.
   const adsSnapshots = allAdsSnapshots.filter((snapshot) => {
@@ -398,6 +459,7 @@ export function buildClientPulseSummary(input: {
   const organic = calculateOrganicScore(latestOrganic, previousOrganic, allServices, organicTrend);
   const paidSearch = calculatePaidSearchScore(adsSnapshots, input.client, allServices);
   const overall = calculateOverallScore([organic, paidSearch, serviceCoverage, neglect]);
+  const scoreHistory = shapeScoreHistory(input.grouped.clientPulseHistory.get(id) ?? [], overall, now);
   const reasons = [...targetReasons(target), ...organic.reasons, ...paidSearch.reasons, ...serviceCoverage.reasons, ...neglect.reasons]
     .filter(Boolean)
     .slice(0, 8);
@@ -417,6 +479,9 @@ export function buildClientPulseSummary(input: {
     analyticsMetrics,
     organicTrend,
     adsTrend,
+    budgetPacing,
+    clickAnomalies,
+    scoreHistory,
     scores: { organic, paidSearch, serviceCoverage, neglect, overall },
     signals: {
       automations: automationSignals,
@@ -530,7 +595,7 @@ export function calculateOrganicTrend(monthlySnapshots: PlainRecord[], now: Date
  * month for clicks, conversions and spend; CPA = spend / conversions.
  */
 export function calculateAdsTrend(adsSnapshots: PlainRecord[], now: Date): AdsTrend {
-  const empty: AdsTrend = { month: null, clicks: null, conversions: null, cpa: null, clicksMomPercent: null, conversionsMomPercent: null, cpaMomPercent: null, mtdMonth: null, mtdClicks: null, mtdConversions: null, mtdClicksYoyPercent: null, mtdConversionsYoyPercent: null };
+  const empty: AdsTrend = { month: null, clicks: null, conversions: null, cpa: null, clicksMomPercent: null, conversionsMomPercent: null, cpaMomPercent: null, mtdMonth: null, mtdClicks: null, mtdConversions: null, mtdSpend: null, mtdClicksYoyPercent: null, mtdConversionsYoyPercent: null };
   const currentMonthKey = monthKey(now.getUTCFullYear(), now.getUTCMonth() + 1);
   const byMonth = new Map<string, PlainRecord>();
   const byMtd = new Map<string, PlainRecord>();
@@ -552,16 +617,9 @@ export function calculateAdsTrend(adsSnapshots: PlainRecord[], now: Date): AdsTr
     if (!/^\d{4}-\d{2}$/.test(key) || key >= currentMonthKey || stringValue(snapshot.error)) continue;
     if (!byMonth.has(key)) byMonth.set(key, snapshot);
   }
-  const totalsForSnapshot = (snapshot: PlainRecord): { clicks: number; conversions: number; cpa: number | null } => {
-    const rows = arrayRecords(snapshot.rows);
-    const clicks = sumRows(rows, "clicks");
-    const conversions = sumRows(rows, "conversions");
-    const spend = sumRows(rows, "spend") + sumRows(rows, "costMicros") / 1_000_000;
-    return { clicks, conversions, cpa: conversions > 0 ? Math.round((spend / conversions) * 100) / 100 : null };
-  };
-  const totals = (key: string): { clicks: number; conversions: number; cpa: number | null } | null => {
+  const totals = (key: string): AdsSnapshotTotals | null => {
     const snapshot = byMonth.get(key);
-    return snapshot ? totalsForSnapshot(snapshot) : null;
+    return snapshot ? totalsForAdsSnapshot(snapshot) : null;
   };
   const months = [...byMonth.keys()].sort((a, b) => b.localeCompare(a));
   const latestMonth = months[0] ?? null;
@@ -570,8 +628,8 @@ export function calculateAdsTrend(adsSnapshots: PlainRecord[], now: Date): AdsTr
   const currentMtdKey = monthKey(now.getUTCFullYear(), now.getUTCMonth() + 1);
   const mtd = byMtd.get(currentMtdKey);
   const mtdLy = byMtdLastYear.get(currentMtdKey);
-  const mtdTotals = mtd ? totalsForSnapshot(mtd) : null;
-  const mtdLyTotals = mtdLy ? totalsForSnapshot(mtdLy) : null;
+  const mtdTotals = mtd ? totalsForAdsSnapshot(mtd) : null;
+  const mtdLyTotals = mtdLy ? totalsForAdsSnapshot(mtdLy) : null;
   return {
     month: latestMonth,
     clicks: latest?.clicks ?? null,
@@ -583,6 +641,7 @@ export function calculateAdsTrend(adsSnapshots: PlainRecord[], now: Date): AdsTr
     mtdMonth: mtdTotals ? currentMtdKey : null,
     mtdClicks: mtdTotals?.clicks ?? null,
     mtdConversions: mtdTotals?.conversions ?? null,
+    mtdSpend: mtdTotals?.spend ?? null,
     mtdClicksYoyPercent: percentChange(mtdTotals?.clicks ?? null, mtdLyTotals?.clicks ?? null),
     mtdConversionsYoyPercent: percentChange(mtdTotals?.conversions ?? null, mtdLyTotals?.conversions ?? null),
   };
@@ -598,9 +657,124 @@ function shiftMonth(key: string, delta: number): string {
   return monthKey(Math.floor(total / 12), (total % 12 + 12) % 12 + 1);
 }
 
+type AdsSnapshotTotals = { clicks: number; conversions: number; spend: number; cpa: number | null };
+
 function percentChange(current: number | null, previous: number | null): number | null {
   if (current === null || previous === null || previous === 0) return null;
   return Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
+function roundOne(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function totalsForAdsSnapshot(snapshot: PlainRecord): AdsSnapshotTotals {
+  const rows = arrayRecords(snapshot.rows);
+  const clicks = sumRows(rows, "clicks");
+  const conversions = sumRows(rows, "conversions");
+  const spend = sumRows(rows, "spend") + sumRows(rows, "costMicros") / 1_000_000;
+  return { clicks, conversions, spend, cpa: conversions > 0 ? Math.round((spend / conversions) * 100) / 100 : null };
+}
+
+export function calculateBudgetPacing(client: PlainRecord, googleAdsAudits: PlainRecord[], adsTrend: AdsTrend, now: Date): ClientPulseBudgetPacing {
+  const spendPolicyBudget = numberValue(recordValue(client.spendPolicy).monthlyBudgetTarget);
+  const auditBudget = googleAdsAudits.map((audit) => numberValue(audit.monthlyBudget)).find((budget): budget is number => typeof budget === "number" && budget > 0) ?? null;
+  const monthlyBudget = spendPolicyBudget && spendPolicyBudget > 0 ? spendPolicyBudget : auditBudget;
+  const source: ClientPulseBudgetPacing["source"] = spendPolicyBudget && spendPolicyBudget > 0 ? "client" : auditBudget ? "google_ads_audit" : null;
+  const mtdSpend = adsTrend.mtdSpend;
+  const monthProgressPercent = roundOne((dayOfMonthUtc(now) / daysInMonthUtc(now)) * 100);
+  if (!monthlyBudget) {
+    return { status: "missing", label: "No budget", monthlyBudget: null, mtdSpend, expectedSpendToDate: null, difference: null, expectedBudgetPercent: null, actualBudgetPercent: null, deltaPercentPoints: null, monthProgressPercent, source: null };
+  }
+  if (mtdSpend === null || !adsTrend.mtdMonth) {
+    return { status: "missing", label: "No MTD", monthlyBudget, mtdSpend: null, expectedSpendToDate: null, difference: null, expectedBudgetPercent: null, actualBudgetPercent: null, deltaPercentPoints: null, monthProgressPercent, source };
+  }
+  const expectedBudgetPercent = monthProgressPercent;
+  const actualBudgetPercent = roundOne((mtdSpend / monthlyBudget) * 100);
+  const deltaPercentPoints = roundOne(actualBudgetPercent - expectedBudgetPercent);
+  const expectedSpendToDate = Math.round(monthlyBudget * (dayOfMonthUtc(now) / daysInMonthUtc(now)) * 100) / 100;
+  const difference = Math.round((mtdSpend - expectedSpendToDate) * 100) / 100;
+  const absDelta = Math.abs(deltaPercentPoints);
+  const status: ClientPulseScoreStatus = absDelta <= 3 ? "good" : absDelta <= 10 ? "watch" : "risk";
+  const label = absDelta <= 3 ? "On pace" : `${Math.round(absDelta)}% ${deltaPercentPoints > 0 ? "ahead" : "below"}`;
+  return { status, label, monthlyBudget, mtdSpend, expectedSpendToDate, difference, expectedBudgetPercent, actualBudgetPercent, deltaPercentPoints, monthProgressPercent, source };
+}
+
+function daysInMonthUtc(date: Date): number {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+}
+
+function dayOfMonthUtc(date: Date): number {
+  return date.getUTCDate();
+}
+
+export function calculateClickAnomalies(gscSnapshots: PlainRecord[], adsSnapshots: PlainRecord[], now: Date): ClickAnomaly[] {
+  return [
+    ...detectClickAnomaly("organic", organicClickSeries(gscSnapshots, now)),
+    ...detectClickAnomaly("google_ads", adsClickSeries(adsSnapshots, now)),
+  ];
+}
+
+type ClickSeriesPoint = { month: string; clicks: number };
+
+function organicClickSeries(snapshots: PlainRecord[], now: Date): ClickSeriesPoint[] {
+  const currentMonthKey = monthKey(now.getUTCFullYear(), now.getUTCMonth() + 1);
+  const byMonth = new Map<string, number>();
+  for (const snapshot of snapshots) {
+    const key = stringValue(snapshot.periodStart).slice(0, 7);
+    const clicks = numberValue(snapshot.totalClicks);
+    if (!/^\d{4}-\d{2}$/.test(key) || key >= currentMonthKey || clicks === null || byMonth.has(key)) continue;
+    byMonth.set(key, clicks);
+  }
+  return [...byMonth.entries()].map(([month, clicks]) => ({ month, clicks })).sort((a, b) => b.month.localeCompare(a.month));
+}
+
+function adsClickSeries(snapshots: PlainRecord[], now: Date): ClickSeriesPoint[] {
+  const currentMonthKey = monthKey(now.getUTCFullYear(), now.getUTCMonth() + 1);
+  const byMonth = new Map<string, number>();
+  for (const snapshot of snapshots) {
+    const label = stringValue(snapshot.dateRangeLabel);
+    if (!label.startsWith("MONTH_") || stringValue(snapshot.error)) continue;
+    const key = label.slice(6);
+    if (!/^\d{4}-\d{2}$/.test(key) || key >= currentMonthKey || byMonth.has(key)) continue;
+    byMonth.set(key, totalsForAdsSnapshot(snapshot).clicks);
+  }
+  return [...byMonth.entries()].map(([month, clicks]) => ({ month, clicks })).sort((a, b) => b.month.localeCompare(a.month));
+}
+
+function detectClickAnomaly(channel: ClickAnomaly["channel"], series: ClickSeriesPoint[]): ClickAnomaly[] {
+  const latest = series[0];
+  const baseline = series.slice(1, 7).map((point) => point.clicks);
+  if (!latest || baseline.length < 3) return [];
+  const stats = meanStddev(baseline);
+  if (stats.mean <= 0) return [];
+  const percentChangeValue = ((latest.clicks - stats.mean) / stats.mean) * 100;
+  const zScore = stats.stddev > 0 ? (latest.clicks - stats.mean) / stats.stddev : null;
+  const meaningful = Math.abs(percentChangeValue) >= 25;
+  const statisticallyUnusual = stats.stddev === 0 ? meaningful : Math.abs(zScore ?? 0) >= 2;
+  if (!meaningful || !statisticallyUnusual) return [];
+  const isDrop = percentChangeValue < 0;
+  const status: ClientPulseScoreStatus = isDrop && (percentChangeValue <= -40 || (zScore ?? 0) <= -3) ? "risk" : "watch";
+  const channelLabel = channel === "organic" ? "Organic" : "Google Ads";
+  const direction = isDrop ? "below" : "above";
+  return [{
+    id: `click-anomaly-${channel}-${latest.month}`,
+    channel,
+    month: latest.month,
+    observedClicks: latest.clicks,
+    baselineAverage: Math.round(stats.mean),
+    percentChange: roundOne(percentChangeValue),
+    zScore: zScore === null ? null : roundOne(zScore),
+    status,
+    label: `${channelLabel} click ${isDrop ? "drop" : "spike"}`,
+    detail: `${channelLabel} clicks are ${Math.abs(roundOne(percentChangeValue))}% ${direction} the recent baseline (${latest.month}: ${latest.clicks.toLocaleString("en-AU")} vs ${Math.round(stats.mean).toLocaleString("en-AU")} avg).`,
+  }];
+}
+
+function meanStddev(values: number[]): { mean: number; stddev: number } {
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  return { mean, stddev: Math.sqrt(variance) };
 }
 
 export function calculateOrganicScore(latest: PlainRecord | undefined, previous?: PlainRecord, servicesTracked: string[] = [], trend?: OrganicTrend): ScoreSummary {
@@ -625,6 +799,70 @@ export function calculateOrganicScore(latest: PlainRecord | undefined, previous?
   const score = Math.max(0, Math.min(100, Math.round(70 + change)));
   const status: ClientPulseScoreStatus = change >= 5 ? "good" : change >= -10 ? "watch" : "risk";
   return { score, status, label: `${Math.round(change)}% organic clicks`, reasons: [`Organic clicks ${change >= 0 ? "up" : "down"} ${Math.abs(Math.round(change))}% vs previous snapshot`] };
+}
+
+function shapeScoreHistory(history: PlainRecord[], overall: ScoreSummary, now: Date): ClientPulseScoreHistoryPoint[] {
+  const today = dateKey(now);
+  const points = stableRecords(history, "date")
+    .flatMap((record): ClientPulseScoreHistoryPoint[] => {
+      const date = stringValue(record.date);
+      const score = numberValue(record.score);
+      const status = scoreStatus(record.status);
+      return date && score !== null ? [{ date, score: clampScore(score), status }] : [];
+    })
+    .reverse();
+  if (overall.score !== null && !points.some((point) => point.date === today)) {
+    points.push({ date: today, score: clampScore(overall.score), status: overall.status });
+  }
+  return points.slice(-12);
+}
+
+export async function recordClientPulseHistory(payload: PayloadLike, summaries: ClientPulseSummary[], now: Date = new Date()): Promise<void> {
+  if (!payload.create || !payload.update) return;
+  const create = payload.create.bind(payload);
+  const update = payload.update.bind(payload);
+  const date = dateKey(now);
+  await Promise.all(summaries.flatMap(async (summary) => {
+    const score = summary.scores.overall.score;
+    if (score === null) return [];
+    const existing = await payload.find({
+      collection: "client-pulse-history",
+      where: { and: [{ client: { equals: summary.client.id } }, { date: { equals: date } }] },
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+    });
+    const data = {
+      client: summary.client.id,
+      date,
+      score: clampScore(score),
+      status: summary.scores.overall.status,
+      label: summary.scores.overall.label,
+      organicScore: summary.scores.organic.score,
+      paidSearchScore: summary.scores.paidSearch.score,
+      serviceCoverageScore: summary.scores.serviceCoverage.score,
+      neglectScore: summary.scores.neglect.score,
+    };
+    const existingId = normalizeId(recordValue(existing.docs?.[0]).id);
+    if (existingId) {
+      await update({ collection: "client-pulse-history", id: existingId, data, overrideAccess: true });
+      return [];
+    }
+    await create({ collection: "client-pulse-history", data, overrideAccess: true });
+    return [];
+  }));
+}
+
+function dateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function scoreStatus(value: unknown): ClientPulseScoreStatus {
+  return value === "good" || value === "watch" || value === "risk" || value === "missing" || value === "not_in_scope" ? value : "missing";
 }
 
 export function calculatePaidSearchScore(snapshots: PlainRecord[] | PlainRecord | undefined, client?: PlainRecord, servicesTracked: string[] = []): ScoreSummary {
@@ -672,7 +910,11 @@ function clientPulseClientSelect(includeAnalyticsMetrics: boolean): PlainRecord 
     logoThumbUrl: true,
     services: true,
     googleAdsCustomerId: true,
+    spendPolicy: {
+      monthlyBudgetTarget: true,
+    },
     clientPulse: {
+
       priority: true,
       comparisonWindow: true,
       primaryTarget: true,
@@ -710,7 +952,7 @@ function isMissingClientPulseAnalyticsTableError(error: unknown): boolean {
 }
 
 function emptySources(clients: PlainRecord[]): ClientPulseSources {
-  return { clients, scheduledTasks: [], goalRuns: [], activityLog: [], ledgerItems: [], clientProcesses: [], organicSnapshots: [], gscMonthlySnapshots: [], googleAdsSnapshots: [], siteHealthReports: [], aiVisibilitySnapshots: [] };
+  return { clients, scheduledTasks: [], goalRuns: [], activityLog: [], ledgerItems: [], clientProcesses: [], organicSnapshots: [], gscMonthlySnapshots: [], googleAdsSnapshots: [], googleAdsAudits: [], siteHealthReports: [], aiVisibilitySnapshots: [], clientPulseHistory: [] };
 }
 
 function groupByClient(records: PlainRecord[], allowed: Set<string>, dateField: string, includeClientsCovered = false): Map<string, PlainRecord[]> {

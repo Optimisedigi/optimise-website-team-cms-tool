@@ -61,12 +61,12 @@ export function ClientPulsePage({ initialData }: { initialData: ClientPulseSumma
             onFocus={positionDetailPanel}
           >
             <div className="client-pulse-card__main">
-              <h2>{summary.client.name}</h2>
+              <div className="client-pulse-card__title"><h2>{summary.client.name}</h2><PulseSparkline history={summary.scoreHistory} /></div>
               <ScoreRing summary={summary} />
             </div>
             <div className="client-pulse-metrics" aria-label={`${summary.client.name} pulse stats`}>
               <MetricChip label="Target" value={formatTargetStatus(summary)} tone={targetTone(summary)} title="Whether this client is currently achieving their configured Client Pulse target." />
-              <MetricChip label="MTD traffic" value={formatTrendValue(summary.adsTrend.mtdClicksYoyPercent, summary.client.hasGoogleAds)} tone={trendTone(summary.adsTrend.mtdClicksYoyPercent)} title="Google Ads month-to-date clicks compared with the same dates last year." />
+              <MetricChip label="Budget pace" value={formatBudgetPacing(summary)} tone={budgetTone(summary.budgetPacing.status)} title="Google Ads month-to-date spend against expected monthly budget pace." />
               <MetricChip label="Conversions" value={formatTrendValue(summary.adsTrend.mtdConversionsYoyPercent, summary.client.hasGoogleAds)} tone={trendTone(summary.adsTrend.mtdConversionsYoyPercent)} title="Google Ads month-to-date conversions compared with the same dates last year." />
             </div>
             <DetailPanel summary={summary} />
@@ -128,6 +128,25 @@ function ScoreRing({ summary }: { summary: ClientPulseSummary }) {
   return <div className="client-pulse-score-ring" style={style}><strong>{scoreValue === null ? "—" : score}</strong><span>Pulse</span></div>;
 }
 
+function PulseSparkline({ history }: { history: ClientPulseSummary["scoreHistory"] }) {
+  if (history.length < 2) return <span className="client-pulse-sparkline-empty">No trend yet</span>;
+  const width = 112;
+  const height = 26;
+  const scores = history.map((point) => clampPercent(point.score));
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  const range = Math.max(1, max - min);
+  const points = scores.map((score, index) => {
+    const x = history.length === 1 ? 0 : (index / (history.length - 1)) * width;
+    const y = height - ((score - min) / range) * height;
+    return `${roundSvg(x)},${roundSvg(y)}`;
+  }).join(" ");
+  const first = scores[0] ?? 0;
+  const last = scores[scores.length - 1] ?? first;
+  const direction = last > first ? "up" : last < first ? "down" : "flat";
+  return <svg className={`client-pulse-sparkline is-${direction}`} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Pulse trend: ${first} to ${last} over ${history.length} snapshots`}><title>{`Pulse trend: ${first} → ${last} over ${history.length} snapshots`}</title><polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
 function pulseColorStyle(summary: ClientPulseSummary): CSSProperties {
   const scoreValue = summary.scores.overall.score ?? summary.target.progressPercent;
   return { "--pulse-status": pulseColor(scoreValue) } as CSSProperties;
@@ -149,7 +168,7 @@ function ScorePill({ status, label }: { status: ClientPulseScoreStatus; label: s
 }
 
 function DetailPanel({ summary }: { summary: ClientPulseSummary }) {
-  return <aside className="client-pulse-detail-panel"><header className="client-pulse-detail-panel__header"><h2>{summary.client.name}</h2><a className="client-pulse-detail-panel__open" href={`/admin/collections/clients/${summary.client.id}`}>Open client →</a></header><p>{summary.reasons.join(" · ") || "No risk reasons recorded."}</p><div className="client-pulse-detail-panel__scores"><ScorePill status={summary.scores.overall.status} label={summary.scores.overall.label} /><MetricChip label="Target" value={formatPercent(summary.target.progressPercent)} title="Progress against this client's configured primary target." /><MetricChip label="Last" value={summary.lastMeaningfulActivityAt ? formatDate(summary.lastMeaningfulActivityAt) : "Unknown"} title="Most recent meaningful client activity date." /></div><AdsTrendSection trend={summary.adsTrend} hasGoogleAds={summary.client.hasGoogleAds} /><OrganicTrendSection trend={summary.organicTrend} /><AutomationPills items={summary.signals.automations} /><SignalSection title="Team actions" items={summary.signals.manualWork} /><SignalSection title="Scheduled tasks" items={summary.signals.scheduledTasks} /><SignalSection title="Recent activity" items={summary.signals.recentActivity} /></aside>;
+  return <aside className="client-pulse-detail-panel"><header className="client-pulse-detail-panel__header"><h2>{summary.client.name}</h2><a className="client-pulse-detail-panel__open" href={`/admin/collections/clients/${summary.client.id}`}>Open client →</a></header><p>{summary.reasons.join(" · ") || "No risk reasons recorded."}</p><div className="client-pulse-detail-panel__scores"><ScorePill status={summary.scores.overall.status} label={summary.scores.overall.label} /><MetricChip label="Target" value={formatPercent(summary.target.progressPercent)} title="Progress against this client's configured primary target." /><MetricChip label="Last" value={summary.lastMeaningfulActivityAt ? formatDate(summary.lastMeaningfulActivityAt) : "Unknown"} title="Most recent meaningful client activity date." /></div><AdsTrendSection trend={summary.adsTrend} budgetPacing={summary.budgetPacing} hasGoogleAds={summary.client.hasGoogleAds} /><OrganicTrendSection trend={summary.organicTrend} /><ClickAnomalySection items={summary.clickAnomalies} /><AutomationPills items={summary.signals.automations} /><SignalSection title="Team actions" items={summary.signals.manualWork} /><SignalSection title="Scheduled tasks" items={summary.signals.scheduledTasks} /><SignalSection title="Recent activity" items={summary.signals.recentActivity} /></aside>;
 }
 
 function OrganicTrendSection({ trend }: { trend: ClientPulseSummary["organicTrend"] }) {
@@ -174,13 +193,13 @@ function TrendChip({ label, value, title, invert = false }: { label: string; val
   return <span className={`client-pulse-metric client-pulse-trend${tone}`} title={title}><strong>{display}</strong><small>{label}</small></span>;
 }
 
-function AdsTrendSection({ trend, hasGoogleAds }: { trend: ClientPulseSummary["adsTrend"]; hasGoogleAds: boolean }) {
+function AdsTrendSection({ trend, budgetPacing, hasGoogleAds }: { trend: ClientPulseSummary["adsTrend"]; budgetPacing: ClientPulseSummary["budgetPacing"]; hasGoogleAds: boolean }) {
   const headingMonth = trend.mtdMonth ?? trend.month;
   if (!hasGoogleAds) {
     return <section><h3>Google Ads</h3><p className="client-pulse-muted">No Google Ads customer ID is saved for this client yet.</p></section>;
   }
   if (!headingMonth) {
-    return <section><h3>Google Ads</h3><p className="client-pulse-muted">Google Ads is connected for this client, but no campaign data has been pulled into the CMS yet. Run the Google Ads data sync to backfill MTD and monthly data.</p></section>;
+    return <section><h3>Google Ads</h3><p className="client-pulse-muted">Google Ads is connected for this client, but no campaign data has been pulled into the CMS yet. Run the Google Ads data sync to backfill MTD and monthly data.</p><BudgetPacingSection pacing={budgetPacing} /></section>;
   }
   const monthLabel = new Intl.DateTimeFormat("en-AU", { month: "short", year: "numeric" }).format(new Date(`${headingMonth}-01T00:00:00Z`));
   return (
@@ -192,6 +211,7 @@ function AdsTrendSection({ trend, hasGoogleAds }: { trend: ClientPulseSummary["a
         <MetricChip label="Conversions" value={trend.mtdConversions === null ? "—" : String(Math.round(trend.mtdConversions))} title="Google Ads conversions month-to-date." />
         <TrendChip label="vs LY" value={trend.mtdConversionsYoyPercent} title="MTD conversions compared with the same dates last year." />
       </div> : <p className="client-pulse-muted">No MTD Google Ads comparison snapshot yet.</p>}
+      <BudgetPacingSection pacing={budgetPacing} />
       {trend.month ? <div className="client-pulse-analytics-grid client-pulse-analytics-grid--secondary">
         <MetricChip label="Last full month" value={trend.clicks === null ? "—" : trend.clicks.toLocaleString("en-AU")} title="Google Ads clicks for the latest full calendar month." />
         <TrendChip label="MoM" value={trend.clicksMomPercent} title="Clicks change vs the previous calendar month." />
@@ -199,6 +219,15 @@ function AdsTrendSection({ trend, hasGoogleAds }: { trend: ClientPulseSummary["a
       </div> : null}
     </section>
   );
+}
+
+function BudgetPacingSection({ pacing }: { pacing: ClientPulseSummary["budgetPacing"] }) {
+  return <div className="client-pulse-budget-pacing"><div className="client-pulse-budget-pacing__header"><ScorePill status={pacing.status} label={pacing.label} /><span>{pacing.monthProgressPercent === null ? "Month progress unknown" : `${pacing.monthProgressPercent}% of month elapsed`}</span></div><div className="client-pulse-analytics-grid client-pulse-analytics-grid--secondary"><MetricChip label="Budget" value={formatCurrency(pacing.monthlyBudget)} /><MetricChip label="MTD spend" value={formatCurrency(pacing.mtdSpend)} /><MetricChip label="Expected" value={formatCurrency(pacing.expectedSpendToDate)} /><MetricChip label="Diff" value={formatSignedCurrency(pacing.difference)} /></div>{pacing.deltaPercentPoints !== null ? <p className="client-pulse-muted">Spend is {Math.abs(pacing.deltaPercentPoints)} percentage points {pacing.deltaPercentPoints >= 0 ? "ahead of" : "below"} expected budget pace ({pacing.actualBudgetPercent}% used vs {pacing.expectedBudgetPercent}% expected).</p> : null}</div>;
+}
+
+function ClickAnomalySection({ items }: { items: ClientPulseSummary["clickAnomalies"] }) {
+  if (items.length === 0) return null;
+  return <section><h3>Click anomaly</h3><ul>{items.map((item) => <li key={item.id}><ScorePill status={item.status} label={item.label} /><span>{item.detail}</span></li>)}</ul></section>;
 }
 
 function AutomationPills({ items }: { items: SignalItem[] }) {
@@ -219,6 +248,10 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function roundSvg(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 function formatPercent(value: number | null): string {
   return value === null ? "—" : `${clampPercent(value)}%`;
 }
@@ -234,6 +267,27 @@ function targetTone(summary: ClientPulseSummary): "good" | "bad" | "neutral" {
   if (summary.target.status === "on_track") return "good";
   if (summary.target.status === "at_risk") return "bad";
   return "neutral";
+}
+
+function formatBudgetPacing(summary: ClientPulseSummary): string {
+  if (!summary.client.hasGoogleAds) return "No Ads";
+  return summary.budgetPacing.label;
+}
+
+function budgetTone(status: ClientPulseScoreStatus): "good" | "bad" | "neutral" {
+  if (status === "good") return "good";
+  if (status === "risk") return "bad";
+  return "neutral";
+}
+
+function formatCurrency(value: number | null): string {
+  return value === null ? "—" : `$${Math.round(value).toLocaleString("en-AU")}`;
+}
+
+function formatSignedCurrency(value: number | null): string {
+  if (value === null) return "—";
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}$${Math.abs(Math.round(value)).toLocaleString("en-AU")}`;
 }
 
 function formatTrendValue(value: number | null, hasGoogleAds: boolean): string {

@@ -111,6 +111,7 @@ import * as migration_20260707_120000_add_monthly_keyword_removed_fields from '.
 import * as migration_20260708_120000_add_monthly_keyword_review_dismissed_fields from './20260708_120000_add_monthly_keyword_review_dismissed_fields';
 import * as migration_20260709_120000_add_monthly_keyword_outcome_fields from './20260709_120000_add_monthly_keyword_outcome_fields';
 import * as migration_20260710_120000_add_client_pulse_analytics_metrics from './20260710_120000_add_client_pulse_analytics_metrics';
+import * as migration_20260711_120000_add_client_pulse_history from './20260711_120000_add_client_pulse_history';
 
 export const migrations = [
   {
@@ -677,5 +678,10 @@ export const migrations = [
     up: migration_20260710_120000_add_client_pulse_analytics_metrics.up,
     down: migration_20260710_120000_add_client_pulse_analytics_metrics.down,
     name: '20260710_120000_add_client_pulse_analytics_metrics'
+  },
+  {
+    up: migration_20260711_120000_add_client_pulse_history.up,
+    down: migration_20260711_120000_add_client_pulse_history.down,
+    name: '20260711_120000_add_client_pulse_history'
   },
 ];

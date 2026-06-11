@@ -6659,6 +6659,28 @@ body.od-client-record {
   }
 }
 
+.client-pulse-card__title {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.client-pulse-sparkline {
+  width: 112px;
+  max-width: 100%;
+  height: 26px;
+  color: var(--pulse-muted);
+
+  &.is-up { color: #166534; }
+  &.is-down { color: #9f1239; }
+}
+
+.client-pulse-sparkline-empty {
+  color: var(--pulse-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .client-pulse-score-ring {
   display: grid;
   place-items: center;
@@ -6963,6 +6985,20 @@ body.od-client-record {
 .client-pulse-analytics-grid--secondary {
   margin-top: 6px;
   opacity: 0.86;
+}
+
+.client-pulse-budget-pacing {
+  margin-top: 8px;
+}
+
+.client-pulse-budget-pacing__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--pulse-muted);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .client-pulse-muted,

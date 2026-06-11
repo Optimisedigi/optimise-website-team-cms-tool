@@ -5,7 +5,7 @@ import { createLocalReq, getPayload } from "payload";
 import { redirect } from "next/navigation";
 import AdminStepNavSetter from "../../../../../components/AdminStepNavSetter";
 import ClientPulsePage from "../../../../../components/ClientPulsePage";
-import { getClientPulseSummaries } from "../../../../../lib/client-pulse";
+import { getClientPulseSummaries, recordClientPulseHistory } from "../../../../../lib/client-pulse";
 import { getCustomViewActions, getVisibleEntities } from "../../../../../lib/visible-entities";
 
 export default async function Page() {
@@ -19,6 +19,7 @@ export default async function Page() {
   const visibleEntities = getVisibleEntities(payload, user);
   const viewActions = getCustomViewActions(payload);
   const summaries = await getClientPulseSummaries(payload);
+  await recordClientPulseHistory(payload, summaries);
 
   return (
     <DefaultTemplate

@@ -129,6 +129,7 @@ export interface Config {
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCache;
     'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCache;
     'monthly-keyword-terms-cache': MonthlyKeywordTermsCache;
+    'client-pulse-history': ClientPulseHistory;
     'agent-credentials': AgentCredential;
     'contract-reminders': ContractReminder;
     notifications: Notification;
@@ -220,6 +221,7 @@ export interface Config {
     'negative-keyword-avoided-spend-cache': NegativeKeywordAvoidedSpendCacheSelect<false> | NegativeKeywordAvoidedSpendCacheSelect<true>;
     'negative-keyword-monthly-waste-relevancy-cache': NegativeKeywordMonthlyWasteRelevancyCacheSelect<false> | NegativeKeywordMonthlyWasteRelevancyCacheSelect<true>;
     'monthly-keyword-terms-cache': MonthlyKeywordTermsCacheSelect<false> | MonthlyKeywordTermsCacheSelect<true>;
+    'client-pulse-history': ClientPulseHistorySelect<false> | ClientPulseHistorySelect<true>;
     'agent-credentials': AgentCredentialsSelect<false> | AgentCredentialsSelect<true>;
     'contract-reminders': ContractRemindersSelect<false> | ContractRemindersSelect<true>;
     notifications: NotificationsSelect<false> | NotificationsSelect<true>;
@@ -7766,6 +7768,29 @@ export interface MonthlyKeywordTermsCache {
   createdAt: string;
 }
 /**
+ * Daily Client Pulse score snapshots used for trend sparklines.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-pulse-history".
+ */
+export interface ClientPulseHistory {
+  id: number;
+  client: number | Client;
+  /**
+   * Daily snapshot key in YYYY-MM-DD format.
+   */
+  date: string;
+  score: number;
+  status: 'good' | 'watch' | 'risk' | 'missing' | 'not_in_scope';
+  label?: string | null;
+  organicScore?: number | null;
+  paidSearchScore?: number | null;
+  serviceCoverageScore?: number | null;
+  neglectScore?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "agent-credentials".
  */
@@ -8457,6 +8482,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'monthly-keyword-terms-cache';
         value: number | MonthlyKeywordTermsCache;
+      } | null)
+    | ({
+        relationTo: 'client-pulse-history';
+        value: number | ClientPulseHistory;
       } | null)
     | ({
         relationTo: 'agent-credentials';
@@ -11029,6 +11058,23 @@ export interface MonthlyKeywordTermsCacheSelect<T extends boolean = true> {
   reviewCompletedAt?: T;
   reviewCompletedBy?: T;
   fetchedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "client-pulse-history_select".
+ */
+export interface ClientPulseHistorySelect<T extends boolean = true> {
+  client?: T;
+  date?: T;
+  score?: T;
+  status?: T;
+  label?: T;
+  organicScore?: T;
+  paidSearchScore?: T;
+  serviceCoverageScore?: T;
+  neglectScore?: T;
   updatedAt?: T;
   createdAt?: T;
 }

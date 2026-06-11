@@ -86,6 +86,7 @@ import { ClientValueLedgerItems } from "./collections/ClientValueLedgerItems";
 import { ClientPortalRequests } from "./collections/ClientPortalRequests";
 import { QuarterlyOrganicGrowthSnapshots } from "./collections/QuarterlyOrganicGrowthSnapshots";
 import { AgencyKpiSnapshots } from "./collections/AgencyKpiSnapshots";
+import { ClientPulseHistory } from "./collections/ClientPulseHistory";
 
 
 const filename = fileURLToPath(import.meta.url);
@@ -142,7 +143,7 @@ export default buildConfig({
     // Optimate agents
     AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, OptimateChatTurns,
     // Hidden (no group impact)
-    GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, MonthlyKeywordTermsCache, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots,
+    GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, MonthlyKeywordTermsCache, ClientPulseHistory, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots,
   ].map((c) => {
     const collection = c as CollectionConfig
     return {

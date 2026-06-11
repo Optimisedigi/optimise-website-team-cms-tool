@@ -1,5 +1,7 @@
 import {
   calculateAdsTrend,
+  calculateBudgetPacing,
+  calculateClickAnomalies,
   calculateNeglectRisk,
   calculateOrganicTrend,
   calculateServiceCoverage,
@@ -19,8 +21,11 @@ const emptySources = (clients: Array<Record<string, unknown>>): ClientPulseSourc
   organicSnapshots: [],
   gscMonthlySnapshots: [],
   googleAdsSnapshots: [],
+  googleAdsAudits: [],
   siteHealthReports: [],
   aiVisibilitySnapshots: [],
+  clientPulseHistory: [],
+
 });
 
 describe("client-pulse", () => {
@@ -88,6 +93,7 @@ describe("client-pulse", () => {
       mtdMonth: null,
       mtdClicks: null,
       mtdConversions: null,
+      mtdSpend: null,
       mtdClicksYoyPercent: null,
       mtdConversionsYoyPercent: null,
     });
@@ -102,6 +108,7 @@ describe("client-pulse", () => {
       mtdMonth: "2026-06",
       mtdClicks: 150,
       mtdConversions: 12,
+      mtdSpend: 600,
       mtdClicksYoyPercent: 50,
       mtdConversionsYoyPercent: 20,
     });
@@ -110,6 +117,43 @@ describe("client-pulse", () => {
   it("returns empty ads trend without campaign trend snapshots", () => {
     const now = new Date("2026-06-09T00:00:00.000Z");
     expect(calculateAdsTrend([{ dateRangeLabel: "LAST_30_DAYS", rows: [{ clicks: 10 }] }], now)).toMatchObject({ month: null, clicks: null, mtdMonth: null });
+  });
+
+  it("calculates budget pacing from MTD spend and monthly budget", () => {
+    const now = new Date("2026-06-15T00:00:00.000Z");
+    const adsTrend = calculateAdsTrend([{ dateRangeLabel: "MTD_2026-06", rows: [{ spend: 4000 }] }], now);
+    expect(calculateBudgetPacing({ spendPolicy: { monthlyBudgetTarget: 10000 } }, [], adsTrend, now)).toMatchObject({
+      label: "10% below",
+      status: "watch",
+      mtdSpend: 4000,
+      expectedSpendToDate: 5000,
+      deltaPercentPoints: -10,
+      source: "client",
+    });
+  });
+
+  it("returns missing budget pacing states", () => {
+    const now = new Date("2026-06-15T00:00:00.000Z");
+    const emptyAdsTrend = calculateAdsTrend([], now);
+    expect(calculateBudgetPacing({}, [], emptyAdsTrend, now).label).toBe("No budget");
+    expect(calculateBudgetPacing({}, [{ monthlyBudget: 5000, updatedAt: "2026-06-01" }], emptyAdsTrend, now)).toMatchObject({ label: "No MTD", source: "google_ads_audit" });
+  });
+
+  it("detects adaptive click anomalies only with enough history", () => {
+    const now = new Date("2026-06-09T00:00:00.000Z");
+    expect(calculateClickAnomalies([{ periodStart: "2026-05-01", totalClicks: 50 }], [], now)).toEqual([]);
+    expect(calculateClickAnomalies([
+      { periodStart: "2026-05-01", totalClicks: 40 },
+      { periodStart: "2026-04-01", totalClicks: 100 },
+      { periodStart: "2026-03-01", totalClicks: 105 },
+      { periodStart: "2026-02-01", totalClicks: 95 },
+    ], [], now)[0]).toMatchObject({ channel: "organic", status: "risk", percentChange: -60 });
+    expect(calculateClickAnomalies([], [
+      { dateRangeLabel: "MONTH_2026-05", rows: [{ clicks: 180 }] },
+      { dateRangeLabel: "MONTH_2026-04", rows: [{ clicks: 100 }] },
+      { dateRangeLabel: "MONTH_2026-03", rows: [{ clicks: 100 }] },
+      { dateRangeLabel: "MONTH_2026-02", rows: [{ clicks: 100 }] },
+    ], now)[0]).toMatchObject({ channel: "google_ads", status: "watch", percentChange: 80 });
   });
 
   it("groups records by primary and covered client IDs", () => {
@@ -143,7 +187,8 @@ describe("client-pulse", () => {
         }
         if (args.collection === "quarterly-organic-growth-snapshots") return { docs: [{ id: 10, client: 2, snapshotDate: "2026-06-01", clicks: 120 }] };
         if (args.collection === "client-value-ledger-items") return { docs: [{ id: 20, client: 2, occurredAt: "2026-06-01", title: "SEO work", category: "seo" }, { id: 21, client: 1, occurredAt: "2026-06-01", title: "Paid search work", category: "paid_media" }] };
-        if (args.collection === "google-ads-snapshots") return { docs: [{ id: 30, client: 1, capturedAt: "2026-06-01", rows: [{ conversions: 12, costMicros: 120000000 }] }] };
+        if (args.collection === "google-ads-snapshots") return { docs: [{ id: 30, client: 1, capturedAt: "2026-06-01", dateRangeLabel: "MTD_2026-06", rows: [{ conversions: 12, costMicros: 120000000 }] }] };
+        if (args.collection === "client-pulse-history") return { docs: [{ id: 40, client: 1, date: "2026-06-08", score: 60, status: "watch" }] };
         return { docs: [] };
       },
     };
@@ -155,7 +200,8 @@ describe("client-pulse", () => {
     expect(clientsWhere).toEqual({
       and: [{ isActive: { not_equals: false } }, { "clientPulse.enabled": { equals: true } }],
     });
-    expect(calls.filter((collection) => collection !== "clients")).toHaveLength(10);
-    expect(new Set(calls)).toEqual(new Set(["clients", "scheduled-agent-tasks", "goal-runs", "activity-log", "client-value-ledger-items", "client-processes", "quarterly-organic-growth-snapshots", "gsc-snapshots", "google-ads-snapshots", "site-health-reports", "ai-visibility-snapshots"]));
+    expect(summaries[0]?.scoreHistory.map((point) => point.date)).toEqual(["2026-06-08", "2026-06-09"]);
+    expect(calls.filter((collection) => collection !== "clients")).toHaveLength(12);
+    expect(new Set(calls)).toEqual(new Set(["clients", "scheduled-agent-tasks", "goal-runs", "activity-log", "client-value-ledger-items", "client-processes", "quarterly-organic-growth-snapshots", "gsc-snapshots", "google-ads-snapshots", "google-ads-audits", "site-health-reports", "ai-visibility-snapshots", "client-pulse-history"]));
   });
 });
