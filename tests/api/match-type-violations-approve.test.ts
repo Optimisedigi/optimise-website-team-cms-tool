@@ -78,6 +78,26 @@ describe("approve route — routing", () => {
     ]);
   });
 
+  it("coerces a string routing.listId (from the UI <select>) to a number for the relationship update", async () => {
+    mockPayload.findByID
+      .mockResolvedValueOnce(CANDIDATE) // candidate
+      .mockResolvedValueOnce({ id: 99, name: "Shared NSW/QLD/VIC", keywords: [] }); // list
+
+    // The Match Type Variance <select> always emits the chosen list id as a
+    // string. The candidate's `assignedListId` relationship rejects a string
+    // against an integer-keyed collection, so it must be normalised to a number.
+    const res = await approve(req({ routing: { mode: "existing", listId: "99" } }), {
+      params: Promise.resolve({ id: "11" }),
+    });
+
+    expect(res.status).toBe(200);
+    const candidateUpdate = mockPayload.update.mock.calls.find(
+      (c) => c[0].collection === "match-type-violation-candidates",
+    );
+    expect(candidateUpdate?.[0].data.assignedListId).toBe(99);
+    expect(typeof candidateUpdate?.[0].data.assignedListId).toBe("number");
+  });
+
   it("routing:auto matches an existing ad-group list", async () => {
     mockPayload.findByID
       .mockResolvedValueOnce(CANDIDATE) // candidate

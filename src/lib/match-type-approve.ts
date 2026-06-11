@@ -33,6 +33,19 @@ function clientIdOf(client: RoutingCandidate["client"]): number | string {
 }
 
 /**
+ * Coerce an all-digit string id to a number. The Match Type Variance UI sends
+ * the chosen list id as a `<select>` value (always a string), but the
+ * `assignedListId` relationship update validates its type and rejects a string
+ * against an integer-keyed collection ("The following field is invalid"), which
+ * surfaced as an opaque 500 on approve. Numeric strings become numbers; genuine
+ * non-numeric ids are returned untouched.
+ */
+function normalizeListId(id: string | number): string | number {
+  if (typeof id === "number") return id;
+  return /^\d+$/.test(id) ? Number(id) : id;
+}
+
+/**
  * Resolve the destination NKL id for a candidate. An explicit `existing` mode
  * or a legacy `assignedListId` wins; otherwise `auto` matches an ad-group list
  * for the candidate's ad group/campaign, creating a new ad-group-scoped list
@@ -50,10 +63,10 @@ export async function resolveTargetList(
   const clientId = clientIdOf(candidate.client);
 
   if (routing?.mode === "existing" && routing.listId) {
-    return { listId: routing.listId, created: false };
+    return { listId: normalizeListId(routing.listId), created: false };
   }
   if (assignedListId && (!routing || routing.mode !== "auto")) {
-    return { listId: assignedListId, created: false };
+    return { listId: normalizeListId(assignedListId), created: false };
   }
 
   // auto mode — find a matching ad-group list, else create one.
