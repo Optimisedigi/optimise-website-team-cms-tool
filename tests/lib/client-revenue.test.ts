@@ -6,6 +6,7 @@ import {
   oneOffsThisMonth,
   monthsBetween,
   firstMonthProrationFactor,
+  firstMonthRetainerAmount,
   splitOneOffs,
   historicalRevenueTotal,
   revenueShareFactor,
@@ -511,5 +512,99 @@ describe("retainerRevenueYTD with pro-ration, setupFee, and tagged one-offs", ()
         now,
       ),
     ).toBe(0);
+  });
+});
+
+describe("retainerRevenueYTD with retainerStartDate anchor", () => {
+  const now = new Date(2026, 4, 18); // 18 May 2026
+
+  it("pro-rates the first month off retainerStartDate, not clientStartDate", () => {
+    const expected = 1350 * (19 / 31) + 1350 + 1350;
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 1350,
+          clientStartDate: "2026-01-01",
+          retainerStartDate: "2026-03-13",
+        },
+        now,
+      ),
+    ).toBeCloseTo(expected, 6);
+  });
+
+  it("falls back to clientStartDate when retainerStartDate is unset", () => {
+    const withFallback = retainerRevenueYTD(
+      { monthlyRetainer: 1350, clientStartDate: "2026-03-13" },
+      now,
+    );
+    const explicit = retainerRevenueYTD(
+      {
+        monthlyRetainer: 1350,
+        clientStartDate: "2026-03-13",
+        retainerStartDate: null,
+      },
+      now,
+    );
+    expect(explicit).toBeCloseTo(withFallback, 6);
+  });
+
+  it("anchors setup-fee timing to retainerStartDate's calendar year", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 0,
+          setupFee: 1000,
+          clientStartDate: "2025-06-01",
+          retainerStartDate: "2026-03-13",
+        },
+        now,
+      ),
+    ).toBe(1000);
+  });
+
+  it("excludes setup fee when retainerStartDate is in a future month", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 0,
+          setupFee: 1000,
+          clientStartDate: "2026-01-01",
+          retainerStartDate: "2026-07-01",
+        },
+        now,
+      ),
+    ).toBe(0);
+  });
+
+  it("contributes 0 retainer for a not-yet-started retainer", () => {
+    expect(
+      retainerRevenueYTD(
+        {
+          monthlyRetainer: 1350,
+          clientStartDate: "2026-01-01",
+          retainerStartDate: "2026-07-01",
+        },
+        now,
+      ),
+    ).toBe(0);
+  });
+});
+
+describe("firstMonthRetainerAmount", () => {
+  it("pro-rates the gross retainer by the start month's remaining days", () => {
+    expect(firstMonthRetainerAmount(1350, "2026-03-13")).toBeCloseTo(
+      1350 * (19 / 31),
+      10,
+    );
+  });
+
+  it("returns the full amount when starting on the 1st", () => {
+    expect(firstMonthRetainerAmount(2000, "2026-04-01")).toBe(2000);
+  });
+
+  it("returns 0 for missing date or non-positive retainer", () => {
+    expect(firstMonthRetainerAmount(1350, null)).toBe(0);
+    expect(firstMonthRetainerAmount(0, "2026-03-13")).toBe(0);
+    expect(firstMonthRetainerAmount(1350, "not-a-date")).toBe(0);
   });
 });

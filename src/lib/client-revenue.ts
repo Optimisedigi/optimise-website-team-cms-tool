@@ -83,6 +83,7 @@ export interface ClientRevenueInput {
   monthlyRetainer?: number | null;
   setupFee?: number | null;
   clientStartDate?: string | null;
+  retainerStartDate?: string | null;
   retainerHistory?: RetainerHistoryEntry[] | null;
   referralCommissions?: ReferralCommission[] | null;
   oneOffProjects?: OneOffProject[] | null;
@@ -119,6 +120,25 @@ export function firstMonthProrationFactor(
   if (factor < 0) return 0;
   if (factor > 1) return 1;
   return factor;
+}
+
+/**
+ * Gross pro-rated retainer for the first (partial) month of an engagement,
+ * given a retainer start date. Returns `monthlyRetainer` scaled by the share
+ * of the start month from the start day through month-end, inclusive.
+ *
+ * Returns 0 when the retainer start date is missing/invalid or the monthly
+ * retainer is non-positive.
+ */
+export function firstMonthRetainerAmount(
+  monthlyRetainer: number | null | undefined,
+  retainerStartDate: string | null | undefined,
+): number {
+  const gross = Math.max(0, Number(monthlyRetainer) || 0);
+  if (gross <= 0) return 0;
+  const start = toDate(retainerStartDate ?? null);
+  if (!start) return 0;
+  return gross * firstMonthProrationFactor(start, start);
 }
 
 /**
@@ -300,14 +320,18 @@ export function retainerRevenueYTD(
     ? client.retainerHistory
     : [];
 
-  const startDate = toDate(client.clientStartDate ?? null);
-  if (!startDate) {
+  // Retainer anchor: the dedicated retainer start date when set, otherwise
+  // fall back to the client start date (keeps existing clients unchanged).
+  const anchor =
+    toDate(client.retainerStartDate ?? null) ??
+    toDate(client.clientStartDate ?? null);
+  if (!anchor) {
     // No start date: count current month only
     return netMonthlyRetainer(monthlyRetainer, commissions, now);
   }
 
   const yearStart = new Date(now.getFullYear(), 0, 1);
-  const firstMonth = monthStart(startDate > yearStart ? startDate : yearStart);
+  const firstMonth = monthStart(anchor > yearStart ? anchor : yearStart);
   const lastMonth = monthStart(now);
 
   if (firstMonth > lastMonth) return 0;
@@ -320,16 +344,17 @@ export function retainerRevenueYTD(
   ) {
     const gross = grossRetainerForMonth(monthlyRetainer, retainerHistory, m);
     const commission = monthlyCommissionForDate(commissions, gross, m);
-    const factor = firstMonthProrationFactor(startDate, m);
+    const factor = firstMonthProrationFactor(anchor, m);
     const netForMonth = Math.max(0, gross - commission) * factor;
     total += netForMonth;
   }
 
-  // Setup fee: counted in the calendar year of clientStartDate, only once
-  // the start month has begun (so it doesn't appear in a future YTD).
+  // Setup fee: counted in the calendar year of the retainer anchor, only once
+  // the anchor month has begun (so it doesn't appear in a future YTD). The
+  // fee is recognised in full — only its timing follows the retainer anchor.
   const setupFee = Math.max(0, Number(client.setupFee) || 0);
-  if (setupFee > 0 && startDate.getFullYear() === now.getFullYear()) {
-    const startMonth = monthStart(startDate);
+  if (setupFee > 0 && anchor.getFullYear() === now.getFullYear()) {
+    const startMonth = monthStart(anchor);
     if (startMonth <= lastMonth) {
       total += setupFee;
     }

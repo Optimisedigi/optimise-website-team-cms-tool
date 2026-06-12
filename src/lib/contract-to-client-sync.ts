@@ -46,6 +46,7 @@ export interface ContractSyncResult {
     monthlyRetainer: boolean;
     setupFee: boolean;
     clientStartDate: boolean;
+    retainerStartDate: boolean;
     additionalWorkAppended: number;
     name: boolean;
     tradingName: boolean;
@@ -103,6 +104,7 @@ export async function syncContractToClient(
       monthlyRetainer: false,
       setupFee: false,
       clientStartDate: false,
+      retainerStartDate: false,
       additionalWorkAppended: 0,
       name: false,
       contactName: false,
@@ -181,6 +183,16 @@ export async function syncContractToClient(
       result.warnings.push(
         `clientStartDate not overwritten: client has ${existingStart}, contract has ${contractStart}.`,
       );
+    }
+
+    // Retainer start date ───────────────────────────────────────────────────
+    // Seed the dedicated retainer anchor from the same contract dates when the
+    // client has no retainer start date yet (fill-when-missing, like above).
+    const existingRetainerStart =
+      (client.retainerStartDate as string | null) ?? null;
+    if (contractStart && !existingRetainerStart) {
+      updates.retainerStartDate = contractStart;
+      result.applied.retainerStartDate = true;
     }
 
     // Business name ─────────────────────────────────────────────────────────

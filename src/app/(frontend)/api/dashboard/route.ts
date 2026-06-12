@@ -3,6 +3,7 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { headers as nextHeaders } from "next/headers";
 import {
+  firstMonthProrationFactor,
   netMonthlyRetainer,
   oneOffsThisMonth,
   oneOffsYTD,
@@ -373,6 +374,7 @@ export async function GET() {
         oneOffProjects: true,
         referralCommissions: true,
         clientStartDate: true,
+        retainerStartDate: true,
         retainerHistory: true,
         historicalRevenueByYear: true,
       } as any,
@@ -548,8 +550,20 @@ export async function GET() {
   // agency's actual take.
   const shareOf = (c: any) => revenueShareFactor(c?.revenueSharePercent);
 
+  // First-month pro-ration factor for "this month" retainer figures. Uses the
+  // retainer anchor (retainerStartDate ?? clientStartDate): the partial first
+  // month is scaled down, a not-yet-started retainer contributes 0, and every
+  // later month resolves to 1 (unchanged).
+  const thisMonthFactorOf = (c: any): number => {
+    const anchorIso = c?.retainerStartDate ?? c?.clientStartDate ?? null;
+    if (!anchorIso) return 1;
+    const anchor = new Date(anchorIso);
+    if (isNaN(anchor.getTime())) return 1;
+    return firstMonthProrationFactor(anchor, now);
+  };
+
   // Net monthly retainer (this month) — sum across clients, deducting active
-  // commissions, then applying the per-client revenue share.
+  // commissions, applying the first-month pro-ration, then the revenue share.
   const monthlyRetainerNet = round(
     clientsForRetainer.docs.reduce(
       (sum: number, c: any) =>
@@ -559,6 +573,7 @@ export async function GET() {
           Array.isArray(c.referralCommissions) ? c.referralCommissions : [],
           now,
         ) *
+          thisMonthFactorOf(c) *
           shareOf(c),
       0,
     ),
@@ -613,6 +628,7 @@ export async function GET() {
             monthlyRetainer: Number(c.monthlyRetainer) || 0,
             setupFee: Number(c.setupFee) || 0,
             clientStartDate: c.clientStartDate ?? null,
+            retainerStartDate: c.retainerStartDate ?? null,
             retainerHistory: Array.isArray(c.retainerHistory) ? c.retainerHistory : [],
             referralCommissions: Array.isArray(c.referralCommissions)
               ? c.referralCommissions
@@ -634,13 +650,15 @@ export async function GET() {
       const gross = Number(c.monthlyRetainer) || 0;
       if (gross <= 0) return null;
       const commissions = Array.isArray(c.referralCommissions) ? c.referralCommissions : [];
-      const net = netMonthlyRetainer(gross, commissions, now);
+      const factor = thisMonthFactorOf(c);
+      const net = netMonthlyRetainer(gross, commissions, now) * factor;
+      const proratedGross = gross * factor;
       const share = shareOf(c);
       const sharePct = Number(c.revenueSharePercent);
       return {
         clientName: String(c.name ?? `#${c.id}`),
-        gross: round(gross * share),
-        commission: round((gross - net) * share),
+        gross: round(proratedGross * share),
+        commission: round((proratedGross - net) * share),
         net: round(net * share),
         revenueSharePercent: Number.isFinite(sharePct) && sharePct < 100 ? sharePct : null,
       };
@@ -681,6 +699,7 @@ export async function GET() {
         {
           monthlyRetainer: Number(c.monthlyRetainer) || 0,
           clientStartDate: c.clientStartDate ?? null,
+          retainerStartDate: c.retainerStartDate ?? null,
           retainerHistory: Array.isArray(c.retainerHistory) ? c.retainerHistory : [],
           referralCommissions: Array.isArray(c.referralCommissions)
             ? c.referralCommissions
@@ -688,7 +707,8 @@ export async function GET() {
         },
         now,
       );
-      const startDate = c.clientStartDate ? new Date(c.clientStartDate) : null;
+      const anchorIso = c.retainerStartDate ?? c.clientStartDate ?? null;
+      const startDate = anchorIso ? new Date(anchorIso) : null;
       const setupFee =
         startDate && !isNaN(startDate.getTime()) && startDate.getFullYear() === now.getFullYear()
           ? Number(c.setupFee) || 0

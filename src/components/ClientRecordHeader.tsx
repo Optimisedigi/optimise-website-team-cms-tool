@@ -3,6 +3,7 @@
 import { useAllFormFields, useDocumentInfo, useField, useFormFields } from '@payloadcms/ui'
 import { useCallback, useEffect, useState } from 'react'
 import {
+  firstMonthProrationFactor,
   historicalRevenueTotal,
   monthlyCommissionForDate,
   netMonthlyRetainer,
@@ -63,6 +64,7 @@ type SavedData = {
   setupFee: number
   revenueSharePercent: number
   clientStartDate: string | null
+  retainerStartDate: string | null
   oneOffProjects: OneOffProject[]
   retainerHistory: RetainerHistoryEntry[]
   referralCommissions: ReferralCommission[]
@@ -106,8 +108,14 @@ function computeRevenue(d: SavedData): RevenueStrip {
   const share = revenueShareFactor(d.revenueSharePercent)
   const now = new Date()
   const commissions = monthlyCommissionForDate(d.referralCommissions, d.monthlyRetainer, now)
+  const anchorIso = d.retainerStartDate ?? d.clientStartDate
+  const anchor = anchorIso ? new Date(anchorIso) : null
+  const thisMonthFactor =
+    anchor && !isNaN(anchor.getTime()) ? firstMonthProrationFactor(anchor, now) : 1
   const netRetainer =
-    netMonthlyRetainer(d.monthlyRetainer, d.referralCommissions, now) * share
+    netMonthlyRetainer(d.monthlyRetainer, d.referralCommissions, now) *
+    thisMonthFactor *
+    share
 
   const currentYear = now.getFullYear()
   const priorPeriodThisYear = d.historicalRevenueByYear.reduce(
@@ -123,6 +131,7 @@ function computeRevenue(d: SavedData): RevenueStrip {
         monthlyRetainer: d.monthlyRetainer,
         setupFee: d.setupFee,
         clientStartDate: d.clientStartDate,
+        retainerStartDate: d.retainerStartDate,
         retainerHistory: d.retainerHistory,
         referralCommissions: d.referralCommissions,
         oneOffProjects: d.oneOffProjects,
@@ -176,6 +185,7 @@ function normalizeClient(doc: any): SavedData {
     setupFee: Number(doc.setupFee ?? 0),
     revenueSharePercent: Number(doc.revenueSharePercent ?? 100),
     clientStartDate: doc.clientStartDate ?? null,
+    retainerStartDate: doc.retainerStartDate ?? null,
     oneOffProjects: Array.isArray(doc.oneOffProjects) ? doc.oneOffProjects : [],
     retainerHistory: Array.isArray(doc.retainerHistory) ? doc.retainerHistory : [],
     referralCommissions: Array.isArray(doc.referralCommissions) ? doc.referralCommissions : [],

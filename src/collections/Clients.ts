@@ -308,6 +308,7 @@ export const Clients: CollectionConfig = {
             monthlyRetainer: Number(doc?.monthlyRetainer) || 0,
             setupFee: Number(doc?.setupFee) || 0,
             clientStartDate: doc?.clientStartDate as string | null,
+            retainerStartDate: doc?.retainerStartDate as string | null,
             retainerHistory,
             referralCommissions,
             oneOffProjects,
@@ -1197,7 +1198,21 @@ export const Clients: CollectionConfig = {
                   access: sensitiveFieldAccess("clients"),
                   admin: {
                     description: "When this client started working with us",
-                    width: "50%",
+                    width: "25%",
+                    condition: conditionRequiresFeature(
+                      "clients",
+                      (data: any) => !data?.isAgency,
+                    ),
+                  },
+                },
+                {
+                  name: "retainerStartDate",
+                  type: "date",
+                  access: sensitiveFieldAccess("clients"),
+                  admin: {
+                    description:
+                      "When the retainer billing begins. Drives the pro-rated first month and setup-fee timing. Defaults to client start date when empty.",
+                    width: "25%",
                     condition: conditionRequiresFeature(
                       "clients",
                       (data: any) => !data?.isAgency,
@@ -1260,6 +1275,19 @@ export const Clients: CollectionConfig = {
                   },
                 },
               ],
+            },
+            {
+              name: "firstMonthRetainerDisplay",
+              type: "ui",
+              admin: {
+                condition: conditionRequiresFeature(
+                  "clients",
+                  (data: any) => !data?.isAgency,
+                ),
+                components: {
+                  Field: "./components/FirstMonthRetainerField",
+                },
+              },
             },
             {
               name: "yearlyTargets",

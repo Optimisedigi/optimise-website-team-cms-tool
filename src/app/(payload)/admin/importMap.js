@@ -11,6 +11,7 @@ import { GoogleAdsCustomerIdField as GoogleAdsCustomerIdField_1fbf8a605f93366d7c
 import { default as default_a9f880a6de06ab5f693a05644fa1793e } from '../../../components/clients-list/AccountManagerCell'
 import { default as default_b01924fac7c8fdeb53e1e3279533a6b2 } from '../../../components/AccountManagersField'
 import { default as default_1048d3ef8844cd92abe61dc0b4e55a00 } from '../../../components/MonthlyRetainerCell'
+import { default as default_6a5b1e7effb81eb770bec93b1614e740 } from '../../../components/FirstMonthRetainerField'
 import { default as default_c5ea9fe7cd59f6fed2f187082f64a9ed } from '../../../components/ClientSignedContractButton'
 import { default as default_0c04cad98ec5e03879ab56990698fc12 } from '../../../components/ClientNotesTable'
 import { default as default_9ac394c54993eebab40c6ee07594e90a } from '../../../components/admin/DiscoveryBriefingPanel'
@@ -194,6 +195,7 @@ export const importMap = {
   "./components/clients-list/AccountManagerCell#default": default_a9f880a6de06ab5f693a05644fa1793e,
   "./components/AccountManagersField#default": default_b01924fac7c8fdeb53e1e3279533a6b2,
   "./components/MonthlyRetainerCell#default": default_1048d3ef8844cd92abe61dc0b4e55a00,
+  "./components/FirstMonthRetainerField#default": default_6a5b1e7effb81eb770bec93b1614e740,
   "./components/ClientSignedContractButton#default": default_c5ea9fe7cd59f6fed2f187082f64a9ed,
   "./components/ClientNotesTable#default": default_0c04cad98ec5e03879ab56990698fc12,
   "./components/admin/DiscoveryBriefingPanel#default": default_9ac394c54993eebab40c6ee07594e90a,

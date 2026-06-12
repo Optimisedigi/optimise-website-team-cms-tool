@@ -529,6 +529,10 @@ export interface Client {
    */
   clientStartDate?: string | null;
   /**
+   * When the retainer billing begins. Drives the pro-rated first month and setup-fee timing. Defaults to client start date when empty.
+   */
+  retainerStartDate?: string | null;
+  /**
    * Net monthly revenue ($)
    */
   monthlyRetainer?: number | null;
@@ -5855,7 +5859,8 @@ export interface ActivityLog {
     | 'match_type_violation_approved'
     | 'match_type_violation_rejected'
     | 'match_type_violation_keyword_added'
-    | 'monthly_negative_needs_review';
+    | 'monthly_negative_needs_review'
+    | 'monthly_negative_applied';
   title: string;
   description?: string | null;
   /**
@@ -8648,6 +8653,7 @@ export interface ClientsSelect<T extends boolean = true> {
   referredByContact?: T;
   clientType?: T;
   clientStartDate?: T;
+  retainerStartDate?: T;
   monthlyRetainer?: T;
   setupFee?: T;
   revenueSharePercent?: T;

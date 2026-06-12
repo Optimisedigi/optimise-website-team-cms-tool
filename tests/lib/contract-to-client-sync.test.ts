@@ -34,6 +34,7 @@ describe("syncContractToClient", () => {
       monthlyRetainer: true,
       setupFee: true,
       clientStartDate: true,
+      retainerStartDate: true,
       additionalWorkAppended: 1,
       name: false,
       tradingName: false,
@@ -435,6 +436,7 @@ describe("syncContractToClient", () => {
       monthlyRetainer: 1500,
       setupFee: 1000,
       clientStartDate: "2026-06-01",
+      retainerStartDate: "2026-06-01",
       signedContract: 1,
       signedContractUrl: "https://blob/signed-1.pdf",
       oneOffProjects: [
@@ -469,6 +471,7 @@ describe("syncContractToClient", () => {
       monthlyRetainer: false,
       setupFee: false,
       clientStartDate: false,
+      retainerStartDate: false,
       additionalWorkAppended: 0,
       name: false,
       tradingName: false,

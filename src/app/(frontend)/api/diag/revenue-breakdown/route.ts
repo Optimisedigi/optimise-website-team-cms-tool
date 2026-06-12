@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
       {
         monthlyRetainer: mr,
         clientStartDate: c.clientStartDate ?? null,
+        retainerStartDate: c.retainerStartDate ?? null,
         retainerHistory: history,
         referralCommissions: commissions,
       },

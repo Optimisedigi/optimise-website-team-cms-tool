@@ -3,6 +3,7 @@
 import { useDocumentInfo } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
 import {
+  firstMonthProrationFactor,
   historicalRevenueTotal,
   monthlyCommissionForDate,
   netMonthlyRetainer,
@@ -21,6 +22,7 @@ type ClientBillingData = {
   revenueSharePercent: number
   historicalRevenueByYear: HistoricalRevenueYear[]
   clientStartDate: string | null
+  retainerStartDate: string | null
   oneOffProjects: OneOffProject[]
   retainerHistory: RetainerHistoryEntry[]
   referralCommissions: ReferralCommission[]
@@ -49,6 +51,7 @@ function ClientBillingSummary() {
             ? doc.historicalRevenueByYear
             : [],
           clientStartDate: doc.clientStartDate ?? null,
+          retainerStartDate: doc.retainerStartDate ?? null,
           oneOffProjects: Array.isArray(doc.oneOffProjects) ? doc.oneOffProjects : [],
           retainerHistory: Array.isArray(doc.retainerHistory) ? doc.retainerHistory : [],
           referralCommissions: Array.isArray(doc.referralCommissions)
@@ -68,6 +71,7 @@ function ClientBillingSummary() {
     revenueSharePercent,
     historicalRevenueByYear,
     clientStartDate,
+    retainerStartDate,
     oneOffProjects,
     retainerHistory,
     referralCommissions,
@@ -82,7 +86,12 @@ function ClientBillingSummary() {
     monthlyRetainer,
     now,
   )
-  const netRetainerFull = netMonthlyRetainer(monthlyRetainer, referralCommissions, now)
+  const anchorIso = retainerStartDate ?? clientStartDate
+  const anchor = anchorIso ? new Date(anchorIso) : null
+  const thisMonthFactor =
+    anchor && !isNaN(anchor.getTime()) ? firstMonthProrationFactor(anchor, now) : 1
+  const netRetainerFull =
+    netMonthlyRetainer(monthlyRetainer, referralCommissions, now) * thisMonthFactor
   const netRetainer = netRetainerFull * share
   // Current-year historical rows are retainer income for this year that
   // pre-dates CMS tracking — count them toward Retainer YTD (matches the
@@ -105,6 +114,7 @@ function ClientBillingSummary() {
         monthlyRetainer,
         setupFee,
         clientStartDate,
+        retainerStartDate,
         retainerHistory,
         referralCommissions,
         oneOffProjects,
