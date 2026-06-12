@@ -272,7 +272,14 @@ describe('monthly keyword selection API routes', () => {
     const selectionUpdate = mockPayload.update.mock.calls.find((c: any[]) => c[0].collection === 'monthly-keyword-selections')
     const saved = selectionUpdate[0].data.selections
     expect(saved[0].outcomeType).toBeUndefined()
-    expect(mockPayload.create).not.toHaveBeenCalled()
+    // No notification — the only create is the apply's activity-log entry,
+    // which credits both the reviewer and the applier.
+    const createdCollections = mockPayload.create.mock.calls.map((c: any[]) => c[0].collection)
+    expect(createdCollections).not.toContain('notifications')
+    expect(createdCollections).toContain('activity-log')
+    const activity = mockPayload.create.mock.calls.find((c: any[]) => c[0].collection === 'activity-log')
+    expect(activity[0].data.description).toContain('Reviewed by:')
+    expect(activity[0].data.description).toContain('Applied by:')
   })
 
   it('complete toggles reviewComplete and stamps the authenticated user', async () => {

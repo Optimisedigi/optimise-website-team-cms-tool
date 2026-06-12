@@ -409,7 +409,10 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
   }
 
   const applyApproved = async () => {
-    const approved = Object.values(selections).filter((selection) => selection.decision === 'approved' && selection.appliedToNKL)
+    // Only not-yet-applied approvals: once a selection has appliedAt it's
+    // already on the list, so re-sending it would inflate the count and
+    // re-stamp its history.
+    const approved = Object.values(selections).filter((selection) => selection.decision === 'approved' && selection.appliedToNKL && !selection.appliedAt)
     if (approved.length === 0) return
     const res = await fetch('/api/monthly-keyword-selection/apply', {
       method: 'POST',
@@ -423,6 +426,17 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
       const skipped = data.skipped || 0
       const total = applied + skipped
       setMessage(`Submitted ${total} negative(s) — ${applied} newly added, ${skipped} already on the list.`)
+      // Mirror the server's appliedAt stamp locally so the Apply button count
+      // clears immediately without a full reload.
+      const appliedAtNow = new Date().toISOString()
+      setSelections((current) => {
+        const next = { ...current }
+        for (const selection of approved) {
+          const key = selectionKey(selection.yearMonth, selection.searchTerm, selection.rowIndex ?? 0)
+          if (next[key]) next[key] = { ...next[key], appliedAt: appliedAtNow }
+        }
+        return next
+      })
       await loadNkls()
     } else {
       setMessage(data?.error || 'Apply failed')
@@ -446,7 +460,7 @@ export function MonthlyKeywordSelection({ clientId, customerId, slug, isAdmin = 
 
   const visibleNkls = useMemo(() => nkls.filter((nkl) => !hiddenNklIds.has(String(nkl.id))), [hiddenNklIds, nkls])
   const hiddenNkls = useMemo(() => nkls.filter((nkl) => hiddenNklIds.has(String(nkl.id))), [hiddenNklIds, nkls])
-  const approvedCount = Object.values(selections).filter((selection) => selection.decision === 'approved' && selection.appliedToNKL).length
+  const approvedCount = Object.values(selections).filter((selection) => selection.decision === 'approved' && selection.appliedToNKL && !selection.appliedAt).length
   const needsReviewItems = useMemo(
     () => Object.values(selections)
       .filter((selection) => selection.decision === 'needs_review')

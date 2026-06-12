@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import config from '@/payload.config'
 import { userHasFeature } from '@/lib/access'
+import { logActivity } from '@/lib/activity-log'
 
 type MatchType = 'exact' | 'broad' | 'phrase'
 
@@ -153,6 +154,10 @@ export async function POST(req: NextRequest) {
     // Collect the flaggers we need to notify (a needs-review term applied here
     // is an "Added" teaching moment for whoever flagged it).
     const addedNotifications: { recipient: string; term: string; yearMonth: string; detail: string }[] = []
+    // Tally the original reviewers (decidedBy — whoever first made the
+    // add/skip decision in the monthly review) so the activity entry credits
+    // them alongside the applier.
+    const reviewerCounts = new Map<string, number>()
     const selections = (Array.isArray(doc.selections) ? doc.selections : []).map((selection: any) => {
       const selectionKey = `${String(selection.yearMonth)}|${String(selection.searchTerm || '').toLowerCase()}|${Number(selection.rowIndex ?? 0)}`
       const keywordKey = `${String(selection.negativeKeyword || '').toLowerCase()}|${selection.matchType}`
@@ -167,6 +172,8 @@ export async function POST(req: NextRequest) {
       // when not already set on a previously-applied selection.
       const appliedBy = selection.appliedByUserId ? selection.appliedBy : applierName
       const appliedByUserId = selection.appliedByUserId ? selection.appliedByUserId : applierUserId
+      const reviewer = typeof selection.decidedBy === 'string' && selection.decidedBy ? selection.decidedBy : 'Unknown reviewer'
+      reviewerCounts.set(reviewer, (reviewerCounts.get(reviewer) || 0) + 1)
       const wasNeedsReview = selection.decision === 'needs_review'
       const next: any = {
         ...selection,
@@ -204,6 +211,25 @@ export async function POST(req: NextRequest) {
       data: { selections },
       overrideAccess: true,
     })
+
+    // One change-history entry per apply: who pressed Apply, which lists, and
+    // who originally reviewed the terms (so credit isn't lost to the applier).
+    try {
+      const listNames = Array.from(nklNameById.values()).join(', ')
+      const reviewedBy = Array.from(reviewerCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => `${name} (${count})`)
+        .join(', ')
+      await logActivity(payload, {
+        type: 'monthly_negative_applied',
+        title: `Applied ${applied} monthly negative${applied === 1 ? '' : 's'} (${skipped} already on list)`,
+        description: `Lists: ${listNames || '—'}. Reviewed by: ${reviewedBy || '—'}. Applied by: ${applierName}.`,
+        user: typeof user.id === 'object' ? (user.id as { id: string | number }).id : user.id,
+        client: clientId,
+      })
+    } catch (err) {
+      payload.logger?.warn?.(`[monthly-keyword-apply] activity log failed: ${err}`)
+    }
 
     // Notify each flagger that the negative they flagged was added to a list.
     if (addedNotifications.length > 0) {
