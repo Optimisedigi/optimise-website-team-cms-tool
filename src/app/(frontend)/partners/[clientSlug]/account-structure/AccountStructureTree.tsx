@@ -27,6 +27,23 @@ interface Keyword {
   finalUrl: string | null;
 }
 
+interface Ad {
+  id: string;
+  /** Ad type, e.g. RESPONSIVE_SEARCH_AD. */
+  type: string;
+  status: string;
+  spend: number;
+  clicks: number;
+  conversions: number;
+  cpa: number | null;
+  impressions: number;
+  finalUrl: string | null;
+  /** RSA headlines for the hover preview. */
+  headlines: string[];
+  /** RSA descriptions for the hover preview. */
+  descriptions: string[];
+}
+
 interface AdGroup {
   id: string;
   name: string;
@@ -36,6 +53,14 @@ interface AdGroup {
   conversions: number;
   cpa: number | null;
   impressions: number;
+  /**
+   * Ad-group-level landing page (highest-spend ad's final URL). Keywords with
+   * no final URL of their own inherit this. Optional for backwards compat
+   * with the fixture endpoint that does not populate it.
+   */
+  landingPage?: string | null;
+  /** Ads in this ad group, sorted by spend desc. Optional for fixtures. */
+  ads?: Ad[];
   topKeywordsBySpend: Keyword[];
   topKeywordsByConversions: Keyword[];
   /**
@@ -515,11 +540,17 @@ function AdGroupCard({
   isSelected,
   onSelect,
   keywordCount,
+  adCount,
+  collapsed,
+  onToggleCollapse,
 }: {
   adGroup: AdGroup;
   isSelected: boolean;
   onSelect: () => void;
   keywordCount: number;
+  adCount: number;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
   return (
     <button
@@ -531,10 +562,31 @@ function AdGroupCard({
       title={adGroup.name}
     >
       <div>
-        <div className="text-[9px] uppercase tracking-wider font-semibold opacity-70 mb-0.5">Ad Group</div>
+        <div className="flex items-center justify-between gap-1 mb-0.5">
+          <div className="text-[9px] uppercase tracking-wider font-semibold opacity-70">Ad Group</div>
+          {/* Per-row expand/collapse. stopPropagation so it doesn't also fire
+              the card's onSelect (which opens the keyword side panel). */}
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onToggleCollapse(); } }}
+            className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded hover:bg-white/20 transition-colors cursor-pointer"
+            aria-label={collapsed ? "Expand ad group" : "Collapse ad group"}
+            title={collapsed ? "Expand" : "Collapse"}
+          >
+            <svg
+              className={`w-3 h-3 transition-transform ${collapsed ? "" : "rotate-90"}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </span>
+        </div>
         <div className="text-sm font-bold leading-tight line-clamp-3">{adGroup.name}</div>
-        <div className="mt-1 flex items-center gap-1">
+        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
           <span className="text-[9px] uppercase font-semibold opacity-80">kws ({keywordCount})</span>
+          <span className="text-[9px] uppercase font-semibold opacity-80">ads ({adCount})</span>
           {adGroup.status !== "ENABLED" && (
             <span className="text-[9px] font-semibold px-1 py-0 rounded bg-amber-400/30">{adGroup.status}</span>
           )}
@@ -610,14 +662,83 @@ function KeywordRow({
   );
 }
 
+/**
+ * Hover preview for an ad — small ad icon that reveals the ad's headlines,
+ * descriptions and final URL on hover. Rendered inside a landing-page card so
+ * the team can see which ad drives that landing page without leaving the grid.
+ */
+function AdPreviewIcon({ ad }: { ad: Ad }) {
+  return (
+    <span
+      className="group/ad relative shrink-0 inline-flex"
+      onClick={(e) => e.preventDefault()}
+    >
+      <span
+        className="inline-flex items-center justify-center w-4 h-4 rounded bg-white/25 hover:bg-white/40 transition-colors"
+        aria-label="Preview ad"
+        title="Preview ad"
+      >
+        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7h6m-6 5h5M4 5h16v14H4z" />
+        </svg>
+      </span>
+      <span
+        role="tooltip"
+        className="invisible opacity-0 group-hover/ad:visible group-hover/ad:opacity-100 transition-opacity duration-150 absolute right-0 top-full mt-1 z-40 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-3 text-left cursor-default"
+      >
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <span className="text-[9px] uppercase tracking-wider font-semibold text-gray-400">
+            {ad.type.replace(/_/g, " ")}
+          </span>
+          {ad.status !== "ENABLED" && (
+            <span className="text-[9px] font-semibold text-amber-600">{ad.status}</span>
+          )}
+        </div>
+        {ad.headlines.length > 0 ? (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {ad.headlines.slice(0, 6).map((h, i) => (
+              <span key={i} className="text-[11px] font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 rounded px-1.5 py-0.5">
+                {h}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-gray-400 italic mb-2">No headlines (non-RSA ad)</p>
+        )}
+        {ad.descriptions.length > 0 && (
+          <p className="text-[11px] text-gray-600 dark:text-gray-300 leading-snug mb-2">
+            {ad.descriptions.slice(0, 2).join(" · ")}
+          </p>
+        )}
+        {ad.finalUrl && (
+          <p className="text-[10px] font-mono text-gray-400 truncate" title={ad.finalUrl}>
+            {ad.finalUrl}
+          </p>
+        )}
+        <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 grid grid-cols-3 gap-1 font-mono text-[10px] text-gray-600 dark:text-gray-300">
+          <span><span className="text-gray-400">Spend </span>{fmt(ad.spend)}</span>
+          <span><span className="text-gray-400">Conv </span>{ad.conversions > 0 ? ad.conversions.toFixed(0) : "\u2014"}</span>
+          <span><span className="text-gray-400">CPA </span>{fmtCpa(ad.cpa)}</span>
+        </div>
+      </span>
+    </span>
+  );
+}
+
 function LandingPageCard({
   url,
-  keywordCount,
+  rowCount,
   spend,
+  inherited,
+  previewAd,
 }: {
   url: string | null;
-  keywordCount: number;
+  rowCount: number;
   spend: number;
+  /** True when this URL was inherited from the ad-group landing page. */
+  inherited?: boolean;
+  /** Ad whose final URL matches this landing page — drives the hover preview. */
+  previewAd?: Ad | null;
 }) {
   if (!url) {
     return (
@@ -626,7 +747,7 @@ function LandingPageCard({
         style={{ backgroundColor: PALETTE.landingPageBg, filter: "saturate(0.6) brightness(0.85)" }}
       >
         <span className="text-[11px]">— no landing page</span>
-        <span className="ml-auto text-[10px] font-mono opacity-80">{keywordCount} kw</span>
+        <span className="ml-auto text-[10px] font-mono opacity-80">{rowCount}</span>
       </div>
     );
   }
@@ -637,21 +758,29 @@ function LandingPageCard({
       target="_blank"
       rel="noopener noreferrer"
       className="group h-full w-full rounded-lg px-3 py-2 shadow-sm flex items-center gap-2 text-white transition-all hover:brightness-110"
-      style={{ backgroundColor: PALETTE.landingPageBg }}
-      title={url}
+      style={{ backgroundColor: PALETTE.landingPageBg, filter: inherited ? "brightness(0.9)" : undefined }}
+      title={inherited ? `${url} (inherited from ad group)` : url}
     >
       <div className="min-w-0 flex-1">
-        {host && <div className="text-[9px] uppercase tracking-wider font-semibold opacity-80 truncate">{host}</div>}
+        <div className="flex items-center gap-1">
+          {host && <div className="text-[9px] uppercase tracking-wider font-semibold opacity-80 truncate">{host}</div>}
+          {inherited && (
+            <span className="shrink-0 text-[8px] font-semibold px-1 rounded bg-white/20" title="Inherited from ad-group / ad landing page">
+              inherited
+            </span>
+          )}
+        </div>
         <div className="font-mono text-[12px] font-semibold truncate">{path || "/"}</div>
       </div>
+      {previewAd && <AdPreviewIcon ad={previewAd} />}
       <div className="shrink-0 flex items-center gap-2 font-mono text-[10px] leading-none">
         <div className="text-right">
           <div className="text-[8px] uppercase opacity-70">Spend</div>
           <div className="font-bold">{fmt(spend)}</div>
         </div>
         <div className="text-right">
-          <div className="text-[8px] uppercase opacity-70">Kw</div>
-          <div className="font-bold">{keywordCount}</div>
+          <div className="text-[8px] uppercase opacity-70">Rows</div>
+          <div className="font-bold">{rowCount}</div>
         </div>
       </div>
       <svg className="w-3 h-3 opacity-70 group-hover:opacity-100 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -662,24 +791,139 @@ function LandingPageCard({
 }
 
 /**
- * Group consecutive keyword rows that share the same finalUrl into runs.
- * Each run becomes one merged landing-page cell that row-spans the run length.
- * Runs preserve the order produced by visibleKeywords() (converters first,
- * then spend-no-conv) so visually adjacent keywords with the same landing
- * page collapse cleanly.
+ * One ad row — sibling of keyword rows under an ad group. Shows ad type,
+ * status and metrics. Mirrors KeywordRow's visual language but tinted toward
+ * the ad-group plum so ads read as a distinct entity from keywords.
+ */
+function AdRow({ ad }: { ad: Ad }) {
+  const hasConv = ad.conversions > 0;
+  const primaryHeadline = ad.headlines[0] ?? ad.type.replace(/_/g, " ");
+  return (
+    <div
+      className="h-full w-full rounded-lg px-3 py-2 shadow-sm flex items-center gap-2 text-white"
+      style={{ backgroundColor: PALETTE.adGroupBg, filter: hasConv ? "brightness(1.12)" : "brightness(0.96)" }}
+      title={ad.headlines.join(" | ") || ad.type}
+    >
+      <span
+        className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded bg-white/20"
+        aria-hidden="true"
+      >
+        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7h6m-6 5h5M4 5h16v14H4z" />
+        </svg>
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] font-semibold truncate">{primaryHeadline}</span>
+          <span className="shrink-0 text-[8px] font-bold px-1 py-0 rounded bg-white/20">AD</span>
+          {ad.status !== "ENABLED" && (
+            <span className="shrink-0 text-[8px] font-semibold text-amber-300">{ad.status}</span>
+          )}
+        </div>
+      </div>
+      <div className="shrink-0 flex items-center gap-2 font-mono text-[10px] leading-none">
+        <div className="text-right">
+          <div className="text-[8px] uppercase opacity-70">Spend</div>
+          <div className="font-bold">{fmt(ad.spend)}</div>
+        </div>
+        {hasConv && (
+          <div className="text-right">
+            <div className="text-[8px] uppercase opacity-70">Conv</div>
+            <div className="font-bold">{ad.conversions.toFixed(0)}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Unified detail-row model (ads + keywords as siblings) ────────────────────
+
+type DetailRow =
+  | { kind: "ad"; key: string; ad: Ad; landingPage: string | null; inherited: false }
+  | {
+      kind: "keyword";
+      key: string;
+      kw: Keyword & { bucket: "converter" | "spend-no-conv" | "other" };
+      landingPage: string | null;
+      /** True when the landing page was inherited from the ad group, not the
+       *  keyword's own final URL. */
+      inherited: boolean;
+    };
+
+/**
+ * Build the ordered detail rows for one ad group: ad rows first (when shown),
+ * then keyword rows (when shown). Resolves each keyword's landing page with
+ * the ad-group fallback so keywords with no final URL inherit the ad-level
+ * landing page — mirrors Google's keyword→ad final-URL precedence.
+ */
+function buildDetailRows(
+  ag: AdGroup,
+  mode: KeywordMode,
+  showAds: boolean,
+  showKeywords: boolean,
+): DetailRow[] {
+  const rows: DetailRow[] = [];
+  if (showAds) {
+    for (const ad of ag.ads ?? []) {
+      rows.push({ kind: "ad", key: `ad-${ad.id}`, ad, landingPage: ad.finalUrl, inherited: false });
+    }
+  }
+  if (showKeywords) {
+    for (const kw of visibleKeywords(ag, mode)) {
+      const own = kw.finalUrl ?? null;
+      const landingPage = own ?? ag.landingPage ?? null;
+      rows.push({
+        kind: "keyword",
+        key: `kw-${kw.id}`,
+        kw,
+        landingPage,
+        inherited: own == null && landingPage != null,
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * Group consecutive detail rows that share the same resolved landing page into
+ * runs. Each run becomes one merged landing-page cell that row-spans the run
+ * length. Tracks the run's total spend, whether it was inherited, and the ad
+ * (if any) whose final URL produced the landing page so the cell can render
+ * an ad hover-preview.
  */
 function groupByLandingPageRun(
-  keywords: Array<Keyword & { bucket: string }>,
-): Array<{ url: string | null; spend: number; count: number; startIndex: number }> {
-  const runs: Array<{ url: string | null; spend: number; count: number; startIndex: number }> = [];
-  for (let i = 0; i < keywords.length; i++) {
-    const url = keywords[i].finalUrl ?? null;
+  rows: DetailRow[],
+  ads: Ad[],
+): Array<{
+  url: string | null;
+  spend: number;
+  count: number;
+  startIndex: number;
+  inherited: boolean;
+  previewAd: Ad | null;
+}> {
+  const adByUrl = new Map<string, Ad>();
+  for (const ad of ads) if (ad.finalUrl && !adByUrl.has(ad.finalUrl)) adByUrl.set(ad.finalUrl, ad);
+  const runs: Array<{ url: string | null; spend: number; count: number; startIndex: number; inherited: boolean; previewAd: Ad | null }> = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const url = row.landingPage ?? null;
+    const spend = row.kind === "ad" ? row.ad.spend : row.kw.spend;
     const last = runs[runs.length - 1];
     if (last && last.url === url) {
       last.count += 1;
-      last.spend += keywords[i].spend;
+      last.spend += spend;
+      last.inherited = last.inherited && (row.kind === "keyword" ? row.inherited : false);
     } else {
-      runs.push({ url, spend: keywords[i].spend, count: 1, startIndex: i });
+      runs.push({
+        url,
+        spend,
+        count: 1,
+        startIndex: i,
+        inherited: row.kind === "keyword" ? row.inherited : false,
+        previewAd: url ? adByUrl.get(url) ?? null : null,
+      });
     }
   }
   return runs;
@@ -690,24 +934,35 @@ function CampaignGridBlock({
   selectedAdGroupId,
   onSelectAdGroup,
   mode,
+  showAds,
+  showKeywords,
+  collapsedAdGroups,
+  onToggleAdGroup,
 }: {
   campaign: Campaign;
   selectedAdGroupId: string | null;
   onSelectAdGroup: (ag: AdGroup | null) => void;
   mode: KeywordMode;
+  showAds: boolean;
+  showKeywords: boolean;
+  /** Ad-group ids whose detail rows are collapsed (per-row override). */
+  collapsedAdGroups: Set<string>;
+  onToggleAdGroup: (id: string) => void;
 }) {
-  // For each ad group: compute the visible keyword list and the landing-page
-  // run groupings. Memoised so toggling the mode is the only thing that
-  // triggers re-computation.
+  // For each ad group: build the unified ad+keyword detail rows and the
+  // landing-page run groupings. Memoised so toggling a control is the only
+  // thing that triggers re-computation. A collapsed ad group contributes a
+  // single summary row regardless of the global show toggles.
   const adGroupRows = useMemo(() => {
     return campaign.adGroups.map((ag) => {
-      const keywords = visibleKeywords(ag, mode);
-      const lpRuns = groupByLandingPageRun(keywords);
-      return { adGroup: ag, keywords, lpRuns };
+      const collapsed = collapsedAdGroups.has(ag.id);
+      const rows = collapsed ? [] : buildDetailRows(ag, mode, showAds, showKeywords);
+      const lpRuns = groupByLandingPageRun(rows, ag.ads ?? []);
+      return { adGroup: ag, rows, lpRuns, collapsed };
     });
-  }, [campaign, mode]);
+  }, [campaign, mode, showAds, showKeywords, collapsedAdGroups]);
 
-  const totalKeywordRows = adGroupRows.reduce((s, r) => s + Math.max(1, r.keywords.length), 0);
+  const totalRows = adGroupRows.reduce((s, r) => s + Math.max(1, r.rows.length), 0);
 
   if (adGroupRows.length === 0) {
     return (
@@ -734,15 +989,17 @@ function CampaignGridBlock({
         gap: "0.5rem",
       }}
     >
-      {/* Column 1: campaign card spans every keyword row across every ad group. */}
-      <div style={{ gridRow: `1 / span ${totalKeywordRows}` }}>
+      {/* Column 1: campaign card spans every detail row across every ad group. */}
+      <div style={{ gridRow: `1 / span ${totalRows}` }}>
         <CampaignCard campaign={campaign} />
       </div>
 
-      {adGroupRows.map(({ adGroup, keywords, lpRuns }) => {
-        const adGroupSpan = Math.max(1, keywords.length);
-        if (keywords.length === 0) {
-          // Ad group with no visible keywords: render a single placeholder row.
+      {adGroupRows.map(({ adGroup, rows, lpRuns, collapsed }) => {
+        const adGroupSpan = Math.max(1, rows.length);
+        const adCount = adGroup.ads?.length ?? 0;
+        if (rows.length === 0) {
+          // Collapsed, or nothing to show given the current toggles: render a
+          // single placeholder row so the ad group still appears in structure.
           return (
             <div key={adGroup.id} className="contents">
               <div style={{ gridRow: `span 1` }}>
@@ -750,41 +1007,53 @@ function CampaignGridBlock({
                   adGroup={adGroup}
                   isSelected={selectedAdGroupId === adGroup.id}
                   onSelect={() => onSelectAdGroup(selectedAdGroupId === adGroup.id ? null : adGroup)}
-                  keywordCount={0}
+                  keywordCount={adGroup.keywords?.length ?? adGroup.topKeywordsBySpend.length}
+                  adCount={adCount}
+                  collapsed={collapsed}
+                  onToggleCollapse={() => onToggleAdGroup(adGroup.id)}
                 />
               </div>
               <div className="rounded-lg border border-dashed border-white/15 p-2 text-[11px] text-white/50 italic flex items-center">
-                no keywords in view
+                {collapsed ? "collapsed — click ▸ to expand" : "no ads or keywords in view"}
               </div>
               <div className="rounded-lg border border-dashed border-white/15 p-2 text-[11px] text-white/50 italic flex items-center">
-                —
+                {adGroup.landingPage ? prettyUrl(adGroup.landingPage).path || "/" : "\u2014"}
               </div>
             </div>
           );
         }
         return (
           <div key={adGroup.id} className="contents">
-            {/* Column 2: ad-group cell spans all this ad group's keyword rows. */}
+            {/* Column 2: ad-group cell spans all this ad group's detail rows. */}
             <div style={{ gridRow: `span ${adGroupSpan}` }}>
               <AdGroupCard
                 adGroup={adGroup}
                 isSelected={selectedAdGroupId === adGroup.id}
                 onSelect={() => onSelectAdGroup(selectedAdGroupId === adGroup.id ? null : adGroup)}
-                keywordCount={keywords.length}
+                keywordCount={rows.filter((r) => r.kind === "keyword").length}
+                adCount={adCount}
+                collapsed={collapsed}
+                onToggleCollapse={() => onToggleAdGroup(adGroup.id)}
               />
             </div>
-            {/* Columns 3+4 — one row per keyword, with landing-page cells
-                merged across runs of consecutive same-URL keywords. */}
-            {keywords.map((kw, i) => {
+            {/* Columns 3+4 — one row per ad/keyword, with landing-page cells
+                merged across runs of consecutive same-URL rows. */}
+            {rows.map((row, i) => {
               const lpRun = lpRuns.find((r) => r.startIndex === i);
               return (
-                <div key={kw.id} className="contents">
+                <div key={row.key} className="contents">
                   <div>
-                    <KeywordRow kw={kw} />
+                    {row.kind === "ad" ? <AdRow ad={row.ad} /> : <KeywordRow kw={row.kw} />}
                   </div>
                   {lpRun && (
                     <div style={{ gridRow: `span ${lpRun.count}` }}>
-                      <LandingPageCard url={lpRun.url} keywordCount={lpRun.count} spend={lpRun.spend} />
+                      <LandingPageCard
+                        url={lpRun.url}
+                        rowCount={lpRun.count}
+                        spend={lpRun.spend}
+                        inherited={lpRun.inherited}
+                        previewAd={lpRun.previewAd}
+                      />
                     </div>
                   )}
                 </div>
@@ -802,11 +1071,19 @@ function AccountGrid({
   selectedAdGroupId,
   onSelectAdGroup,
   mode,
+  showAds,
+  showKeywords,
+  collapsedAdGroups,
+  onToggleAdGroup,
 }: {
   campaigns: Campaign[];
   selectedAdGroupId: string | null;
   onSelectAdGroup: (ag: AdGroup | null) => void;
   mode: KeywordMode;
+  showAds: boolean;
+  showKeywords: boolean;
+  collapsedAdGroups: Set<string>;
+  onToggleAdGroup: (id: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -817,6 +1094,10 @@ function AccountGrid({
           selectedAdGroupId={selectedAdGroupId}
           onSelectAdGroup={onSelectAdGroup}
           mode={mode}
+          showAds={showAds}
+          showKeywords={showKeywords}
+          collapsedAdGroups={collapsedAdGroups}
+          onToggleAdGroup={onToggleAdGroup}
         />
       ))}
     </div>
@@ -847,6 +1128,20 @@ export default function AccountStructureTree({
   // conversions + top-5 spenders-with-no-conv; "all" shows every spending
   // keyword the server returned. Boxes grow vertically when expanded.
   const [keywordMode, setKeywordMode] = useState<KeywordMode>("compact");
+  // Global entity visibility — progressive disclosure. Both on by default so
+  // the grid opens at full detail; turning ads/keywords off zooms back out to
+  // the campaign + ad-group structure.
+  const [showAds, setShowAds] = useState(true);
+  const [showKeywords, setShowKeywords] = useState(true);
+  // Per-ad-group collapse overrides (independent of the global toggles).
+  const [collapsedAdGroups, setCollapsedAdGroups] = useState<Set<string>>(() => new Set());
+  const toggleAdGroup = (id: string) =>
+    setCollapsedAdGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   // Date range — default: last 30 days.
   const [range, setRange] = useState<DateRange>(() => computeRange("30d"));
@@ -1083,7 +1378,8 @@ export default function AccountStructureTree({
                 <button
                   type="button"
                   onClick={() => setKeywordMode((m) => (m === "compact" ? "all" : "compact"))}
-                  className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+                  disabled={!showKeywords}
+                  className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                     keywordMode === "all"
                       ? "border-blue-500 bg-blue-600 text-white"
                       : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -1091,6 +1387,32 @@ export default function AccountStructureTree({
                   title={keywordMode === "compact" ? "Show every keyword (boxes grow)" : "Show curated top-5 + top-5"}
                 >
                   {keywordMode === "compact" ? "⊕ Show all keywords" : "⊖ Hide extra keywords"}
+                </button>
+                {/* Global entity toggles — hide ads / hide keywords to zoom out
+                    to campaign + ad-group structure, show them to drill in. */}
+                <button
+                  type="button"
+                  onClick={() => setShowAds((v) => !v)}
+                  className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+                    showAds
+                      ? "border-blue-500 bg-blue-600 text-white"
+                      : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  }`}
+                  title={showAds ? "Hide ads" : "Show ads"}
+                >
+                  {showAds ? "▣ Hide ads" : "▣ Show ads"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowKeywords((v) => !v)}
+                  className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+                    showKeywords
+                      ? "border-blue-500 bg-blue-600 text-white"
+                      : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  }`}
+                  title={showKeywords ? "Hide keywords" : "Show keywords"}
+                >
+                  {showKeywords ? "▤ Hide keywords" : "▤ Show keywords"}
                 </button>
               </div>
 
@@ -1112,12 +1434,22 @@ export default function AccountStructureTree({
               {filtered.length === 0 ? (
                 <div className="text-center py-12 text-white/50 text-sm">No campaigns match your filters.</div>
               ) : (
-                <AccountGrid
-                  campaigns={filtered}
-                  selectedAdGroupId={selectedAdGroup?.id ?? null}
-                  onSelectAdGroup={setSelectedAdGroup}
-                  mode={keywordMode}
-                />
+                // overflow-x-auto contains the grid's fixed min-width columns
+                // so wide keyword/landing-page rows scroll within this column
+                // instead of bleeding to the right and sliding under the
+                // sticky keyword panel. pb-2 keeps card shadows from clipping.
+                <div className="overflow-x-auto pb-2">
+                  <AccountGrid
+                    campaigns={filtered}
+                    selectedAdGroupId={selectedAdGroup?.id ?? null}
+                    onSelectAdGroup={setSelectedAdGroup}
+                    mode={keywordMode}
+                    showAds={showAds}
+                    showKeywords={showKeywords}
+                    collapsedAdGroups={collapsedAdGroups}
+                    onToggleAdGroup={toggleAdGroup}
+                  />
+                </div>
               )}
             </div>
 
