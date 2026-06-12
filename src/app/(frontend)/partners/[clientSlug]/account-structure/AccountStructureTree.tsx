@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * Figma-style horizontal account structure explorer.
@@ -268,133 +269,17 @@ function matchBadge(mt: string): string {
   }
 }
 
-// ── Keyword panel ────────────────────────────────────────────────────────────
-
-function KeywordPanel({ adGroup, onClose }: { adGroup: AdGroup; onClose: () => void }) {
-  const merged = useMemo(() => {
-    const map = new Map<string, Keyword>();
-    for (const k of adGroup.topKeywordsBySpend) map.set(k.id, k);
-    for (const k of adGroup.topKeywordsByConversions) if (!map.has(k.id)) map.set(k.id, k);
-    return Array.from(map.values()).sort((a, b) => b.spend - a.spend);
-  }, [adGroup]);
-
-  return (
-    <div className="w-[360px] shrink-0 rounded-xl border-2 border-blue-400 dark:border-blue-500 bg-white dark:bg-gray-900 shadow-xl overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="px-4 py-3 bg-blue-50 dark:bg-blue-950/40 border-b border-gray-200 dark:border-gray-700 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Keywords</p>
-          <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate" title={adGroup.name}>
-            {adGroup.name}
-          </h3>
-        </div>
-        <button
-          onClick={onClose}
-          className="shrink-0 p-1 rounded hover:bg-white/50 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100"
-          aria-label="Close keyword panel"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Summary */}
-      <div className="grid grid-cols-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <div className="px-3 py-2 text-center border-r border-gray-200 dark:border-gray-700">
-          <div className="text-[9px] uppercase text-gray-400 tracking-wider">Spend</div>
-          <div className="text-sm font-mono font-bold text-gray-900 dark:text-gray-100">{fmt(adGroup.spend)}</div>
-        </div>
-        <div className="px-3 py-2 text-center border-r border-gray-200 dark:border-gray-700">
-          <div className="text-[9px] uppercase text-gray-400 tracking-wider">Conv.</div>
-          <div className={`text-sm font-mono font-bold ${adGroup.conversions > 0 ? "text-emerald-600" : "text-gray-400"}`}>
-            {adGroup.conversions > 0 ? adGroup.conversions.toFixed(0) : "—"}
-          </div>
-        </div>
-        <div className="px-3 py-2 text-center">
-          <div className="text-[9px] uppercase text-gray-400 tracking-wider">CPA</div>
-          <div className={`text-sm font-mono font-bold ${adGroup.cpa !== null && adGroup.cpa > 200 ? "text-red-500" : "text-emerald-600"}`}>
-            {fmtCpa(adGroup.cpa)}
-          </div>
-        </div>
-      </div>
-
-      {/* Keyword list */}
-      <div className="flex-1 overflow-y-auto max-h-[520px]">
-        {merged.length === 0 ? (
-          <div className="px-4 py-8 text-center text-xs text-gray-400 italic">No keywords with spend or conversions</div>
-        ) : (
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800 backdrop-blur-sm">
-              <tr>
-                <th className="text-left py-1.5 px-3 font-semibold text-gray-500 dark:text-gray-400">Keyword</th>
-                <th className="text-right py-1.5 px-2 font-semibold text-gray-500 dark:text-gray-400">Spend</th>
-                <th className="text-right py-1.5 px-2 font-semibold text-gray-500 dark:text-gray-400">Conv.</th>
-                <th className="text-right py-1.5 pr-3 font-semibold text-gray-500 dark:text-gray-400">CPA</th>
-              </tr>
-            </thead>
-            <tbody>
-              {merged.map((kw, i) => (
-                <tr key={kw.id} className={`border-b border-gray-100 dark:border-gray-800 ${i % 2 === 1 ? "bg-gray-50/50 dark:bg-gray-800/30" : ""}`}>
-                  <td className="py-1.5 px-3">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono text-gray-800 dark:text-gray-200 break-all">{kw.text}</span>
-                      {kw.finalUrl && (
-                        <a
-                          href={kw.finalUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={kw.finalUrl}
-                          className="shrink-0 inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
-                          aria-label={`Open landing page ${kw.finalUrl}`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                          </svg>
-                        </a>
-                      )}
-                      <span className={`shrink-0 px-1 py-0 rounded text-[9px] font-medium ${matchBadge(kw.matchType)}`}>
-                        {kw.matchType}
-                      </span>
-                      {kw.status !== "ENABLED" && (
-                        <span className="shrink-0 text-[9px] font-medium text-amber-600">{kw.status}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="text-right py-1.5 px-2 font-mono text-gray-700 dark:text-gray-300">{fmt(kw.spend)}</td>
-                  <td className={`text-right py-1.5 px-2 font-mono font-medium ${kw.conversions > 0 ? "text-emerald-600" : "text-gray-400"}`}>
-                    {kw.conversions > 0 ? kw.conversions.toFixed(0) : "—"}
-                  </td>
-                  <td className={`text-right py-1.5 pr-3 font-mono font-medium ${kw.cpa !== null && kw.cpa > 200 ? "text-red-500" : kw.cpa !== null ? "text-emerald-600" : "text-gray-400"}`}>
-                    {fmtCpa(kw.cpa)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
-
-
-// ── 4-column grid: Campaign | Ad group | Keywords | Landing pages ──────────
+// ── 4-column grid: Campaign | Ad group | Ads + Keywords | Landing pages ─────
 //
-// Palette (sampled from the user-provided reference at .gg/eyes/refs/palette.png):
-//   campaign   #385878 (slate-blue)
-//   ad group   #685878 (muted plum)
-//   keyword    #B87080 (dusty rose)
-//   landing pg #E87880 (coral)
-//   page bg    #283848 (dark navy) — makes the cards pop the way they do in
-//                                     the reference image.
+// Colour system: each *campaign* owns a distinct hue (cycled from
+// CAMPAIGN_HUES). Everything nested under it — ad groups, ads, keywords,
+// landing pages — is a progressively lighter shade of that same hue, so the
+// eye can instantly group rows by campaign and tell campaigns apart.
 //
 // Layout: per campaign one CSS-grid block. Column 1 = campaign card spanning
-// every row. Columns 2/3/4 = one row per *keyword*. The ad-group cell uses
-// row-span to vertically merge across all of its keyword rows, and the
-// landing-page cell uses row-span to merge across all keyword rows that
+// every row. Columns 2/3/4 = one row per ad/keyword. The ad-group cell uses
+// row-span to vertically merge across all of its detail rows, and the
+// landing-page cell uses row-span to merge across consecutive rows that
 // share the same finalUrl. Result: visually "merged" landing-page cards.
 //
 // Keyword display modes (header toggle):
@@ -402,17 +287,44 @@ function KeywordPanel({ adGroup, onClose }: { adGroup: AdGroup; onClose: () => v
 //                        conversions — max 10 rows per ad group
 //   all                — every spending keyword (up to 50, server-capped)
 //
-// The shared `KeywordPanel` (clickable side panel via ad-group click) is
-// preserved for the deep "top keywords by spend/conversions" deep-dive
-// workflow it has always served.
+// When both ads and keywords are hidden the block switches to a compact
+// layout — ad groups become thin full-width bars so many ad groups (and
+// multiple campaigns) fit on screen at once.
 
 const PALETTE = {
-  campaignBg: "#385878",
-  adGroupBg: "#685878",
-  keywordBg: "#B87080",
-  landingPageBg: "#E87880",
   pageBg: "#283848",
 };
+
+// Distinct base hues per campaign (cycled). Tuned to be clearly separable
+// around the wheel while staying in a muted, professional range.
+const CAMPAIGN_HUES = [212, 270, 330, 18, 158, 95, 300, 240, 45, 188];
+
+interface CampaignPalette {
+  hue: number;
+  campaign: string;
+  adGroup: string;
+  ad: string;
+  keyword: string;
+  landingPage: string;
+}
+
+/**
+ * Build a campaign's colour ramp: one hue, increasing lightness as you descend
+ * the hierarchy (campaign darkest → landing page lightest). All tiles carry
+ * white text, so lightness is capped so the lightest shade still reads.
+ */
+function campaignPalette(index: number): CampaignPalette {
+  const hue = CAMPAIGN_HUES[index % CAMPAIGN_HUES.length];
+  const s = 40;
+  return {
+    hue,
+    campaign: `hsl(${hue}, ${s}%, 28%)`,
+    adGroup: `hsl(${hue}, ${s}%, 38%)`,
+    ad: `hsl(${hue}, ${s}%, 47%)`,
+    keyword: `hsl(${hue}, ${s}%, 55%)`,
+    landingPage: `hsl(${hue}, ${Math.round(s * 0.8)}%, 62%)`,
+  };
+}
 
 type KeywordMode = "compact" | "all";
 
@@ -480,12 +392,12 @@ function fmtAvgCpc(spend: number, clicks: number): string {
   return `$${cpc.toFixed(2)}`;
 }
 
-function CampaignCard({ campaign }: { campaign: Campaign }) {
+function CampaignCard({ campaign, palette }: { campaign: Campaign; palette: CampaignPalette }) {
   const h = healthStyles[campaignHealth(campaign)];
   return (
     <div
       className="relative h-full rounded-2xl p-4 shadow-lg flex flex-col gap-3 overflow-hidden text-white"
-      style={{ backgroundColor: PALETTE.campaignBg }}
+      style={{ backgroundColor: palette.campaign }}
       title={campaign.name}
     >
       <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${h.dot}`} />
@@ -537,16 +449,14 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
 
 function AdGroupCard({
   adGroup,
-  isSelected,
-  onSelect,
+  palette,
   keywordCount,
   adCount,
   collapsed,
   onToggleCollapse,
 }: {
   adGroup: AdGroup;
-  isSelected: boolean;
-  onSelect: () => void;
+  palette: CampaignPalette;
   keywordCount: number;
   adCount: number;
   collapsed: boolean;
@@ -554,26 +464,17 @@ function AdGroupCard({
 }) {
   return (
     <button
-      onClick={onSelect}
-      className={`group h-full w-full text-left rounded-xl p-3 shadow-md flex flex-col gap-2 text-white transition-all ${
-        isSelected ? "ring-2 ring-white/70" : "hover:shadow-lg hover:brightness-110"
-      }`}
-      style={{ backgroundColor: PALETTE.adGroupBg }}
-      title={adGroup.name}
+      onClick={onToggleCollapse}
+      className="group h-full w-full text-left rounded-xl p-3 shadow-md flex flex-col gap-2 text-white transition-all hover:shadow-lg hover:brightness-110"
+      style={{ backgroundColor: palette.adGroup }}
+      title={`${adGroup.name} — click to ${collapsed ? "expand" : "collapse"}`}
     >
       <div>
         <div className="flex items-center justify-between gap-1 mb-0.5">
           <div className="text-[9px] uppercase tracking-wider font-semibold opacity-70">Ad Group</div>
-          {/* Per-row expand/collapse. stopPropagation so it doesn't also fire
-              the card's onSelect (which opens the keyword side panel). */}
           <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onToggleCollapse(); } }}
-            className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded hover:bg-white/20 transition-colors cursor-pointer"
-            aria-label={collapsed ? "Expand ad group" : "Collapse ad group"}
-            title={collapsed ? "Expand" : "Collapse"}
+            className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded group-hover:bg-white/20 transition-colors"
+            aria-hidden="true"
           >
             <svg
               className={`w-3 h-3 transition-transform ${collapsed ? "" : "rotate-90"}`}
@@ -612,15 +513,17 @@ function AdGroupCard({
 
 function KeywordRow({
   kw,
+  palette,
 }: {
   kw: Keyword & { bucket: "converter" | "spend-no-conv" | "other" };
+  palette: CampaignPalette;
 }) {
   const hasConv = kw.conversions > 0;
   return (
     <div
       className="h-full w-full rounded-lg px-3 py-2 shadow-sm flex items-center gap-2 text-white"
       style={{
-        backgroundColor: PALETTE.keywordBg,
+        backgroundColor: palette.keyword,
         // Lighten/darken slightly so converters "glow" vs spenders. Subtle
         // — the colour distinction is the bucket-tint stripe on the left.
         filter: hasConv ? "brightness(1.08)" : "brightness(0.92)",
@@ -663,18 +566,78 @@ function KeywordRow({
 }
 
 /**
- * Hover preview for an ad — small ad icon that reveals the ad's headlines,
- * descriptions and final URL on hover. Rendered inside a landing-page card so
- * the team can see which ad drives that landing page without leaving the grid.
+ * Rendered Google-style search-ad card. Shown in a fixed-position portal so it
+ * sits on top of everything (and is never clipped by the grid's horizontal
+ * scroll container). Approximates a real Google paid result: favicon + display
+ * URL, "Sponsored" label, blue headline (first headlines joined with " | "),
+ * and the description line.
+ */
+function GoogleAdPreviewCard({ ad, x, y }: { ad: Ad; x: number; y: number }) {
+  const host = ad.finalUrl ? prettyUrl(ad.finalUrl).host || "your-site.com" : "your-site.com";
+  const path = ad.finalUrl ? prettyUrl(ad.finalUrl).path : "";
+  const headline = ad.headlines.slice(0, 3).join(" | ") || ad.type.replace(/_/g, " ");
+  const description = ad.descriptions.slice(0, 2).join(" ") || "—";
+  // Clamp into the viewport: 380px wide, prefer below-right of the icon, flip
+  // up when near the bottom edge.
+  const W = 380;
+  const left = Math.max(12, Math.min(x, window.innerWidth - W - 12));
+  const below = y + 8;
+  const flipUp = below > window.innerHeight - 220;
+  const top = flipUp ? Math.max(12, y - 230) : below;
+  return (
+    <div
+      style={{ position: "fixed", left, top, width: W, zIndex: 9999 }}
+      className="rounded-xl border border-gray-200 bg-white shadow-2xl p-4 text-left pointer-events-none"
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold">
+          {host.charAt(0).toUpperCase()}
+        </span>
+        <div className="min-w-0">
+          <div className="text-[12px] text-gray-800 font-medium leading-none truncate">{host}</div>
+          <div className="text-[11px] text-gray-500 leading-tight truncate">
+            <span className="font-bold text-gray-700">Sponsored</span>
+            {path && path !== "/" ? <span className="text-gray-400"> · {host}{path}</span> : null}
+          </div>
+        </div>
+      </div>
+      <div className="text-[18px] leading-snug text-[#1a0dab] font-normal" style={{ fontFamily: "arial, sans-serif" }}>
+        {headline}
+      </div>
+      <p className="text-[13px] text-gray-600 leading-snug mt-1" style={{ fontFamily: "arial, sans-serif" }}>
+        {description}
+      </p>
+      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-3 font-mono text-[10px] text-gray-500">
+        <span className="uppercase tracking-wider text-gray-400">{ad.type.replace(/_/g, " ")}</span>
+        {ad.status !== "ENABLED" && <span className="text-amber-600 font-semibold">{ad.status}</span>}
+        <span className="ml-auto">Spend {fmt(ad.spend)}</span>
+        <span>Conv {ad.conversions > 0 ? ad.conversions.toFixed(0) : "\u2014"}</span>
+        <span>CPA {fmtCpa(ad.cpa)}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Ad icon that reveals the Google-style preview on hover. The preview is
+ * portalled to <body> at fixed coordinates so it sits above the whole grid
+ * (the user's "sit on top of everything") and is never clipped by the grid's
+ * horizontal scroll container.
  */
 function AdPreviewIcon({ ad }: { ad: Ad }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   return (
     <span
-      className="group/ad relative shrink-0 inline-flex"
+      className="shrink-0 inline-flex"
       onClick={(e) => e.preventDefault()}
+      onMouseEnter={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        setPos({ x: r.right - 360, y: r.bottom });
+      }}
+      onMouseLeave={() => setPos(null)}
     >
       <span
-        className="inline-flex items-center justify-center w-4 h-4 rounded bg-white/25 hover:bg-white/40 transition-colors"
+        className="inline-flex items-center justify-center w-4 h-4 rounded bg-white/25 hover:bg-white/45 transition-colors"
         aria-label="Preview ad"
         title="Preview ad"
       >
@@ -682,45 +645,8 @@ function AdPreviewIcon({ ad }: { ad: Ad }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7h6m-6 5h5M4 5h16v14H4z" />
         </svg>
       </span>
-      <span
-        role="tooltip"
-        className="invisible opacity-0 group-hover/ad:visible group-hover/ad:opacity-100 transition-opacity duration-150 absolute right-0 top-full mt-1 z-40 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-3 text-left cursor-default"
-      >
-        <div className="flex items-center justify-between gap-2 mb-1.5">
-          <span className="text-[9px] uppercase tracking-wider font-semibold text-gray-400">
-            {ad.type.replace(/_/g, " ")}
-          </span>
-          {ad.status !== "ENABLED" && (
-            <span className="text-[9px] font-semibold text-amber-600">{ad.status}</span>
-          )}
-        </div>
-        {ad.headlines.length > 0 ? (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {ad.headlines.slice(0, 6).map((h, i) => (
-              <span key={i} className="text-[11px] font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 rounded px-1.5 py-0.5">
-                {h}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-[11px] text-gray-400 italic mb-2">No headlines (non-RSA ad)</p>
-        )}
-        {ad.descriptions.length > 0 && (
-          <p className="text-[11px] text-gray-600 dark:text-gray-300 leading-snug mb-2">
-            {ad.descriptions.slice(0, 2).join(" · ")}
-          </p>
-        )}
-        {ad.finalUrl && (
-          <p className="text-[10px] font-mono text-gray-400 truncate" title={ad.finalUrl}>
-            {ad.finalUrl}
-          </p>
-        )}
-        <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 grid grid-cols-3 gap-1 font-mono text-[10px] text-gray-600 dark:text-gray-300">
-          <span><span className="text-gray-400">Spend </span>{fmt(ad.spend)}</span>
-          <span><span className="text-gray-400">Conv </span>{ad.conversions > 0 ? ad.conversions.toFixed(0) : "\u2014"}</span>
-          <span><span className="text-gray-400">CPA </span>{fmtCpa(ad.cpa)}</span>
-        </div>
-      </span>
+      {pos && typeof document !== "undefined" &&
+        createPortal(<GoogleAdPreviewCard ad={ad} x={pos.x} y={pos.y} />, document.body)}
     </span>
   );
 }
@@ -731,6 +657,7 @@ function LandingPageCard({
   spend,
   inherited,
   previewAd,
+  palette,
 }: {
   url: string | null;
   rowCount: number;
@@ -739,13 +666,15 @@ function LandingPageCard({
   inherited?: boolean;
   /** Ad whose final URL matches this landing page — drives the hover preview. */
   previewAd?: Ad | null;
+  palette: CampaignPalette;
 }) {
   if (!url) {
     return (
       <div
         className="h-full w-full rounded-lg px-3 py-2 shadow-sm flex items-center gap-2 text-white/90 italic"
-        style={{ backgroundColor: PALETTE.landingPageBg, filter: "saturate(0.6) brightness(0.85)" }}
+        style={{ backgroundColor: palette.landingPage, filter: "saturate(0.6) brightness(0.85)" }}
       >
+        {previewAd && <AdPreviewIcon ad={previewAd} />}
         <span className="text-[11px]">— no landing page</span>
         <span className="ml-auto text-[10px] font-mono opacity-80">{rowCount}</span>
       </div>
@@ -758,7 +687,7 @@ function LandingPageCard({
       target="_blank"
       rel="noopener noreferrer"
       className="group h-full w-full rounded-lg px-3 py-2 shadow-sm flex items-center gap-2 text-white transition-all hover:brightness-110"
-      style={{ backgroundColor: PALETTE.landingPageBg, filter: inherited ? "brightness(0.9)" : undefined }}
+      style={{ backgroundColor: palette.landingPage, filter: inherited ? "brightness(0.9)" : undefined }}
       title={inherited ? `${url} (inherited from ad group)` : url}
     >
       <div className="min-w-0 flex-1">
@@ -795,23 +724,16 @@ function LandingPageCard({
  * status and metrics. Mirrors KeywordRow's visual language but tinted toward
  * the ad-group plum so ads read as a distinct entity from keywords.
  */
-function AdRow({ ad }: { ad: Ad }) {
+function AdRow({ ad, palette }: { ad: Ad; palette: CampaignPalette }) {
   const hasConv = ad.conversions > 0;
   const primaryHeadline = ad.headlines[0] ?? ad.type.replace(/_/g, " ");
   return (
     <div
       className="h-full w-full rounded-lg px-3 py-2 shadow-sm flex items-center gap-2 text-white"
-      style={{ backgroundColor: PALETTE.adGroupBg, filter: hasConv ? "brightness(1.12)" : "brightness(0.96)" }}
+      style={{ backgroundColor: palette.ad, filter: hasConv ? "brightness(1.1)" : "brightness(0.96)" }}
       title={ad.headlines.join(" | ") || ad.type}
     >
-      <span
-        className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded bg-white/20"
-        aria-hidden="true"
-      >
-        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7h6m-6 5h5M4 5h16v14H4z" />
-        </svg>
-      </span>
+      <AdPreviewIcon ad={ad} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="text-[12px] font-semibold truncate">{primaryHeadline}</span>
@@ -929,10 +851,48 @@ function groupByLandingPageRun(
   return runs;
 }
 
+/**
+ * Thin full-width ad-group bar used in compact mode (ads + keywords both
+ * hidden). One bar per row so many ad groups — and multiple campaigns — fit on
+ * screen at once. Click toggles this group's collapse flag so re-showing ads/
+ * keywords reopens it.
+ */
+function CompactAdGroupBar({
+  adGroup,
+  palette,
+  onClick,
+}: {
+  adGroup: AdGroup;
+  palette: CampaignPalette;
+  onClick: () => void;
+}) {
+  const adCount = adGroup.ads?.length ?? 0;
+  const kwCount = adGroup.keywords?.length ?? adGroup.topKeywordsBySpend.length;
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left rounded-md px-3 py-1.5 shadow-sm flex items-center gap-3 text-white transition-all hover:brightness-110"
+      style={{ backgroundColor: palette.adGroup }}
+      title={adGroup.name}
+    >
+      <span className="text-[12px] font-semibold truncate flex-1 min-w-0">{adGroup.name}</span>
+      {adGroup.status !== "ENABLED" && (
+        <span className="shrink-0 text-[8px] font-semibold px-1 rounded bg-amber-400/30">{adGroup.status}</span>
+      )}
+      <span className="shrink-0 text-[9px] uppercase font-semibold opacity-75">{adCount} ads</span>
+      <span className="shrink-0 text-[9px] uppercase font-semibold opacity-75">{kwCount} kws</span>
+      <span className="shrink-0 font-mono text-[11px] font-bold w-16 text-right">{fmt(adGroup.spend)}</span>
+      <span className="shrink-0 font-mono text-[11px] font-bold w-10 text-right">
+        {adGroup.conversions > 0 ? adGroup.conversions.toFixed(0) : "\u2014"}
+      </span>
+      <span className="shrink-0 font-mono text-[11px] font-bold w-12 text-right">{fmtCpa(adGroup.cpa)}</span>
+    </button>
+  );
+}
+
 function CampaignGridBlock({
   campaign,
-  selectedAdGroupId,
-  onSelectAdGroup,
+  palette,
   mode,
   showAds,
   showKeywords,
@@ -940,8 +900,7 @@ function CampaignGridBlock({
   onToggleAdGroup,
 }: {
   campaign: Campaign;
-  selectedAdGroupId: string | null;
-  onSelectAdGroup: (ag: AdGroup | null) => void;
+  palette: CampaignPalette;
   mode: KeywordMode;
   showAds: boolean;
   showKeywords: boolean;
@@ -949,6 +908,11 @@ function CampaignGridBlock({
   collapsedAdGroups: Set<string>;
   onToggleAdGroup: (id: string) => void;
 }) {
+  // Compact mode — both ads and keywords hidden: collapse the campaign to a
+  // narrow card + a stack of thin full-width ad-group bars so many ad groups
+  // and multiple campaigns are visible at once.
+  const compact = !showAds && !showKeywords;
+
   // For each ad group: build the unified ad+keyword detail rows and the
   // landing-page run groupings. Memoised so toggling a control is the only
   // thing that triggers re-computation. A collapsed ad group contributes a
@@ -970,9 +934,30 @@ function CampaignGridBlock({
         className="items-stretch"
         style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: "0.75rem" }}
       >
-        <CampaignCard campaign={campaign} />
+        <CampaignCard campaign={campaign} palette={palette} />
         <div className="rounded-xl border-2 border-dashed border-white/20 p-6 text-center text-xs text-white/60 italic">
           No active ad groups with spend in this range.
+        </div>
+      </div>
+    );
+  }
+
+  if (compact) {
+    return (
+      <div
+        className="items-start"
+        style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: "0.5rem" }}
+      >
+        <CampaignCard campaign={campaign} palette={palette} />
+        <div className="flex flex-col gap-1">
+          {campaign.adGroups.map((ag) => (
+            <CompactAdGroupBar
+              key={ag.id}
+              adGroup={ag}
+              palette={palette}
+              onClick={() => onToggleAdGroup(ag.id)}
+            />
+          ))}
         </div>
       </div>
     );
@@ -991,7 +976,7 @@ function CampaignGridBlock({
     >
       {/* Column 1: campaign card spans every detail row across every ad group. */}
       <div style={{ gridRow: `1 / span ${totalRows}` }}>
-        <CampaignCard campaign={campaign} />
+        <CampaignCard campaign={campaign} palette={palette} />
       </div>
 
       {adGroupRows.map(({ adGroup, rows, lpRuns, collapsed }) => {
@@ -1005,8 +990,7 @@ function CampaignGridBlock({
               <div style={{ gridRow: `span 1` }}>
                 <AdGroupCard
                   adGroup={adGroup}
-                  isSelected={selectedAdGroupId === adGroup.id}
-                  onSelect={() => onSelectAdGroup(selectedAdGroupId === adGroup.id ? null : adGroup)}
+                  palette={palette}
                   keywordCount={adGroup.keywords?.length ?? adGroup.topKeywordsBySpend.length}
                   adCount={adCount}
                   collapsed={collapsed}
@@ -1014,7 +998,7 @@ function CampaignGridBlock({
                 />
               </div>
               <div className="rounded-lg border border-dashed border-white/15 p-2 text-[11px] text-white/50 italic flex items-center">
-                {collapsed ? "collapsed — click ▸ to expand" : "no ads or keywords in view"}
+                {collapsed ? "collapsed — click to expand" : "no ads or keywords in view"}
               </div>
               <div className="rounded-lg border border-dashed border-white/15 p-2 text-[11px] text-white/50 italic flex items-center">
                 {adGroup.landingPage ? prettyUrl(adGroup.landingPage).path || "/" : "\u2014"}
@@ -1028,8 +1012,7 @@ function CampaignGridBlock({
             <div style={{ gridRow: `span ${adGroupSpan}` }}>
               <AdGroupCard
                 adGroup={adGroup}
-                isSelected={selectedAdGroupId === adGroup.id}
-                onSelect={() => onSelectAdGroup(selectedAdGroupId === adGroup.id ? null : adGroup)}
+                palette={palette}
                 keywordCount={rows.filter((r) => r.kind === "keyword").length}
                 adCount={adCount}
                 collapsed={collapsed}
@@ -1043,7 +1026,7 @@ function CampaignGridBlock({
               return (
                 <div key={row.key} className="contents">
                   <div>
-                    {row.kind === "ad" ? <AdRow ad={row.ad} /> : <KeywordRow kw={row.kw} />}
+                    {row.kind === "ad" ? <AdRow ad={row.ad} palette={palette} /> : <KeywordRow kw={row.kw} palette={palette} />}
                   </div>
                   {lpRun && (
                     <div style={{ gridRow: `span ${lpRun.count}` }}>
@@ -1053,6 +1036,7 @@ function CampaignGridBlock({
                         spend={lpRun.spend}
                         inherited={lpRun.inherited}
                         previewAd={lpRun.previewAd}
+                        palette={palette}
                       />
                     </div>
                   )}
@@ -1068,8 +1052,6 @@ function CampaignGridBlock({
 
 function AccountGrid({
   campaigns,
-  selectedAdGroupId,
-  onSelectAdGroup,
   mode,
   showAds,
   showKeywords,
@@ -1077,8 +1059,6 @@ function AccountGrid({
   onToggleAdGroup,
 }: {
   campaigns: Campaign[];
-  selectedAdGroupId: string | null;
-  onSelectAdGroup: (ag: AdGroup | null) => void;
   mode: KeywordMode;
   showAds: boolean;
   showKeywords: boolean;
@@ -1087,12 +1067,11 @@ function AccountGrid({
 }) {
   return (
     <div className="flex flex-col gap-6">
-      {campaigns.map((c) => (
+      {campaigns.map((c, i) => (
         <CampaignGridBlock
           key={c.id}
           campaign={c}
-          selectedAdGroupId={selectedAdGroupId}
-          onSelectAdGroup={onSelectAdGroup}
+          palette={campaignPalette(i)}
           mode={mode}
           showAds={showAds}
           showKeywords={showKeywords}
@@ -1120,7 +1099,6 @@ export default function AccountStructureTree({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedAdGroup, setSelectedAdGroup] = useState<AdGroup | null>(null);
   const [search, setSearch] = useState("");
   const [healthFilter, setHealthFilter] = useState<Health | "all">("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
@@ -1335,8 +1313,8 @@ export default function AccountStructureTree({
         )}
 
         {!loading && !error && data && (
-          <div className="flex gap-4 items-start">
-            <div className="flex-1 min-w-0">
+          <div className="w-full">
+            <div className="w-full min-w-0">
               {/* Toolbar */}
               <div className="mb-4 flex items-center gap-2 flex-wrap">
                 <input
@@ -1427,22 +1405,18 @@ export default function AccountStructureTree({
                 <span className="text-red-600 dark:text-red-400">● High CPA / no conv.</span>
               </div>
 
-              {/* 4-column grid: Campaign | Ad group | Keywords | Landing pages.
-                  Each campaign + ad-group + landing-page cell row-spans the
-                  appropriate count of keyword rows so vertically aligned
-                  items merge into a single tall block. */}
+              {/* Full-width grid: Campaign | Ad group | Ads + Keywords |
+                  Landing pages. Each campaign + ad-group + landing-page cell
+                  row-spans its detail rows so vertically aligned items merge
+                  into a single tall block. */}
               {filtered.length === 0 ? (
                 <div className="text-center py-12 text-white/50 text-sm">No campaigns match your filters.</div>
               ) : (
-                // overflow-x-auto contains the grid's fixed min-width columns
-                // so wide keyword/landing-page rows scroll within this column
-                // instead of bleeding to the right and sliding under the
-                // sticky keyword panel. pb-2 keeps card shadows from clipping.
+                // overflow-x-auto contains the grid's fixed min-width columns so
+                // wide rows scroll within this region instead of bleeding out.
                 <div className="overflow-x-auto pb-2">
                   <AccountGrid
                     campaigns={filtered}
-                    selectedAdGroupId={selectedAdGroup?.id ?? null}
-                    onSelectAdGroup={setSelectedAdGroup}
                     mode={keywordMode}
                     showAds={showAds}
                     showKeywords={showKeywords}
@@ -1452,34 +1426,6 @@ export default function AccountStructureTree({
                 </div>
               )}
             </div>
-
-            {/* Sticky keyword panel — xl and above */}
-            <div className="hidden xl:block sticky top-20 self-start">
-              {selectedAdGroup ? (
-                <KeywordPanel adGroup={selectedAdGroup} onClose={() => setSelectedAdGroup(null)} />
-              ) : (
-                <div className="w-[360px] rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 p-6 text-center bg-white dark:bg-gray-900">
-                  <svg
-                    className="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
-                  </svg>
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Click an ad group</p>
-                  <p className="text-xs text-gray-400 mt-1">to see top keywords by spend &amp; conversions</p>
-                </div>
-              )}
-            </div>
-
-            {/* Mobile/tablet keyword panel (overlay bottom sheet) */}
-            {selectedAdGroup && (
-              <div className="xl:hidden fixed inset-x-0 bottom-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-2xl max-h-[70vh] overflow-hidden flex flex-col">
-                <KeywordPanel adGroup={selectedAdGroup} onClose={() => setSelectedAdGroup(null)} />
-              </div>
-            )}
           </div>
         )}
       </main>
