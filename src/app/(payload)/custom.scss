@@ -725,6 +725,15 @@ $svg-close: "%3C/svg%3E";
 // background (mobile only) so the menu toggle and header controls stand out.
 // Page content below stays white — this only repaints the header strip.
 @media (max-width: 768px) {
+  // Keep the whole header bar pinned to the top while the page scrolls so the
+  // hamburger, breadcrumb and notification bell are always reachable. Payload's
+  // own `.app-header` is `position: relative` (it scrolls away); force sticky.
+  .app-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10000 !important;
+  }
+
   .app-header .app-header__bg {
     background: #000 !important;
     backdrop-filter: none !important;
@@ -737,6 +746,14 @@ $svg-close: "%3C/svg%3E";
   .app-header .step-nav,
   .app-header .step-nav * {
     color: #fff !important;
+  }
+
+  // Mobile header should only show: hamburger + breadcrumb + notification bell.
+  // Hide the signed-in user name/dropdown ("Peter ▾") and the account avatar
+  // (the empty profile circle) to declutter the narrow bar.
+  .app-header .od-user-display-name,
+  .app-header .app-header__account {
+    display: none !important;
   }
 }
 
@@ -6228,6 +6245,21 @@ body.od-client-record {
   // On mobile the decorative search pill would crowd the breadcrumb — drop it.
   body.od-client-record .app-header .app-header__step-nav-wrapper::after {
     display: none;
+  }
+
+  // ── Mobile dark-mode canvas fix ──
+  // The client record reskin hardcodes a light-grey canvas (#f5f6f8) on the
+  // wrap/main/form and the collection-edit box. In dark mode that grey clashes
+  // badly with the near-black cards/tabs (the "weird grey vs black" the design
+  // calls out). On mobile + dark theme, repaint the canvas a deep near-black so
+  // the tabs strip and section headers sit on one cohesive dark surface while
+  // the cards (theme-elevation-0, ~#141414) still read as raised above it.
+  html[data-theme='dark'] body.od-client-record .template-default__wrap,
+  html[data-theme='dark'] body.od-client-record .collection-edit__main-wrapper,
+  html[data-theme='dark'] body.od-client-record .collection-edit__main,
+  html[data-theme='dark'] body.od-client-record .collection-edit__form,
+  html[data-theme='dark'] body.od-client-record .collection-edit--clients {
+    background: var(--color-base-950) !important;
   }
 }
 // Keep Media upload/edit forms clear of the collapsed mini sidebar. The media

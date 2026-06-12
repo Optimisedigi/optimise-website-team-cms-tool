@@ -26,7 +26,7 @@ const UserDisplayName = () => {
   const displayName = (user as any).name || (user as any).email;
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <div ref={ref} className="od-user-display-name" style={{ position: "relative" }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
