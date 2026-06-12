@@ -4331,6 +4331,15 @@ export async function runMigrations(
     )`);
     await run("gads_mtm_allowlist_order_idx", "CREATE INDEX IF NOT EXISTS `gads_mtm_allowlist_order_idx` ON `gads_mtm_allowlist` (`_order`)");
     await run("gads_mtm_allowlist_parent_idx", "CREATE INDEX IF NOT EXISTS `gads_mtm_allowlist_parent_idx` ON `gads_mtm_allowlist` (`_parent_id`)");
+
+    // ── Dedicated retainer start date on clients (2026-06-13) ──
+    // Anchors first-month retainer pro-ration + setup-fee timing, separate
+    // from clientStartDate. Stored as text like other date columns; null
+    // falls back to clientStartDate in the revenue helpers.
+    await run(
+      "clients.retainer_start_date",
+      "ALTER TABLE `clients` ADD `retainer_start_date` text",
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };
