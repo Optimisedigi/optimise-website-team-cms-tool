@@ -835,47 +835,39 @@ const Dashboard = () => {
                 <span className="od-box__eyebrow">Finance</span>
                 <span className="od-box__title">Costs — {data.costs.period || data.month}</span>
               </div>
-              <button className="od-costs__head-toggle" onClick={() => setCostDetailsOpen(!costDetailsOpen)} type="button">
-                {costDetailsOpen ? 'Hide details ⌃' : 'Show details ⌄'}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <a href="/admin/finance/costs" style={{ fontSize: 12, color: 'var(--theme-elevation-500)', textDecoration: 'none' }}>
+                  Categorise costs &rarr;
+                </a>
+                <button className="od-costs__head-toggle" onClick={() => setCostDetailsOpen(!costDetailsOpen)} type="button">
+                  {costDetailsOpen ? 'Hide details ⌃' : 'Show details ⌄'}
+                </button>
+              </div>
             </div>
             <div className="od-box__body">
+              {data.businessCosts && (
+                <div className="od-card-pad od-card-pad--bottom-tight">
+                  <div className="od-gsc-stats od-gsc-stats--2">
+                    <div className="od-stat">
+                      <div className="k">Business Costs MTD</div>
+                      <div className="v">${data.businessCosts.totalThisMonth.toFixed(0)}</div>
+                      <div className="d">Included in top MTD Costs</div>
+                    </div>
+                    <div className="od-stat">
+                      <div className="k">Uncategorised</div>
+                      <div className="v" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
+                        {data.businessCosts.uncategorisedCount}
+                      </div>
+                      <div className="d" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
+                        {data.businessCosts.uncategorisedCount > 0 ? '⚠ Needs review' : 'All categorised'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <CostBreakdown data={data} open={costDetailsOpen} />
             </div>
           </div>
-
-          {/* Business Costs Summary */}
-          {data.businessCosts && (
-            <div className="od-box">
-              <div className="od-box__head">
-                <div>
-                  <span className="od-box__eyebrow">Finance</span>
-                  <span className="od-box__title">Business Costs</span>
-                </div>
-                <a href="/admin/finance/costs" style={{ fontSize: 12, color: 'var(--theme-elevation-500)', textDecoration: 'none' }}>
-                  Categorise &rarr;
-                </a>
-              </div>
-              <div className="od-box__body od-card-pad">
-                <div className="od-gsc-stats od-gsc-stats--2">
-                  <div className="od-stat">
-                    <div className="k">Total This Month</div>
-                    <div className="v">${data.businessCosts.totalThisMonth.toFixed(0)}</div>
-                    <div className="d">AUD</div>
-                  </div>
-                  <div className="od-stat">
-                    <div className="k">Uncategorised</div>
-                    <div className="v" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
-                      {data.businessCosts.uncategorisedCount}
-                    </div>
-                    <div className="d" style={data.businessCosts.uncategorisedCount > 0 ? { color: '#f59e0b' } : {}}>
-                      {data.businessCosts.uncategorisedCount > 0 ? '⚠ Needs review' : 'All categorised'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Outstanding Invoices & Scheduled Sends */}
           <XeroInvoicesCard invoices={xeroInvoices} scheduled={xeroScheduled} loading={xeroLoading} onRefresh={fetchXeroData} />

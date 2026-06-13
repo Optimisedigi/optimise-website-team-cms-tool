@@ -94,6 +94,8 @@ interface SnapshotData {
 
 type DatePreset = '7d' | '28d' | '3m' | '12m' | '16m'
 
+const DEFAULT_DATE_PRESET: DatePreset = '12m'
+
 // ─── Helpers ──────────────────────────────────────────────
 
 function formatDate(d: Date): string {
@@ -192,7 +194,7 @@ const SearchConsolePage = () => {
   const [queryFilter, setQueryFilter] = useState('')
   const [queryPage, setQueryPage] = useState(0)
   const [queryMode, setQueryMode] = useState<'all' | 'brand' | 'generic'>('all')
-  const [activePreset, setActivePreset] = useState<DatePreset>('28d')
+  const [activePreset, setActivePreset] = useState<DatePreset | null>(DEFAULT_DATE_PRESET)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [brandTab, setBrandTab] = useState<'overview' | 'brand' | 'generic'>('overview')
@@ -290,7 +292,7 @@ const SearchConsolePage = () => {
   // Initial query load when snapshot arrives
   useEffect(() => {
     if (snapshot?.clientId && !queryData) {
-      const { start, end } = getPresetDates('28d')
+      const { start, end } = getPresetDates(DEFAULT_DATE_PRESET)
       setStartDate(start)
       setEndDate(end)
       fetchQueryData(start, end, String(snapshot.clientId))
@@ -302,7 +304,7 @@ const SearchConsolePage = () => {
     setQueryData(null)
     setQueryFilter('')
     setQueryPage(0)
-    setActivePreset('28d')
+    setActivePreset(DEFAULT_DATE_PRESET)
   }
 
   const handlePreset = (preset: DatePreset) => {
@@ -316,7 +318,7 @@ const SearchConsolePage = () => {
   const handleDateChange = (start: string, end: string) => {
     setStartDate(start)
     setEndDate(end)
-    setActivePreset('28d') // clear preset highlight
+    setActivePreset(null)
     fetchQueryData(start, end)
   }
 
