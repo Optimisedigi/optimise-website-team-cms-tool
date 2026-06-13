@@ -16,8 +16,10 @@ describe("ClientHubClient", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<ClientHubClient slug="acme" />);
-    fireEvent.change(screen.getByPlaceholderText("PIN"), { target: { value: "1234" } });
-    fireEvent.click(screen.getByRole("button", { name: "Open hub" }));
+    fireEvent.change(screen.getByLabelText("Digit 1"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Digit 2"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Digit 3"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Digit 4"), { target: { value: "4" } });
 
     expect(await screen.findByText("Acme")).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText("What do you need help with?"), { target: { value: "Fix hero" } });
