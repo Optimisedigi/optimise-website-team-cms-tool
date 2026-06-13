@@ -81,6 +81,13 @@ export async function runMigrations(
     results.push(r);
   }
 
+  async function hasForeignKey(tableName: string, columnName: string, targetTable: string): Promise<boolean> {
+    const result = await client!.execute(`PRAGMA foreign_key_list(\`${tableName}\`)`);
+    const rows = (result as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+
+    return rows.some((row) => row.from === columnName && row.table === targetTable);
+  }
+
   try {
     // --- Authors tables ---
     await run("clients_authors", `CREATE TABLE IF NOT EXISTS \`clients_authors\` (
@@ -1927,6 +1934,114 @@ export async function runMigrations(
 
     // ── Clients: per-client GSC inspection cap for monthly health monitor ──
     await run("clients.seo_auto_max_gsc_inspections", "ALTER TABLE `clients` ADD `seo_auto_max_gsc_inspections` numeric DEFAULT 200");
+
+    // ── Google Ads Campaign Budgets + Ad Extensions + Client Discovery
+    //    Briefings collections (ports 20260411_150000, 20260528_120000) ──
+    // These three tables are FK-referenced by payload_locked_documents_rels.
+    // If any is missing, EVERY delete on payload_locked_documents fails the FK
+    // check, which breaks handleFormStateLocking — so adding any array row
+    // (e.g. a one-off project on a client) hangs with no fields rendered.
+    // Created here, before the column ALTERs below that reference them.
+    await run("client_discovery_briefings", `CREATE TABLE IF NOT EXISTS \`client_discovery_briefings\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`title\` text,
+      \`data\` text,
+      \`markdown\` text,
+      \`require_pin\` integer DEFAULT false,
+      \`client_id\` integer,
+      \`client_proposal_id\` integer,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`client_proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("client_discovery_briefings_client_idx", "CREATE INDEX IF NOT EXISTS `client_discovery_briefings_client_idx` ON `client_discovery_briefings` (`client_id`)");
+    await run("client_discovery_briefings_proposal_idx", "CREATE INDEX IF NOT EXISTS `client_discovery_briefings_proposal_idx` ON `client_discovery_briefings` (`client_proposal_id`)");
+    await run("client_discovery_briefings_created_at_idx", "CREATE INDEX IF NOT EXISTS `client_discovery_briefings_created_at_idx` ON `client_discovery_briefings` (`created_at`)");
+    await run("client_discovery_briefings_updated_at_idx", "CREATE INDEX IF NOT EXISTS `client_discovery_briefings_updated_at_idx` ON `client_discovery_briefings` (`updated_at`)");
+    await run("locked_docs_rels.client_discovery_briefings_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_discovery_briefings_id` integer REFERENCES `client_discovery_briefings`(`id`) ON DELETE cascade");
+
+    await run("google_ads_campaign_budgets", `CREATE TABLE IF NOT EXISTS \`google_ads_campaign_budgets\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`audit_id\` integer NOT NULL,
+      \`customer_id\` text NOT NULL,
+      \`campaign_id\` text NOT NULL,
+      \`campaign_name\` text NOT NULL,
+      \`ad_group_id\` text,
+      \`ad_group_name\` text,
+      \`budget_percentage\` real DEFAULT 0 NOT NULL,
+      \`calculated_daily_budget\` real,
+      \`actual_daily_budget\` real,
+      \`last_pushed_at\` text,
+      \`bid_strategy\` text DEFAULT 'manual_cpc' NOT NULL,
+      \`bid_strategy_id\` text,
+      \`manual_cpc_bid\` real,
+      \`metrics_last_updated\` text,
+      \`impressions\` integer DEFAULT 0,
+      \`clicks\` integer DEFAULT 0,
+      \`avg_cpc\` real DEFAULT 0,
+      \`conversions\` integer DEFAULT 0,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`audit_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("google_ads_campaign_budgets_audit_idx", "CREATE INDEX IF NOT EXISTS `google_ads_campaign_budgets_audit_idx` ON `google_ads_campaign_budgets` (`audit_id`)");
+    await run("google_ads_campaign_budgets_campaign_idx", "CREATE INDEX IF NOT EXISTS `google_ads_campaign_budgets_campaign_idx` ON `google_ads_campaign_budgets` (`campaign_id`)");
+    await run("google_ads_campaign_budgets_location_ids", `CREATE TABLE IF NOT EXISTS \`google_ads_campaign_budgets_location_ids\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` integer PRIMARY KEY NOT NULL, \`location_id\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_campaign_budgets\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("google_ads_campaign_budgets_location_ids_order_idx", "CREATE INDEX IF NOT EXISTS `google_ads_campaign_budgets_location_ids_order_idx` ON `google_ads_campaign_budgets_location_ids` (`_order`)");
+    await run("google_ads_campaign_budgets_location_ids_parent_idx", "CREATE INDEX IF NOT EXISTS `google_ads_campaign_budgets_location_ids_parent_idx` ON `google_ads_campaign_budgets_location_ids` (`_parent_id`)");
+    await run("google_ads_campaign_budgets_location_names", `CREATE TABLE IF NOT EXISTS \`google_ads_campaign_budgets_location_names\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` integer PRIMARY KEY NOT NULL, \`name\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_campaign_budgets\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("google_ads_campaign_budgets_location_names_order_idx", "CREATE INDEX IF NOT EXISTS `google_ads_campaign_budgets_location_names_order_idx` ON `google_ads_campaign_budgets_location_names` (`_order`)");
+    await run("google_ads_campaign_budgets_location_names_parent_idx", "CREATE INDEX IF NOT EXISTS `google_ads_campaign_budgets_location_names_parent_idx` ON `google_ads_campaign_budgets_location_names` (`_parent_id`)");
+    await run("locked_docs_rels.google_ads_campaign_budgets_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_campaign_budgets_id` integer REFERENCES `google_ads_campaign_budgets`(`id`) ON DELETE set null");
+
+    await run("google_ads_ad_extensions", `CREATE TABLE IF NOT EXISTS \`google_ads_ad_extensions\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`audit_id\` integer NOT NULL,
+      \`customer_id\` text NOT NULL,
+      \`extension_type\` text NOT NULL,
+      \`sitelink_text\` text,
+      \`sitelink_url\` text,
+      \`sitelink_description1\` text,
+      \`sitelink_description2\` text,
+      \`snippet_header\` text,
+      \`snippet_values\` text,
+      \`level\` text DEFAULT 'account' NOT NULL,
+      \`asset_id\` text,
+      \`asset_set_id\` text,
+      \`status\` text DEFAULT 'draft',
+      \`deployed_at\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`audit_id\`) REFERENCES \`google_ads_audits\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("google_ads_ad_extensions_audit_idx", "CREATE INDEX IF NOT EXISTS `google_ads_ad_extensions_audit_idx` ON `google_ads_ad_extensions` (`audit_id`)");
+    await run("google_ads_ad_extensions_type_idx", "CREATE INDEX IF NOT EXISTS `google_ads_ad_extensions_type_idx` ON `google_ads_ad_extensions` (`extension_type`)");
+    await run("google_ads_ad_extensions_assigned_campaigns", `CREATE TABLE IF NOT EXISTS \`google_ads_ad_extensions_assigned_campaigns\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`campaign_id\` text NOT NULL, \`campaign_name\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_ad_extensions\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("google_ads_ad_extensions_assigned_campaigns_order_idx", "CREATE INDEX IF NOT EXISTS `google_ads_ad_extensions_assigned_campaigns_order_idx` ON `google_ads_ad_extensions_assigned_campaigns` (`_order`)");
+    await run("google_ads_ad_extensions_assigned_campaigns_parent_idx", "CREATE INDEX IF NOT EXISTS `google_ads_ad_extensions_assigned_campaigns_parent_idx` ON `google_ads_ad_extensions_assigned_campaigns` (`_parent_id`)");
+    await run("google_ads_ad_extensions_assigned_ad_groups", `CREATE TABLE IF NOT EXISTS \`google_ads_ad_extensions_assigned_ad_groups\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`ad_group_id\` text NOT NULL, \`ad_group_name\` text NOT NULL, \`campaign_id\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`google_ads_ad_extensions\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("google_ads_ad_extensions_assigned_ad_groups_order_idx", "CREATE INDEX IF NOT EXISTS `google_ads_ad_extensions_assigned_ad_groups_order_idx` ON `google_ads_ad_extensions_assigned_ad_groups` (`_order`)");
+    await run("google_ads_ad_extensions_assigned_ad_groups_parent_idx", "CREATE INDEX IF NOT EXISTS `google_ads_ad_extensions_assigned_ad_groups_parent_idx` ON `google_ads_ad_extensions_assigned_ad_groups` (`_parent_id`)");
+    await run("locked_docs_rels.google_ads_ad_extensions_id", "ALTER TABLE `payload_locked_documents_rels` ADD `google_ads_ad_extensions_id` integer REFERENCES `google_ads_ad_extensions`(`id`) ON DELETE set null");
 
     // ── google_ads_campaign_budgets.last_pushed_source ──
     // Tracks what triggered the most recent push to Google Ads ('manual',
@@ -4369,6 +4484,175 @@ export async function runMigrations(
       "clients.retainer_start_date",
       "ALTER TABLE `clients` ADD `retainer_start_date` text",
     );
+
+    // ── AI Visibility / SERP Monitor groups on clients (2026-04-20) ──
+    // Ports migration 20260420_140000. Group fields flatten to snake_case
+    // columns; array fields become child tables. Without the array tables
+    // (and clients_rels below) loading any Client fails -> blank client view.
+    await run("clients.analytics_ga4_property_id", "ALTER TABLE `clients` ADD `analytics_ga4_property_id` text");
+    await run("clients.ai_visibility_enabled", "ALTER TABLE `clients` ADD `ai_visibility_enabled` integer DEFAULT false");
+    await run("clients.serp_monitor_enabled", "ALTER TABLE `clients` ADD `serp_monitor_enabled` integer DEFAULT false");
+    await run("clients.serp_monitor_domain", "ALTER TABLE `clients` ADD `serp_monitor_domain` text");
+    await run("clients.serp_monitor_alert_thresholds_organic_drop_positions", "ALTER TABLE `clients` ADD `serp_monitor_alert_thresholds_organic_drop_positions` numeric DEFAULT 3");
+    await run("clients.serp_monitor_alert_thresholds_pixel_offset_drop", "ALTER TABLE `clients` ADD `serp_monitor_alert_thresholds_pixel_offset_drop` numeric DEFAULT 400");
+
+    await run("clients_ai_visibility_recipient_emails", `CREATE TABLE IF NOT EXISTS \`clients_ai_visibility_recipient_emails\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL, \`email\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_ai_visibility_recipient_emails_order_idx", "CREATE INDEX IF NOT EXISTS `clients_ai_visibility_recipient_emails_order_idx` ON `clients_ai_visibility_recipient_emails` (`_order`)");
+    await run("clients_ai_visibility_recipient_emails_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_ai_visibility_recipient_emails_parent_id_idx` ON `clients_ai_visibility_recipient_emails` (`_parent_id`)");
+
+    await run("clients_ai_visibility_probe_prompts", `CREATE TABLE IF NOT EXISTS \`clients_ai_visibility_probe_prompts\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL, \`prompt\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_ai_visibility_probe_prompts_order_idx", "CREATE INDEX IF NOT EXISTS `clients_ai_visibility_probe_prompts_order_idx` ON `clients_ai_visibility_probe_prompts` (`_order`)");
+    await run("clients_ai_visibility_probe_prompts_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_ai_visibility_probe_prompts_parent_id_idx` ON `clients_ai_visibility_probe_prompts` (`_parent_id`)");
+
+    await run("clients_serp_monitor_keywords", `CREATE TABLE IF NOT EXISTS \`clients_serp_monitor_keywords\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`keyword\` text NOT NULL,
+      \`location\` text DEFAULT 'au:sydney' NOT NULL,
+      \`device\` text DEFAULT 'desktop',
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_serp_monitor_keywords_order_idx", "CREATE INDEX IF NOT EXISTS `clients_serp_monitor_keywords_order_idx` ON `clients_serp_monitor_keywords` (`_order`)");
+    await run("clients_serp_monitor_keywords_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_serp_monitor_keywords_parent_id_idx` ON `clients_serp_monitor_keywords` (`_parent_id`)");
+
+    await run("clients_serp_monitor_alert_recipient_emails", `CREATE TABLE IF NOT EXISTS \`clients_serp_monitor_alert_recipient_emails\` (
+      \`_order\` integer NOT NULL, \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL, \`email\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("clients_serp_monitor_alert_recipient_emails_order_idx", "CREATE INDEX IF NOT EXISTS `clients_serp_monitor_alert_recipient_emails_order_idx` ON `clients_serp_monitor_alert_recipient_emails` (`_order`)");
+    await run("clients_serp_monitor_alert_recipient_emails_parent_id_idx", "CREATE INDEX IF NOT EXISTS `clients_serp_monitor_alert_recipient_emails_parent_id_idx` ON `clients_serp_monitor_alert_recipient_emails` (`_parent_id`)");
+
+    // NOTE: the client_proposals SERP / AI Visibility / GA4 / GSC columns from
+    // migration 20260522_120000 are already ported earlier in this sweep
+    // (search "client_proposals.ga4_property_id"), so they are not repeated here.
+
+    // ── SEO Audit Proposals collection (2026-06-10) ──
+    // Ports migration 20260610_120000. Must be created BEFORE clients_rels
+    // below, which has an FK to this table.
+    await run("seo_audit_proposals", `CREATE TABLE IF NOT EXISTS \`seo_audit_proposals\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`client_id\` integer,
+      \`proposal_id\` integer,
+      \`report_slug\` text,
+      \`website_url\` text NOT NULL,
+      \`gsc_site_url\` text NOT NULL,
+      \`business_type\` text,
+      \`location\` text,
+      \`brand_keywords\` text,
+      \`average_order_value\` numeric,
+      \`conversion_rate\` numeric,
+      \`cost_per_lead\` numeric,
+      \`status\` text DEFAULT 'pending',
+      \`progress\` text,
+      \`started_at\` text,
+      \`completed_at\` text,
+      \`error\` text,
+      \`verdict\` text,
+      \`report\` text,
+      \`proposal_pin\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`proposal_id\`) REFERENCES \`client_proposals\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("seo_audit_proposals_report_slug_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `seo_audit_proposals_report_slug_idx` ON `seo_audit_proposals` (`report_slug`)");
+    await run("seo_audit_proposals_client_idx", "CREATE INDEX IF NOT EXISTS `seo_audit_proposals_client_idx` ON `seo_audit_proposals` (`client_id`)");
+    await run("seo_audit_proposals_proposal_idx", "CREATE INDEX IF NOT EXISTS `seo_audit_proposals_proposal_idx` ON `seo_audit_proposals` (`proposal_id`)");
+    await run("seo_audit_proposals_status_idx", "CREATE INDEX IF NOT EXISTS `seo_audit_proposals_status_idx` ON `seo_audit_proposals` (`status`)");
+    await run("seo_audit_proposals_created_idx", "CREATE INDEX IF NOT EXISTS `seo_audit_proposals_created_idx` ON `seo_audit_proposals` (`created_at`)");
+    await run("locked_docs_rels.seo_audit_proposals_id", "ALTER TABLE `payload_locked_documents_rels` ADD `seo_audit_proposals_id` integer REFERENCES `seo_audit_proposals`(`id`) ON DELETE cascade");
+
+    // ── SEO Audit Proposal relationships (2026-06-12) ──
+    // Ports migration 20260612_120000. The Client `seoAuditProposals` hasMany
+    // relationship is stored in the clients_rels join table. Without this
+    // table, loading any Client with depth>0 fails -> blank client view.
+    await run("client_proposals.seo_audit_proposal_id", "ALTER TABLE `client_proposals` ADD `seo_audit_proposal_id` integer");
+    await run("clients_rels", `CREATE TABLE IF NOT EXISTS \`clients_rels\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`order\` integer,
+      \`parent_id\` integer NOT NULL,
+      \`path\` text NOT NULL,
+      \`seo_audit_proposals_id\` integer,
+      FOREIGN KEY (\`parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`seo_audit_proposals_id\`) REFERENCES \`seo_audit_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    // If clients_rels pre-existed (from another hasMany rel) without our column.
+    await run("clients_rels.seo_audit_proposals_id", "ALTER TABLE `clients_rels` ADD `seo_audit_proposals_id` integer REFERENCES `seo_audit_proposals`(`id`) ON UPDATE no action ON DELETE cascade");
+    if (!(await hasForeignKey("clients_rels", "seo_audit_proposals_id", "seo_audit_proposals"))) {
+      await run("clients_rels_fk_tmp.drop", "DROP TABLE IF EXISTS `clients_rels_fk_tmp`");
+      await run("clients_rels_fk_tmp", `CREATE TABLE \`clients_rels_fk_tmp\` (
+        \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+        \`order\` integer,
+        \`parent_id\` integer NOT NULL,
+        \`path\` text NOT NULL,
+        \`seo_audit_proposals_id\` integer,
+        FOREIGN KEY (\`parent_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+        FOREIGN KEY (\`seo_audit_proposals_id\`) REFERENCES \`seo_audit_proposals\`(\`id\`) ON UPDATE no action ON DELETE cascade
+      )`);
+      await run(
+        "clients_rels_fk_tmp.copy",
+        `INSERT INTO \`clients_rels_fk_tmp\` (\`id\`, \`order\`, \`parent_id\`, \`path\`, \`seo_audit_proposals_id\`)
+         SELECT \`id\`, \`order\`, \`parent_id\`, \`path\`,
+           CASE
+             WHEN \`seo_audit_proposals_id\` IS NULL THEN NULL
+             WHEN EXISTS (SELECT 1 FROM \`seo_audit_proposals\` WHERE \`seo_audit_proposals\`.\`id\` = \`clients_rels\`.\`seo_audit_proposals_id\`) THEN \`seo_audit_proposals_id\`
+             ELSE NULL
+           END
+         FROM \`clients_rels\``,
+      );
+      await run("clients_rels.drop_old", "DROP TABLE `clients_rels`");
+      await run("clients_rels.rename_fk_tmp", "ALTER TABLE `clients_rels_fk_tmp` RENAME TO `clients_rels`");
+    }
+    await run("clients_rels_parent_idx", "CREATE INDEX IF NOT EXISTS `clients_rels_parent_idx` ON `clients_rels` (`parent_id`)");
+    await run("clients_rels_path_idx", "CREATE INDEX IF NOT EXISTS `clients_rels_path_idx` ON `clients_rels` (`path`)");
+    await run("clients_rels_order_idx", "CREATE INDEX IF NOT EXISTS `clients_rels_order_idx` ON `clients_rels` (`order`)");
+
+    // ── presentedBy field on the three deck-editing tables (2026-06-11) ──
+    // Ports migration 20260611_120000. Drizzle snake-cases `presentedBy` ->
+    // `presented_by`. Missing from prod means Payload's SELECT of the column
+    // fails and the clients / proposals views render blank.
+    await run("seo_audit_proposals.presented_by", "ALTER TABLE `seo_audit_proposals` ADD `presented_by` text");
+    await run("client_proposals.presented_by", "ALTER TABLE `client_proposals` ADD `presented_by` text");
+    await run("clients.presented_by", "ALTER TABLE `clients` ADD `presented_by` text");
+
+    // ── Goal Risk Tiers collection (2026-06-04) ──
+    // Ports the schema half of migration 20260604_120000 (seed rows omitted —
+    // the sweep is schema-only). The locked-docs rels column below has an FK to
+    // `goal_risk_tiers`; if that table is missing, EVERY delete on
+    // `payload_locked_documents` fails the FK check, which breaks
+    // `handleFormStateLocking` — so adding any array row (e.g. a one-off
+    // project) hangs with no fields rendered. Creating the table repairs that.
+    await run("goal_risk_tiers", `CREATE TABLE IF NOT EXISTS \`goal_risk_tiers\` (
+      \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      \`name\` text NOT NULL,
+      \`tier\` text NOT NULL,
+      \`max_budget_impact_dollars\` real,
+      \`requires_approval\` integer DEFAULT true,
+      \`auto_execute\` integer DEFAULT false,
+      \`description\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
+    )`);
+    await run("goal_risk_tiers_tier_idx", "CREATE INDEX IF NOT EXISTS `goal_risk_tiers_tier_idx` ON `goal_risk_tiers` (`tier`)");
+    await run("goal_risk_tiers_allowed_action_types", `CREATE TABLE IF NOT EXISTS \`goal_risk_tiers_allowed_action_types\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`action_type\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`goal_risk_tiers\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("goal_risk_tiers_allowed_action_types_order_idx", "CREATE INDEX IF NOT EXISTS `goal_risk_tiers_allowed_action_types_order_idx` ON `goal_risk_tiers_allowed_action_types` (`_order`)");
+    await run("goal_risk_tiers_allowed_action_types_parent_idx", "CREATE INDEX IF NOT EXISTS `goal_risk_tiers_allowed_action_types_parent_idx` ON `goal_risk_tiers_allowed_action_types` (`_parent_id`)");
+    await run("locked_docs_rels.goal_risk_tiers_id", "ALTER TABLE `payload_locked_documents_rels` ADD `goal_risk_tiers_id` integer REFERENCES `goal_risk_tiers`(`id`) ON DELETE set null");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

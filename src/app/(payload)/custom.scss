@@ -7,6 +7,10 @@ body {
   zoom: 0.9;
 }
 
+body:has(.login.template-minimal) {
+  zoom: 1;
+}
+
 // ─── Rocket Splash Loading ───────────────────────────────
 
 .od-splash {
@@ -984,41 +988,257 @@ $svg-close: "%3C/svg%3E";
 }
 
 // ============================================================
-// Login page — no sidebar offset + mobile friendly
+// Login page — midnight command center
+// Inspired by Refero references: Authkit glass cards, Reflect violet orbit,
+// and Rally's calm space backdrop.
 // ============================================================
-// When on login/create-first-user, Payload doesn't open the nav, but we also
-// need to remove the 48px mini-sidebar margin since MiniSidebar hides itself.
-.template-default.template-default--login .template-default__wrap {
-  margin-left: 0 !important;
+// Payload v3 renders the login as `.login.template-minimal`, not the normal
+// admin shell, so keep the space UI scoped to that auth surface only.
+.login.template-minimal {
+  position: relative;
+  display: grid !important;
+  place-items: center;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100svh;
+  padding: clamp(24px, 5vw, 64px);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(102, 58, 243, 0.34), transparent 30%),
+    radial-gradient(circle at 82% 12%, rgba(8, 136, 255, 0.24), transparent 28%),
+    radial-gradient(circle at 50% 88%, rgba(213, 171, 255, 0.18), transparent 34%),
+    linear-gradient(135deg, #030014 0%, #05060f 48%, #08102b 100%);
+  color: #d8ecf8;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-// Mobile login — center form, prevent overflow, proper padding
-@media (max-width: 768px) {
-  .template-default.template-default--login .template-default__wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+.login.template-minimal::before,
+.login.template-minimal::after {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+}
+
+.login.template-minimal::before {
+  inset: 0;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.72) 0 1px, transparent 1px),
+    radial-gradient(circle, rgba(182, 217, 252, 0.5) 0 1px, transparent 1px);
+  background-position: 0 0, 34px 56px;
+  background-size: 92px 92px, 148px 148px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.88), transparent 82%);
+}
+
+.login.template-minimal::after {
+  width: min(760px, 88vw);
+  height: min(760px, 88vw);
+  right: -18vw;
+  bottom: -34vw;
+  border: 1px solid rgba(186, 215, 247, 0.1);
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg, rgba(102, 58, 243, 0.16), rgba(8, 136, 255, 0.05)),
+    radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.24), transparent 3%),
+    radial-gradient(circle at 50% 50%, transparent 52%, rgba(186, 215, 247, 0.08) 52% 54%, transparent 54%);
+  box-shadow:
+    inset 0 0 80px rgba(199, 211, 234, 0.08),
+    0 0 120px rgba(102, 58, 243, 0.18);
+}
+
+.login.template-minimal .template-minimal__wrap {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 720px) !important;
+  max-width: 720px !important;
+  min-height: min(720px, calc(100svh - 48px));
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 430px);
+  justify-content: center;
+  align-items: center;
+  gap: 22px;
+  padding: clamp(22px, 4vw, 40px);
+  border: 1px solid rgba(186, 215, 247, 0.14);
+  border-radius: 32px;
+  background:
+    linear-gradient(135deg, rgba(5, 6, 15, 0.58), rgba(6, 3, 23, 0.8)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06), transparent 42%);
+  box-shadow:
+    inset 0 1px 1px rgba(216, 236, 248, 0.18),
+    inset 0 28px 68px rgba(168, 216, 245, 0.05),
+    0 32px 80px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(22px);
+  box-sizing: border-box;
+}
+
+.login.template-minimal .login__brand,
+.login.template-minimal .login__form {
+  grid-column: 1;
+  width: 100%;
+  max-width: 430px;
+  justify-self: center;
+}
+
+.login.template-minimal .login__brand {
+  justify-content: center;
+  margin-bottom: 4px !important;
+  filter: drop-shadow(0 0 38px rgba(147, 130, 255, 0.24));
+}
+
+.login.template-minimal .login__form {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 28px;
+  border: 1px solid rgba(186, 215, 247, 0.16);
+  border-radius: 20px;
+  background: rgba(5, 6, 15, 0.86);
+  box-shadow:
+    inset 0 1px 1px rgba(216, 236, 248, 0.2),
+    inset 0 24px 48px rgba(168, 216, 245, 0.06),
+    0 18px 42px rgba(0, 0, 0, 0.32);
+}
+
+.login.template-minimal .login__form::before {
+  content: 'Secure sign in';
+  display: block;
+  order: 0;
+  margin-bottom: 6px;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.login.template-minimal .login__form::after {
+  content: 'Enter your crew credentials to access the operations hub.';
+  display: block;
+  order: 1;
+  margin: -2px 0 22px;
+  color: #9da7ba;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.login.template-minimal .login__form__inputWrap {
+  order: 2;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.login.template-minimal .login__form label,
+.login.template-minimal .login__form .field-label {
+  color: #d8ecf8;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.login.template-minimal .login__form input {
+  min-height: 50px;
+  border: 1px solid rgba(186, 215, 247, 0.18) !important;
+  border-radius: 12px !important;
+  background: rgba(199, 211, 234, 0.06) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 1px 1px rgba(216, 236, 248, 0.08);
+}
+
+.login.template-minimal .login__form input:focus,
+.login.template-minimal .login__form input:focus-visible {
+  border-color: rgba(182, 217, 252, 0.68) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(182, 217, 252, 0.2),
+    0 0 0 4px rgba(102, 58, 243, 0.2) !important;
+}
+
+.login.template-minimal .login__form a {
+  display: inline-flex;
+  order: 3;
+  margin: 2px 0 20px;
+  color: #b6d9fc;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.login.template-minimal .login__form a:hover {
+  color: #ffffff;
+  text-decoration: underline;
+  text-decoration-color: rgba(182, 217, 252, 0.45);
+}
+
+.login.template-minimal .login__form .form-submit {
+  order: 4;
+}
+
+.login.template-minimal .login__form button[type='submit'] {
+  width: 100%;
+  min-height: 52px;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, #663af3, #9382ff) !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.28),
+    0 14px 34px rgba(102, 58, 243, 0.35),
+    0 0 32px rgba(147, 130, 255, 0.2);
+}
+
+.login.template-minimal .login__form button[type='submit']:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.32),
+    0 18px 44px rgba(102, 58, 243, 0.44),
+    0 0 42px rgba(147, 130, 255, 0.28);
+}
+
+.login.template-minimal [aria-label='Show password'] {
+  color: #b6d9fc !important;
+}
+
+@media (max-width: 900px) {
+  .login.template-minimal {
+    padding: 16px;
+  }
+
+  .login.template-minimal .template-minimal__wrap {
+    min-height: auto;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 22px;
+    border-radius: 26px;
+  }
+
+  .login.template-minimal .login__brand,
+  .login.template-minimal .login__form {
+    grid-column: 1;
+    justify-self: center;
+  }
+
+  .login.template-minimal .login__brand {
     justify-content: center;
-    min-height: 100svh;
-    padding: 24px 16px;
-    box-sizing: border-box;
   }
+}
 
-  .login {
+@media (max-width: 768px) {
+  .login.template-minimal .template-minimal__wrap {
     width: 100% !important;
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .login.template-minimal .login__brand {
+    margin-bottom: 6px !important;
+  }
+
+  .login.template-minimal .login__form {
     max-width: 400px !important;
-    padding: 0 16px;
+    padding: 20px;
     box-sizing: border-box;
-  }
-
-  .login__brand {
-    margin-bottom: 24px !important;
-  }
-
-  .login__brand img,
-  .login__brand svg {
-    max-width: 200px;
-    height: auto;
   }
 }
 
