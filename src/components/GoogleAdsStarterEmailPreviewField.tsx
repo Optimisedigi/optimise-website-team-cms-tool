@@ -38,21 +38,91 @@ interface PreviewResult {
 
 const WEBSITE_URL = process.env.NEXT_PUBLIC_WEBSITE_URL || 'https://www.optimisedigital.online'
 
-const PREVIEW_TABS: Array<{ label: string; variant: PreviewVariant }> = [
-  { label: 'Starter', variant: 'google-ads-starter' },
-  { label: 'Starter + CPA', variant: 'google-ads-starter-cpa' },
-  { label: 'Active · Email 1', variant: 'google-ads-audit-active-1' },
-  { label: 'Active · Email 2', variant: 'google-ads-audit-active-2' },
-  { label: 'Active · Email 3', variant: 'google-ads-audit-active-3' },
-  { label: 'Active · Email 4', variant: 'google-ads-audit-active-4' },
-  { label: 'Consult · Email 1', variant: 'google-ads-audit-consultation-1' },
-  { label: 'Consult · Email 2', variant: 'google-ads-audit-consultation-2' },
-  { label: 'Consult · Email 3', variant: 'google-ads-audit-consultation-3' },
-  { label: 'Consult · Email 4', variant: 'google-ads-audit-consultation-4' },
-  { label: 'Website · Email 1', variant: 'google-ads-audit-website-1' },
-  { label: 'Website · Email 2', variant: 'google-ads-audit-website-2' },
-  { label: 'Website · Email 3', variant: 'google-ads-audit-website-3' },
-  { label: 'Website · Email 4', variant: 'google-ads-audit-website-4' },
+const PREVIEW_TABS: Array<{ label: string; variant: PreviewVariant; description: string }> = [
+  {
+    label: 'Starter',
+    variant: 'google-ads-starter',
+    description:
+      'Sent immediately from the “Ready to get started with Google Ads?” starter form. This is the normal starter enquiry auto-reply using the editable fields below.',
+  },
+  {
+    label: 'Starter + CPA',
+    variant: 'google-ads-starter-cpa',
+    description:
+      'Same starter form preview, but with sample CPA calculator values included so you can see how that optional block appears when calculator data is submitted.',
+  },
+  {
+    label: 'Active · Email 1',
+    variant: 'google-ads-audit-active-1',
+    description:
+      'Google Ads Audit form → lead says they are currently spending on Google Ads. Email 1 is sent immediately after the audit request and asks for read-only Google Ads access.',
+  },
+  {
+    label: 'Active · Email 2',
+    variant: 'google-ads-audit-active-2',
+    description:
+      'Google Ads Audit form → currently spending on Google Ads. Email 2 is the +24 hour follow-up if read-only access has not been received.',
+  },
+  {
+    label: 'Active · Email 3',
+    variant: 'google-ads-audit-active-3',
+    description:
+      'Google Ads Audit form → currently spending on Google Ads. Email 3 is the +3 day resource email if access still has not been received.',
+  },
+  {
+    label: 'Active · Email 4',
+    variant: 'google-ads-audit-active-4',
+    description:
+      'Google Ads Audit form → currently spending on Google Ads. Email 4 is the +7 day closing-the-loop email.',
+  },
+  {
+    label: 'Consult · Email 1',
+    variant: 'google-ads-audit-consultation-1',
+    description:
+      'Google Ads Audit form → lead selects “not currently spending” and asks to talk to someone. Email 1 is sent immediately with the booking link.',
+  },
+  {
+    label: 'Consult · Email 2',
+    variant: 'google-ads-audit-consultation-2',
+    description:
+      'Google Ads Audit form → not currently spending + wants a consultation. Email 2 is the +24 hour nudge to book a call.',
+  },
+  {
+    label: 'Consult · Email 3',
+    variant: 'google-ads-audit-consultation-3',
+    description:
+      'Google Ads Audit form → not currently spending + wants a consultation. Email 3 is the +3 day useful-tools email.',
+  },
+  {
+    label: 'Consult · Email 4',
+    variant: 'google-ads-audit-consultation-4',
+    description:
+      'Google Ads Audit form → not currently spending + wants a consultation. Email 4 is the +7 day closing-the-loop email.',
+  },
+  {
+    label: 'Website · Email 1',
+    variant: 'google-ads-audit-website-1',
+    description:
+      'Google Ads Audit form → lead selects “not currently spending” and wants a website/campaign-structure audit before running ads. Email 1 confirms the website audit request.',
+  },
+  {
+    label: 'Website · Email 2',
+    variant: 'google-ads-audit-website-2',
+    description:
+      'Google Ads Audit form → not currently spending + wants website/campaign-structure audit. Email 2 is the +24 hour offer to walk through the audit.',
+  },
+  {
+    label: 'Website · Email 3',
+    variant: 'google-ads-audit-website-3',
+    description:
+      'Google Ads Audit form → not currently spending + wants website/campaign-structure audit. Email 3 is the +3 day useful-tools email.',
+  },
+  {
+    label: 'Website · Email 4',
+    variant: 'google-ads-audit-website-4',
+    description:
+      'Google Ads Audit form → not currently spending + wants website/campaign-structure audit. Email 4 is the +7 day closing-the-loop email.',
+  },
 ]
 
 function asString(value: unknown): string {
@@ -126,6 +196,8 @@ const GoogleAdsStarterEmailPreviewField = () => {
     return () => controller.abort()
   }, [activeVariant, debounced])
 
+  const activeTab = PREVIEW_TABS.find((tab) => tab.variant === activeVariant)
+
   return (
     <div style={{ marginBottom: 16 }}>
       <div
@@ -186,6 +258,20 @@ const GoogleAdsStarterEmailPreviewField = () => {
             )
           })}
         </div>
+        {activeTab ? (
+          <div
+            style={{
+              padding: '10px 12px',
+              background: '#f8fafc',
+              borderBottom: '1px solid var(--theme-elevation-100)',
+              color: 'var(--theme-elevation-700)',
+              fontSize: 13,
+              lineHeight: 1.45,
+            }}
+          >
+            <strong>{activeTab.label}:</strong> {activeTab.description}
+          </div>
+        ) : null}
         {error ? (
           <div
             style={{
