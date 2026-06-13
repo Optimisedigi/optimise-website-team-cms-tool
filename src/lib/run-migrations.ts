@@ -3887,6 +3887,35 @@ export async function runMigrations(
       "optimate_settings.chat_history_token_limit",
       "ALTER TABLE `optimate_settings` ADD `chat_history_token_limit` numeric DEFAULT 6000",
     );
+    // Starter question chip arrays (2026-07-13). Payload stores global array
+    // fields in child tables named after the global table + field name.
+    await run("optimate_settings_google_mate_starter_questions", `CREATE TABLE IF NOT EXISTS \`optimate_settings_google_mate_starter_questions\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`question\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`optimate_settings\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("optimate_settings_google_mate_starter_questions_order_idx", "CREATE INDEX IF NOT EXISTS `optimate_settings_google_mate_starter_questions_order_idx` ON `optimate_settings_google_mate_starter_questions` (`_order`)");
+    await run("optimate_settings_google_mate_starter_questions_parent_id_idx", "CREATE INDEX IF NOT EXISTS `optimate_settings_google_mate_starter_questions_parent_id_idx` ON `optimate_settings_google_mate_starter_questions` (`_parent_id`)");
+    await run("optimate_settings_google_mate_portfolio_starter_questions", `CREATE TABLE IF NOT EXISTS \`optimate_settings_google_mate_portfolio_starter_questions\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`question\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`optimate_settings\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("optimate_settings_google_mate_portfolio_starter_questions_order_idx", "CREATE INDEX IF NOT EXISTS `optimate_settings_google_mate_portfolio_starter_questions_order_idx` ON `optimate_settings_google_mate_portfolio_starter_questions` (`_order`)");
+    await run("optimate_settings_google_mate_portfolio_starter_questions_parent_id_idx", "CREATE INDEX IF NOT EXISTS `optimate_settings_google_mate_portfolio_starter_questions_parent_id_idx` ON `optimate_settings_google_mate_portfolio_starter_questions` (`_parent_id`)");
+    await run("optimate_settings_invoice_mate_starter_questions", `CREATE TABLE IF NOT EXISTS \`optimate_settings_invoice_mate_starter_questions\` (
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`question\` text NOT NULL,
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`optimate_settings\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("optimate_settings_invoice_mate_starter_questions_order_idx", "CREATE INDEX IF NOT EXISTS `optimate_settings_invoice_mate_starter_questions_order_idx` ON `optimate_settings_invoice_mate_starter_questions` (`_order`)");
+    await run("optimate_settings_invoice_mate_starter_questions_parent_id_idx", "CREATE INDEX IF NOT EXISTS `optimate_settings_invoice_mate_starter_questions_parent_id_idx` ON `optimate_settings_invoice_mate_starter_questions` (`_parent_id`)");
 
     // ── google_ads_campaign_budgets monthly recommendation fields (2026-06-08) ──
     // Advisory recommended daily budgets set by the monthly recommendation cron.

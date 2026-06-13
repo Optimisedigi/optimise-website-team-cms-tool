@@ -5,6 +5,11 @@ import {
   DEFAULT_CHAT_MODEL,
   DEFAULT_AUTONOMOUS_MODEL,
 } from "../lib/agents/_shared/llm/registry";
+import {
+  DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS,
+  DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
+  DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
+} from "../lib/agents/_shared/optimate-starter-questions";
 
 /**
  * OptiMate agent settings.
@@ -31,6 +36,31 @@ const MODEL_OPTIONS = CHAT_PICKER_MODELS.map((m) => ({
   label: m.label,
   value: m.canonical,
 }));
+
+function starterQuestionDefaults(questions: readonly string[]): Array<{ question: string }> {
+  return questions.map((question) => ({ question }));
+}
+
+function starterQuestionField(name: string, label: string, questions: readonly string[]) {
+  return {
+    name,
+    type: "array" as const,
+    label,
+    defaultValue: starterQuestionDefaults(questions),
+    admin: {
+      description:
+        "Starter prompt chips shown on the empty OptiMate chat screen. Users can click a chip to send that question immediately.",
+    },
+    fields: [
+      {
+        name: "question",
+        type: "text" as const,
+        required: true,
+        maxLength: 240,
+      },
+    ],
+  };
+}
 
 export const OptiMateSettings: GlobalConfig = {
   slug: "optimate-settings",
@@ -119,6 +149,26 @@ export const OptiMateSettings: GlobalConfig = {
                   "Optional. Model used by the Xero invoice assistant. Leave blank to use the autonomous default.",
               },
             },
+          ],
+        },
+        {
+          label: "Starter Questions",
+          fields: [
+            starterQuestionField(
+              "googleMateStarterQuestions",
+              "Google Mate account questions",
+              DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
+            ),
+            starterQuestionField(
+              "googleMatePortfolioStarterQuestions",
+              "Google Mate portfolio questions",
+              DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS,
+            ),
+            starterQuestionField(
+              "invoiceMateStarterQuestions",
+              "Ultimate InvoiceMate questions",
+              DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
+            ),
           ],
         },
         {

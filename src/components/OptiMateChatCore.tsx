@@ -6,6 +6,10 @@ import {
   DEFAULT_CHAT_MODEL,
   isCanonicalModel,
 } from '@/lib/agents/_shared/llm/registry'
+import {
+  DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS,
+  DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
+} from '@/lib/agents/_shared/optimate-starter-questions'
 
 /** localStorage key for the user's preferred chat model. Kept module-scoped so
  *  every ChatCore instance reads/writes the same slot — picking a model in
@@ -211,19 +215,11 @@ const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', '
 const MAX_IMAGE_ATTACHMENTS = 3
 const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
-const SUGGESTED_QUESTIONS = [
-  'How is my budget pacing this month?',
-  'Which campaigns are performing best this week?',
-  'Are there any keywords wasting spend?',
-  'Give me a weekly performance summary',
-]
-
-const PORTFOLIO_SUGGESTED_QUESTIONS = [
-  'Show me the account inventory',
-  'Summarise portfolio performance',
-  'Find cross-account search-term waste',
-  'Draft an account-priority email',
-]
+interface OptiMateSettingsResponse {
+  defaultChatModel?: string
+  googleMateStarterQuestions?: string[]
+  googleMatePortfolioStarterQuestions?: string[]
+}
 
 /**
  * Lightweight markdown renderer for chat messages.
@@ -582,6 +578,12 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     // Lazy initializer: runs once on mount, so localStorage is only read once.
     // Reset on reload picks up whatever the user last chose in any tab.
     const [selectedModel, setSelectedModel] = useState<string>(() => loadPersistedModel())
+    const [starterQuestions, setStarterQuestions] = useState<string[]>(() => [
+      ...DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
+    ])
+    const [portfolioStarterQuestions, setPortfolioStarterQuestions] = useState<string[]>(() => [
+      ...DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS,
+    ])
     const [reasoningMode, setReasoningMode] = useState<ReasoningMode>('off')
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -617,22 +619,22 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
       el.style.height = Math.min(el.scrollHeight, maxPx) + 'px'
     }, [input])
 
-    /* Seed the picker from the agency-configured default (OptiMate Settings
-     * global) on first load. Only applies when the user has NOT made their own
-     * explicit per-browser choice — once they pick a model, their choice wins
-     * and survives reloads. Best-effort: a fetch failure leaves the registry
-     * default in place. */
+    /* Seed the picker and starter questions from OptiMate Settings on first
+     * load. The model only applies when the user has NOT made their own explicit
+     * per-browser choice; configured starter chips always apply. Best-effort: a
+     * fetch failure leaves the bundled defaults in place. */
     useEffect(() => {
-      if (hasExplicitModelChoice()) return
+      const hasExplicitModel = hasExplicitModelChoice()
       let cancelled = false
       ;(async () => {
         try {
           const res = await fetch('/api/optimate/default-model')
           if (!res.ok) return
-          const json = (await res.json()) as { defaultChatModel?: string }
+          const json = (await res.json()) as OptiMateSettingsResponse
           const next = json.defaultChatModel
           if (
             !cancelled &&
+            !hasExplicitModel &&
             typeof next === 'string' &&
             isCanonicalModel(next) &&
             CHAT_PICKER_MODELS.some((m) => m.canonical === next)
@@ -642,8 +644,14 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
             // it explicitly later; we only persist on an actual select change.
             setSelectedModel(next)
           }
+          if (!cancelled && Array.isArray(json.googleMateStarterQuestions)) {
+            setStarterQuestions(json.googleMateStarterQuestions)
+          }
+          if (!cancelled && Array.isArray(json.googleMatePortfolioStarterQuestions)) {
+            setPortfolioStarterQuestions(json.googleMatePortfolioStarterQuestions)
+          }
         } catch {
-          // Network/parse failure — keep the registry default already in state.
+          // Network/parse failure — keep the registry defaults already in state.
         }
       })()
       return () => {
@@ -1596,7 +1604,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                   justifyContent: 'center',
                 }}
               >
-                {(mode === 'portfolio' ? PORTFOLIO_SUGGESTED_QUESTIONS : SUGGESTED_QUESTIONS).map((q) => (
+                {(mode === 'portfolio' ? portfolioStarterQuestions : starterQuestions).map((q) => (
                   <button
                     key={q}
                     type="button"

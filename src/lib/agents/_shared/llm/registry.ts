@@ -41,7 +41,7 @@ export const MODEL_REGISTRY = {
   "kimi-for-coding": { provider: "kimi-coding", model: "kimi-for-coding" },
 
   // MiniMax. M3 uses MiniMax's Anthropic-compatible API; M2.7 remains on
-  // the legacy OpenAI-compatible endpoint for stored-setting compatibility.
+  // the legacy OpenAI-compatible endpoint only for stored-setting compatibility.
   "minimax-m3": { provider: "minimax", model: "MiniMax-M3" },
   "minimax-m2.7": { provider: "minimax-openai", model: "MiniMax-M2.7" },
 
@@ -195,10 +195,10 @@ export const DEFAULT_AUTONOMOUS_FALLBACKS: CanonicalModelName[] = [
 ];
 
 /**
- * Curated list of models surfaced in the chat-mode picker. The full registry
- * has more entries (e.g. claude-sonnet-4.5 stays available for explicit
- * selection if needed) but this is what shows up in the dropdown. Order
- * matches the dropdown order, with the default first.
+ * Curated list of current models surfaced in the chat-mode picker. The full
+ * registry keeps some older models for stored-setting compatibility, but they
+ * are deliberately hidden from dropdowns. Order matches the dropdown order,
+ * with the default first.
  */
 export const CHAT_PICKER_MODELS: ReadonlyArray<{
   canonical: CanonicalModelName;
@@ -214,7 +214,4 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   { canonical: "gpt-5.5-codex", label: "GPT-5.5 Codex (ChatGPT OAuth)", hint: "GPT-5.5 over Codex. Reasoning is controlled per request." },
   { canonical: "grok-build", label: "Grok Build (SuperGrok OAuth)", hint: "xAI Grok coding model via your SuperGrok subscription. No API tokens billed." },
   { canonical: "grok-composer-2.5-fast", label: "Grok Composer 2.5 Fast (SuperGrok OAuth)", hint: "Faster Grok model via SuperGrok subscription." },
-  { canonical: "claude-opus-4.7", label: "Claude Opus 4.7 (OAuth)", hint: "Previous Opus generation, kept for compatibility." },
-  { canonical: "minimax-m2.7", label: "MiniMax M2.7", hint: "Previous MiniMax generation, kept for compatibility." },
-  { canonical: "claude-sonnet-4.5", label: "Claude Sonnet 4.5 (OAuth)", hint: "Previous Sonnet generation, kept for compatibility." },
 ];

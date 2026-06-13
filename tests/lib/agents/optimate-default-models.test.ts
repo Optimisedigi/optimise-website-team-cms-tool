@@ -42,12 +42,12 @@ describe("getOptiMateDefaultModels", () => {
   it("returns configured valid models and normalises legacy aliases", async () => {
     nextGlobal = {
       defaultChatModel: "gpt-5.5-codex-medium",
-      defaultAutonomousModel: "minimax-m2.7",
+      defaultAutonomousModel: "minimax-m3",
       blogPrompterModel: "claude-sonnet-4.6",
     };
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe("gpt-5.5-codex");
-    expect(result.defaultAutonomousModel).toBe("minimax-m2.7");
+    expect(result.defaultAutonomousModel).toBe("minimax-m3");
     expect(result.blogPrompterModel).toBe("claude-sonnet-4.6");
   });
 

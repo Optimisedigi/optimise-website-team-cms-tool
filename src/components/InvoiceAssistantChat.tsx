@@ -6,6 +6,7 @@ import {
   DEFAULT_CHAT_MODEL,
   isCanonicalModel,
 } from '@/lib/agents/_shared/llm/registry'
+import { DEFAULT_INVOICE_MATE_STARTER_QUESTIONS } from '@/lib/agents/_shared/optimate-starter-questions'
 import { renderMarkdown } from './OptiMateChatCore'
 
 /**
@@ -84,20 +85,19 @@ function savePersistedModel(model: string): void {
   }
 }
 
-/** Clickable starter prompts shown in the empty state, mirroring the Google
- *  Ads chat's suggested-question chips. */
-const SUGGESTED_QUESTIONS = [
-  'Show me overdue invoices',
-  'Summarise outstanding invoices',
-  'What invoices are scheduled to send?',
-  'Create this month’s retainer',
-]
+interface OptiMateSettingsResponse {
+  invoiceAssistantModel?: string
+  invoiceMateStarterQuestions?: string[]
+}
 
 export default function InvoiceAssistantChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => loadPersistedModel())
+  const [starterQuestions, setStarterQuestions] = useState<string[]>(() => [
+    ...DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
+  ])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -110,24 +110,27 @@ export default function InvoiceAssistantChat() {
   }, [messages, sending, scrollToBottom])
 
   /**
-   * Seed the picker from the configured invoice-assistant default until the
-   * user makes an explicit per-browser choice — once they pick a model, their
-   * choice wins. Mirrors OptiMateChatCore's seeding behaviour.
+   * Seed the picker and starter questions from OptiMate Settings. The model only
+   * applies until the user makes an explicit per-browser choice; configured
+   * starter chips always apply. Mirrors OptiMateChatCore's seeding behaviour.
    */
   useEffect(() => {
-    if (hasExplicitModelChoice()) return
+    const hasExplicitModel = hasExplicitModelChoice()
     let cancelled = false
     ;(async () => {
       try {
         const res = await fetch('/api/optimate/default-model', { credentials: 'include' })
         if (!res.ok) return
-        const json = (await res.json()) as { invoiceAssistantModel?: string }
+        const json = (await res.json()) as OptiMateSettingsResponse
         const next = json.invoiceAssistantModel
-        if (!cancelled && isUsablePickerModel(next ?? null)) {
+        if (!cancelled && !hasExplicitModel && isUsablePickerModel(next ?? null)) {
           setSelectedModel(next as string)
         }
+        if (!cancelled && Array.isArray(json.invoiceMateStarterQuestions)) {
+          setStarterQuestions(json.invoiceMateStarterQuestions)
+        }
       } catch {
-        /* keep the local default */
+        /* keep the local defaults */
       }
     })()
     return () => {
@@ -273,7 +276,7 @@ export default function InvoiceAssistantChat() {
                 justifyContent: 'center',
               }}
             >
-              {SUGGESTED_QUESTIONS.map((q) => (
+              {starterQuestions.map((q) => (
                 <button
                   key={q}
                   type="button"

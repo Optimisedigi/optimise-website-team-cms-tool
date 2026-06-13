@@ -11607,10 +11607,7 @@ export interface OptimateSetting {
     | 'minimax-m3'
     | 'gpt-5.5-codex'
     | 'grok-build'
-    | 'grok-composer-2.5-fast'
-    | 'claude-opus-4.7'
-    | 'minimax-m2.7'
-    | 'claude-sonnet-4.5';
+    | 'grok-composer-2.5-fast';
   /**
    * Model used for unattended runs (scheduled tasks, cron) where no human picks a model.
    */
@@ -11623,10 +11620,7 @@ export interface OptimateSetting {
     | 'minimax-m3'
     | 'gpt-5.5-codex'
     | 'grok-build'
-    | 'grok-composer-2.5-fast'
-    | 'claude-opus-4.7'
-    | 'minimax-m2.7'
-    | 'claude-sonnet-4.5';
+    | 'grok-composer-2.5-fast';
   /**
    * Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.
    */
@@ -11645,9 +11639,6 @@ export interface OptimateSetting {
         | 'gpt-5.5-codex'
         | 'grok-build'
         | 'grok-composer-2.5-fast'
-        | 'claude-opus-4.7'
-        | 'minimax-m2.7'
-        | 'claude-sonnet-4.5'
       )
     | null;
   /**
@@ -11664,10 +11655,34 @@ export interface OptimateSetting {
         | 'gpt-5.5-codex'
         | 'grok-build'
         | 'grok-composer-2.5-fast'
-        | 'claude-opus-4.7'
-        | 'minimax-m2.7'
-        | 'claude-sonnet-4.5'
       )
+    | null;
+  /**
+   * Starter prompt chips shown on the empty OptiMate chat screen. Users can click a chip to send that question immediately.
+   */
+  googleMateStarterQuestions?:
+    | {
+        question: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Starter prompt chips shown on the empty OptiMate chat screen. Users can click a chip to send that question immediately.
+   */
+  googleMatePortfolioStarterQuestions?:
+    | {
+        question: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Starter prompt chips shown on the empty OptiMate chat screen. Users can click a chip to send that question immediately.
+   */
+  invoiceMateStarterQuestions?:
+    | {
+        question: string;
+        id?: string | null;
+      }[]
     | null;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -11868,6 +11883,24 @@ export interface OptimateSettingsSelect<T extends boolean = true> {
   chatHistoryTokenLimit?: T;
   blogPrompterModel?: T;
   invoiceAssistantModel?: T;
+  googleMateStarterQuestions?:
+    | T
+    | {
+        question?: T;
+        id?: T;
+      };
+  googleMatePortfolioStarterQuestions?:
+    | T
+    | {
+        question?: T;
+        id?: T;
+      };
+  invoiceMateStarterQuestions?:
+    | T
+    | {
+        question?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

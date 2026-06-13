@@ -30,5 +30,8 @@ export async function GET() {
     // to the autonomous default when no invoice-specific model is configured.
     invoiceAssistantModel:
       defaults.invoiceAssistantModel ?? defaults.defaultAutonomousModel,
+    googleMateStarterQuestions: defaults.googleMateStarterQuestions,
+    googleMatePortfolioStarterQuestions: defaults.googleMatePortfolioStarterQuestions,
+    invoiceMateStarterQuestions: defaults.invoiceMateStarterQuestions,
   });
 }

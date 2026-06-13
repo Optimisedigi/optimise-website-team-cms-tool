@@ -22,6 +22,12 @@ import {
   isCanonicalModel,
   type CanonicalModelName,
 } from "./llm/registry";
+import {
+  DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS,
+  DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
+  DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
+  resolveStarterQuestions,
+} from "./optimate-starter-questions";
 
 export interface OptiMateDefaultModels {
   defaultChatModel: CanonicalModelName;
@@ -32,6 +38,12 @@ export interface OptiMateDefaultModels {
   invoiceAssistantModel?: CanonicalModelName;
   /** Approximate token budget for chat history before compacting older turns. */
   chatHistoryTokenLimit: number;
+  /** Starter prompt chips for single-account Google Mate chats. */
+  googleMateStarterQuestions: string[];
+  /** Starter prompt chips for portfolio Google Mate chats. */
+  googleMatePortfolioStarterQuestions: string[];
+  /** Starter prompt chips for Ultimate InvoiceMate chats. */
+  invoiceMateStarterQuestions: string[];
 }
 
 /** True if the model is canonical AND still offered in the chat picker. */
@@ -86,6 +98,9 @@ export async function getOptiMateDefaultModels(
       blogPrompterModel?: unknown;
       invoiceAssistantModel?: unknown;
       chatHistoryTokenLimit?: unknown;
+      googleMateStarterQuestions?: unknown;
+      googleMatePortfolioStarterQuestions?: unknown;
+      invoiceMateStarterQuestions?: unknown;
     } | null;
 
     const blogPrompterModel = resolvePickerModel(global?.blogPrompterModel);
@@ -95,6 +110,18 @@ export async function getOptiMateDefaultModels(
       defaultChatModel: resolvePickerModel(global?.defaultChatModel) ?? DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: resolvePickerModel(global?.defaultAutonomousModel) ?? DEFAULT_AUTONOMOUS_MODEL,
       chatHistoryTokenLimit: resolveChatHistoryTokenLimit(global?.chatHistoryTokenLimit),
+      googleMateStarterQuestions: resolveStarterQuestions(
+        global?.googleMateStarterQuestions,
+        DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
+      ),
+      googleMatePortfolioStarterQuestions: resolveStarterQuestions(
+        global?.googleMatePortfolioStarterQuestions,
+        DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS,
+      ),
+      invoiceMateStarterQuestions: resolveStarterQuestions(
+        global?.invoiceMateStarterQuestions,
+        DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
+      ),
       ...(blogPrompterModel ? { blogPrompterModel } : {}),
       ...(invoiceAssistantModel ? { invoiceAssistantModel } : {}),
     };
@@ -107,6 +134,9 @@ export async function getOptiMateDefaultModels(
       defaultChatModel: DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: DEFAULT_AUTONOMOUS_MODEL,
       chatHistoryTokenLimit: DEFAULT_CHAT_HISTORY_TOKEN_LIMIT,
+      googleMateStarterQuestions: [...DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS],
+      googleMatePortfolioStarterQuestions: [...DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS],
+      invoiceMateStarterQuestions: [...DEFAULT_INVOICE_MATE_STARTER_QUESTIONS],
     };
   }
 }
