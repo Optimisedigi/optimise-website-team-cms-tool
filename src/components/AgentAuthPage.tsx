@@ -99,6 +99,10 @@ export default function AgentAuthPage() {
   const [codexAuthorizeUrl, setCodexAuthorizeUrl] = useState<string | null>(null);
   const [codexPasteString, setCodexPasteString] = useState("");
   const [codexCompleting, setCodexCompleting] = useState(false);
+  // Grok (SuperGrok) device-code flow state.
+  const [grokUserCode, setGrokUserCode] = useState<string | null>(null);
+  const [grokVerificationUri, setGrokVerificationUri] = useState<string | null>(null);
+  const [grokPolling, setGrokPolling] = useState(false);
 
   async function loadStatus() {
     setLoading(true);
@@ -197,6 +201,62 @@ export default function AgentAuthPage() {
     await loadStatus();
   }
 
+  async function handleGrokBegin() {
+    setMessage(null);
+    setGrokUserCode(null);
+    setGrokVerificationUri(null);
+    const res = await fetch("/api/agent-auth/grok/begin", { method: "POST" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMessage(`Grok begin failed: ${json.error ?? res.status}`);
+      return;
+    }
+    setGrokUserCode(json.userCode);
+    setGrokVerificationUri(json.verificationUri);
+    window.open(json.verificationUri, "_blank", "noopener,noreferrer");
+    void pollGrok(Math.max(2, Number(json.interval) || 5), Number(json.expiresIn) || 600);
+  }
+
+  async function pollGrok(intervalSec: number, expiresInSec: number) {
+    setGrokPolling(true);
+    const deadline = Date.now() + expiresInSec * 1000;
+    let delay = intervalSec * 1000;
+    try {
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, delay));
+        const res = await fetch("/api/agent-auth/grok/poll", { method: "POST" });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setMessage(`Grok poll failed: ${json.error ?? res.status}`);
+          return;
+        }
+        if (json.status === "connected") {
+          setMessage("Connected to xAI Grok via your SuperGrok subscription.");
+          setGrokUserCode(null);
+          setGrokVerificationUri(null);
+          await loadStatus();
+          return;
+        }
+        if (json.status === "denied") {
+          setMessage("Grok authorization was denied. Click Begin login to retry.");
+          setGrokUserCode(null);
+          return;
+        }
+        if (json.status === "expired") {
+          setMessage("Grok login code expired. Click Begin login to retry.");
+          setGrokUserCode(null);
+          return;
+        }
+        // slow_down: back off an extra 5s per RFC 8628.
+        if (json.status === "slow_down") delay += 5000;
+      }
+      setMessage("Grok login timed out. Click Begin login to retry.");
+      setGrokUserCode(null);
+    } finally {
+      setGrokPolling(false);
+    }
+  }
+
   async function handleToggleForceFallback(provider: string, enabled: boolean) {
     setMessage(null);
     const res = await fetch("/api/agent-auth/force-fallback", {
@@ -254,7 +314,7 @@ export default function AgentAuthPage() {
       <h1 style={{ margin: "0 0 4px" }}>Optimate agent auth</h1>
       <p style={{ color: "#666", marginTop: 0 }}>
         Per-provider credential status for the agent fleet. Claude uses Anthropic OAuth/API keys; Kimi and MiniMax use API keys.
-        GPT-5.5 is exposed through the ChatGPT subscription Codex OAuth path (the <code>gpt-5.5-codex-*</code> models) — connect that below.
+        GPT-5.5 is exposed through the ChatGPT subscription Codex OAuth path (the <code>gpt-5.5-codex</code> model), and Grok through the SuperGrok subscription OAuth path (the <code>grok-build</code> / <code>grok-composer-2.5-fast</code> models) — connect either below.
       </p>
 
       {message && (
@@ -340,6 +400,39 @@ export default function AgentAuthPage() {
             {codexCompleting ? "Exchanging..." : "3. Complete login"}
           </button>
         </div>
+      </div>
+
+      {/* Connect xAI Grok via SuperGrok subscription (device-code OAuth) */}
+      <div style={cardStyle}>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Connect xAI Grok (SuperGrok OAuth)</h2>
+        <p style={{ marginTop: 0, fontSize: 13, color: "#666", lineHeight: 1.5 }}>
+          Opens xAI sign-in in a new tab and uses the OAuth device-code flow — no code to paste. Spends your
+          {" "}<strong>SuperGrok subscription</strong> (via the grok-cli proxy), not billed <code>XAI_API_KEY</code> tokens.
+          Powers the <code>grok-build</code> and <code>grok-composer-2.5-fast</code> models. This reuses the grok CLI's
+          private OAuth client against an undocumented endpoint — a ToS grey area xAI can break at any time — so any
+          failure falls through the normal fallback chain (Kimi → MiniMax → Claude). Kill-switch: set
+          {" "}<code>XAI_GROK_OAUTH_DISABLED=1</code> in the environment to disable it fleet-wide instantly.
+        </p>
+        <button onClick={handleGrokBegin} disabled={grokPolling} style={{ ...buttonStyle, opacity: grokPolling ? 0.5 : 1 }}>
+          {grokPolling ? "Waiting for approval…" : "Begin login"}
+        </button>
+        {grokUserCode && (
+          <div style={{ marginTop: 12, fontSize: 13, color: "#444" }}>
+            <p style={{ margin: "0 0 6px" }}>
+              Approve in the tab that opened (or{" "}
+              {grokVerificationUri && (
+                <a href={grokVerificationUri} target="_blank" rel="noopener noreferrer">click here</a>
+              )}
+              ), confirming this code:
+            </p>
+            <code style={{ fontSize: 18, fontWeight: 700, letterSpacing: 1, background: "#f3f4f6", padding: "4px 10px", borderRadius: 4 }}>
+              {grokUserCode}
+            </code>
+            <p style={{ margin: "8px 0 0", color: "#666" }}>
+              {grokPolling ? "Polling for approval… this completes automatically once you approve." : ""}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Connect Anthropic (optional) */}
@@ -464,6 +557,9 @@ export default function AgentAuthPage() {
           </button>
           <button onClick={() => handleProbe("gpt-5.5-codex")} style={ghostButtonStyle}>
             Probe GPT-5.5 Codex (ChatGPT OAuth)
+          </button>
+          <button onClick={() => handleProbe("grok-build")} style={ghostButtonStyle}>
+            Probe Grok Build (SuperGrok OAuth)
           </button>
         </div>
         {probeResult && (

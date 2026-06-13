@@ -11,7 +11,7 @@ import type { ProviderName } from "../registry";
 
 export interface OAuthCredential {
   kind: "oauth";
-  provider: "anthropic" | "openai-codex";
+  provider: "anthropic" | "openai-codex" | "xai-grok";
   accessToken: string;
   refreshToken: string;
   /** Unix ms. */

@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const providers = ["anthropic", "moonshot", "minimax", "openai", "openai-codex"] as const;
+  const providers = ["anthropic", "moonshot", "minimax", "openai", "openai-codex", "xai-grok"] as const;
   const status = await Promise.all(
     providers.map(async (provider) => {
       const cred = await getCredential(provider);
@@ -48,7 +48,11 @@ export async function GET(req: NextRequest) {
         oauthAccountId:
           cred?.kind === "oauth" && cred.accountId ? true : false,
         codexDisabled:
-          provider === "openai-codex" ? Boolean(process.env.CODEX_OAUTH_DISABLED) : false,
+          provider === "openai-codex"
+            ? Boolean(process.env.CODEX_OAUTH_DISABLED)
+            : provider === "xai-grok"
+              ? Boolean(process.env.XAI_GROK_OAUTH_DISABLED)
+              : false,
         forceFallback: force,
         envApiKeyPresent: envKey,
         lastFailure: lastFailure

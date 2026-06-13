@@ -50,10 +50,24 @@ export const MODEL_REGISTRY = {
   // subscription via Codex OAuth ("Sign in with ChatGPT"). Reasoning effort is
   // selected per request, not baked into the model name.
   "gpt-5.5-codex": { provider: "openai-codex", model: "gpt-5.5" },
+
+  // xAI Grok over the grok-cli proxy (cli-chat-proxy.grok.com), served by a
+  // SuperGrok subscription via device-code OAuth — NOT the billed XAI_API_KEY
+  // path. These are the only models the subscription proxy exposes; the raw
+  // grok-4.x API models require an API key and are deliberately omitted.
+  "grok-build": { provider: "xai-grok", model: "grok-build" },
+  "grok-composer-2.5-fast": { provider: "xai-grok", model: "grok-composer-2.5-fast" },
 } as const;
 
 export type CanonicalModelName = keyof typeof MODEL_REGISTRY;
-export type ProviderName = "anthropic" | "moonshot" | "minimax" | "minimax-openai" | "openai" | "openai-codex";
+export type ProviderName =
+  | "anthropic"
+  | "moonshot"
+  | "minimax"
+  | "minimax-openai"
+  | "openai"
+  | "openai-codex"
+  | "xai-grok";
 
 export interface AnthropicProviderConfig {
   handler: "callAnthropic";
@@ -79,11 +93,21 @@ export interface OpenAICodexProviderConfig {
   supportsOAuth: true;
 }
 
+export interface XaiGrokProviderConfig {
+  handler: "callXaiGrok";
+  /** Base for the grok-cli proxy Responses endpoint, e.g. https://cli-chat-proxy.grok.com/v1. */
+  baseUrl: string;
+  /** Sent as `x-grok-client-version`; the proxy 426s outdated/missing versions. */
+  clientVersion: string;
+  supportsOAuth: true;
+}
+
 export type ProviderConfig =
   | AnthropicProviderConfig
   | AnthropicCompatibleProviderConfig
   | OpenAICompatibleProviderConfig
-  | OpenAICodexProviderConfig;
+  | OpenAICodexProviderConfig
+  | XaiGrokProviderConfig;
 
 export const PROVIDER_CONFIG: Record<ProviderName, ProviderConfig> = {
   anthropic: {
@@ -117,6 +141,15 @@ export const PROVIDER_CONFIG: Record<ProviderName, ProviderConfig> = {
     handler: "callOpenAICodex",
     // The Codex Responses endpoint is <baseUrl>/codex/responses.
     baseUrl: "https://chatgpt.com/backend-api",
+    supportsOAuth: true,
+  },
+  "xai-grok": {
+    handler: "callXaiGrok",
+    // The grok-cli proxy Responses endpoint is <baseUrl>/responses.
+    baseUrl: "https://cli-chat-proxy.grok.com/v1",
+    // Mirrors the installed grok CLI; the proxy rejects missing/old versions
+    // with HTTP 426. Bump if the proxy raises its minimum.
+    clientVersion: "0.2.51",
     supportsOAuth: true,
   },
 };
@@ -161,6 +194,8 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   { canonical: "kimi-k2.6", label: "Kimi K2.6", hint: "Long context, analytical. Default for autonomous runs." },
   { canonical: "minimax-m3", label: "MiniMax M3", hint: "Latest MiniMax fallback for agentic workflows." },
   { canonical: "gpt-5.5-codex", label: "GPT-5.5 Codex (ChatGPT OAuth)", hint: "GPT-5.5 over Codex. Reasoning is controlled per request." },
+  { canonical: "grok-build", label: "Grok Build (SuperGrok OAuth)", hint: "xAI Grok coding model via your SuperGrok subscription. No API tokens billed." },
+  { canonical: "grok-composer-2.5-fast", label: "Grok Composer 2.5 Fast (SuperGrok OAuth)", hint: "Faster Grok model via SuperGrok subscription." },
   { canonical: "claude-opus-4.7", label: "Claude Opus 4.7 (OAuth)", hint: "Previous Opus generation, kept for compatibility." },
   { canonical: "minimax-m2.7", label: "MiniMax M2.7", hint: "Previous MiniMax generation, kept for compatibility." },
   { canonical: "claude-sonnet-4.5", label: "Claude Sonnet 4.5 (OAuth)", hint: "Previous Sonnet generation, kept for compatibility." },

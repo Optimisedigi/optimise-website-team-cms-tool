@@ -38,6 +38,11 @@ import {
   refreshCodexCredential,
   codexAuthHeaders,
 } from "./oauth/openai-codex";
+import {
+  isXaiGrokExpiringSoon,
+  refreshXaiGrokCredential,
+  xaiGrokAuthHeaders,
+} from "./oauth/xai-grok";
 import { NoCredentialError, type ResolvedAuth, type OAuthCredential } from "./types";
 import { recordAuthEvent } from "./events";
 
@@ -71,6 +76,10 @@ function envApiKeyFor(provider: ProviderName): string | undefined {
       // Returning undefined makes the resolver throw NoCredentialError when
       // OAuth isn't connected, which the agent loop walks past.
       return undefined;
+    case "xai-grok":
+      // SuperGrok subscription is OAuth-only — the billed XAI_API_KEY hits a
+      // different surface (api.x.ai), not this proxy. No API-key fallback here.
+      return undefined;
     default: {
       const _exhaust: never = provider;
       void _exhaust;
@@ -92,13 +101,15 @@ function apiKeyAuthHeader(
 }
 
 function isOAuthExpiringSoon(cred: OAuthCredential): boolean {
-  return cred.provider === "openai-codex" ? isCodexExpiringSoon(cred) : isExpiringSoon(cred);
+  if (cred.provider === "openai-codex") return isCodexExpiringSoon(cred);
+  if (cred.provider === "xai-grok") return isXaiGrokExpiringSoon(cred);
+  return isExpiringSoon(cred);
 }
 
 async function refreshOAuthCredential(cred: OAuthCredential): Promise<OAuthCredential> {
-  return cred.provider === "openai-codex"
-    ? refreshCodexCredential(cred)
-    : refreshAnthropicCredential(cred);
+  if (cred.provider === "openai-codex") return refreshCodexCredential(cred);
+  if (cred.provider === "xai-grok") return refreshXaiGrokCredential(cred);
+  return refreshAnthropicCredential(cred);
 }
 
 async function refreshIfNeeded(cred: OAuthCredential): Promise<OAuthCredential> {
@@ -126,8 +137,11 @@ export async function resolveCredential(provider: ProviderName): Promise<Resolve
     // DB forceFallback flag. Only affects the Codex provider.
     const codexDisabled =
       provider === "openai-codex" && Boolean(process.env.CODEX_OAUTH_DISABLED);
+    const xaiGrokDisabled =
+      provider === "xai-grok" && Boolean(process.env.XAI_GROK_OAUTH_DISABLED);
     const forced = await isForceFallback(provider);
-    const stored = forced || codexDisabled ? null : await getCredential(provider);
+    const stored =
+      forced || codexDisabled || xaiGrokDisabled ? null : await getCredential(provider);
 
     if (stored?.kind === "oauth") {
       // OAuth was connected. We MUST use it or hard-fail; we never silently
@@ -146,6 +160,10 @@ export async function resolveCredential(provider: ProviderName): Promise<Resolve
           // Bearer token + chatgpt-account-id. The adapter composes the rest
           // (OpenAI-Beta, originator, User-Agent, Content-Type).
           authHeader = codexAuthHeaders(refreshed);
+        } else if (provider === "xai-grok") {
+          // Bearer token only. The adapter composes the rest (X-XAI-Token-Auth,
+          // x-grok-client-version, x-grok-model-override, Content-Type).
+          authHeader = xaiGrokAuthHeaders(refreshed);
         }
         if (authHeader) {
           // Record success quietly; only failures get a notification.

@@ -18,6 +18,7 @@ import { callAnthropic } from "./providers/anthropic";
 import { callAnthropicCompatible } from "./providers/anthropic-compatible";
 import { callOpenAICompatible } from "./providers/openai-compatible";
 import { callOpenAICodex } from "./providers/openai-codex";
+import { callXaiGrok } from "./providers/xai-grok";
 import { NoCredentialError } from "./auth/types";
 import { OAuthFailedError } from "./auth/resolver";
 import type { CallLLMOptions, LLMResponse } from "./types";
@@ -59,6 +60,13 @@ export async function callLLM(opts: CallLLMOptions): Promise<LLMResponse> {
           { ...opts, model: modelName },
           entry.model,
           { baseUrl: provCfg.baseUrl },
+        );
+      }
+      if (provCfg.handler === "callXaiGrok") {
+        return await callXaiGrok(
+          { ...opts, model: modelName },
+          entry.model,
+          { baseUrl: provCfg.baseUrl, clientVersion: provCfg.clientVersion },
         );
       }
       if (provCfg.handler === "callAnthropicCompatible") {
