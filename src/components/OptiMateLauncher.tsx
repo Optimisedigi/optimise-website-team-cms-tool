@@ -21,8 +21,8 @@ interface AgentDef {
 }
 
 const AGENTS: AgentDef[] = [
-  { key: 'google-ads', label: 'Google Ads', icon: '/optimate-icon.png', enabled: true },
-  { key: 'invoices', label: 'Invoices', icon: '/optimate-icon.png', enabled: true },
+  { key: 'google-ads', label: 'GoogleMate', icon: '/optimate-icon.png', enabled: true },
+  { key: 'invoices', label: 'InvoiceMate', icon: '/optimate-icon.png', enabled: true },
   // Add more agents here as they ship — just append a row; the grid auto-fills.
 ]
 
@@ -297,12 +297,12 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 // the chat-body header when only one account is selected), so
                 // we don't repeat it here.
                 <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · Google Ads
+                  · GoogleMate
                 </span>
               )}
               {step === 'invoice-chat' && (
                 <span style={{ opacity: 0.7, fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
-                  · Invoices
+                  · InvoiceMate
                 </span>
               )}
               {step === 'gmail' && (

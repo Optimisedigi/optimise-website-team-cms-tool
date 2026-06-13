@@ -542,17 +542,36 @@ $svg-close: "%3C/svg%3E";
     pointer-events: auto;
   }
 
-  // Collapse button — inside the sidebar, top-right corner on mobile
+  // Collapse button — top-right corner of the OPEN sidebar drawer on mobile.
+  // The button is `position: fixed` (viewport-relative), but the mobile drawer
+  // is only 260px wide (our `--nav-width` override). Anchoring with `right`
+  // would drop it into the white page area beside the drawer (a white icon on
+  // white = invisible — why it looked missing). Anchor with `left` so it sits
+  // just inside the drawer's right edge (260px − ~44px), aligned with the logo.
   .mini-sidebar-collapse-btn {
-    left: auto !important;
-    right: 12px !important;
-    top: 12px !important;
+    left: 212px !important;
+    right: auto !important;
+    top: 10px !important;
+    bottom: auto !important;
   }
 }
 
-.mini-sidebar-collapse-btn {
-  top: 13px !important;
-  left: min(calc(var(--nav-width, 275px) - 51px), calc(100vw - 51px)) !important;
+// Desktop only: anchor the collapse button beside the expanded sidebar's right
+// edge. Scoped to min-width so it can't override the mobile `left: auto`
+// (top-right) placement above — without this scope the later, unscoped rule
+// wins the cascade and drags the button into the middle of the drawer.
+@media (min-width: 769px) {
+  .mini-sidebar-collapse-btn {
+    left: min(calc(var(--nav-width, 275px) - 51px), calc(100vw - 51px)) !important;
+  }
+}
+
+// Desktop: pin the collapse button to the bottom of the sidebar.
+@media (min-width: 769px) {
+  .mini-sidebar-collapse-btn {
+    top: auto !important;
+    bottom: 13px !important;
+  }
 }
 
 // Bottom controls
@@ -754,6 +773,32 @@ $svg-close: "%3C/svg%3E";
   .app-header .od-user-display-name,
   .app-header .app-header__account {
     display: none !important;
+  }
+
+  // Pin the notification bell to the far right of the header. Let the
+  // breadcrumb wrapper take the remaining width and push the actions group
+  // (the bell) hard against the right edge, regardless of how short the
+  // breadcrumb is.
+  .app-header .app-header__controls-wrapper {
+    width: 100%;
+  }
+  .app-header .app-header__step-nav-wrapper {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .app-header .app-header__actions-wrapper {
+    margin-left: auto;
+    // Payload reserves a 20px (var(--base)) right margin here, which left the
+    // empty gap (the red box) between the bell and the edge. Drop it so the
+    // bell sits flush against the right side of the header.
+    margin-right: 0;
+    flex-shrink: 0;
+  }
+
+  // Trim the header's right gutter so the bell reaches the far-right edge
+  // instead of stopping ~30px short.
+  .app-header .app-header__content {
+    padding-right: 12px;
   }
 }
 
@@ -1587,7 +1632,7 @@ $svg-close: "%3C/svg%3E";
 // Compact inline summary row (mockup style): Total | Business | Infra | API | LLM
 .od-costs__summary-row {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
   margin-bottom: 14px;
 }
@@ -1624,7 +1669,8 @@ $svg-close: "%3C/svg%3E";
 }
 
 .od-costs__summary--total {
-  // no extra chrome — matches the mockup's inline Total stat
+  // Sits on its own row above the category grid.
+  margin-bottom: 14px;
 }
 
 .od-costs__summary-dot {
@@ -2367,6 +2413,47 @@ $svg-close: "%3C/svg%3E";
     box-sizing: border-box;
   }
 
+  // ── Sidebar drawer tuning (mobile) ──
+  // Shift the whole sidebar content ~4px further left by trimming the scroll
+  // container's inline padding (Payload's mobile default is var(--gutter-h) =
+  // 16px). Also trim the right inline padding so the links get more width.
+  .nav .nav__scroll {
+    --nav-padding-inline-start: 12px;
+    --nav-padding-inline-end: 8px;
+  }
+
+  // Give each nav link the full line width so long labels (e.g. "Client Value
+  // Ledger Items") fit on a single line. Payload reserves a big 30px
+  // (base(1.5)) trailing padding on every link — drop it to a hair on mobile so
+  // the label has room before it wraps.
+  .nav .nav__link {
+    padding-inline-end: 2px !important;
+  }
+
+  // ── Tighten vertical rhythm (mobile) ──
+  // Trim the dead space below the logo (the logo wrapper has an inline 60px
+  // height for desktop midline alignment — shorten it on mobile).
+  .nav .sidebar-sticky-head > div:first-child {
+    height: 46px !important;
+  }
+  .nav .sidebar-sticky-head {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  // Pull each group header (PERFORMANCE, CLIENTS, …) closer to the links below
+  // it and to the group above.
+  .nav .nav-group__toggle {
+    padding: 6px 0 2px !important;
+    margin-top: 2px !important;
+  }
+
+  // Reduce the gap between individual nav links.
+  .nav .nav__link {
+    line-height: 18px !important;
+    padding-block: 1px !important;
+  }
+
   // ── Dashboard container ──
   .dashboard {
     max-width: 100vw !important;
@@ -2411,7 +2498,7 @@ $svg-close: "%3C/svg%3E";
     font-size: 9px;
   }
 
-  // ── Costs — 2 columns on mobile ──
+  // ── Costs — Total on its own row, 4 categories as a 2×2 grid below ──
   .od-costs__summary-row,
   .od-costs__detail-row {
     grid-template-columns: repeat(2, 1fr) !important;
@@ -2483,15 +2570,21 @@ $svg-close: "%3C/svg%3E";
   }
 
   // ── Payload UI elements ──
-  // Breadcrumbs — only show the home icon + current item on mobile to avoid overlap,
-  // but keep the current item untruncated.
+  // Breadcrumbs — show the home icon + the parent layer + the current item so
+  // mobile matches desktop (e.g. [home] / Clients / [client name]) instead of
+  // collapsing to [home] / [client name]. We keep the home icon (first child)
+  // and the LAST FOUR children, which for a document edit page are:
+  //   nth-last-child(4) = separator after the parent
+  //   nth-last-child(3) = parent crumb (e.g. "Clients")
+  //   nth-last-child(2) = separator before the current item
+  //   last-child        = current page label
+  // On shallower pages (e.g. a list view) the extra slots simply fall back to
+  // the home icon, so nothing duplicates.
   .step-nav {
     flex-wrap: nowrap;
     overflow: visible;
 
-    // Hide everything except the home icon (first child) and the last two children
-    // (separator + current page label)
-    > *:not(:first-child):not(:last-child):not(:nth-last-child(2)) {
+    > *:not(:first-child):not(:last-child):not(:nth-last-child(2)):not(:nth-last-child(3)):not(:nth-last-child(4)) {
       display: none !important;
     }
 
@@ -2560,7 +2653,12 @@ $svg-close: "%3C/svg%3E";
   }
 
   // ── Global overflow containment ──
-  // Prevent any element from causing horizontal scroll
+  // Prevent any element from causing horizontal scroll. Use `overflow-x: clip`
+  // (NOT `hidden`): `hidden` turns these ancestors into scroll containers,
+  // which breaks `position: sticky` on the descendant `.app-header` (the
+  // sticky header would scroll away on mobile). `clip` contains the same
+  // horizontal overflow without establishing a scroll container, so the
+  // header stays pinned. Supported on iOS Safari 16+.
   body,
   #__next,
   .template-default,
@@ -2575,7 +2673,7 @@ $svg-close: "%3C/svg%3E";
   .gutter--right,
   .gutter--left.gutter--right {
     max-width: 100vw !important;
-    overflow-x: hidden !important;
+    overflow-x: clip !important;
     box-sizing: border-box !important;
   }
 
@@ -4886,11 +4984,44 @@ body:has(:is(
     padding-bottom: 88px;
   }
 
+  // Mobile: the full-width save bar gets cropped off the bottom, hiding the
+  // Save button. Drop the bar chrome entirely and present just a floating
+  // Save button. Anchor it to the LEFT of the bottom-right OptiMate launcher
+  // pill (which sits at right:20px, ~140px wide) so the two don't overlap.
   @media (max-width: 768px) {
     .doc-controls .doc-controls__controls-wrapper {
-      left: 12px;
-      right: 12px;
+      left: auto;
+      right: 150px;
+      bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+      width: auto;
       max-width: none;
+      // Pack the save button and the three-dots menu tight together. Payload's
+      // mobile rule sets `justify-content: space-between`, which pushed the dots
+      // away from the Save button; force flex-end + a small gap so they sit
+      // side by side.
+      justify-content: flex-end;
+      gap: 4px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+
+    .doc-controls .doc-controls__controls-wrapper::before {
+      content: none !important;
+    }
+
+    // Payload renders a ~40px sticky gradient overlay (`__controls::after`) to
+    // fade scrolled controls on mobile. With the controls floated as a compact
+    // button it just adds dead space (the red box) between Save and the dots.
+    .doc-controls .doc-controls__controls::after {
+      content: none !important;
+      display: none !important;
+    }
+
+    .doc-controls__controls .btn--style-primary {
+      box-shadow: 0 6px 20px rgba(16, 24, 40, 0.22), 0 2px 6px rgba(16, 24, 40, 0.12);
     }
   }
 }
@@ -5066,7 +5197,14 @@ body:has(:is(
       border: 1px solid var(--ode-border);
       border-radius: var(--ode-radius);
       box-shadow: var(--ode-shadow-sm);
-      overflow: hidden;
+      // Was `overflow: hidden` (for corner-clipping), but that also clipped
+      // pop-ups that escape the card — e.g. the date picker calendar in the
+      // One-Off Projects array, whose bottom half was cut off. Payload renders
+      // the date popper inline (no portal), so the ancestor must allow
+      // overflow. react-animate-height sets `overflow: hidden` via inline
+      // style while collapsing/collapsed (inline beats this rule), so the
+      // collapse animation still clips; this only applies when fully open.
+      overflow: visible;
     }
 
     // Collapsed wrapper has no height — drop its chrome so nothing renders.
@@ -5306,11 +5444,17 @@ body:has(:is(
     gap: 0;
     border: 1px solid var(--ode-border);
     border-radius: 10px;
-    overflow: hidden;
+    // Was `overflow: hidden` to clip rows to the rounded corners, but that also
+    // clipped the inline-rendered date picker popup (its bottom half was cut
+    // off when opened in a One-Off Projects row). The container background
+    // still honours border-radius with overflow visible; the first/last rows
+    // below get matching corner radii so nothing pokes past the rounded edge.
+    overflow: visible;
     background: var(--ode-card);
   }
 
   .array-field__row {
+    position: relative;
     border: 0;
     border-bottom: 1px solid var(--ode-border-soft);
     border-radius: 0;
@@ -5320,19 +5464,66 @@ body:has(:is(
       border-top: 1px solid var(--ode-border-soft);
     }
 
+    // Round the first/last rows to match the container's 10px radius, since the
+    // parent no longer clips with overflow:hidden.
+    &:first-child {
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+    }
+
     &:last-child {
       border-bottom: none;
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
     }
 
+    // The flattened row hides the collapsible header chrome (collapse toggle,
+    // drag handle, indicator) but KEEPS the row actions popup so each row can
+    // still be removed/duplicated. The popup is overlaid in the row's
+    // top-right corner; pointer-events are disabled on the wrapper so it never
+    // blocks the field inputs underneath, and re-enabled on the actions only.
     > .collapsible__toggle-wrap {
-      display: none;
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      z-index: 3;
+      width: auto;
+      min-height: 0;
+      padding: 0;
+      margin: 0;
+      background: transparent;
+      border: 0;
+      pointer-events: none;
+
+      .collapsible__toggle,
+      .collapsible__drag,
+      .collapsible__header-wrap,
+      .collapsible__indicator {
+        display: none;
+      }
+
+      .collapsible__actions-wrap,
+      .collapsible__actions,
+      .array-actions {
+        pointer-events: auto;
+      }
     }
 
+    // Force every row fully open regardless of `initCollapsed`. The custom
+    // flattened layout has no visible collapse toggle, so a collapsed row
+    // would otherwise be stuck hidden. Override the AnimateHeight wrapper...
     > .rah-static,
     > [class*='rah-'] {
       height: auto !important;
       opacity: 1 !important;
       overflow: visible !important;
+    }
+
+    // ...AND its inner content div, which AnimateHeight sets to
+    // `display: none` via inline style once collapsed (beats the height
+    // override above, which is why newly-added collapsed rows showed nothing).
+    > .rah-static > div {
+      display: block !important;
     }
 
     .collapsible__content {
@@ -5370,11 +5561,12 @@ body:has(:is(
         flex-direction: column;
         justify-content: center;
         align-items: stretch;
+        gap: 3px;
         width: auto !important;
         min-width: 0;
-        min-height: 44px;
+        min-height: 56px;
         margin: 0 !important;
-        padding: 0 12px;
+        padding: 8px 12px;
         border-right: 1px solid var(--ode-border-soft);
 
         &:last-child {
@@ -5392,8 +5584,20 @@ body:has(:is(
     border-top: 1px solid var(--ode-border-soft);
   }
 
+  // Show the per-cell field label as a small uppercase caption. Previously
+  // hidden for compactness, but with empty rows that left blank cells with no
+  // hint of what to type where. The caption sits above the input inside each
+  // grid cell (the cell is a column flexbox).
   .array-field__fields .field-label {
-    display: none;
+    display: block;
+    margin: 0;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ode-t3);
+    line-height: 1.2;
+    pointer-events: none;
   }
 
   .array-field__fields .field-description {
@@ -5414,14 +5618,27 @@ body:has(:is(
   .array-field__fields textarea,
   .array-field__fields .rs__control {
     width: 100%;
-    min-height: 28px !important;
+    min-height: 30px !important;
     height: auto;
-    border: 0 !important;
-    border-radius: 0 !important;
+    // Give each editable area a faint filled box + border so it reads as an
+    // input. Without this the flattened cells were borderless/transparent and
+    // it was unclear where to click/type on an empty row.
+    border: 1px solid var(--ode-border) !important;
+    border-radius: var(--ode-radius-sm, 6px) !important;
     box-shadow: none !important;
-    background: transparent !important;
-    padding: 1px 0 !important;
+    background: var(--ode-input-bg, #f8fafc) !important;
+    padding: 4px 8px !important;
     text-align: left;
+
+    &:hover {
+      border-color: var(--ode-border-strong, #cbd5e1) !important;
+    }
+
+    &:focus,
+    &.rs__control--is-focused {
+      border-color: var(--ode-accent, #38bdf8) !important;
+      background: #fff !important;
+    }
   }
 
   // Relationship/select controls need a little vertical breathing room when
@@ -5739,6 +5956,66 @@ body:has(:is(
 
   .od-client-head__stat--total .od-client-head__stat-value {
     color: var(--ode-accent);
+  }
+}
+
+// ── Mobile: compact client header ──
+// Hide the round logo/avatar on the client edit page (mobile only) and let the
+// body span the full card width. This reclaims ~54px (38px logo + 16px gap) so
+// the service pills pack onto ~two close rows and the revenue strip fits two
+// rows instead of running off the right edge.
+@media (max-width: 768px) {
+  .collection-edit--clients {
+    .od-client-head {
+      gap: 0;
+    }
+
+    // Hide the avatar button; the body below takes its place at full width.
+    .od-client-head__logo-btn {
+      display: none;
+    }
+
+    // Tighter pill gaps + force the five service pills onto exactly two rows.
+    // The "Services" label is pushed onto its own line (flex-basis 100%), then
+    // each pill takes ~one third of the row so the five wrap as 3 + 2.
+    .od-client-head__services {
+      gap: 5px 6px;
+      padding-right: 0;
+    }
+
+    .od-client-head__services-label {
+      flex: 0 0 100%;
+    }
+
+    .od-svc-pill {
+      flex: 1 1 28%;
+      min-width: 0;
+      justify-content: center;
+    }
+
+    // Hide the Active / Inactive status pill on mobile to declutter the
+    // identity row (the status is still editable in the Business tab).
+    .od-client-head__pill--active,
+    .od-client-head__pill--inactive {
+      display: none !important;
+    }
+
+    // Revenue strip: switch the shrink-to-content `inline-flex` (which let the
+    // boxes overflow past the right edge) to a full-width wrapping flex row.
+    // With a ~30% basis three boxes fit per row; the five stats therefore fall
+    // onto two rows (3 + 2), and the trailing row's boxes grow to fill the
+    // width so there's no empty cell.
+    .od-client-head__strip {
+      display: flex;
+      flex-wrap: wrap;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .od-client-head__stat {
+      flex: 1 1 30%;
+      min-width: 0;
+    }
   }
 }
 
@@ -6083,10 +6360,44 @@ body.od-client-record {
   // Mobile: sidebar is hidden (content wrap margin-left: 0) and the desktop
   // launcher offset doesn't apply — let the bar span the viewport with a small
   // uniform inset instead of the sidebar/launcher gaps.
+  // Mobile: the full-width save bar gets cropped off the bottom, hiding the
+  // Save button. Drop the bar chrome entirely and present just a floating
+  // Save button. Anchor it to the LEFT of the bottom-right OptiMate launcher
+  // pill (which sits at right:20px, ~140px wide) so the two don't overlap.
   @media (max-width: 768px) {
     .doc-controls .doc-controls__controls-wrapper {
-      left: 12px;
-      right: 12px;
+      left: auto;
+      right: 150px;
+      bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+      width: auto;
+      max-width: none;
+      // Pack the save button and the three-dots menu tight together. Payload's
+      // mobile rule sets `justify-content: space-between`, which pushed the dots
+      // away from the Save button; force flex-end + a small gap so they sit
+      // side by side.
+      justify-content: flex-end;
+      gap: 4px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+
+    .doc-controls .doc-controls__controls-wrapper::before {
+      content: none !important;
+    }
+
+    // Payload renders a ~40px sticky gradient overlay (`__controls::after`) to
+    // fade scrolled controls on mobile. With the controls floated as a compact
+    // button it just adds dead space (the red box) between Save and the dots.
+    .doc-controls .doc-controls__controls::after {
+      content: none !important;
+      display: none !important;
+    }
+
+    .doc-controls__controls .btn--style-primary {
+      box-shadow: 0 6px 20px rgba(16, 24, 40, 0.22), 0 2px 6px rgba(16, 24, 40, 0.12);
     }
   }
 
@@ -6314,6 +6625,26 @@ body.od-client-record {
 .od-gsc-chart--mockup {
   padding: 0;
   border-top: 0;
+}
+
+// Mobile: the fixed 6-column GSC stat grid leaves each column too narrow for
+// values like "48,058", so the numbers overflow and overlap their neighbours.
+// Drop to a 3-column grid (2 for the smaller variants) and shrink the value
+// type so each stat fits within its cell.
+@media (max-width: 768px) {
+  .od-gsc-stats,
+  .od-gsc-stats.od-gsc-stats--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 10px;
+  }
+
+  .od-gsc-stats.od-gsc-stats--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .od-stat .v {
+    font-size: 16px;
+  }
 }
 
 .od-gsc-bars {

@@ -99,6 +99,7 @@ import OptiMateConfirmBubble, {
 import EmailAttachPicker, { type AttachedEmailMeta } from './EmailAttachPicker'
 import OptiMateToolsHelp from './OptiMateToolsHelp'
 import OptiMateVoice from './OptiMateVoice'
+import OptiMateTranscribe from './OptiMateTranscribe'
 import { isVoiceEnabled } from '@/lib/realtime/token-provider'
 
 /**
@@ -587,6 +588,21 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     // Feature flag: render the voice CTA only when a provider is configured.
     const voiceEnabled = isVoiceEnabled()
     const canUseVoice = voiceEnabled && (mode === 'audit' || selectedAccountRefs.length > 0)
+    // On mobile the full Realtime voice *call* (which needs the local helper app)
+    // is replaced by an Apple/Web Speech dictation button that transcribes into
+    // the chat input. Track the viewport so we can swap the controls.
+    const [isMobileViewport, setIsMobileViewport] = useState(false)
+    useEffect(() => {
+      const mq = window.matchMedia('(max-width: 768px)')
+      const update = (): void => setIsMobileViewport(mq.matches)
+      update()
+      mq.addEventListener('change', update)
+      return () => mq.removeEventListener('change', update)
+    }, [])
+    // Append dictated text to the current input, inserting a space when needed.
+    const appendTranscript = useCallback((text: string) => {
+      setInput((prev) => (prev ? `${prev.replace(/\s+$/, '')} ${text}` : text))
+    }, [])
     const imageInputRef = useRef<HTMLInputElement>(null)
     const storageScope = mode === 'portfolio' ? 'portfolio' : auditId
     const displayName = businessName || (mode === 'portfolio' ? 'Portfolio' : customerId) || 'Google Ads'
@@ -1346,7 +1362,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           {/* Anthropic credential pill removed per request — it was noisy and the
             credential state is managed on the agent-auth admin page. */}
           {!compact && <OptiMateToolsHelp compact={compact} />}
-          {hideInput && canUseVoice && (
+          {hideInput && canUseVoice && !isMobileViewport && (
             <OptiMateVoice
               auditId={auditId}
               mode={mode}
@@ -2199,19 +2215,27 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
                     />
                   </svg>
                 </button>
-                {canUseVoice && (
-                  <OptiMateVoice
-                    auditId={auditId}
-                    mode={mode}
-                    customerId={customerId}
-                    businessName={businessName}
-                    selectedAccountRefs={selectedAccountRefs}
-                    onTurn={upsertVoiceTurn}
-                    onAssistantMessage={appendVoiceAssistantMessage}
-                    controlsContainer={voiceControlsEl}
+                {isMobileViewport ? (
+                  <OptiMateTranscribe
+                    onTranscript={appendTranscript}
                     triggerSize={29}
-                    attachedEmailMessageId={attachedEmail?.messageId ?? null}
+                    disabled={loading}
                   />
+                ) : (
+                  canUseVoice && (
+                    <OptiMateVoice
+                      auditId={auditId}
+                      mode={mode}
+                      customerId={customerId}
+                      businessName={businessName}
+                      selectedAccountRefs={selectedAccountRefs}
+                      onTurn={upsertVoiceTurn}
+                      onAssistantMessage={appendVoiceAssistantMessage}
+                      controlsContainer={voiceControlsEl}
+                      triggerSize={29}
+                      attachedEmailMessageId={attachedEmail?.messageId ?? null}
+                    />
+                  )
                 )}
               </div>
             </div>

@@ -1,7 +1,23 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useLayoutEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
+
+// Clamp a portal tooltip's horizontal centre so it never runs off the left or
+// right edge of the viewport (the bug on mobile, where a KPI tile near the
+// screen edge pushed the tooltip off-screen). `center` is the desired centre
+// x (the tooltip is `transform: translateX(-50%)`), `width` its measured px
+// width. Returns the centre x to use.
+function clampTooltipCenter(center: number, width: number): number {
+  if (typeof window === 'undefined') return center
+  const margin = 8
+  const vw = window.innerWidth
+  // Too wide to fit with margins on both sides — just centre it; CSS caps the
+  // width to the viewport.
+  if (width >= vw - margin * 2) return vw / 2
+  const half = width / 2
+  return Math.max(margin + half, Math.min(center, vw - margin - half))
+}
 import RocketSplash from './RocketSplash'
 import SalesFunnelDashboard from './SalesFunnelDashboard'
 import DripEmailTracker from './DripEmailTracker'
@@ -204,8 +220,10 @@ function StatWithTooltip({
 }) {
   const hasRows = rows.length > 0
   const hostRef = useRef<HTMLDivElement | null>(null)
+  const tipRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [tipLeft, setTipLeft] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
   // Small delay before hiding so the mouse has time to cross from the host
   // tile into the floating tooltip without the tooltip vanishing mid-move.
@@ -257,6 +275,13 @@ function StatWithTooltip({
     }
   }, [open])
 
+  // After the tooltip renders, measure it and clamp its centre so it never
+  // runs off the viewport edge (mobile fix).
+  useLayoutEffect(() => {
+    if (!open || !coords || !tipRef.current) return
+    setTipLeft(clampTooltipCenter(coords.left, tipRef.current.offsetWidth))
+  }, [open, coords])
+
   // Clear any pending hide timer when the component unmounts.
   useEffect(() => {
     return () => cancelHide()
@@ -281,6 +306,7 @@ function StatWithTooltip({
       {mounted && hasRows && open && coords &&
         createPortal(
           <div
+            ref={tipRef}
             className="od-stat-tooltip od-stat-tooltip--portal"
             role="tooltip"
             // Keep the tooltip visible while the cursor is over it, so users
@@ -289,7 +315,7 @@ function StatWithTooltip({
             // (and on the host re-enter) is what makes the bridge work.
             onMouseEnter={cancelHide}
             onMouseLeave={scheduleHide}
-            style={{ top: coords.top, left: coords.left, minWidth: coords.width }}
+            style={{ top: coords.top, left: tipLeft ?? coords.left, minWidth: coords.width }}
           >
             <div className="od-stat-tooltip__head">{label}</div>
             <div className="od-stat-tooltip__body">{rows}</div>
@@ -345,8 +371,10 @@ function KpiCardTooltip({
 }) {
   const hasRows = rows.length > 0
   const hostRef = useRef<HTMLDivElement | null>(null)
+  const tipRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [tipLeft, setTipLeft] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -374,6 +402,12 @@ function KpiCardTooltip({
     return () => { window.removeEventListener('scroll', handler, true); window.removeEventListener('resize', handler) }
   }, [open])
 
+  // Clamp the tooltip's centre to the viewport once it has rendered (mobile fix).
+  useLayoutEffect(() => {
+    if (!open || !coords || !tipRef.current) return
+    setTipLeft(clampTooltipCenter(coords.left, tipRef.current.offsetWidth))
+  }, [open, coords])
+
   useEffect(() => { return () => cancelHide() }, [])
 
   return (
@@ -396,11 +430,12 @@ function KpiCardTooltip({
       {mounted && hasRows && open && coords &&
         createPortal(
           <div
+            ref={tipRef}
             className="od-stat-tooltip od-stat-tooltip--portal"
             role="tooltip"
             onMouseEnter={cancelHide}
             onMouseLeave={scheduleHide}
-            style={{ top: coords.top, left: coords.left, minWidth: coords.width }}
+            style={{ top: coords.top, left: tipLeft ?? coords.left, minWidth: coords.width }}
           >
             <div className="od-stat-tooltip__head">{label}</div>
             <div className="od-stat-tooltip__body">{rows}</div>
@@ -568,7 +603,7 @@ const Dashboard = () => {
   const [xeroInvoices, setXeroInvoices] = useState<XeroInvoiceSummary | null>(null)
   const [xeroScheduled, setXeroScheduled] = useState<XeroScheduledSend[]>([])
   const [xeroLoading, setXeroLoading] = useState(true)
-  const [costDetailsOpen, setCostDetailsOpen] = useState(true)
+  const [costDetailsOpen, setCostDetailsOpen] = useState(false)
   const [statementsSummary, setStatementsSummary] = useState<{ pendingCount: number; totalOutstanding: number } | null>(null)
 
   const fetchDashboard = () => {
@@ -664,8 +699,8 @@ const Dashboard = () => {
           <h1 className="od-dash__title">Good morning, {data.userName}</h1>
           <span className="od-dash__month">Agency overview · {data.month}</span>
         </div>
-        <a href="/admin/collections/clients/create" className="od-dash__new-client">
-          + New Client
+        <a href="/admin/collections/client-proposals/create" className="od-dash__new-client">
+          + New Proposal
         </a>
       </div>
 
@@ -1175,12 +1210,12 @@ function CostBreakdown({ data, open }: { data: DashboardData; open: boolean }) {
 
   return (
     <div className="od-costs">
+      <div className="od-costs__summary od-costs__summary--total">
+        <span className="od-costs__summary-label">Total</span>
+        <span className="od-costs__summary-value">${total.toFixed(2)}</span>
+        <span className="od-costs__summary-sub">AUD / month</span>
+      </div>
       <div className="od-costs__summary-row">
-        <div className="od-costs__summary od-costs__summary--total">
-          <span className="od-costs__summary-label">Total</span>
-          <span className="od-costs__summary-value">${total.toFixed(2)}</span>
-          <span className="od-costs__summary-sub">AUD / month</span>
-        </div>
         {groups.map((group) => (
           <div key={group.key} className="od-costs__summary">
             <span className="od-costs__summary-label">

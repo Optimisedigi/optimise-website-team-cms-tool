@@ -340,7 +340,7 @@ function ClientHeaderCard({
             )}
             {slug && (
               <span className="od-client-head__meta-item">
-                <span aria-hidden>📍</span> {slug}
+                <span aria-hidden>/</span> {slug}
               </span>
             )}
             <span

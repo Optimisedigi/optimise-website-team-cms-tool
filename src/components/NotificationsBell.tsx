@@ -68,6 +68,17 @@ const NotificationsBell = (): ReactElement | null => {
   const [loading, setLoading] = useState(false);
   const [shaking, setShaking] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Track viewport so the dropdown can switch from an anchored popover (desktop)
+  // to a fixed, viewport-clamped sheet (mobile) — otherwise it runs off-screen
+  // because the bell sits at the far right of the header.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const update = (): void => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
   // Track last seen count so we can detect *rises* (not just non-zero).
   // `null` on first fetch means "don't shake on initial page load".
   const lastCountRef = useRef<number | null>(null);
@@ -279,16 +290,20 @@ const NotificationsBell = (): ReactElement | null => {
       {open && (
         <div
           style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            right: 0,
+            // Desktop: anchored popover beneath the bell. Mobile: fixed to the
+            // viewport just under the header so it can't be clipped or pushed
+            // off-screen by the header's edge.
+            position: isMobile ? "fixed" : "absolute",
+            top: isMobile ? "calc(var(--app-header-height, 50px) + 4px)" : "calc(100% + 4px)",
+            right: isMobile ? 12 : 0,
+            left: isMobile ? 12 : "auto",
             background: "var(--theme-elevation-0, #fff)",
             border: "1px solid var(--theme-elevation-150, #ddd)",
             borderRadius: 8,
             boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-            width: "min(400px, calc(100vw - 24px))",
+            width: isMobile ? "auto" : "min(400px, calc(100vw - 24px))",
             minWidth: 0,
-            maxWidth: "calc(100vw - 24px)",
+            maxWidth: isMobile ? "none" : "calc(100vw - 24px)",
             zIndex: 10000,
             overflow: "hidden",
           }}
