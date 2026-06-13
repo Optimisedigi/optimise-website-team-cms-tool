@@ -33,8 +33,12 @@ export const MODEL_REGISTRY = {
   "claude-haiku-4.5": { provider: "anthropic", model: "claude-haiku-4-5" },
 
   // Moonshot / Kimi (OpenAI-compatible). K2 series sunsets 2026-05-25;
-  // K2.6 is the current flagship.
+  // K2.6 is the current flagship on the billed API-key path.
   "kimi-k2.6": { provider: "moonshot", model: "kimi-k2.6" },
+
+  // Kimi For Coding via the official kimi-cli device-code OAuth flow. Uses the
+  // user's Kimi coding subscription (`scope: kimi-code`), not billed API keys.
+  "kimi-for-coding": { provider: "kimi-coding", model: "kimi-for-coding" },
 
   // MiniMax. M3 uses MiniMax's Anthropic-compatible API; M2.7 remains on
   // the legacy OpenAI-compatible endpoint for stored-setting compatibility.
@@ -63,6 +67,7 @@ export type CanonicalModelName = keyof typeof MODEL_REGISTRY;
 export type ProviderName =
   | "anthropic"
   | "moonshot"
+  | "kimi-coding"
   | "minimax"
   | "minimax-openai"
   | "openai"
@@ -86,6 +91,12 @@ export interface OpenAICompatibleProviderConfig {
   supportsOAuth: false;
 }
 
+export interface KimiCodingProviderConfig {
+  handler: "callKimiCoding";
+  baseUrl: string;
+  supportsOAuth: true;
+}
+
 export interface OpenAICodexProviderConfig {
   handler: "callOpenAICodex";
   /** Base for the Codex Responses endpoint, e.g. https://chatgpt.com/backend-api. */
@@ -106,6 +117,7 @@ export type ProviderConfig =
   | AnthropicProviderConfig
   | AnthropicCompatibleProviderConfig
   | OpenAICompatibleProviderConfig
+  | KimiCodingProviderConfig
   | OpenAICodexProviderConfig
   | XaiGrokProviderConfig;
 
@@ -118,6 +130,11 @@ export const PROVIDER_CONFIG: Record<ProviderName, ProviderConfig> = {
     handler: "callOpenAICompatible",
     baseUrl: "https://api.moonshot.ai/v1",
     supportsOAuth: false,
+  },
+  "kimi-coding": {
+    handler: "callKimiCoding",
+    baseUrl: "https://api.kimi.com/coding/v1",
+    supportsOAuth: true,
   },
   minimax: {
     handler: "callAnthropicCompatible",
@@ -191,7 +208,8 @@ export const CHAT_PICKER_MODELS: ReadonlyArray<{
   { canonical: "claude-sonnet-4.6", label: "Claude Sonnet 4.6 (OAuth)", hint: "Default. Best brand voice, free via Claude Max." },
   { canonical: "claude-opus-4-8", label: "Claude Opus 4.8 (OAuth)", hint: "Latest Opus. Heaviest reasoning for complex investigations." },
   { canonical: "claude-haiku-4.5", label: "Claude Haiku 4.5 (OAuth)", hint: "Fast and cheap. Good for simple chat replies." },
-  { canonical: "kimi-k2.6", label: "Kimi K2.6", hint: "Long context, analytical. Default for autonomous runs." },
+  { canonical: "kimi-for-coding", label: "Kimi For Coding (Kimi OAuth)", hint: "Kimi coding subscription via device-code OAuth. No API tokens billed." },
+  { canonical: "kimi-k2.6", label: "Kimi K2.6 (API key)", hint: "Long context, analytical. Default for autonomous runs." },
   { canonical: "minimax-m3", label: "MiniMax M3", hint: "Latest MiniMax fallback for agentic workflows." },
   { canonical: "gpt-5.5-codex", label: "GPT-5.5 Codex (ChatGPT OAuth)", hint: "GPT-5.5 over Codex. Reasoning is controlled per request." },
   { canonical: "grok-build", label: "Grok Build (SuperGrok OAuth)", hint: "xAI Grok coding model via your SuperGrok subscription. No API tokens billed." },

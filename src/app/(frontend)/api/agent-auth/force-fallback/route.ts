@@ -5,7 +5,7 @@ import { setForceFallback } from "@/lib/agents/_shared/llm/auth/store";
 
 /**
  * POST /api/agent-auth/force-fallback
- * Body: { provider: 'anthropic' | 'moonshot' | 'minimax' | 'openai' | 'openai-codex', enabled: boolean }
+ * Body: { provider: 'anthropic' | 'moonshot' | 'kimi-coding' | 'minimax' | 'openai' | 'openai-codex' | 'xai-grok', enabled: boolean }
  *
  * Toggles the emergency "force API key" flag for a provider. When on, the
  * resolver skips OAuth even if a stored OAuth credential exists. For the
@@ -32,9 +32,11 @@ export async function POST(req: NextRequest) {
   if (
     body.provider !== "anthropic" &&
     body.provider !== "moonshot" &&
+    body.provider !== "kimi-coding" &&
     body.provider !== "minimax" &&
     body.provider !== "openai" &&
-    body.provider !== "openai-codex"
+    body.provider !== "openai-codex" &&
+    body.provider !== "xai-grok"
   ) {
     return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
   }

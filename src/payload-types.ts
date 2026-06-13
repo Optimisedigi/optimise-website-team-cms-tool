@@ -7803,7 +7803,7 @@ export interface ClientPulseHistory {
 export interface AgentCredential {
   id: number;
   /**
-   * Provider key, e.g. anthropic, moonshot, minimax, openai-codex.
+   * Provider key, e.g. anthropic, moonshot, kimi-coding, minimax, openai-codex, xai-grok.
    */
   provider: string;
   kind: 'oauth' | 'api-key';
@@ -11602,9 +11602,12 @@ export interface OptimateSetting {
     | 'claude-sonnet-4.6'
     | 'claude-opus-4-8'
     | 'claude-haiku-4.5'
+    | 'kimi-for-coding'
     | 'kimi-k2.6'
     | 'minimax-m3'
     | 'gpt-5.5-codex'
+    | 'grok-build'
+    | 'grok-composer-2.5-fast'
     | 'claude-opus-4.7'
     | 'minimax-m2.7'
     | 'claude-sonnet-4.5';
@@ -11615,9 +11618,12 @@ export interface OptimateSetting {
     | 'claude-sonnet-4.6'
     | 'claude-opus-4-8'
     | 'claude-haiku-4.5'
+    | 'kimi-for-coding'
     | 'kimi-k2.6'
     | 'minimax-m3'
     | 'gpt-5.5-codex'
+    | 'grok-build'
+    | 'grok-composer-2.5-fast'
     | 'claude-opus-4.7'
     | 'minimax-m2.7'
     | 'claude-sonnet-4.5';
@@ -11633,9 +11639,12 @@ export interface OptimateSetting {
         | 'claude-sonnet-4.6'
         | 'claude-opus-4-8'
         | 'claude-haiku-4.5'
+        | 'kimi-for-coding'
         | 'kimi-k2.6'
         | 'minimax-m3'
         | 'gpt-5.5-codex'
+        | 'grok-build'
+        | 'grok-composer-2.5-fast'
         | 'claude-opus-4.7'
         | 'minimax-m2.7'
         | 'claude-sonnet-4.5'
@@ -11649,9 +11658,12 @@ export interface OptimateSetting {
         | 'claude-sonnet-4.6'
         | 'claude-opus-4-8'
         | 'claude-haiku-4.5'
+        | 'kimi-for-coding'
         | 'kimi-k2.6'
         | 'minimax-m3'
         | 'gpt-5.5-codex'
+        | 'grok-build'
+        | 'grok-composer-2.5-fast'
         | 'claude-opus-4.7'
         | 'minimax-m2.7'
         | 'claude-sonnet-4.5'

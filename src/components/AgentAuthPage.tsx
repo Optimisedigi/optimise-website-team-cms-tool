@@ -85,6 +85,30 @@ function formatExpiry(ms: number | null): string {
   return `in ${Math.round(hours / 24)}d`;
 }
 
+function providerDisplayName(provider: string): string {
+  switch (provider) {
+    case "moonshot":
+      return "Kimi API key (KIMI_API_KEY)";
+    case "kimi-coding":
+      return "Kimi For Coding OAuth";
+    case "openai-codex":
+      return "GPT Codex OAuth";
+    case "xai-grok":
+      return "Grok OAuth";
+    default:
+      return provider;
+  }
+}
+
+function providerApiKeyLabel(provider: string, isPresent: boolean): { text: string; color: string } {
+  if (provider === "kimi-coding" || provider === "openai-codex" || provider === "xai-grok") {
+    return { text: "n/a (OAuth only)", color: "#9ca3af" };
+  }
+  return isPresent
+    ? { text: provider === "moonshot" ? "set (Kimi API key)" : "set", color: "#15803d" }
+    : { text: "missing", color: "#dc2626" };
+}
+
 export default function AgentAuthPage() {
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,7 +123,10 @@ export default function AgentAuthPage() {
   const [codexAuthorizeUrl, setCodexAuthorizeUrl] = useState<string | null>(null);
   const [codexPasteString, setCodexPasteString] = useState("");
   const [codexCompleting, setCodexCompleting] = useState(false);
-  // Grok (SuperGrok) device-code flow state.
+  // Kimi / Grok device-code flow state.
+  const [kimiUserCode, setKimiUserCode] = useState<string | null>(null);
+  const [kimiVerificationUri, setKimiVerificationUri] = useState<string | null>(null);
+  const [kimiPolling, setKimiPolling] = useState(false);
   const [grokUserCode, setGrokUserCode] = useState<string | null>(null);
   const [grokVerificationUri, setGrokVerificationUri] = useState<string | null>(null);
   const [grokPolling, setGrokPolling] = useState(false);
@@ -199,6 +226,61 @@ export default function AgentAuthPage() {
     setCodexPasteString("");
     setCodexAuthorizeUrl(null);
     await loadStatus();
+  }
+
+  async function handleKimiBegin() {
+    setMessage(null);
+    setKimiUserCode(null);
+    setKimiVerificationUri(null);
+    const res = await fetch("/api/agent-auth/kimi/begin", { method: "POST" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMessage(`Kimi begin failed: ${json.error ?? res.status}`);
+      return;
+    }
+    setKimiUserCode(json.userCode);
+    setKimiVerificationUri(json.verificationUri);
+    window.open(json.verificationUri, "_blank", "noopener,noreferrer");
+    void pollKimi(Math.max(2, Number(json.interval) || 5), Number(json.expiresIn) || 600);
+  }
+
+  async function pollKimi(intervalSec: number, expiresInSec: number) {
+    setKimiPolling(true);
+    const deadline = Date.now() + expiresInSec * 1000;
+    let delay = intervalSec * 1000;
+    try {
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, delay));
+        const res = await fetch("/api/agent-auth/kimi/poll", { method: "POST" });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setMessage(`Kimi poll failed: ${json.error ?? res.status}`);
+          return;
+        }
+        if (json.status === "connected") {
+          setMessage("Connected to Kimi For Coding via your Kimi subscription.");
+          setKimiUserCode(null);
+          setKimiVerificationUri(null);
+          await loadStatus();
+          return;
+        }
+        if (json.status === "denied") {
+          setMessage("Kimi authorization was denied. Click Begin login to retry.");
+          setKimiUserCode(null);
+          return;
+        }
+        if (json.status === "expired") {
+          setMessage("Kimi login code expired. Click Begin login to retry.");
+          setKimiUserCode(null);
+          return;
+        }
+        if (json.status === "slow_down") delay += 5000;
+      }
+      setMessage("Kimi login timed out. Click Begin login to retry.");
+      setKimiUserCode(null);
+    } finally {
+      setKimiPolling(false);
+    }
   }
 
   async function handleGrokBegin() {
@@ -313,8 +395,8 @@ export default function AgentAuthPage() {
     <div style={baseStyle}>
       <h1 style={{ margin: "0 0 4px" }}>Optimate agent auth</h1>
       <p style={{ color: "#666", marginTop: 0 }}>
-        Per-provider credential status for the agent fleet. Claude uses Anthropic OAuth/API keys; Kimi and MiniMax use API keys.
-        GPT-5.5 is exposed through the ChatGPT subscription Codex OAuth path (the <code>gpt-5.5-codex</code> model), and Grok through the SuperGrok subscription OAuth path (the <code>grok-build</code> / <code>grok-composer-2.5-fast</code> models) — connect either below.
+        Per-provider credential status for the agent fleet. Claude uses Anthropic OAuth/API keys; Kimi is available through both API keys and Kimi For Coding OAuth; MiniMax uses API keys.
+        GPT-5.5 is exposed through the ChatGPT subscription Codex OAuth path (the <code>gpt-5.5-codex</code> model), and Grok through the SuperGrok subscription OAuth path (the <code>grok-build</code> / <code>grok-composer-2.5-fast</code> models) — connect subscription models below.
       </p>
 
       {message && (
@@ -328,6 +410,35 @@ export default function AgentAuthPage() {
         <p style={{ margin: 0, fontSize: 13, color: "#92400e", lineHeight: 1.5 }}>
           Connect a ChatGPT plan with Codex OAuth (card below) and use the <code>gpt-5.5-codex</code> model. Reasoning is controlled per request from the chat UI. Plain OpenAI API-key models are hidden because this CMS is not configured with <code>OPENAI_API_KEY</code>. The Codex path reuses the Codex CLI OAuth client against a private endpoint — a ToS grey area OpenAI can break at any time — so any failure falls through the normal fallback chain (Kimi → MiniMax → Claude). Kill-switch: set <code>CODEX_OAUTH_DISABLED=1</code> in the environment to disable it fleet-wide instantly.
         </p>
+      </div>
+
+      <div style={cardStyle}>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Kimi auth</h2>
+        <p style={{ marginTop: 0, fontSize: 13, color: "#666", lineHeight: 1.5 }}>
+          Connect your Kimi coding subscription with the official kimi-cli device-code OAuth flow. Powers the
+          {" "}<code>kimi-for-coding</code> model and does not spend <code>KIMI_API_KEY</code> credits. The billed API-key
+          Kimi model remains available as <code>kimi-k2.6</code>. Kill-switch: set <code>KIMI_CODING_OAUTH_DISABLED=1</code>.
+        </p>
+        <button onClick={handleKimiBegin} disabled={kimiPolling} style={{ ...buttonStyle, opacity: kimiPolling ? 0.5 : 1 }}>
+          {kimiPolling ? "Waiting for approval…" : "Begin Kimi login"}
+        </button>
+        {kimiUserCode && (
+          <div style={{ marginTop: 12, fontSize: 13, color: "#444" }}>
+            <p style={{ margin: "0 0 6px" }}>
+              Approve in the tab that opened (or{" "}
+              {kimiVerificationUri && (
+                <a href={kimiVerificationUri} target="_blank" rel="noopener noreferrer">click here</a>
+              )}
+              ), confirming this code:
+            </p>
+            <code style={{ fontSize: 18, fontWeight: 700, letterSpacing: 1, background: "#f3f4f6", padding: "4px 10px", borderRadius: 4 }}>
+              {kimiUserCode}
+            </code>
+            <p style={{ margin: "8px 0 0", color: "#666" }}>
+              {kimiPolling ? "Polling for approval… this completes automatically once you approve." : ""}
+            </p>
+          </div>
+        )}
       </div>
 
       <div style={cardStyle}>
@@ -488,9 +599,14 @@ export default function AgentAuthPage() {
               </tr>
             </thead>
             <tbody>
-              {providers.map((p) => (
+              {providers.map((p) => {
+                const apiKeyLabel = providerApiKeyLabel(p.provider, p.envApiKeyPresent);
+                return (
                 <tr key={p.provider} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "8px 4px", fontWeight: 600 }}>{p.provider}</td>
+                  <td style={{ padding: "8px 4px", fontWeight: 600 }}>
+                    {providerDisplayName(p.provider)}
+                    <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 400 }}>{p.provider}</div>
+                  </td>
                   <td style={{ padding: "8px 4px" }}>
                     {p.oauthConnected ? (
                       <span style={{ color: "#15803d" }}>
@@ -501,11 +617,7 @@ export default function AgentAuthPage() {
                     )}
                   </td>
                   <td style={{ padding: "8px 4px" }}>
-                    {p.envApiKeyPresent ? (
-                      <span style={{ color: "#15803d" }}>set</span>
-                    ) : (
-                      <span style={{ color: "#dc2626" }}>missing</span>
-                    )}
+                    <span style={{ color: apiKeyLabel.color }}>{apiKeyLabel.text}</span>
                   </td>
                   <td style={{ padding: "8px 4px" }}>
                     <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
@@ -530,7 +642,8 @@ export default function AgentAuthPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -548,6 +661,9 @@ export default function AgentAuthPage() {
           </button>
           <button onClick={() => handleProbe("claude-sonnet-4.6")} style={ghostButtonStyle}>
             Probe Sonnet 4.6 (OAuth)
+          </button>
+          <button onClick={() => handleProbe("kimi-for-coding")} style={ghostButtonStyle}>
+            Probe Kimi For Coding (OAuth)
           </button>
           <button onClick={() => handleProbe("kimi-k2.6")} style={ghostButtonStyle}>
             Probe Kimi K2.6 (API key)

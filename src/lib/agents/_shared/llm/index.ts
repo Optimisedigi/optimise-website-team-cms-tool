@@ -19,6 +19,7 @@ import { callAnthropicCompatible } from "./providers/anthropic-compatible";
 import { callOpenAICompatible } from "./providers/openai-compatible";
 import { callOpenAICodex } from "./providers/openai-codex";
 import { callXaiGrok } from "./providers/xai-grok";
+import { callKimiCoding } from "./providers/kimi-coding";
 import { NoCredentialError } from "./auth/types";
 import { OAuthFailedError } from "./auth/resolver";
 import type { CallLLMOptions, LLMResponse } from "./types";
@@ -67,6 +68,13 @@ export async function callLLM(opts: CallLLMOptions): Promise<LLMResponse> {
           { ...opts, model: modelName },
           entry.model,
           { baseUrl: provCfg.baseUrl, clientVersion: provCfg.clientVersion },
+        );
+      }
+      if (provCfg.handler === "callKimiCoding") {
+        return await callKimiCoding(
+          { ...opts, model: modelName },
+          entry.model,
+          { baseUrl: provCfg.baseUrl },
         );
       }
       if (provCfg.handler === "callAnthropicCompatible") {

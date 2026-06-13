@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const providers = ["anthropic", "moonshot", "minimax", "openai", "openai-codex", "xai-grok"] as const;
+  const providers = ["anthropic", "moonshot", "kimi-coding", "minimax", "openai", "openai-codex", "xai-grok"] as const;
   const status = await Promise.all(
     providers.map(async (provider) => {
       const cred = await getCredential(provider);
@@ -34,6 +34,8 @@ export async function GET(req: NextRequest) {
           ? Boolean(process.env.ANTHROPIC_API_KEY)
           : provider === "moonshot"
           ? Boolean(process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY)
+          : provider === "kimi-coding"
+          ? false
           : provider === "minimax"
           ? Boolean(process.env.MINIMAX_API_KEY)
           : provider === "openai"
@@ -52,7 +54,9 @@ export async function GET(req: NextRequest) {
             ? Boolean(process.env.CODEX_OAUTH_DISABLED)
             : provider === "xai-grok"
               ? Boolean(process.env.XAI_GROK_OAUTH_DISABLED)
-              : false,
+              : provider === "kimi-coding"
+                ? Boolean(process.env.KIMI_CODING_OAUTH_DISABLED)
+                : false,
         forceFallback: force,
         envApiKeyPresent: envKey,
         lastFailure: lastFailure

@@ -11,7 +11,7 @@ import type { ProviderName } from "../registry";
 
 export interface OAuthCredential {
   kind: "oauth";
-  provider: "anthropic" | "openai-codex" | "xai-grok";
+  provider: "anthropic" | "openai-codex" | "xai-grok" | "kimi-coding";
   accessToken: string;
   refreshToken: string;
   /** Unix ms. */
@@ -27,6 +27,12 @@ export interface OAuthCredential {
    * for the `openai-codex` provider; undefined for Anthropic.
    */
   accountId?: string;
+  /** Kimi For Coding device fingerprint; OAuth tokens are expected to reuse it. */
+  deviceId?: string;
+  /** Server-discovered Kimi wire model for this subscription tier. */
+  kimiModelId?: string;
+  kimiContextLength?: number;
+  kimiModelDisplay?: string;
 }
 
 export interface ApiKeyCredential {

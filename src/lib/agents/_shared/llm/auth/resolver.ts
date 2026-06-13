@@ -43,6 +43,11 @@ import {
   refreshXaiGrokCredential,
   xaiGrokAuthHeaders,
 } from "./oauth/xai-grok";
+import {
+  isKimiExpiringSoon,
+  refreshKimiCredential,
+  kimiAuthHeaders,
+} from "./oauth/kimi-coding";
 import { NoCredentialError, type ResolvedAuth, type OAuthCredential } from "./types";
 import { recordAuthEvent } from "./events";
 
@@ -66,6 +71,10 @@ function envApiKeyFor(provider: ProviderName): string | undefined {
       // ad-copy gen, negative sweep). MOONSHOT_API_KEY accepted as an alias
       // so this code stays portable; KIMI_API_KEY wins if both set.
       return process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY;
+    case "kimi-coding":
+      // Kimi For Coding is subscription OAuth-only; the billed KIMI_API_KEY path
+      // remains the separate `moonshot` provider.
+      return undefined;
     case "minimax":
     case "minimax-openai":
       return process.env.MINIMAX_API_KEY;
@@ -103,12 +112,14 @@ function apiKeyAuthHeader(
 function isOAuthExpiringSoon(cred: OAuthCredential): boolean {
   if (cred.provider === "openai-codex") return isCodexExpiringSoon(cred);
   if (cred.provider === "xai-grok") return isXaiGrokExpiringSoon(cred);
+  if (cred.provider === "kimi-coding") return isKimiExpiringSoon(cred);
   return isExpiringSoon(cred);
 }
 
 async function refreshOAuthCredential(cred: OAuthCredential): Promise<OAuthCredential> {
   if (cred.provider === "openai-codex") return refreshCodexCredential(cred);
   if (cred.provider === "xai-grok") return refreshXaiGrokCredential(cred);
+  if (cred.provider === "kimi-coding") return refreshKimiCredential(cred);
   return refreshAnthropicCredential(cred);
 }
 
@@ -139,9 +150,11 @@ export async function resolveCredential(provider: ProviderName): Promise<Resolve
       provider === "openai-codex" && Boolean(process.env.CODEX_OAUTH_DISABLED);
     const xaiGrokDisabled =
       provider === "xai-grok" && Boolean(process.env.XAI_GROK_OAUTH_DISABLED);
+    const kimiDisabled =
+      provider === "kimi-coding" && Boolean(process.env.KIMI_CODING_OAUTH_DISABLED);
     const forced = await isForceFallback(provider);
     const stored =
-      forced || codexDisabled || xaiGrokDisabled ? null : await getCredential(provider);
+      forced || codexDisabled || xaiGrokDisabled || kimiDisabled ? null : await getCredential(provider);
 
     if (stored?.kind === "oauth") {
       // OAuth was connected. We MUST use it or hard-fail; we never silently
@@ -164,6 +177,9 @@ export async function resolveCredential(provider: ProviderName): Promise<Resolve
           // Bearer token only. The adapter composes the rest (X-XAI-Token-Auth,
           // x-grok-client-version, x-grok-model-override, Content-Type).
           authHeader = xaiGrokAuthHeaders(refreshed);
+        } else if (provider === "kimi-coding") {
+          // Bearer token + kimi-cli device headers. The adapter adds Content-Type.
+          authHeader = kimiAuthHeaders(refreshed);
         }
         if (authHeader) {
           // Record success quietly; only failures get a notification.
