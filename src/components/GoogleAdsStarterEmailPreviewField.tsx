@@ -3,7 +3,21 @@
 import { useFormFields } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
 
-type PreviewVariant = 'google-ads-starter' | 'google-ads-starter-cpa' | 'google-ads-audit'
+type PreviewVariant =
+  | 'google-ads-starter'
+  | 'google-ads-starter-cpa'
+  | 'google-ads-audit-active-1'
+  | 'google-ads-audit-active-2'
+  | 'google-ads-audit-active-3'
+  | 'google-ads-audit-active-4'
+  | 'google-ads-audit-consultation-1'
+  | 'google-ads-audit-consultation-2'
+  | 'google-ads-audit-consultation-3'
+  | 'google-ads-audit-consultation-4'
+  | 'google-ads-audit-website-1'
+  | 'google-ads-audit-website-2'
+  | 'google-ads-audit-website-3'
+  | 'google-ads-audit-website-4'
 
 interface FieldSnapshot {
   googleAdsStarterSubjectTemplate: string
@@ -27,7 +41,18 @@ const WEBSITE_URL = process.env.NEXT_PUBLIC_WEBSITE_URL || 'https://www.optimise
 const PREVIEW_TABS: Array<{ label: string; variant: PreviewVariant }> = [
   { label: 'Starter', variant: 'google-ads-starter' },
   { label: 'Starter + CPA', variant: 'google-ads-starter-cpa' },
-  { label: 'Audit', variant: 'google-ads-audit' },
+  { label: 'Active · Email 1', variant: 'google-ads-audit-active-1' },
+  { label: 'Active · Email 2', variant: 'google-ads-audit-active-2' },
+  { label: 'Active · Email 3', variant: 'google-ads-audit-active-3' },
+  { label: 'Active · Email 4', variant: 'google-ads-audit-active-4' },
+  { label: 'Consult · Email 1', variant: 'google-ads-audit-consultation-1' },
+  { label: 'Consult · Email 2', variant: 'google-ads-audit-consultation-2' },
+  { label: 'Consult · Email 3', variant: 'google-ads-audit-consultation-3' },
+  { label: 'Consult · Email 4', variant: 'google-ads-audit-consultation-4' },
+  { label: 'Website · Email 1', variant: 'google-ads-audit-website-1' },
+  { label: 'Website · Email 2', variant: 'google-ads-audit-website-2' },
+  { label: 'Website · Email 3', variant: 'google-ads-audit-website-3' },
+  { label: 'Website · Email 4', variant: 'google-ads-audit-website-4' },
 ]
 
 function asString(value: unknown): string {
@@ -123,7 +148,7 @@ const GoogleAdsStarterEmailPreviewField = () => {
             gap: 8,
           }}
         >
-          <span>Live preview only — edit the fields below. Shared signature is pulled from the Signature tab.</span>
+          <span>Live preview — Starter uses editable fields below; audit drip tabs show the hard-coded flow emails. Shared signature is pulled from the Signature tab where the live email uses it.</span>
           <span style={{ fontWeight: 400, color: 'var(--theme-elevation-500)' }}>
             {isLoading ? 'Loading… ' : ''}Subject: {result.subject}
           </span>
@@ -131,6 +156,7 @@ const GoogleAdsStarterEmailPreviewField = () => {
         <div
           style={{
             display: 'flex',
+            flexWrap: 'wrap',
             gap: 6,
             padding: '8px 12px',
             borderBottom: '1px solid var(--theme-elevation-100)',

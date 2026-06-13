@@ -401,9 +401,9 @@ export const EmailTemplates: GlobalConfig = {
                   ],
                 },
                 {
-                  label: "Google Ads Starter",
+                  label: "Google Ads Starter + Audit Drip Preview",
                   description:
-                    "Dedicated auto-reply for the Ready to get started with Google Ads? form.",
+                    "Editable starter auto-reply fields plus read-only previews of the hard-coded Google Ads audit drip flows.",
                   fields: [
                     {
                       name: "googleAdsStarterPreview",
