@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { reconcileApprovalNotifications } from "@/lib/agent-approval-notifications";
 
 /**
  * GET /api/notifications/unread-count
@@ -18,20 +17,35 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await reconcileApprovalNotifications(payload);
-
-  const unreadNotifications = await payload.find({
-    collection: "notifications" as never,
-    where: {
-      and: [
-        { recipient: { equals: user.id } },
-        { readAt: { exists: false } },
-      ],
-    } as never,
-    limit: 500,
-    depth: 0,
-    overrideAccess: true,
-  });
+  const [unreadNotifications, pendingApprovals] = await Promise.all([
+    payload.find({
+      collection: "notifications" as never,
+      where: {
+        and: [
+          { recipient: { equals: user.id } },
+          { readAt: { exists: false } },
+        ],
+      } as never,
+      limit: 500,
+      depth: 0,
+      overrideAccess: true,
+      select: {
+        id: true,
+        relatedApproval: true,
+      } as never,
+    }),
+    payload.find({
+      collection: "agent-approval-queue" as never,
+      where: { status: { equals: "pending" } } as never,
+      limit: 200,
+      depth: 0,
+      overrideAccess: true,
+      pagination: false,
+      select: {
+        id: true,
+      } as never,
+    }),
+  ]);
 
   const countedApprovalIds = new Set(
     (unreadNotifications.docs as Array<Record<string, unknown>>)
@@ -43,13 +57,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .filter((value): value is string => Boolean(value)),
   );
 
-  const pendingApprovals = await payload.find({
-    collection: "agent-approval-queue" as never,
-    where: { status: { equals: "pending" } } as never,
-    limit: 200,
-    depth: 0,
-    overrideAccess: true,
-  });
   const syntheticPendingCount = (pendingApprovals.docs as Array<Record<string, unknown>>).filter(
     (approval) => !countedApprovalIds.has(String(approval.id)),
   ).length;

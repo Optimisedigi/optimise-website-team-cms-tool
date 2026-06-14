@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
-import { reconcileApprovalNotifications } from "@/lib/agent-approval-notifications";
 
 const RESOLVED_APPROVAL_STATUSES = new Set(["approved", "rejected", "applied", "failed"]);
 
@@ -77,15 +76,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    await reconcileApprovalNotifications(payload);
-  } catch (err) {
-    payload.logger?.error?.({
-      msg: "notification approval reconcile failed",
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-
   const url = new URL(req.url);
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10), 100);
   const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
@@ -98,42 +88,54 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ],
   };
 
-  const approvalRows = await payload.find({
-    collection: "agent-approval-queue" as never,
-    where: {
-      or: [
-        { status: { equals: "pending" } },
-        { status: { equals: "approved" } },
-        { status: { equals: "rejected" } },
-        { status: { equals: "applied" } },
-        { status: { equals: "failed" } },
-      ],
-    } as never,
-    limit: 10,
-    sort: "-updatedAt",
-    overrideAccess: true,
-    depth: 0,
-  });
-
-  const approvalActivityRows = await payload.find({
-    collection: "activity-log" as never,
-    where: {
-      or: [
-        { type: { equals: "agent_approval_approved" } },
-        { type: { equals: "agent_approval_rejected" } },
-      ],
-    } as never,
-    limit: 10,
-    sort: "-createdAt",
-    overrideAccess: true,
-    depth: 0,
-  });
-
-  let notificationDocs: Array<Record<string, unknown>> = [];
-  let totalDocs = 0;
-  let totalPages = 1;
-  try {
-    const result = await payload.find({
+  const [approvalRows, approvalActivityRows, notificationResult] = await Promise.all([
+    payload.find({
+      collection: "agent-approval-queue" as never,
+      where: {
+        or: [
+          { status: { equals: "pending" } },
+          { status: { equals: "approved" } },
+          { status: { equals: "rejected" } },
+          { status: { equals: "applied" } },
+          { status: { equals: "failed" } },
+        ],
+      } as never,
+      limit: 10,
+      sort: "-updatedAt",
+      overrideAccess: true,
+      depth: 0,
+      pagination: false,
+      select: {
+        id: true,
+        status: true,
+        title: true,
+        agentName: true,
+        createdAt: true,
+        updatedAt: true,
+      } as never,
+    }),
+    payload.find({
+      collection: "activity-log" as never,
+      where: {
+        or: [
+          { type: { equals: "agent_approval_approved" } },
+          { type: { equals: "agent_approval_rejected" } },
+        ],
+      } as never,
+      limit: 10,
+      sort: "-createdAt",
+      overrideAccess: true,
+      depth: 0,
+      pagination: false,
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        description: true,
+        createdAt: true,
+      } as never,
+    }),
+    payload.find({
       collection: "notifications" as never,
       where: where as never,
       limit,
@@ -141,16 +143,28 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       sort: "-createdAt",
       overrideAccess: true,
       depth: 0,
-    });
-    notificationDocs = result.docs as Array<Record<string, unknown>>;
-    totalDocs = result.totalDocs;
-    totalPages = result.totalPages ?? 1;
-  } catch (err) {
-    payload.logger?.error?.({
-      msg: "notifications find failed; returning approval fallback rows",
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
+      select: {
+        id: true,
+        kind: true,
+        title: true,
+        body: true,
+        url: true,
+        readAt: true,
+        createdAt: true,
+        relatedApproval: true,
+      } as never,
+    }).catch((err: unknown) => {
+      payload.logger?.error?.({
+        msg: "notifications find failed; returning approval fallback rows",
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { docs: [], totalDocs: 0, totalPages: 1 };
+    }),
+  ]);
+
+  const notificationDocs = notificationResult.docs as Array<Record<string, unknown>>;
+  const totalDocs = notificationResult.totalDocs ?? notificationDocs.length;
+  const totalPages = notificationResult.totalPages ?? 1;
   const existingApprovalIds = new Set(
     notificationDocs
       .map((doc) => {

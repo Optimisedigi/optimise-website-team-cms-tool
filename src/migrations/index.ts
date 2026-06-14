@@ -119,6 +119,7 @@ import * as migration_20260713_120000_add_optimate_starter_questions from './202
 import * as migration_20260714_120000_add_optimate_voice_realtime_model from './20260714_120000_add_optimate_voice_realtime_model';
 import * as migration_20260715_120000_add_agent_soul_applies_to from './20260715_120000_add_agent_soul_applies_to';
 import * as migration_20260716_120000_add_realtime_voice_usage from './20260716_120000_add_realtime_voice_usage';
+import * as migration_20260717_120000_add_notification_hot_path_indexes from './20260717_120000_add_notification_hot_path_indexes';
 
 export const migrations = [
   {
@@ -725,5 +726,10 @@ export const migrations = [
     up: migration_20260716_120000_add_realtime_voice_usage.up,
     down: migration_20260716_120000_add_realtime_voice_usage.down,
     name: '20260716_120000_add_realtime_voice_usage'
+  },
+  {
+    up: migration_20260717_120000_add_notification_hot_path_indexes.up,
+    down: migration_20260717_120000_add_notification_hot_path_indexes.down,
+    name: '20260717_120000_add_notification_hot_path_indexes'
   },
 ];
