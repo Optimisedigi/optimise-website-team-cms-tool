@@ -1368,7 +1368,7 @@ export const Clients: CollectionConfig = {
                       required: true,
                       admin: {
                         description: "Project name",
-                        width: "40%",
+                        width: "35%",
                       },
                     },
                     {
@@ -1379,7 +1379,7 @@ export const Clients: CollectionConfig = {
                       admin: {
                         description: "Project amount ($)",
                         step: 1,
-                        width: "30%",
+                        width: "25%",
                       },
                     },
                     {
@@ -1388,7 +1388,7 @@ export const Clients: CollectionConfig = {
                       required: true,
                       admin: {
                         description: "Project date",
-                        width: "30%",
+                        width: "40%",
                       },
                     },
                   ],

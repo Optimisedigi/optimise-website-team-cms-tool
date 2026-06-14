@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import OptiMateVoice from './OptiMateVoice'
 import {
   CHAT_PICKER_MODELS,
   DEFAULT_CHAT_MODEL,
@@ -35,6 +36,7 @@ import { renderMarkdown } from './OptiMateChatCore'
  */
 
 interface ChatMessage {
+  id?: string
   role: 'user' | 'assistant' | 'error'
   content: string
   /** Model that produced an assistant reply (shown as a small caption). */
@@ -95,11 +97,26 @@ export default function InvoiceAssistantChat() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => loadPersistedModel())
+  const [voiceStatus, setVoiceStatus] = useState<string | null>(null)
   const [starterQuestions, setStarterQuestions] = useState<string[]>(() => [
     ...DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
   ])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const pushVoiceTurn = useCallback((voiceId: string, role: 'user' | 'assistant', text: string) => {
+    setMessages((prev) => {
+      const existingIndex = prev.findIndex((msg) => msg.id === voiceId)
+      if (existingIndex === -1) return [...prev, { id: voiceId, role, content: text }]
+      const next = [...prev]
+      next[existingIndex] = { ...next[existingIndex], role, content: text }
+      return next
+    })
+  }, [])
+
+  const pushVoiceAssistantMessage = useCallback((text: string) => {
+    setMessages((prev) => [...prev, { role: 'assistant', content: text }])
+  }, [])
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -228,7 +245,7 @@ export default function InvoiceAssistantChat() {
         }}
       >
         <span style={{ fontSize: 11, color: '#6b7280' }}>
-          Xero invoices · creates &amp; sends in real time
+          Xero invoices · creates &amp; sends in real time{voiceStatus ? ` · ${voiceStatus}` : ''}
         </span>
         {messages.length > 0 && (
           <button
@@ -428,6 +445,13 @@ export default function InvoiceAssistantChat() {
             alignItems: 'center',
           }}
         >
+          <OptiMateVoice
+            mode="invoice"
+            triggerSize={29}
+            onTurn={pushVoiceTurn}
+            onAssistantMessage={pushVoiceAssistantMessage}
+            onStatusChange={setVoiceStatus}
+          />
           <button
             type="button"
             onClick={(e) => {

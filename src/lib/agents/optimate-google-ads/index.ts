@@ -46,7 +46,9 @@ import { getClientDetails } from "./tools/get-client-details";
 import { proposeCampaignRestructure } from "./tools/propose-campaign-restructure";
 import { proposeCampaignBuild } from "./tools/propose-campaign-build";
 import { proposeGeoCampaignSplit } from "./tools/propose-geo-campaign-split";
+import { proposeCampaignStatusChange } from "./tools/propose-campaign-status-change";
 import { proposeAdGroupCreate } from "./tools/propose-ad-group-create";
+import { proposeAdGroupStatusChange } from "./tools/propose-ad-group-status-change";
 import { proposeKeywordsAdd } from "./tools/propose-keywords-add";
 import { getCampaignProposalStatus } from "./tools/get-campaign-proposal-status";
 import { listGoalRuns } from "./tools/list-goal-runs";
@@ -95,7 +97,9 @@ const EXTERNAL_CONTEXT_BLOCKED_TOOL_NAMES = new Set([
   "propose_campaign_restructure",
   "propose_campaign_build",
   "propose_geo_campaign_split",
+  "propose_campaign_status_change",
   "propose_ad_group_create",
+  "propose_ad_group_status_change",
   "propose_keywords_add",
   "create_goal_run",
   "create_account_efficiency_goal_run",
@@ -138,7 +142,9 @@ export function getTools(options?: { restrictExternalContextActions?: boolean })
     proposeCampaignRestructure as unknown as CanonicalTool<unknown>,
     proposeCampaignBuild as unknown as CanonicalTool<unknown>,
     proposeGeoCampaignSplit as unknown as CanonicalTool<unknown>,
+    proposeCampaignStatusChange as unknown as CanonicalTool<unknown>,
     proposeAdGroupCreate as unknown as CanonicalTool<unknown>,
+    proposeAdGroupStatusChange as unknown as CanonicalTool<unknown>,
     proposeKeywordsAdd as unknown as CanonicalTool<unknown>,
     getCampaignProposalStatus as unknown as CanonicalTool<unknown>,
     listGoalRuns as unknown as CanonicalTool<unknown>,
@@ -296,7 +302,7 @@ const CHAT_MAX_TOKENS = 8192;
 
 export async function runPortfolioChatTurn(input: RunPortfolioChatTurnInput): Promise<RunChatTurnResult> {
   const { messages, modelOverride, userId, restrictExternalContextActions, reasoningMode, selectedAccountRefs } = input;
-  const pinnedMemory = await loadPinnedMemoryBlock([]);
+  const pinnedMemory = await loadPinnedMemoryBlock([], { soulAgentKeys: ["google-ads"] });
   const systemPrompt = buildSystemPromptForPortfolio({
     pinnedMemoryBlock: pinnedMemory.text,
     recentMessages: messages,
@@ -347,10 +353,11 @@ export async function runChatTurn(input: RunChatTurnInput): Promise<RunChatTurnR
 
   const connectionFlags = await readClientConnectionFlags(client?.id ?? null);
   // Lazy-loaded memory: only pinned (importance ≥ 80) facts for this client
-  // plus all soul aspects. Everything else stays in the DB and surfaces via
-  // the memory_search tool when the agent asks for it.
+  // plus all/general and Google Ads-scoped soul aspects. Everything else stays
+  // in the DB and surfaces via the memory_search tool when the agent asks for it.
   const pinnedMemory = await loadPinnedMemoryBlock(
     client?.id !== undefined && client?.id !== null ? [client.id] : [],
+    { soulAgentKeys: ["google-ads"] },
   );
   const systemPrompt = buildSystemPromptForAudit(audit, client, connectionFlags, {
     pinnedMemoryBlock: pinnedMemory.text,

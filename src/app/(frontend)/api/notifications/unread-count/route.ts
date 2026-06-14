@@ -20,7 +20,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   await reconcileApprovalNotifications(payload);
 
-  const result = await payload.count({
+  const unreadNotifications = await payload.find({
     collection: "notifications" as never,
     where: {
       and: [
@@ -28,8 +28,31 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         { readAt: { exists: false } },
       ],
     } as never,
+    limit: 500,
+    depth: 0,
     overrideAccess: true,
   });
 
-  return NextResponse.json({ count: result.totalDocs });
+  const countedApprovalIds = new Set(
+    (unreadNotifications.docs as Array<Record<string, unknown>>)
+      .map((doc) => {
+        const related = doc.relatedApproval;
+        if (typeof related === "object" && related && "id" in related) return String(related.id);
+        return related == null ? null : String(related);
+      })
+      .filter((value): value is string => Boolean(value)),
+  );
+
+  const pendingApprovals = await payload.find({
+    collection: "agent-approval-queue" as never,
+    where: { status: { equals: "pending" } } as never,
+    limit: 200,
+    depth: 0,
+    overrideAccess: true,
+  });
+  const syntheticPendingCount = (pendingApprovals.docs as Array<Record<string, unknown>>).filter(
+    (approval) => !countedApprovalIds.has(String(approval.id)),
+  ).length;
+
+  return NextResponse.json({ count: unreadNotifications.totalDocs + syntheticPendingCount });
 }

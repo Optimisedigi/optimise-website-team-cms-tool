@@ -75,6 +75,7 @@ import { AgentApprovalQueue } from "./collections/AgentApprovalQueue";
 import { AgentCredentials } from "./collections/AgentCredentials";
 import { AgentMemory } from "./collections/AgentMemory";
 import { AgentSoul } from "./collections/AgentSoul";
+import { RealtimeVoiceUsage } from "./collections/RealtimeVoiceUsage";
 import { ScheduledAgentTasks } from "./collections/ScheduledAgentTasks";
 import { OptimateChatTurns } from "./collections/OptimateChatTurns";
 import { ContractReminders } from "./collections/ContractReminders";
@@ -141,7 +142,7 @@ export default buildConfig({
     // Admin
     Users, PermissionProfiles, UsageReports, ActivityLog,
     // Optimate agents
-    AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, OptimateChatTurns,
+    AgentApprovalQueue, ScheduledAgentTasks, AgentMemory, AgentSoul, RealtimeVoiceUsage, OptimateChatTurns,
     // Hidden (no group impact)
     GscSnapshots, GscDaily, GoogleAdsSnapshots, GoogleAdsCampaignBudgets, GoogleAdsAdExtensions, NegativeKeywordAvoidedSpendCache, NegativeKeywordMonthlyWasteRelevancyCache, MonthlyKeywordTermsCache, ClientPulseHistory, AgentCredentials, ContractReminders, Notifications, PinRateLimits, MatchTypeViolationCandidates, MatchTypeSyncState, ConsolidationCandidates, GoalRuns, GoalRunSnapshots,
   ].map((c) => {

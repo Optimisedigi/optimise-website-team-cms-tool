@@ -25,7 +25,10 @@ vi.mock("payload", () => ({
 }));
 vi.mock("@/payload.config", () => ({ default: Promise.resolve({}) }));
 
-import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
+import {
+  DEFAULT_VOICE_REALTIME_MODEL,
+  getOptiMateDefaultModels,
+} from "@/lib/agents/_shared/optimate-default-models";
 import {
   DEFAULT_CHAT_MODEL,
   DEFAULT_AUTONOMOUS_MODEL,
@@ -44,11 +47,13 @@ describe("getOptiMateDefaultModels", () => {
       defaultChatModel: "gpt-5.5-codex-medium",
       defaultAutonomousModel: "minimax-m3",
       blogPrompterModel: "claude-sonnet-4.6",
+      voiceRealtimeModel: "gpt-realtime-2",
     };
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe("gpt-5.5-codex");
     expect(result.defaultAutonomousModel).toBe("minimax-m3");
     expect(result.blogPrompterModel).toBe("claude-sonnet-4.6");
+    expect(result.voiceRealtimeModel).toBe("gpt-realtime-2");
   });
 
   it("falls back to registry defaults when the global is unset", async () => {
@@ -57,6 +62,7 @@ describe("getOptiMateDefaultModels", () => {
     expect(result.defaultChatModel).toBe(DEFAULT_CHAT_MODEL);
     expect(result.defaultAutonomousModel).toBe(DEFAULT_AUTONOMOUS_MODEL);
     expect(result.blogPrompterModel).toBeUndefined();
+    expect(result.voiceRealtimeModel).toBe(DEFAULT_VOICE_REALTIME_MODEL);
   });
 
   it("falls back when a stored value is not a canonical/picker model", async () => {
@@ -64,11 +70,13 @@ describe("getOptiMateDefaultModels", () => {
       defaultChatModel: "totally-made-up-model",
       defaultAutonomousModel: "",
       blogPrompterModel: "not-real",
+      voiceRealtimeModel: "not-realtime",
     };
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe(DEFAULT_CHAT_MODEL);
     expect(result.defaultAutonomousModel).toBe(DEFAULT_AUTONOMOUS_MODEL);
     expect(result.blogPrompterModel).toBeUndefined();
+    expect(result.voiceRealtimeModel).toBe(DEFAULT_VOICE_REALTIME_MODEL);
   });
 
   it("falls back (and does not throw) when findGlobal errors", async () => {
@@ -76,6 +84,7 @@ describe("getOptiMateDefaultModels", () => {
     const result = await getOptiMateDefaultModels();
     expect(result.defaultChatModel).toBe(DEFAULT_CHAT_MODEL);
     expect(result.defaultAutonomousModel).toBe(DEFAULT_AUTONOMOUS_MODEL);
+    expect(result.voiceRealtimeModel).toBe(DEFAULT_VOICE_REALTIME_MODEL);
   });
 
   it("uses a caller-supplied payload instance without calling getPayload", async () => {

@@ -29,9 +29,13 @@ import {
   resolveStarterQuestions,
 } from "./optimate-starter-questions";
 
+export type OptiMateRealtimeModel = "gpt-realtime-mini" | "gpt-realtime-2";
+
 export interface OptiMateDefaultModels {
   defaultChatModel: CanonicalModelName;
   defaultAutonomousModel: CanonicalModelName;
+  /** Model used when minting OptiMate Realtime voice sessions. */
+  voiceRealtimeModel: OptiMateRealtimeModel;
   /** Optional task-specific model for Blog Prompter AI Suggest. */
   blogPrompterModel?: CanonicalModelName;
   /** Optional task-specific model for the Xero invoice assistant. */
@@ -66,6 +70,8 @@ function resolvePickerModel(value: unknown): CanonicalModelName | undefined {
   return isUsablePickerModel(model) ? model : undefined;
 }
 
+export const DEFAULT_VOICE_REALTIME_MODEL: OptiMateRealtimeModel = "gpt-realtime-mini";
+
 const DEFAULT_CHAT_HISTORY_TOKEN_LIMIT = 6000;
 const MIN_CHAT_HISTORY_TOKEN_LIMIT = 1000;
 const MAX_CHAT_HISTORY_TOKEN_LIMIT = 30000;
@@ -77,6 +83,12 @@ function resolveChatHistoryTokenLimit(value: unknown): number {
     MAX_CHAT_HISTORY_TOKEN_LIMIT,
     Math.max(MIN_CHAT_HISTORY_TOKEN_LIMIT, Math.round(parsed)),
   );
+}
+
+export function resolveVoiceRealtimeModel(value: unknown): OptiMateRealtimeModel {
+  return value === "gpt-realtime-2" || value === "gpt-realtime-mini"
+    ? value
+    : DEFAULT_VOICE_REALTIME_MODEL;
 }
 
 /**
@@ -97,6 +109,7 @@ export async function getOptiMateDefaultModels(
       defaultAutonomousModel?: unknown;
       blogPrompterModel?: unknown;
       invoiceAssistantModel?: unknown;
+      voiceRealtimeModel?: unknown;
       chatHistoryTokenLimit?: unknown;
       googleMateStarterQuestions?: unknown;
       googleMatePortfolioStarterQuestions?: unknown;
@@ -109,6 +122,7 @@ export async function getOptiMateDefaultModels(
     return {
       defaultChatModel: resolvePickerModel(global?.defaultChatModel) ?? DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: resolvePickerModel(global?.defaultAutonomousModel) ?? DEFAULT_AUTONOMOUS_MODEL,
+      voiceRealtimeModel: resolveVoiceRealtimeModel(global?.voiceRealtimeModel),
       chatHistoryTokenLimit: resolveChatHistoryTokenLimit(global?.chatHistoryTokenLimit),
       googleMateStarterQuestions: resolveStarterQuestions(
         global?.googleMateStarterQuestions,
@@ -133,6 +147,7 @@ export async function getOptiMateDefaultModels(
     return {
       defaultChatModel: DEFAULT_CHAT_MODEL,
       defaultAutonomousModel: DEFAULT_AUTONOMOUS_MODEL,
+      voiceRealtimeModel: DEFAULT_VOICE_REALTIME_MODEL,
       chatHistoryTokenLimit: DEFAULT_CHAT_HISTORY_TOKEN_LIMIT,
       googleMateStarterQuestions: [...DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS],
       googleMatePortfolioStarterQuestions: [...DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS],

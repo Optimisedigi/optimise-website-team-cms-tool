@@ -2994,14 +2994,31 @@ export async function runMigrations(
 
     await run("agent_soul", `CREATE TABLE IF NOT EXISTS \`agent_soul\` (
       \`id\` integer PRIMARY KEY NOT NULL,
+      \`applies_to\` text DEFAULT 'all',
       \`aspect\` text NOT NULL,
       \`content\` text NOT NULL,
       \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
       \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
     )`);
+    await run("agent_soul.applies_to", "ALTER TABLE `agent_soul` ADD `applies_to` text DEFAULT 'all'");
+    await run("agent_soul.applies_to.default", "UPDATE `agent_soul` SET `applies_to` = 'all' WHERE `applies_to` IS NULL OR `applies_to` = ''");
+    await run("agent_soul.applies_to.google_ads", "UPDATE `agent_soul` SET `applies_to` = 'google-ads' WHERE `aspect` LIKE 'google-ads-%'");
+    await run("agent_soul.applies_to.email", "UPDATE `agent_soul` SET `applies_to` = 'email' WHERE `aspect` LIKE 'email-%'");
+    await run("agent_soul.applies_to.invoice", "UPDATE `agent_soul` SET `applies_to` = 'invoice' WHERE `aspect` LIKE 'invoice-%' OR `aspect` LIKE 'invoicemate-%' OR `aspect` LIKE 'xero-%'");
     await run("agent_soul_aspect_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `agent_soul_aspect_idx` ON `agent_soul` (`aspect`)");
+    await run("agent_soul_applies_to_idx", "CREATE INDEX IF NOT EXISTS `agent_soul_applies_to_idx` ON `agent_soul` (`applies_to`)");
+
+    await run("realtime_voice_usage", "CREATE TABLE IF NOT EXISTS `realtime_voice_usage` (`id` integer PRIMARY KEY NOT NULL, `session_id` text NOT NULL, `agent` text NOT NULL, `model` text NOT NULL, `rate_usd_per_hour` numeric NOT NULL, `duration_seconds` numeric NOT NULL, `estimated_cost_usd` numeric NOT NULL, `started_at` text NOT NULL, `ended_at` text NOT NULL, `user_id` integer, `metadata` text, `updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, `created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL, FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null)");
+    await run("realtime_voice_usage_session_id_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `realtime_voice_usage_session_id_idx` ON `realtime_voice_usage` (`session_id`)");
+    await run("realtime_voice_usage_agent_idx", "CREATE INDEX IF NOT EXISTS `realtime_voice_usage_agent_idx` ON `realtime_voice_usage` (`agent`)");
+    await run("realtime_voice_usage_model_idx", "CREATE INDEX IF NOT EXISTS `realtime_voice_usage_model_idx` ON `realtime_voice_usage` (`model`)");
+    await run("realtime_voice_usage_started_at_idx", "CREATE INDEX IF NOT EXISTS `realtime_voice_usage_started_at_idx` ON `realtime_voice_usage` (`started_at`)");
+    await run("realtime_voice_usage_ended_at_idx", "CREATE INDEX IF NOT EXISTS `realtime_voice_usage_ended_at_idx` ON `realtime_voice_usage` (`ended_at`)");
+    await run("realtime_voice_usage_user_idx", "CREATE INDEX IF NOT EXISTS `realtime_voice_usage_user_idx` ON `realtime_voice_usage` (`user_id`)");
+
     await run("locked_docs_rels.agent_memory_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agent_memory_id` integer REFERENCES `agent_memory`(`id`) ON DELETE CASCADE");
     await run("locked_docs_rels.agent_soul_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agent_soul_id` integer REFERENCES `agent_soul`(`id`) ON DELETE CASCADE");
+    await run("locked_docs_rels.realtime_voice_usage_id", "ALTER TABLE `payload_locked_documents_rels` ADD `realtime_voice_usage_id` integer REFERENCES `realtime_voice_usage`(`id`) ON DELETE CASCADE");
 
     // ── optimate_chat_turns (2026-05-12, persistent chat history per audit + user) ──
     await run("optimate_chat_turns", `CREATE TABLE IF NOT EXISTS \`optimate_chat_turns\` (

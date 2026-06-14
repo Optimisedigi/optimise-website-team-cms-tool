@@ -34,6 +34,18 @@ function customerKey(customerId: string): string {
   return customerId.replace(/-/g, "");
 }
 
+function slugify(value: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  return slug || "google-ads"
+}
+
+function lightweightAuditSlug(client: ClientAccountRecord, businessName: string): string {
+  return `${slugify(businessName)}-${String(client.id)}`
+}
+
 /**
  * Accounts available to OptiMate Google Ads.
  *
@@ -172,6 +184,7 @@ export async function GET() {
           collection: "google-ads-audits",
           data: {
             businessName,
+            slug: lightweightAuditSlug(client, businessName),
             customerId,
             client: Number(client.id),
           },

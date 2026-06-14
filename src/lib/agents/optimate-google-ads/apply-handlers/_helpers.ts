@@ -170,9 +170,17 @@ export async function postGrowthTools(
     /* non-JSON response */
   }
   if (!res.ok) {
-    const errMsg = (parsed && typeof parsed === "object" && (parsed as { error?: unknown }).error)
-      ? String((parsed as { error?: unknown }).error)
-      : `Growth Tools HTTP ${res.status}`;
+    let errMsg = `Growth Tools HTTP ${res.status}`;
+    if (parsed && typeof parsed === "object") {
+      const parsedObj = parsed as { error?: unknown; message?: unknown; errors?: unknown };
+      if (parsedObj.error) {
+        errMsg = String(parsedObj.error);
+      } else if (parsedObj.message) {
+        errMsg = String(parsedObj.message);
+      } else if (Array.isArray(parsedObj.errors) && parsedObj.errors.length > 0) {
+        errMsg = parsedObj.errors.map((error) => String(error)).join("; ");
+      }
+    }
     return { ok: false, status: res.status, error: errMsg };
   }
   return { ok: true, status: res.status, data: parsed };

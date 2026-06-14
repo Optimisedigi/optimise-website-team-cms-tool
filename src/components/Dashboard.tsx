@@ -115,6 +115,12 @@ interface ProcessesData {
   recentProcesses: RecentProcess[]
 }
 
+interface RealtimeVoiceCostData {
+  estimatedCostAud: number
+  durationSeconds: number
+  calls: number
+}
+
 interface DashboardData {
   gsc: GscData | null
   gscMonthly: GscMonthlyEntry[]
@@ -161,6 +167,7 @@ interface DashboardData {
     uncategorisedCount: number
   }
   processes?: ProcessesData | null
+  realtimeVoiceCost?: RealtimeVoiceCostData | null
   salesTarget?: {
     target: number
   } | null
@@ -499,6 +506,14 @@ const typeLabels: Record<string, string> = {
 // Format a dollar amount with no decimal places (en-AU thousand separators).
 function fmt0(n: number): string {
   return n.toLocaleString('en-AU', { maximumFractionDigits: 0 })
+}
+
+function formatVoiceDuration(seconds: number): string {
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  return mins === 0 ? `${hours} hr` : `${hours} hr ${mins} min`
 }
 
 function timeAgo(dateStr: string): string {
@@ -911,6 +926,9 @@ const Dashboard = () => {
             uncategorisedCosts={data.businessCosts?.uncategorisedCount ?? 0}
             pendingStatements={statementsSummary?.pendingCount ?? 0}
           />
+
+          {/* Realtime Voice Cost */}
+          <RealtimeVoiceCostCard usage={data.realtimeVoiceCost} />
 
           {/* Client Processes */}
           <ProcessesCard processes={data.processes} />
@@ -1677,6 +1695,44 @@ function XeroInvoicesCard({
         )}
       </div>
     </>
+  )
+}
+
+// ─── Realtime Voice Cost ──────────────────────────────
+
+function RealtimeVoiceCostCard({ usage }: { usage?: RealtimeVoiceCostData | null }) {
+  const cost = usage?.estimatedCostAud ?? 0
+  const calls = usage?.calls ?? 0
+  const duration = usage?.durationSeconds ?? 0
+
+  return (
+    <div className="od-box">
+      <div className="od-box__head" style={{ padding: '10px 14px' }}>
+        <div>
+          <span className="od-box__eyebrow">OpenAI Realtime</span>
+          <span className="od-box__title">Voice Cost</span>
+        </div>
+        <a href="/admin/realtime-voice-usage" className="od-link-small">
+          Logs →
+        </a>
+      </div>
+      <div className="od-box__body" style={{ padding: '10px 14px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.1 }}>
+              {cost.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div style={{ color: 'var(--theme-elevation-500)', fontSize: 11, marginTop: 3 }}>
+              Estimated AUD
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', color: 'var(--theme-elevation-600)', fontSize: 12 }}>
+            <strong style={{ color: 'var(--theme-text)' }}>{calls}</strong> calls<br />
+            {formatVoiceDuration(duration)}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

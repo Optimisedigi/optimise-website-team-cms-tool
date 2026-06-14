@@ -11,61 +11,7 @@ import {
   DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
 } from '@/lib/agents/_shared/optimate-starter-questions'
 
-/** localStorage key for the user's preferred chat model. Kept module-scoped so
- *  every ChatCore instance reads/writes the same slot — picking a model in
- *  one tab updates the default the next tab opens with. ~25 bytes total. */
-const MODEL_STORAGE_KEY = 'optimate-chat-model'
 type ReasoningMode = 'off' | 'low' | 'medium' | 'high'
-
-/** Read a persisted model choice from localStorage, falling back to the
- *  registry default. Guards against:
- *  - SSR (no window)
- *  - localStorage disabled / quota exceeded (try/catch)
- *  - stale values from a model that's since been removed from the registry
- *    (isCanonicalModel) or from the chat picker (CHAT_PICKER_MODELS) */
-function normaliseStoredModel(raw: string | null): string | null {
-  if (raw === 'gpt-5.5-codex-medium' || raw === 'gpt-5.5-codex-low') return 'gpt-5.5-codex'
-  return raw
-}
-
-function loadPersistedModel(): string {
-  if (typeof window === 'undefined') return DEFAULT_CHAT_MODEL
-  try {
-    const raw = normaliseStoredModel(window.localStorage.getItem(MODEL_STORAGE_KEY))
-    if (!raw) return DEFAULT_CHAT_MODEL
-    if (!isCanonicalModel(raw)) return DEFAULT_CHAT_MODEL
-    if (!CHAT_PICKER_MODELS.some((m) => m.canonical === raw)) return DEFAULT_CHAT_MODEL
-    return raw
-  } catch {
-    return DEFAULT_CHAT_MODEL
-  }
-}
-
-/** True when the user has an explicit, still-valid model choice in
- *  localStorage. When false, the chat should defer to the agency-configured
- *  default (OptiMate Settings global) fetched on mount. */
-function hasExplicitModelChoice(): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    const raw = normaliseStoredModel(window.localStorage.getItem(MODEL_STORAGE_KEY))
-    if (!raw) return false
-    if (!isCanonicalModel(raw)) return false
-    return CHAT_PICKER_MODELS.some((m) => m.canonical === raw)
-  } catch {
-    return false
-  }
-}
-
-/** Persist a model choice. Silently no-ops on SSR or storage failure —
- *  the in-memory state is still correct for the current session. */
-function savePersistedModel(model: string): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(MODEL_STORAGE_KEY, model)
-  } catch {
-    // Quota exceeded or storage disabled — fine, just don't persist.
-  }
-}
 
 /** sessionStorage key for the live chat sessionId, scoped per auditId so two
  *  audits open in different tabs don't share threads. sessionStorage (not
@@ -575,9 +521,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
         { role: 'assistant', content: text, voice: true, voiceId: `voice_tool_${Date.now()}` },
       ])
     }, [])
-    // Lazy initializer: runs once on mount, so localStorage is only read once.
-    // Reset on reload picks up whatever the user last chose in any tab.
-    const [selectedModel, setSelectedModel] = useState<string>(() => loadPersistedModel())
+    const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_CHAT_MODEL)
+    const modelManuallyChangedRef = useRef(false)
     const [starterQuestions, setStarterQuestions] = useState<string[]>(() => [
       ...DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
     ])
@@ -589,7 +534,7 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     const inputRef = useRef<HTMLTextAreaElement>(null)
     // Feature flag: render the voice CTA only when a provider is configured.
     const voiceEnabled = isVoiceEnabled()
-    const canUseVoice = voiceEnabled && (mode === 'audit' || selectedAccountRefs.length > 0)
+    const canUseVoice = voiceEnabled && (mode === 'audit' || mode === 'portfolio' || selectedAccountRefs.length > 0)
     // On mobile the full Realtime voice *call* (which needs the local helper app)
     // is replaced by an Apple/Web Speech dictation button that transcribes into
     // the chat input. Track the viewport so we can swap the controls.
@@ -620,11 +565,10 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
     }, [input])
 
     /* Seed the picker and starter questions from OptiMate Settings on first
-     * load. The model only applies when the user has NOT made their own explicit
-     * per-browser choice; configured starter chips always apply. Best-effort: a
-     * fetch failure leaves the bundled defaults in place. */
+     * load. The configured default should be reflected in the dropdown whenever
+     * a chat opens; users can still switch models for the current chat. Best-effort:
+     * a fetch failure leaves the bundled/default local value in place. */
     useEffect(() => {
-      const hasExplicitModel = hasExplicitModelChoice()
       let cancelled = false
       ;(async () => {
         try {
@@ -634,14 +578,11 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
           const next = json.defaultChatModel
           if (
             !cancelled &&
-            !hasExplicitModel &&
+            !modelManuallyChangedRef.current &&
             typeof next === 'string' &&
             isCanonicalModel(next) &&
             CHAT_PICKER_MODELS.some((m) => m.canonical === next)
           ) {
-            // Don't persist — this is the inherited default, not an explicit
-            // user choice. If the user keeps it and sends, they can still pick
-            // it explicitly later; we only persist on an actual select change.
             setSelectedModel(next)
           }
           if (!cancelled && Array.isArray(json.googleMateStarterQuestions)) {
@@ -2293,8 +2234,8 @@ const OptiMateChatCore = forwardRef<OptiMateChatCoreHandle, OptiMateChatCoreProp
               <select
                 value={selectedModel}
                 onChange={(e) => {
+                  modelManuallyChangedRef.current = true
                   setSelectedModel(e.target.value)
-                  savePersistedModel(e.target.value)
                 }}
                 disabled={loading}
                 title="Model used for the next message"

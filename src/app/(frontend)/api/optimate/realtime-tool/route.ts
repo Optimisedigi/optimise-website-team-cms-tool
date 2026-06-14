@@ -57,10 +57,6 @@ export async function POST(request: Request) {
     if (mode === 'audit' && ((typeof auditId !== 'string' && typeof auditId !== 'number') || String(auditId).trim().length === 0) && !customerId) {
       return NextResponse.json({ ok: false, error: 'auditId or customerId is required' }, { status: 400 })
     }
-    if (mode === 'portfolio' && selectedAccountRefs.length === 0) {
-      return NextResponse.json({ ok: false, error: 'selectedAccountRefs is required' }, { status: 400 })
-    }
-
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     if (!name) {
       return NextResponse.json({ ok: false, error: 'name is required' }, { status: 400 })
@@ -92,11 +88,12 @@ export async function POST(request: Request) {
         )
       }
       if (
-        name === 'get_portfolio_performance_summary' ||
-        name === 'get_portfolio_search_term_wastage' ||
-        name === 'get_selected_client_details' ||
-        name === 'get_portfolio_weekly_metric_table' ||
-        name === 'get_portfolio_monthly_performance_breakdown'
+        selectedAccountRefs.length > 0 &&
+        (name === 'get_portfolio_performance_summary' ||
+          name === 'get_portfolio_search_term_wastage' ||
+          name === 'get_selected_client_details' ||
+          name === 'get_portfolio_weekly_metric_table' ||
+          name === 'get_portfolio_monthly_performance_breakdown')
       ) {
         args = { ...args, accountRefs: selectedAccountRefs }
       }

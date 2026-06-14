@@ -23,10 +23,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { getTokenProvider } from '@/lib/realtime/token-provider'
+import { checkVoiceRunForCorrection, type VoiceToolCallRecord } from '@/lib/agents/optimate-google-ads/voice-run-checks'
 
 interface OptiMateVoiceProps {
-  auditId: string | number
-  mode?: 'audit' | 'portfolio' | 'email'
+  auditId?: string | number
+  mode?: 'audit' | 'portfolio' | 'email' | 'invoice'
   customerId?: string
   businessName?: string
   selectedAccountRefs?: Array<string | number>
@@ -56,6 +57,13 @@ type VoiceState = 'idle' | 'checking' | 'connecting' | 'connected' | 'error'
 interface HelperStatus {
   reachable: boolean
   connected: boolean
+}
+
+interface VoiceTurnSafetyState {
+  userMessage: string
+  toolCalls: VoiceToolCallRecord[]
+  retryAttempted: boolean
+  retryInProgress: boolean
 }
 
 // --- response.create coordinator (ported from Brah) ---------------------------
@@ -145,7 +153,7 @@ function sanitizeVoiceTranscript(text: string): string {
   )
 }
 
-const VOICE_INTENT_KEYWORDS = /\b(account|ad|ads|audit|budget|campaign|cpa|cpc|ctr|conversion|conversions|draft|email|google|keyword|keywords|negative|pacing|report|search|spend|term|terms|waste|wasting)\b/i
+const VOICE_INTENT_KEYWORDS = /\b(account|ad|ads|approve|audit|budget|campaign|contact|cpa|cpc|ctr|conversion|conversions|draft|email|google|invoice|invoices|keyword|keywords|negative|pacing|report|schedule|search|send|spend|term|terms|waste|wasting|xero)\b/i
 const COMMON_BACKGROUND_FRAGMENTS = /^(aber nicht|abe shinzo)[.!?。\s]*$/i
 
 function isLikelyIntentionalVoiceInput(text: string): boolean {
@@ -342,6 +350,28 @@ export default function OptiMateVoice({
     null,
   )
   const gmailDraftConfirmationReplyIdRef = useRef<string | null>(null)
+  const voiceTurnSafetyRef = useRef<VoiceTurnSafetyState | null>(null)
+  const usageRef = useRef<{
+    sessionId: string
+    startedAt: number
+    model: string
+    recorded: boolean
+  } | null>(null)
+  const usageMetadataRef = useRef<{
+    agent: 'google-ads' | 'email' | 'invoice'
+    mode: OptiMateVoiceProps['mode']
+    auditId?: string | number
+    customerId?: string
+    businessName?: string
+    selectedAccountRefs: Array<string | number>
+  }>({
+    agent: mode === 'email' ? 'email' : mode === 'invoice' ? 'invoice' : 'google-ads',
+    mode,
+    auditId,
+    customerId,
+    businessName,
+    selectedAccountRefs,
+  })
 
   const provider = getTokenProvider()
 
@@ -354,6 +384,57 @@ export default function OptiMateVoice({
   useEffect(() => {
     void refreshHelperStatus()
   }, [refreshHelperStatus])
+
+  useEffect(() => {
+    usageMetadataRef.current = {
+      agent: mode === 'email' ? 'email' : mode === 'invoice' ? 'invoice' : 'google-ads',
+      mode,
+      auditId,
+      customerId,
+      businessName,
+      selectedAccountRefs,
+    }
+  }, [auditId, businessName, customerId, mode, selectedAccountRefs])
+
+  const recordUsage = useCallback((reason: string) => {
+    const usage = usageRef.current
+    if (!usage || usage.recorded) return
+    usage.recorded = true
+    const endedAt = Date.now()
+    const durationSeconds = Math.round((endedAt - usage.startedAt) / 1000)
+    if (durationSeconds < 1) return
+    const metadata = usageMetadataRef.current
+    const payload = {
+      sessionId: usage.sessionId,
+      model: usage.model,
+      agent: metadata.agent,
+      mode: metadata.mode,
+      auditId: metadata.auditId,
+      customerId: metadata.customerId,
+      businessName: metadata.businessName,
+      selectedAccountRefs: metadata.selectedAccountRefs,
+      durationSeconds,
+      startedAt: new Date(usage.startedAt).toISOString(),
+      endedAt: new Date(endedAt).toISOString(),
+      reason,
+    }
+    const body = JSON.stringify(payload)
+    try {
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: 'application/json' })
+        if (navigator.sendBeacon('/api/optimate/realtime-usage', blob)) return
+      }
+    } catch {
+      // fall back to fetch below
+    }
+    void fetch('/api/optimate/realtime-usage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body,
+      keepalive: true,
+    }).catch(() => undefined)
+  }, [])
 
   const sendEvent = useCallback((event: RealtimeOutboundEvent) => {
     const dc = dcRef.current
@@ -371,6 +452,44 @@ export default function OptiMateVoice({
     [sendEvent],
   )
 
+  const runVoiceSafetyCheck = useCallback(() => {
+    if (mode === 'email') return
+    const turn = voiceTurnSafetyRef.current
+    if (!turn?.userMessage) return
+
+    const correction = checkVoiceRunForCorrection({
+      userMessage: turn.userMessage,
+      reply: sanitizeVoiceTranscript(replyTextRef.current.trim()),
+      toolCalls: turn.toolCalls,
+    })
+    if (!correction) {
+      if (turn.retryInProgress) voiceTurnSafetyRef.current = null
+      return
+    }
+
+    if (!turn.retryAttempted) {
+      voiceTurnSafetyRef.current = { ...turn, retryAttempted: true, retryInProgress: true }
+      requestResponse({
+        type: 'response.create',
+        response: {
+          output_modalities: ['audio'],
+          instructions: `${correction.correctionNote} Keep the spoken correction short. If you need to queue an approval, do not say it is queued until the tool returns an approvalId.`,
+        },
+      })
+      return
+    }
+
+    onAssistantMessage?.(correction.spokenFallback)
+    requestResponse({
+      type: 'response.create',
+      response: {
+        output_modalities: ['audio'],
+        instructions: `Apologise in one short sentence: ${correction.spokenFallback}`,
+      },
+    })
+    voiceTurnSafetyRef.current = null
+  }, [mode, onAssistantMessage, requestResponse])
+
   const executeToolCall = useCallback(
     async (callId: string, name: string, rawArgs: unknown) => {
       if (handledToolCallIds.current.has(callId)) return
@@ -378,15 +497,27 @@ export default function OptiMateVoice({
       const args = parseToolArguments(rawArgs)
 
       const isEmail = mode === 'email'
+      const isInvoice = mode === 'invoice'
+      const shouldRunGoogleAdsSafety = mode === 'audit' || mode === 'portfolio'
+      const turnToolCall: VoiceToolCallRecord | null = shouldRunGoogleAdsSafety && voiceTurnSafetyRef.current
+        ? { name }
+        : null
+      if (turnToolCall && voiceTurnSafetyRef.current) {
+        voiceTurnSafetyRef.current.toolCalls.push(turnToolCall)
+      }
       let result: { ok: boolean; data?: unknown; error?: string }
       try {
         const res = await fetch(
-          isEmail ? '/api/optimate/email-realtime-tool' : '/api/optimate/realtime-tool',
+          isEmail
+            ? '/api/optimate/email-realtime-tool'
+            : isInvoice
+              ? '/api/xero/realtime-tool'
+              : '/api/optimate/realtime-tool',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(
-              isEmail
+              isEmail || isInvoice
                 ? { name, arguments: args }
                 : {
                     auditId,
@@ -403,6 +534,11 @@ export default function OptiMateVoice({
         result = (await res.json()) as { ok: boolean; data?: unknown; error?: string }
       } catch (err) {
         result = { ok: false, error: err instanceof Error ? err.message : 'Tool call failed' }
+      }
+
+      if (turnToolCall) {
+        turnToolCall.ok = result.ok
+        turnToolCall.result = result
       }
 
       // Email mode: surface a staged reply into the host review box. No Gmail
@@ -537,6 +673,14 @@ export default function OptiMateVoice({
         const text = sanitizeVoiceTranscript(event.transcript.trim())
         if (text && isLikelyIntentionalVoiceInput(text)) {
           onTurn?.(`u_${Date.now()}`, 'user', text)
+          if (mode === 'audit' || mode === 'portfolio') {
+            voiceTurnSafetyRef.current = {
+              userMessage: text,
+              toolCalls: [],
+              retryAttempted: false,
+              retryInProgress: false,
+            }
+          }
         }
       }
 
@@ -577,6 +721,7 @@ export default function OptiMateVoice({
           pendingGmailDraftRef.current = null
           gmailDraftConfirmationReplyIdRef.current = null
         }
+        runVoiceSafetyCheck()
         activeReplyIdRef.current = null
       }
 
@@ -590,10 +735,21 @@ export default function OptiMateVoice({
         }
       }
     },
-    [sendEvent, executeToolCall, onTurn],
+    [sendEvent, executeToolCall, onTurn, mode, runVoiceSafetyCheck],
   )
 
+  useEffect(() => {
+    const recordPageExit = () => recordUsage('page_exit')
+    window.addEventListener('pagehide', recordPageExit)
+    window.addEventListener('beforeunload', recordPageExit)
+    return () => {
+      window.removeEventListener('pagehide', recordPageExit)
+      window.removeEventListener('beforeunload', recordPageExit)
+    }
+  }, [recordUsage])
+
   const stop = useCallback(() => {
+    recordUsage('stop')
     dcRef.current?.close()
     dcRef.current = null
     pcRef.current?.close()
@@ -607,10 +763,12 @@ export default function OptiMateVoice({
     activeReplyIdRef.current = null
     pendingGmailDraftRef.current = null
     gmailDraftConfirmationReplyIdRef.current = null
+    voiceTurnSafetyRef.current = null
+    usageRef.current = null
     setState('idle')
     setMicStream(null)
     setRemoteStream(null)
-  }, [])
+  }, [recordUsage])
 
   useEffect(() => stop, [stop])
 
@@ -637,16 +795,18 @@ export default function OptiMateVoice({
         throw new Error('Voice helper is running but not signed in. Open it and sign in to OpenAI.')
       }
 
-      // 1. Server-built session config (instructions + tools). Email mode uses
-      //    the email-only session endpoint (no audit/account context); audit and
-      //    portfolio modes use the Google Ads session endpoint.
+      // 1. Server-built session config (instructions + tools). Email and invoice
+      //    modes use focused endpoints; audit and portfolio modes use the Google
+      //    Ads session endpoint.
       const sessionUrl = new URL(
         mode === 'email'
           ? '/api/optimate/email-realtime-session'
-          : '/api/optimate/realtime-session',
+          : mode === 'invoice'
+            ? '/api/xero/realtime-session'
+            : '/api/optimate/realtime-session',
         window.location.origin,
       )
-      if (mode !== 'email') {
+      if (mode !== 'email' && mode !== 'invoice') {
         sessionUrl.searchParams.set('auditId', String(auditId))
         sessionUrl.searchParams.set('mode', mode)
         if (customerId) sessionUrl.searchParams.set('customerId', customerId)
@@ -678,7 +838,7 @@ export default function OptiMateVoice({
       //    Realtime owns response creation for spoken turns; we only create the
       //    controlled opening greeting and post-tool follow-up responses.
       const secret = await provider.getSecret({
-        auditId: String(auditId),
+        auditId: mode === 'invoice' ? 'invoice' : String(auditId),
         session: {
           instructions: session.instructions,
           tools: session.tools,
@@ -697,6 +857,12 @@ export default function OptiMateVoice({
           },
         },
       })
+      usageRef.current = {
+        sessionId: `${mode}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+        startedAt: Date.now(),
+        model: secret.model,
+        recorded: false,
+      }
 
       // 3. WebRTC peer.
       const pc = new RTCPeerConnection()
@@ -708,7 +874,10 @@ export default function OptiMateVoice({
       pc.onconnectionstatechange = () => {
         const cs = pc.connectionState
         if (cs === 'connected') setState('connected')
-        if (cs === 'closed' || cs === 'disconnected' || cs === 'failed') stop()
+        if (cs === 'closed' || cs === 'disconnected' || cs === 'failed') {
+          recordUsage(cs)
+          stop()
+        }
       }
 
       const dc = pc.createDataChannel('oai-events')
@@ -723,7 +892,9 @@ export default function OptiMateVoice({
             instructions:
               mode === 'email'
                 ? "Greet the user in one short sentence: say you're the OptiMate email assistant and ask what reply they'd like to draft. Do NOT draft anything yet. Then stop and wait for them to speak."
-                : "Greet the user in one short sentence: say you're OptiMate and ask how you can help. Do NOT give any overview, summary, or data yet. Then stop and wait for their question.",
+                : mode === 'invoice'
+                  ? "Greet the user in one short sentence: say you're InvoiceMate and ask how you can help with Xero invoices. Do NOT look anything up or take action yet. Then stop and wait for them to speak."
+                  : "Greet the user in one short sentence: say you're OptiMate and ask how you can help. Do NOT give any overview, summary, or data yet. Then stop and wait for their question.",
           },
         })
         if (greeting) dc.send(JSON.stringify(greeting))
@@ -800,7 +971,7 @@ export default function OptiMateVoice({
       setState('error')
       stop()
     }
-  }, [auditId, attachedEmailMessageId, businessName, customerId, mode, provider, refreshHelperStatus, handleRealtimeEvent, selectedAccountRefs, stop])
+  }, [auditId, attachedEmailMessageId, businessName, customerId, mode, provider, refreshHelperStatus, handleRealtimeEvent, selectedAccountRefs, stop, recordUsage])
 
   const toggleMute = useCallback(() => {
     const stream = streamRef.current

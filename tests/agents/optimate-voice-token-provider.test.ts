@@ -4,17 +4,19 @@
  *
  * These tests lock the contract that makes that claim true:
  *   - getTokenProvider() selects purely off NEXT_PUBLIC_OPTIMATE_VOICE_PROVIDER.
- *   - The default is the local bridge.
+ *   - The default is the server API-key provider.
  *   - Every provider satisfies the same TokenProvider interface (getSecret +
  *     getStatus), so a swapped provider needs zero changes in the consumers
  *     (OptiMateVoice / OptiMateMultiChat).
  *   - isVoiceEnabled() is the feature flag (provider env var present).
+ *   - apiKeyProvider calls the app server's Realtime secret route.
  *   - localBridgeProvider.getStatus() reports unreachable when the helper is
  *     down (fetch throws) — the UI's "launch the helper" hint depends on this.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
+  apiKeyProvider,
   getTokenProvider,
   isVoiceEnabled,
   localBridgeProvider,
@@ -36,11 +38,16 @@ function assertTokenProviderShape(p: TokenProvider) {
 }
 
 describe('getTokenProvider', () => {
-  it('defaults to the local bridge when unset', () => {
+  it('defaults to the API-key provider when unset', () => {
     delete process.env.NEXT_PUBLIC_OPTIMATE_VOICE_PROVIDER
     const p = getTokenProvider()
-    expect(p).toBe(localBridgeProvider)
+    expect(p).toBe(apiKeyProvider)
     assertTokenProviderShape(p)
+  })
+
+  it('returns the API-key provider for provider=api-key', () => {
+    process.env.NEXT_PUBLIC_OPTIMATE_VOICE_PROVIDER = 'api-key'
+    expect(getTokenProvider()).toBe(apiKeyProvider)
   })
 
   it('returns the local bridge for provider=local', () => {
@@ -49,8 +56,8 @@ describe('getTokenProvider', () => {
   })
 
   it('throws a clear error for an unknown provider (the single flip-point)', () => {
-    process.env.NEXT_PUBLIC_OPTIMATE_VOICE_PROVIDER = 'api-key'
-    expect(() => getTokenProvider()).toThrow(/Unknown OptiMate voice provider "api-key"/)
+    process.env.NEXT_PUBLIC_OPTIMATE_VOICE_PROVIDER = 'bogus'
+    expect(() => getTokenProvider()).toThrow(/Unknown OptiMate voice provider "bogus"/)
   })
 })
 
@@ -60,6 +67,40 @@ describe('isVoiceEnabled', () => {
     expect(isVoiceEnabled()).toBe(true)
     delete process.env.NEXT_PUBLIC_OPTIMATE_VOICE_PROVIDER
     expect(isVoiceEnabled()).toBe(true)
+  })
+})
+
+describe('apiKeyProvider', () => {
+  it('reports ready because the app server owns OpenAI connectivity', async () => {
+    await expect(apiKeyProvider.getStatus()).resolves.toEqual({ reachable: true, connected: true })
+  })
+
+  it('parses a minted secret from the app route', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            value: 'ek_test_api',
+            expires_at: 1756310470,
+            model: 'gpt-realtime-mini',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const secret = await apiKeyProvider.getSecret({
+      auditId: '7',
+      session: { instructions: 'hi' },
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/optimate/realtime-secret', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auditId: '7', session: { instructions: 'hi' } }),
+    })
+    expect(secret).toEqual({ value: 'ek_test_api', expiresAt: 1756310470, model: 'gpt-realtime-mini' })
   })
 })
 

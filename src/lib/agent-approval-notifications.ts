@@ -8,8 +8,8 @@
  * approvers know whose request they're reviewing.
  *
  * When any user approves or rejects, every related row (matched by
- * `relatedApproval`) is removed in one shot. The bell and dropdown clear for
- * everyone because resolved approvals no longer need a notification row.
+ * `relatedApproval`) is marked read in one shot. The unread bell count clears
+ * for everyone, while the resolved approval remains visible in the recent list.
  */
 
 import type { Payload } from "payload";
@@ -27,7 +27,49 @@ interface FanOutInput {
   agentName: string;
   proposalType: string;
   title: string;
+  status?: string;
   clientId?: number | string | null;
+  readAt?: string | null;
+  titlePrefix?: string;
+}
+
+function buildFanOutInput(doc: unknown): FanOutInput {
+  const approval = doc as {
+    id: number | string;
+    agentRunId?: string;
+    agentName?: string;
+    proposalType?: string;
+    title?: string;
+    status?: string;
+    client?: number | string | { id?: number | string } | null;
+  };
+  const clientId =
+    approval.client && typeof approval.client === "object" ? approval.client.id : approval.client;
+
+  return {
+    approvalId: Number(approval.id),
+    agentRunId: String(approval.agentRunId ?? ""),
+    agentName: String(approval.agentName ?? "OptiMate"),
+    proposalType: String(approval.proposalType ?? "approval"),
+    title: String(approval.title ?? "Agent approval"),
+    status: typeof approval.status === "string" ? approval.status : undefined,
+    clientId: clientId ?? null,
+  };
+}
+
+function approvalNotificationTitlePrefix(status: string | undefined): string {
+  switch (status) {
+    case "approved":
+      return "Approval approved";
+    case "rejected":
+      return "Approval rejected";
+    case "applied":
+      return "Approval applied";
+    case "failed":
+      return "Approval failed";
+    default:
+      return "Approval resolved";
+  }
 }
 
 /**
@@ -123,10 +165,11 @@ export async function fanOutApprovalNotifications(
         data: {
           recipient: recipientId,
           kind: "agent-approval-pending",
-          title: `Approval needed: ${input.title}`,
+          title: `${input.titlePrefix ?? "Approval needed"}: ${input.title}`,
           body,
           url,
           relatedApproval: input.approvalId,
+          ...(input.readAt ? { readAt: input.readAt } : {}),
           ...(input.clientId !== undefined && input.clientId !== null
             ? { relatedClient: input.clientId }
             : {}),
@@ -146,17 +189,33 @@ export async function fanOutApprovalNotifications(
 }
 
 /**
- * Delete every per-user `agent-approval-pending` notification tied to the given
- * approval row. Called from approve/reject/apply/fail transitions so the bell
- * dropdown clears everywhere as soon as any team-member actions the queue item.
+ * Mark every per-user `agent-approval-pending` notification tied to the given
+ * approval row as read. Called from approve/reject/apply/fail transitions so the
+ * unread bell count clears everywhere as soon as any team-member actions the
+ * queue item, while the row remains in the recent notifications list.
  *
- * Returns the number of rows deleted (best-effort; 0 on lookup failure).
+ * Returns the number of rows updated (best-effort; 0 on lookup failure).
  */
 export async function clearApprovalNotifications(
   payload: Payload,
   approvalId: number,
 ): Promise<number> {
   try {
+    let titlePrefix = "Approval resolved";
+    let approvalTitle = "Agent approval";
+    try {
+      const approval = (await payload.findByID({
+        collection: APPROVALS,
+        id: approvalId as never,
+        depth: 0,
+        overrideAccess: true,
+      })) as { status?: string; title?: string };
+      titlePrefix = approvalNotificationTitlePrefix(approval.status);
+      approvalTitle = String(approval.title ?? approvalTitle);
+    } catch {
+      // Best-effort title cleanup — still mark rows read if the approval lookup misses.
+    }
+
     const rows = await payload.find({
       collection: NOTIFICATIONS,
       where: {
@@ -170,17 +229,19 @@ export async function clearApprovalNotifications(
       overrideAccess: true,
     });
 
+    const readAt = new Date().toISOString();
     for (const row of rows.docs) {
-      await payload.delete({
+      await payload.update({
         collection: NOTIFICATIONS,
         id: (row as { id: number | string }).id,
         overrideAccess: true,
+        data: { readAt, title: `${titlePrefix}: ${approvalTitle}` } as never,
       });
     }
     return rows.docs.length;
   } catch (err) {
     payload.logger?.error?.({
-      msg: "agent-approval notification delete failed",
+      msg: "agent-approval notification mark-read failed",
       approvalId,
       error: err instanceof Error ? err.message : String(err),
     });
@@ -191,7 +252,7 @@ export async function clearApprovalNotifications(
 /**
  * Best-effort reconciliation for the bell endpoints. This backfills notification
  * rows for pending approvals created before fan-out existed or for users added
- * later, and removes stale rows for approvals that have since been resolved.
+ * later, and marks stale rows read for approvals that have since been resolved.
  */
 export async function reconcileApprovalNotifications(payload: Payload): Promise<void> {
   try {
@@ -205,24 +266,26 @@ export async function reconcileApprovalNotifications(payload: Payload): Promise<
     });
 
     for (const doc of pending.docs) {
-      const approval = doc as {
-        id: number | string;
-        agentRunId?: string;
-        agentName?: string;
-        proposalType?: string;
-        title?: string;
-        client?: number | string | { id?: number | string } | null;
-      };
-      const clientId =
-        approval.client && typeof approval.client === "object" ? approval.client.id : approval.client;
+      await fanOutApprovalNotifications(payload, buildFanOutInput(doc));
+    }
 
+    const resolved = await payload.find({
+      collection: APPROVALS,
+      where: {
+        or: Array.from(RESOLVED_APPROVAL_STATUSES).map((status) => ({ status: { equals: status } })),
+      } as never,
+      limit: 50,
+      depth: 0,
+      sort: "-updatedAt",
+      overrideAccess: true,
+    });
+
+    for (const doc of resolved.docs) {
+      const input = buildFanOutInput(doc);
       await fanOutApprovalNotifications(payload, {
-        approvalId: Number(approval.id),
-        agentRunId: String(approval.agentRunId ?? ""),
-        agentName: String(approval.agentName ?? "OptiMate"),
-        proposalType: String(approval.proposalType ?? "approval"),
-        title: String(approval.title ?? "Agent approval"),
-        clientId: clientId ?? null,
+        ...input,
+        readAt: new Date().toISOString(),
+        titlePrefix: approvalNotificationTitlePrefix(input.status),
       });
     }
   } catch (err) {
@@ -244,6 +307,7 @@ export async function reconcileApprovalNotifications(payload: Payload): Promise<
     for (const row of rows.docs) {
       const notification = row as {
         id: number | string;
+        readAt?: string | null;
         relatedApproval?: number | string | { id?: number | string; status?: string } | null;
       };
       const related = notification.relatedApproval;
@@ -253,8 +317,13 @@ export async function reconcileApprovalNotifications(payload: Payload): Promise<
       }
 
       if (typeof related === "object") {
-        if (related.status && RESOLVED_APPROVAL_STATUSES.has(related.status)) {
-          await payload.delete({ collection: NOTIFICATIONS, id: notification.id, overrideAccess: true });
+        if (related.status && RESOLVED_APPROVAL_STATUSES.has(related.status) && !notification.readAt) {
+          await payload.update({
+            collection: NOTIFICATIONS,
+            id: notification.id,
+            overrideAccess: true,
+            data: { readAt: new Date().toISOString() } as never,
+          });
         }
         continue;
       }
@@ -265,8 +334,13 @@ export async function reconcileApprovalNotifications(payload: Payload): Promise<
         depth: 0,
         overrideAccess: true,
       })) as { status?: string };
-      if (approval.status && RESOLVED_APPROVAL_STATUSES.has(approval.status)) {
-        await payload.delete({ collection: NOTIFICATIONS, id: notification.id, overrideAccess: true });
+      if (approval.status && RESOLVED_APPROVAL_STATUSES.has(approval.status) && !notification.readAt) {
+        await payload.update({
+          collection: NOTIFICATIONS,
+          id: notification.id,
+          overrideAccess: true,
+          data: { readAt: new Date().toISOString() } as never,
+        });
       }
     }
   } catch (err) {

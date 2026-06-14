@@ -75,6 +75,13 @@ const ACTION_VERBS: readonly string[] = [
   "add negatives",
   "build the",
   "restructure",
+  "pause",
+  "enable",
+  "activate",
+  "reactivate",
+  "turn on",
+  "turn off",
+  "turn back on",
   "remember that",
   "save that to memory",
 ];
@@ -165,8 +172,13 @@ const ACTION_CLAIMS: ReadonlyArray<{
       "queueing the proposal",
       "queueing for approval",
       "queueing approval",
+      "queued approval",
+      "queued for approval",
+      "queued the proposal",
       "queuing the proposal",
       "queuing for approval",
+      "i've queued",
+      "i have queued",
       "i'll queue",
       "i will queue",
     ],
@@ -176,6 +188,56 @@ const ACTION_CLAIMS: ReadonlyArray<{
     tools: ["__any_propose__"],
     expectedToolHint:
       "Call the relevant propose_* tool now with the data you already gathered. Do not return text until the tool call has been made.",
+  },
+  {
+    phrases: [
+      "pausing the campaign",
+      "paused the campaign",
+      "pausing campaign",
+      "paused campaign",
+      "enabling the campaign",
+      "enabled the campaign",
+      "activating the campaign",
+      "activated the campaign",
+      "turning the campaign on",
+      "turned the campaign on",
+      "turning the campaign off",
+      "turned the campaign off",
+      "i'll pause the campaign",
+      "i will pause the campaign",
+      "i'll enable the campaign",
+      "i will enable the campaign",
+      "i'll activate the campaign",
+      "i will activate the campaign",
+    ],
+    tools: ["propose_campaign_status_change"],
+    expectedToolHint:
+      "Call propose_campaign_status_change now with exact campaign IDs and supporting numbers. Do not claim a live change was applied; queue it for approval and wait for the approvalId.",
+  },
+  {
+    phrases: [
+      "pausing the ad group",
+      "paused the ad group",
+      "pausing ad group",
+      "paused ad group",
+      "enabling the ad group",
+      "enabled the ad group",
+      "activating the ad group",
+      "activated the ad group",
+      "turning the ad group on",
+      "turned the ad group on",
+      "turning the ad group off",
+      "turned the ad group off",
+      "i'll pause the ad group",
+      "i will pause the ad group",
+      "i'll enable the ad group",
+      "i will enable the ad group",
+      "i'll activate the ad group",
+      "i will activate the ad group",
+    ],
+    tools: ["propose_ad_group_status_change"],
+    expectedToolHint:
+      "Call propose_ad_group_status_change now with exact campaign/ad group IDs and supporting numbers. Do not claim a live change was applied; queue it for approval and wait for the approvalId.",
   },
   {
     phrases: [
@@ -348,7 +410,10 @@ function replyContainsMetricTable(reply: string): boolean {
 }
 
 function replyContainsNumber(reply: string): boolean {
-  return /(?:\$\s*)?\d[\d,]*(?:\.\d+)?%?/.test(reply);
+  const withoutApprovalIds = reply
+    .replace(/\bapproval\s*#?\s*\d+\b/gi, "")
+    .replace(/\/admin\/agent-approvals\/\d+\b/gi, "");
+  return /(?:\$\s*)?\d[\d,]*(?:\.\d+)?%?/.test(withoutApprovalIds);
 }
 
 function calledGoogleAdsReadTool(toolNamesCalledThisRun: readonly string[]): boolean {

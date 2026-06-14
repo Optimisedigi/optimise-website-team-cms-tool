@@ -1,5 +1,13 @@
 import type { CollectionConfig } from "payload";
 
+const HIDDEN_AGENT_INTERNAL_ACTIVITY_TYPES = [
+  "agent_tool_call",
+  "agent_reasoning",
+  "agent_final_output",
+  "agent_error",
+  "agent_auth_event",
+];
+
 export const ActivityLog: CollectionConfig = {
   slug: "activity-log",
   labels: {
@@ -16,7 +24,10 @@ export const ActivityLog: CollectionConfig = {
     description: "Automatic feed of team activity",
   },
   access: {
-    read: ({ req }) => !!req.user,
+    read: ({ req }) => {
+      if (!req.user) return false;
+      return { type: { not_in: HIDDEN_AGENT_INTERNAL_ACTIVITY_TYPES } };
+    },
     create: ({ req }) => !!req.user,
     update: () => false,
     delete: ({ req }) => req.user?.role === "admin",

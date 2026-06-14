@@ -10,6 +10,7 @@ import {
   retainerRevenueYTD,
   revenueShareFactor,
 } from "@/lib/client-revenue";
+import { convertUsdToAud } from "@/lib/realtime/voice-costs";
 
 // ── Default per-unit API costs in AUD (fallbacks if global not configured) ──
 const DEFAULT_COST_PER_AUD = {
@@ -834,6 +835,34 @@ export async function GET() {
     ? round((convertedLeadsCount / activeLeadsCount.totalDocs) * 100)
     : 0;
 
+  let realtimeVoiceCost = { estimatedCostAud: 0, durationSeconds: 0, calls: 0 };
+  try {
+    let page = 1;
+    let hasNextPage = true;
+    while (hasNextPage) {
+      const voiceRows = await payload.find({
+        collection: "realtime-voice-usage" as any,
+        limit: 500,
+        page,
+        depth: 0,
+        overrideAccess: true,
+        select: {
+          estimatedCostUsd: true,
+          durationSeconds: true,
+        } as any,
+      });
+      for (const row of voiceRows.docs as any[]) {
+        realtimeVoiceCost.estimatedCostAud += convertUsdToAud(Number(row.estimatedCostUsd) || 0);
+        realtimeVoiceCost.durationSeconds += Number(row.durationSeconds) || 0;
+        realtimeVoiceCost.calls += 1;
+      }
+      hasNextPage = Boolean((voiceRows as any).hasNextPage);
+      page += 1;
+    }
+  } catch {
+    // Voice usage table may not exist until migrations have run.
+  }
+
   const currentKpiSnapshot: AgencyKpiSnapshotValues = {
     activeClients: clientCount.totalDocs,
     activeLeads: activeLeadsCount.totalDocs,
@@ -900,6 +929,7 @@ export async function GET() {
     activeLeads: activeLeadsCount.totalDocs,
     businessCosts: businessCostsSummary,
     processes: processesData || null,
+    realtimeVoiceCost,
     salesTarget,
     breakdowns: {
       monthlyRetainer: monthlyRetainerBreakdown,

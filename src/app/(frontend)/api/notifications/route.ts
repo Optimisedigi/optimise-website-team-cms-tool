@@ -3,6 +3,62 @@ import { getPayload } from "payload";
 import config from "@/payload.config";
 import { reconcileApprovalNotifications } from "@/lib/agent-approval-notifications";
 
+const RESOLVED_APPROVAL_STATUSES = new Set(["approved", "rejected", "applied", "failed"]);
+
+function approvalNotificationTitlePrefix(status: unknown): string {
+  switch (status) {
+    case "pending":
+      return "Approval needed";
+    case "approved":
+      return "Approval approved";
+    case "rejected":
+      return "Approval rejected";
+    case "applied":
+      return "Approval applied";
+    case "failed":
+      return "Approval failed";
+    default:
+      return "Approval resolved";
+  }
+}
+
+function approvalToNotificationDoc(approval: Record<string, unknown>) {
+  const id = String(approval.id);
+  const status = String(approval.status ?? "pending");
+  const title = String(approval.title ?? "Agent approval");
+  const createdAt = typeof approval.updatedAt === "string"
+    ? approval.updatedAt
+    : typeof approval.createdAt === "string"
+      ? approval.createdAt
+      : new Date().toISOString();
+  return {
+    id: `approval-${id}`,
+    kind: "agent-approval-pending",
+    title: `${approvalNotificationTitlePrefix(status)}: ${title}`,
+    body: String(approval.agentName ?? "OptiMate"),
+    url: `/admin/agent-approvals/${id}`,
+    readAt: RESOLVED_APPROVAL_STATUSES.has(status) ? createdAt : null,
+    createdAt,
+  };
+}
+
+function approvalActivityToNotificationDoc(row: Record<string, unknown>) {
+  const id = String(row.id);
+  const type = String(row.type ?? "");
+  const createdAt = typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString();
+  const title = String(row.title ?? "Agent Approval");
+  const description = typeof row.description === "string" ? row.description : null;
+  return {
+    id: `activity-${id}`,
+    kind: "agent-approval-pending",
+    title: type === "agent_approval_rejected" ? "Approval rejected" : "Approval approved",
+    body: description || title,
+    url: "/admin/agent-approvals",
+    readAt: createdAt,
+    createdAt,
+  };
+}
+
 /**
  * GET /api/notifications
  *
@@ -21,7 +77,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await reconcileApprovalNotifications(payload);
+  try {
+    await reconcileApprovalNotifications(payload);
+  } catch (err) {
+    payload.logger?.error?.({
+      msg: "notification approval reconcile failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   const url = new URL(req.url);
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10), 100);
@@ -35,20 +98,90 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ],
   };
 
-  const result = await payload.find({
-    collection: "notifications" as never,
-    where: where as never,
-    limit,
-    page,
+  const approvalRows = await payload.find({
+    collection: "agent-approval-queue" as never,
+    where: {
+      or: [
+        { status: { equals: "pending" } },
+        { status: { equals: "approved" } },
+        { status: { equals: "rejected" } },
+        { status: { equals: "applied" } },
+        { status: { equals: "failed" } },
+      ],
+    } as never,
+    limit: 10,
+    sort: "-updatedAt",
+    overrideAccess: true,
+    depth: 0,
+  });
+
+  const approvalActivityRows = await payload.find({
+    collection: "activity-log" as never,
+    where: {
+      or: [
+        { type: { equals: "agent_approval_approved" } },
+        { type: { equals: "agent_approval_rejected" } },
+      ],
+    } as never,
+    limit: 10,
     sort: "-createdAt",
     overrideAccess: true,
     depth: 0,
   });
 
+  let notificationDocs: Array<Record<string, unknown>> = [];
+  let totalDocs = 0;
+  let totalPages = 1;
+  try {
+    const result = await payload.find({
+      collection: "notifications" as never,
+      where: where as never,
+      limit,
+      page,
+      sort: "-createdAt",
+      overrideAccess: true,
+      depth: 0,
+    });
+    notificationDocs = result.docs as Array<Record<string, unknown>>;
+    totalDocs = result.totalDocs;
+    totalPages = result.totalPages ?? 1;
+  } catch (err) {
+    payload.logger?.error?.({
+      msg: "notifications find failed; returning approval fallback rows",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  const existingApprovalIds = new Set(
+    notificationDocs
+      .map((doc) => {
+        const related = doc.relatedApproval;
+        if (typeof related === "object" && related && "id" in related) return String(related.id);
+        return related == null ? null : String(related);
+      })
+      .filter((value): value is string => Boolean(value)),
+  );
+  const syntheticApprovalDocs = (approvalRows.docs as Array<Record<string, unknown>>)
+    .filter((approval) => !existingApprovalIds.has(String(approval.id)))
+    .map(approvalToNotificationDoc);
+  const syntheticActivityDocs = (approvalActivityRows.docs as Array<Record<string, unknown>>).map(
+    approvalActivityToNotificationDoc,
+  );
+  const seenIds = new Set<string>();
+  const docs = [...notificationDocs, ...syntheticApprovalDocs, ...syntheticActivityDocs]
+    .filter((doc) => !unreadOnly || !doc.readAt)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .filter((doc) => {
+      const id = String(doc.id);
+      if (seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    })
+    .slice(0, limit);
+
   return NextResponse.json({
-    docs: result.docs,
-    totalDocs: result.totalDocs,
-    page: result.page,
-    totalPages: result.totalPages,
+    docs,
+    totalDocs: Math.max(totalDocs, docs.length),
+    page,
+    totalPages,
   });
 }

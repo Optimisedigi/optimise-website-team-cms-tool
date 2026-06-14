@@ -66,6 +66,7 @@ const NotificationsBell = (): ReactElement | null => {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [shaking, setShaking] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   // Track viewport so the dropdown can switch from an anchored popover (desktop)
@@ -97,10 +98,17 @@ const NotificationsBell = (): ReactElement | null => {
       const res = await fetch("/api/notifications?limit=20", {
         credentials: "include",
       });
-      if (res.ok) {
-        const data = (await res.json()) as { docs: NotificationRow[] };
-        setItems(data.docs || []);
+      const data = (await res.json().catch(() => null)) as { docs?: NotificationRow[]; error?: string } | null;
+      if (!res.ok) {
+        setError(data?.error || `Failed to load notifications (${res.status})`);
+        setItems([]);
+        return;
       }
+      setError(null);
+      setItems(data?.docs || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load notifications");
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -172,6 +180,7 @@ const NotificationsBell = (): ReactElement | null => {
     const readAt = new Date().toISOString();
     setItems((prev) => prev.map((p) => (p.id === item.id ? { ...p, readAt } : p)));
     setUnreadCount((c) => Math.max(0, c - 1));
+    if (String(item.id).startsWith("approval-")) return;
     try {
       await fetch(`/api/notifications/${item.id}/mark-read`, {
         method: "POST",
@@ -346,7 +355,12 @@ const NotificationsBell = (): ReactElement | null => {
                 Loading…
               </div>
             )}
-            {!loading && items.length === 0 && (
+            {!loading && error && (
+              <div style={{ padding: 16, fontSize: 13, color: "#b91c1c" }}>
+                {error}
+              </div>
+            )}
+            {!loading && !error && items.length === 0 && (
               <div style={{ padding: 16, fontSize: 13, color: "var(--theme-elevation-500)" }}>
                 No notifications.
               </div>

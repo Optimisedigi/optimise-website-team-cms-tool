@@ -7,6 +7,7 @@ import {
   getEmailRealtimeToolDefinitions,
 } from '@/lib/agents/optimate-email'
 import { getValidGmailToken } from '@/lib/agents/_shared/user-gmail-tokens'
+import { loadPinnedMemoryBlock } from '@/lib/agents/optimate-google-ads/memory-loader'
 import { fetchMessageBody } from '@/lib/gmail-search'
 
 export const runtime = 'nodejs'
@@ -37,6 +38,10 @@ export async function GET(request: Request) {
     const attachedEmailMessageId = url.searchParams.get('attachedEmailMessageId')
 
     const basePrompt = buildEmailReplySystemPrompt()
+    const pinnedMemory = await loadPinnedMemoryBlock([], { includePinnedFacts: false, soulAgentKeys: ['email'] })
+    const memoryBlock = pinnedMemory.text.trim()
+      ? `\n\n${pinnedMemory.text}\n\nThe soul rules above are ABSOLUTE for the email agent. If any draft instruction conflicts with a soul rule, the soul rule wins. Agent-specific soul rows for other agents, such as google-ads-*, are intentionally not loaded here.`
+      : ''
     const tools = getEmailRealtimeToolDefinitions()
 
     let attachedEmailContext = ''
@@ -79,7 +84,7 @@ export async function GET(request: Request) {
       'Only use memory tools when the user explicitly asks you to remember a durable preference or communication-style correction.'
 
     return NextResponse.json({
-      instructions: basePrompt + attachedEmailContext + voiceGuardrail,
+      instructions: basePrompt + memoryBlock + attachedEmailContext + voiceGuardrail,
       tools,
     })
   } catch (err) {

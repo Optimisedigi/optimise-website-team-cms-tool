@@ -120,6 +120,7 @@ export interface Config {
     'scheduled-agent-tasks': ScheduledAgentTask;
     'agent-memory': AgentMemory;
     'agent-soul': AgentSoul;
+    'realtime-voice-usage': RealtimeVoiceUsage;
     'optimate-chat-turns': OptimateChatTurn;
     'gsc-snapshots': GscSnapshot;
     'gsc-daily': GscDaily;
@@ -212,6 +213,7 @@ export interface Config {
     'scheduled-agent-tasks': ScheduledAgentTasksSelect<false> | ScheduledAgentTasksSelect<true>;
     'agent-memory': AgentMemorySelect<false> | AgentMemorySelect<true>;
     'agent-soul': AgentSoulSelect<false> | AgentSoulSelect<true>;
+    'realtime-voice-usage': RealtimeVoiceUsageSelect<false> | RealtimeVoiceUsageSelect<true>;
     'optimate-chat-turns': OptimateChatTurnsSelect<false> | OptimateChatTurnsSelect<true>;
     'gsc-snapshots': GscSnapshotsSelect<false> | GscSnapshotsSelect<true>;
     'gsc-daily': GscDailySelect<false> | GscDailySelect<true>;
@@ -7245,13 +7247,17 @@ export interface AgentMemory {
   createdAt: string;
 }
 /**
- * How the agent should communicate with the agency team. Always loaded into every prompt — keep it tight (≤ 20 rows).
+ * How the agent should communicate with the agency team. Scope each row to all agents or one agent surface.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "agent-soul".
  */
 export interface AgentSoul {
   id: number;
+  /**
+   * Choose which agent should receive this soul rule. General formatting rules usually apply to all agents; campaign-specific tone belongs to Google Ads only.
+   */
+  appliesTo: 'all' | 'google-ads' | 'email' | 'invoice';
   /**
    * Stable key, lowercase-kebab. Examples: tone, formatting, pacing-style, brand-voice. Upserted by the agent's soul_set tool.
    */
@@ -7260,6 +7266,41 @@ export interface AgentSoul {
    * The lesson, 1–3 sentences. Imperative mood. Example: 'Be direct. No apologetic language. State the answer first, then the reasoning.'
    */
   content: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Estimated OpenAI Realtime voice cost, calculated from model hourly rates and call duration.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "realtime-voice-usage".
+ */
+export interface RealtimeVoiceUsage {
+  id: number;
+  sessionId: string;
+  agent: 'google-ads' | 'email' | 'invoice';
+  model: 'gpt-realtime-mini' | 'gpt-realtime-2';
+  /**
+   * Hourly rate used at the time this call was recorded.
+   */
+  rateUsdPerHour: number;
+  durationSeconds: number;
+  estimatedCostUsd: number;
+  startedAt: string;
+  endedAt: string;
+  user?: (number | null) | User;
+  /**
+   * Optional call context such as audit/customer id or selected agent mode.
+   */
+  metadata?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -8460,6 +8501,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'agent-soul';
         value: number | AgentSoul;
+      } | null)
+    | ({
+        relationTo: 'realtime-voice-usage';
+        value: number | RealtimeVoiceUsage;
       } | null)
     | ({
         relationTo: 'optimate-chat-turns';
@@ -10856,8 +10901,27 @@ export interface AgentMemorySelect<T extends boolean = true> {
  * via the `definition` "agent-soul_select".
  */
 export interface AgentSoulSelect<T extends boolean = true> {
+  appliesTo?: T;
   aspect?: T;
   content?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "realtime-voice-usage_select".
+ */
+export interface RealtimeVoiceUsageSelect<T extends boolean = true> {
+  sessionId?: T;
+  agent?: T;
+  model?: T;
+  rateUsdPerHour?: T;
+  durationSeconds?: T;
+  estimatedCostUsd?: T;
+  startedAt?: T;
+  endedAt?: T;
+  user?: T;
+  metadata?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -11622,6 +11686,10 @@ export interface OptimateSetting {
     | 'grok-build'
     | 'grok-composer-2.5-fast';
   /**
+   * Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests.
+   */
+  voiceRealtimeModel: 'gpt-realtime-mini' | 'gpt-realtime-2';
+  /**
    * Approximate token budget for previous chat turns sent to OptiMate. Older messages are compacted into a summary when the history grows beyond this limit, while recent turns are kept verbatim.
    */
   chatHistoryTokenLimit?: number | null;
@@ -11880,6 +11948,7 @@ export interface CronSettingsSelect<T extends boolean = true> {
 export interface OptimateSettingsSelect<T extends boolean = true> {
   defaultChatModel?: T;
   defaultAutonomousModel?: T;
+  voiceRealtimeModel?: T;
   chatHistoryTokenLimit?: T;
   blogPrompterModel?: T;
   invoiceAssistantModel?: T;

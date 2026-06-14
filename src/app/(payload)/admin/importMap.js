@@ -156,6 +156,7 @@ import { default as default_991ab0e2ad7231624c88bf3879cc97a8 } from '../../../co
 import { default as default_bdbf091e4ee4c8ba764b4f4e25a35525 } from '../../../components/SignaturePreviewField'
 import { default as default_77e619a924b976ecf037ef3b071568ba } from '../../../components/InvoiceStatementPreviewField'
 import { Banner as Banner_3817bf644402e67bfe6577f60ef982de } from '@payloadcms/ui'
+import { default as default_c23633038a6cad04468f22666fdf02d6 } from '../../../components/agent/RealtimeVoiceUsagePanel'
 import { default as default_b1bb90f08c5df85caf24dc08a7b957cf } from '../../../components/agent/MemoryTokenUsagePanel'
 import { default as default_3d0ad3af79773fa3e0e884a28989ff85 } from '../../../components/agent/MemoryReviewPanel'
 import { default as default_32d15b2b13e1e9f604c74e03d9ff8022 } from '../../../components/Icon'
@@ -340,6 +341,7 @@ export const importMap = {
   "/components/SignaturePreviewField#default": default_bdbf091e4ee4c8ba764b4f4e25a35525,
   "/components/InvoiceStatementPreviewField#default": default_77e619a924b976ecf037ef3b071568ba,
   "@payloadcms/ui#Banner": Banner_3817bf644402e67bfe6577f60ef982de,
+  "./components/agent/RealtimeVoiceUsagePanel#default": default_c23633038a6cad04468f22666fdf02d6,
   "./components/agent/MemoryTokenUsagePanel#default": default_b1bb90f08c5df85caf24dc08a7b957cf,
   "./components/agent/MemoryReviewPanel#default": default_3d0ad3af79773fa3e0e884a28989ff85,
   "./components/Icon#default": default_32d15b2b13e1e9f604c74e03d9ff8022,

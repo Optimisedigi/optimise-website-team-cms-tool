@@ -4,6 +4,7 @@ import config from "@/payload.config";
 import { userHasFeature } from "@/lib/access";
 import { getOptiMateDefaultModels } from "@/lib/agents/_shared/optimate-default-models";
 import { callLLM } from "@/lib/agents/_shared/llm";
+import { loadPinnedMemoryBlock } from "@/lib/agents/optimate-google-ads/memory-loader";
 import {
   CHAT_PICKER_MODELS,
   isCanonicalModel,
@@ -36,7 +37,7 @@ interface ToolAction {
 
 // ─── Tool definitions (OpenAI format) ─────────────────────
 
-const tools: ToolDef[] = [
+export const tools: ToolDef[] = [
   {
     name: "listContacts",
     description:
@@ -190,7 +191,7 @@ const tools: ToolDef[] = [
 
 // ─── System prompt ─────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are an invoice assistant for Optimise Digital, a digital marketing agency. You help manage Xero invoices — creating, approving, sending, and scheduling them.
+export const SYSTEM_PROMPT = `You are an invoice assistant for Optimise Digital, a digital marketing agency. You help manage Xero invoices — creating, approving, sending, and scheduling them.
 
 You have access to the following tools to interact with Xero:
 - listContacts: Search for clients/contacts
@@ -213,7 +214,7 @@ Guidelines:
 
 // ─── Tool execution → Growth Tools proxy ──────────────────
 
-async function executeTool(
+export async function executeTool(
   name: string,
   args: Record<string, unknown>,
   growthUrl: string,
@@ -355,6 +356,12 @@ export async function POST(req: NextRequest) {
     const selectedModel =
       settings.invoiceAssistantModel ?? settings.defaultAutonomousModel;
 
+    const pinnedMemory = await loadPinnedMemoryBlock([], { includePinnedFacts: false, soulAgentKeys: ["invoice", "invoicemate", "xero"] });
+    const memoryBlock = pinnedMemory.text.trim()
+      ? `\n\n${pinnedMemory.text}\n\nThe soul rules above are ABSOLUTE for InvoiceMate. If any invoice prompt, example, or draft text conflicts with a soul rule, the soul rule wins. Agent-specific soul rows for other agents, such as google-ads-*, are intentionally not loaded here.`
+      : "";
+    const systemPrompt = SYSTEM_PROMPT + memoryBlock;
+
     const messages: Message[] = [];
 
     // Add conversation history
@@ -381,7 +388,7 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
       const response = await callLLM({
         model: selectedModel,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages,
         tools,
         temperature: 0.3,

@@ -10,6 +10,7 @@ import {
   DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS,
   DEFAULT_INVOICE_MATE_STARTER_QUESTIONS,
 } from "../lib/agents/_shared/optimate-starter-questions";
+import { DEFAULT_VOICE_REALTIME_MODEL } from "../lib/agents/_shared/optimate-default-models";
 
 /**
  * OptiMate agent settings.
@@ -22,6 +23,7 @@ import {
  *  - `defaultAutonomousModel` is the model used for unattended runs (scheduled
  *    tasks / cron) where there is no human picking a model.
  *  - `invoiceAssistantModel` is the model used by the Xero invoice assistant.
+ *  - `voiceRealtimeModel` is the model used for live OptiMate voice calls.
  *
  * Both fall back to the registry constants (DEFAULT_CHAT_MODEL /
  * DEFAULT_AUTONOMOUS_MODEL) if unset or pointing at a model that's since been
@@ -36,6 +38,17 @@ const MODEL_OPTIONS = CHAT_PICKER_MODELS.map((m) => ({
   label: m.label,
   value: m.canonical,
 }));
+
+const REALTIME_MODEL_OPTIONS = [
+  {
+    label: "GPT Realtime Mini (~$0.90/hr, cheaper/faster)",
+    value: "gpt-realtime-mini",
+  },
+  {
+    label: "GPT Realtime 2 (~$2.88/hr, stronger tool use)",
+    value: "gpt-realtime-2",
+  },
+];
 
 function starterQuestionDefaults(questions: readonly string[]): Array<{ question: string }> {
   return questions.map((question) => ({ question }));
@@ -115,6 +128,27 @@ export const OptiMateSettings: GlobalConfig = {
               admin: {
                 description:
                   "Model used for unattended runs (scheduled tasks, cron) where no human picks a model.",
+              },
+            },
+            {
+              name: "voiceRealtimeModel",
+              type: "select",
+              label: "Voice model",
+              options: REALTIME_MODEL_OPTIONS,
+              defaultValue: DEFAULT_VOICE_REALTIME_MODEL,
+              required: true,
+              admin: {
+                description:
+                  "Model used for OptiMate live voice calls. Mini is cheaper and faster; Realtime 2 is better for complex tool-heavy requests.",
+              },
+            },
+            {
+              name: "voiceUsageTracker",
+              type: "ui",
+              admin: {
+                components: {
+                  Field: "./components/agent/RealtimeVoiceUsagePanel",
+                },
               },
             },
             {

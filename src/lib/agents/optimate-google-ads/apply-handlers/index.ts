@@ -12,7 +12,9 @@
  *   - "budget-push-live"     → push campaign budgets to Google Ads
  *   - "ad-copy-generate"     → prepare an audit for ad-copy generation
  *   - "ad-copy-deploy"       → push approved RSAs to Google Ads (PAUSED)
+ *   - "campaign-status-change" → pause/enable explicit campaigns after approval
  *   - "ad-group-create"      → create ONE ad group in an existing campaign (PAUSED), optionally cloning a source
+ *   - "ad-group-status-change" → pause/enable explicit ad groups after approval
  *   - "keywords-add"         → bulk-add positive keywords to an existing ad group (PAUSED)
  *   - "geo-campaign-split"   → create a labelled geo campaign batch PAUSED + reviewed parent isolation
  *   - "goal-run-create"      → create a generic goal-agent run
@@ -29,6 +31,7 @@ import { applyBudgetPushLive } from "./budget-push-live";
 import { applyCampaignTargetCpaUpdate } from "./campaign-target-cpa-update";
 import { applyCampaignTargetRoasUpdate } from "./campaign-target-roas-update";
 import { applyCampaignBidStrategyChange } from "./campaign-bid-strategy-change";
+import { applyCampaignStatusChange } from "./campaign-status-change";
 import { applyAdCopyGenerate } from "./ad-copy-generate";
 import { applyAdCopyDeploy } from "./ad-copy-deploy";
 import { applyAdGroupCreate } from "./ad-group-create";
@@ -64,10 +67,12 @@ export function registerOptimateApplyHandlers(): void {
   registerApplyHandler("campaign-target-cpa-update", applyCampaignTargetCpaUpdate);
   registerApplyHandler("campaign-target-roas-update", applyCampaignTargetRoasUpdate);
   registerApplyHandler("campaign-bid-strategy-change", applyCampaignBidStrategyChange);
+  registerApplyHandler("campaign-status-change", applyCampaignStatusChange);
   registerApplyHandler("ad-copy-generate", applyAdCopyGenerate);
   registerApplyHandler("ad-copy-deploy", applyAdCopyDeploy);
   registerApplyHandler("ad-group-create", applyAdGroupCreate);
   registerApplyHandler("ad-group-pause", applyAdGroupPause);
+  registerApplyHandler("ad-group-status-change", applyAdGroupPause);
   registerApplyHandler("keywords-add", applyKeywordsAdd);
   registerApplyHandler("keyword-pause", applyKeywordPause);
   registerApplyHandler("campaign-restructure", applyCampaignRestructure);

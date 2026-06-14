@@ -50,15 +50,12 @@ export async function GET(request: Request) {
     if (mode === 'audit' && !auditId && !customerId) {
       return NextResponse.json({ error: 'auditId or customerId is required' }, { status: 400 })
     }
-    if (mode === 'portfolio' && selectedAccountRefs.length === 0) {
-      return NextResponse.json({ error: 'selectedAccountRefs is required' }, { status: 400 })
-    }
     const attachedEmailMessageId = url.searchParams.get('attachedEmailMessageId')
 
     let basePrompt = ''
     let tools: unknown[] = []
     if (mode === 'portfolio') {
-      const pinnedMemory = await loadPinnedMemoryBlock([])
+      const pinnedMemory = await loadPinnedMemoryBlock([], { soulAgentKeys: ['google-ads'] })
       basePrompt = buildSystemPromptForPortfolio({
         pinnedMemoryBlock: pinnedMemory.text,
         recentMessages: [],
@@ -75,6 +72,7 @@ export async function GET(request: Request) {
       const connectionFlags = await readClientConnectionFlags(clientId ?? null)
       const pinnedMemory = await loadPinnedMemoryBlock(
         clientId !== undefined && clientId !== null ? [clientId] : [],
+        { soulAgentKeys: ['google-ads'] },
       )
       basePrompt = buildSystemPromptForAudit(audit as never, client as never, connectionFlags, {
         pinnedMemoryBlock: pinnedMemory.text,
@@ -158,6 +156,7 @@ function parseSelectedAccountRefs(raw: string | null): string[] {
 }
 
 function buildSelectedAccountsVoiceScope(accountRefs: string[]): string {
+  if (accountRefs.length === 0) return ''
   return (
     '\n\n--- SELECTED ACCOUNTS VOICE SCOPE ---\n' +
     'This voice call is scoped to these selected account refs only: ' +

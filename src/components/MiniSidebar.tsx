@@ -227,7 +227,7 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
             })}
           </div>
 
-          {/* Expand toggle */}
+          {/* Expand toggle — pinned to the bottom of the rail. */}
           <button
             type="button"
             title="Open sidebar"
@@ -250,7 +250,7 @@ const MiniSidebar = ({ children }: { children: React.ReactNode }) => {
           className="mini-sidebar-collapse-btn"
           style={{
             position: 'fixed',
-            top: 12,
+            bottom: 12,
             left: 'min(calc(var(--nav-width, 275px) - 49px), calc(100vw - 49px))',
             zIndex: 10000,
             background: 'none',

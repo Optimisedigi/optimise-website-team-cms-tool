@@ -116,6 +116,9 @@ import * as migration_20260711_130000_fix_mtvc_assigned_list_relationship_column
 import * as migration_20260711_140000_null_empty_mtvc_recommended_match_type from './20260711_140000_null_empty_mtvc_recommended_match_type';
 import * as migration_20260712_120000_add_mtvc_added_as_keyword_fields from './20260712_120000_add_mtvc_added_as_keyword_fields';
 import * as migration_20260713_120000_add_optimate_starter_questions from './20260713_120000_add_optimate_starter_questions';
+import * as migration_20260714_120000_add_optimate_voice_realtime_model from './20260714_120000_add_optimate_voice_realtime_model';
+import * as migration_20260715_120000_add_agent_soul_applies_to from './20260715_120000_add_agent_soul_applies_to';
+import * as migration_20260716_120000_add_realtime_voice_usage from './20260716_120000_add_realtime_voice_usage';
 
 export const migrations = [
   {
@@ -707,5 +710,20 @@ export const migrations = [
     up: migration_20260713_120000_add_optimate_starter_questions.up,
     down: migration_20260713_120000_add_optimate_starter_questions.down,
     name: '20260713_120000_add_optimate_starter_questions'
+  },
+  {
+    up: migration_20260714_120000_add_optimate_voice_realtime_model.up,
+    down: migration_20260714_120000_add_optimate_voice_realtime_model.down,
+    name: '20260714_120000_add_optimate_voice_realtime_model'
+  },
+  {
+    up: migration_20260715_120000_add_agent_soul_applies_to.up,
+    down: migration_20260715_120000_add_agent_soul_applies_to.down,
+    name: '20260715_120000_add_agent_soul_applies_to'
+  },
+  {
+    up: migration_20260716_120000_add_realtime_voice_usage.up,
+    down: migration_20260716_120000_add_realtime_voice_usage.down,
+    name: '20260716_120000_add_realtime_voice_usage'
   },
 ];
