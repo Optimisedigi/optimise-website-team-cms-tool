@@ -63,6 +63,13 @@ describe("get_budget_management_email", () => {
     );
   });
 
+  it("accepts an explicit auditId for portfolio-mode per-client drafts", () => {
+    expect(getBudgetManagementEmail.validate!({ mode: "this_month", auditId: 7 })).toEqual({
+      mode: "this_month",
+      auditId: 7,
+    });
+  });
+
   it("this_month: hits /list with x-api-key and returns HTML containing the business name", async () => {
     mockFindByID.mockResolvedValueOnce({
       id: 7,

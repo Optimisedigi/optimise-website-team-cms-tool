@@ -62,6 +62,10 @@ describe("generateBudgetEmailHtml", () => {
     expect(html).toMatch(/On Track|Under Budget/);
     expect(html).toContain("Brand");
     expect(html).toContain("Generic");
+    expect(html).toContain("Target spend to date");
+    expect(html).toContain("Pacing difference");
+    expect(html).toContain("Days Remaining");
+    expect(html).toContain("% of month");
     // Dashboard link with PIN
     expect(html).toContain("https://cms.optimisedigital.online/google-dashboard/acme");
     expect(html).toContain("PIN: 1234");

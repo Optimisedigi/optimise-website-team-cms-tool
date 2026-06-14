@@ -34,6 +34,8 @@ type EmailMode = "this_month" | "last_month";
 
 interface BudgetEmailArgs {
   mode: EmailMode;
+  /** Optional audit id, used only in portfolio mode to render one client email at a time. */
+  auditId?: number | string;
 }
 
 interface AuditDoc {
@@ -119,7 +121,7 @@ async function fetchJsonWithRetry<T>(
 export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
   name: "get_budget_management_email",
   description:
-    "Returns the exact same Gmail-ready HTML produced by the CMS Budget Management tab's 'Copy for Gmail' button. Use this when the user asks for a budget update email, a draft for client communication, or as the body for a scheduled weekly report. Copy the returned `html` verbatim into your reply — do NOT summarise or modify it. Args: mode='this_month' for the current month-to-date budget update, mode='last_month' for the previous-month recap.",
+    "Returns the exact same Gmail-ready HTML produced by the CMS Budget Management tab's 'Copy for Gmail' button. Use this when the user asks for a budget update email, a draft for client communication, or as the body for a scheduled weekly report. Copy the returned `html` verbatim into your reply — do NOT summarise or modify it. Args: mode='this_month' for the current month-to-date budget update, mode='last_month' for the previous-month recap. In audit mode, auditId is read from context. In portfolio mode, pass one auditId/accountRef at a time to create client-specific drafts.",
   inputSchema: {
     type: "object",
     properties: {
@@ -128,6 +130,11 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
         enum: ["this_month", "last_month"],
         description:
           "Which email to render. 'this_month' = current MTD budget update (the default Budget Management tab). 'last_month' = previous-month recap with action items.",
+      },
+      auditId: {
+        type: ["string", "number"],
+        description:
+          "Optional. Portfolio-mode audit/accountRef to render. Omit in normal audit-scoped chats.",
       },
     },
     required: ["mode"],
@@ -141,12 +148,24 @@ export const getBudgetManagementEmail: CanonicalTool<BudgetEmailArgs> = {
         "mode must be 'this_month' or 'last_month'",
       );
     }
-    return { mode };
+    const auditId = obj.auditId;
+    if (
+      auditId !== undefined &&
+      auditId !== null &&
+      typeof auditId !== "string" &&
+      typeof auditId !== "number"
+    ) {
+      throw new Error("auditId must be a string or number when provided");
+    }
+    return {
+      mode,
+      ...(auditId !== undefined && auditId !== null && auditId !== "" ? { auditId } : {}),
+    };
   },
   execute: async (args, ctx) => {
-    const auditId = ctx.context.auditId as number | string | undefined;
+    const auditId = args.auditId ?? (ctx.context.auditId as number | string | undefined);
     if (auditId === undefined || auditId === null || auditId === "") {
-      return { ok: false, error: "No auditId in context; this tool needs an audit-scoped chat." };
+      return { ok: false, error: "No auditId supplied; use audit context or pass an auditId/accountRef in portfolio mode." };
     }
 
     const apiKey = process.env.AUDIT_API_KEY;

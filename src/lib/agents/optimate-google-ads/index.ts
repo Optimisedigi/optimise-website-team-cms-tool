@@ -178,6 +178,7 @@ export function getPortfolioTools(options?: { restrictExternalContextActions?: b
     getSelectedClientDetails as unknown as CanonicalTool<unknown>,
     getPortfolioWeeklyMetricTable as unknown as CanonicalTool<unknown>,
     getPortfolioMonthlyPerformanceBreakdown as unknown as CanonicalTool<unknown>,
+    getBudgetManagementEmail as unknown as CanonicalTool<unknown>,
     createGmailDraftTool as unknown as CanonicalTool<unknown>,
     requestConfirmTool as unknown as CanonicalTool<unknown>,
     memorySearch as unknown as CanonicalTool<unknown>,

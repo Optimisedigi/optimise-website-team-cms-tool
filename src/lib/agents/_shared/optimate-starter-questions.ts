@@ -3,17 +3,17 @@ export interface OptiMateStarterQuestion {
 }
 
 export const DEFAULT_GOOGLE_MATE_STARTER_QUESTIONS = [
-  "How is my budget pacing this month?",
+  "Draft the budget pacing this month with a 1 sentence performance summary on top, then save it as a Gmail draft.",
+  "How is my budget pacing this month? Include percent used, target spend to date, and days remaining.",
   "Which campaigns are performing best this week?",
   "Are there any keywords wasting spend?",
-  "Give me a weekly performance summary",
 ] as const;
 
 export const DEFAULT_GOOGLE_MATE_PORTFOLIO_STARTER_QUESTIONS = [
+  "Create separate Gmail drafts for each selected account's budget pacing this month, each with a 1 sentence performance summary on top.",
   "Show me the account inventory",
   "Summarise portfolio performance",
   "Find cross-account search-term waste",
-  "Draft an account-priority email",
 ] as const;
 
 export const DEFAULT_INVOICE_MATE_STARTER_QUESTIONS = [

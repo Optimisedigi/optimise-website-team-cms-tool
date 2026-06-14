@@ -74,6 +74,10 @@ export interface MonthlySpend {
   maxBudget: number;
 }
 
+function formatWholeCurrency(value: number): string {
+  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
 export interface SearchTermRow {
   searchTerm: string;
   campaignName: string;
@@ -201,11 +205,24 @@ export function generateBudgetEmailHtml(
   clientPin?: string
 ): string {
   const percentUsed = spend.maxBudget > 0 ? (spend.totalSpend / spend.maxBudget) * 100 : 0;
-  const onTrackPercent = (spend.daysElapsed / 30.4) * 100;
-  const statusColor = percentUsed <= 90 ? '#059669' : percentUsed <= 100 ? '#d97706' : '#dc2626';
-  const statusBg = percentUsed <= 90 ? '#f0fdf4' : percentUsed <= 100 ? '#fffbeb' : '#fef2f2';
-  const isUnderBudget = percentUsed < onTrackPercent;
-  const statusText = percentUsed > 100 ? 'Over Budget' : percentUsed > 90 ? 'On Track' : isUnderBudget ? 'Under Budget' : 'On Track';
+  const { daysInMonth } = getMonthInfo();
+  const onTrackPercent = (spend.daysElapsed / daysInMonth) * 100;
+  const expectedSpendToDate = spend.maxBudget * (spend.daysElapsed / daysInMonth);
+  const spendPacingDelta = spend.totalSpend - expectedSpendToDate;
+  const pacingPercentDelta = spend.maxBudget > 0 ? (spendPacingDelta / spend.maxBudget) * 100 : 0;
+  const absPacingDelta = Math.abs(spendPacingDelta);
+  const isBehindPace = spendPacingDelta < -1;
+  const isAheadOfPace = spendPacingDelta > 1;
+  const isOverBudget = percentUsed > 100;
+  const isSlightlyOver = percentUsed > 90 && percentUsed <= 100;
+  const statusColor = isOverBudget ? '#dc2626' : isSlightlyOver || isAheadOfPace ? '#d97706' : isBehindPace ? '#059669' : '#2563eb';
+  const statusBg = isOverBudget ? '#fef2f2' : isSlightlyOver || isAheadOfPace ? '#fffbeb' : isBehindPace ? '#f0fdf4' : '#eff6ff';
+  const statusText = isOverBudget ? 'Over Budget' : isAheadOfPace ? 'Ahead of Pace' : isBehindPace ? 'Under Budget' : 'On Track';
+  const pacingContext = isBehindPace
+    ? `Behind expected pace by ${formatWholeCurrency(absPacingDelta)}`
+    : isAheadOfPace
+      ? `Ahead of expected pace by ${formatWholeCurrency(absPacingDelta)}`
+      : 'Within $1 of expected spend-to-date';
   // Show enabled campaigns that either have a non-zero % split OR are standalone
   // (standalone always have % = 0 but still need to appear in the report).
   const enabledCampaigns = campaigns
@@ -240,7 +257,7 @@ export function generateBudgetEmailHtml(
         <div style="padding:20px;background:${statusBg};border-radius:12px;border:2px solid ${statusColor};height:100%">
           <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
             <tr>
-              <td style="text-align:left;font-size:14px;font-weight:600;color:#374151">${statusText}</td>
+              <td style="text-align:left;font-size:14px;font-weight:600;color:#374151">${statusText}<div style="margin-top:2px;font-size:12px;color:${statusColor};font-weight:600">${pacingContext}</div></td>
               <td style="text-align:right;font-size:22px;font-weight:700;color:${statusColor}">${percentUsed.toFixed(0)}%</td>
             </tr>
           </table>
@@ -267,17 +284,27 @@ export function generateBudgetEmailHtml(
               <td style="text-align:right;font-size:11px;color:#64748b">$${spend.maxBudget.toLocaleString()}</td>
             </tr>
           </table>
-          <div style="font-size:10px;color:#94a3b8;text-align:center">Vertical line shows where you should be on track</div>
-          <!-- Spent / Remaining -->
+          <div style="font-size:10px;color:#94a3b8;text-align:center">Vertical line shows target spend to date: ${formatWholeCurrency(expectedSpendToDate)} (${onTrackPercent.toFixed(0)}% of month). Actual is ${Math.abs(pacingPercentDelta).toFixed(0)}% ${spendPacingDelta < 0 ? 'behind' : spendPacingDelta > 0 ? 'ahead of' : 'on'} pace.</div>
+          <!-- Budget-to-date stats -->
           <table style="width:100%;border-collapse:collapse;margin-top:12px">
             <tr>
+              <td style="text-align:center;width:50%;padding-bottom:8px">
+                <div style="font-size:18px;font-weight:700;color:${statusColor}">${formatWholeCurrency(spend.totalSpend)}</div>
+                <div style="font-size:11px;color:#64748b">Actual spend</div>
+              </td>
+              <td style="text-align:center;width:50%;padding-bottom:8px">
+                <div style="font-size:18px;font-weight:700;color:#1e293b">${formatWholeCurrency(expectedSpendToDate)}</div>
+                <div style="font-size:11px;color:#64748b">Target spend to date</div>
+              </td>
+            </tr>
+            <tr>
               <td style="text-align:center;width:50%">
-                <div style="font-size:18px;font-weight:700;color:${statusColor}">$${spend.totalSpend.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
-                <div style="font-size:11px;color:#64748b">Month-to-Date Spend</div>
+                <div style="font-size:16px;font-weight:700;color:${statusColor}">${spendPacingDelta < 0 ? '-' : '+'}${formatWholeCurrency(absPacingDelta)}</div>
+                <div style="font-size:11px;color:#64748b">Pacing difference</div>
               </td>
               <td style="text-align:center;width:50%">
-                <div style="font-size:18px;font-weight:700;color:#64748b">$${spend.remainingBudget.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
-                <div style="font-size:11px;color:#64748b">Remaining Monthly Budget</div>
+                <div style="font-size:16px;font-weight:700;color:#64748b">${formatWholeCurrency(spend.remainingBudget)}</div>
+                <div style="font-size:11px;color:#64748b">Remaining</div>
               </td>
             </tr>
           </table>
