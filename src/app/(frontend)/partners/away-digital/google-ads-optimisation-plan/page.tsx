@@ -3,6 +3,7 @@ import '../google-ads-audit/away-digital.css'
 import AuditPasswordGate from '@/components/AuditPasswordGate'
 import DeckScrollEffects from '../google-ads-audit/DeckScrollEffects'
 import Starfield from '../google-ads-audit/Starfield'
+import DownloadPdfButton from './DownloadPdfButton'
 
 type TermRow = { term: string; spend: string; avgCpc?: string }
 type MetricRow = { label: string; value: string; tone?: 'blue' | 'green' | 'red' | 'amber' }
@@ -15,11 +16,11 @@ type SearchTermSplit = {
 }
 type TimelineRow = {
   workstream: string
-  tone: 'red' | 'blue' | 'green' | 'amber' | 'purple' | 'slate'
+  tone: 'red' | 'blue' | 'green' | 'amber' | 'purple' | 'slate' | 'cyan' | 'pink'
   phases: readonly {
     label: string
-    start: 1 | 2 | 3 | 4
-    span: 1 | 2 | 3 | 4
+    start: number
+    span: number
   }[]
 }
 
@@ -192,57 +193,64 @@ const JOB_TITLE_WASTE_ROWS: readonly JobTitleWasteRow[] = [
 
 const TIMELINE_ROWS: readonly TimelineRow[] = [
   {
-    workstream: 'Search waste cleanup',
+    workstream: 'GA4 + HubSpot + chatbot',
+    tone: 'green',
+    phases: [
+      { label: 'Fix GA4, HubSpot + chat tracking', start: 1, span: 0.75 },
+      { label: 'Use HubSpot data in decisions', start: 4, span: 1 },
+    ],
+  },
+  {
+    workstream: 'Negative keyword list',
     tone: 'red',
     phases: [
-      { label: 'Remove obvious waste + broad-match risk', start: 1, span: 1 },
-      { label: 'Weekly search-term reviews', start: 2, span: 3 },
+      { label: 'Historical cleanup of all negatives', start: 1, span: 2 },
+      { label: 'Weekly scheduled negative list', start: 3, span: 1 },
+    ],
+  },
+  {
+    workstream: 'AI Max + bidding',
+    tone: 'amber',
+    phases: [
+      { label: 'Turn off AI Max + Maximise Clicks risk', start: 1, span: 1 },
+      { label: 'Stabilise bid strategy', start: 2, span: 3 },
     ],
   },
   {
     workstream: 'Budget reallocation',
     tone: 'blue',
     phases: [
-      { label: 'Identify weak categories', start: 1, span: 1 },
-      { label: 'Shift budget to stronger intent', start: 2, span: 1 },
+      { label: 'Shift budget to stronger intent', start: 1, span: 2 },
       { label: 'Scale what proves quality', start: 3, span: 2 },
     ],
   },
   {
-    workstream: 'Vietnam coverage',
-    tone: 'green',
-    phases: [
-      { label: 'Confirm keyword universe', start: 1, span: 1 },
-      { label: 'Build controlled structure', start: 2, span: 1 },
-      { label: 'Improve impression share', start: 3, span: 1 },
-      { label: 'Scale if quality is proven', start: 4, span: 1 },
-    ],
-  },
-  {
-    workstream: 'Match types + ads',
+    workstream: 'Match types',
     tone: 'purple',
     phases: [
-      { label: 'Rewrite by intent', start: 1, span: 1 },
-      { label: 'Launch phrase/exact tests', start: 2, span: 2 },
-      { label: 'Expand winning messages', start: 4, span: 1 },
+      { label: 'Eliminate broad match keywords + move to phrase/exact', start: 1, span: 2.5 },
     ],
   },
   {
-    workstream: 'GA4 + HubSpot',
-    tone: 'amber',
+    workstream: 'Ad group structure',
+    tone: 'cyan',
     phases: [
-      { label: 'Fix GA4 events + Ads link', start: 1, span: 1 },
-      { label: 'Validate UTMs / gclid / gbraid', start: 2, span: 1 },
-      { label: 'Use quality data in decisions', start: 3, span: 2 },
+      { label: 'Refine by intent', start: 2, span: 2 },
+      { label: 'Refine budgets by theme', start: 4, span: 1 },
     ],
   },
   {
-    workstream: 'SEO + paid alignment',
-    tone: 'slate',
+    workstream: 'Ad copy',
+    tone: 'pink',
     phases: [
-      { label: 'Map organic gaps', start: 1, span: 1 },
-      { label: 'Cover commercial gaps with paid', start: 2, span: 2 },
-      { label: 'Next-quarter content roadmap', start: 4, span: 1 },
+      { label: 'Rewrite by role + funnel stage', start: 3.5, span: 1.5 },
+    ],
+  },
+  {
+    workstream: 'Landing page + flow',
+    tone: 'green',
+    phases: [
+      { label: 'Align pages to search intent', start: 4, span: 1 },
     ],
   },
 ]
@@ -531,24 +539,33 @@ function GanttBar({ row }: { row: TimelineRow }) {
     amber: 'from-amber-500 to-yellow-300 border-amber-200',
     purple: 'from-violet-600 to-fuchsia-400 border-violet-200',
     slate: 'from-slate-700 to-slate-400 border-slate-200',
+    cyan: 'from-cyan-600 to-sky-300 border-cyan-200',
+    pink: 'from-pink-600 to-rose-300 border-pink-200',
   }
 
   return (
-    <div className="grid grid-cols-[180px_1fr] gap-4 items-center py-3 border-b border-slate-100 last:border-b-0">
-      <div className="text-sm font-black text-slate-900 leading-tight">{row.workstream}</div>
-      <div className="relative grid grid-cols-4 gap-2 min-h-[46px]">
+    <div className="grid grid-cols-[180px_1fr] gap-4 items-center py-2 border-b border-slate-100 last:border-b-0">
+      <div className="text-xs font-black text-slate-900 leading-tight">{row.workstream}</div>
+      <div className="relative grid grid-cols-4 gap-2 min-h-[48px]">
         <div className="absolute inset-0 grid grid-cols-4 gap-2 pointer-events-none">
           {[0, 1, 2, 3].map((i) => <div key={i} className="rounded-xl bg-slate-100/80" />)}
         </div>
-        {row.phases.map((phase) => (
-          <div
-            key={`${row.workstream}-${phase.label}`}
-            className={`relative z-10 rounded-xl border bg-gradient-to-r ${tones[row.tone]} px-3 py-2 text-[11px] font-bold leading-tight text-white shadow-sm flex items-center`}
-            style={{ gridColumn: `${phase.start} / span ${phase.span}` }}
-          >
-            {phase.label}
-          </div>
-        ))}
+        {row.phases.map((phase) => {
+          const reachesDay90 = phase.start + phase.span >= 5
+          return (
+            <div
+              key={`${row.workstream}-${phase.label}`}
+              className={`absolute z-10 border bg-gradient-to-r ${tones[row.tone]} px-2 py-1.5 text-[10px] font-bold leading-tight text-white shadow-sm flex h-12 items-center ${reachesDay90 ? 'rounded-l-lg pr-4' : 'rounded-lg'}`}
+              style={{
+                left: `${(phase.start - 1) * 25}%`,
+                width: reachesDay90 ? `calc(${phase.span * 25}% + 0.5rem)` : `calc(${phase.span * 25}% - 0.25rem)`,
+                clipPath: reachesDay90 ? 'polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%)' : undefined,
+              }}
+            >
+              {phase.label}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -591,7 +608,29 @@ export default function AwayDigitalOptimisationPlanPage() {
           </div>
         </section>
 
-        <Section id="search-waste" label="Search spend waste" number="2 / 11">
+        <Section id="success-metrics" label="Goals and metrics" number="2 / 11">
+          <Eyebrow>90-day goal</Eyebrow>
+          <SlideTitle>Increase leads, maintain spend, and make every dollar work harder.</SlideTitle>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-3xl border border-emerald-200 p-5">
+              <div className="text-xs font-black uppercase tracking-widest text-emerald-700">Goal 1</div>
+              <h3 className="mt-2 text-xl font-black text-slate-950">Reduce cost per lead significantly.</h3>
+              <p className="mt-2 text-sm font-semibold text-slate-700">The benchmark from June 2025 onward is <strong>$1,373 cost per lead</strong>. The goal is to reduce that significantly, ideally by half.</p>
+            </div>
+            <div className="rounded-3xl border border-emerald-200 p-5">
+              <div className="text-xs font-black uppercase tracking-widest text-emerald-700">Goal 2</div>
+              <h3 className="mt-2 text-xl font-black text-slate-950">Maintain investment and increase leads.</h3>
+              <p className="mt-2 text-sm font-semibold text-slate-700">The aim is to keep investing around <strong>$50,000 per month</strong>, but spend it as efficiently as possible and see how many qualified leads that can generate.</p>
+            </div>
+            <div className="rounded-3xl border border-emerald-200 p-5">
+              <div className="text-xs font-black uppercase tracking-widest text-emerald-700">Goal 3</div>
+              <h3 className="mt-2 text-xl font-black text-slate-950">Lift search relevance above 90%.</h3>
+              <p className="mt-2 text-sm font-semibold text-slate-700">Current search relevance is likely below 50%. We want the majority of spend going to searches that clearly match outsourcing intent.</p>
+            </div>
+          </div>
+        </Section>
+
+        <Section id="search-waste" label="Search spend waste" number="3 / 11">
           <Eyebrow>Immediate low-hanging fruit</Eyebrow>
           <SlideTitle>Last month's search terms alone show extreme waste.</SlideTitle>
           <div className="grid grid-cols-1 md:grid-cols-[1.05fr_1.95fr] gap-4 mb-4 items-stretch">
@@ -608,7 +647,7 @@ export default function AwayDigitalOptimisationPlanPage() {
           </div>
         </Section>
 
-        <Section id="budget-allocation" label="Budget allocation" number="3 / 11">
+        <Section id="budget-allocation" label="Budget allocation" number="4 / 11">
           <Eyebrow>Same budget, better allocation</Eyebrow>
           <SlideTitle>Shift spend from weak intent into stronger commercial intent.</SlideTitle>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -662,7 +701,7 @@ export default function AwayDigitalOptimisationPlanPage() {
           </div>
         </Section>
 
-        <Section id="hubspot-context" label="HubSpot context" number="4 / 11">
+        <Section id="hubspot-context" label="HubSpot context" number="5 / 11">
           <Eyebrow>Commercial context</Eyebrow>
           <SlideTitle>Google Ads is the highest converting channel according to HubSpot.</SlideTitle>
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -694,7 +733,7 @@ export default function AwayDigitalOptimisationPlanPage() {
 
         </Section>
 
-        <Section id="vietnam-coverage" label="Vietnam coverage" number="5 / 11">
+        <Section id="vietnam-coverage" label="Vietnam coverage" number="6 / 11">
           <Eyebrow>Requested and recommended</Eyebrow>
           <SlideTitle>Away Digital should own Vietnam outsourcing search.</SlideTitle>
           <div className="grid grid-cols-1 md:grid-cols-[0.8fr_1.2fr] gap-5 items-stretch">
@@ -716,10 +755,11 @@ export default function AwayDigitalOptimisationPlanPage() {
 
         </Section>
 
-        <Section id="other-optimisations" label="Other optimisations" number="6 / 11">
-          <Eyebrow>Supporting improvements</Eyebrow>
-          <SlideTitle>Other optimisations that support better lead quality.</SlideTitle>
+        <Section id="other-optimisations" label="Other optimisations" number="7 / 11">
+          <SlideTitle>Account optimisations that will turn around the account within 90 days.</SlideTitle>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <BulletCard title="Negative keyword system" items={['Start adding negative keywords from day 1.', 'Review historical negative keywords and search-term waste.', 'Combine the cleaned list with our scheduled weekly negative keyword process.']} />
+            <BulletCard title="AI Max + bid strategy fixes" items={['Turn off AI Max where it is expanding into weak intent.', 'Move away from Maximise Clicks where it is driving poor-quality traffic.', 'Use bid strategies that optimise toward lead quality, not cheap clicks.']} />
             <BulletCard title="Match type restructure" items={['Remove broad match where query quality is poor.', 'Move proven terms into phrase and exact match.', 'Keep discovery/testing separate from core lead generation.']} />
             <BulletCard title="Ad group structure" items={['Separate generic outsourcing, role-specific, Vietnam and comparison searches.', 'Make query → keyword → ad → landing page more aligned.', 'Use clearer budgets and success criteria by theme.']} />
             <BulletCard title="Ad copy improvements" items={['Match ad copy to the searcher’s role, intent and buying stage.', 'Use finance-specific pain points for accounts payable and accountant searches.', 'Use mid-funnel education and comparison copy for broader outsourcing searches.', 'Add qualification language: full-time hires, long-term teams, not freelancers.']} />
@@ -730,7 +770,7 @@ export default function AwayDigitalOptimisationPlanPage() {
           </div>
         </Section>
 
-        <Section id="timeline" label="90-day rollout" number="7 / 11">
+        <Section id="timeline" label="90-day rollout" number="8 / 11">
           <Eyebrow>Implementation roadmap</Eyebrow>
           <SlideTitle>90-day rollout plan.</SlideTitle>
           <Lead>First 30 days remove waste and restructure. Days 31 to 90 optimise, validate lead quality, then scale what works.</Lead>
@@ -746,76 +786,43 @@ export default function AwayDigitalOptimisationPlanPage() {
             </div>
             {TIMELINE_ROWS.map((row) => <GanttBar key={row.workstream} row={row} />)}
           </div>
-          <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4"><strong>First 14 days:</strong> stop leakage and fix measurement basics.</div>
-            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4"><strong>Days 15 to 60:</strong> restructure campaigns and prove lead quality.</div>
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><strong>Days 61 to 90:</strong> scale only the workstreams showing quality.</div>
-          </div>
+
         </Section>
 
 
         <Section id="goal-alignment" label="End-goal alignment" number="10 / 11">
           <Eyebrow>Client decision point</Eyebrow>
-          <SlideTitle>Before we scale, confirm what success looks like.</SlideTitle>
-          <Lead>
-            Cutting weak searches may reduce lead volume, but improve lead quality. Some role categories may be strategically important even if short-term CPA is higher. This needs to be agreed before larger budget shifts.
-          </Lead>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <BulletCard title="Questions to confirm" items={['Is the goal more total leads, better-fit leads, more deals, or more won clients?', 'Are there roles you want to keep prioritising even if CPA is higher?', 'Are there roles you do not want more enquiries for?', 'Is Vietnam ownership a positioning priority, lead-gen priority, or both?']} />
-            <BulletCard title="Recommended direction" items={['Prioritise businesses actively looking for outsourcing companies or offshore teams.', 'Remove obvious waste immediately.', 'Discuss strategic role pauses before action.', 'Use HubSpot quality data before making bigger budget decisions.']} />
+          <SlideTitle>Questions to confirm.</SlideTitle>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <ul className="space-y-2 text-base text-slate-600 leading-snug">
+              {['Is the goal more total leads, better-fit leads, more deals, or more won clients?', 'Are there roles you want to keep prioritising even if CPA is higher?', 'Are there roles you do not want more enquiries for?', 'How much freedom do we have to pause or reduce roles if the data shows they are driving poor-quality leads or high CPL?'].map((item) => (
+                <li key={item} className="flex gap-2">
+                  <span className="mt-2 h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </Section>
 
-        <Section id="success-metrics" label="Success metrics" number="11 / 11">
-          <Eyebrow>Measurement</Eyebrow>
-          <SlideTitle>What we will measure.</SlideTitle>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {['Reduction in irrelevant search spend', 'Search-term relevance rate', 'Non-brand CPA', 'Qualified lead CPA', 'Lead → deal conversion rate', 'Lead → client-won conversion rate', 'Vietnam search impression share', 'Spend by category', 'Won clients by source/category', 'Landing page conversion rate', 'Budget share going to high-intent terms', 'GA4 conversion accuracy'].map((metric) => (
-              <div key={metric} className="rounded-2xl border border-slate-200 bg-white p-5 text-sm font-semibold text-slate-800 shadow-sm">
-                {metric}
-              </div>
-            ))}
-          </div>
-        </Section>
-
-        <div id="space-transition" className="v2-space-transition h-24" aria-hidden="true" />
-
-        <section id="closing" data-label="Closing" className="closing-v2 relative min-h-screen flex flex-col">
-          <Starfield id="closing-starfield" />
-          <div className="orbit-deco" style={{ width: '900px', height: '900px', right: '-280px', top: '-240px' }} />
-          <div className="relative z-10 flex-1 flex flex-col justify-center px-8 md:px-12 pb-12 w-full">
-            <h2 className="closing-h1 text-4xl md:text-6xl max-w-4xl">Ready to turn the audit into <em>implementation</em>.</h2>
-            <div className="closing-who mt-12">
-              <div>
-                <div className="lbl">Prepared for</div>
-                <div className="val">Away Digital Teams</div>
-              </div>
-              <div>
-                <div className="lbl">Prepared by</div>
-                <div className="val">Optimise Digital</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <Section id="philippines-vietnam" label="Market demand appendix" number="Appendix A">
-          <Eyebrow>Appendix A: market demand</Eyebrow>
+        <Section id="philippines-vietnam" label="Market demand" number="11 / 11">
+          <Eyebrow>Market demand</Eyebrow>
           <SlideTitle>Australia has more Philippines search volume, but Vietnam is the ownership opportunity.</SlideTitle>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-              <div className="text-xs font-black uppercase tracking-widest text-emerald-700">Vietnam searches in Australia</div>
+              <div className="text-xs font-black uppercase tracking-widest text-emerald-700">Vietnam outsourcing searches in Australia</div>
               <div className="mt-3 text-6xl font-black text-emerald-700">{AU_VIETNAM_MONTHLY_SEARCH_VOLUME}</div>
-              <div className="mt-2 text-sm font-bold text-emerald-950/70">estimated searches per month</div>
+              <div className="mt-2 text-sm font-bold text-emerald-950/70">estimated searches per month across included themes</div>
             </div>
             <div className="rounded-3xl border border-blue-200 bg-blue-50 p-6 text-center">
-              <div className="text-xs font-black uppercase tracking-widest text-blue-700">Philippines searches in Australia</div>
+              <div className="text-xs font-black uppercase tracking-widest text-blue-700">Philippines outsourcing searches in Australia</div>
               <div className="mt-3 text-6xl font-black text-blue-700">{AU_PHILIPPINES_MONTHLY_SEARCH_VOLUME}</div>
-              <div className="mt-2 text-sm font-bold text-blue-950/70">estimated searches per month</div>
+              <div className="mt-2 text-sm font-bold text-blue-950/70">estimated searches per month across included themes</div>
             </div>
           </div>
           <details className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <summary className="cursor-pointer list-none bg-slate-50 px-5 py-4 text-sm font-black uppercase tracking-widest text-slate-600">
-              Show specific searches
+              Show included keyword themes
             </summary>
             <table className="w-full text-left text-sm">
               <thead className="bg-white text-xs uppercase tracking-wider text-slate-500">
@@ -838,20 +845,31 @@ export default function AwayDigitalOptimisationPlanPage() {
           </details>
         </Section>
 
-        <Section id="appendix" label="Supporting audit reference" number="Appendix B">
-          <Eyebrow>Appendix B: supporting audit detail</Eyebrow>
-          <SlideTitle>Original Google Ads audit reference.</SlideTitle>
-          <Lead>
-            The detailed audit deck remains the evidence base for the restructuring plan: account score, campaign/category analysis, negative keyword review, landing page performance and original implementation recommendations.
-          </Lead>
-          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-8 text-center">
-            <p className="text-sm uppercase tracking-widest font-bold text-slate-500 mb-3">PIN 4466</p>
-            <h3 className="text-2xl font-black text-slate-950 mb-4">Away Digital Teams Google Ads Audit</h3>
-            <a href="/partners/away-digital/google-ads-audit" className="inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
-              Open original audit deck
-            </a>
+        <div id="space-transition" className="v2-space-transition h-24" aria-hidden="true" />
+
+        <section id="closing" data-label="Closing" className="closing-v2 relative min-h-screen flex flex-col">
+          <Starfield id="closing-starfield" />
+          <div className="orbit-deco" style={{ width: '900px', height: '900px', right: '-280px', top: '-240px' }} />
+          <div className="relative z-10 flex-1 flex flex-col justify-center px-8 md:px-12 pb-12 w-full">
+            <h2 className="closing-h1 text-4xl md:text-6xl max-w-4xl">Ready to turn the audit into implementation.</h2>
+            <div className="closing-who mt-12">
+              <div>
+                <div className="lbl">Prepared for</div>
+                <div className="val">Away Digital Teams</div>
+              </div>
+              <div>
+                <div className="lbl">Prepared by</div>
+                <div className="val">Optimise Digital</div>
+              </div>
+            </div>
           </div>
-        </Section>
+          <div className="absolute bottom-9 right-4 z-10 flex flex-wrap items-center justify-end gap-2">
+            <a href="/partners/away-digital/google-ads-audit" className="inline-flex items-center justify-center rounded-md bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-sm transition-colors hover:bg-white">
+              Original audit deck · PIN 4466
+            </a>
+            <DownloadPdfButton />
+          </div>
+        </section>
       </main>
 
       <div
