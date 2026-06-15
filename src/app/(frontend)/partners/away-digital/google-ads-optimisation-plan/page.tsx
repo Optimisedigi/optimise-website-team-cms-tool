@@ -205,7 +205,7 @@ const TIMELINE_ROWS: readonly TimelineRow[] = [
     tone: 'red',
     phases: [
       { label: 'Historical cleanup of all negatives', start: 1, span: 2 },
-      { label: 'Weekly scheduled negative list', start: 3, span: 1 },
+      { label: 'Weekly scheduled negative list', start: 3, span: 2 },
     ],
   },
   {
@@ -762,9 +762,9 @@ export default function AwayDigitalOptimisationPlanPage() {
             <BulletCard title="AI Max + bid strategy fixes" items={['Turn off AI Max where it is expanding into weak intent.', 'Move away from Maximise Clicks where it is driving poor-quality traffic.', 'Use bid strategies that optimise toward lead quality, not cheap clicks.']} />
             <BulletCard title="Match type restructure" items={['Remove broad match where query quality is poor.', 'Move proven terms into phrase and exact match.', 'Keep discovery/testing separate from core lead generation.']} />
             <BulletCard title="Ad group structure" items={['Separate generic outsourcing, role-specific, Vietnam and comparison searches.', 'Make query → keyword → ad → landing page more aligned.', 'Use clearer budgets and success criteria by theme.']} />
-            <BulletCard title="Ad copy improvements" items={['Match ad copy to the searcher’s role, intent and buying stage.', 'Use finance-specific pain points for accounts payable and accountant searches.', 'Use mid-funnel education and comparison copy for broader outsourcing searches.', 'Add qualification language: full-time hires, long-term teams, not freelancers.']} />
             <BulletCard title="Landing page + flow audit" items={['Review whether landing pages match search intent.', 'Validate form → HubSpot → Calendly flow.', 'Use the Peter TEST submission to confirm source and click data capture.']} />
             <BulletCard title="HubSpot quality feedback" items={['Map leads to deals and won clients by source/campaign.', 'Use lead quality to guide budget decisions.', 'Consider offline conversion imports once fields are clean.']} />
+            <BulletCard title="Ad copy improvements" items={['Match ad copy to the searcher’s role, intent and buying stage.', 'Use finance-specific pain points for accounts payable and accountant searches.', 'Use mid-funnel education and comparison copy for broader outsourcing searches.', 'Add qualification language: full-time hires, long-term teams, not freelancers.']} />
             <BulletCard title="GA4 + Google Ads tracking fix" items={['GA4 key events are not set up cleanly.', 'Remove page_view, first_visit and session_start as key events.', 'Current GA4 links show Google Ads customer 489-489-6666, not the active Away Ads account 342-535-3766.', 'Relink GA4 to the active Google Ads account and keep real lead actions as primary conversions.']} />
             <BulletCard title="Chatbot tracking check" items={['GA4 event review did not show chat/chatbot/conversation events.', 'Confirm which chatbot widget is active and whether chats create HubSpot contacts/deals.', 'Track chatbot starts, qualified chats and booked meetings as secondary or primary lead events depending on quality.']} />
           </div>
@@ -791,11 +791,11 @@ export default function AwayDigitalOptimisationPlanPage() {
 
 
         <Section id="goal-alignment" label="End-goal alignment" number="10 / 11">
-          <Eyebrow>Client decision point</Eyebrow>
+          <Eyebrow>Client verification</Eyebrow>
           <SlideTitle>Questions to confirm.</SlideTitle>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <ul className="space-y-2 text-base text-slate-600 leading-snug">
-              {['Is the goal more total leads, better-fit leads, more deals, or more won clients?', 'Are there roles you want to keep prioritising even if CPA is higher?', 'Are there roles you do not want more enquiries for?', 'How much freedom do we have to pause or reduce roles if the data shows they are driving poor-quality leads or high CPL?'].map((item) => (
+              {['How much freedom do we have to pause or reduce roles if the data shows they are driving poor-quality leads or high CPL?', 'Are there roles you want to keep prioritising even if CPA is higher?', 'Can I get more access to HubSpot so I can validate actual conversions from lead to closed client?', 'Who is my main point of contact for this account?', 'What is the preferred frequency of meetings and catch-ups on performance?', 'Can I get access to Google Tag Manager?'].map((item) => (
                 <li key={item} className="flex gap-2">
                   <span className="mt-2 h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
                   <span>{item}</span>
@@ -845,11 +845,28 @@ export default function AwayDigitalOptimisationPlanPage() {
           </details>
         </Section>
 
-        <div id="space-transition" className="v2-space-transition h-24" aria-hidden="true" />
-
         <section id="closing" data-label="Closing" className="closing-v2 relative min-h-screen flex flex-col">
           <Starfield id="closing-starfield" />
+          <div
+            id="space-transition"
+            className="v2-space-transition h-24"
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 1,
+              backgroundColor: '#fff',
+              WebkitMaskImage: 'none',
+              maskImage: 'none',
+            }}
+            aria-hidden="true"
+          />
           <div className="orbit-deco" style={{ width: '900px', height: '900px', right: '-280px', top: '-240px' }} />
+          <div className="closing-station" style={{ transform: 'translate(5px, 20px) scale(0.8)' }} aria-hidden="true">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/slides/Space-station-optimise-digital.png" alt="" />
+          </div>
           <div className="relative z-10 flex-1 flex flex-col justify-center px-8 md:px-12 pb-12 w-full">
             <h2 className="closing-h1 text-4xl md:text-6xl max-w-4xl">Ready to turn the audit into implementation.</h2>
             <div className="closing-who mt-12">
@@ -863,8 +880,8 @@ export default function AwayDigitalOptimisationPlanPage() {
               </div>
             </div>
           </div>
-          <div className="absolute bottom-9 right-4 z-10 flex flex-wrap items-center justify-end gap-2">
-            <a href="/partners/away-digital/google-ads-audit" className="inline-flex items-center justify-center rounded-md bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-sm transition-colors hover:bg-white">
+          <div className="absolute bottom-[76px] right-4 z-10 flex flex-wrap items-center justify-end gap-2">
+            <a href="/partners/away-digital/google-ads-audit" className="inline-flex items-center justify-center rounded-md bg-white/95 px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors hover:bg-white" style={{ color: '#0f172a' }}>
               Original audit deck · PIN 4466
             </a>
             <DownloadPdfButton />
