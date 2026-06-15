@@ -10,6 +10,12 @@ export async function GET(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // consolidation-candidates is an admin-only internal tool (the collection's
+  // read access requires role === "admin"). This route reads with
+  // overrideAccess, so enforce the same admin gate here.
+  if ((user as { role?: string }).role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const client = searchParams.get("client");

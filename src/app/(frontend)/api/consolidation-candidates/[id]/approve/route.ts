@@ -18,6 +18,12 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // consolidation-candidates is an admin-only internal tool (see the
+  // collection's read/delete access). Applying a consolidation pushes negatives
+  // to a live Google Ads account, so gate the mutation to admins explicitly.
+  if ((user as { role?: string }).role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const candidate = await (payload.findByID as any)({
     collection: "consolidation-candidates",
