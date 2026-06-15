@@ -88,6 +88,7 @@ export default function ContractSignPage() {
   const [contract, setContract] = useState<ContractInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [linkExpired, setLinkExpired] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null)
   const [completedAgencySignature, setCompletedAgencySignature] = useState<string | null>(null)
@@ -135,6 +136,9 @@ export default function ContractSignPage() {
             setCompletedAgencySignature(data.agencySignature || null)
             setCompletedAgencySignerName(data.agencySignerName || null)
           } else {
+            if (data.code === 'contract_link_expired') {
+              setLinkExpired(true)
+            }
             setError(data.error || 'Failed to load contract')
           }
           return
@@ -379,8 +383,19 @@ export default function ContractSignPage() {
     return (
       <div style={pageStyle}>
         <div style={{ ...docStyle, textAlign: 'center' }}>
-          <h1 style={{ fontSize: 20, color: '#dc2626', marginBottom: 8 }}>Unable to Load Contract</h1>
-          <p style={{ color: '#666' }}>{error}</p>
+          {linkExpired ? (
+            <>
+              <h1 style={{ fontSize: 24, color: '#111827', marginBottom: 8 }}>Sorry, this link has expired</h1>
+              <p style={{ color: '#666', margin: 0 }}>
+                Please reach out to your Optimise Digital team member for a new link.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 style={{ fontSize: 20, color: '#dc2626', marginBottom: 8 }}>Unable to Load Contract</h1>
+              <p style={{ color: '#666' }}>{error}</p>
+            </>
+          )}
         </div>
       </div>
     )

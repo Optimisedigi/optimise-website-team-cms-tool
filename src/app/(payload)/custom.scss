@@ -1100,27 +1100,6 @@ $svg-close: "%3C/svg%3E";
     0 18px 42px rgba(0, 0, 0, 0.32);
 }
 
-.login.template-minimal .login__form::before {
-  content: 'Secure sign in';
-  display: block;
-  order: 0;
-  margin-bottom: 6px;
-  color: #ffffff;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.2;
-}
-
-.login.template-minimal .login__form::after {
-  content: 'Enter your crew credentials to access the operations hub.';
-  display: block;
-  order: 1;
-  margin: -2px 0 22px;
-  color: #9da7ba;
-  font-size: 13px;
-  line-height: 1.45;
-}
 
 .login.template-minimal .login__form__inputWrap {
   order: 2;

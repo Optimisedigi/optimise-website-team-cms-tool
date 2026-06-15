@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayload } from "payload";
 import config from "@/payload.config";
+import { reconcileApprovalNotifications } from "@/lib/agent-approval-notifications";
 
 /**
  * POST /api/notifications/mark-all-read
@@ -16,6 +17,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Pending approval notifications can be backfilled lazily for older approval
+  // rows/users. Materialise those rows before marking read so the red badge does
+  // not come back as a synthetic pending-approval count on the next poll/login.
+  await reconcileApprovalNotifications(payload);
 
   // Find all unread for this user, then update individually. Payload's
   // bulk-update helper requires the same filter shape; the safer path is

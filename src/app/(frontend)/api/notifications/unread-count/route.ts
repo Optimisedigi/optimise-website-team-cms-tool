@@ -17,13 +17,29 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [unreadNotifications, pendingApprovals] = await Promise.all([
+  const [unreadNotifications, userApprovalNotifications, pendingApprovals] = await Promise.all([
     payload.find({
       collection: "notifications" as never,
       where: {
         and: [
           { recipient: { equals: user.id } },
           { readAt: { exists: false } },
+        ],
+      } as never,
+      limit: 500,
+      depth: 0,
+      overrideAccess: true,
+      select: {
+        id: true,
+      } as never,
+    }),
+    payload.find({
+      collection: "notifications" as never,
+      where: {
+        and: [
+          { recipient: { equals: user.id } },
+          { kind: { equals: "agent-approval-pending" } },
+          { relatedApproval: { exists: true } },
         ],
       } as never,
       limit: 500,
@@ -48,7 +64,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   ]);
 
   const countedApprovalIds = new Set(
-    (unreadNotifications.docs as Array<Record<string, unknown>>)
+    (userApprovalNotifications.docs as Array<Record<string, unknown>>)
       .map((doc) => {
         const related = doc.relatedApproval;
         if (typeof related === "object" && related && "id" in related) return String(related.id);

@@ -50,7 +50,13 @@ export async function GET(
   }
 
   if (doc.signingTokenExpiresAt && new Date(doc.signingTokenExpiresAt) < new Date()) {
-    return NextResponse.json({ error: "This signing link has expired. Please contact the agency for a new link." }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: "Sorry, this link has expired. Please reach out to your Optimise Digital team member for a new link.",
+        code: "contract_link_expired",
+      },
+      { status: 410 },
+    );
   }
 
   // Convert rich text fields to HTML for signing page
@@ -200,7 +206,13 @@ export async function POST(
   const originalCcEmails = parseClientEmails(doc.clientEmail).ccs;
 
   if (doc.signingTokenExpiresAt && new Date(doc.signingTokenExpiresAt) < new Date()) {
-    return NextResponse.json({ error: "Signing link expired" }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: "Sorry, this link has expired. Please reach out to your Optimise Digital team member for a new link.",
+        code: "contract_link_expired",
+      },
+      { status: 410 },
+    );
   }
 
   const body = await req.json();

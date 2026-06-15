@@ -38,7 +38,8 @@ const ClientPresentationLink = ({ path }: Props) => {
         style={{
           display: 'flex',
           alignItems: 'center',
-          height: '100%',
+          minHeight: 43,
+          marginTop: 22,
           fontSize: 13,
           color: 'var(--theme-elevation-500, #888)',
           fontStyle: 'italic',
@@ -50,21 +51,24 @@ const ClientPresentationLink = ({ path }: Props) => {
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+    <div style={{ display: 'flex', alignItems: 'center', minHeight: 43, marginTop: 22 }}>
       <button
         type="button"
         onClick={handleOpen}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 5,
-          padding: '6px 12px',
-          background: 'var(--theme-elevation-100, #2563eb)',
-          color: 'white',
-          border: 'none',
-          borderRadius: 6,
+          justifyContent: 'center',
+          gap: 6,
+          padding: '10px 16px',
+          minHeight: 43,
+          background: '#2563eb',
+          color: '#fff',
+          border: '1px solid #1d4ed8',
+          borderRadius: 8,
+          boxShadow: '0 1px 2px rgba(37, 99, 235, 0.22)',
           fontSize: 13,
-          fontWeight: 600,
+          fontWeight: 700,
           cursor: 'pointer',
           whiteSpace: 'nowrap',
         }}
