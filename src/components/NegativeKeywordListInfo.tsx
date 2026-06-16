@@ -21,11 +21,12 @@ var CMS_API_KEY = '8f2fa5b8b97ab933ae306ccdfad2ce1df0de16f926e97cb1'; // Read-on
 
 function main() {
   var customerId = AdsApp.currentAccount().getCustomerId();
+  var normalizedCustomerId = customerId.replace(/\\D/g, '');
   Logger.log('Syncing negative keywords for customer: ' + customerId);
 
   // Fetch keyword lists from CMS
   var response = UrlFetchApp.fetch(
-    CMS_URL + '?customerId=' + customerId,
+    CMS_URL + '?customerId=' + encodeURIComponent(normalizedCustomerId),
     {
       headers: { 'x-api-key': CMS_API_KEY },
       muteHttpExceptions: true

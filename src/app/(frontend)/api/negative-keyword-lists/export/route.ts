@@ -15,9 +15,10 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const customerId = url.searchParams.get("customerId");
+    const normalizedCustomerId = customerId?.replace(/\D/g, "").slice(0, 10) || null;
     const clientId = url.searchParams.get("clientId");
 
-    if (!customerId && !clientId) {
+    if (!normalizedCustomerId && !clientId) {
       return NextResponse.json(
         { error: "customerId or clientId is required" },
         { status: 400 },
@@ -33,10 +34,11 @@ export async function GET(request: NextRequest) {
         overrideAccess: true,
       });
     } else {
-      // Look up by Google Ads customer ID
+      // Look up by Google Ads customer ID. The client field is stored without
+      // dashes, while Google Ads scripts commonly return IDs as 123-456-7890.
       const result = await payload.find({
         collection: "clients",
-        where: { googleAdsCustomerId: { equals: customerId } },
+        where: { googleAdsCustomerId: { equals: normalizedCustomerId } },
         limit: 1,
         overrideAccess: true,
       });
