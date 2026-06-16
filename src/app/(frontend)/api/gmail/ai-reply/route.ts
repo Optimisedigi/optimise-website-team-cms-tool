@@ -27,7 +27,7 @@ interface AiReplyBody {
 }
 
 const MAX_BODY_LEN = 20_000;
-const MAX_INSTRUCTIONS_LEN = 2_000;
+const MAX_INSTRUCTIONS_LEN = 8_000;
 
 function buildSystemPrompt(): string {
   return [

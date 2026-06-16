@@ -11,6 +11,7 @@ interface PageProps {
     mode?: string
     portfolio?: string
     agent?: string
+    phase?: string
   }>
 }
 
@@ -44,12 +45,15 @@ export default async function OptimatePopoutPage({ searchParams }: PageProps) {
     redirect('/admin/login?redirect=/optimate-popout')
   }
 
-  const { audits, sessionIds: sessionIdsParam, mode, portfolio, agent } = await searchParams
+  const { audits, sessionIds: sessionIdsParam, mode, portfolio, agent, phase } = await searchParams
 
-  // The Invoice assistant is standalone (no audit/account picker, per-session
-  // thread), so the popout just re-mounts the chat full-window.
+  // Standalone agents (no audit/account picker) just re-mount full-window.
   if (agent === 'invoices') {
     return <OptimatePopoutClient agent="invoices" />
+  }
+
+  if (agent === 'gmail') {
+    return <OptimatePopoutClient agent="gmail" phase={phase === 'reply' ? 'reply' : 'compose'} />
   }
 
   const portfolioMode = mode === 'portfolio' || portfolio === '1'

@@ -355,14 +355,13 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                 ← Agents
               </button>
             )}
-            {step === 'invoice-chat' && (
+            {(step === 'invoice-chat' || step === 'gmail' || step === 'email-reply') && (
               <button
                 type="button"
                 onClick={() => {
-                  // Open the invoice assistant in a separate browser window so
-                  // the user can park it next to their work. The invoice chat
-                  // is standalone (per-session thread, no audit picker), so the
-                  // popout simply re-mounts it full-window via ?agent=invoices.
+                  // Open standalone agents in a separate browser window so the
+                  // user can park them next to their work. Gmail keeps the same
+                  // entry mode (new draft vs reply search) via the phase param.
                   const features = [
                     'popup=yes',
                     'width=680',
@@ -372,7 +371,12 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     'location=no',
                     'status=no',
                   ].join(',')
-                  window.open('/optimate-popout?agent=invoices', 'optimate-popout-invoices', features)
+                  const url =
+                    step === 'invoice-chat'
+                      ? '/optimate-popout?agent=invoices'
+                      : `/optimate-popout?agent=gmail&phase=${step === 'email-reply' ? 'reply' : 'compose'}`
+                  const name = step === 'invoice-chat' ? 'invoices' : `gmail-${step === 'email-reply' ? 'reply' : 'compose'}`
+                  window.open(url, `optimate-popout-${name}`, features)
                   setOpen(false)
                 }}
                 title="Pop out to a separate window"
@@ -628,16 +632,15 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                   More agents coming soon.
                 </p>
 
-                {/* Persistent shortcut at the bottom of the launcher: jump
-                    straight into the Gmail draft flow without picking an
-                    agent or a Google Ads account. */}
+                {/* Persistent Gmail shortcuts: left drafts a new email; right
+                    starts the reply flow by searching for an existing email. */}
                 <div
                   style={{
                     marginTop: 16,
                     paddingTop: 12,
                     borderTop: '1px solid var(--theme-border-color, #e5e7eb)',
-                    display: 'flex',
-                    alignItems: 'center',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
                     gap: 10,
                   }}
                 >
@@ -645,18 +648,19 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                     type="button"
                     onClick={() => setStep('gmail')}
                     title="Draft an email"
-                    aria-label="Draft an email"
                     style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: '50%',
-                      border: '1px solid var(--theme-border-color, #e5e7eb)',
-                      background: 'var(--theme-input-bg, #fff)',
                       display: 'flex',
+                      flexDirection: 'column',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      gap: 6,
+                      padding: '12px 8px',
+                      border: '1px solid var(--theme-border-color, #e5e7eb)',
+                      borderRadius: 10,
+                      background: 'var(--theme-input-bg, #fff)',
+                      color: 'var(--theme-text, #1f2937)',
                       cursor: 'pointer',
-                      flexShrink: 0,
+                      fontSize: 12,
+                      fontWeight: 700,
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background = '#f9fafb'
@@ -665,8 +669,7 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                       e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
                     }}
                   >
-                    {/* Gmail envelope mark */}
-                    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
                       <path
                         fill="#4285F4"
                         d="M2 6.5A1.5 1.5 0 0 1 3.5 5H4l8 6 8-6h.5A1.5 1.5 0 0 1 22 6.5V18a1.5 1.5 0 0 1-1.5 1.5h-2V9.2l-6.5 4.9L5.5 9.2v10.3h-2A1.5 1.5 0 0 1 2 18V6.5Z"
@@ -676,22 +679,42 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
                         d="M2 6.5 12 14l10-7.5V6.5A1.5 1.5 0 0 0 20.5 5h-17A1.5 1.5 0 0 0 2 6.5Z"
                       />
                     </svg>
+                    Draft an email
                   </button>
                   <button
                     type="button"
-                    onClick={() => setStep('gmail')}
+                    onClick={() => setStep('email-reply')}
+                    title="Reply to an email"
                     style={{
-                      background: 'transparent',
-                      border: 'none',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '12px 8px',
+                      border: '1px solid var(--theme-border-color, #e5e7eb)',
+                      borderRadius: 10,
+                      background: 'var(--theme-input-bg, #fff)',
                       color: 'var(--theme-text, #1f2937)',
-                      fontSize: 13,
-                      fontWeight: 600,
                       cursor: 'pointer',
-                      padding: 0,
-                      textAlign: 'left',
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#f9fafb'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'var(--theme-input-bg, #fff)'
                     }}
                   >
-                    Draft an email
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M4 7h16v10H4z" fill="#F9AB00" opacity="0.22" />
+                      <path d="M4 7l8 6 8-6" stroke="#EA4335" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M9 16H5a1 1 0 0 1-1-1V7" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M15 16h4a1 1 0 0 0 1-1V7" stroke="#34A853" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M7 21v-3.5A2.5 2.5 0 0 1 9.5 15H17" stroke="#111827" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M14 12l3 3-3 3" stroke="#111827" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Reply to an email
                   </button>
                 </div>
               </div>
@@ -895,7 +918,9 @@ const OptiMateLauncher = ({ children }: { children: React.ReactNode }) => {
 
             {step === 'invoice-chat' && <InvoiceAssistantChat />}
 
-            {step === 'gmail' && <GmailReplyChat />}
+            {step === 'gmail' && <GmailReplyChat initialPhase="compose" />}
+
+            {step === 'email-reply' && <GmailReplyChat initialPhase="search" />}
           </div>
         </div>
       )}

@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import OptiMateMultiChat, { type OptiMateChatTarget } from '@/components/OptiMateMultiChat'
 import InvoiceAssistantChat from '@/components/InvoiceAssistantChat'
+import GmailReplyChat from '@/components/GmailReplyChat'
 
 type Props =
   | { agent?: 'google-ads'; targets: OptiMateChatTarget[] }
   | { agent: 'invoices'; targets?: undefined }
+  | { agent: 'gmail'; phase?: 'compose' | 'reply'; targets?: undefined }
 
 interface AccountOption {
   id: string | number
@@ -30,16 +32,17 @@ interface AccountOption {
  */
 export default function OptimatePopoutClient(props: Props) {
   const isInvoices = props.agent === 'invoices'
-  const targets = isInvoices ? [] : props.targets
-  const isPortfolio = !isInvoices && targets.some((t) => t.mode === 'portfolio')
+  const isGmail = props.agent === 'gmail'
+  const targets = isInvoices || isGmail ? [] : props.targets
+  const isPortfolio = !isInvoices && !isGmail && targets.some((t) => t.mode === 'portfolio')
 
   // Audit ids currently open in this window, used to pre-check the picker.
   const currentAuditIds = useMemo(
     () =>
-      isInvoices
+      isInvoices || isGmail
         ? []
         : targets.filter((t) => t.mode !== 'portfolio').map((t) => String(t.id)),
-    [isInvoices, targets],
+    [isInvoices, isGmail, targets],
   )
 
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -89,10 +92,10 @@ export default function OptimatePopoutClient(props: Props) {
               fontSize: 11,
             }}
           >
-            {isInvoices ? '· Invoices' : '· Google Ads'}
+            {isInvoices ? '· Invoices' : isGmail ? '· Gmail' : '· Google Ads'}
           </span>
         </div>
-        {!isInvoices && (
+        {!isInvoices && !isGmail && (
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
@@ -142,12 +145,14 @@ export default function OptimatePopoutClient(props: Props) {
       >
         {isInvoices ? (
           <InvoiceAssistantChat />
+        ) : isGmail ? (
+          <GmailReplyChat initialPhase={props.phase === 'reply' ? 'search' : 'compose'} />
         ) : (
           <OptiMateMultiChat targets={targets} fluid />
         )}
       </div>
 
-      {!isInvoices && pickerOpen && (
+      {!isInvoices && !isGmail && pickerOpen && (
         <AccountPickerOverlay
           currentAuditIds={currentAuditIds}
           portfolioActive={isPortfolio}
