@@ -4635,6 +4635,10 @@ export interface NegativeKeywordList {
    */
   keywordCount?: number | null;
   /**
+   * Snapshot of matching campaigns from the last preview
+   */
+  campaignCount?: number | null;
+  /**
    * Inactive lists are excluded from the Google Ads sync
    */
   isActive?: boolean | null;
@@ -10513,6 +10517,7 @@ export interface NegativeKeywordListsSelect<T extends boolean = true> {
         id?: T;
       };
   keywordCount?: T;
+  campaignCount?: T;
   isActive?: T;
   relevancyExclusion?: T;
   source?: T;

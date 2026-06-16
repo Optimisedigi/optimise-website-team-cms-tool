@@ -16,7 +16,7 @@ export const NegativeKeywordLists: CollectionConfig = {
     // "Collections" section above the sidebar groups.
     group: "Growth Tools",
     useAsTitle: "name",
-    defaultColumns: ["client", "name", "scope", "keywordCount", "isActive"],
+    defaultColumns: ["client", "name", "scope", "keywordCount", "campaignCount", "isActive"],
   },
   defaultSort: "client",
   access: {
@@ -27,7 +27,7 @@ export const NegativeKeywordLists: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
-      ({ data }) => {
+      ({ data, originalDoc }) => {
         if (typeof data?.createKeywordPaste === "string" && data.createKeywordPaste.trim()) {
           const existingKeywords = Array.isArray(data.keywords) ? data.keywords : [];
           const existingSet = new Set(
@@ -59,6 +59,15 @@ export const NegativeKeywordLists: CollectionConfig = {
             }
           }
         }
+
+        const nextRegex = typeof data?.campaignRegex === "string" ? data.campaignRegex : originalDoc?.campaignRegex;
+        const nextCampaigns = Array.isArray(data?.campaigns)
+          ? data.campaigns
+          : Array.isArray(originalDoc?.campaigns)
+            ? originalDoc.campaigns
+            : [];
+        data.campaignCount = String(nextRegex ?? "").trim() ? nextCampaigns.length : 0;
+
         return data;
       },
     ],
@@ -340,6 +349,17 @@ export const NegativeKeywordLists: CollectionConfig = {
         readOnly: true,
         description: "Auto-calculated keyword count",
         condition: () => false, // Hidden — shown in the table header
+      },
+    },
+    {
+      name: "campaignCount",
+      label: "Campaigns",
+      type: "number",
+      defaultValue: 0,
+      admin: {
+        readOnly: true,
+        description: "Snapshot of matching campaigns from the last preview",
+        condition: () => false,
       },
     },
     {
