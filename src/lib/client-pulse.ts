@@ -337,7 +337,7 @@ export async function fetchClientPulseSources(
       }),
       fetchOptionalAllPages(payload, {
         collection: "client-metric-snapshots",
-        where: { client: { in: clientIds } },
+        where: { and: [{ client: { in: clientIds } }, { source: { equals: "website-we-can-quit" } }] },
         depth: 0,
         limit: Math.max(limit, clientIds.length * 90),
         sort: "-date",
