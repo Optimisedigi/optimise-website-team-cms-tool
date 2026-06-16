@@ -1,18 +1,19 @@
 'use client'
 
-import { useFormFields } from '@payloadcms/ui'
+import { useDocumentInfo } from '@payloadcms/ui'
 import { useEffect, useState } from 'react'
 
 const DeckTemplateUsageCount = () => {
-  const slug = useFormFields(([fields]) => {
-    const v = fields?.templateSlug?.value
-    return typeof v === 'string' ? v : ''
-  })
+  // On a client's `presentations` array, `templateSlug` is a *relationship* to
+  // deck-templates — it stores this record's numeric id, NOT the slug string.
+  // So count usage by the deck-template's own document id, not by its slug.
+  const { id } = useDocumentInfo()
 
   const [count, setCount] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!slug) {
+    // No id yet (new, unsaved template) → nothing to count.
+    if (id === undefined || id === null || id === '') {
       setCount(null)
       return
     }
@@ -20,7 +21,7 @@ const DeckTemplateUsageCount = () => {
     ;(async () => {
       try {
         const res = await fetch(
-          `/api/clients?where[presentations.templateSlug][equals]=${encodeURIComponent(slug)}&limit=0&depth=0`,
+          `/api/clients?where[presentations.templateSlug][equals]=${encodeURIComponent(String(id))}&limit=0&depth=0`,
         )
         if (!res.ok) throw new Error(`status ${res.status}`)
         const json = (await res.json()) as { totalDocs?: number }
@@ -32,9 +33,9 @@ const DeckTemplateUsageCount = () => {
     return () => {
       cancelled = true
     }
-  }, [slug])
+  }, [id])
 
-  if (!slug) return null
+  if (id === undefined || id === null || id === '') return null
 
   return (
     <div style={{ marginBottom: '1rem', fontSize: 13, color: '#444' }}>
