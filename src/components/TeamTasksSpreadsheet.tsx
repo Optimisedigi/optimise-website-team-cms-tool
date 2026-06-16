@@ -568,7 +568,9 @@ export default function TeamTasksSpreadsheet() {
                     <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Type task title here…" style={{ ...inputStyle, minWidth: 260, borderColor: '#14b8a6' }} onKeyDown={(e) => { if (e.key === 'Enter') void addRow() }} />
                   </td>
                   <td style={tdStyle}>
-                    <span style={{ display: 'block', borderRadius: 6, padding: '8px', fontSize: 12, fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap', ...statusTone('in_progress') }}>In Progress</span>
+                    <select value="in_progress" disabled style={{ ...inputStyle, width: 126, whiteSpace: 'nowrap', fontSize: 12, opacity: 1, ...statusTone('in_progress') }}>
+                      <option value="in_progress">In Progress</option>
+                    </select>
                   </td>
                   <td style={tdStyle}>
                     <select value={draft.assignedTo} onChange={(e) => setDraft({ ...draft, assignedTo: e.target.value })} style={inputStyle}>
@@ -584,14 +586,24 @@ export default function TeamTasksSpreadsheet() {
                     />
                   </td>
                   <td style={tdStyle}>
-                    <button
-                      type="button"
-                      onClick={() => setDraft({ title: '', client: '', taskType: 'blog_post', dueDate: weekStart, assignedTo: '', instructions: '' })}
-                      title="Clear draft row"
-                      style={{ ...inputStyle, padding: '7px 0', cursor: 'pointer', color: '#64748b', fontWeight: 900 }}
-                    >
-                      ×
-                    </button>
+                    <div style={{ display: 'grid', gap: 4 }}>
+                      <button
+                        type="button"
+                        disabled
+                        title="Add the row before opening task details"
+                        style={{ ...inputStyle, padding: '7px 0', cursor: 'not-allowed', color: '#94a3b8', fontWeight: 900, opacity: .65 }}
+                      >
+                        ↗
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDraft({ title: '', client: '', taskType: 'blog_post', dueDate: weekStart, assignedTo: '', instructions: '' })}
+                        title="Clear draft row"
+                        style={{ ...inputStyle, padding: '7px 0', cursor: 'pointer', color: '#64748b', fontWeight: 900 }}
+                      >
+                        ×
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 <tr style={{ background: 'rgba(70, 141, 139, 0.08)' }}>
