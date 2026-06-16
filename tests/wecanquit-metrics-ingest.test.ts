@@ -155,6 +155,23 @@ describe("WeCanQuit metrics ingest", () => {
     );
   });
 
+  it("keeps the client summary update when snapshot history fails", async () => {
+    payloadMock.create.mockRejectedValueOnce(new Error("snapshot table unavailable"));
+
+    const res = await POST(signedRequest(validPayload));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: "clients",
+        id: 123,
+        data: expect.objectContaining({ wcqAssessmentsCompleted: 12 }),
+      })
+    );
+  });
+
   it("rejects missing signatures before touching Payload", async () => {
     const res = await POST(
       new NextRequest("http://localhost/api/integrations/wecanquit/metrics", {

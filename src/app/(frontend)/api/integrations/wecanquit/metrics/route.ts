@@ -68,46 +68,50 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
     });
 
-    const date = snapshotDate(metrics.asOf);
-    const existingSnapshot = await payload.find({
-      collection: "client-metric-snapshots" as any,
-      where: {
-        and: [
-          { client: { equals: client.id } },
-          { source: { equals: metrics.source } },
-          { date: { equals: date } },
-        ],
-      },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    });
-
-    const snapshotData = {
-      client: client.id,
-      source: metrics.source,
-      date,
-      trackingStartDate: metrics.trackingStartDate,
-      assessmentsCompleted: metrics.assessmentsCompleted,
-      prescriptions: metrics.prescriptions,
-      assessmentTarget: metrics.assessmentTarget,
-      prescriptionTarget: metrics.prescriptionTarget,
-      asOf: metrics.asOf,
-    };
-
-    if (existingSnapshot.docs[0]?.id) {
-      await payload.update({
+    try {
+      const date = snapshotDate(metrics.asOf);
+      const existingSnapshot = await payload.find({
         collection: "client-metric-snapshots" as any,
-        id: existingSnapshot.docs[0].id,
-        data: snapshotData,
+        where: {
+          and: [
+            { client: { equals: client.id } },
+            { source: { equals: metrics.source } },
+            { date: { equals: date } },
+          ],
+        },
+        limit: 1,
+        depth: 0,
         overrideAccess: true,
       });
-    } else {
-      await payload.create({
-        collection: "client-metric-snapshots" as any,
-        data: snapshotData,
-        overrideAccess: true,
-      });
+
+      const snapshotData = {
+        client: client.id,
+        source: metrics.source,
+        date,
+        trackingStartDate: metrics.trackingStartDate,
+        assessmentsCompleted: metrics.assessmentsCompleted,
+        prescriptions: metrics.prescriptions,
+        assessmentTarget: metrics.assessmentTarget,
+        prescriptionTarget: metrics.prescriptionTarget,
+        asOf: metrics.asOf,
+      };
+
+      if (existingSnapshot.docs[0]?.id) {
+        await payload.update({
+          collection: "client-metric-snapshots" as any,
+          id: existingSnapshot.docs[0].id,
+          data: snapshotData,
+          overrideAccess: true,
+        });
+      } else {
+        await payload.create({
+          collection: "client-metric-snapshots" as any,
+          data: snapshotData,
+          overrideAccess: true,
+        });
+      }
+    } catch (error) {
+      console.error("[wecanquit-metrics] snapshot write failed:", error instanceof Error ? error.message : error);
     }
 
     return NextResponse.json({
