@@ -97,6 +97,7 @@ import * as migration_20260625_120000_add_scheduled_task_friendly_schedule from 
 import * as migration_20260626_120000_add_scheduled_task_clients_covered from './20260626_120000_add_scheduled_task_clients_covered';
 import * as migration_20260627_120000_add_client_type from './20260627_120000_add_client_type';
 import * as migration_20260628_120000_add_agency_kpi_snapshots from './20260628_120000_add_agency_kpi_snapshots';
+import * as migration_20260629_120000_add_client_metric_snapshots from './20260629_120000_add_client_metric_snapshots';
 import * as migration_20260629_120000_add_optimate_chat_history_token_limit from './20260629_120000_add_optimate_chat_history_token_limit';
 import * as migration_20260630_120000_add_relevancy_exclusion_buckets from './20260630_120000_add_relevancy_exclusion_buckets';
 import * as migration_20260701_120000_add_monthly_keyword_selection from './20260701_120000_add_monthly_keyword_selection';
@@ -618,6 +619,11 @@ export const migrations = [
     up: migration_20260628_120000_add_agency_kpi_snapshots.up,
     down: migration_20260628_120000_add_agency_kpi_snapshots.down,
     name: '20260628_120000_add_agency_kpi_snapshots'
+  },
+  {
+    up: migration_20260629_120000_add_client_metric_snapshots.up,
+    down: migration_20260629_120000_add_client_metric_snapshots.down,
+    name: '20260629_120000_add_client_metric_snapshots'
   },
   {
     up: migration_20260629_120000_add_optimate_chat_history_token_limit.up,

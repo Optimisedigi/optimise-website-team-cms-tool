@@ -400,7 +400,17 @@ export interface Client {
     priority?: ('watch' | 'normal' | 'high' | 'critical') | null;
     comparisonWindow?: ('last_month' | 'last_year' | 'last_90_days') | null;
     primaryTarget?:
-      | ('cpa' | 'roas' | 'traffic' | 'conversions' | 'organic_clicks' | 'paid_conversions' | 'revenue' | 'custom')
+      | (
+          | 'cpa'
+          | 'roas'
+          | 'traffic'
+          | 'conversions'
+          | 'organic_clicks'
+          | 'paid_conversions'
+          | 'revenue'
+          | 'assessments'
+          | 'custom'
+        )
       | null;
     /**
      * Display label, especially for custom targets.

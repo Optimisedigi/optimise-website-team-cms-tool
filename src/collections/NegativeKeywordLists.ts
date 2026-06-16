@@ -146,19 +146,6 @@ export const NegativeKeywordLists: CollectionConfig = {
   },
   fields: [
     {
-      name: "infoPanel",
-      type: "ui",
-      admin: {
-        // Avoid mounting this custom UI on the create screen. Payload shows a
-        // blurred placeholder for UI fields before the client component hydrates,
-        // and this panel only has useful actions once the list has been saved.
-        condition: (data) => Boolean(data?.id),
-        components: {
-          Field: "./components/NegativeKeywordListInfo",
-        },
-      },
-    },
-    {
       name: "client",
       type: "relationship",
       relationTo: "clients",
@@ -191,16 +178,6 @@ export const NegativeKeywordLists: CollectionConfig = {
       },
     },
     {
-      name: "campaignSelect",
-      type: "ui",
-      admin: {
-        condition: (data) => Boolean(data?.id),
-        components: {
-          Field: "./components/NegativeKeywordCampaignSelect",
-        },
-      },
-    },
-    {
       name: "campaignName",
       type: "text",
       admin: {
@@ -213,7 +190,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       type: "array",
       admin: {
         description: "Campaigns this negative keyword list is applied to",
-        condition: () => false, // Hidden — managed via the campaign select UI above
+        condition: () => false, // Hidden — managed by negative keyword sync/API workflows
       },
       fields: [
         {
@@ -240,31 +217,11 @@ export const NegativeKeywordLists: CollectionConfig = {
       },
     },
     {
-      name: "bulkAdd",
-      type: "ui",
-      admin: {
-        condition: (data) => Boolean(data?.id),
-        components: {
-          Field: "./components/NegativeKeywordBulkAdd",
-        },
-      },
-    },
-    {
-      name: "keywordTable",
-      type: "ui",
-      admin: {
-        condition: (data) => Boolean(data?.id),
-        components: {
-          Field: "./components/NegativeKeywordTable",
-        },
-      },
-    },
-    {
       name: "keywords",
       type: "array",
       admin: {
         description: "Negative keywords in this list",
-        condition: () => false, // Hidden — managed via the table UI above
+        condition: () => false, // Hidden — managed by negative keyword workflows/API
       },
       fields: [
         {
@@ -310,7 +267,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       admin: {
         readOnly: true,
         description: "Auto-calculated keyword count",
-        condition: () => false, // Hidden — shown in the table header
+        condition: () => false, // Hidden — used for collection list columns and API responses
       },
     },
     {
