@@ -119,6 +119,7 @@ export async function POST(
         attachments: Array.isArray(body.attachments) ? body.attachments : [],
       } as any,
       depth: 1,
+      overrideAccess: true,
     });
 
     const clientId = relId((task as any).client);
