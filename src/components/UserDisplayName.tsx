@@ -25,10 +25,20 @@ const UserDisplayName = () => {
 
   const displayName = (user as any).name || (user as any).email;
 
+  const handleSignOut = async () => {
+    setOpen(false);
+    await logOut();
+    router.push("/admin/login");
+    router.refresh();
+  };
+
   return (
     <div ref={ref} className="od-user-display-name" style={{ position: "relative" }}>
       <button
         type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Open profile menu"
         onClick={() => setOpen((v) => !v)}
         style={{
           display: "flex",
@@ -65,6 +75,8 @@ const UserDisplayName = () => {
 
       {open && (
         <div
+          role="menu"
+          aria-label="Profile menu"
           style={{
             position: "absolute",
             top: "calc(100% + 4px)",
@@ -91,12 +103,44 @@ const UserDisplayName = () => {
               {(user as any).email}
             </div>
           </div>
+          <a
+            role="menuitem"
+            href="/admin/account"
+            onClick={() => setOpen(false)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              width: "100%",
+              padding: "10px 14px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 13,
+              color: "var(--theme-elevation-800)",
+              fontWeight: 500,
+              textDecoration: "none",
+              transition: "background 150ms",
+              boxSizing: "border-box",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--theme-elevation-50, #f9f9f9)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "none";
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            Profile
+          </a>
           <button
             type="button"
+            role="menuitem"
             onClick={() => {
-              setOpen(false);
-              logOut();
-              router.push("/admin");
+              void handleSignOut();
             }}
             style={{
               display: "flex",

@@ -751,6 +751,13 @@ $svg-close: "%3C/svg%3E";
   }
 }
 
+// Use the custom icon + name dropdown as the single profile/account control.
+// Payload also renders a default avatar on the far right; hide that duplicate
+// so Profile and Sign out live together in one menu.
+.app-header .app-header__account {
+  display: none !important;
+}
+
 // On mobile the header sits on a light/white surface, so the hamburger and
 // breadcrumbs wash out and are hard to see. Give the header bar a solid black
 // background (mobile only) so the menu toggle and header controls stand out.
@@ -1022,7 +1029,7 @@ body:has(:is(.collection-create--negative-keyword-lists, .collection-edit--negat
 
 // ============================================================
 // Login page — midnight command center
-// Inspired by Refero references: Authkit glass cards, Reflect violet orbit,
+// Inspired by Refero references: Authkit glass cards, subtle blue orbit,
 // and Rally's calm space backdrop.
 // ============================================================
 // Payload v3 renders the login as `.login.template-minimal`, not the normal
@@ -1036,10 +1043,10 @@ body:has(:is(.collection-create--negative-keyword-lists, .collection-edit--negat
   min-height: 100svh;
   padding: clamp(24px, 5vw, 64px);
   background:
-    radial-gradient(circle at 18% 18%, rgba(102, 58, 243, 0.34), transparent 30%),
-    radial-gradient(circle at 82% 12%, rgba(8, 136, 255, 0.24), transparent 28%),
-    radial-gradient(circle at 50% 88%, rgba(213, 171, 255, 0.18), transparent 34%),
-    linear-gradient(135deg, #030014 0%, #05060f 48%, #08102b 100%);
+    radial-gradient(circle at 18% 18%, rgba(37, 99, 235, 0.22), transparent 30%),
+    radial-gradient(circle at 82% 12%, rgba(14, 165, 233, 0.2), transparent 28%),
+    radial-gradient(circle at 50% 88%, rgba(125, 211, 252, 0.12), transparent 34%),
+    linear-gradient(135deg, #020617 0%, #06111f 48%, #07182f 100%);
   color: #d8ecf8;
   overflow: hidden;
   box-sizing: border-box;
@@ -1071,12 +1078,12 @@ body:has(:is(.collection-create--negative-keyword-lists, .collection-edit--negat
   border: 1px solid rgba(186, 215, 247, 0.1);
   border-radius: 50%;
   background:
-    linear-gradient(135deg, rgba(102, 58, 243, 0.16), rgba(8, 136, 255, 0.05)),
-    radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.24), transparent 3%),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(14, 165, 233, 0.05)),
+    radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.2), transparent 3%),
     radial-gradient(circle at 50% 50%, transparent 52%, rgba(186, 215, 247, 0.08) 52% 54%, transparent 54%);
   box-shadow:
     inset 0 0 80px rgba(199, 211, 234, 0.08),
-    0 0 120px rgba(102, 58, 243, 0.18);
+    0 0 120px rgba(14, 165, 233, 0.14);
 }
 
 .login.template-minimal .template-minimal__wrap {
@@ -1095,8 +1102,8 @@ body:has(:is(.collection-create--negative-keyword-lists, .collection-edit--negat
   border: 1px solid rgba(186, 215, 247, 0.14);
   border-radius: 32px;
   background:
-    linear-gradient(135deg, rgba(5, 6, 15, 0.58), rgba(6, 3, 23, 0.8)),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06), transparent 42%);
+    linear-gradient(135deg, rgba(4, 10, 22, 0.62), rgba(5, 18, 32, 0.8)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055), transparent 42%);
   box-shadow:
     inset 0 1px 1px rgba(216, 236, 248, 0.18),
     inset 0 28px 68px rgba(168, 216, 245, 0.05),
@@ -1117,7 +1124,7 @@ body:has(:is(.collection-create--negative-keyword-lists, .collection-edit--negat
 .login.template-minimal .login__brand {
   justify-content: center;
   margin-bottom: 4px !important;
-  filter: drop-shadow(0 0 38px rgba(147, 130, 255, 0.24));
+  filter: drop-shadow(0 0 34px rgba(56, 189, 248, 0.2));
 }
 
 .login.template-minimal .login__form {
@@ -1164,7 +1171,7 @@ body:has(:is(.collection-create--negative-keyword-lists, .collection-edit--negat
   border-color: rgba(182, 217, 252, 0.68) !important;
   box-shadow:
     inset 0 0 0 1px rgba(182, 217, 252, 0.2),
-    0 0 0 4px rgba(102, 58, 243, 0.2) !important;
+    0 0 0 4px rgba(14, 165, 233, 0.16) !important;
 }
 
 .login.template-minimal .login__form a {
@@ -1191,22 +1198,22 @@ body:has(:is(.collection-create--negative-keyword-lists, .collection-edit--negat
   min-height: 52px;
   border: 0 !important;
   border-radius: 999px !important;
-  background: linear-gradient(135deg, #663af3, #9382ff) !important;
+  background: linear-gradient(135deg, #2563eb, #0ea5e9) !important;
   color: #ffffff !important;
   font-weight: 700;
   letter-spacing: -0.01em;
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.28),
-    0 14px 34px rgba(102, 58, 243, 0.35),
-    0 0 32px rgba(147, 130, 255, 0.2);
+    inset 0 1px 1px rgba(255, 255, 255, 0.24),
+    0 14px 34px rgba(14, 165, 233, 0.24),
+    0 0 28px rgba(37, 99, 235, 0.16);
 }
 
 .login.template-minimal .login__form button[type='submit']:hover {
   transform: translateY(-1px);
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.32),
-    0 18px 44px rgba(102, 58, 243, 0.44),
-    0 0 42px rgba(147, 130, 255, 0.28);
+    inset 0 1px 1px rgba(255, 255, 255, 0.3),
+    0 18px 44px rgba(14, 165, 233, 0.32),
+    0 0 36px rgba(37, 99, 235, 0.22);
 }
 
 .login.template-minimal [aria-label='Show password'] {
