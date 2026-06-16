@@ -1,7 +1,7 @@
 'use client'
 
 import { useDocumentInfo } from '@payloadcms/ui'
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 interface Keyword {
   keyword: string
@@ -34,6 +34,11 @@ export default function NegativeKeywordTable() {
   const [saved, setSaved] = useState(false)
   const [editingIdx, setEditingIdx] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const filtered = useMemo(() => {
     let result = keywords.map((kw, i) => ({ ...kw, _idx: i }))
@@ -119,10 +124,19 @@ export default function NegativeKeywordTable() {
     setEditingIdx(null)
   }
 
-  if (!data?.id) return null
+  if (!mounted || !data?.id) return null
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div className="negative-keyword-admin-panel" style={{
+      position: 'relative',
+      zIndex: 1,
+      isolation: 'isolate',
+      marginBottom: 16,
+      color: '#1f2937',
+      opacity: 1,
+      filter: 'none',
+      WebkitFilter: 'none',
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
           Keywords ({keywords.length})
@@ -189,16 +203,18 @@ export default function NegativeKeywordTable() {
 
       <div
         style={{
-          border: '1px solid var(--theme-elevation-150)',
+          border: '1px solid #d7dce3',
           borderRadius: 8,
           overflow: 'hidden',
           maxHeight: 500,
           overflowY: 'auto',
+          background: '#fff',
+          boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
         }}
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, color: '#1f2937' }}>
           <thead>
-            <tr style={{ background: 'var(--theme-elevation-50)', borderBottom: '2px solid var(--theme-elevation-150)', position: 'sticky', top: 0, zIndex: 1 }}>
+            <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #d7dce3', position: 'sticky', top: 0, zIndex: 1 }}>
               <th style={{ ...thStyle, width: '55%' }}>Keyword</th>
               <th style={{ ...thStyle, width: '20%' }}>Match Type</th>
               <th style={{ ...thStyle, width: '12%', textAlign: 'center' }}>Flagged</th>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useDocumentInfo } from '@payloadcms/ui'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { matchesPattern } from '@/lib/nkl-routing'
 
 export default function NegativeKeywordCampaignSelect() {
@@ -14,9 +14,14 @@ export default function NegativeKeywordCampaignSelect() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Only show after the list is saved and for campaign/ad_group scope.
-  if (!data?.id) return null
+  if (!mounted || !data?.id) return null
   if (scope !== 'campaign' && scope !== 'ad_group') return null
   if (!clientId) return null
 
@@ -67,15 +72,23 @@ export default function NegativeKeywordCampaignSelect() {
   }
 
   return (
-    <div style={{
-      padding: '12px 14px',
-      background: 'var(--theme-elevation-50)',
-      border: '1px solid var(--theme-elevation-150)',
-      borderRadius: 6,
-      marginBottom: 12,
-      fontSize: 13,
+    <div className="negative-keyword-admin-panel" style={{
+      position: 'relative',
+      zIndex: 1,
+      isolation: 'isolate',
+      padding: '14px 16px',
+      background: '#fff',
+      border: '1px solid #d7dce3',
+      borderRadius: 8,
+      marginBottom: 16,
+      fontSize: 14,
+      color: '#1f2937',
+      opacity: 1,
+      filter: 'none',
+      WebkitFilter: 'none',
+      boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
     }}>
-      <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--theme-elevation-500)', lineHeight: 1.5 }}>
+      <p style={{ margin: '0 0 10px', fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
         Preview which campaigns this list will apply to when the Google Ads sync script runs.
         This does not push anything to Google Ads — it just checks which campaign names match your regex.
       </p>

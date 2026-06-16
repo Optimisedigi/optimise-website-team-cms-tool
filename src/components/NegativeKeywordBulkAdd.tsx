@@ -1,7 +1,7 @@
 'use client'
 
 import { useDocumentInfo } from '@payloadcms/ui'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { parseNegativeKeywords } from '../lib/parse-negative-keywords'
 
 export default function NegativeKeywordBulkAdd() {
@@ -11,11 +11,16 @@ export default function NegativeKeywordBulkAdd() {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const existingKeywords: any[] = data?.keywords || []
   const parsed = text.trim() ? parseNegativeKeywords(text) : []
 
-  if (!data?.id) return null
+  if (!mounted || !data?.id) return null
 
   const handleAdd = async () => {
     if (parsed.length === 0 || !data?.id) return
@@ -76,7 +81,16 @@ export default function NegativeKeywordBulkAdd() {
   }
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div className="negative-keyword-admin-panel" style={{
+      position: 'relative',
+      zIndex: 1,
+      isolation: 'isolate',
+      marginBottom: 16,
+      color: '#1f2937',
+      opacity: 1,
+      filter: 'none',
+      WebkitFilter: 'none',
+    }}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -98,13 +112,14 @@ export default function NegativeKeywordBulkAdd() {
         <div
           style={{
             marginTop: 10,
-            background: 'var(--theme-elevation-50)',
-            border: '1px solid var(--theme-elevation-150)',
+            background: '#fff',
+            border: '1px solid #d7dce3',
             borderRadius: 8,
+
             padding: 16,
           }}
         >
-          <div style={{ fontSize: 13, color: 'var(--theme-elevation-500)', marginBottom: 8, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: '#374151', marginBottom: 8, lineHeight: 1.5 }}>
             Paste keywords one per line. Default match type is <strong>exact</strong>.
             Wrap in single quotes for phrase match: <code>'keyword'</code>
           </div>

@@ -130,8 +130,10 @@ export default function NegativeKeywordListInfo() {
   const [showScript, setShowScript] = useState(false)
   const [clientSlug, setClientSlug] = useState<string | null>(clientObj?.slug || null)
   const [origin, setOrigin] = useState<string>('')
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     setOrigin(window.location.origin)
   }, [])
 
@@ -165,6 +167,8 @@ export default function NegativeKeywordListInfo() {
 
   const [showHowItWorks, setShowHowItWorks] = useState(false)
 
+  if (!mounted) return null
+
   if (!data?.id) {
     return (
       <div
@@ -186,15 +190,23 @@ export default function NegativeKeywordListInfo() {
 
   return (
     <div
+      className="negative-keyword-admin-panel"
       style={{
-        background: '#f0f9ff',
-        border: '1px solid #bae6fd',
+        position: 'relative',
+        zIndex: 1,
+        isolation: 'isolate',
+        background: '#fff',
+        border: '1px solid #d7dce3',
         borderRadius: 8,
         padding: '16px 20px',
-        marginBottom: 8,
-        fontSize: 13,
-        lineHeight: 1.6,
-        color: '#1e3a5f',
+        marginBottom: 16,
+        fontSize: 14,
+        lineHeight: 1.55,
+        color: '#1f2937',
+        opacity: 1,
+        filter: 'none',
+        WebkitFilter: 'none',
+        boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
       }}
     >
       {/* Dashboard relevancy auto-refresh notice */}

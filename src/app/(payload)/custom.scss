@@ -831,6 +831,7 @@ $svg-close: "%3C/svg%3E";
 .collection-edit {
   .doc-controls {
     display: contents;
+    pointer-events: none;
   }
 
   .doc-controls .doc-controls__content,
@@ -861,6 +862,7 @@ $svg-close: "%3C/svg%3E";
     border-radius: 12px;
     box-shadow: 0 6px 20px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.05);
     padding: 10px 16px;
+    pointer-events: auto;
   }
 
   .template-default--nav-open & .doc-controls__controls-wrapper {
@@ -941,10 +943,18 @@ $svg-close: "%3C/svg%3E";
   }
 }
 
-// Negative Keyword Lists create/edit: hide Payload's native document title area.
-// On the create screen Payload renders a large title placeholder above the real
-// fields; it looks like a blurred panel and duplicates the breadcrumb context.
-body:has(:is(.collection-create--negative-keyword-lists, .collection-edit--negative-keyword-lists)) {
+// Selected admin document screens: hide Payload's native document title area.
+// Payload renders a large duplicate title/header strip above the real fields;
+// in this customised admin theme it appears as a blurred panel and duplicates
+// the breadcrumb context.
+body:has(:is(
+  .collection-create--negative-keyword-lists,
+  .collection-edit--negative-keyword-lists,
+  .collection-create--permission-profiles,
+  .collection-edit--permission-profiles,
+  .collection-create--users,
+  .collection-edit--users
+)) {
   .doc-header__title,
   .doc-header__after-header,
   .doc-tabs {
@@ -957,9 +967,46 @@ body:has(:is(.collection-create--negative-keyword-lists, .collection-edit--negat
     min-height: 0 !important;
   }
 
-  :is(.collection-create--negative-keyword-lists, .collection-edit--negative-keyword-lists) .document-fields,
-  :is(.collection-create--negative-keyword-lists, .collection-edit--negative-keyword-lists) .document-fields__main > .gutter {
+  :is(
+    .collection-create--negative-keyword-lists,
+    .collection-edit--negative-keyword-lists,
+    .collection-create--permission-profiles,
+    .collection-edit--permission-profiles,
+    .collection-create--users,
+    .collection-edit--users
+  ) .document-fields,
+  :is(
+    .collection-create--negative-keyword-lists,
+    .collection-edit--negative-keyword-lists,
+    .collection-create--permission-profiles,
+    .collection-edit--permission-profiles,
+    .collection-create--users,
+    .collection-edit--users
+  ) .document-fields__main > .gutter {
     padding-top: 20px;
+  }
+
+  // Users has a Payload auth block (email/password controls) above the normal
+  // collection fields. In this theme its default grey surface reads as another
+  // blurred header panel, so make it an explicit, opaque form section.
+  .collection-edit--users .auth-fields,
+  .collection-create--users .auth-fields {
+    position: relative;
+    z-index: 1;
+    isolation: isolate;
+    background: #fff !important;
+    border: 1px solid #d7dce3;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    color: #1f2937;
+    opacity: 1;
+    filter: none;
+    -webkit-filter: none;
+  }
+
+  .collection-edit--users .auth-fields__controls,
+  .collection-create--users .auth-fields__controls {
+    color: #1f2937;
   }
 }
 

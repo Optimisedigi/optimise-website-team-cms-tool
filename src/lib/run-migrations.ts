@@ -2481,8 +2481,11 @@ export async function runMigrations(
     await run("flight_plan_recs_order_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_order_idx` ON `client_proposals_flight_plan_recommendations` (`_order`)");
     await run("flight_plan_recs_parent_id_idx", "CREATE INDEX IF NOT EXISTS `client_proposals_flight_plan_recommendations_parent_id_idx` ON `client_proposals_flight_plan_recommendations` (`_parent_id`)");
   
-    // ── Hidden keyword categories JSON column on client_proposals (2026-04-15) ──
+    // ── Proposal editor JSON columns on client_proposals ──
     await run("client_proposals.hidden_keyword_categories", "ALTER TABLE `client_proposals` ADD `hidden_keyword_categories` text");
+    await run("client_proposals.excluded_keywords", "ALTER TABLE `client_proposals` ADD `excluded_keywords` text");
+    await run("client_proposals.excluded_content_questions", "ALTER TABLE `client_proposals` ADD `excluded_content_questions` text");
+    await run("client_proposals.slide_notes", "ALTER TABLE `client_proposals` ADD `slide_notes` text");
   
     // ── AI Visibility Snapshots (2026-04-20) ──
     await run("ai_visibility_snapshots", `CREATE TABLE IF NOT EXISTS \`ai_visibility_snapshots\` (

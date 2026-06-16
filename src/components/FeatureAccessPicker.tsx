@@ -112,6 +112,11 @@ const FeatureAccessPicker = (props: any) => {
   const path: string = props?.path || 'featureAccess'
   const { value, setValue } = useField<string[]>({ path })
   const [allFields] = useAllFormFields()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const explicit = useMemo(
     () => new Set<string>(Array.isArray(value) ? value : []),
@@ -212,16 +217,35 @@ const FeatureAccessPicker = (props: any) => {
     setValue(Array.from(next))
   }
 
+  if (!mounted) return null
+
   return (
-    <div style={{ marginBottom: 24 }}>
-      <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
+    <div
+      className="permission-profile-admin-panel"
+      style={{
+        position: 'relative',
+        zIndex: 1,
+        isolation: 'isolate',
+        marginBottom: 24,
+        padding: '16px 20px',
+        background: '#fff',
+        border: '1px solid #d7dce3',
+        borderRadius: 8,
+        color: '#1f2937',
+        opacity: 1,
+        filter: 'none',
+        WebkitFilter: 'none',
+        boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
+      }}
+    >
+      <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, color: '#1f2937' }}>
         Feature Access
       </label>
       <p
         style={{
           fontSize: 13,
-          color: 'var(--theme-elevation-500, #6b7280)',
-          marginBottom: 12,
+          color: '#374151',
+          marginBottom: 14,
         }}
       >
         Tick the features this user can see and edit. Some features are
@@ -241,10 +265,11 @@ const FeatureAccessPicker = (props: any) => {
           <fieldset
             key={group.label}
             style={{
-              border: '1px solid var(--theme-elevation-150, #e5e7eb)',
-              borderRadius: 6,
-              padding: '8px 12px 12px',
+              border: '1px solid #d7dce3',
+              borderRadius: 8,
+              padding: '10px 12px 12px',
               margin: 0,
+              background: '#fff',
             }}
           >
             <legend
@@ -253,8 +278,9 @@ const FeatureAccessPicker = (props: any) => {
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
-                color: 'var(--theme-elevation-500, #6b7280)',
+                color: '#4b5563',
                 padding: '0 6px',
+                background: '#fff',
               }}
             >
               {group.label}
@@ -285,8 +311,8 @@ const FeatureAccessPicker = (props: any) => {
                     cursor: isAuto || isProfile ? 'not-allowed' : 'pointer',
                     color:
                       isAuto || isProfile
-                        ? 'var(--theme-elevation-500, #6b7280)'
-                        : 'var(--theme-text, inherit)',
+                        ? '#6b7280'
+                        : '#1f2937',
                   }}
                   title={
                     isAuto
@@ -308,7 +334,7 @@ const FeatureAccessPicker = (props: any) => {
                     <span
                       style={{
                         fontSize: 11,
-                        color: 'var(--theme-elevation-400, #9ca3af)',
+                        color: '#6b7280',
                         fontStyle: 'italic',
                       }}
                     >
