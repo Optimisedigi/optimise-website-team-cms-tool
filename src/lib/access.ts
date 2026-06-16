@@ -38,7 +38,9 @@ export const FEATURE_KEYS = [
   { label: "Process Templates", value: "process-templates" },
   { label: "Deck Templates", value: "deck-templates" },
   { label: "Client Processes", value: "client-processes" },
+  { label: "Client Pulse", value: "nav:client-pulse" },
   { label: "Team Tasks", value: "team-tasks" },
+  { label: "Task Manager", value: "nav:task-manager" },
   { label: "Meeting Schedulers", value: "meeting-schedulers" },
   { label: "Email Templates (Global)", value: "email-templates" },
   // Auto-grants — read-only access to non-sensitive client/media fields,
@@ -114,6 +116,11 @@ export const GOOGLE_ADS_BUNDLE_FEATURES: readonly FeatureSlug[] = [
   "google-ads-audits",
   "negative-keyword-lists",
   "keyword-deep-dive-sessions",
+] as const;
+
+export const DEFAULT_AVAILABLE_FEATURES: readonly FeatureSlug[] = [
+  "team-tasks",
+  "nav:task-manager",
 ] as const;
 
 export const AUTO_GRANT_CLIENTS_BASIC_TRIGGERS: readonly FeatureSlug[] = [
@@ -225,9 +232,10 @@ export function getEffectiveFeatures(user: any): Set<string> {
       for (const f of p.features) if (typeof f === "string") explicit.add(f);
     }
   }
-  // Layer auto-grants on top of explicit grants.
+  // Layer default-available features and auto-grants on top of explicit grants.
   const out = new Set<string>(explicit);
-  for (const auto of computeAutoGrants(explicit)) out.add(auto);
+  for (const feature of DEFAULT_AVAILABLE_FEATURES) out.add(feature);
+  for (const auto of computeAutoGrants(out)) out.add(auto);
   return out;
 }
 

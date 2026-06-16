@@ -64,7 +64,7 @@ const SidebarNavExtras = () => {
   const canGoogleAds = userHasFeature(user, 'nav:google-ads')
   const canSeo = userHasFeature(user, 'nav:seo')
   const canContractorCosts = userHasFeature(user, 'nav:contractor-costs') || userHasFeature(user, 'contractors')
-  const canClients = userHasFeature(user, 'clients')
+  const canClientPulse = userHasFeature(user, 'nav:client-pulse')
 
   // Watch for active nav link and apply highlight + keep icon visible
   useEffect(() => {
@@ -139,7 +139,7 @@ const SidebarNavExtras = () => {
       )
     }
 
-    if (canClients) {
+    if (canClientPulse) {
       injectLink(
         '#nav-group-Clients .nav-group__content',
         'client-pulse',
@@ -281,7 +281,7 @@ const SidebarNavExtras = () => {
     return () => {
       clearInterval(hideInterval)
     }
-  }, [canIntegrations, canDeployments, canIndexingHelper, canInvoices, canGoogleAds, canSeo, canContractorCosts, canClients])
+  }, [canIntegrations, canDeployments, canIndexingHelper, canInvoices, canGoogleAds, canSeo, canContractorCosts, canClientPulse])
 
   // Mobile: bounce-back zoom — allow pinch zoom but snap back to 1x when released
   useEffect(() => {

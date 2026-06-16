@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import AdminStepNavSetter from "../../../../../components/AdminStepNavSetter";
 import ClientPulsePage from "../../../../../components/ClientPulsePage";
 import { getClientPulseSummaries, recordClientPulseHistory } from "../../../../../lib/client-pulse";
+import { userHasFeature } from "../../../../../lib/access";
 import { getCustomViewActions, getVisibleEntities } from "../../../../../lib/visible-entities";
 
 export default async function Page() {
@@ -14,6 +15,9 @@ export default async function Page() {
   const { permissions, user } = await payload.auth({ headers });
   if (!user) {
     redirect("/admin/login");
+  }
+  if (!userHasFeature(user, "nav:client-pulse")) {
+    redirect("/admin");
   }
   const req = await createLocalReq({ user }, payload);
   const visibleEntities = getVisibleEntities(payload, user);

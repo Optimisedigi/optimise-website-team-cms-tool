@@ -18,6 +18,7 @@
 import { useField, useAllFormFields } from '@payloadcms/ui'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  DEFAULT_AVAILABLE_FEATURES,
   FEATURE_KEYS,
   GOOGLE_ADS_BUNDLE_FEATURES,
   computeAutoGrants,
@@ -40,6 +41,9 @@ const GROUPS: { label: string; values: FeatureSlug[] }[] = [
       'sales-leads',
       'process-templates',
       'client-processes',
+      'nav:client-pulse',
+      'team-tasks',
+      'nav:task-manager',
       'meeting-schedulers',
       'email-templates',
     ],
@@ -199,11 +203,17 @@ const FeatureAccessPicker = (props: any) => {
     return s
   }, [profileIds, profileFeaturesById])
 
+  const defaultAvailable = useMemo(
+    () => new Set<string>(DEFAULT_AVAILABLE_FEATURES),
+    [],
+  )
+
   const explicitPlusProfiles = useMemo(() => {
     const s = new Set<string>(explicit)
     for (const f of profileFeatures) s.add(f)
+    for (const f of defaultAvailable) s.add(f)
     return s
-  }, [explicit, profileFeatures])
+  }, [explicit, profileFeatures, defaultAvailable])
 
   const autoGranted = useMemo(
     () => computeAutoGrants(explicitPlusProfiles),
@@ -249,9 +259,10 @@ const FeatureAccessPicker = (props: any) => {
         }}
       >
         Tick the features this user can see and edit. Some features are
-        auto-granted (read-only basic access) when others are ticked — they
-        appear here as ticked + disabled. Admins always have full access and
-        ignore this list. Delete is always admin-only.
+        available to every logged-in user by default, and others are
+        auto-granted (read-only basic access) when related features are ticked —
+        they appear here as ticked + disabled. Admins always have full access
+        and ignore this list. Delete is always admin-only.
       </p>
 
       <div
@@ -287,17 +298,20 @@ const FeatureAccessPicker = (props: any) => {
             </legend>
             {group.values.map((slug) => {
               const isExplicit = explicit.has(slug)
-              const isAuto = autoGranted.has(slug) && !isExplicit
-              const isProfile = profileFeatures.has(slug) && !isExplicit && !isAuto
-              const checked = isExplicit || isAuto || isProfile
+              const isDefault = defaultAvailable.has(slug) && !isExplicit
+              const isAuto = autoGranted.has(slug) && !isExplicit && !isDefault
+              const isProfile = profileFeatures.has(slug) && !isExplicit && !isAuto && !isDefault
+              const checked = isExplicit || isDefault || isAuto || isProfile
 
               const reason = isExplicit
                 ? null
-                : isAuto
-                  ? 'auto-granted'
-                  : isProfile
-                    ? 'from profile'
-                    : null
+                : isDefault
+                  ? 'default'
+                  : isAuto
+                    ? 'auto-granted'
+                    : isProfile
+                      ? 'from profile'
+                      : null
 
               return (
                 <label
@@ -308,24 +322,26 @@ const FeatureAccessPicker = (props: any) => {
                     gap: 8,
                     padding: '4px 0',
                     fontSize: 13,
-                    cursor: isAuto || isProfile ? 'not-allowed' : 'pointer',
+                    cursor: isDefault || isAuto || isProfile ? 'not-allowed' : 'pointer',
                     color:
-                      isAuto || isProfile
+                      isDefault || isAuto || isProfile
                         ? '#6b7280'
                         : '#1f2937',
                   }}
                   title={
-                    isAuto
-                      ? `Auto-granted because the user has access to a feature that needs this`
-                      : isProfile
-                        ? `Granted by an assigned Permission Profile`
-                        : ''
+                    isDefault
+                      ? `Available to every logged-in user by default`
+                      : isAuto
+                        ? `Auto-granted because the user has access to a feature that needs this`
+                        : isProfile
+                          ? `Granted by an assigned Permission Profile`
+                          : ''
                   }
                 >
                   <input
                     type="checkbox"
                     checked={checked}
-                    disabled={isAuto || isProfile}
+                    disabled={isDefault || isAuto || isProfile}
                     onChange={(e) => toggle(slug, e.target.checked)}
                     style={{ cursor: 'inherit' }}
                   />

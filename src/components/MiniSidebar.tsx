@@ -34,7 +34,7 @@ const icons: MiniIcon[] = [
     label: 'Client Pulse',
     shortLabel: 'Pulse',
     href: '/admin/clients/pulse',
-    feature: 'clients',
+    feature: 'nav:client-pulse',
     svg: (
       // Pulse wave — mirrors the clientPulse icon in SidebarNavExtras.
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
