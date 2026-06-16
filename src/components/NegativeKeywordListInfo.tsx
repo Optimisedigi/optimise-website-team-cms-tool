@@ -300,7 +300,7 @@ export default function NegativeKeywordListInfo() {
           <ol style={{ margin: '0 0 14px', paddingLeft: 20 }}>
             <li><strong>Create or open a list</strong> — Each client can have multiple lists (e.g. "Brand Terms", "Competitor Terms"). Pick the right one or create a new one.</li>
             <li><strong>Set the scope</strong> — Choose <em>Account Level</em> (applies everywhere), <em>Campaign Level</em> (specific campaigns only), or <em>Ad Group Level</em>.</li>
-            <li><strong>Set a Campaign Regex</strong> (optional) — If campaign-scoped, enter a regex pattern (e.g. <code>.*Search.*</code>) so the Google Ads script auto-assigns the list to matching campaigns.</li>
+            <li><strong>Set a Regex</strong> (optional) — this controls which campaigns the script attaches the list to. Leave it blank if you only want the list created/synced in Google Ads and will attach it manually. Use <code>.*</code> for all campaigns, <code>Brand</code> for campaigns containing “Brand”, <code>Brand|Generic</code> for either word, or <code>^(?!.*Vietnam).*</code> for all campaigns except ones containing “Vietnam”.</li>
             <li><strong>Add keywords</strong> — Use the <em>Bulk Add Keywords</em> button below. Paste one keyword per line. Default is exact match. Wrap in single quotes for phrase match: <code>'keyword'</code>.</li>
             <li><strong>Save the list</strong> — Make sure "Is Active" is checked (sidebar). Inactive lists are excluded from the sync.</li>
             <li><strong>Wait for the sync</strong> — The Google Ads script runs <strong>daily</strong> and pulls the latest keywords from the CMS automatically. No manual push needed.</li>
@@ -325,7 +325,7 @@ export default function NegativeKeywordListInfo() {
               </tr>
               <tr style={{ borderBottom: '1px solid #e0f2fe' }}>
                 <td style={{ padding: '4px 8px' }}>Assigning lists to campaigns</td>
-                <td style={{ padding: '4px 8px' }}><strong>Automated</strong> — the script uses the Campaign Regex to auto-assign</td>
+                <td style={{ padding: '4px 8px' }}><strong>Automated</strong> — the script uses the Regex field to auto-assign</td>
               </tr>
               <tr style={{ borderBottom: '1px solid #e0f2fe' }}>
                 <td style={{ padding: '4px 8px' }}>Client flagging keywords for removal</td>
@@ -345,7 +345,7 @@ export default function NegativeKeywordListInfo() {
             <li>Each run, it calls our CMS export API: <code>/api/negative-keyword-lists/export?customerId=...</code></li>
             <li>The API returns all <strong>active</strong> lists for that client (identified by their Google Ads Customer ID).</li>
             <li>The script creates or updates the negative keyword lists in Google Ads, clearing old keywords and replacing with the latest from the CMS.</li>
-            <li>If a Campaign Regex is set, the script also auto-assigns the list to any enabled campaigns matching the pattern.</li>
+            <li>If a Regex is set, the script also auto-assigns the list to any enabled campaigns matching the pattern. If it is blank, the script still syncs the list and keywords but does not attach it to campaigns.</li>
           </ol>
 
           <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#0c4a6e' }}>Client Flagging Flow</h4>

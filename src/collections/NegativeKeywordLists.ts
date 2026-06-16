@@ -252,7 +252,8 @@ export const NegativeKeywordLists: CollectionConfig = {
       type: "text",
       label: "Regex",
       admin: {
-        description: "Pattern for auto-assigning this list to matching campaigns/ad groups. Type a keyword (e.g. Brand) or use | to match multiple (e.g. Brand|Generic). Examples: Brand (matches 'Brand_Product'), Brand|Generic (matches both), .* (all campaigns). Case insensitive. Save first, then preview.",
+        description:
+          "Controls which campaigns the Google Ads script attaches this list to. Leave blank to sync/create the list only and not auto-attach it. Beginner examples: .* = all campaigns; Brand = campaigns containing Brand; Brand|Generic = campaigns containing Brand or Generic; ^(?!.*Vietnam).* = all campaigns except names containing Vietnam. Case insensitive. Save first, then preview.",
       },
     },
     {
