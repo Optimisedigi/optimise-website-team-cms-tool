@@ -6,10 +6,14 @@ import { userHasFeature } from "@/lib/access";
 type UserOption = { id: string | number; name?: string | null; email?: string | null };
 
 function relId(value: unknown): string | number | undefined {
-  if (typeof value === "string" || typeof value === "number") return value;
+  if (value == null || value === "") return undefined;
+  if (typeof value === "string" || typeof value === "number") {
+    const numeric = Number(value);
+    return Number.isNaN(numeric) ? value : numeric;
+  }
   if (value && typeof value === "object" && "id" in value) {
     const id = (value as { id?: string | number }).id;
-    if (typeof id === "string" || typeof id === "number") return id;
+    if (typeof id === "string" || typeof id === "number") return relId(id);
   }
   return undefined;
 }
@@ -22,12 +26,16 @@ function stripHtml(value: string): string {
   return value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function mentionedUserIds(body: string, users: UserOption[], explicit: unknown, currentUserId: string | number): Array<string | number> {
+function isAssignableUser(user: { email?: string | null; name?: string | null }) {
+  return user.email !== "admin@optimise.digital" && user.name !== "Admin User";
+}
+
+function mentionedUserIds(body: string, users: UserOption[], explicit: unknown): Array<string | number> {
   const ids = new Set<string | number>();
   if (Array.isArray(explicit)) {
     for (const value of explicit) {
       const id = relId(value);
-      if (id != null && String(id) !== String(currentUserId)) ids.add(id);
+      if (id != null) ids.add(id);
     }
   }
 
@@ -35,7 +43,6 @@ function mentionedUserIds(body: string, users: UserOption[], explicit: unknown, 
   if (!tokens.length) return Array.from(ids);
 
   for (const user of users) {
-    if (String(user.id) === String(currentUserId)) continue;
     const email = user.email || "";
     const candidates = [
       user.name || "",
@@ -96,7 +103,7 @@ export async function POST(
     if (!commentBody) return NextResponse.json({ error: "Comment is required" }, { status: 400 });
 
     const [task, usersResult] = await Promise.all([
-      payload.findByID({ collection: "team-tasks" as any, id, depth: 1 }),
+      payload.findByID({ collection: "team-tasks" as any, id, depth: 0 }),
       payload.find({
         collection: "users",
         sort: "name",
@@ -107,16 +114,14 @@ export async function POST(
       }),
     ]);
 
-    const users = usersResult.docs as UserOption[];
-    const mentions = mentionedUserIds(commentBody, users, body.mentions, user.id);
+    const users = (usersResult.docs as UserOption[]).filter(isAssignableUser);
+    const mentions = mentionedUserIds(commentBody, users, body.mentions);
     const comment = await payload.create({
       collection: "team-task-comments" as any,
       data: {
-        task: id,
-        author: user.id,
+        task: relId(id),
+        author: relId(user.id),
         body: commentBody,
-        mentions,
-        attachments: Array.isArray(body.attachments) ? body.attachments : [],
       } as any,
       depth: 1,
       overrideAccess: true,
@@ -132,7 +137,7 @@ export async function POST(
         title: `Mentioned in: ${(task as any).title || "Team task"}`,
         body: excerpt,
         url: `/admin/collections/team-tasks?task=${encodeURIComponent(String(id))}`,
-        relatedTeamTask: id,
+        relatedTeamTask: relId(id),
         relatedClient: clientId,
       } as any,
       overrideAccess: true,

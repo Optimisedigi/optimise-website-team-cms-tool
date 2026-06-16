@@ -9,6 +9,10 @@ function relationshipId(value: unknown) {
   return Number.isNaN(numeric) ? value : numeric;
 }
 
+function isAssignableUser(user: { email?: string | null; name?: string | null }) {
+  return user.email !== "admin@optimise.digital" && user.name !== "Admin User";
+}
+
 async function getAuthedPayload(req: NextRequest) {
   const payload = await getPayload({ config });
   const { user } = await payload.auth({ headers: req.headers });
@@ -27,7 +31,7 @@ export async function GET(
     }
 
     const [task, commentsResult, usersResult] = await Promise.all([
-      payload.findByID({ collection: "team-tasks" as any, id, depth: 1 }),
+      payload.findByID({ collection: "team-tasks" as any, id, depth: 0 }),
       payload.find({
         collection: "team-task-comments" as any,
         where: { task: { equals: id } },
@@ -51,7 +55,7 @@ export async function GET(
     return NextResponse.json({
       task,
       comments: commentsResult.docs,
-      users: usersResult.docs.map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email, role: u.role })),
+      users: usersResult.docs.filter(isAssignableUser).map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email, role: u.role })),
       currentUser: { id: user.id, name: user.name || user.email, email: user.email, role: user.role },
       canManage: user.role === "admin" || user.role === "manager",
     });
@@ -100,7 +104,7 @@ export async function PATCH(
       collection: "team-tasks" as any,
       id,
       data: data as any,
-      depth: 1,
+      depth: 0,
       overrideAccess: true,
     });
 

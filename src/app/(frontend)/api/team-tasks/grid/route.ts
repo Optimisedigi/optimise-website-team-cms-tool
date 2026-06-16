@@ -27,6 +27,10 @@ function relationshipId(value: unknown) {
   return Number.isNaN(numeric) ? value : numeric;
 }
 
+function isAssignableUser(user: { email?: string | null; name?: string | null }) {
+  return user.email !== "admin@optimise.digital" && user.name !== "Admin User";
+}
+
 async function getAuthedPayload() {
   const payload = await getPayload({ config });
   const headersList = await nextHeaders();
@@ -70,7 +74,7 @@ export async function GET(req: NextRequest) {
         where: and.length ? { and } : undefined,
         sort: "dueDate",
         limit: 500,
-        depth: 1,
+        depth: 0,
         select: TASK_SELECT as any,
       }),
       payload.find({
@@ -94,7 +98,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       tasks: tasksResult.docs,
       clients: clientsResult.docs.map((c: any) => ({ id: c.id, name: c.name, slug: c.slug })),
-      users: usersResult.docs.map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email, role: u.role })),
+      users: usersResult.docs.filter(isAssignableUser).map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email, role: u.role })),
       canManage: user.role === "admin" || user.role === "manager",
     });
   } catch (error) {
@@ -125,7 +129,7 @@ export async function POST(req: NextRequest) {
         instructions: body.instructions || "",
         sheetWeek: body.sheetWeek || "",
       } as any,
-      depth: 1,
+      depth: 0,
     });
 
     return NextResponse.json({ task });
@@ -171,7 +175,7 @@ export async function PATCH(req: NextRequest) {
       collection: "team-tasks" as any,
       id: body.id,
       data: data as any,
-      depth: 1,
+      depth: 0,
       overrideAccess: true,
     });
 

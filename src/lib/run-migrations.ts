@@ -4344,6 +4344,36 @@ export async function runMigrations(
     await run("agency_kpi_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `agency_kpi_snapshots_created_at_idx` ON `agency_kpi_snapshots` (`created_at`)");
     await run("locked_docs_rels.agency_kpi_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `agency_kpi_snapshots_id` integer REFERENCES `agency_kpi_snapshots`(`id`) ON DELETE cascade");
 
+    // ── Client metric snapshots + WeCanQuit counters (2026-06-29) ──
+    await run("client_metric_snapshots", `CREATE TABLE IF NOT EXISTS \`client_metric_snapshots\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`client_id\` integer NOT NULL,
+      \`source\` text DEFAULT 'website-we-can-quit' NOT NULL,
+      \`date\` text NOT NULL,
+      \`tracking_start_date\` text NOT NULL,
+      \`new_patients\` numeric DEFAULT 0 NOT NULL,
+      \`prescriptions\` numeric DEFAULT 0 NOT NULL,
+      \`patient_target\` numeric DEFAULT 500 NOT NULL,
+      \`prescription_target\` numeric DEFAULT 500 NOT NULL,
+      \`as_of\` text NOT NULL,
+      \`updated_at\` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      \`created_at\` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("client_metric_snapshots_client_idx", "CREATE INDEX IF NOT EXISTS `client_metric_snapshots_client_idx` ON `client_metric_snapshots` (`client_id`)");
+    await run("client_metric_snapshots_source_idx", "CREATE INDEX IF NOT EXISTS `client_metric_snapshots_source_idx` ON `client_metric_snapshots` (`source`)");
+    await run("client_metric_snapshots_date_idx", "CREATE INDEX IF NOT EXISTS `client_metric_snapshots_date_idx` ON `client_metric_snapshots` (`date`)");
+    await run("client_metric_snapshots_client_source_date_idx", "CREATE UNIQUE INDEX IF NOT EXISTS `client_metric_snapshots_client_source_date_idx` ON `client_metric_snapshots` (`client_id`, `source`, `date`)");
+    await run("client_metric_snapshots_updated_at_idx", "CREATE INDEX IF NOT EXISTS `client_metric_snapshots_updated_at_idx` ON `client_metric_snapshots` (`updated_at`)");
+    await run("client_metric_snapshots_created_at_idx", "CREATE INDEX IF NOT EXISTS `client_metric_snapshots_created_at_idx` ON `client_metric_snapshots` (`created_at`)");
+    await run("clients.wcq_tracking_start_date", "ALTER TABLE `clients` ADD `wcq_tracking_start_date` text DEFAULT '2026-05-01'");
+    await run("clients.wcq_new_patients", "ALTER TABLE `clients` ADD `wcq_new_patients` numeric DEFAULT 0");
+    await run("clients.wcq_prescription_count", "ALTER TABLE `clients` ADD `wcq_prescription_count` numeric DEFAULT 0");
+    await run("clients.wcq_patient_target", "ALTER TABLE `clients` ADD `wcq_patient_target` numeric DEFAULT 500");
+    await run("clients.wcq_prescription_target", "ALTER TABLE `clients` ADD `wcq_prescription_target` numeric DEFAULT 500");
+    await run("clients.wcq_metrics_last_synced_at", "ALTER TABLE `clients` ADD `wcq_metrics_last_synced_at` text");
+    await run("locked_docs_rels.client_metric_snapshots_id", "ALTER TABLE `payload_locked_documents_rels` ADD `client_metric_snapshots_id` integer REFERENCES `client_metric_snapshots`(`id`) ON DELETE cascade");
+
     // ── Monthly negative keyword selections + terms cache (2026-07-01 / 2026-07-04) ──
     // These collections ship in the Payload config + Drizzle migration index, but
     // prod only applies THIS inline sweep (via /api/migrate, run by CI). Without
@@ -4670,6 +4700,82 @@ export async function runMigrations(
     await run("goal_risk_tiers_allowed_action_types_order_idx", "CREATE INDEX IF NOT EXISTS `goal_risk_tiers_allowed_action_types_order_idx` ON `goal_risk_tiers_allowed_action_types` (`_order`)");
     await run("goal_risk_tiers_allowed_action_types_parent_idx", "CREATE INDEX IF NOT EXISTS `goal_risk_tiers_allowed_action_types_parent_idx` ON `goal_risk_tiers_allowed_action_types` (`_parent_id`)");
     await run("locked_docs_rels.goal_risk_tiers_id", "ALTER TABLE `payload_locked_documents_rels` ADD `goal_risk_tiers_id` integer REFERENCES `goal_risk_tiers`(`id`) ON DELETE set null");
+
+    // ── Team Tasks + Team Task Comments (2026-07-18 / 2026-07-19) ──
+    // Spreadsheet-style weekly task tracker plus the Trello-style comment
+    // history surfaced in the task detail pane. Ports migrations
+    // 20260718_120000 and 20260719_120000 into the bundled prod runner.
+    // Missing tables here would 500 the /api/team-tasks routes and (via the
+    // locked-docs FK) break document locking for the whole admin.
+    await run("team_tasks", `CREATE TABLE IF NOT EXISTS \`team_tasks\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`title\` text NOT NULL,
+      \`client_id\` integer,
+      \`assigned_to_id\` integer,
+      \`task_type\` text DEFAULT 'other' NOT NULL,
+      \`status\` text DEFAULT 'in_progress' NOT NULL,
+      \`priority\` text DEFAULT 'normal' NOT NULL,
+      \`due_date\` text,
+      \`completed_at\` text,
+      \`instructions\` text,
+      \`source_url\` text,
+      \`staff_notes\` text,
+      \`review_notes\` text,
+      \`created_by_id\` integer,
+      \`sheet_week\` text,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`assigned_to_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null,
+      FOREIGN KEY (\`created_by_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("team_tasks_related_links", `CREATE TABLE IF NOT EXISTS \`team_tasks_related_links\` (
+      \`id\` text PRIMARY KEY NOT NULL,
+      \`_order\` integer NOT NULL,
+      \`_parent_id\` integer NOT NULL,
+      \`label\` text NOT NULL,
+      \`url\` text NOT NULL,
+      \`kind\` text DEFAULT 'other',
+      FOREIGN KEY (\`_parent_id\`) REFERENCES \`team_tasks\`(\`id\`) ON UPDATE no action ON DELETE cascade
+    )`);
+    await run("team_tasks_client_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_client_idx` ON `team_tasks` (`client_id`)");
+    await run("team_tasks_assigned_to_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_assigned_to_idx` ON `team_tasks` (`assigned_to_id`)");
+    await run("team_tasks_created_by_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_created_by_idx` ON `team_tasks` (`created_by_id`)");
+    await run("team_tasks_task_type_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_task_type_idx` ON `team_tasks` (`task_type`)");
+    await run("team_tasks_status_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_status_idx` ON `team_tasks` (`status`)");
+    await run("team_tasks_due_date_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_due_date_idx` ON `team_tasks` (`due_date`)");
+    await run("team_tasks_updated_at_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_updated_at_idx` ON `team_tasks` (`updated_at`)");
+    await run("team_tasks_related_links_order_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_related_links_order_idx` ON `team_tasks_related_links` (`_order`)");
+    await run("team_tasks_related_links_parent_idx", "CREATE INDEX IF NOT EXISTS `team_tasks_related_links_parent_idx` ON `team_tasks_related_links` (`_parent_id`)");
+    await run("locked_docs_rels.team_tasks_id", "ALTER TABLE `payload_locked_documents_rels` ADD `team_tasks_id` integer REFERENCES `team_tasks`(`id`) ON DELETE cascade");
+
+    await run("team_task_comments", `CREATE TABLE IF NOT EXISTS \`team_task_comments\` (
+      \`id\` integer PRIMARY KEY NOT NULL,
+      \`task_id\` integer NOT NULL,
+      \`author_id\` integer NOT NULL,
+      \`body\` text NOT NULL,
+      \`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      \`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+      FOREIGN KEY (\`task_id\`) REFERENCES \`team_tasks\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+      FOREIGN KEY (\`author_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
+    )`);
+    await run("team_task_comments_task_idx", "CREATE INDEX IF NOT EXISTS `team_task_comments_task_idx` ON `team_task_comments` (`task_id`)");
+    await run("team_task_comments_author_idx", "CREATE INDEX IF NOT EXISTS `team_task_comments_author_idx` ON `team_task_comments` (`author_id`)");
+    await run("team_task_comments_created_at_idx", "CREATE INDEX IF NOT EXISTS `team_task_comments_created_at_idx` ON `team_task_comments` (`created_at`)");
+    await run("locked_docs_rels.team_task_comments_id", "ALTER TABLE `payload_locked_documents_rels` ADD `team_task_comments_id` integer REFERENCES `team_task_comments`(`id`) ON DELETE cascade");
+
+    // ── notifications: relatedGoalRun / relatedConsolidationCandidate /
+    // relatedTeamTask FK columns. The first two were defined on the
+    // Notifications collection in an earlier session but never ported here, so
+    // prod's `notifications` table is missing them — which makes EVERY
+    // notification insert (Payload writes all columns) fail. relatedTeamTask is
+    // new with the team-task mention bell rows.
+    await run("notifications.related_goal_run_id", "ALTER TABLE `notifications` ADD `related_goal_run_id` integer REFERENCES `goal_runs`(`id`) ON UPDATE no action ON DELETE set null");
+    await run("notifications_related_goal_run_idx", "CREATE INDEX IF NOT EXISTS `notifications_related_goal_run_idx` ON `notifications` (`related_goal_run_id`)");
+    await run("notifications.related_consolidation_candidate_id", "ALTER TABLE `notifications` ADD `related_consolidation_candidate_id` integer REFERENCES `consolidation_candidates`(`id`) ON UPDATE no action ON DELETE set null");
+    await run("notifications_related_consolidation_candidate_idx", "CREATE INDEX IF NOT EXISTS `notifications_related_consolidation_candidate_idx` ON `notifications` (`related_consolidation_candidate_id`)");
+    await run("notifications.related_team_task_id", "ALTER TABLE `notifications` ADD `related_team_task_id` integer REFERENCES `team_tasks`(`id`) ON UPDATE no action ON DELETE set null");
+    await run("notifications_related_team_task_idx", "CREATE INDEX IF NOT EXISTS `notifications_related_team_task_idx` ON `notifications` (`related_team_task_id`)");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     const r: MigrationResult = { label: "fatal", status: "error", message: msg };

@@ -1,5 +1,5 @@
 import type { Access, CollectionBeforeChangeHook, CollectionConfig } from "payload";
-import { hideUnlessFeature, userHasFeature } from "../lib/access";
+import { userHasFeature } from "../lib/access";
 
 const hasTeamTaskAccess = (user: { role?: string } | null | undefined): boolean => {
   if (!user) return false;
@@ -33,7 +33,7 @@ export const TeamTaskComments: CollectionConfig = {
   },
   admin: {
     group: "Clients",
-    hidden: hideUnlessFeature("team-tasks"),
+    hidden: true,
     useAsTitle: "body",
     defaultColumns: ["task", "author", "createdAt"],
     description: "Comment history for team task detail panes.",
@@ -70,34 +70,7 @@ export const TeamTaskComments: CollectionConfig = {
         rows: 8,
       },
     },
-    {
-      name: "mentions",
-      type: "relationship",
-      relationTo: "users",
-      hasMany: true,
-      index: true,
-    },
-    {
-      name: "attachments",
-      type: "array",
-      fields: [
-        { name: "label", type: "text", required: true },
-        { name: "url", type: "text", required: true },
-        {
-          name: "kind",
-          type: "select",
-          defaultValue: "other",
-          options: [
-            { label: "Google Doc", value: "google_doc" },
-            { label: "Google Sheet", value: "google_sheet" },
-            { label: "Loom", value: "loom" },
-            { label: "Page", value: "page" },
-            { label: "CMS", value: "cms" },
-            { label: "Other", value: "other" },
-          ],
-        },
-      ],
-    },
+
   ],
   timestamps: true,
 };
