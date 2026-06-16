@@ -184,6 +184,52 @@ function NotesEditor({ value, onSave, minWidth = 320 }: { value: string; onSave:
   )
 }
 
+function plainTextFromHtml(value: string): string {
+  if (!value) return ''
+  if (!value.includes('<')) return value.trim()
+  return value
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<\/(div|p|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function NotesPreview({ value }: { value: string }) {
+  const text = plainTextFromHtml(value)
+
+  return (
+    <div
+      title={text || 'Open task details to add notes'}
+      style={{
+        minHeight: 58,
+        border: '1px solid var(--theme-elevation-150)',
+        borderRadius: 6,
+        padding: '7px 8px',
+        background: 'rgba(255,255,255,.45)',
+        color: text ? 'inherit' : 'var(--theme-elevation-400)',
+        fontSize: 13,
+        lineHeight: 1.35,
+        overflow: 'hidden',
+        overflowWrap: 'anywhere',
+        display: '-webkit-box',
+        WebkitBoxOrient: 'vertical',
+        WebkitLineClamp: 4,
+        whiteSpace: 'pre-wrap',
+      }}
+    >
+      {text || 'Open details to add notes…'}
+    </div>
+  )
+}
+
 function WeekPickerCell({ value, onChange, rowSpan, color, boxColor }: { value: string; onChange: (date: string) => void; rowSpan?: number; color?: string; boxColor?: string }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const week = taskWeek(value) || mondayKey()
@@ -449,13 +495,16 @@ export default function TeamTasksSpreadsheet() {
                   </select>
                 </td>
                 <td style={tdStyle}>
-                  <input
+                  <textarea
                     defaultValue={task.title || ''}
+                    rows={2}
                     onBlur={(e) => {
                       if (e.target.value !== task.title) void patch(task.id, { title: e.target.value })
                     }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-                    style={{ ...inputStyle, minWidth: 260 }}
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') e.currentTarget.blur()
+                    }}
+                    style={{ ...inputStyle, minWidth: 260, minHeight: 58, resize: 'vertical', lineHeight: 1.35, overflowWrap: 'anywhere' }}
                   />
                 </td>
                 <td style={tdStyle}>
@@ -470,15 +519,10 @@ export default function TeamTasksSpreadsheet() {
                   </select>
                 </td>
                 <td style={tdStyle}>
-                  <NotesEditor
-                    value={task.instructions || task.staffNotes || ''}
-                    onSave={(next) => {
-                      if (next !== (task.instructions || task.staffNotes || '')) void patch(task.id, { instructions: next })
-                    }}
-                  />
+                  <NotesPreview value={task.instructions || task.staffNotes || ''} />
                 </td>
                 <td style={tdStyle}>
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'grid', gap: 4 }}>
                     <button
                       type="button"
                       onClick={() => openTask(task.id)}
