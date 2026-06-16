@@ -336,7 +336,8 @@ body:has(.login.template-minimal) {
 .nav .nav__link[href="/admin/collections/keyword-deep-dive-sessions"],
 .nav .nav__link[href="/admin/collections/negative-keyword-lists"],
 .nav .nav__link[href="/admin/collections/keyword-snapshots"],
-.nav .nav__link[href="/admin/collections/activity-log"] {
+.nav .nav__link[href="/admin/collections/activity-log"],
+.nav .nav__link[href="/admin/collections/team-task-comments"] {
   display: none !important;
 }
 
@@ -382,6 +383,11 @@ $svg-close: "%3C/svg%3E";
 }
 .nav #nav-client-proposals {
   @include nav-icon("#{$svg-open}%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E#{$svg-close}");
+}
+
+// Team Tasks
+.nav #nav-team-tasks {
+  @include nav-icon("#{$svg-open}%3Crect x='3' y='4' width='18' height='16' rx='2'/%3E%3Cpath d='M8 2v4'/%3E%3Cpath d='M16 2v4'/%3E%3Cpath d='M3 10h18'/%3E%3Cpath d='M8 14h.01'/%3E%3Cpath d='M12 14h4'/%3E%3Cpath d='M8 18h.01'/%3E%3Cpath d='M12 18h4'/%3E#{$svg-close}");
 }
 
 // Content group
@@ -925,6 +931,28 @@ $svg-close: "%3C/svg%3E";
     .doc-controls__controls .btn--style-primary {
       box-shadow: 0 6px 20px rgba(16, 24, 40, 0.22), 0 2px 6px rgba(16, 24, 40, 0.12);
     }
+  }
+}
+
+// Negative Keyword Lists create/edit: hide Payload's native document title area.
+// On the create screen Payload renders a large title placeholder above the real
+// fields; it looks like a blurred panel and duplicates the breadcrumb context.
+body:has(:is(.collection-create--negative-keyword-lists, .collection-edit--negative-keyword-lists)) {
+  .doc-header__title,
+  .doc-header__after-header,
+  .doc-tabs {
+    display: none !important;
+  }
+
+  .doc-header {
+    margin-top: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: 0 !important;
+  }
+
+  :is(.collection-create--negative-keyword-lists, .collection-edit--negative-keyword-lists) .document-fields,
+  :is(.collection-create--negative-keyword-lists, .collection-edit--negative-keyword-lists) .document-fields__main > .gutter {
+    padding-top: 20px;
   }
 }
 
@@ -4662,6 +4690,26 @@ $svg-close: "%3C/svg%3E";
 body.role-non-admin .doc-tabs a.doc-tab[aria-label="API"],
 body.role-non-admin .doc-tabs .doc-tab[aria-label="API"] {
   display: none !important;
+}
+
+// Team Tasks spreadsheet: use the full available admin canvas, including when
+// Payload auto-collapses the sidebar to the mini rail.
+.od-team-tasks-list {
+  box-sizing: border-box;
+  max-width: none !important;
+  padding-inline: 6px;
+  width: calc(100vw - 112px);
+}
+
+.template-default:not(.template-default--nav-open) .od-team-tasks-list {
+  width: calc(100vw - 30px);
+}
+
+@media (max-width: 768px) {
+  .od-team-tasks-list {
+    padding-inline: 3px;
+    width: calc(100vw - 6px);
+  }
 }
 
 // ============================================================

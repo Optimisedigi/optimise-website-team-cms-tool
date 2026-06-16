@@ -149,6 +149,10 @@ export const NegativeKeywordLists: CollectionConfig = {
       name: "infoPanel",
       type: "ui",
       admin: {
+        // Avoid mounting this custom UI on the create screen. Payload shows a
+        // blurred placeholder for UI fields before the client component hydrates,
+        // and this panel only has useful actions once the list has been saved.
+        condition: (data) => Boolean(data?.id),
         components: {
           Field: "./components/NegativeKeywordListInfo",
         },
@@ -190,6 +194,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       name: "campaignSelect",
       type: "ui",
       admin: {
+        condition: (data) => Boolean(data?.id),
         components: {
           Field: "./components/NegativeKeywordCampaignSelect",
         },
@@ -238,6 +243,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       name: "bulkAdd",
       type: "ui",
       admin: {
+        condition: (data) => Boolean(data?.id),
         components: {
           Field: "./components/NegativeKeywordBulkAdd",
         },
@@ -247,6 +253,7 @@ export const NegativeKeywordLists: CollectionConfig = {
       name: "keywordTable",
       type: "ui",
       admin: {
+        condition: (data) => Boolean(data?.id),
         components: {
           Field: "./components/NegativeKeywordTable",
         },

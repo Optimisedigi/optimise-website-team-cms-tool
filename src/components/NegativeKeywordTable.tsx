@@ -119,6 +119,8 @@ export default function NegativeKeywordTable() {
     setEditingIdx(null)
   }
 
+  if (!data?.id) return null
+
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>

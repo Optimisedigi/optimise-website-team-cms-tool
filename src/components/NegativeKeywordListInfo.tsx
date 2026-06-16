@@ -160,6 +160,25 @@ export default function NegativeKeywordListInfo() {
 
   const [showHowItWorks, setShowHowItWorks] = useState(false)
 
+  if (!data?.id) {
+    return (
+      <div
+        style={{
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: 8,
+          padding: '14px 18px',
+          marginBottom: 8,
+          fontSize: 13,
+          lineHeight: 1.5,
+          color: '#475569',
+        }}
+      >
+        Save this negative keyword list first. Setup links, bulk keyword tools, and the keyword review table will appear once the record has been created.
+      </div>
+    )
+  }
+
   return (
     <div
       style={{

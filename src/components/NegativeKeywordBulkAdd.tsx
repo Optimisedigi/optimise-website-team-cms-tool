@@ -15,6 +15,8 @@ export default function NegativeKeywordBulkAdd() {
   const existingKeywords: any[] = data?.keywords || []
   const parsed = text.trim() ? parseNegativeKeywords(text) : []
 
+  if (!data?.id) return null
+
   const handleAdd = async () => {
     if (parsed.length === 0 || !data?.id) return
     setSaving(true)
