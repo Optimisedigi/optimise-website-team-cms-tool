@@ -67,6 +67,13 @@ export interface ClientPulseSummary {
     status: ClientPulseTargetStatus;
     comparisonWindow: string;
   };
+  wcqAssessments?: {
+    current: number | null;
+    target: number | null;
+    currentMonth: number | null;
+    previousMonth: number | null;
+    momPercent: number | null;
+  };
   analyticsMetrics: Array<{ metric: string; label: string; value: number | null; displayValue: string }>;
   organicTrend: OrganicTrend;
   adsTrend: AdsTrend;
@@ -151,6 +158,7 @@ export interface ClientPulseSources {
   siteHealthReports: PlainRecord[];
   aiVisibilitySnapshots: PlainRecord[];
   clientPulseHistory: PlainRecord[];
+  clientMetricSnapshots: PlainRecord[];
 }
 
 export interface GroupedClientPulseSources {
@@ -166,6 +174,7 @@ export interface GroupedClientPulseSources {
   siteHealthReports: Map<string, PlainRecord[]>;
   aiVisibilitySnapshots: Map<string, PlainRecord[]>;
   clientPulseHistory: Map<string, PlainRecord[]>;
+  clientMetricSnapshots: Map<string, PlainRecord[]>;
 }
 
 type PlainRecord = Record<string, unknown>;
@@ -232,7 +241,7 @@ export async function fetchClientPulseSources(
     return emptySources(clients);
   }
 
-  const [scheduledTasks, goalRuns, activityLog, ledgerItems, clientProcesses, organicSnapshots, gscMonthlySnapshots, googleAdsSnapshots, googleAdsAudits, siteHealthReports, aiVisibilitySnapshots, clientPulseHistory] =
+  const [scheduledTasks, goalRuns, activityLog, ledgerItems, clientProcesses, organicSnapshots, gscMonthlySnapshots, googleAdsSnapshots, googleAdsAudits, siteHealthReports, aiVisibilitySnapshots, clientPulseHistory, clientMetricSnapshots] =
     await Promise.all([
       fetchAllPages(payload, {
         collection: "scheduled-agent-tasks",
@@ -326,6 +335,14 @@ export async function fetchClientPulseSources(
         sort: "-date",
         select: { id: true, client: true, date: true, score: true, status: true },
       }),
+      fetchOptionalAllPages(payload, {
+        collection: "client-metric-snapshots",
+        where: { client: { in: clientIds } },
+        depth: 0,
+        limit: Math.max(limit, clientIds.length * 90),
+        sort: "-date",
+        select: { id: true, client: true, source: true, date: true, assessmentsCompleted: true, assessmentTarget: true },
+      }, "client metric snapshots"),
     ]);
 
   return {
@@ -342,6 +359,7 @@ export async function fetchClientPulseSources(
     siteHealthReports: filterRecordsByClient(siteHealthReports, clientIds),
     aiVisibilitySnapshots: filterRecordsByClient(aiVisibilitySnapshots, clientIds),
     clientPulseHistory: filterRecordsByClient(clientPulseHistory, clientIds),
+    clientMetricSnapshots: filterRecordsByClient(clientMetricSnapshots, clientIds),
   };
 }
 
@@ -360,6 +378,7 @@ export function groupClientPulseSources(sources: ClientPulseSources, clientIds: 
     siteHealthReports: groupByClient(sources.siteHealthReports, allowed, "reportDate"),
     aiVisibilitySnapshots: groupByClient(sources.aiVisibilitySnapshots, allowed, "periodEnd"),
     clientPulseHistory: groupByClient(sources.clientPulseHistory, allowed, "date"),
+    clientMetricSnapshots: groupByClient(sources.clientMetricSnapshots, allowed, "date"),
   };
 }
 
@@ -425,6 +444,9 @@ export function buildClientPulseSummary(input: {
     },
     metrics,
   );
+  const wcqAssessments = target.metric === "assessments"
+    ? calculateWcqAssessmentTrend(input.grouped.clientMetricSnapshots.get(id) ?? [], target, now)
+    : undefined;
   const automationSignals = automationSignalItems(input.client, allServices);
   const scheduledSignals = tasks.map((task) => signalFromRecord(task, "scheduled-task", stringValue(task.title) || stringValue(task.name) || "Scheduled task", taskStatus(task), stringValue(task.lastRunStatus), stringValue(task.nextRunAt)));
   const goalSignals = goalRuns.map((run) => signalFromRecord(run, "goal-run", stringValue(run.goal) || "Goal agent", goalStatus(run), stringValue(run.status), stringValue(run.nextCheckAt)));
@@ -481,6 +503,7 @@ export function buildClientPulseSummary(input: {
       hasGoogleAds: clientHasGoogleAds(input.client),
     },
     target,
+    wcqAssessments,
     analyticsMetrics,
     organicTrend,
     adsTrend,
@@ -531,6 +554,33 @@ export function calculateTargetProgress(
   const rounded = Math.max(0, Math.min(200, Math.round(progressPercent)));
   const status: ClientPulseTargetStatus = rounded >= 95 ? "on_track" : rounded >= 75 ? "watch" : "at_risk";
   return { label, metric, value: targetValue, currentValue, progressPercent: rounded, direction, status, comparisonWindow: targetConfig.comparisonWindow || "last_90_days" };
+}
+
+export function calculateWcqAssessmentTrend(
+  snapshots: PlainRecord[],
+  target: ClientPulseSummary["target"],
+  now: Date,
+): NonNullable<ClientPulseSummary["wcqAssessments"]> {
+  const current = target.currentValue;
+  const targetValue = target.value;
+  const currentMonthStart = monthKey(now.getUTCFullYear(), now.getUTCMonth() + 1);
+  const previousMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const previousMonthStart = monthKey(previousMonthDate.getUTCFullYear(), previousMonthDate.getUTCMonth() + 1);
+  const byDateDesc = [...snapshots]
+    .filter((snapshot) => stringValue(snapshot.source) === "website-we-can-quit")
+    .sort((a, b) => stringValue(b.date).localeCompare(stringValue(a.date)));
+  const latestBefore = (month: string): number | null => {
+    const snapshot = byDateDesc.find((item) => stringValue(item.date).slice(0, 7) < month);
+    return snapshot ? numberValue(snapshot.assessmentsCompleted) : null;
+  };
+  const currentMonthStartTotal = latestBefore(currentMonthStart);
+  const previousMonthStartTotal = latestBefore(previousMonthStart);
+  const currentMonth = current !== null && currentMonthStartTotal !== null ? Math.max(0, current - currentMonthStartTotal) : null;
+  const previousMonth = currentMonthStartTotal !== null && previousMonthStartTotal !== null ? Math.max(0, currentMonthStartTotal - previousMonthStartTotal) : null;
+  const momPercent = currentMonth !== null && previousMonth !== null && previousMonth > 0
+    ? Math.round(((currentMonth - previousMonth) / previousMonth) * 100)
+    : null;
+  return { current, target: targetValue, currentMonth, previousMonth, momPercent };
 }
 
 export function calculateServiceCoverage(signals: {
@@ -907,6 +957,15 @@ async function fetchAllPagesWithFallback(payload: PayloadLike, args: PlainRecord
   }
 }
 
+async function fetchOptionalAllPages(payload: PayloadLike, args: PlainRecord, label: string): Promise<PlainRecord[]> {
+  try {
+    return await fetchAllPages(payload, args);
+  } catch (error) {
+    console.error(`[client-pulse] optional ${label} fetch failed:`, error instanceof Error ? error.message : error);
+    return [];
+  }
+}
+
 function clientPulseClientSelect(includeAnalyticsMetrics: boolean): PlainRecord {
   return {
     id: true,
@@ -958,7 +1017,7 @@ function isMissingClientPulseAnalyticsTableError(error: unknown): boolean {
 }
 
 function emptySources(clients: PlainRecord[]): ClientPulseSources {
-  return { clients, scheduledTasks: [], goalRuns: [], activityLog: [], ledgerItems: [], clientProcesses: [], organicSnapshots: [], gscMonthlySnapshots: [], googleAdsSnapshots: [], googleAdsAudits: [], siteHealthReports: [], aiVisibilitySnapshots: [], clientPulseHistory: [] };
+  return { clients, scheduledTasks: [], goalRuns: [], activityLog: [], ledgerItems: [], clientProcesses: [], organicSnapshots: [], gscMonthlySnapshots: [], googleAdsSnapshots: [], googleAdsAudits: [], siteHealthReports: [], aiVisibilitySnapshots: [], clientPulseHistory: [], clientMetricSnapshots: [] };
 }
 
 function groupByClient(records: PlainRecord[], allowed: Set<string>, dateField: string, includeClientsCovered = false): Map<string, PlainRecord[]> {

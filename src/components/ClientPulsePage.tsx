@@ -65,7 +65,7 @@ export function ClientPulsePage({ initialData }: { initialData: ClientPulseSumma
               <ScoreRing summary={summary} />
             </div>
             <div className="client-pulse-metrics" aria-label={`${summary.client.name} pulse stats`}>
-              <MetricChip label="Target" value={formatTargetStatus(summary)} tone={targetTone(summary)} title="Whether this client is currently achieving their configured Client Pulse target." />
+              <MetricChip label={targetChipLabel(summary)} value={formatTargetStatus(summary)} tone={targetTone(summary)} title={targetChipTitle(summary)} />
               <MetricChip label="Budget pace" value={formatBudgetPacing(summary)} tone={budgetTone(summary.budgetPacing.status)} title="Google Ads month-to-date spend against expected monthly budget pace." />
               <MetricChip label="Conversions" value={formatTrendValue(summary.adsTrend.mtdConversionsYoyPercent, summary.client.hasGoogleAds)} tone={trendTone(summary.adsTrend.mtdConversionsYoyPercent)} title="Google Ads month-to-date conversions compared with the same dates last year." />
             </div>
@@ -168,7 +168,12 @@ function ScorePill({ status, label }: { status: ClientPulseScoreStatus; label: s
 }
 
 function DetailPanel({ summary }: { summary: ClientPulseSummary }) {
-  return <aside className="client-pulse-detail-panel"><header className="client-pulse-detail-panel__header"><h2>{summary.client.name}</h2><a className="client-pulse-detail-panel__open" href={`/admin/collections/clients/${summary.client.id}`}>Open client →</a></header><p>{summary.reasons.join(" · ") || "No risk reasons recorded."}</p><div className="client-pulse-detail-panel__scores"><ScorePill status={summary.scores.overall.status} label={summary.scores.overall.label} /><MetricChip label="Target" value={formatPercent(summary.target.progressPercent)} title="Progress against this client's configured primary target." /><MetricChip label="Last" value={summary.lastMeaningfulActivityAt ? formatDate(summary.lastMeaningfulActivityAt) : "Unknown"} title="Most recent meaningful client activity date." /></div><AdsTrendSection trend={summary.adsTrend} budgetPacing={summary.budgetPacing} hasGoogleAds={summary.client.hasGoogleAds} /><OrganicTrendSection trend={summary.organicTrend} /><ClickAnomalySection items={summary.clickAnomalies} /><AutomationPills items={summary.signals.automations} /><SignalSection title="Team actions" items={summary.signals.manualWork} /><SignalSection title="Scheduled tasks" items={summary.signals.scheduledTasks} /><SignalSection title="Recent activity" items={summary.signals.recentActivity} /></aside>;
+  return <aside className="client-pulse-detail-panel"><header className="client-pulse-detail-panel__header"><h2>{summary.client.name}</h2><a className="client-pulse-detail-panel__open" href={`/admin/collections/clients/${summary.client.id}`}>Open client →</a></header><p>{summary.reasons.join(" · ") || "No risk reasons recorded."}</p><div className="client-pulse-detail-panel__scores"><ScorePill status={summary.scores.overall.status} label={summary.scores.overall.label} /><MetricChip label={targetChipLabel(summary)} value={targetDetailValue(summary)} title={targetChipTitle(summary)} /><MetricChip label="Last" value={summary.lastMeaningfulActivityAt ? formatDate(summary.lastMeaningfulActivityAt) : "Unknown"} title="Most recent meaningful client activity date." /></div><WcqAssessmentSection summary={summary} /><AdsTrendSection trend={summary.adsTrend} budgetPacing={summary.budgetPacing} hasGoogleAds={summary.client.hasGoogleAds} /><OrganicTrendSection trend={summary.organicTrend} /><ClickAnomalySection items={summary.clickAnomalies} /><AutomationPills items={summary.signals.automations} /><SignalSection title="Team actions" items={summary.signals.manualWork} /><SignalSection title="Scheduled tasks" items={summary.signals.scheduledTasks} /><SignalSection title="Recent activity" items={summary.signals.recentActivity} /></aside>;
+}
+
+function WcqAssessmentSection({ summary }: { summary: ClientPulseSummary }) {
+  if (summary.target.metric !== "assessments") return null;
+  return <section><h3>WeCanQuit assessments</h3><div className="client-pulse-analytics-grid"><MetricChip label="Completed" value={formatTargetCount(summary)} title="Completed assessments pushed from WeCanQuit." /><MetricChip label="Progress" value={formatPercent(summary.target.progressPercent)} title="Completed assessments divided by the 500 assessment target." /><TrendChip label="MoM" value={summary.wcqAssessments?.momPercent ?? null} title={assessmentMomTitle(summary)} /></div></section>;
 }
 
 function OrganicTrendSection({ trend }: { trend: ClientPulseSummary["organicTrend"] }) {
@@ -257,10 +262,38 @@ function formatPercent(value: number | null): string {
 }
 
 function formatTargetStatus(summary: ClientPulseSummary): string {
+  if (summary.target.metric === "assessments") return formatTargetCount(summary);
   if (summary.target.status === "not_configured" || summary.target.status === "missing_data") return "—";
   if (summary.target.status === "on_track") return "On track";
   if (summary.target.status === "watch") return "Watch";
   return "Behind";
+}
+
+function targetDetailValue(summary: ClientPulseSummary): string {
+  if (summary.target.metric === "assessments") return formatTargetCount(summary);
+  return formatPercent(summary.target.progressPercent);
+}
+
+function targetChipLabel(summary: ClientPulseSummary): string {
+  return summary.target.metric === "assessments" ? "Assessments" : "Target";
+}
+
+function formatTargetCount(summary: ClientPulseSummary): string {
+  const current = summary.target.currentValue;
+  const target = summary.target.value;
+  if (current === null || target === null) return "—";
+  return `${Math.round(current).toLocaleString("en-AU")} / ${Math.round(target).toLocaleString("en-AU")}`;
+}
+
+function targetChipTitle(summary: ClientPulseSummary): string {
+  if (summary.target.metric === "assessments") return `${formatTargetCount(summary)} completed assessments (${formatPercent(summary.target.progressPercent)} of target).`;
+  return "Whether this client is currently achieving their configured Client Pulse target.";
+}
+
+function assessmentMomTitle(summary: ClientPulseSummary): string {
+  const trend = summary.wcqAssessments;
+  if (!trend || trend.currentMonth === null || trend.previousMonth === null) return "Month-on-month assessment trend will appear once there are snapshots across month boundaries.";
+  return `${trend.currentMonth.toLocaleString("en-AU")} assessments this month vs ${trend.previousMonth.toLocaleString("en-AU")} last month.`;
 }
 
 function targetTone(summary: ClientPulseSummary): "good" | "bad" | "neutral" {

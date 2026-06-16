@@ -6,6 +6,7 @@ import {
   calculateOrganicTrend,
   calculateServiceCoverage,
   calculateTargetProgress,
+  calculateWcqAssessmentTrend,
   getClientPulseSummaries,
   groupClientPulseSources,
   type ClientPulseSources,
@@ -25,7 +26,7 @@ const emptySources = (clients: Array<Record<string, unknown>>): ClientPulseSourc
   siteHealthReports: [],
   aiVisibilitySnapshots: [],
   clientPulseHistory: [],
-
+  clientMetricSnapshots: [],
 });
 
 describe("client-pulse", () => {
@@ -70,6 +71,23 @@ describe("client-pulse", () => {
       currentValue: 16,
       progressPercent: 3,
       status: "at_risk",
+    });
+    expect(summaries[0]?.wcqAssessments).toMatchObject({ current: 16, target: 500 });
+  });
+
+  it("calculates WeCanQuit assessment month-on-month trend from cumulative snapshots", () => {
+    const target = calculateTargetProgress({ metric: "assessments", value: 500 }, { assessments: 30 });
+
+    expect(calculateWcqAssessmentTrend([
+      { client: 7, source: "website-we-can-quit", date: "2026-06-15", assessmentsCompleted: 30 },
+      { client: 7, source: "website-we-can-quit", date: "2026-05-31", assessmentsCompleted: 20 },
+      { client: 7, source: "website-we-can-quit", date: "2026-04-30", assessmentsCompleted: 15 },
+    ], target, new Date("2026-06-16T00:00:00.000Z"))).toMatchObject({
+      current: 30,
+      target: 500,
+      currentMonth: 10,
+      previousMonth: 5,
+      momPercent: 100,
     });
   });
 
@@ -222,6 +240,7 @@ describe("client-pulse", () => {
         if (args.collection === "client-value-ledger-items") return { docs: [{ id: 20, client: 2, occurredAt: "2026-06-01", title: "SEO work", category: "seo" }, { id: 21, client: 1, occurredAt: "2026-06-01", title: "Paid search work", category: "paid_media" }] };
         if (args.collection === "google-ads-snapshots") return { docs: [{ id: 30, client: 1, capturedAt: "2026-06-01", dateRangeLabel: "MTD_2026-06", rows: [{ conversions: 12, costMicros: 120000000 }] }] };
         if (args.collection === "client-pulse-history") return { docs: [{ id: 40, client: 1, date: "2026-06-08", score: 60, status: "watch" }] };
+        if (args.collection === "client-metric-snapshots") return { docs: [] };
         return { docs: [] };
       },
     };
@@ -234,7 +253,7 @@ describe("client-pulse", () => {
       and: [{ isActive: { not_equals: false } }, { "clientPulse.enabled": { equals: true } }],
     });
     expect(summaries[0]?.scoreHistory.map((point) => point.date)).toEqual(["2026-06-08", "2026-06-09"]);
-    expect(calls.filter((collection) => collection !== "clients")).toHaveLength(12);
-    expect(new Set(calls)).toEqual(new Set(["clients", "scheduled-agent-tasks", "goal-runs", "activity-log", "client-value-ledger-items", "client-processes", "quarterly-organic-growth-snapshots", "gsc-snapshots", "google-ads-snapshots", "google-ads-audits", "site-health-reports", "ai-visibility-snapshots", "client-pulse-history"]));
+    expect(calls.filter((collection) => collection !== "clients")).toHaveLength(13);
+    expect(new Set(calls)).toEqual(new Set(["clients", "scheduled-agent-tasks", "goal-runs", "activity-log", "client-value-ledger-items", "client-processes", "quarterly-organic-growth-snapshots", "gsc-snapshots", "google-ads-snapshots", "google-ads-audits", "site-health-reports", "ai-visibility-snapshots", "client-pulse-history", "client-metric-snapshots"]));
   });
 });
